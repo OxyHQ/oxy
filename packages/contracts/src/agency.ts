@@ -51,6 +51,25 @@ export const actorRefSchema = z.discriminatedUnion('type', [
     }).strict(),
 ]);
 
+/** Present requester only; standing grants/automation retain actorRefSchema. */
+export const executionActorRefSchema = z.discriminatedUnion('type', [
+    ...actorRefSchema.options,
+    z.object({ type: z.literal('requester'), accountId: identifierSchema }).strict(),
+]);
+
+/** Separate bearer lives only in the SDK option / authority request body. */
+export const foregroundExecutionAuthorizationInputSchema = z.object({
+    tool: z.enum(['recommendProfiles', 'readViewerGraph']),
+    expectedCatalog: z.object({
+        registrationId: identifierSchema,
+        version: identifierSchema,
+        digest: sha256HexSchema,
+    }).strict(),
+    runId: identifierSchema,
+    stepId: identifierSchema.optional(),
+    expiresAt: z.string().datetime(),
+}).strict();
+
 export const resourceRefSchema = z.object({
     appId: identifierSchema,
     effectiveAccountId: identifierSchema,
@@ -93,6 +112,14 @@ export const executionAuthorizationRefSchema = z.discriminatedUnion('kind', [
 export const capabilityCoordinatorSchema = z.object({
     applicationId: identifierSchema,
     credentialId: identifierSchema,
+}).strict();
+
+/** Opt-in catalogue pin; legacy issuance omits expectedCatalog and its claim. */
+export const capabilityTicketRequestSchema = z.object({
+    executionAuthorizationId: z.string().min(1),
+    runId: z.string().min(1).optional(),
+    stepId: z.string().min(1).optional(),
+    expectedCatalog: capabilityCatalogBindingSchema.optional(),
 }).strict();
 
 export const delegationGrantSchema = z.object({
@@ -166,17 +193,19 @@ export const capabilityTicketClaimsSchema = z.object({
     automationId: identifierSchema.optional(),
     executionAuthorization: executionAuthorizationRefSchema,
     coordinator: capabilityCoordinatorSchema,
+    /** Signed only for callers that explicitly requested a pinned catalogue. */
+    catalog: capabilityCatalogBindingSchema.optional(),
     grantId: identifierSchema.optional(),
     requesterAccountId: identifierSchema,
     ownerAccountId: identifierSchema,
-    actor: actorRefSchema,
+    actor: executionActorRefSchema,
     resource: resourceRefSchema,
     tool: identifierSchema,
     capabilities: z.array(identifierSchema).min(1),
     limits: z.array(grantLimitSchema).default([]),
     autonomy: autonomyLevelSchema,
 }).strict().superRefine((claims, context) => {
-    const expectedSubject = claims.actor.type === 'agent'
+    const expectedSubject = claims.actor.type !== 'alia'
         ? claims.actor.accountId
         : `alia:${claims.actor.ownerAccountId}`;
     if (claims.sub !== expectedSubject) {
@@ -192,6 +221,16 @@ export const capabilityTicketClaimsSchema = z.object({
             message: 'Alia actor owner must match ownerAccountId',
             path: ['actor', 'ownerAccountId'],
         });
+    }
+    if (claims.actor.type === 'requester' && (
+        claims.actor.accountId !== claims.requesterAccountId
+        || claims.executionAuthorization.kind !== 'direct_request'
+        || claims.autonomy !== 'read_only'
+        || claims.grantId !== undefined
+        || claims.automationId !== undefined
+    )) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ['actor'],
+            message: 'requester actors require their exact principal and direct read-only authority without standing grants' });
     }
     if (claims.exp <= claims.iat) {
         context.addIssue({
@@ -226,6 +265,27 @@ export const capabilityTicketClaimsSchema = z.object({
     }
 });
 
+/** Structural projections only: an authenticated transport must produce these. */
+export const invocationPrincipalSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('oauth'),
+        subject: identifierSchema,
+        clientId: identifierSchema,
+        originAccountId: identifierSchema,
+        activeAccountId: identifierSchema,
+        scopes: z.array(identifierSchema),
+        resource: z.string().url(),
+    }).strict(),
+    z.object({
+        kind: z.literal('capability'),
+        claims: capabilityTicketClaimsSchema.refine((claims) => claims.catalog !== undefined, {
+            message: 'internal MCP requires a signed catalogue binding',
+        }),
+    }).strict(),
+]);
+
+export type InvocationPrincipal = z.infer<typeof invocationPrincipalSchema>;
+
 export const policyDecisionSchema = z.object({
     allowed: z.boolean(),
     reason: identifierSchema,
@@ -243,7 +303,7 @@ export const auditEventSchema = z.object({
     occurredAt: z.string().datetime(),
     requesterAccountId: identifierSchema,
     coordinator: capabilityCoordinatorSchema,
-    executor: actorRefSchema,
+    executor: executionActorRefSchema,
     effectiveAccountId: identifierSchema,
     resource: resourceRefSchema,
     appId: identifierSchema,
@@ -530,6 +590,8 @@ export const normalizedAppEventSchema = z.object({
 
 export type AutonomyLevel = z.infer<typeof autonomyLevelSchema>;
 export type CapabilityPackage = z.infer<typeof capabilityPackageSchema>;
+export type ExecutionActorRef = z.infer<typeof executionActorRefSchema>;
+export type ForegroundExecutionAuthorizationInput = z.infer<typeof foregroundExecutionAuthorizationInputSchema>;
 export type ActorRef = z.infer<typeof actorRefSchema>;
 export type ResourceRef = z.infer<typeof resourceRefSchema>;
 export type ToolGrantOverride = z.infer<typeof toolGrantOverrideSchema>;
@@ -537,6 +599,7 @@ export type GrantLimit = z.infer<typeof grantLimitSchema>;
 export type CapabilityCatalogBinding = z.infer<typeof capabilityCatalogBindingSchema>;
 export type ExecutionAuthorizationRef = z.infer<typeof executionAuthorizationRefSchema>;
 export type CapabilityCoordinator = z.infer<typeof capabilityCoordinatorSchema>;
+export type CapabilityTicketRequest = z.infer<typeof capabilityTicketRequestSchema>;
 export type DelegationGrant = z.infer<typeof delegationGrantSchema>;
 export type AutomationTrigger = z.infer<typeof automationTriggerSchema>;
 export type AutomationActorSelection = z.infer<typeof automationActorSelectionSchema>;

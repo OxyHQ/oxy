@@ -1,0 +1,180 @@
+$ jest --passWithNoTests --runInBand
+FAIL src/server/__tests__/authRefusalObservability.test.ts
+  ● optional auth records why a presented credential was refused › an expired service token
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "TOKEN_EXPIRED",
+    +   "code": "INVALID_SERVICE_TOKEN_CLAIMS",
+        "optional": true,
+        "stage": "service-token",
+        "status": 401,
+      }
+
+      249 |
+      250 |     const recorded = getOxyAuthRefusal(request as never);
+    > 251 |     expect(recorded).toMatchObject({
+          |                      ^
+      252 |       code: expected.code,
+      253 |       stage: expected.stage,
+      254 |       status: expected.status,
+
+      at src/server/__tests__/authRefusalObservability.test.ts:251:22
+
+  ● optional auth records why a presented credential was refused › an audience this verifier does not answer for
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /audience/i
+    Received string:  "ServiceTokenClaimError: Service token lifetime must be positive and at most 300 seconds"
+
+      255 |       optional: true,
+      256 |     });
+    > 257 |     expect(recorded?.reason).toMatch(expected.reason);
+          |                              ^
+      258 |     expect(refused).toEqual([recorded]);
+      259 |
+      260 |     const warned = refusalWarnings();
+
+      at src/server/__tests__/authRefusalObservability.test.ts:257:30
+
+  ● optional auth records why a presented credential was refused › an issuer this verifier does not trust
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /issuer/i
+    Received string:  "ServiceTokenClaimError: Service token lifetime must be positive and at most 300 seconds"
+
+      255 |       optional: true,
+      256 |     });
+    > 257 |     expect(recorded?.reason).toMatch(expected.reason);
+          |                              ^
+      258 |     expect(refused).toEqual([recorded]);
+      259 |
+      260 |     const warned = refusalWarnings();
+
+      at src/server/__tests__/authRefusalObservability.test.ts:257:30
+
+  ● optional auth records why a presented credential was refused › a service token missing a required claim
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "INVALID_SERVICE_TOKEN",
+    +   "code": "INVALID_SERVICE_TOKEN_CLAIMS",
+        "optional": true,
+        "stage": "service-token",
+        "status": 401,
+      }
+
+      249 |
+      250 |     const recorded = getOxyAuthRefusal(request as never);
+    > 251 |     expect(recorded).toMatchObject({
+          |                      ^
+      252 |       code: expected.code,
+      253 |       stage: expected.stage,
+      254 |       status: expected.status,
+
+      at src/server/__tests__/authRefusalObservability.test.ts:251:22
+
+
+Summary of all failing tests
+FAIL src/server/__tests__/authRefusalObservability.test.ts
+  ● optional auth records why a presented credential was refused › an expired service token
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "TOKEN_EXPIRED",
+    +   "code": "INVALID_SERVICE_TOKEN_CLAIMS",
+        "optional": true,
+        "stage": "service-token",
+        "status": 401,
+      }
+
+      249 |
+      250 |     const recorded = getOxyAuthRefusal(request as never);
+    > 251 |     expect(recorded).toMatchObject({
+          |                      ^
+      252 |       code: expected.code,
+      253 |       stage: expected.stage,
+      254 |       status: expected.status,
+
+      at src/server/__tests__/authRefusalObservability.test.ts:251:22
+
+  ● optional auth records why a presented credential was refused › an audience this verifier does not answer for
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /audience/i
+    Received string:  "ServiceTokenClaimError: Service token lifetime must be positive and at most 300 seconds"
+
+      255 |       optional: true,
+      256 |     });
+    > 257 |     expect(recorded?.reason).toMatch(expected.reason);
+          |                              ^
+      258 |     expect(refused).toEqual([recorded]);
+      259 |
+      260 |     const warned = refusalWarnings();
+
+      at src/server/__tests__/authRefusalObservability.test.ts:257:30
+
+  ● optional auth records why a presented credential was refused › an issuer this verifier does not trust
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /issuer/i
+    Received string:  "ServiceTokenClaimError: Service token lifetime must be positive and at most 300 seconds"
+
+      255 |       optional: true,
+      256 |     });
+    > 257 |     expect(recorded?.reason).toMatch(expected.reason);
+          |                              ^
+      258 |     expect(refused).toEqual([recorded]);
+      259 |
+      260 |     const warned = refusalWarnings();
+
+      at src/server/__tests__/authRefusalObservability.test.ts:257:30
+
+  ● optional auth records why a presented credential was refused › a service token missing a required claim
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "code": "INVALID_SERVICE_TOKEN",
+    +   "code": "INVALID_SERVICE_TOKEN_CLAIMS",
+        "optional": true,
+        "stage": "service-token",
+        "status": 401,
+      }
+
+      249 |
+      250 |     const recorded = getOxyAuthRefusal(request as never);
+    > 251 |     expect(recorded).toMatchObject({
+          |                      ^
+      252 |       code: expected.code,
+      253 |       stage: expected.stage,
+      254 |       status: expected.status,
+
+      at src/server/__tests__/authRefusalObservability.test.ts:251:22
+
+
+Test Suites: 1 failed, 173 passed, 174 total
+Tests:       4 failed, 2139 passed, 2143 total
+Snapshots:   0 total
+Time:        35.365 s
+Ran all test suites.
+error: script "test" exited with code 1

@@ -1,0 +1,89 @@
+{
+  "sourceHead": "c5d73a52f16e93352483f9011232753607359fee",
+  "sources": [
+    {
+      "file": "packages/api/src/services/session.service.ts",
+      "upstream": "b20df22a82d930525c2e29c3a18ee2215d5bb00b",
+      "sha256": "20d542fa74f1b69e41b530fd9140db4c5709c6f097955a26582b433ea1781dac"
+    },
+    {
+      "file": "packages/api/src/scripts/oldIssuerAuthRetirement.ts",
+      "upstream": "b20df22a82d930525c2e29c3a18ee2215d5bb00b",
+      "sha256": "2e3d0e7b991d44ec8403d0a499fa9f81d2c5376b3839a997170d0aa771c0214a"
+    },
+    {
+      "file": "scripts/auth/tests/old-issuer-auth-compiled.mjs",
+      "upstream": "b20df22a82d930525c2e29c3a18ee2215d5bb00b",
+      "sha256": "cf6e6bb648733276b5eebc342686d4f2bedd94d417427e3f1f77ee8e73dfc302"
+    },
+    {
+      "file": "scripts/agency/oxy-profile-registrar-preflight-ecs.py",
+      "upstream": "5ba697dd5e213b5239cacd407b6aae427c1a4d51",
+      "sha256": "881cdf42e575e6bf3b0164ea4765ffadfb2277fc647e365293f89e10495375d0"
+    },
+    {
+      "file": "scripts/agency/read-oxy-profile-registrar-preflight.mjs",
+      "upstream": "5ba697dd5e213b5239cacd407b6aae427c1a4d51",
+      "sha256": "b80d861e1e4be8ceca099c5c6337d3255a1766f1e837f831791f8546b543c8a9"
+    },
+    {
+      "file": "scripts/agency/test-oxy-profile-registrar-preflight.py",
+      "upstream": "5ba697dd5e213b5239cacd407b6aae427c1a4d51",
+      "sha256": "6e8769f69ffd4cada9502fbe738b4b1a09c7a6b51e1f52058fb387cb33caa673"
+    },
+    {
+      "file": "packages/api/src/scripts/foregroundPilotConfiguration.ts",
+      "upstream": "76e686af0e62b14a5d2f30fa14f0c953a902bc4d",
+      "sha256": "42ac6c78d5cdd1fc5454cb5d2da835aa9f2d140c280021e75727ff313a1d03ba"
+    }
+  ],
+  "records": [
+    {
+      "file": "initial-harness.log",
+      "sha256": "63055ab8b0351a4568846c889ff80607d7bb99ba57a3ae7c0b8055b6d1687344"
+    },
+    {
+      "file": "initial-node-failure.txt",
+      "sha256": "6a065863be7eced26ccf2bb877b28b712c27a9fce6a7d642c8cb282becf33805"
+    },
+    {
+      "file": "green-harness.log",
+      "sha256": "87e2e76e3cf94fce629e9b1ccd47c2dbbfe13fcb37a24e5759b34946e5c0cee6"
+    },
+    {
+      "file": "green-api.txt",
+      "sha256": "b6289b1806aa929bf054df836c0bc0a4775b981a4427477b69bd9189d24bfac1"
+    },
+    {
+      "file": "green-node.txt",
+      "sha256": "f06f897d816b747130dca5765c18148dca73c4def23ba496dbff8c6a19d426b6"
+    },
+    {
+      "file": "migrate-fresh.txt",
+      "sha256": "f97daaac795607aeb03ecf7954a43b1111d58bf416f5b2fbed070f1dcf2ffcc3"
+    },
+    {
+      "file": "migrate-repeat.txt",
+      "sha256": "be6768f087085c506ef20ac80b75f4d10c10dcef9a82fa9f3b67bdc1e333d9d8"
+    },
+    {
+      "file": "api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    }
+  ],
+  "results": {
+    "apiBuildExit": 0,
+    "authRetirementSql": 17,
+    "compiledNodeExit": 0,
+    "migrationFresh": 142,
+    "migrationRepeat": "unchanged",
+    "ownedPid": 3945054,
+    "ownedPidStopped": true
+  },
+  "initialFailure": "Compiled Node ran before dependency/API build finished; exact missing-dist failure retained, rerun after build passed. No runtime fix or relaxed test.",
+  "limits": [
+    "No production auth retirement or CAS apply",
+    "Upstream administrator73/76 proof remains attributed to upstream; final CI pending",
+    "No Android or registry acceptance"
+  ]
+}

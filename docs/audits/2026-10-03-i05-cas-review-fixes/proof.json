@@ -1,0 +1,138 @@
+{
+  "sourceHead": "76e686af0e62b14a5d2f30fa14f0c953a902bc4d",
+  "baselineHead": "68ba56deef769a9df9b96fb7f3ea290b5bea743d",
+  "sourceSha256": {
+    "packages/api/src/scripts/foregroundPilotConfiguration.ts": "42ac6c78d5cdd1fc5454cb5d2da835aa9f2d140c280021e75727ff313a1d03ba",
+    "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts": "e89910d779f184daa95b9e19a1bdcba053d5b99d97862062f740104c3f04d5f8",
+    "packages/api/src/scripts/foregroundPilotExecutor.ts": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+    "packages/api/src/scripts/foregroundPilotHttps.ts": "5d7478f43752e5026d028f74394c180d4e17c7113b08ad50b5db0d739c74fcbb",
+    "packages/api/src/scripts/seedOxyApplicationsPlan.ts": "240cb3c3ba5f3fb38e5c63ae7abf4017009ea9e089300734b3ec2740c2123f21",
+    "packages/api/src/scripts/seedOxyApplicationsSpecs.ts": "4223d6275cdd98f45af9f256b0ea473e007caad0e2adb79ab0a26c7768aaecf2",
+    "packages/api/src/services/workloadIdentityBinding.service.ts": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb",
+    "packages/api/src/services/applicationCredentialAudit.service.ts": "66afb8ad59123ccfa75ef33404df2dbe42a74939e08fd3cc5aa6dcc4d7305996",
+    "scripts/rehearsal/test-i05-foreground-configuration.py": "b8de4f86f0d3fa87b14046e5c903bc2320737ed0c323dbf8cc97933230031595",
+    "scripts/agency/foreground-pilot-ecs.py": "b9fc5d2649c2875c5745ea94fcf5edf2ea17c614d856df78a9570eb235839e8d",
+    "scripts/agency/tests/test_foreground_pilot_transport.py": "3df0d5f61d63b856f4419b26356e45cfdd967c6b5582cf5da37de6b0b7058e96",
+    "scripts/agency/tests/foreground-pilot-compiled.mjs": "c7cfeaf8a192675ba66c7ce9d344b850070b6e160f0e40d9e4915832f53aae17",
+    "scripts/agency/oxy-profile-registrar-preflight-ecs.py": "881cdf42e575e6bf3b0164ea4765ffadfb2277fc647e365293f89e10495375d0",
+    "scripts/agency/read-oxy-profile-registrar-preflight.mjs": "b80d861e1e4be8ceca099c5c6337d3255a1766f1e837f831791f8546b543c8a9",
+    "scripts/agency/test-oxy-profile-registrar-preflight.py": "6e8769f69ffd4cada9502fbe738b4b1a09c7a6b51e1f52058fb387cb33caa673",
+    "docs/architecture/i05-foreground-pilot/cas-plan.md": "b51323da53c76101b1cd9e3ad005cf35262ff32cc1c1b6e314921709c44cb5d8"
+  },
+  "records": {
+    "docs/audits/2026-10-03-i05-cas-review-fixes/api-types.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/baseline-restoration.json": {
+      "sha256": "420e1b9afc25521ad802d1427434a2a18c76471bd165e0eba86e6d68e18374ca",
+      "bytes": 362
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/biome.txt": {
+      "sha256": "4c483b1ac160082a6c6a917381e82511d512ec00b152656ec5727c87673e260e",
+      "bytes": 43
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/clean-checkout.json": {
+      "sha256": "4ce8435c15bdaade268acca0777f03d6ab14e1b53de1b687b334a0ae8f683896",
+      "bytes": 776
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/clean-frozen-install.txt": {
+      "sha256": "83ee5b7ab532285d07208c1d0f6915966382eee2c5c80590ebe00350874e40fc",
+      "bytes": 785
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/clean-help.txt": {
+      "sha256": "24878ed9466a1dc4ec0a4bcbecc5ae9016dd262457be673fc6571c1177d0a6f5",
+      "bytes": 477
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/clean-helper-12.txt": {
+      "sha256": "88329e5ba94c14814a810008d95a828e0024c93c4ca2b5c2d8eb5272aecfa95e",
+      "bytes": 1489
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/clean-offline-11.txt": {
+      "sha256": "57256a13cfbd13539b3f6c3a9bd6c4cd9c1a8f25a390d6295b563a1d8a31853d",
+      "bytes": 110
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/compiled-inputs.json": {
+      "sha256": "dc5c0d4943fa308cdbfde743f780613f329f004ba4d39ebc65e23fd7b4dde293",
+      "bytes": 501
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/emit-final.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/green-compiled-node.txt": {
+      "sha256": "d9902633ba0cb14fb83f669dcda9a46c04f892afbb4c33cb5441a240fa33ca73",
+      "bytes": 395
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/green-coordinator.txt": {
+      "sha256": "5bc7e5b28be24d3c182c1c5bffc17a1a36c12ed235df4c61a285aaf4f76e20f2",
+      "bytes": 2101
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/green-sql.txt": {
+      "sha256": "07748cb18e658d00a49df0ef3ecd37d3dd77692cf8183c76cd7802ab223d414e",
+      "bytes": 1019
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/migration-fresh.txt": {
+      "sha256": "74a3c239ced62a92853539eca2af591887d33e57ac4e2e922dac59e9ae6800de",
+      "bytes": 8875
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/migration-repeat.txt": {
+      "sha256": "097efaffa7bf541275d87591d759a695a2d364a10a4f3e437777d202dcda93d8",
+      "bytes": 173
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/missing-helper-help.txt": {
+      "sha256": "382a7f8b5f1e0c2ea2a9cb7af5eb55c2dc2d12384c65d8828079f8b726b7650c",
+      "bytes": 620
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/missing-helper-offline.txt": {
+      "sha256": "7e9a39585b5de1e0870eb4f66c6ebfd71a1bc22bb3a82619829454f6a74143f7",
+      "bytes": 1083
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/red-coordinator.txt": {
+      "sha256": "c35c513786a047c12b9bd78716b7dea45e1de2ab53e228744debde943aa604b4",
+      "bytes": 2925
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/red-sql.txt": {
+      "sha256": "20fd8e974050b889b4074c711114e5411d93f89c19a9caa98820249c0483e8a7",
+      "bytes": 3820
+    },
+    "docs/audits/2026-10-03-i05-cas-review-fixes/scripts-types.txt": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    }
+  },
+  "final": {
+    "sqlSuites": 4,
+    "sqlTests": 76,
+    "compiledNodeChecks": 3,
+    "cleanTransportFixtures": 11,
+    "cleanHelperFixtures": 12,
+    "migrations": 142,
+    "repeat": "no-op",
+    "apiTypes": 0,
+    "scriptsTypes": 0,
+    "scopedBiomeFiles": 2,
+    "scopedBiomeExitCode": 0
+  },
+  "red": {
+    "failed": 3,
+    "passed": 73,
+    "fixtureSha256": "e89910d779f184daa95b9e19a1bdcba053d5b99d97862062f740104c3f04d5f8",
+    "runtimeReplacedWithExactBaseline": true,
+    "restoredSha256": "42ac6c78d5cdd1fc5454cb5d2da835aa9f2d140c280021e75727ff313a1d03ba"
+  },
+  "ownedPostgresStopped": [
+    3920910,
+    3923480,
+    3924896,
+    3928013
+  ],
+  "limitations": [
+    "No AWS dispatch or authority apply/rollback live",
+    "SQL fixture changes do not establish live deployment or provider effects",
+    "Compiled Node initial stale output was discarded; only final emitted runtime is attributed to76e",
+    "Helper12 requires installed dependencies; initial missing-node_modules attempt is not a product failure",
+    "No broader credential baseline is accepted: only the reviewed two inert workload rows",
+    "No DDL, token changes, IAM changes, offline/user grants or package publication"
+  ]
+}

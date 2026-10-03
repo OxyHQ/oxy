@@ -1,0 +1,196 @@
+{
+  "oldSource": "67c09e853db308d102624a2ffd40db19959344f4",
+  "finalSource": "122b66a4042b6c63107f96c467cc56e2e25a2bd6",
+  "directory": "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-7iz1tqnt",
+  "productionAccess": false,
+  "postgresPid": 3829903,
+  "postgresData": "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-7iz1tqnt/pg",
+  "database": "oxy_rollback_d02a42dacbec66cb",
+  "port": 5599,
+  "redis": {
+    "pid": 3829917,
+    "port": 5598,
+    "persistence": false
+  },
+  "migrate-fresh.log": {
+    "exitCode": 0,
+    "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+  },
+  "migrate-repeat.log": {
+    "exitCode": 0,
+    "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+  },
+  "seed.log": {
+    "exitCode": 0,
+    "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625"
+  },
+  "preservedBefore": {
+    "billing_credit_invoices": {
+      "rows": 1,
+      "sha256": "e5ad783dc121e342294e63b5821c3c83c1a28c975b254ecae1767b7df835b0ed"
+    },
+    "billing_credit_grants": {
+      "rows": 1,
+      "sha256": "c888c4b7ca970f4d7eee6ef1db618e896715bfa3c5633f2cd90f22122af6b09c"
+    },
+    "billing_credit_spends": {
+      "rows": 1,
+      "sha256": "1494fcd31fd00f8e41df5a05c537591a501348bcf0cf664c0225c54e72db59f7"
+    },
+    "billing_credit_consumptions": {
+      "rows": 1,
+      "sha256": "5d691232e7a8cd502dd7e288c490cb764265925e1b4ce468bace3bc96f92d532"
+    },
+    "billing_credit_refund_observations": {
+      "rows": 1,
+      "sha256": "a3b73f5beb7afcd95ab6568ccf9e60468a99a732cd625173c8eb7ce78b989ae2"
+    },
+    "billing_transactions": {
+      "rows": 1,
+      "sha256": "74971dfdbf3eb1cbf23c4c4cdc107872149aa1c732a1c8be2b5e2a1fae8aa600"
+    },
+    "user_credits": {
+      "rows": 1,
+      "sha256": "9bdc6cbd288ed7aa92be7b6adebd6cc3ad3beebb08bc380132ba0446fa5b7eee"
+    },
+    "access_provider_periods": {
+      "rows": 1,
+      "sha256": "1300bdc42537015077d3d512280c715462558181f16e1b8fb66fa8e52d6f4a64"
+    },
+    "access_provider_events": {
+      "rows": 1,
+      "sha256": "38b06786112ab33a6b5080dea4d4d2c6854665b202b3e34acf0b89725e507793"
+    },
+    "access_subscription_sources": {
+      "rows": 1,
+      "sha256": "6ea7dc538fbc2d4440a43e895d2c7edce341f58af01d4dfd5327ef4cad21ee16"
+    },
+    "access_offer_segments": {
+      "rows": 1,
+      "sha256": "162977ee2006cf7ad09529cbd7a1e669ceb3a29a45c3a37df8eb251636d099aa"
+    },
+    "access_grants": {
+      "rows": 2,
+      "sha256": "8c7034ed3181abeba7b324ed5fcf7a58857e8fbf61b320720f2e3fc549e19015"
+    },
+    "inference_provider_cost_attempts": {
+      "rows": 1,
+      "sha256": "e9632031268fdfaf7310c3fb9cc3c3fcc8f3d2382e1dbc0f5c4afebee7a5567b"
+    },
+    "inference_provider_cost_feed_cursors": {
+      "rows": 1,
+      "sha256": "911e0e05679e28700e389f6686a55863661fc1cc673e943304284f62f9d35094"
+    }
+  },
+  "old": {
+    "pid": 3830052,
+    "executable": "/home/nate/.bun/bin/bun",
+    "source": "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-runtime-20261003",
+    "port": 17974
+  },
+  "final": {
+    "pid": 3830078,
+    "executable": "/home/nate/.bun/bin/bun",
+    "source": "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003",
+    "port": 17975
+  },
+  "http-sql-probe.log": {
+    "exitCode": 0,
+    "sha256": "d9b7f0084a40e179df9ee7b7d28b4b61962bd8f404294fd1c0f4466287f2cfdb"
+  },
+  "old-cold": {
+    "pid": 3830157,
+    "executable": "/home/nate/.bun/bin/bun",
+    "source": "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-runtime-20261003",
+    "port": 17974
+  },
+  "cold-stop-control.log": {
+    "exitCode": 0,
+    "sha256": "54c5a4dc3a805b2bde7e46cabcdf32eb266a8fdb9cd1989fdcf913f2db30fb31"
+  },
+  "preservedAfter": {
+    "billing_credit_invoices": {
+      "rows": 1,
+      "sha256": "e5ad783dc121e342294e63b5821c3c83c1a28c975b254ecae1767b7df835b0ed"
+    },
+    "billing_credit_grants": {
+      "rows": 1,
+      "sha256": "c888c4b7ca970f4d7eee6ef1db618e896715bfa3c5633f2cd90f22122af6b09c"
+    },
+    "billing_credit_spends": {
+      "rows": 1,
+      "sha256": "1494fcd31fd00f8e41df5a05c537591a501348bcf0cf664c0225c54e72db59f7"
+    },
+    "billing_credit_consumptions": {
+      "rows": 1,
+      "sha256": "5d691232e7a8cd502dd7e288c490cb764265925e1b4ce468bace3bc96f92d532"
+    },
+    "billing_credit_refund_observations": {
+      "rows": 1,
+      "sha256": "a3b73f5beb7afcd95ab6568ccf9e60468a99a732cd625173c8eb7ce78b989ae2"
+    },
+    "billing_transactions": {
+      "rows": 1,
+      "sha256": "74971dfdbf3eb1cbf23c4c4cdc107872149aa1c732a1c8be2b5e2a1fae8aa600"
+    },
+    "user_credits": {
+      "rows": 1,
+      "sha256": "9bdc6cbd288ed7aa92be7b6adebd6cc3ad3beebb08bc380132ba0446fa5b7eee"
+    },
+    "access_provider_periods": {
+      "rows": 1,
+      "sha256": "1300bdc42537015077d3d512280c715462558181f16e1b8fb66fa8e52d6f4a64"
+    },
+    "access_provider_events": {
+      "rows": 1,
+      "sha256": "38b06786112ab33a6b5080dea4d4d2c6854665b202b3e34acf0b89725e507793"
+    },
+    "access_subscription_sources": {
+      "rows": 1,
+      "sha256": "6ea7dc538fbc2d4440a43e895d2c7edce341f58af01d4dfd5327ef4cad21ee16"
+    },
+    "access_offer_segments": {
+      "rows": 1,
+      "sha256": "162977ee2006cf7ad09529cbd7a1e669ceb3a29a45c3a37df8eb251636d099aa"
+    },
+    "access_grants": {
+      "rows": 2,
+      "sha256": "8c7034ed3181abeba7b324ed5fcf7a58857e8fbf61b320720f2e3fc549e19015"
+    },
+    "inference_provider_cost_attempts": {
+      "rows": 1,
+      "sha256": "e9632031268fdfaf7310c3fb9cc3c3fcc8f3d2382e1dbc0f5c4afebee7a5567b"
+    },
+    "inference_provider_cost_feed_cursors": {
+      "rows": 1,
+      "sha256": "911e0e05679e28700e389f6686a55863661fc1cc673e943304284f62f9d35094"
+    }
+  },
+  "externalAttempts": 0,
+  "probePassed": true,
+  "processCleanup": [
+    {
+      "pid": 3830157,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3830078,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3830052,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3829917,
+      "exitCode": 0,
+      "stopped": true
+    }
+  ],
+  "databaseAbsent": true,
+  "postgresStopped": true,
+  "cleanupErrors": []
+}

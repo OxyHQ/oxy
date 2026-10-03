@@ -1,0 +1,22 @@
+{
+  "packages/api/dist/scripts/oldIssuerAuthRetirement.js": {
+    "sha256": "045b35d69cb794c7a372f31f5eaf480760457511a18adc4b4642b1f7446fcd7a",
+    "bytes": 18217
+  },
+  "packages/api/dist/services/session.service.js": {
+    "sha256": "9120d91cf923e30e92949b480d8336d0b05015a131e8af1d25edf8a5cfcb0954",
+    "bytes": 73240
+  },
+  "packages/api/dist/config/postgres.js": {
+    "sha256": "d71c6f13be5ef0c6c9aa9d7b9878a1488dd5a85523755243aaf0972b6480cea2",
+    "bytes": 9080
+  },
+  "packages/api/dist/utils/sessionCache.js": {
+    "sha256": "f4aab7ef813236777c9183ec9fee85c80e41111de266a118f7dcccc390a74942",
+    "bytes": 8264
+  },
+  "packages/api/dist/db/schema/sessions.js": {
+    "sha256": "15245309bc11548e27789463d6deaa6840c2788d421c48fd3f312231e9454bdf",
+    "bytes": 13021
+  }
+}

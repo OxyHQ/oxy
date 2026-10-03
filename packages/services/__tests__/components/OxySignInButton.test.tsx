@@ -36,6 +36,7 @@ const makeApp = (over: Partial<PublicApplication>): PublicApplication => ({
   ...over,
 });
 
+const startNativeOAuthSignIn = jest.fn(async () => ({ status: 'signed-in' }));
 const openAccountDialog = jest.fn();
 const getPublicApplication = jest.fn<Promise<PublicApplication>, [string]>();
 const startWebOAuthSignIn = jest.fn<Promise<WebOAuthSignInResult>, [StartWebOAuthSignInOptions]>();
@@ -48,6 +49,7 @@ const mockRuntime = () => ({
   clientId,
   webAuthMode,
   startWebOAuthSignIn,
+  startNativeOAuthSignIn,
   currentLanguage: 'en-US',
 });
 
@@ -139,7 +141,7 @@ describe('OxySignInButton', () => {
     fireEvent.click(screen.getByRole('button'));
 
     await waitFor(() => expect(openAccountDialog).toHaveBeenCalledWith('signin'));
-    expect(getPublicApplication).toHaveBeenCalledWith('oxy_dk_test');
+    expect(getPublicApplication).toHaveBeenCalledWith('oxy_dk_test', { cache: false });
     expect(redirectToAuthorizeMock).not.toHaveBeenCalled();
     expect(window.sessionStorage.getItem(OXY_OAUTH_STATE_STORAGE_KEY)).toBeNull();
   });
@@ -198,13 +200,14 @@ describe('OxySignInButton', () => {
     warnSpy.mockRestore();
   });
 
-  it('opens the dialog without resolving when there is no clientId', async () => {
+  it('fails closed without resolving when there is no clientId', async () => {
     clientId = null;
 
     render(<OxySignInButton />);
     fireEvent.click(screen.getByRole('button'));
 
-    await waitFor(() => expect(openAccountDialog).toHaveBeenCalledWith('signin'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(openAccountDialog).not.toHaveBeenCalled();
     expect(getPublicApplication).not.toHaveBeenCalled();
   });
 
@@ -264,13 +267,13 @@ describe('OxySignInButton', () => {
 
     const { rerender } = render(<OxySignInButton />);
     fireEvent.click(screen.getByRole('button'));
-    await waitFor(() => expect(getPublicApplication).toHaveBeenCalledWith('oxy_dk_test'));
+    await waitFor(() => expect(getPublicApplication).toHaveBeenCalledWith('oxy_dk_test', { cache: false }));
 
     clientId = 'oxy_dk_other';
     rerender(<OxySignInButton />);
     fireEvent.click(screen.getByRole('button'));
 
-    await waitFor(() => expect(getPublicApplication).toHaveBeenCalledWith('oxy_dk_other'));
+    await waitFor(() => expect(getPublicApplication).toHaveBeenCalledWith('oxy_dk_other', { cache: false }));
     expect(getPublicApplication).toHaveBeenCalledTimes(2);
   });
 
@@ -404,4 +407,26 @@ describe('OxySignInButton', () => {
 
     openSpy.mockRestore();
   });
+});
+
+it('native SDK opt-in delegates once without a manual handshake', async () => {
+ Platform.OS='android'; getPublicApplication.mockResolvedValue(makeApp({type:'third_party'}));
+ render(<OxySignInButton oauthRedirectUri="externalapp://callback" nativeOAuthCompletion="sdk" />);
+ fireEvent.click(screen.getByRole('button'));
+ await waitFor(()=>expect(startNativeOAuthSignIn).toHaveBeenCalledWith({redirectUri:'externalapp://callback'}));
+ expect(openAuthorizeUrlNativeMock).not.toHaveBeenCalled();
+});
+it('SDK and manual native completion together fail before opening', async () => {
+ Platform.OS='android'; getPublicApplication.mockResolvedValue(makeApp({type:'third_party'})); const manual=jest.fn();
+ render(<OxySignInButton oauthRedirectUri="externalapp://callback" nativeOAuthCompletion="sdk" onOAuthResult={manual} />);
+ fireEvent.click(screen.getByRole('button'));
+ await waitFor(()=>expect(toast.error).toHaveBeenCalled());
+ expect(startNativeOAuthSignIn).not.toHaveBeenCalled(); expect(openAuthorizeUrlNativeMock).not.toHaveBeenCalled(); expect(manual).not.toHaveBeenCalled();
+});
+
+it('internal registry metadata follows the same device predicate as boot and native helper', async () => {
+ getPublicApplication.mockResolvedValue(makeApp({type:'third_party',isInternal:true}));
+ render(<OxySignInButton />); fireEvent.click(screen.getByRole('button'));
+ await waitFor(()=>expect(openAccountDialog).toHaveBeenCalledWith('signin'));
+ expect(startWebOAuthSignIn).not.toHaveBeenCalled();
 });

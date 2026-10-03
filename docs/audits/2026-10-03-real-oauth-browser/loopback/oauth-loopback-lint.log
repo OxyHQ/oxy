@@ -1,0 +1,10 @@
+$ eslint lib/oauth-redirect.ts lib/__tests__/oauth-redirect.test.ts
+
+/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/auth/lib/__tests__/oauth-redirect.test.ts
+  0:0  warning  File ignored because no matching configuration was supplied
+
+/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/auth/lib/oauth-redirect.ts
+  0:0  warning  File ignored because no matching configuration was supplied
+
+✖ 2 problems (0 errors, 2 warnings)
+

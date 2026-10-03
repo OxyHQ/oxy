@@ -1,0 +1,6 @@
+$ jest --passWithNoTests --runInBand __tests__/context/coldBoot.test.tsx
+Test Suites: 1 passed, 1 total
+Tests:       30 passed, 30 total
+Snapshots:   0 total
+Time:        2.186 s, estimated 4 s
+Ran all test suites matching __tests__/context/coldBoot.test.tsx.

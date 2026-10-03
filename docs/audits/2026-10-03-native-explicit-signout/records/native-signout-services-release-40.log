@@ -1,0 +1,28 @@
+$ jest --passWithNoTests --runInBand __tests__/context/useAuthOperations.test.tsx src/ui/context/__tests__/commitSessionFlow.test.ts src/ui/context/__tests__/isolatedOAuthSession.test.ts src/ui/session/__tests__/authStore.test.ts
+FAIL __tests__/context/useAuthOperations.test.tsx
+  ● useAuthOperations.logoutAll › does not perform device or local teardown when global revocation fails
+
+    expect(jest.fn()).not.toHaveBeenCalled()
+
+    Expected number of calls: 0
+    Received number of calls: 1
+
+    1: called with 0 arguments
+
+      643 |     expect(helpers.sessionClient.signOut).not.toHaveBeenCalled();
+      644 |     expect(helpers.clearSessionState).not.toHaveBeenCalled();
+    > 645 |     expect(helpers.store.clear).not.toHaveBeenCalled();
+          |                                     ^
+      646 |     expect(helpers.store.setAutomaticIdentitySignInSuppressed).not.toHaveBeenCalled();
+      647 |   });
+      648 |
+
+      at Object.<anonymous> (__tests__/context/useAuthOperations.test.tsx:645:37)
+
+
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       1 failed, 39 passed, 40 total
+Snapshots:   0 total
+Time:        0.908 s, estimated 1 s
+Ran all test suites matching __tests__/context/useAuthOperations.test.tsx|src/ui/context/__tests__/commitSessionFlow.test.ts|src/ui/context/__tests__/isolatedOAuthSession.test.ts|src/ui/session/__tests__/authStore.test.ts.
+error: script "test" exited with code 1

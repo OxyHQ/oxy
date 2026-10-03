@@ -1,0 +1,118 @@
+{
+  "sourceHead": "3104bbf4d8bc99ea230e200826047cc62082f93c",
+  "runtimeCommit": "18b4e095b699e9298d4e12f8268183ab83936855",
+  "redHarnessCommit": "e51a525209f1e79e4ef86028cb5b06d2a2e366ac",
+  "sourceInputs": [
+    {
+      "path": "packages/core/src/api/auth.ts",
+      "sha256": "c6278f5a69ee731755760189be516d5126be590bec119640ed016792452d5a8f"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/completeOAuthCode.ts",
+      "sha256": "e39403688732c63681edcfd6762f6a6a0861aa0552e7650104a9ea80523a873b"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/__tests__/completeOAuthCode.test.ts",
+      "sha256": "4e4f09633757ffeacc6e00834dd29ab1f1c7553702f169c37882a3f22d3c1709"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/__tests__/nativeAuthTransport.test.ts",
+      "sha256": "e535fd28e976acf924d9179ef55b7b4cd60eab9ae08b46e686d21de84ab8bef8"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/__tests__/oauthBearerCommit.http.test.ts",
+      "sha256": "af0c63a89b494fd95832afdbf805ffe7b35e4a633bd6a8a47eb4c14da717af24"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-http-red-frozen.log",
+      "sha256": "c673da37a4a0137fc1f6a3222c6da55301fb84af29fdc7c2b1e8266c9edcfc93",
+      "exitCode": 1,
+      "scope": "2 failures/2 pass; API subject changes to organization despite mismatch outcome"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-http-green-corrected.log",
+      "sha256": "158a1da7e982500c6ef193fda17dbf4e9e18568e6df7e1ccbed9f7067d822f82",
+      "exitCode": 0,
+      "scope": "3 suites/25 pass"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-services-regressions.log",
+      "sha256": "3fa230bcdbf0828e8f5f4ae06560536f7a97dcd55767c9b52869c338c95d1dd1",
+      "exitCode": 0,
+      "scope": "11 suites/124 pass"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-core-regressions.log",
+      "sha256": "a5f524d9067c1e623131e0c6a7aea17feb5a63ee3d4db38d9ebe6bbc41faebec",
+      "exitCode": 0,
+      "scope": "2 suites/16 pass"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-core-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+      "exitCode": 0,
+      "scope": "Core and dependency build"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-services-types.log",
+      "sha256": "ad0b9b328ff5663fbeaf6e65f25524d364ac65201444a04bdd3ae7cd1494bdba",
+      "exitCode": 2,
+      "scope": "Historical stale built Core type: expected 1 argument"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-services-types-corrected.log",
+      "sha256": "7d26c6ecc2d5061aa553334c914743e9b22caa425d5a2dd2173cd61e58e1b1b4",
+      "exitCode": 0,
+      "scope": "Services types after rebuilding Core"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-scoped-lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0,
+      "scope": "Biome lint five changed files"
+    },
+    {
+      "path": "docs/audits/2026-10-03-oauth-subject-bearer/oauth-bearer-http-green.log",
+      "sha256": "83a9024ba1f70ba619eb947a893314c55358ee7bb998473b5678ccd13d5c21e0",
+      "exitCode": 1,
+      "scope": "Historical implementation iteration: option initially attached to logging call; retained failure"
+    }
+  ],
+  "builtCoreInputs": [
+    {
+      "path": "packages/core/dist/cjs/api/auth.js",
+      "sha256": "c33fc420f2b210b1fab325aa6100699478849b0e8abd4daec925638467e0dd88"
+    },
+    {
+      "path": "packages/core/dist/esm/api/auth.js",
+      "sha256": "c63826c8248402bd0c2dbce3c25e0193b243996086a8b952512d9af9c50ae370"
+    },
+    {
+      "path": "packages/core/dist/types/api/auth.d.ts",
+      "sha256": "c34fb62565e5ca0e9312c6f7ba8983457822bb085d51fe602388e58c46346063"
+    }
+  ],
+  "frozenHarnessIdentical": true,
+  "results": {
+    "services": {
+      "suites": 11,
+      "tests": 124
+    },
+    "core": {
+      "suites": 2,
+      "tests": 16
+    },
+    "types": 0,
+    "lint": 0,
+    "build": 0
+  },
+  "limits": [
+    "Real OxyServices/HttpService on owned loopback HTTP; metadata, OAuth token and profile replies are fixture payloads, not the full API/PG/IdP acceptance.",
+    "Only native browser navigation is mocked. No auth exchange mock; no real token/secret or production data.",
+    "Browser full API+PG reproduction and acceptance are separate and not claimed here.",
+    "Legacy exchangeCode defaults to planting. Common provider completion opts out and validated provider commit installs the token.",
+    "No publication or production adoption."
+  ]
+}

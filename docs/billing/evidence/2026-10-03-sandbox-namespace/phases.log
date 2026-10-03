@@ -1,0 +1,5 @@
+(node:3487924) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/nate/Oxy/oxy/.worktrees/1519-billing-sandbox-20261003/packages/db/src/migrate/phases.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/nate/Oxy/oxy/.worktrees/1519-billing-sandbox-20261003/packages/db/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Migration deploy phases are sound: all 140 migration(s) declare a phase (122 pre, 18 post), deploy-aws.yml applies them before its rollout, and its post-rollout grep matches the marker syntax the migrator reads.

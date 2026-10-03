@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand src/session src/boot
+
+Test Suites: 33 passed, 33 total
+Tests:       444 passed, 444 total
+Snapshots:   0 total
+Time:        1.538 s, estimated 2 s
+Ran all test suites matching src/session|src/boot.

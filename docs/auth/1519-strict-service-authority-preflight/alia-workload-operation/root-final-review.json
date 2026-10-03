@@ -1,0 +1,62 @@
+{
+  "reviewedAt": "2026-10-03T15:45:45.538699+00:00",
+  "resultFileSha256": "97025a1089b6b6e266157ca77bfa414320c1077eb7ea11a2763dc9a1674f786d",
+  "canonicalResultSha256": "23debc5e24618d79671b313e09339ba64ae6be2cc42fef18e6daa9f5d74845b3",
+  "operation": {
+    "schemaVersion": 1,
+    "kind": "workload-binding-operation",
+    "profile": "oxy",
+    "readOnly": false,
+    "isolation": "read-only pre/post snapshots; canonical writer",
+    "authorization": "explicit session approval e4051d0d2f1ce7c3ef38eaadebe64e88549e2a5c, not inferred actor identity",
+    "state": "updated",
+    "applicationId": "6a2f851751b784a86fd0e934",
+    "bindingId": "01a0b9b9-4a69-7d3d-a589-7a42b5b89c7d",
+    "subject": "arn:aws:iam::237343248947:role/oxy-alia-task",
+    "oldScopes": [
+      "capabilities:read",
+      "inference:invoke",
+      "user:read",
+      "capability-tickets:issue"
+    ],
+    "newScopes": [
+      "capabilities:read",
+      "inference:invoke",
+      "user:read",
+      "capability-tickets:issue",
+      "acting-as:offline"
+    ],
+    "beforeObservedAt": "2026-10-03 15:44:16.240038+00",
+    "afterObservedAt": "2026-10-03 15:44:16.842783+00",
+    "sourceHashes": {
+      "scripts/bind-workload-identity.ts": "75efbdd0758313b0926ca71ce400b6138270f1b4247171f27a723a6cc77224fa",
+      "src/services/workloadIdentityBinding.service.ts": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb",
+      "src/services/workloadIdentity.service.ts": "b2170ada295bb60476aefd38c7be01457348027b6996b34123c58dde553923ad"
+    },
+    "beforeProjectionSha256": "30d11814220d8610bdc63eb13a81eec3ff9c1df09ac4497652dcf71e8cabb260",
+    "afterProjectionSha256": "533a87a8a9a5716b4fd2cb8fed42776fdb5929b09cc5697a5d587738413d08f8",
+    "grantsUnchanged": true,
+    "applicationAndOwnerUnchanged": true,
+    "otherBindingsUnchanged": true,
+    "externalCas": false,
+    "tables": {}
+  },
+  "task": {
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/a4a65c0a86af40e095e3b43606122566",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-workload-binding-oxy:1",
+    "lastStatus": "STOPPED",
+    "containers": [
+      {
+        "imageDigest": "sha256:4512fc8d29abedf67caa2a77194e6fa351c38ebe2201e57bf320276e105da38a",
+        "exitCode": 0,
+        "name": "inventory"
+      }
+    ]
+  },
+  "taskDefinitionStatus": "INACTIVE",
+  "cleanup": {
+    "taskStopped": true,
+    "definitionInactive": true,
+    "failures": []
+  }
+}

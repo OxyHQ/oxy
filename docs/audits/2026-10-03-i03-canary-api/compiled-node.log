@@ -1,0 +1,2 @@
+{"level":30,"time":1791052743659,"pid":4162090,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+{"kind":"compiled-node-canary","node":"v24.21.0","checks":5,"minimalEnvironment":true,"ownLocalDatabase":true,"rawSecretNotPersisted":true,"providerRequests":0}

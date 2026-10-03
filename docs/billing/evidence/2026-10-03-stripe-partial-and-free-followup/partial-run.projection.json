@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "b8eec26273295e8bdac31d75bda2b667b034b1bc",
+  "planSha256": "3d3a640d17b74b827f3be16f9439048251db36615d58e70c8652631955f52b28",
+  "scope": {
+    "mode": "test",
+    "environment": "test",
+    "maximumSyntheticPaidMinorUnits": 50000,
+    "maximumSubscriptions": 4,
+    "providerSignedDelivery": false
+  },
+  "results": {
+    "passedRunnerCheckpoints": 26,
+    "behaviorGroups": 6,
+    "receiverDeliveryReplayCheckpoints": 19,
+    "operationIdentityCheckpoints": 1,
+    "observedPaidMinorUnits": 16796,
+    "returnedResources": 16,
+    "mutableCleanupSuccess": 14,
+    "mutableCleanupFailures": 0,
+    "retainedTestRefunds": 2,
+    "unresolvedCreationIntents": 1
+  },
+  "checkpoints": [
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "initial combined award and delivery replay",
+      "passed": true
+    },
+    {
+      "name": "spend operation identity",
+      "passed": true
+    },
+    {
+      "name": "canonical tracked FIFO spend replay",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "paid P1 proration and replay",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "partial then 100% cumulative refund, old delivery and unused-only clawback",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "next paid period renewal and old invoice replay",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "local delivery of authenticated test event",
+      "passed": true
+    },
+    {
+      "name": "bundle+individual named cancellation preserves other source, beneficiary and credit balance",
+      "passed": true
+    }
+  ],
+  "primaryError": {
+    "phase": "undeclaredZeroInvoice",
+    "name": "Error",
+    "reason": "unclassified"
+  },
+  "terminal": {
+    "exitCode": 1,
+    "newLocalServerPid": 3592765,
+    "stopped": true,
+    "childForcedStop": false,
+    "lastManagedProcessPid": 3593738,
+    "lastManagedProcessStopped": true,
+    "cleanupRequiresManifestReview": false
+  },
+  "requiredInterpretation": {
+    "cleanupRequiresManifestReview": true,
+    "historicalFlagFalseIsRunnerDefect": true,
+    "failedZeroInvoiceNotAccepted": true
+  },
+  "couponReadback": {
+    "readOnly": true,
+    "accountMatched": true,
+    "couponPages": [
+      {
+        "count": 0,
+        "hasMore": false,
+        "ownMatches": 0
+      }
+    ],
+    "eventPages": [
+      {
+        "count": 0,
+        "hasMore": false,
+        "ownMatches": 0
+      }
+    ],
+    "ownCoupons": [],
+    "ownEvents": [],
+    "errors": []
+  }
+}

@@ -1,0 +1,476 @@
+{
+  "recordedAt": "2026-10-03T13:23:14.122142+00:00",
+  "sourceHead": "c6699b5df504b2ec374b441a89635ce68ddc5c69",
+  "upstreamComparisons": [
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/README.md",
+      "upstream": "f2b859470",
+      "sha256": "b72ddf7f77403a157286c35b07ce163e2cf083d29ee90dfafa769266360eb5a4",
+      "upstreamSha256": "b72ddf7f77403a157286c35b07ce163e2cf083d29ee90dfafa769266360eb5a4",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/built-dependencies.json",
+      "upstream": "f2b859470",
+      "sha256": "9ba33319dce295089f048df08e161d399569eb4473547a0f071d7bf3745d3df6",
+      "upstreamSha256": "9ba33319dce295089f048df08e161d399569eb4473547a0f071d7bf3745d3df6",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/proof.json",
+      "upstream": "f2b859470",
+      "sha256": "aeb1bf006bb47b04b82d9bed1c7dd56d25a4c72c9040ea3fb34bc9fd9d2fc16c",
+      "upstreamSha256": "aeb1bf006bb47b04b82d9bed1c7dd56d25a4c72c9040ea3fb34bc9fd9d2fc16c",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/cold-stop-control.log",
+      "upstream": "f2b859470",
+      "sha256": "54c5a4dc3a805b2bde7e46cabcdf32eb266a8fdb9cd1989fdcf913f2db30fb31",
+      "upstreamSha256": "54c5a4dc3a805b2bde7e46cabcdf32eb266a8fdb9cd1989fdcf913f2db30fb31",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/final-host.log",
+      "upstream": "f2b859470",
+      "sha256": "c883841184b72a92a9c000dc0fdc53a27c43564ba3e873516334c46d5e16b39d",
+      "upstreamSha256": "c883841184b72a92a9c000dc0fdc53a27c43564ba3e873516334c46d5e16b39d",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/final-receipt.json",
+      "upstream": "f2b859470",
+      "sha256": "35d55d9e97f5decabd796a1ce31ab65019c4f64ad5610c4a0ee91544146d1e70",
+      "upstreamSha256": "35d55d9e97f5decabd796a1ce31ab65019c4f64ad5610c4a0ee91544146d1e70",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/http-sql-probe.log",
+      "upstream": "f2b859470",
+      "sha256": "d9b7f0084a40e179df9ee7b7d28b4b61962bd8f404294fd1c0f4466287f2cfdb",
+      "upstreamSha256": "d9b7f0084a40e179df9ee7b7d28b4b61962bd8f404294fd1c0f4466287f2cfdb",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-final-dcd-deps.log",
+      "upstream": "f2b859470",
+      "sha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d",
+      "upstreamSha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-final-dcd-install.log",
+      "upstream": "f2b859470",
+      "sha256": "09a035f19090c777a2e70500c6bcded747bd6d8a5ffe90eb6c8ecec3b00fa337",
+      "upstreamSha256": "09a035f19090c777a2e70500c6bcded747bd6d8a5ffe90eb6c8ecec3b00fa337",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-final-dcd.log",
+      "upstream": "f2b859470",
+      "sha256": "0386e775bdd7db9df895a84850c424307bb9e406d7479eba145e775b3baff77e",
+      "upstreamSha256": "0386e775bdd7db9df895a84850c424307bb9e406d7479eba145e775b3baff77e",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-old-deps.log",
+      "upstream": "f2b859470",
+      "sha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d",
+      "upstreamSha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-old-install.log",
+      "upstream": "f2b859470",
+      "sha256": "84b44793690c2a198843d67b971edf1542eecc1a1874a1394bf8cea28cc7b343",
+      "upstreamSha256": "84b44793690c2a198843d67b971edf1542eecc1a1874a1394bf8cea28cc7b343",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/migrate-fresh.log",
+      "upstream": "f2b859470",
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+      "upstreamSha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/migrate-repeat.log",
+      "upstream": "f2b859470",
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+      "upstreamSha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/old-cold-host.log",
+      "upstream": "f2b859470",
+      "sha256": "216fcc266162edb8f6e81d9aac7e4c4a5bd19ae50eff2d4d0e6f6d7716534996",
+      "upstreamSha256": "216fcc266162edb8f6e81d9aac7e4c4a5bd19ae50eff2d4d0e6f6d7716534996",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/old-host.log",
+      "upstream": "f2b859470",
+      "sha256": "40949632a134880eabaf054c1a87819aa603d02a61bb69bca77ea6402d56b809",
+      "upstreamSha256": "40949632a134880eabaf054c1a87819aa603d02a61bb69bca77ea6402d56b809",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/red-warmed-old.log",
+      "upstream": "f2b859470",
+      "sha256": "5eb04fad56ad0a15241d25574c95733b681f461c3c2b34984bcdb99ac3bd4bf0",
+      "upstreamSha256": "5eb04fad56ad0a15241d25574c95733b681f461c3c2b34984bcdb99ac3bd4bf0",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/records/source-and-proof-check.log",
+      "upstream": "f2b859470",
+      "sha256": "9a236487b94278541d7403cfa109af744ee96863522ab1397e3089d4d259fdec",
+      "upstreamSha256": "9a236487b94278541d7403cfa109af744ee96863522ab1397e3089d4d259fdec",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/old-issuer/capability-probe.mjs",
+      "upstream": "f2b859470",
+      "sha256": "95d199eca16f887296c4d18e32be0ca19d45073c1cd6b71db257e4551f3cbc4b",
+      "upstreamSha256": "95d199eca16f887296c4d18e32be0ca19d45073c1cd6b71db257e4551f3cbc4b",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/old-issuer/host.mjs",
+      "upstream": "f2b859470",
+      "sha256": "924a15cece2b66f7524271d2b6021d221a03b26cac42d5874d72020697437ab4",
+      "upstreamSha256": "924a15cece2b66f7524271d2b6021d221a03b26cac42d5874d72020697437ab4",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/old-issuer/io-guard.mjs",
+      "upstream": "f2b859470",
+      "sha256": "a707a2cd4b3bfb5669a50e87a515ce11506b7e763d38c70511849a6c70ce36e8",
+      "upstreamSha256": "a707a2cd4b3bfb5669a50e87a515ce11506b7e763d38c70511849a6c70ce36e8",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/old-issuer/probe.mjs",
+      "upstream": "f2b859470",
+      "sha256": "401a8e9d4df1e4cdcef3038c54e3ba7eb3d3ebe31e4b7bf2ddef4f93f72beadd",
+      "upstreamSha256": "401a8e9d4df1e4cdcef3038c54e3ba7eb3d3ebe31e4b7bf2ddef4f93f72beadd",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/old-issuer/run.py",
+      "upstream": "f2b859470",
+      "sha256": "afa326cdb0faf349d493f9aac4ad50b37bd4c3351026fb2b8f6a61b451ac0e6f",
+      "upstreamSha256": "afa326cdb0faf349d493f9aac4ad50b37bd4c3351026fb2b8f6a61b451ac0e6f",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/old-issuer/seed-preserved.mjs",
+      "upstream": "f2b859470",
+      "sha256": "44e00ecd17933520ab009548f2d7fed885aad17742958d0a3f5c56a140d6a891",
+      "upstreamSha256": "44e00ecd17933520ab009548f2d7fed885aad17742958d0a3f5c56a140d6a891",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/README.md",
+      "upstream": "899667ee8",
+      "sha256": "bdcf6bb0338c076b56613798dcd678ffc04f34572099c5dd442169e28b510697",
+      "upstreamSha256": "bdcf6bb0338c076b56613798dcd678ffc04f34572099c5dd442169e28b510697",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/api-ts.log",
+      "upstream": "899667ee8",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "upstreamSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/biome-scoped.log",
+      "upstream": "899667ee8",
+      "sha256": "472fe0a2935de9bcabffa4c593b3a741b08e5e8acd4ae0da12c72185e1a976ca",
+      "upstreamSha256": "472fe0a2935de9bcabffa4c593b3a741b08e5e8acd4ae0da12c72185e1a976ca",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/configuration-tests.log",
+      "upstream": "899667ee8",
+      "sha256": "0fb66ff845cdff8b8ec2b92e7fbfa4e754958799dcb7e774062c378e0018efa2",
+      "upstreamSha256": "0fb66ff845cdff8b8ec2b92e7fbfa4e754958799dcb7e774062c378e0018efa2",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/format-final.log",
+      "upstream": "899667ee8",
+      "sha256": "063e66d20e1e9478e3936f3f83fa8ffb6f11cdb1d7e7fd768c042fa788d3419a",
+      "upstreamSha256": "063e66d20e1e9478e3936f3f83fa8ffb6f11cdb1d7e7fd768c042fa788d3419a",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/initial-configuration-fixture.log",
+      "upstream": "899667ee8",
+      "sha256": "d68a2d77846e6707d67a6f5bf5919b5ca03055f9dda8f85b944fa0296a745f08",
+      "upstreamSha256": "d68a2d77846e6707d67a6f5bf5919b5ca03055f9dda8f85b944fa0296a745f08",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/initial-https-fixture.log",
+      "upstream": "899667ee8",
+      "sha256": "dceb3d732b8703e4c039bb19373bb7252740e22bcba9ea7d19595bb481a90ad3",
+      "upstreamSha256": "dceb3d732b8703e4c039bb19373bb7252740e22bcba9ea7d19595bb481a90ad3",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/initial-scripts-typecheck.log",
+      "upstream": "899667ee8",
+      "sha256": "b674098b8a8b237a264478006cc118bec7fd7267dbdcf5b29bf4faf3e95e86a5",
+      "upstreamSha256": "b674098b8a8b237a264478006cc118bec7fd7267dbdcf5b29bf4faf3e95e86a5",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/migration-fresh.log",
+      "upstream": "899667ee8",
+      "sha256": "8a84e9eaf80188d1564f3f44592d1d68614197041e8f351aa1560a1924b6e09f",
+      "upstreamSha256": "8a84e9eaf80188d1564f3f44592d1d68614197041e8f351aa1560a1924b6e09f",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/migration-repeat.log",
+      "upstream": "899667ee8",
+      "sha256": "f8213c51f1c21c675c4e65cd0e73c36d07d14c549ca4e26d6f9aeb0feb1532e9",
+      "upstreamSha256": "f8213c51f1c21c675c4e65cd0e73c36d07d14c549ca4e26d6f9aeb0feb1532e9",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/owned-run.log",
+      "upstream": "899667ee8",
+      "sha256": "ccda4ce4183586851c00bba07fccd9ae2ec02483e48ca899e83315747e39889e",
+      "upstreamSha256": "ccda4ce4183586851c00bba07fccd9ae2ec02483e48ca899e83315747e39889e",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/proof.json",
+      "upstream": "899667ee8",
+      "sha256": "07c91a47d34c7eee290d3ab8c015d803df3d549f9f8bc5f193ebdc6bfe666323",
+      "upstreamSha256": "07c91a47d34c7eee290d3ab8c015d803df3d549f9f8bc5f193ebdc6bfe666323",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/scripts-ts.log",
+      "upstream": "899667ee8",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "upstreamSha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/seed-cli-baseline-lint.log",
+      "upstream": "899667ee8",
+      "sha256": "8fd0af49b001617c1c7c35f7e29e1dd8e10947fa878bc959f02ae19705f84481",
+      "upstreamSha256": "8fd0af49b001617c1c7c35f7e29e1dd8e10947fa878bc959f02ae19705f84481",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-configuration/seed-cli-current-lint.log",
+      "upstream": "899667ee8",
+      "sha256": "041d68900c1029d10552ae7c0e84d0611788f094de7a936e4509f2e97c7ba06e",
+      "upstreamSha256": "041d68900c1029d10552ae7c0e84d0611788f094de7a936e4509f2e97c7ba06e",
+      "identical": true
+    },
+    {
+      "path": "packages/api/scripts/seed-oxy-applications.ts",
+      "upstream": "899667ee8",
+      "sha256": "49f2318d4b1fb773423e8f0e55438f25908392b45a8b78adcea1a88a73e4d010",
+      "upstreamSha256": "49f2318d4b1fb773423e8f0e55438f25908392b45a8b78adcea1a88a73e4d010",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts",
+      "upstream": "899667ee8",
+      "sha256": "5952a86468a0a566dc7c3f38bdeb719415b031fcfe5e5e22a44868cc4546fb69",
+      "upstreamSha256": "5952a86468a0a566dc7c3f38bdeb719415b031fcfe5e5e22a44868cc4546fb69",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/scripts/__tests__/foregroundPilotHttps.test.ts",
+      "upstream": "899667ee8",
+      "sha256": "781ce33440ee9a089430e48c48d7599c80a172306dd084d7b9b25909cb3bbf10",
+      "upstreamSha256": "781ce33440ee9a089430e48c48d7599c80a172306dd084d7b9b25909cb3bbf10",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts",
+      "upstream": "899667ee8",
+      "sha256": "4b139a7586ccb5ac54c92ff2f4c807f1b20d9f4142c145901127503596e9ebb4",
+      "upstreamSha256": "88f864a2457c9922137680fefda822ddc68133f99ca4b72cc11d9e784e52176a",
+      "identical": false
+    },
+    {
+      "path": "packages/api/src/scripts/foregroundPilotConfiguration.ts",
+      "upstream": "899667ee8",
+      "sha256": "27bde7dbc14be8ef9b9f34378b1a29d06645e554e7978bdc3f50f4563a06de28",
+      "upstreamSha256": "27bde7dbc14be8ef9b9f34378b1a29d06645e554e7978bdc3f50f4563a06de28",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/scripts/foregroundPilotExecutor.ts",
+      "upstream": "899667ee8",
+      "sha256": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+      "upstreamSha256": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/scripts/foregroundPilotHttps.ts",
+      "upstream": "899667ee8",
+      "sha256": "5d7478f43752e5026d028f74394c180d4e17c7113b08ad50b5db0d739c74fcbb",
+      "upstreamSha256": "5d7478f43752e5026d028f74394c180d4e17c7113b08ad50b5db0d739c74fcbb",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/scripts/seedOxyApplicationsSpecs.ts",
+      "upstream": "899667ee8",
+      "sha256": "4223d6275cdd98f45af9f256b0ea473e007caad0e2adb79ab0a26c7768aaecf2",
+      "upstreamSha256": "4223d6275cdd98f45af9f256b0ea473e007caad0e2adb79ab0a26c7768aaecf2",
+      "identical": true
+    },
+    {
+      "path": "scripts/rehearsal/test-i05-foreground-configuration.py",
+      "upstream": "afa635177",
+      "sha256": "b8de4f86f0d3fa87b14046e5c903bc2320737ed0c323dbf8cc97933230031595",
+      "upstreamSha256": "b8de4f86f0d3fa87b14046e5c903bc2320737ed0c323dbf8cc97933230031595",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/README.md",
+      "upstream": "afa635177",
+      "sha256": "168d435010ffdcf99c8ba0a468cba7d104bfa2acf31842a410be0d298d2f9608",
+      "upstreamSha256": "168d435010ffdcf99c8ba0a468cba7d104bfa2acf31842a410be0d298d2f9608",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/api-build.log",
+      "upstream": "afa635177",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "upstreamSha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/api-tests.log",
+      "upstream": "afa635177",
+      "sha256": "35075a86ec33b0faf0b5a5f4bdbaa730d5fda2502fe433599a9502894c81c85f",
+      "upstreamSha256": "35075a86ec33b0faf0b5a5f4bdbaa730d5fda2502fe433599a9502894c81c85f",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/cli-help.log",
+      "upstream": "afa635177",
+      "sha256": "24878ed9466a1dc4ec0a4bcbecc5ae9016dd262457be673fc6571c1177d0a6f5",
+      "upstreamSha256": "24878ed9466a1dc4ec0a4bcbecc5ae9016dd262457be673fc6571c1177d0a6f5",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/compiled-artifacts.json",
+      "upstream": "afa635177",
+      "sha256": "d0d1acd78a635feeb7c0e35bf812c3f3794bc2995f8f179d41ef1e05d9dd0c05",
+      "upstreamSha256": "d0d1acd78a635feeb7c0e35bf812c3f3794bc2995f8f179d41ef1e05d9dd0c05",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/compiled-node.log",
+      "upstream": "afa635177",
+      "sha256": "e98be54a72899d3360e07f2e03aedf7b140cf44a2d37f59c8d6549bfaa13290a",
+      "upstreamSha256": "e98be54a72899d3360e07f2e03aedf7b140cf44a2d37f59c8d6549bfaa13290a",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/initial-node-path-failure.log",
+      "upstream": "afa635177",
+      "sha256": "f24dd4d7842f80a53548df8f03a56f488e3b1fc9ee5d8d36dfd4bcf40c4c9a44",
+      "upstreamSha256": "f24dd4d7842f80a53548df8f03a56f488e3b1fc9ee5d8d36dfd4bcf40c4c9a44",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/migration-fresh.log",
+      "upstream": "afa635177",
+      "sha256": "672d0087e9de5ac71cc7df1722a546012f0a831f2626645d6497b636c8c7ff6e",
+      "upstreamSha256": "672d0087e9de5ac71cc7df1722a546012f0a831f2626645d6497b636c8c7ff6e",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/migration-repeat.log",
+      "upstream": "afa635177",
+      "sha256": "3cb8ccf15b7ed93ae8fd3ad4caf211692d24aea016e8850a4f8a6d78c6732b7c",
+      "upstreamSha256": "3cb8ccf15b7ed93ae8fd3ad4caf211692d24aea016e8850a4f8a6d78c6732b7c",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/offline-tests.log",
+      "upstream": "afa635177",
+      "sha256": "86957db5acea453befd84038ccd284de12918f41b981b0ffd1b398a8e6e3eb5c",
+      "upstreamSha256": "86957db5acea453befd84038ccd284de12918f41b981b0ffd1b398a8e6e3eb5c",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/owned-run.log",
+      "upstream": "afa635177",
+      "sha256": "cb3ad7fccbb5a9e6c93a902ff015cf93458988117cc11c83f4aadd862d0cc669",
+      "upstreamSha256": "cb3ad7fccbb5a9e6c93a902ff015cf93458988117cc11c83f4aadd862d0cc669",
+      "identical": true
+    },
+    {
+      "path": "docs/audits/2026-10-03-i05-foreground-transport/proof.json",
+      "upstream": "afa635177",
+      "sha256": "4c06ca3581d69c03b9c683cb7992ed4ef2cf08dff04205d4665027221d51f089",
+      "upstreamSha256": "4c06ca3581d69c03b9c683cb7992ed4ef2cf08dff04205d4665027221d51f089",
+      "identical": true
+    },
+    {
+      "path": "scripts/agency/foreground-pilot-ecs.py",
+      "upstream": "afa635177",
+      "sha256": "b9fc5d2649c2875c5745ea94fcf5edf2ea17c614d856df78a9570eb235839e8d",
+      "upstreamSha256": "b9fc5d2649c2875c5745ea94fcf5edf2ea17c614d856df78a9570eb235839e8d",
+      "identical": true
+    },
+    {
+      "path": "scripts/agency/tests/foreground-pilot-compiled.mjs",
+      "upstream": "afa635177",
+      "sha256": "c7cfeaf8a192675ba66c7ce9d344b850070b6e160f0e40d9e4915832f53aae17",
+      "upstreamSha256": "c7cfeaf8a192675ba66c7ce9d344b850070b6e160f0e40d9e4915832f53aae17",
+      "identical": true
+    },
+    {
+      "path": "scripts/agency/tests/test_foreground_pilot_transport.py",
+      "upstream": "afa635177",
+      "sha256": "3df0d5f61d63b856f4419b26356e45cfdd967c6b5582cf5da37de6b0b7058e96",
+      "upstreamSha256": "3df0d5f61d63b856f4419b26356e45cfdd967c6b5582cf5da37de6b0b7058e96",
+      "identical": true
+    }
+  ],
+  "i09PrivateInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-related-execution-1243/result.private.json",
+      "sha256": "dbe363ea55b6f4417df52f049f7f685dbfa81fdfb28d5beb38f88a5bda2db87f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-related-execution-1243/root-review.json",
+      "sha256": "10d5eb95c807c305c0becd2b0ae7ddb1733a4694f9c1b7931a09cfc258e60001"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-related-execution-1243/receipt.json",
+      "sha256": "dafa275e8ea660adda75176784915b0489109c5af20c60ea929221404a9cba18"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-related-execution-1243/cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-final-batch-checkpoint/i09-correlated-observation.json",
+      "sha256": "040892b2f9e1ac8843cef3128537fd8c8ee24e49e882c23cf3bc0bda7e1679b2"
+    }
+  ],
+  "limits": [
+    "Source comparisons do not rerun or reattribute accepted upstream suites. Launcher paths kept scripts/agency despite Git directory-rename heuristic; bytes identical. Shared seed/test Mercaria differences are comments/descriptions; exact approved payments scopes unchanged.",
+    "Old rollback auth harness does not execute old bootstrap financial writers; production rollback requires writer stop and admission cleanup.",
+    "I09 correlation is read-only metadata, not eligibility/inference/reconciliation/zero cost or approval of provider prices. Earlier alias-to-DB-ID zero remains a query mismatch."
+  ]
+}

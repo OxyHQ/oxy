@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "8c337f16a8d64193a52c71d0c68ef5719c8ba943",
+  "capturedAt": "2026-10-03T03:49:21.389216+00:00",
+  "sources": [
+    {
+      "path": "packages/api/src/routes/__tests__/capabilitiesSettings.routes.test.ts",
+      "sha256": "afa73ad89d82639d78484f1f21b25a56161b247a6887ff1e97751aa33eef891c"
+    },
+    {
+      "path": "packages/api/src/routes/capabilities.ts",
+      "sha256": "9f8220a5c47c5102ec0cc0c4171979b2eb520aad80479b184d7004c58595fcb7"
+    },
+    {
+      "path": "packages/api/src/services/agentKeyAuthority.service.ts",
+      "sha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790"
+    },
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "465c4b574dae6e517cdf9e284eb0098b89189f5edf3fa37c18d0d5a32a1ffce4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-race/capabilities-http-race-final.log",
+      "sha256": "b54e838f44d598e1fe1697dcc230999b5bffdd51d50025c182d8d8173a1d2c33"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-race/capabilities-http-race-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/capabilities-http-race/capabilities-http-race-stdout.log",
+      "sha256": "ce2b6c8bc5d6c2361e01a46d3f69de26364ecde8e1db1a4274f740fd23d52d0d"
+    }
+  ],
+  "results": {
+    "apiSuites": 1,
+    "apiTests": 10,
+    "apiExitCode": 0,
+    "apiEslint": 0,
+    "launcher": {
+      "newLocalServerPid": 3470083,
+      "dataDirectory": "/tmp/oxy1519-i09-6shz2rct/pg1519-a8zs7vg2/data",
+      "database": "oxy_rehearsal_1519_bf43598b8dfed4e0",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--testSequencer",
+        "/tmp/oxy1519-i09-6shz2rct/ordered-sequencer.cjs",
+        "--runTestsByPath",
+        "src/routes/__tests__/capabilitiesSettings.routes.test.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/oxy1519-i09-6shz2rct/api/focused.txt",
+      "productionAccess": false
+    }
+  },
+  "limits": [
+    "Runtime route unchanged from2e722/d938 already reviewed: only test refinement requested by external1557#5965116133.",
+    "Middleware auth/operator boundary is synthetic. It reads actual live persisted session, commits revoke/expire SQL before next(), and the actual final route helper denies401/noINSERT. No signature/introspection production claim.",
+    "Also covers no session ID and nonexistent persisted session ID separately; existing expired/inactive and managed human positive retained.",
+    "PostgreSQL17 normal fresh139 owned PID3470083 stopped; explicit HTTP cleanup; no provider/financial requests."
+  ]
+}

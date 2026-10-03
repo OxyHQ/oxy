@@ -1,0 +1,975 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "982c67510f2d3795e60d5a378fc7e3d6da072019",
+  "remotePriorHead": "d6a34e2be0f52f5c95b7fd73030ab00aa7ae9139",
+  "capturedAt": "2026-10-03T03:11:22.017076+00:00",
+  "toolchain": {
+    "bun": "1.4.2",
+    "node": "v24.21.0",
+    "postgres": "17"
+  },
+  "sources": [
+    {
+      "path": "bun.lock",
+      "sha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06"
+    },
+    {
+      "path": "docs/SERVICE_TOKENS.md",
+      "sha256": "35cdac01b4649bd4efdf377c5520db8e6b1c2e6acaca2737da3463cf5ce8a36c"
+    },
+    {
+      "path": "docs/adr/0032-autonomous-account-agent-keys.md",
+      "sha256": "651e32839989bc1f226ccb5226d96a876a4f7360f7f6b3d25d1ed6bb2eec0833"
+    },
+    {
+      "path": "docs/adr/0033-subscription-credit-and-product-billing.md",
+      "sha256": "14c67891ca23aae20ba23bcbb92d73f25456fc39dfb5d0c85c7b0a15c7ace968"
+    },
+    {
+      "path": "docs/adr/README.md",
+      "sha256": "bed1b571261199986c949d059bac9a6c46232f3165e2c7533fbea57701a04e42"
+    },
+    {
+      "path": "docs/auth/index.md",
+      "sha256": "dd7014a4caefaaefcc0510b7145af99875c99baa1803791307b302cf0c0b9dc6"
+    },
+    {
+      "path": "docs/auth/principals-and-account-contexts.md",
+      "sha256": "6fd19a37d8161e5b0d4193ea33402c8bde0516e6396f2e1e024148644a7deab7"
+    },
+    {
+      "path": "docs/auth/proposals/bot-autonomous-auth.md",
+      "sha256": "50e7ad33a34a0a5e1a5ce567e8eefbe93b8a721f7781c7db0cf3ac2420d526e7"
+    },
+    {
+      "path": "packages/api/drizzle/0139_condemned_cloak.sql",
+      "sha256": "46a03fc4fa91fc5e7015a6a9a8444748aa00aba17fd95c6f19e56722a473c161"
+    },
+    {
+      "path": "packages/api/drizzle/meta/0139_snapshot.json",
+      "sha256": "19bb7b207d12a50632c1832b5654251c5e215993c40390db2bdeb8a6b230cf80"
+    },
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "b353735bb088f4e6ad71a7281fcd35c5f5d2da21165025a2117ebbb1832125db"
+    },
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "9017c7ad1879ca287efbaa009c2c3ea76c67ce9c7f1f23c531aa4ee89f9a4843"
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510"
+    },
+    {
+      "path": "packages/api/scripts/generate-openapi.ts",
+      "sha256": "cb4a4c87f7e0966ef35aab951aafeb3ef1296745874e02673febd6bc7d82f36f"
+    },
+    {
+      "path": "packages/api/src/controllers/__tests__/subscription.controller.test.ts",
+      "sha256": "464f963190fc3f9375ed7e4ff2fb5ee62c414e16c4e99386746920e98a2cce2e"
+    },
+    {
+      "path": "packages/api/src/controllers/subscription.controller.ts",
+      "sha256": "aa5e142629be9d2c48c00c0be0d14df9f29418638e0e4afb8951b3e1979da050"
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/workloadAttributionCredential.test.ts",
+      "sha256": "5fe2f8ef39f341f1124a0487af22b3b5707d12e2c78a925d8001c07db3a1b618"
+    },
+    {
+      "path": "packages/api/src/db/schema/agency.ts",
+      "sha256": "b4a6ca2240e6c10919a3134f49ebe84e9ba6752347f3ce9b6eb2a81223982e5a"
+    },
+    {
+      "path": "packages/api/src/db/schema/authSessions.ts",
+      "sha256": "5b26f6ebed669619af9604d914a6972ed418500f0bf9c944db09245feb5733d3"
+    },
+    {
+      "path": "packages/api/src/db/schema/mcpOAuth.ts",
+      "sha256": "7e7dc160bdf979b99064699adef55557b6a1e938165dd3e692e199a99d2d88eb"
+    },
+    {
+      "path": "packages/api/src/middleware/__tests__/publicIdentifierNotABearer.test.ts",
+      "sha256": "569720056b863e20c891f6d520da6ae19c4c63d9d0c561a6f65d870345d77828"
+    },
+    {
+      "path": "packages/api/src/middleware/__tests__/serviceCredentialRateLimit.test.ts",
+      "sha256": "3dc7bea89a64666c6cb5aca78a126c2177c9ff340f689f2bb77e820761f2aefc"
+    },
+    {
+      "path": "packages/api/src/middleware/__tests__/serviceTokenEd25519.test.ts",
+      "sha256": "0069a7266567d16c40a72081f44cc7c9fd44e8c1e6ae7449ae06b632cea39796"
+    },
+    {
+      "path": "packages/api/src/middleware/authUtils.ts",
+      "sha256": "815c63b8408413b2f8a927a9acd3b7d99d0400288d1bba3148d4c4ceff930da5"
+    },
+    {
+      "path": "packages/api/src/middleware/optionalAuth.ts",
+      "sha256": "4a3bb8f86dc501a5c64865b9a84a36fb0699a05a525bc9277026f1e4dc7292e0"
+    },
+    {
+      "path": "packages/api/src/middleware/serviceToken.ts",
+      "sha256": "8f4e87386636fd901326b7a7d56d6e5f485263f4d92676443bdb19b8501e8e5d"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/accountsSwitch.test.ts",
+      "sha256": "4afe25bec130a6199ac27dced3a30ff7280c26d2b30938746c2528bc7cd348ed"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/agentAutonomousFlow.test.ts",
+      "sha256": "05a439327dcbabebfa33d4f4598da7b84fe4d0f6c083b324363f427f66a66e65"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts",
+      "sha256": "8a23c4a7ff757ef2142242a209ee0b1da22673331d1564fe7ebea3fe2fd79ed3"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceCataloguePublication.test.ts",
+      "sha256": "1bcd19bcf522bccdd3ff860d68b3a736acf56d9ef95fede40907cb3e4d16af8b"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceCatalogueRoute.test.ts",
+      "sha256": "53dfde50087ca04279a5d423227013ed43cefff08c8840c0f66843875ff6c08c"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts",
+      "sha256": "ec1bb4e5ab41bcb0f17dbe8f4a2e63ffe323127601d6168bc70eadffb64798a1"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "5805d39906996ade95b634496abadd320d18baa23411cf3752f1a2f748943851"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceProviderConnections.test.ts",
+      "sha256": "8043d1ca87f4e9a3e2690259f65c00d077449e7dcd537dd9000a3268d776a73f"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceReporting.test.ts",
+      "sha256": "8149ae337c66d0416e683db1f859da731cce69fcd9f6f182929f05f09c478ff9"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceRoutingPolicies.test.ts",
+      "sha256": "2a1b71f3be17c86a34a122204c91771f6d241feeef5fbac8855a68843134c6c7"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/internalServiceAccountSwitch.test.ts",
+      "sha256": "4907d175cfb90cde7a2ca4ba58e3a016af733240d644d88bef9b94ade47b18e6"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+      "sha256": "9323d76af7bab0cb3c5f288ebcb4b9a93c933b75570fc1cce927398192807187"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/nativeRequesterAssertion.routes.test.ts",
+      "sha256": "8a50e42b8370f1ae7c1b3e8c9fac180216ed2bf5416ee0d32a370e4975ce4910"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/reputationAwardAuthz.test.ts",
+      "sha256": "a033bfe50f678e3af9067fe66cf3391f222fa3808841f2ee868b5a73b59aea19"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/serviceActingAsVerify.test.ts",
+      "sha256": "fccecec3e3c40b3cff99aae68272dc117f408912ae57d816e564d9c76bb5dba8"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/serviceTokenCredentials.test.ts",
+      "sha256": "158ad1a017129302b7416f650564a07b1025d4dc9d88e999cb9502867410f8ea"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/updatesAdminAuth.test.ts",
+      "sha256": "18f3f1e70de411a74912c002657df2a9c1778b70ad3e6d80fb2ae5d7a7fba5aa"
+    },
+    {
+      "path": "packages/api/src/routes/accountBilling.ts",
+      "sha256": "e3317e3508fae8fbc80222737f79ff7e54efeda23d3e6cecdfe6d78832940162"
+    },
+    {
+      "path": "packages/api/src/routes/accounts.ts",
+      "sha256": "7167d235ef0f3367dbed6a8b9c61e63dccd13d7ab3e442a702210587c49705fe"
+    },
+    {
+      "path": "packages/api/src/routes/agentAuth.ts",
+      "sha256": "457dcd5c56c0f32e0a2b60839c43f2190fffaffc1b15846121e9173c40aa2b83"
+    },
+    {
+      "path": "packages/api/src/routes/agentKeys.ts",
+      "sha256": "4db5bee3a6fbf787b6c08ba9b6cc0a4584726c9863f4eb31fdb0b2265cdb4572"
+    },
+    {
+      "path": "packages/api/src/routes/applications.ts",
+      "sha256": "d490a467603723a046c5c78ab4c68c415fe507486d3363ad7deb8d8e41188c3e"
+    },
+    {
+      "path": "packages/api/src/routes/auth.ts",
+      "sha256": "e683ffb4e60462ffc2066b0c45c7a5092387c8fd550ccba179b3ce0a885f142d"
+    },
+    {
+      "path": "packages/api/src/routes/billing.ts",
+      "sha256": "e9baa83cede3ad41b1cd90f1a9f548861155552663a03b8bc52aee46c61023ef"
+    },
+    {
+      "path": "packages/api/src/routes/capabilities.ts",
+      "sha256": "f39bc4d1568c2438c0dd9d5668ebb8189995f333da07485314c27b56020537e7"
+    },
+    {
+      "path": "packages/api/src/routes/followRegistry.v2.routes.ts",
+      "sha256": "3ea945541f692306b34e616230377979a64ccebd74e44b277677246e00caeda8"
+    },
+    {
+      "path": "packages/api/src/routes/inferenceProviderConnections.ts",
+      "sha256": "0392b8f1b1c1b3c15be863cb2cdb536e45b48bb87be4d50083d13ed2f169d8e0"
+    },
+    {
+      "path": "packages/api/src/routes/inferenceReporting.ts",
+      "sha256": "ef88b5f19e0cb2031572c10663661b7ffbb197a02fd7370a57e9e491e612abd9"
+    },
+    {
+      "path": "packages/api/src/routes/inferenceRoutingPolicies.ts",
+      "sha256": "da8f1d0690ec4f7c398a898770e8c4e3e91adebfcde187b35d52eebcae4f9d67"
+    },
+    {
+      "path": "packages/api/src/routes/internal.ts",
+      "sha256": "340bc4a410e4a7e90b571a0c55db329390d3643ac7a394070d198b945f9cf5d6"
+    },
+    {
+      "path": "packages/api/src/routes/mcpOAuth.ts",
+      "sha256": "d6639eab49fa0c9e144eb8bcfaff444b2759be0feec50f841a326761233ae3e2"
+    },
+    {
+      "path": "packages/api/src/routes/profiles.ts",
+      "sha256": "49e8322dacbd1eb0b3191cdd70645700974855d37ed300f8a63f4f1bf9194689"
+    },
+    {
+      "path": "packages/api/src/routes/resourceIntrospection.ts",
+      "sha256": "baa4cad9a763d96a6754ca83fc0a050b9d70d680d96aee8d127dd25375cbf2e9"
+    },
+    {
+      "path": "packages/api/src/routes/updatesAdmin.ts",
+      "sha256": "c2f7fb74303bf5e3e641a700464b48c7b8bc1e06ca3adfa6f5da5f96907ef37c"
+    },
+    {
+      "path": "packages/api/src/schemas/billing.schemas.ts",
+      "sha256": "f8c921d6a28b10a559a11be171a7f415d3938a21f940bf8a5c1279a3aad31bfb"
+    },
+    {
+      "path": "packages/api/src/server.ts",
+      "sha256": "134f22a6df3f89879c3d3516f4514c91f9cff7500bd27649fed34bc1ff6c088c"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/agentKeyAuth.test.ts",
+      "sha256": "273243d2d8679d96e1e43bd8516c4fee4cef4bbb14a9ab7444007ab5cb2db67f"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/agentKeyGovernance.test.ts",
+      "sha256": "53013898ab4ab6d6df1e6701a0ae1a8c2ff8e70696afc3b5d95a5aa069b6e257"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/approvedActingAsEpochs.test.ts",
+      "sha256": "e387298681a9dfcfcaf6262b52643ba47d686d8a58840189901ea6cfe8173323"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/botAccountParity.test.ts",
+      "sha256": "f26beb800418588e5a5d83e74cfde6ca72ef643e3c063b38ba1f6a12888deded"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/capabilityAuthority.db.test.ts",
+      "sha256": "c6a79c470eb4e692ce94e89bf36d4a8e22ed856ce3072d499458ec9b42845e8e"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+      "sha256": "dc1158c4018427e727f1a4b25da47ebeb09af6a42da9feb120147fa920565298"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/productBillingCatalogue.test.ts",
+      "sha256": "0875296d24433d3611de2893a93f2a05ce7ac2c04cc25af4a333a710f219049e"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/subscriptionCreditLedger.test.ts",
+      "sha256": "7c9f59522ccc09f658e8ba50426e1bf53944aea5da12626e152289a0881f3cec"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/subscriptionCreditLockOrder.test.ts",
+      "sha256": "5f613d7931a570edf63543695737f6c698256f9880e837f42905203a82a8cd29"
+    },
+    {
+      "path": "packages/api/src/services/account.service.ts",
+      "sha256": "f74553ffb3e8c7ca2a04f041164158237d3c32955b0882659a151ee54806c4c6"
+    },
+    {
+      "path": "packages/api/src/services/agencyServicePrincipal.service.ts",
+      "sha256": "fe5907ae91388714dcd70bb4761430102a273d09f40ce91b2f720bf0482a79e9"
+    },
+    {
+      "path": "packages/api/src/services/agentKeyAuth.service.ts",
+      "sha256": "619884ba7b442f44dc7a789e70241fa549a0a6069019785ede509b28035ac917"
+    },
+    {
+      "path": "packages/api/src/services/agentKeyAuthority.service.ts",
+      "sha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790"
+    },
+    {
+      "path": "packages/api/src/services/agentKeyGovernance.service.ts",
+      "sha256": "a018b4c4b0106cf65a6ed197d3f9fc62f76cb72a0f769af877433faba3b79d80"
+    },
+    {
+      "path": "packages/api/src/services/applySubscriptionPeriodCredits.service.ts",
+      "sha256": "01746f120571ee51a0b1f5281f3e637d79b9a1e726863880f33e849f3b08cff4"
+    },
+    {
+      "path": "packages/api/src/services/attribution.service.ts",
+      "sha256": "32c87915d64a93f8de99f961523ff07cf972d966b0611f118505fc022a0e2a00"
+    },
+    {
+      "path": "packages/api/src/services/authSession.service.ts",
+      "sha256": "ba48ebc9a7ef178f946921be819e6ebe0125fde6072afbec285565b28934c47b"
+    },
+    {
+      "path": "packages/api/src/services/capabilityAuthority.service.ts",
+      "sha256": "360e164ed0e7130490fc4ff9dc5532cab9df3623d464bf42aaf303610a8a13d7"
+    },
+    {
+      "path": "packages/api/src/services/deviceSession.service.ts",
+      "sha256": "ec1ce9715725542b567d0e7066ce56b5310b5784f136b34d3456bcb1e8ed23f8"
+    },
+    {
+      "path": "packages/api/src/services/mcpConnection.service.ts",
+      "sha256": "c67d3e30c38d756007002f1edb75b281a748e21ad884c33bac8bbc52f07e03c8"
+    },
+    {
+      "path": "packages/api/src/services/mcpOAuth.service.ts",
+      "sha256": "b74a76d0d917dcf3fd43db35c20e412b28a02a914c70657959ba6c68a7f326e4"
+    },
+    {
+      "path": "packages/api/src/services/oauthCode.service.ts",
+      "sha256": "e87abe8882900da41993fb0af60e5a7e587880e3eb72ea22530db20b5c1434eb"
+    },
+    {
+      "path": "packages/api/src/services/oauthConsent.service.ts",
+      "sha256": "8a1f34c775830a65659ea4565b657ed8c3bdcb0a3eec772935521b7d3c6a6aca"
+    },
+    {
+      "path": "packages/api/src/services/productAccessAuthorization.service.ts",
+      "sha256": "f6df2a502b724671337ddb97ce83f01259153a83b58a358000f48671d6e7e0d5"
+    },
+    {
+      "path": "packages/api/src/services/productAccessPersistence.service.ts",
+      "sha256": "85aefdd1e06bf5b7afacc2495976e415fed28f7519936e78be764a43d598e3e1"
+    },
+    {
+      "path": "packages/api/src/services/productBillingCatalogue.service.ts",
+      "sha256": "90c6e720a6036648274d73fa2e494c7136c3776f26deb993119f681163e1576e"
+    },
+    {
+      "path": "packages/api/src/services/productProviderEvidence.service.ts",
+      "sha256": "1ab285a4b895994805ee84e03fad679f7f6dc9ffb545b5a2dcf417e9ddf51cc1"
+    },
+    {
+      "path": "packages/api/src/services/serviceActingAs.service.ts",
+      "sha256": "968e6ac0662b093bf2a141578d816e50ec926b2d217f30434f8c8b413498c624"
+    },
+    {
+      "path": "packages/api/src/services/serviceTokenMint.service.ts",
+      "sha256": "52bf84cb73b3a8bfbda329f10b2f86c6db54ebf64e51aa3fbd6bc2c429aea911"
+    },
+    {
+      "path": "packages/api/src/services/session.service.ts",
+      "sha256": "924a4ffcfc509d0938072062fa012af70d5fa51fdd7472c43413d6b5345cecab"
+    },
+    {
+      "path": "packages/api/src/services/subscriptionCreditLedger.service.ts",
+      "sha256": "31fba5a79d2cbb6fad58880b3255181fb85bd217f6eeb07f6e0782cb1652bb19"
+    },
+    {
+      "path": "packages/api/src/types/session.types.ts",
+      "sha256": "4659889e790af6323276573d136a90d67e379cf964ce770ff353b35362397b10"
+    },
+    {
+      "path": "packages/api/src/utils/accountRoles.ts",
+      "sha256": "4e4ccf1ee0e916f9aa2f6c72ca152f1a62ffe989cf18223c207affbe70470815"
+    },
+    {
+      "path": "packages/console/package.json",
+      "sha256": "ebf8800040e2c00ca7605acdf16aa990575317c09b7ece9cfb3b9f50ae876e78"
+    },
+    {
+      "path": "packages/console/src/hooks/__tests__/billing-subject.test.tsx",
+      "sha256": "93db89ab75e678486984a4b99091cc80f6ef39a15c70c18e0b22173202bbb521"
+    },
+    {
+      "path": "packages/console/src/hooks/use-billing.ts",
+      "sha256": "adb2d6b3b8c9dea23f5050234af9d44e3ceaa261d3f4ff02a2e1b3a19fb69013"
+    },
+    {
+      "path": "packages/console/src/routes/_layout/billing/plans.tsx",
+      "sha256": "d4163237cbfa6023918d349a9e26b4360462ec57be44cde0fd146a94bbc645ff"
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "sha256": "fbff525612eab798d50948c8e56590e1434721bd780b6ab48faa8cc96b0e11a2"
+    },
+    {
+      "path": "packages/contracts/src/agentKeys.ts",
+      "sha256": "181deb51c270b0acc7502171bbae96ffa90dd607d6fae51af6375f33d8d82de7"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "6108ba2497a1a6f89af89b43dfb3a2ed9790a89b640656335ffbcf32bb8606ce"
+    },
+    {
+      "path": "packages/contracts/src/products/billing.ts",
+      "sha256": "08f8468a86c5592954e9446e848acd2ccb55d839f94409f81019f865c1fdfbd6"
+    },
+    {
+      "path": "packages/core/package.json",
+      "sha256": "cafe284430f4bf30392b90f75e0693fe0491ae31035d8b2a870b05dd4e8bb2e6"
+    },
+    {
+      "path": "packages/core/src/api/__tests__/authAgent.test.ts",
+      "sha256": "a548dbfde71afc896057adb7e3cc327f1b3f7cbc50a5f3f5527743ea949e84c9"
+    },
+    {
+      "path": "packages/core/src/api/__tests__/billing.test.ts",
+      "sha256": "1ec07cd8ce1c4aad1a389e10eea410b0791fe99cd522b37fd3f939b4d0366c85"
+    },
+    {
+      "path": "packages/core/src/api/accounts.ts",
+      "sha256": "b7cdc8506a5d2a65f9f0ebd35382af11e07329afc07e61c3ed937cb1bd6247b2"
+    },
+    {
+      "path": "packages/core/src/api/auth.ts",
+      "sha256": "c8463a9954e0402e78998db0592aa13c48cf6bd93b6be6510d4f774b6bb5a68b"
+    },
+    {
+      "path": "packages/core/src/api/billing.ts",
+      "sha256": "230cb9ac19f5279ab76ede4b17eed3d97adf0ff8411b16b24b7ed7552ac6cbe4"
+    },
+    {
+      "path": "packages/core/src/server/OxyServer.ts",
+      "sha256": "23a943cd20d8d92959ce705a2d35e5fa76bb2567d96fc52c2ad19ecc63c5171a"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/actingAsFreshness.test.ts",
+      "sha256": "5206ef1dd66a0935ecf1706863d755137a30c7e8ffe0b7ab8705ed4fec54bb68"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/agentAccount.test.ts",
+      "sha256": "36322ff4ce625088ecae7e89c3ac22911ceb5e55d9ea14d2b2439b20e0ac93f2"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/approvedActingAsFreshness.test.ts",
+      "sha256": "a841fcd448e736f633eec864e9693954cf48c7d408252956bf42b709cc27bb7c"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/approvedServiceTokenLifetime.test.ts",
+      "sha256": "0b18762232b4149823c46f4a9bc95e188a42df7f7f79e18a55e6043048a410cd"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/authRefusalObservability.test.ts",
+      "sha256": "7e0dad0c10337974fa292c62361b5c2578d345cc0384e03a82786bcdf318db49"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/serviceAuth.test.ts",
+      "sha256": "16192436112b9aa2d157e91dae69f02b9f5b708e168b1a5e1ee07021fa5362af"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/serviceTokenAttribution.test.ts",
+      "sha256": "c8ab3b58e80179b47a18816d258dffbc0fa16c1a945631524509277fedd92648"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/serviceTokenJwks.test.ts",
+      "sha256": "bc81c15c8e91e31973c39398405202e0b4ad194e81915993d352c113532f6823"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/serviceTokenWorkloadFallback.test.ts",
+      "sha256": "eec27bd1819a313353685cb700de74a52865c1a3977daf7780b226d6ba5d9ec3"
+    },
+    {
+      "path": "packages/core/src/server/__tests__/verifyActingAs.test.ts",
+      "sha256": "162361f632c83c2ec4aaac0c7dcbec66083dadd17710b349d42cfb3d5d225d6a"
+    },
+    {
+      "path": "packages/core/src/server/agentAccount.ts",
+      "sha256": "75ff10d774973250cd5e06c8ffc4e886fb7afd42ee0c4d82660a40e0b9b3f173"
+    },
+    {
+      "path": "packages/core/src/server/index.ts",
+      "sha256": "2dc4447c179be7b89afcbaa73aada53bbdf64b780f94aafc90fff2541e86ad61"
+    },
+    {
+      "path": "packages/core/src/server/middleware.ts",
+      "sha256": "b58157cd2c52fe74601e3f278d1be12c82860deb6d75b0ff607f6d01a5b257cb"
+    },
+    {
+      "path": "packages/core/src/server/serviceTokenLifetime.ts",
+      "sha256": "81e54230c0f8d464b889b85255e81d647c37586672099a2a93452c52e2ab1531"
+    },
+    {
+      "path": "scripts/check-openapi-fresh.mjs",
+      "sha256": "cbf074d4c23c3383dc9487054541e9c88e4734b8f9ab3acafa93cfff48ece572"
+    },
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "465c4b574dae6e517cdf9e284eb0098b89189f5edf3fa37c18d0d5a32a1ffce4"
+    },
+    {
+      "path": "scripts/rehearsal/test-billing-renewal-1519.py",
+      "sha256": "aa04bc46cdc4c0d063b76b1bdd0e1733dd9c597e3ad1ee41308241e0c57be4e7"
+    },
+    {
+      "path": "scripts/test-check-openapi-fresh.mjs",
+      "sha256": "201025476c3bee2b9664395ec4120dc17281e76ec4b39451411437b0c8337b4a"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-contracts-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-core-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-api-ts-fixed.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-api-scripts-ts.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-core-focal.log",
+      "sha256": "b4b4f83c302f841403105e3aeb48ddd3b33c9764e19e28292c52d31bd2a592a4"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-core-issuer-fixture-final.log",
+      "sha256": "a0d87df6243a713228b7599955df7e088b58f42e13bc12a166c8009515f4d466"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-fixtures-lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-openapi-fresh-final.log",
+      "sha256": "c5513344d643b5a94fe20bb863dabde4d3c5a3d9302143caada6c3a7c89b8dd3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-openapi-fixtures.log",
+      "sha256": "9f231cbda032379ca4809fe1d9f267f60300f5ddb33c69f8d5bd35e4b33128fb"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-schema-census.log",
+      "sha256": "fca774fabd3c90ded913e22a6e981f5b188a8d2287939af2090293a42166b8c8"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-focal-exact-corrected.log",
+      "sha256": "bd1a87a2bbcdb4bfa76b3d526fde84b7af4023dfce5dbd8ab68334d33c2ef868"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-service-fixtures-broader-final.log",
+      "sha256": "f62d8e73b00211a99e795d8656323883348ddae43b0f4988cd7c8b1568008a18"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-focal-exact-final.log",
+      "sha256": "59fb69df88119c71a687f8330ce25929b2181f30bfd4a3cff85675025f5c28c7"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-service-fixtures-red.log",
+      "sha256": "323e365afc46813a09997f789e80c73dd4ca09d10eb8d928040efecd90bd183a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-service-fixtures-broader.log",
+      "sha256": "a6deae1c71f3578b0b32749865a921a565c78d1c530ed7d3a71b23a506767adb"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-focal-exact-corrected-stdout.log",
+      "sha256": "b5e257a79dddb147373819301c0e4577038b3b5d552a396a722e3db8732408bb"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-service-fixtures-broader-final-stdout.log",
+      "sha256": "fc7b2c4ae4c08bf17157700f97507b563e5a46ccb1c018de281ab64a2749a8ef"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-focal-exact-final-stdout.log",
+      "sha256": "e47e086ffb38d43109d29d4d0dc4174c60cca7b5c0fa00a3b0bab5b6aba91a52"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-service-fixtures-red-stdout.log",
+      "sha256": "d18c6d9b3223d8067028fa78f1652530ef6e055610f8d62b4beb920e02571c66"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/composed-service-fixtures-broader-stdout.log",
+      "sha256": "0be4dc9771d2701891a1c41625c8b3bd80c8eb07089705f9992843987bf01399"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/auth-freshness-billing/upstream-source-comparison.json",
+      "sha256": "05e3b9e3f7b0b0d97739824fbed54e962274009ce40003ae8bfddd3dbd0fb85a"
+    }
+  ],
+  "installedInputs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/HttpService.js",
+      "sha256": "12140090539d49918faed27193e0e02ed13c6732ff4a529e11f7719c69b968ef"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/OxyServices.errors.js",
+      "sha256": "68880d140567fa3b0958d2b0b7fab2ee0ddcd8bd7bd93fbb52146d51dd8532bb"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/OxyServices.js",
+      "sha256": "491375a654110376f45f78b2245816b12ea2ff1df731ec6873ee67ec6946beec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/accounts.js",
+      "sha256": "0717e98a3d1d76f24a773f0131a9b85455d4cb62eed322a6f4357dc667c05dd9"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/agency.js",
+      "sha256": "c6c058a67fab41dcc3128097bfe59a9c1c1f7f2fe5c056ffdac4e46f8c5de90a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/appData.js",
+      "sha256": "87c3d0a6141308e66575bd0301ec0efa89e1f3ae74e1e80f93217263d85ba837"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/apps.js",
+      "sha256": "7520dc11e025689cd2df02025e19804a79708b25e254bc1004619b5da05b1be3"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/assets.js",
+      "sha256": "a37b717e80931e33b100d88340da611e82b6df46419cad1ed31829d7acaff76a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/auth.js",
+      "sha256": "5afe5d6710fff27e3de106f1e96503ebb9d59c4a28777aeef657d7053acc4006"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/billing.js",
+      "sha256": "f1e2dcc1258ce9a470dd6a00cb8d967ceb881db2a2afcb5b3e973209b8868d48"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/civic.js",
+      "sha256": "9f71a7f0aa60ae76cf4290cbcba8e94186e8a0fc37f339e320187510156aef5c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/contacts.js",
+      "sha256": "b1616f18e798c5eff8aba6cd97bca65ec6e6242a277e32d075a022dbeb90bd65"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/devices.js",
+      "sha256": "4ce79eaff395e76ea00d4dc0858beccc00c52d67768d27678f98667d29cc6df3"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/follows.js",
+      "sha256": "2ee89f62c8e95503a8bbbe53f31209543e620f2e4096e6bcc6c68880dbc05324"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/identity.js",
+      "sha256": "f87900abae1986e18c39f26f8ab21980f714c0781ca4c2bfc09357c60bb9c79c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/linkedAccounts.js",
+      "sha256": "ac9f843a86256dc31c6648c5677f530e28e63d85413b28ea10efb72474fc807c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/nodes.js",
+      "sha256": "715a5518929e9a1803a0e67e8e9f0fa9725f808f842af3da3a6cbcd1fdb0cf74"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/notifications.js",
+      "sha256": "34983ddd66c579b2af52b00f65c5834e0947efe871a4bd0d7bd38e8c2dc26f03"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/privacy.js",
+      "sha256": "20c6d928c220113534813caf9016d7128115a20f4bf362c5e90060a0b03357d0"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/reputation.js",
+      "sha256": "1ec6fa6e860cb57b63b3b7b17fdb1a729129f7b067c1669a2f30e88fce8c8f44"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/session.js",
+      "sha256": "f86b001b91f69131457da0514c1c3ae04b6f2aad0d2748bd6340caabff8dc60f"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/store.js",
+      "sha256": "ac1420117d2044244f06b1e281b3dbdaa8497ddbeb95bdf66a166f40a356ddc5"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/topics.js",
+      "sha256": "c1280aa516fd90c40d13f55ca0d8b058f0c8ffd2a1aef54b3f65ad9dd861cbeb"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/api/users.js",
+      "sha256": "0bf1e40fb7b00d6007f7ddbec74b666af5ca0718c70ed2e2fd4b00cc0f10bc4e"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/civic/payloads.js",
+      "sha256": "45b6129b3b6ff38fdfb76f6a0fe46e9e49749f5b3962dfe012a3af6b559980de"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/logger/index.js",
+      "sha256": "53ab95ce49065ee9a28c759db69e76edd77c0b1c4d9d4efc4add543ccd5a4efe"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/OxyServer.js",
+      "sha256": "51b5c9be1717772d401035680f101dcf2a321e14e1930b001719149cd994568f"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/auth.js",
+      "sha256": "fb63546c80ad47b9ceac8620971b75a70885f8e6f88ebd1cd3c719c835048ead"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/capabilityTicket.js",
+      "sha256": "86215802b2c727b08ff1d9e1699d78861eb4fda495bdce5caeb41f45b8ae78ad"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/cors.js",
+      "sha256": "ba60ad137439511257df0e79dfc1f26f892e8100755db673a9d817bdc6244523"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/index.js",
+      "sha256": "2224a4174d43a109f382e01eedca496e3a3bb62270a145a6097cde79aa110d75"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/liveCapabilityTicket.js",
+      "sha256": "83a3c790975a08ad3ea268b32577cd28ce92c4586f553405fab99ef8aadab5fc"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/middleware.js",
+      "sha256": "c9a40b354256e2971906eb11a55dd96a786c537f6f51b390bd838b237edf2c33"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/namespaces.js",
+      "sha256": "17043b553e70e0235ab71ad32086bdf94d2dd65a12205f4b12d4e7899cc13e32"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/rateLimit.js",
+      "sha256": "7078288a6fa4b5de781f2bc918e290c1e7648e46a1cd0501ef01db3d1125ff24"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/requesterAssertion.js",
+      "sha256": "c12ecd1822e971a2d817129bff3b81476f70a6154a7b3f8ecba020ba658a2539"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/safeFetch.js",
+      "sha256": "2779eb87912da6d74aa76ae476d01dacce5baa1d76ddce9c4f44cbaedf727f2a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/securityHeaders.js",
+      "sha256": "dc6e19bb9551deec8ecb38a08e456ad9d348cfadfeffbdb2d046e86bb53a0bc4"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/serviceTokenLifetime.js",
+      "sha256": "30b28080dd5793cde017c23f12fc549928d5ef96e811b1f46e82191a1d935f9b"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/traffic.js",
+      "sha256": "d1ffe80858d2f129125dd0050574a4e8f141cf40ef03691c5a7b1e50405bec5c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/trafficNodeHttp.js",
+      "sha256": "2893a1c62ac643250e29a77a0a3e973d2d089200abda7e9b337d49cbc89de028"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/userInvalidation.js",
+      "sha256": "bf85a1cc67d3474cd3a904785623420223b981578d3442af866f9ac434a306ec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/verifySecret.js",
+      "sha256": "5eac1bfb8826c64c115060eca9e6dee869df20eee7d3d0b76b897c5f63d4925b"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/server/workloadIdentity.js",
+      "sha256": "a198f470842716dd7136d6bab6332e5105c9c6c6070609c3f21917d5e34f6cf7"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/accountCacheSweep.js",
+      "sha256": "d01814199208c8af7180f94372a8fccaaed9dedcf5f48c3de3e6617ce7c69956"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/activityId.js",
+      "sha256": "04d600313d05397e60f61746e1b591605618c1e62d230b3be894e602466e11a3"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/apiUtils.js",
+      "sha256": "6e5c3b411aeab4acdada7d63a0365398ee8ae3f806c7ced2fc5e3c3a813d2ec7"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/asyncUtils.js",
+      "sha256": "ee1d1b6388a1a412a466c133b4ec5be1626aa9047c1ed0e425d9f7ba700a696e"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/authWebUrl.js",
+      "sha256": "ddaffa40bcda8ceb41517ebce7bbf6daef1ba600c7ae127fcbec956ca9deffe6"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/cache.js",
+      "sha256": "ae6b17c5935648056184334cdabda14335009c6d66dcb7096f80379b9ce3b446"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/cacheKey.js",
+      "sha256": "072de75915966a0e2a75997f7f98f13aa077eb6ec97d427b727113a7371a3f65"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/edgeRegion.js",
+      "sha256": "606ad9d91face55a36983228fe13f7c29db215f2beca5250786251492cefaadc"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/errorUtils.js",
+      "sha256": "3c12e9cbf0588104d9ee00754e9f5b80cac0cefac24c81ff0e289da4318a65ec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/identityCacheSweep.js",
+      "sha256": "94f269ccf38c61b059716f6e5c3f40af232b5d6fc4306e2575127663bb98d3ec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/officialOrigins.js",
+      "sha256": "4da931c1973b43cfe0fb1231d79a8b58f6b01c823e520c0f8096843a5bc1c696"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/oxyServiceEnvironment.js",
+      "sha256": "012db6bc762a33a760c47da581c57bb80bfabdf906b3b6bc4ae1a096dfa57225"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/platform.js",
+      "sha256": "1d5826b8c41ef89fdf39532a6bbfbd4a0002eef282f2ff32c953b6bb7b08b354"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/redactUrl.js",
+      "sha256": "2e1effc58543372f1b4cac0f78d4159ee741077b8b6773e966e8abf53d8e1b5a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/registrableApex.js",
+      "sha256": "961698379483aec11b319d8427ce0ef116c8eb314f7465a4da79d96ff1be52e6"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/requestUtils.js",
+      "sha256": "964724e5b5c0e6009738ef967f99381dcb0aa13fcd186476817bfbb9f530884d"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/slashes.js",
+      "sha256": "55fdcff820ead443c00c3367bd0687f4b4f008d637cee31124da44dd7004e595"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/tokenClaims.js",
+      "sha256": "270ffd9565da8022f0967fa740032743d32e06acf0933406ba07a0ac19ffa77d"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/core/dist/cjs/utils/userIdentity.js",
+      "sha256": "29aa24e965a2431683a0c3376f86708a1eba5046b9ddd99f5d8ddf314eba018e"
+    }
+  ],
+  "coreBuild": {
+    "command": "bun run build",
+    "cwd": "packages/core",
+    "exitCode": 0,
+    "record": "composed-core-build.log"
+  },
+  "results": {
+    "apiExactCombined": {
+      "suites": 10,
+      "tests": 136,
+      "exitCode": 0,
+      "source": "982c67510f2d3795e60d5a378fc7e3d6da072019",
+      "launcher": {
+        "newLocalServerPid": 3439526,
+        "dataDirectory": "/tmp/oxy1519-i09-fre7n_2f/pg1519-uzwhfjjg/data",
+        "database": "oxy_rehearsal_1519_faaf8720ada5a6a0",
+        "command": [
+          "bun",
+          "run",
+          "test",
+          "--runInBand",
+          "--testSequencer",
+          "/tmp/oxy1519-i09-fre7n_2f/ordered-sequencer.cjs",
+          "--runTestsByPath",
+          "src/routes/__tests__/nativeRequesterAssertion.routes.test.ts",
+          "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+          "src/routes/__tests__/serviceTokenCredentials.test.ts",
+          "src/services/__tests__/approvedActingAsEpochs.test.ts",
+          "src/services/__tests__/agentKeyAuth.test.ts",
+          "src/services/__tests__/agentKeyGovernance.test.ts",
+          "src/routes/__tests__/agentAutonomousFlow.test.ts",
+          "src/routes/__tests__/mcpOAuth.routes.test.ts",
+          "src/services/__tests__/subscriptionCreditLockOrder.test.ts",
+          "src/services/__tests__/productBillingCatalogue.test.ts"
+        ],
+        "exitCode": 0,
+        "log": "/tmp/oxy1519-i09-fre7n_2f/api/focused.txt",
+        "productionAccess": false
+      }
+    },
+    "apiAdditionalServiceFixtures": {
+      "suites": 10,
+      "tests": 202,
+      "exitCode": 0,
+      "sourceTree": "982c67510 committed bytes; run before commit, unchanged",
+      "launcher": {
+        "newLocalServerPid": 3430967,
+        "dataDirectory": "/tmp/oxy1519-i09-k3_o1dnv/pg1519-allh56we/data",
+        "database": "oxy_rehearsal_1519_38f8b0f59c95ceed",
+        "command": [
+          "bun",
+          "run",
+          "test",
+          "--runInBand",
+          "--testSequencer",
+          "/tmp/oxy1519-i09-k3_o1dnv/ordered-sequencer.cjs",
+          "--runTestsByPath",
+          "src/middleware/__tests__/serviceCredentialRateLimit.test.ts",
+          "src/middleware/__tests__/publicIdentifierNotABearer.test.ts",
+          "src/routes/__tests__/reputationAwardAuthz.test.ts",
+          "src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts",
+          "src/routes/__tests__/inferenceProviderConnections.test.ts",
+          "src/routes/__tests__/internalServiceAccountSwitch.test.ts",
+          "src/routes/__tests__/inferenceCataloguePublication.test.ts",
+          "src/routes/__tests__/inferenceRoutingPolicies.test.ts",
+          "src/routes/__tests__/inferenceCatalogueRoute.test.ts",
+          "src/routes/__tests__/inferenceReporting.test.ts"
+        ],
+        "exitCode": 0,
+        "log": "/tmp/oxy1519-i09-k3_o1dnv/api/focused.txt",
+        "productionAccess": false
+      }
+    },
+    "coreCombined": {
+      "suites": 5,
+      "tests": 39,
+      "exitCode": 0
+    },
+    "coreServiceAuthSingleClock": {
+      "suites": 1,
+      "tests": 50,
+      "exitCode": 0
+    },
+    "apiTypes": 0,
+    "apiScriptsTypes": 0,
+    "apiFixtureEslint": 0,
+    "openapi": {
+      "fresh": true,
+      "paths": 364,
+      "operations": 419
+    },
+    "schemaCensus": {
+      "tables": 223,
+      "columns": 2630,
+      "exitCode": 0
+    },
+    "localTwoProcessRevokeCommitToFreshDenialsMs": 13.177009999999427,
+    "productionP99": false
+  },
+  "limits": [
+    "Local owned PostgreSQL fresh normal migration139; PID3439526 stopped. No production/provider/financial requests.",
+    "Exact final 10/136 replay uses clean source982c67510 including consent-key revocation race and the new built core loaded by two separate processes. Build/dist hashes identify measured SDK bytes.",
+    "The broader 10/202 and core39 ran before final metadata commit; no runtime differences. The core50 rerun covers final single-clock helper.",
+    "First final rehearsal used six wrong test paths: invocation failure recorded separately, not a product regression. Corrected full10/136 passed.",
+    "Diagnostic fixture RED32 and missing-offline-fixture RED12 are retained; current accepted enforcement was preserved rather than relaxed. Their original uncommitted harness snapshots were not archived, so these are diagnostic logs, not frozen harness reproduction claims.",
+    "Root had reviewed I01/I03/billing checkpoints independently. Shared oauthCode cleanup restores I01 exact content; other differing inputs are additive shared routes/barrels/OpenAPI or policy-explicit test fixtures.",
+    "No monolithic full API success claimed. Final CI pending; Forge deliberately INACTIVE until one final source freeze/ARM/revalidation.",
+    "I03 production deadlines, receiver SDK adoption and token300 rolling issuer/caller transition remain unverified. No p99 or instant revocation claim.",
+    "I07 has two new P2 fixes in progress: complete catalogue-to-DB concordance and provider-accepted cancellation with local failure/app transfer. Do not freeze source or close I06/I07."
+  ]
+}

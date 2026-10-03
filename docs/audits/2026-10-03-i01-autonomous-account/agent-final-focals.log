@@ -1,0 +1,11 @@
+$ jest --runInBand src/routes/__tests__/updatesAdminAuth.test.ts src/services/__tests__/inferenceLedger.service.test.ts src/services/__tests__/capabilityAuthority.db.test.ts src/services/__tests__/mcpOAuth.service.test.ts src/services/__tests__/agentKeyGovernance.test.ts src/routes/__tests__/agentAutonomousFlow.test.ts
+{"level":30,"time":1790994793794,"pid":3409610,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790994794347,"pid":3409610,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790994797052,"pid":3409610,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790994797399,"pid":3409610,"hostname":"SuperPC","kid":"dev-ephemeral-13d7dbcd55e3","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+
+Test Suites: 6 passed, 6 total
+Tests:       108 passed, 108 total
+Snapshots:   0 total
+Time:        8.136 s
+Ran all test suites matching src/routes/__tests__/updatesAdminAuth.test.ts|src/services/__tests__/inferenceLedger.service.test.ts|src/services/__tests__/capabilityAuthority.db.test.ts|src/services/__tests__/mcpOAuth.service.test.ts|src/services/__tests__/agentKeyGovernance.test.ts|src/routes/__tests__/agentAutonomousFlow.test.ts.

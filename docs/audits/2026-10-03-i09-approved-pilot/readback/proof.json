@@ -1,0 +1,63 @@
+{
+  "recordedAt": "2026-10-03T01:05:10.382933+00:00",
+  "run": "https://github.com/OxyHQ/oxy/actions/runs/37084334795",
+  "jobId": 111091392644,
+  "conclusion": "success",
+  "workflowMainHead": "4b145040afca38be93ad4096241d4c60e12e1c82",
+  "liveTaskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:691",
+  "liveImageDigest": "sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+  "snapshotId": "snap_8801d0c4e843149f",
+  "deploymentCount": 272,
+  "exactPilotTuples": [
+    {
+      "deploymentId": "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+      "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+      "provider": "cerebras",
+      "regions": []
+    },
+    {
+      "deploymentId": "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+      "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+      "provider": "groq",
+      "regions": []
+    },
+    {
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+      "provider": "openrouter",
+      "regions": []
+    }
+  ],
+  "providerRequests": 0,
+  "oxyLedgerWrites": 0,
+  "taskStopped": true,
+  "exitCode": 0,
+  "ephemeralTaskDefinitionDeregistered": true,
+  "downloadedJobLogSha256": "e26c9b7564e9131123152d30abe5b28fa672b149d7a5e15ac4b87d4c729a2200",
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/readback/deregistered-task-definition.json",
+      "sha256": "3d7bf5dbac7f0933ff78162e78c401ac30e6492749b5ca586f66d5223275fe30"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/readback/dispatch.json",
+      "sha256": "d0b95ecec6b8e5614e00c2bd0c7baa5fb7dd15ab89615c4b68deaf39435a4e29"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/readback/registry-projection.json",
+      "sha256": "376630eae3b7acc71b485c6cce46e8c0d5bec6d67cf15c095067f6c348a96374"
+    },
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/readback/stopped-task.json",
+      "sha256": "b6e8391e006a0f07d473dc04d161b0cdc36fdb0127b7c9430b94c0d03e93451e"
+    }
+  ],
+  "limits": [
+    "Ed25519-signed request and authenticated GH/ECS metadata; no response signature claimed",
+    "Descriptor presence does not prove provider credential binding, rights/privacy/price readiness or route eligibility",
+    "Empty regions do not attest residency",
+    "Task has no DATABASE_URL; no inference/provider requests and no ledger writes",
+    "No workflow artifact upload exists; operator-safe projection recovered from authenticated job log",
+    "Kaana#150 NULL fix not yet merged/deployed at this capture"
+  ]
+}

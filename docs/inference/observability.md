@@ -421,8 +421,8 @@ rather than assuming an oversight.
 Workstream 12 requires the two to be distinguishable. They are, and the mechanism
 is worth stating because it is not a column.
 
-**The credential trail records only customer actions, by construction.** The
-three routes that write an actor-bearing row into
+**Customer credential actions use account membership.** The
+three public routes that write an actor-bearing row into
 `application_credential_audit_events` — credential create, rotate and revoke —
 are gated by `requireAppPermission`, which resolves access ONLY through
 `accountService.resolveEffectiveAccess` over `Application.ownerAccountId`.
@@ -437,11 +437,14 @@ surface (`routes/inferenceAdmin.ts`, `requireStaff`) writes
 `inference_deployments.permission_state_changed_by_user_id`,
 `.permission_state_note`, `.legal_reviewed_by_user_id` and
 `.legal_review_evidence_ref`. The two kinds of action are told apart by WHERE the
-record is, not by a flag on it.
+record is. The bounded Alia revocation canary also writes credential lifecycle
+events, with `actor_user_id = NULL` and closed internal metadata whose
+`actorKind` is `operational_canary`. Its AWS operator ARN, session authorization
+digest and nonce identify the reviewed operator action; they never represent
+a customer session or new consent. Validation failures also have no customer
+actor. Public audit DTOs omit that internal metadata.
 
-That is true today and would stop being true **silently** the first time a staff
-support route is given a write into the credential trail. So it is pinned by a
-test rather than left to be re-derived:
+The customer routes remain pinned by a test:
 `packages/api/src/routes/__tests__/machineCredentials.test.ts`, *"the staff flag
 opens no door into a customer's credential trail"* — a caller carrying `isStaff`
 and no membership is refused create, rotate and revoke, no row names them, and

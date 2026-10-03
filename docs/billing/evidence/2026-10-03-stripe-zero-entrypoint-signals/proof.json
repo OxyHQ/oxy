@@ -1,0 +1,41 @@
+{
+  "sourceHead": "5b08680c7aca8d32cb926102889d4aba41a95415",
+  "sourceSha256": {
+    "scripts/billing/test-stripe-zero-receiver.py": "24efa5c147f106eb563cd48359ada5c6c8ce65ac5800dcc18b24282467a23b59",
+    "scripts/billing/test-stripe-zero-isolation.py": "4b4acdee2a8401c29ffa842463cd599f60db633d43d3df176e3e8e42d04a68fb",
+    "scripts/billing/stripe-oxy-sandbox.py": "193df0c7ab8b90e5c347e3a057404fc9550cf66cd06aa7a7003ef8da86664608",
+    "scripts/billing/test-stripe-zero-receiver.mjs": "edab35a8dc66b42f01a9cc22e66b8539b1b3fbbf15a141da9c86cb7dabcceb90",
+    "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts": "6f523ae41a0ace3350f5e2c8580be78ae39d65a34f1f132da83ee0b2d4e64f1b"
+  },
+  "records": {
+    "docs/billing/evidence/2026-10-03-stripe-zero-entrypoint-signals/entrypoint-isolation.log": {
+      "sha256": "f0e2daef586427ede0210ecf9a7a841f74142380a7c23db42e4fc503ca031b25",
+      "bytes": 566,
+      "exitCode": 0
+    },
+    "docs/billing/evidence/2026-10-03-stripe-zero-entrypoint-signals/actual-receiver.log": {
+      "sha256": "cea152944d01a8b8f3a4f2397c8e338821d7f18d15e775733157531f1f8bfbb6",
+      "bytes": 2427,
+      "exitCode": 0
+    }
+  },
+  "results": {
+    "entrypointTests": 3,
+    "realPgPids": [
+      3642627,
+      3642676,
+      3642735,
+      3643324
+    ],
+    "allPgStopped": true,
+    "actualCapturedEventReceiver": "500-to-200-and-replay200",
+    "providerRequests": 0,
+    "providerMutations": 0
+  },
+  "limits": [
+    "The three black-box entrypoint tests copy exact source into an isolated fixture and use real fresh owned PostgreSQL plus actual Bun process groups. Only migration and receiver bodies are offline fixture scripts, so they do not test SQL migrations or provider cleanup.",
+    "SIGTERM to parent and SIGINT to parent group observe child cleanup while PostgreSQL is alive; finally logs child stopped before own PG shutdown. Normal/child/migration observe no dotenv sentinel or inherited AWS/GitHub credentials; BUN_OPTIONS remains the fixed no-env-file value.",
+    "The separate final actual receiver run applies real140 fresh/repeat and reuses the previously authenticated own event with local signature. No provider mutation or request is made; product source is unchanged.",
+    "No claim is made about public Stripe delivery, arbitrary forced termination, or a successful original remote zero attempt."
+  ]
+}

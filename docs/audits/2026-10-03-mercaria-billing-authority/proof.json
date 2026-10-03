@@ -1,0 +1,79 @@
+{
+  "sourceCommit": "3201f6f4ccd792aa78fff1a4897e8464f677e994",
+  "sources": [
+    {
+      "path": "docs/auth/1519-mercaria-billing-authority/README.md",
+      "sha256": "9513a5c9b6a1fbc7b8e51ac896e381bacb05f1e7907176debd911aabc8df8efe"
+    },
+    {
+      "path": "packages/api/scripts/reconcile-mercaria-billing-authority.ts",
+      "sha256": "b0a719440e8412f5690b5e7c48a27ffe3d097114ef75c14afc03429a3ec6c514"
+    },
+    {
+      "path": "packages/api/src/scripts/seedOxyApplicationsSpecs.ts",
+      "sha256": "fdbcecbc8de052f94cd5da2997e48ba6c63c892c6aa71d45c379ae3546c7017e"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mercariaBillingAuthority.db.test.ts",
+      "sha256": "5a638462fa6274ed52c606241f3645956cd2f3ab329d773ac6c6f421fbbcca0b"
+    },
+    {
+      "path": "packages/api/src/services/mercariaBillingAuthority.service.ts",
+      "sha256": "aee073957ceed5abc1a7a2afb54448ac67aaf9eb3d66ea33554b7e2d7ef978c5"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/README.md",
+      "sha256": "209bab5764a2120b3b8d2c6575e7129226f4c18190eb4c8a4b7af91dd3e674ff"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/biome-final.log",
+      "sha256": "e7903ddc6d8adf6abf1e9a139c3179552b3653446f7762bc14c0e138187f3b4a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/build-contracts.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/build-db.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/build-dependencies.log",
+      "sha256": "a9736e4b8cbabed2b84e2a473724b9567852438f255b22f5a246ab4d161654a3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/focal-attempt1.log",
+      "sha256": "c465b38528cf4af050f0b04043aea638ed1fb50991edcd1228c0c0aa78ad5f31"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/focal-attempt2.log",
+      "sha256": "3fd53665e4a0569e1286edc367bdd3eba6bd174c42dc819c1abdc9e2fcc22db8"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/focal-final.log",
+      "sha256": "eb8d46285aa28e305ab09c86fcbb21c00447b2f533eb53b6a9c63073d512c867"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/install.log",
+      "sha256": "c65dc7e081ededbe9f524689649ca071511bd68bb8947d1739e39a97a3af069f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/teardown.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/types-final-actual.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-mercaria-billing-authority/types.log",
+      "sha256": "95ec6ca72502f4f4c8a769c94254dcbb903979cd76a08f1978d9090f9853ea63"
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts
+FAIL src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts
+  ● a native sibling stopped during another app full logout › cold mint rejection persists logout intent without challenging Commons or deleting the holder
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unauthenticated"
+    Received: "session"
+
+      29 |     const restarted = createNativeAuthStateStore(f.storage);
+      30 |     const outcome = await runSessionColdBoot({oxy: f.oxy, store: restarted, platform: {isWeb: false, isNative: true}});
+    > 31 |     expect(outcome.kind).toBe('unauthenticated');
+         |                          ^
+      32 |     expect(f.signInWithCommonsIdentity).not.toHaveBeenCalled();
+      33 |     expect(await createNativeAuthStateStore(f.storage).isAutomaticIdentitySignInSuppressed?.()).toBe(true);
+      34 |     expect(await restarted.load()).toMatchObject({deviceId: prior.deviceId, deviceSecret: prior.deviceSecret});
+
+      at Object.<anonymous> (src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts:31:26)
+
+  ● a native sibling stopped during another app full logout › refresh no_active_session never falls through to automatic key authentication
+
+    expect(received).toBeNull()
+
+    Received: "key-token"
+
+      36 |   it('refresh no_active_session never falls through to automatic key authentication', async () => {
+      37 |     const f = fixture(); await f.store.save(prior);
+    > 38 |     expect(await refreshPersistedSession({oxy: f.oxy, store: f.store, allowCommonsIdentityFallback: true})).toBeNull();
+         |                                                                                                             ^
+      39 |     expect(f.signInWithCommonsIdentity).not.toHaveBeenCalled();
+      40 |     const restarted = createNativeAuthStateStore(f.storage);
+      41 |     expect(await restarted.isAutomaticIdentitySignInSuppressed?.()).toBe(true);
+
+      at Object.<anonymous> (src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts:38:109)
+
+  ● a native sibling stopped during another app full logout › a rejection from before a new local epoch cannot set logout intent
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "status": "session-ended",
+    +   "status": "no-session",
+      }
+
+      45 |     const f = fixture(); await f.store.save(prior);
+      46 |     f.mintToken.mockImplementation(async () => {f.bumpEpoch(); throw Object.assign(new Error('no_active_session'), {status: 401});});
+    > 47 |     expect(await refreshDeviceSecretArm({oxy: f.oxy, store: f.store})).toEqual({status: 'session-ended'});
+         |                                                                        ^
+      48 |     expect(await f.store.isAutomaticIdentitySignInSuppressed?.()).toBe(false);
+      49 |   });
+      50 |   it('a rejection for a replaced holder cannot mark the new session', async () => {
+
+      at Object.<anonymous> (src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts:47:72)
+
+  ● a native sibling stopped during another app full logout › a rejection for a replaced holder cannot mark the new session
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "status": "session-ended",
+    +   "status": "no-session",
+      }
+
+      51 |     const f = fixture(); await f.store.save(prior);
+      52 |     f.mintToken.mockImplementation(async () => {await f.store.save({...prior, sessionId: 'new-session', userId: 'new-user'}); throw Object.assign(new Error('no_active_session'), {status: 401});});
+    > 53 |     expect(await refreshDeviceSecretArm({oxy: f.oxy, store: f.store})).toEqual({status: 'session-ended'});
+         |                                                                        ^
+      54 |     expect(await f.store.isAutomaticIdentitySignInSuppressed?.()).toBe(false);
+      55 |     expect(await f.store.load()).toMatchObject({sessionId: 'new-session', userId: 'new-user'});
+      56 |   });
+
+      at Object.<anonymous> (src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts:53:72)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 1 passed, 5 total
+Snapshots:   0 total
+Time:        0.364 s
+Ran all test suites within paths "src/boot/__tests__/nativeStoppedSiblingSignOut.test.ts".
+error: script "test" exited with code 1

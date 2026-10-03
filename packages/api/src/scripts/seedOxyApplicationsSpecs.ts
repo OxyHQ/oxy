@@ -69,6 +69,8 @@ export interface SeedAppSpec {
    * requests can target its installs without a separate register-commons run.
    */
   capabilities?: ApplicationCapability[];
+  /** Machine-only registrars do not create an OAuth public client. Default preserves existing seeds. */
+  publicClient?: boolean;
   /**
    * Username of the account this application is owned by, when it is NOT the
    * platform owner itself.
@@ -288,6 +290,8 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
 export const ALIA_OWNER_ACCOUNT_USERNAME = 'alia-production-chat';
 
 /** New identities: seed these exact entries before provisioning their activity lanes. */
+/** GoWay public sign-in identity; registration is an explicit operator step. */
+export const GOWAY_APPLICATION_ID = '73176d04c3654667138c23ec';
 export const NILO_APPLICATION_ID = 'ed143b1b58d60eab417f7d5c';
 export const MEDIA_WORKER_APPLICATION_ID = '71ea45cf97451563762ead13';
 
@@ -328,7 +332,21 @@ export const OXY_MOVE_APPLICATION_ID = '4bac8f1baed68fd02d65d592';
  * URI, so web apps register their apex origin as the redirect surface; native
  * apps register their deep-link schemes.
  */
+export const OXY_PROFILE_REGISTRAR_APPLICATION_ID = 'dce95bde-49ef-4f05-83b3-c4d390b322ea';
+export const OXY_PROFILE_REGISTRAR_SPEC: SeedAppSpec = {
+  id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
+  name: 'Oxy Profile Catalogue Registrar',
+  description: 'Internal canonical profile catalogue registrar; no user sign-in or workload binding.',
+  type: 'internal', redirectUris: [], scopes: ['catalogs:write'],
+  capabilities: [catalogApplicationCapability('oxy')], publicClient: false,
+};
+
+export function requiresPublicSeedCredential(spec: SeedAppSpec): boolean {
+  return spec.publicClient !== false;
+}
+
 export const SEED_APPS: SeedAppSpec[] = [
+  OXY_PROFILE_REGISTRAR_SPEC,
   {
     id: KAANA_APPLICATION_ID,
     name: 'Kaana',
@@ -423,8 +441,10 @@ export const SEED_APPS: SeedAppSpec[] = [
       // job ingest is refused with `The listing host is not a verified Clarity
       // site owned by this account`.
       'clarity:sites:manage',
+      // I05 foreground only: requester session and read-only tools remain independently checked.
+      'capability-tickets:issue',
     ],
-    capabilities: [catalogApplicationCapability('mention')],
+    capabilities: [catalogApplicationCapability('mention'), AGENCY_COORDINATE_CAPABILITY],
   },
   {
     id: HOMIIO_APPLICATION_ID,
@@ -566,6 +586,9 @@ export const SEED_APPS: SeedAppSpec[] = [
       'catalogs:write',
       'capabilities:read',
       'capability-audit:write',
+      // Peable BillingProvider: merchant lookup/retrieve + the four mutations.
+      'payments:read',
+      'payments:write',
     ],
     capabilities: [catalogApplicationCapability('mercaria')],
   },
@@ -624,6 +647,15 @@ export const SEED_APPS: SeedAppSpec[] = [
       'notifications:write',
       'federation:instance-fetch',
     ],
+  },
+  {
+    id: GOWAY_APPLICATION_ID,
+    name: 'GoWay',
+    description: 'Official Oxy maps and navigation app.',
+    websiteUrl: 'https://goway.to',
+    type: 'first_party',
+    redirectUris: ['https://goway.to'],
+    scopes: ['user:read'],
   },
   {
     id: NILO_APPLICATION_ID,

@@ -1,0 +1,10 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/capabilityAuthority.db.test.ts src/services/__tests__/internalMcpParity.db.test.ts src/services/__tests__/capabilityAuthority.policy.test.ts src/routes/__tests__/capabilitiesPayloadRefusal.test.ts src/routes/__tests__/isolatedOAuthLogout.test.ts
+{"level":30,"time":1790969800301,"pid":3089023,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790969800823,"pid":3089023,"hostname":"SuperPC","kid":"dev-ephemeral-7f8f4cb54e90","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1790969801250,"pid":3089023,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 5 passed, 5 total
+Tests:       32 passed, 32 total
+Snapshots:   0 total
+Time:        2.862 s
+Ran all test suites within paths "src/services/__tests__/capabilityAuthority.db.test.ts", "src/services/__tests__/internalMcpParity.db.test.ts", "src/services/__tests__/capabilityAuthority.policy.test.ts", "src/routes/__tests__/capabilitiesPayloadRefusal.test.ts", "src/routes/__tests__/isolatedOAuthLogout.test.ts".

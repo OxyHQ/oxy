@@ -1,0 +1,47 @@
+$ jest --passWithNoTests --runInBand
+FAIL src/__tests__/internalInvocation.test.ts
+  ● keeps a key optional for catalogue policy none
+
+    ZodError: [
+      {
+        "code": "custom",
+        "message": "Effectful tools must declare idempotency support",
+        "path": [
+          "tools",
+          0,
+          "idempotency"
+        ]
+      }
+    ]
+
+      48 |
+      49 | function configure(idempotency: 'required' | 'none' | 'supported' = 'required') {
+    > 50 |   const catalog = appCapabilityCatalogSchema.parse({
+         |                                              ^
+      51 |     schemaVersion: '1', appId: 'mention', version: '1.3.0', audience: 'mention-api', internalBaseUrl: origin, accountResourceType: 'mention_account',
+      52 |     tools: [{ name: 'create-lane', version: '1', description: 'Fixture effect on exact account root.',
+      53 |       inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'], additionalProperties: false },
+
+      at Object.get error [as error] (../../node_modules/.bun/zod@3.25.76/node_modules/zod/v3/types.cjs:45:31)
+      at ZodEffects.parse (../../node_modules/.bun/zod@3.25.76/node_modules/zod/v3/types.cjs:120:22)
+      at configure (src/__tests__/internalInvocation.test.ts:50:46)
+      at src/__tests__/internalInvocation.test.ts:159:3
+
+    Errors contained in AggregateError:
+        thrown: Object {
+
+            "code": "custom",
+            "message": "Effectful tools must declare idempotency support",
+            "path": Array [
+              "tools",
+              0,
+              "idempotency",
+            ],
+          }
+
+Test Suites: 1 failed, 8 passed, 9 total
+Tests:       1 failed, 48 passed, 49 total
+Snapshots:   0 total
+Time:        1.184 s
+Ran all test suites.
+error: script "test" exited with code 1

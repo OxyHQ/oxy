@@ -1,0 +1,8 @@
+$ jest --runInBand src/services/__tests__/capabilityAuthority.db.test.ts
+{"level":30,"time":1790964826117,"pid":3047535,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1790964826454,"pid":3047535,"hostname":"SuperPC","kid":"dev-ephemeral-598a9d17d054","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+Test Suites: 1 passed, 1 total
+Tests:       13 passed, 13 total
+Snapshots:   0 total
+Time:        1.597 s, estimated 3 s
+Ran all test suites matching src/services/__tests__/capabilityAuthority.db.test.ts.

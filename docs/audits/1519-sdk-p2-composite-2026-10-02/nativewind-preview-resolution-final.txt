@@ -1,0 +1,9 @@
+{
+  "version": "5.0.0-preview.3",
+  "typeReferenceResolved": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/sdk-p2/consumer/node_modules/nativewind/types.d.ts",
+  "typeSha256": "0e666d64ea5d902304353cf9d83a14260279ed25fda43f134bc028020e785a69",
+  "proposedRange": ">=5.0.0-preview.3 <6.0.0",
+  "satisfiesProposed": true,
+  "satisfiesExisting": false,
+  "runtimeImportRequired": false
+}

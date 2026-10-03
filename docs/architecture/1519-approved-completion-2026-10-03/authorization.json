@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "channel": "explicit-user-session",
+  "instruction": "te apruebo todo, y sobre tus preguntas, deberia estar todo explicado en la issue pienso yo...",
+  "recordedAt": "2026-10-03T00:27:15.095997+00:00",
+  "receivedAtApproximate": "2026-10-03T00:17:00Z",
+  "source": "Direct session reply relayed by parent orchestrator /root; no GitHub actor identity inferred.",
+  "instructionSha256": "94502ffc7e7662610e071a9de85b63b2aac02af67ed38739c5702d9577b85f2e",
+  "instructionDigestFormat": "Exact quoted instruction UTF-8 followed by one LF. No normalization.",
+  "scope": "Complete documented recommendations, implementation, permissions, plans/payments, inference, coordinated publication/merge/deployment and closure after all criteria verified.",
+  "limits": [
+    "Authorization does not establish successful tests, data provenance, rollout or acceptance.",
+    "No provider monetary tariff/ceiling or missing commercial catalog identifiers are invented.",
+    "Production actions require root technical review and a concrete reversible rollout.",
+    "Forge source policy remains INACTIVE during source changes; final exact refreeze/ARM/collector/review required. Existing expiry remains 2026-10-09T22:00:00.000Z."
+  ]
+}

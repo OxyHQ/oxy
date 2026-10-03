@@ -32,6 +32,7 @@ jest.mock('../../config/redis', () => ({ getRedisClient: () => null }));
 import jwt from 'jsonwebtoken';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 import {
   ALIA_RESOURCE_SERVER_APPLICATION_ID,
   NATIVE_PRODUCT_AGENTS,
@@ -69,7 +70,11 @@ interface HttpResult {
   raw: string;
 }
 
-let server: http.Server;
+let server: http.Server | undefined;
+let ownDatabaseUrl: string | undefined;
+const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
+
+jest.setTimeout(60_000);
 let homiio: Principal;
 let alia: Principal;
 let untrusted: Principal;
@@ -121,6 +126,7 @@ async function seedPrincipal(input: {
 }
 
 function serviceToken(principal: Principal): string {
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
       appId: principal.appId,
@@ -131,11 +137,13 @@ function serviceToken(principal: Principal): string {
       scopes: principal.scopes,
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: issuedAt,
+      exp: issuedAt + 300,
     });
 }
 
 function post(path: string, token: string | null, body: unknown): Promise<HttpResult> {
+  if (!server) throw new Error('Native requester fixture server is not listening');
   const address = server.address() as AddressInfo;
   const payload = JSON.stringify(body);
   return new Promise((resolve, reject) => {
@@ -187,6 +195,9 @@ beforeAll(async () => {
   process.env.DEVICE_ID_SALT = 'x'.repeat(48);
   process.env.CAPABILITY_TICKET_SIGNING_KEY_ID = 'cap-route-test';
   process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY = SIGNING_KEY.privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+  // Canonical product IDs carry real authority. Never reuse or overwrite a
+  // different suite's owner/scopes: this file owns a fully migrated database.
+  ownDatabaseUrl = await createTestDatabase();
   await connectPostgres();
 
   homiio = await seedPrincipal({
@@ -219,8 +230,24 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  await closePostgres();
+  try {
+    if (server) {
+      await new Promise<void>((resolve, reject) => {
+        server?.close((error) => error ? reject(error) : resolve());
+      });
+    }
+  } finally {
+    try {
+      await closePostgres();
+    } finally {
+      try {
+        if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+      } finally {
+        if (ORIGINAL_DATABASE_URL === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
+      }
+    }
+  }
 });
 
 beforeEach(() => {

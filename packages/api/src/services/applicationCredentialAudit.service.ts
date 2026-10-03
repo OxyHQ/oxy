@@ -310,3 +310,21 @@ export async function listCredentialAuditEventsOfType(
     )
     .orderBy(sql`${applicationCredentialAuditEvents.createdAt} desc`);
 }
+
+/** Reviewed internal operator transition; never a customer session or public API input.
+ * AWS authentication and exact-plan validation belong to the bounded operator CLI.
+ * No arbitrary metadata or credential material is accepted by this audit writer.
+ */
+export async function recordOperationalCredentialLifecycleEvent(writer: Writer, event: {
+  applicationId: string; credentialId: string; eventType: 'created' | 'revoked';
+  environment: ApplicationCredentialEnvironment; type: string;
+  operatorArn: string; authorizationSha256: string; nonce: string;
+}): Promise<void> {
+  if (!/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_\/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(event.operatorArn)
+    || !/^[a-f0-9]{64}$/.test(event.authorizationSha256) || !/^[a-f0-9]{24}$/.test(event.nonce)
+    || event.applicationId !== '6a2f851751b784a86fd0e934' || event.environment !== 'production' || event.type !== 'service') throw new Error('invalid_operational_credential_audit');
+  await writer.insert(applicationCredentialAuditEvents).values({ applicationId: event.applicationId,
+    credentialId: event.credentialId, eventType: event.eventType, actorUserId: null,
+    environment: event.environment, metadata: { type: event.type, actorKind: 'operational_canary',
+      operatorArn: event.operatorArn, authorizationSha256: event.authorizationSha256, nonce: event.nonce } });
+}

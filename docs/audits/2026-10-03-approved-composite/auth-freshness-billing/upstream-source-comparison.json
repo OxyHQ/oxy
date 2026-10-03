@@ -1,0 +1,755 @@
+[
+  {
+    "scope": "I01",
+    "acceptedProof": "docs/audits/2026-10-03-i01-autonomous-account/proof.json",
+    "acceptedProofCommit": "06d14399a",
+    "entries": [
+      {
+        "path": "docs/adr/0032-autonomous-account-agent-keys.md",
+        "upstreamSha256": "651e32839989bc1f226ccb5226d96a876a4f7360f7f6b3d25d1ed6bb2eec0833",
+        "composedSha256": "651e32839989bc1f226ccb5226d96a876a4f7360f7f6b3d25d1ed6bb2eec0833",
+        "identical": true
+      },
+      {
+        "path": "docs/auth/index.md",
+        "upstreamSha256": "dd7014a4caefaaefcc0510b7145af99875c99baa1803791307b302cf0c0b9dc6",
+        "composedSha256": "dd7014a4caefaaefcc0510b7145af99875c99baa1803791307b302cf0c0b9dc6",
+        "identical": true
+      },
+      {
+        "path": "docs/auth/principals-and-account-contexts.md",
+        "upstreamSha256": "6fd19a37d8161e5b0d4193ea33402c8bde0516e6396f2e1e024148644a7deab7",
+        "composedSha256": "6fd19a37d8161e5b0d4193ea33402c8bde0516e6396f2e1e024148644a7deab7",
+        "identical": true
+      },
+      {
+        "path": "docs/auth/proposals/bot-autonomous-auth.md",
+        "upstreamSha256": "50e7ad33a34a0a5e1a5ce567e8eefbe93b8a721f7781c7db0cf3ac2420d526e7",
+        "composedSha256": "50e7ad33a34a0a5e1a5ce567e8eefbe93b8a721f7781c7db0cf3ac2420d526e7",
+        "identical": true
+      },
+      {
+        "path": "packages/api/drizzle/0139_condemned_cloak.sql",
+        "upstreamSha256": "46a03fc4fa91fc5e7015a6a9a8444748aa00aba17fd95c6f19e56722a473c161",
+        "composedSha256": "46a03fc4fa91fc5e7015a6a9a8444748aa00aba17fd95c6f19e56722a473c161",
+        "identical": true
+      },
+      {
+        "path": "packages/api/drizzle/meta/0139_snapshot.json",
+        "upstreamSha256": "19bb7b207d12a50632c1832b5654251c5e215993c40390db2bdeb8a6b230cf80",
+        "composedSha256": "19bb7b207d12a50632c1832b5654251c5e215993c40390db2bdeb8a6b230cf80",
+        "identical": true
+      },
+      {
+        "path": "packages/api/drizzle/meta/_journal.json",
+        "upstreamSha256": "b353735bb088f4e6ad71a7281fcd35c5f5d2da21165025a2117ebbb1832125db",
+        "composedSha256": "b353735bb088f4e6ad71a7281fcd35c5f5d2da21165025a2117ebbb1832125db",
+        "identical": true
+      },
+      {
+        "path": "packages/api/openapi.json",
+        "upstreamSha256": "cc75776fc95b8740ba9b97b2c01a567a47bf11ad45c9a1b4b95cf85bbc292110",
+        "composedSha256": "9017c7ad1879ca287efbaa009c2c3ea76c67ce9c7f1f23c531aa4ee89f9a4843",
+        "identical": false
+      },
+      {
+        "path": "packages/api/scripts/generate-openapi.ts",
+        "upstreamSha256": "cb4a4c87f7e0966ef35aab951aafeb3ef1296745874e02673febd6bc7d82f36f",
+        "composedSha256": "cb4a4c87f7e0966ef35aab951aafeb3ef1296745874e02673febd6bc7d82f36f",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/db/schema/__tests__/workloadAttributionCredential.test.ts",
+        "upstreamSha256": "5fe2f8ef39f341f1124a0487af22b3b5707d12e2c78a925d8001c07db3a1b618",
+        "composedSha256": "5fe2f8ef39f341f1124a0487af22b3b5707d12e2c78a925d8001c07db3a1b618",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/db/schema/agency.ts",
+        "upstreamSha256": "b4a6ca2240e6c10919a3134f49ebe84e9ba6752347f3ce9b6eb2a81223982e5a",
+        "composedSha256": "b4a6ca2240e6c10919a3134f49ebe84e9ba6752347f3ce9b6eb2a81223982e5a",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/db/schema/authSessions.ts",
+        "upstreamSha256": "5b26f6ebed669619af9604d914a6972ed418500f0bf9c944db09245feb5733d3",
+        "composedSha256": "5b26f6ebed669619af9604d914a6972ed418500f0bf9c944db09245feb5733d3",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/db/schema/mcpOAuth.ts",
+        "upstreamSha256": "7e7dc160bdf979b99064699adef55557b6a1e938165dd3e692e199a99d2d88eb",
+        "composedSha256": "7e7dc160bdf979b99064699adef55557b6a1e938165dd3e692e199a99d2d88eb",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/middleware/authUtils.ts",
+        "upstreamSha256": "815c63b8408413b2f8a927a9acd3b7d99d0400288d1bba3148d4c4ceff930da5",
+        "composedSha256": "815c63b8408413b2f8a927a9acd3b7d99d0400288d1bba3148d4c4ceff930da5",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/middleware/optionalAuth.ts",
+        "upstreamSha256": "4a3bb8f86dc501a5c64865b9a84a36fb0699a05a525bc9277026f1e4dc7292e0",
+        "composedSha256": "4a3bb8f86dc501a5c64865b9a84a36fb0699a05a525bc9277026f1e4dc7292e0",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/__tests__/accountsSwitch.test.ts",
+        "upstreamSha256": "4afe25bec130a6199ac27dced3a30ff7280c26d2b30938746c2528bc7cd348ed",
+        "composedSha256": "4afe25bec130a6199ac27dced3a30ff7280c26d2b30938746c2528bc7cd348ed",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/__tests__/agentAutonomousFlow.test.ts",
+        "upstreamSha256": "05a439327dcbabebfa33d4f4598da7b84fe4d0f6c083b324363f427f66a66e65",
+        "composedSha256": "05a439327dcbabebfa33d4f4598da7b84fe4d0f6c083b324363f427f66a66e65",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/__tests__/mcpOAuth.routes.test.ts",
+        "upstreamSha256": "9323d76af7bab0cb3c5f288ebcb4b9a93c933b75570fc1cce927398192807187",
+        "composedSha256": "9323d76af7bab0cb3c5f288ebcb4b9a93c933b75570fc1cce927398192807187",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/__tests__/updatesAdminAuth.test.ts",
+        "upstreamSha256": "18f3f1e70de411a74912c002657df2a9c1778b70ad3e6d80fb2ae5d7a7fba5aa",
+        "composedSha256": "18f3f1e70de411a74912c002657df2a9c1778b70ad3e6d80fb2ae5d7a7fba5aa",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/accountBilling.ts",
+        "upstreamSha256": "e3317e3508fae8fbc80222737f79ff7e54efeda23d3e6cecdfe6d78832940162",
+        "composedSha256": "e3317e3508fae8fbc80222737f79ff7e54efeda23d3e6cecdfe6d78832940162",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/accounts.ts",
+        "upstreamSha256": "7167d235ef0f3367dbed6a8b9c61e63dccd13d7ab3e442a702210587c49705fe",
+        "composedSha256": "7167d235ef0f3367dbed6a8b9c61e63dccd13d7ab3e442a702210587c49705fe",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/agentAuth.ts",
+        "upstreamSha256": "457dcd5c56c0f32e0a2b60839c43f2190fffaffc1b15846121e9173c40aa2b83",
+        "composedSha256": "457dcd5c56c0f32e0a2b60839c43f2190fffaffc1b15846121e9173c40aa2b83",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/agentKeys.ts",
+        "upstreamSha256": "4db5bee3a6fbf787b6c08ba9b6cc0a4584726c9863f4eb31fdb0b2265cdb4572",
+        "composedSha256": "4db5bee3a6fbf787b6c08ba9b6cc0a4584726c9863f4eb31fdb0b2265cdb4572",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/applications.ts",
+        "upstreamSha256": "d490a467603723a046c5c78ab4c68c415fe507486d3363ad7deb8d8e41188c3e",
+        "composedSha256": "d490a467603723a046c5c78ab4c68c415fe507486d3363ad7deb8d8e41188c3e",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/auth.ts",
+        "upstreamSha256": "789b3dd9ff93071078190ffccbf6f6d564b58d1add61f06ca33d39100941fe58",
+        "composedSha256": "e683ffb4e60462ffc2066b0c45c7a5092387c8fd550ccba179b3ce0a885f142d",
+        "identical": false
+      },
+      {
+        "path": "packages/api/src/routes/capabilities.ts",
+        "upstreamSha256": "f39bc4d1568c2438c0dd9d5668ebb8189995f333da07485314c27b56020537e7",
+        "composedSha256": "f39bc4d1568c2438c0dd9d5668ebb8189995f333da07485314c27b56020537e7",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/followRegistry.v2.routes.ts",
+        "upstreamSha256": "3ea945541f692306b34e616230377979a64ccebd74e44b277677246e00caeda8",
+        "composedSha256": "3ea945541f692306b34e616230377979a64ccebd74e44b277677246e00caeda8",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/inferenceProviderConnections.ts",
+        "upstreamSha256": "0392b8f1b1c1b3c15be863cb2cdb536e45b48bb87be4d50083d13ed2f169d8e0",
+        "composedSha256": "0392b8f1b1c1b3c15be863cb2cdb536e45b48bb87be4d50083d13ed2f169d8e0",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/inferenceReporting.ts",
+        "upstreamSha256": "ef88b5f19e0cb2031572c10663661b7ffbb197a02fd7370a57e9e491e612abd9",
+        "composedSha256": "ef88b5f19e0cb2031572c10663661b7ffbb197a02fd7370a57e9e491e612abd9",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/inferenceRoutingPolicies.ts",
+        "upstreamSha256": "da8f1d0690ec4f7c398a898770e8c4e3e91adebfcde187b35d52eebcae4f9d67",
+        "composedSha256": "da8f1d0690ec4f7c398a898770e8c4e3e91adebfcde187b35d52eebcae4f9d67",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/mcpOAuth.ts",
+        "upstreamSha256": "d6639eab49fa0c9e144eb8bcfaff444b2759be0feec50f841a326761233ae3e2",
+        "composedSha256": "d6639eab49fa0c9e144eb8bcfaff444b2759be0feec50f841a326761233ae3e2",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/profiles.ts",
+        "upstreamSha256": "49e8322dacbd1eb0b3191cdd70645700974855d37ed300f8a63f4f1bf9194689",
+        "composedSha256": "49e8322dacbd1eb0b3191cdd70645700974855d37ed300f8a63f4f1bf9194689",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/resourceIntrospection.ts",
+        "upstreamSha256": "baa4cad9a763d96a6754ca83fc0a050b9d70d680d96aee8d127dd25375cbf2e9",
+        "composedSha256": "baa4cad9a763d96a6754ca83fc0a050b9d70d680d96aee8d127dd25375cbf2e9",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/updatesAdmin.ts",
+        "upstreamSha256": "c2f7fb74303bf5e3e641a700464b48c7b8bc1e06ca3adfa6f5da5f96907ef37c",
+        "composedSha256": "c2f7fb74303bf5e3e641a700464b48c7b8bc1e06ca3adfa6f5da5f96907ef37c",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/server.ts",
+        "upstreamSha256": "134f22a6df3f89879c3d3516f4514c91f9cff7500bd27649fed34bc1ff6c088c",
+        "composedSha256": "134f22a6df3f89879c3d3516f4514c91f9cff7500bd27649fed34bc1ff6c088c",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/agentKeyAuth.test.ts",
+        "upstreamSha256": "273243d2d8679d96e1e43bd8516c4fee4cef4bbb14a9ab7444007ab5cb2db67f",
+        "composedSha256": "273243d2d8679d96e1e43bd8516c4fee4cef4bbb14a9ab7444007ab5cb2db67f",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/agentKeyGovernance.test.ts",
+        "upstreamSha256": "53013898ab4ab6d6df1e6701a0ae1a8c2ff8e70696afc3b5d95a5aa069b6e257",
+        "composedSha256": "53013898ab4ab6d6df1e6701a0ae1a8c2ff8e70696afc3b5d95a5aa069b6e257",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/botAccountParity.test.ts",
+        "upstreamSha256": "f26beb800418588e5a5d83e74cfde6ca72ef643e3c063b38ba1f6a12888deded",
+        "composedSha256": "f26beb800418588e5a5d83e74cfde6ca72ef643e3c063b38ba1f6a12888deded",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/capabilityAuthority.db.test.ts",
+        "upstreamSha256": "c6a79c470eb4e692ce94e89bf36d4a8e22ed856ce3072d499458ec9b42845e8e",
+        "composedSha256": "c6a79c470eb4e692ce94e89bf36d4a8e22ed856ce3072d499458ec9b42845e8e",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/mcpOAuth.service.test.ts",
+        "upstreamSha256": "dc1158c4018427e727f1a4b25da47ebeb09af6a42da9feb120147fa920565298",
+        "composedSha256": "dc1158c4018427e727f1a4b25da47ebeb09af6a42da9feb120147fa920565298",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/account.service.ts",
+        "upstreamSha256": "f74553ffb3e8c7ca2a04f041164158237d3c32955b0882659a151ee54806c4c6",
+        "composedSha256": "f74553ffb3e8c7ca2a04f041164158237d3c32955b0882659a151ee54806c4c6",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/agentKeyAuth.service.ts",
+        "upstreamSha256": "619884ba7b442f44dc7a789e70241fa549a0a6069019785ede509b28035ac917",
+        "composedSha256": "619884ba7b442f44dc7a789e70241fa549a0a6069019785ede509b28035ac917",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/agentKeyAuthority.service.ts",
+        "upstreamSha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790",
+        "composedSha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/agentKeyGovernance.service.ts",
+        "upstreamSha256": "a018b4c4b0106cf65a6ed197d3f9fc62f76cb72a0f769af877433faba3b79d80",
+        "composedSha256": "a018b4c4b0106cf65a6ed197d3f9fc62f76cb72a0f769af877433faba3b79d80",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/attribution.service.ts",
+        "upstreamSha256": "32c87915d64a93f8de99f961523ff07cf972d966b0611f118505fc022a0e2a00",
+        "composedSha256": "32c87915d64a93f8de99f961523ff07cf972d966b0611f118505fc022a0e2a00",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/authSession.service.ts",
+        "upstreamSha256": "ba48ebc9a7ef178f946921be819e6ebe0125fde6072afbec285565b28934c47b",
+        "composedSha256": "ba48ebc9a7ef178f946921be819e6ebe0125fde6072afbec285565b28934c47b",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/capabilityAuthority.service.ts",
+        "upstreamSha256": "360e164ed0e7130490fc4ff9dc5532cab9df3623d464bf42aaf303610a8a13d7",
+        "composedSha256": "360e164ed0e7130490fc4ff9dc5532cab9df3623d464bf42aaf303610a8a13d7",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/deviceSession.service.ts",
+        "upstreamSha256": "ec1ce9715725542b567d0e7066ce56b5310b5784f136b34d3456bcb1e8ed23f8",
+        "composedSha256": "ec1ce9715725542b567d0e7066ce56b5310b5784f136b34d3456bcb1e8ed23f8",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/mcpConnection.service.ts",
+        "upstreamSha256": "c67d3e30c38d756007002f1edb75b281a748e21ad884c33bac8bbc52f07e03c8",
+        "composedSha256": "c67d3e30c38d756007002f1edb75b281a748e21ad884c33bac8bbc52f07e03c8",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/mcpOAuth.service.ts",
+        "upstreamSha256": "b74a76d0d917dcf3fd43db35c20e412b28a02a914c70657959ba6c68a7f326e4",
+        "composedSha256": "b74a76d0d917dcf3fd43db35c20e412b28a02a914c70657959ba6c68a7f326e4",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/oauthCode.service.ts",
+        "upstreamSha256": "e87abe8882900da41993fb0af60e5a7e587880e3eb72ea22530db20b5c1434eb",
+        "composedSha256": "e87abe8882900da41993fb0af60e5a7e587880e3eb72ea22530db20b5c1434eb",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/productAccessAuthorization.service.ts",
+        "upstreamSha256": "f6df2a502b724671337ddb97ce83f01259153a83b58a358000f48671d6e7e0d5",
+        "composedSha256": "f6df2a502b724671337ddb97ce83f01259153a83b58a358000f48671d6e7e0d5",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/session.service.ts",
+        "upstreamSha256": "924a4ffcfc509d0938072062fa012af70d5fa51fdd7472c43413d6b5345cecab",
+        "composedSha256": "924a4ffcfc509d0938072062fa012af70d5fa51fdd7472c43413d6b5345cecab",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/types/session.types.ts",
+        "upstreamSha256": "4659889e790af6323276573d136a90d67e379cf964ce770ff353b35362397b10",
+        "composedSha256": "4659889e790af6323276573d136a90d67e379cf964ce770ff353b35362397b10",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/utils/accountRoles.ts",
+        "upstreamSha256": "4e4ccf1ee0e916f9aa2f6c72ca152f1a62ffe989cf18223c207affbe70470815",
+        "composedSha256": "4e4ccf1ee0e916f9aa2f6c72ca152f1a62ffe989cf18223c207affbe70470815",
+        "identical": true
+      },
+      {
+        "path": "packages/contracts/src/agentKeys.ts",
+        "upstreamSha256": "181deb51c270b0acc7502171bbae96ffa90dd607d6fae51af6375f33d8d82de7",
+        "composedSha256": "181deb51c270b0acc7502171bbae96ffa90dd607d6fae51af6375f33d8d82de7",
+        "identical": true
+      },
+      {
+        "path": "packages/contracts/src/index.ts",
+        "upstreamSha256": "90ac4443d2c73e777dce7f80b23c7e7a964528b1e2c718a4486aa78a0e757e0d",
+        "composedSha256": "6108ba2497a1a6f89af89b43dfb3a2ed9790a89b640656335ffbcf32bb8606ce",
+        "identical": false
+      },
+      {
+        "path": "packages/core/src/api/__tests__/authAgent.test.ts",
+        "upstreamSha256": "a548dbfde71afc896057adb7e3cc327f1b3f7cbc50a5f3f5527743ea949e84c9",
+        "composedSha256": "a548dbfde71afc896057adb7e3cc327f1b3f7cbc50a5f3f5527743ea949e84c9",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/api/accounts.ts",
+        "upstreamSha256": "b7cdc8506a5d2a65f9f0ebd35382af11e07329afc07e61c3ed937cb1bd6247b2",
+        "composedSha256": "b7cdc8506a5d2a65f9f0ebd35382af11e07329afc07e61c3ed937cb1bd6247b2",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/api/auth.ts",
+        "upstreamSha256": "c8463a9954e0402e78998db0592aa13c48cf6bd93b6be6510d4f774b6bb5a68b",
+        "composedSha256": "c8463a9954e0402e78998db0592aa13c48cf6bd93b6be6510d4f774b6bb5a68b",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/agentAccount.test.ts",
+        "upstreamSha256": "36322ff4ce625088ecae7e89c3ac22911ceb5e55d9ea14d2b2439b20e0ac93f2",
+        "composedSha256": "36322ff4ce625088ecae7e89c3ac22911ceb5e55d9ea14d2b2439b20e0ac93f2",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/agentAccount.ts",
+        "upstreamSha256": "75ff10d774973250cd5e06c8ffc4e886fb7afd42ee0c4d82660a40e0b9b3f173",
+        "composedSha256": "75ff10d774973250cd5e06c8ffc4e886fb7afd42ee0c4d82660a40e0b9b3f173",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/index.ts",
+        "upstreamSha256": "f78a0f6b2f31cf77a77ed40021dd2d7b19dadbb58f99eb5e5de2211f05e28f68",
+        "composedSha256": "2dc4447c179be7b89afcbaa73aada53bbdf64b780f94aafc90fff2541e86ad61",
+        "identical": false
+      }
+    ],
+    "identical": 59,
+    "total": 63
+  },
+  {
+    "scope": "I03",
+    "acceptedProof": "docs/audits/2026-10-03-i03-approved-freshness/proof.json",
+    "acceptedProofCommit": "43b639c59",
+    "entries": [
+      {
+        "path": "docs/SERVICE_TOKENS.md",
+        "upstreamSha256": "35cdac01b4649bd4efdf377c5520db8e6b1c2e6acaca2737da3463cf5ce8a36c",
+        "composedSha256": "35cdac01b4649bd4efdf377c5520db8e6b1c2e6acaca2737da3463cf5ce8a36c",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/middleware/__tests__/serviceTokenEd25519.test.ts",
+        "upstreamSha256": "0069a7266567d16c40a72081f44cc7c9fd44e8c1e6ae7449ae06b632cea39796",
+        "composedSha256": "0069a7266567d16c40a72081f44cc7c9fd44e8c1e6ae7449ae06b632cea39796",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/middleware/serviceToken.ts",
+        "upstreamSha256": "8f4e87386636fd901326b7a7d56d6e5f485263f4d92676443bdb19b8501e8e5d",
+        "composedSha256": "8f4e87386636fd901326b7a7d56d6e5f485263f4d92676443bdb19b8501e8e5d",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/__tests__/serviceActingAsVerify.test.ts",
+        "upstreamSha256": "fccecec3e3c40b3cff99aae68272dc117f408912ae57d816e564d9c76bb5dba8",
+        "composedSha256": "fccecec3e3c40b3cff99aae68272dc117f408912ae57d816e564d9c76bb5dba8",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/auth.ts",
+        "upstreamSha256": "cb11f5e98909ca46db361565b4a57ece2660fff48401cafb13fe8b4a464b2af1",
+        "composedSha256": "e683ffb4e60462ffc2066b0c45c7a5092387c8fd550ccba179b3ce0a885f142d",
+        "identical": false
+      },
+      {
+        "path": "packages/api/src/routes/internal.ts",
+        "upstreamSha256": "340bc4a410e4a7e90b571a0c55db329390d3643ac7a394070d198b945f9cf5d6",
+        "composedSha256": "340bc4a410e4a7e90b571a0c55db329390d3643ac7a394070d198b945f9cf5d6",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/approvedActingAsEpochs.test.ts",
+        "upstreamSha256": "e387298681a9dfcfcaf6262b52643ba47d686d8a58840189901ea6cfe8173323",
+        "composedSha256": "e387298681a9dfcfcaf6262b52643ba47d686d8a58840189901ea6cfe8173323",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/agencyServicePrincipal.service.ts",
+        "upstreamSha256": "fe5907ae91388714dcd70bb4761430102a273d09f40ce91b2f720bf0482a79e9",
+        "composedSha256": "fe5907ae91388714dcd70bb4761430102a273d09f40ce91b2f720bf0482a79e9",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/agentKeyAuthority.service.ts",
+        "upstreamSha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790",
+        "composedSha256": "903c04220b9a13218007a7d72c8910ddadf6f6158c1532c35b93f1c49345f790",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/oauthCode.service.ts",
+        "upstreamSha256": "4712bd4f145fb08bd5798108a711012ab2d041814732a37ac60eb5664123db49",
+        "composedSha256": "e87abe8882900da41993fb0af60e5a7e587880e3eb72ea22530db20b5c1434eb",
+        "identical": false
+      },
+      {
+        "path": "packages/api/src/services/oauthConsent.service.ts",
+        "upstreamSha256": "8a1f34c775830a65659ea4565b657ed8c3bdcb0a3eec772935521b7d3c6a6aca",
+        "composedSha256": "8a1f34c775830a65659ea4565b657ed8c3bdcb0a3eec772935521b7d3c6a6aca",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/serviceActingAs.service.ts",
+        "upstreamSha256": "968e6ac0662b093bf2a141578d816e50ec926b2d217f30434f8c8b413498c624",
+        "composedSha256": "968e6ac0662b093bf2a141578d816e50ec926b2d217f30434f8c8b413498c624",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/serviceTokenMint.service.ts",
+        "upstreamSha256": "52bf84cb73b3a8bfbda329f10b2f86c6db54ebf64e51aa3fbd6bc2c429aea911",
+        "composedSha256": "52bf84cb73b3a8bfbda329f10b2f86c6db54ebf64e51aa3fbd6bc2c429aea911",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/OxyServer.ts",
+        "upstreamSha256": "23a943cd20d8d92959ce705a2d35e5fa76bb2567d96fc52c2ad19ecc63c5171a",
+        "composedSha256": "23a943cd20d8d92959ce705a2d35e5fa76bb2567d96fc52c2ad19ecc63c5171a",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/actingAsFreshness.test.ts",
+        "upstreamSha256": "5206ef1dd66a0935ecf1706863d755137a30c7e8ffe0b7ab8705ed4fec54bb68",
+        "composedSha256": "5206ef1dd66a0935ecf1706863d755137a30c7e8ffe0b7ab8705ed4fec54bb68",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/approvedActingAsFreshness.test.ts",
+        "upstreamSha256": "a841fcd448e736f633eec864e9693954cf48c7d408252956bf42b709cc27bb7c",
+        "composedSha256": "a841fcd448e736f633eec864e9693954cf48c7d408252956bf42b709cc27bb7c",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/approvedServiceTokenLifetime.test.ts",
+        "upstreamSha256": "0b18762232b4149823c46f4a9bc95e188a42df7f7f79e18a55e6043048a410cd",
+        "composedSha256": "0b18762232b4149823c46f4a9bc95e188a42df7f7f79e18a55e6043048a410cd",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/authRefusalObservability.test.ts",
+        "upstreamSha256": "7e0dad0c10337974fa292c62361b5c2578d345cc0384e03a82786bcdf318db49",
+        "composedSha256": "7e0dad0c10337974fa292c62361b5c2578d345cc0384e03a82786bcdf318db49",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/serviceAuth.test.ts",
+        "upstreamSha256": "18d5fe6e024a0ec39930a78cc70e3cc303b53bd92cc53ee7b4131be1984b166e",
+        "composedSha256": "16192436112b9aa2d157e91dae69f02b9f5b708e168b1a5e1ee07021fa5362af",
+        "identical": false
+      },
+      {
+        "path": "packages/core/src/server/__tests__/serviceTokenAttribution.test.ts",
+        "upstreamSha256": "c8ab3b58e80179b47a18816d258dffbc0fa16c1a945631524509277fedd92648",
+        "composedSha256": "c8ab3b58e80179b47a18816d258dffbc0fa16c1a945631524509277fedd92648",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/serviceTokenJwks.test.ts",
+        "upstreamSha256": "bc81c15c8e91e31973c39398405202e0b4ad194e81915993d352c113532f6823",
+        "composedSha256": "bc81c15c8e91e31973c39398405202e0b4ad194e81915993d352c113532f6823",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/serviceTokenWorkloadFallback.test.ts",
+        "upstreamSha256": "eec27bd1819a313353685cb700de74a52865c1a3977daf7780b226d6ba5d9ec3",
+        "composedSha256": "eec27bd1819a313353685cb700de74a52865c1a3977daf7780b226d6ba5d9ec3",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/__tests__/verifyActingAs.test.ts",
+        "upstreamSha256": "162361f632c83c2ec4aaac0c7dcbec66083dadd17710b349d42cfb3d5d225d6a",
+        "composedSha256": "162361f632c83c2ec4aaac0c7dcbec66083dadd17710b349d42cfb3d5d225d6a",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/index.ts",
+        "upstreamSha256": "604ef63c8f4efab602ed41453f0bb27b4c5f57190a5b22ddd3e24f33a9f6f2f2",
+        "composedSha256": "2dc4447c179be7b89afcbaa73aada53bbdf64b780f94aafc90fff2541e86ad61",
+        "identical": false
+      },
+      {
+        "path": "packages/core/src/server/middleware.ts",
+        "upstreamSha256": "b58157cd2c52fe74601e3f278d1be12c82860deb6d75b0ff607f6d01a5b257cb",
+        "composedSha256": "b58157cd2c52fe74601e3f278d1be12c82860deb6d75b0ff607f6d01a5b257cb",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/server/serviceTokenLifetime.ts",
+        "upstreamSha256": "81e54230c0f8d464b889b85255e81d647c37586672099a2a93452c52e2ab1531",
+        "composedSha256": "81e54230c0f8d464b889b85255e81d647c37586672099a2a93452c52e2ab1531",
+        "identical": true
+      },
+      {
+        "path": "scripts/rehearsal/test-approved-api-1519.py",
+        "upstreamSha256": "465c4b574dae6e517cdf9e284eb0098b89189f5edf3fa37c18d0d5a32a1ffce4",
+        "composedSha256": "465c4b574dae6e517cdf9e284eb0098b89189f5edf3fa37c18d0d5a32a1ffce4",
+        "identical": true
+      }
+    ],
+    "identical": 23,
+    "total": 27
+  },
+  {
+    "scope": "I06/I07",
+    "acceptedProof": "docs/billing/evidence/2026-10-03-catalogue-credit-atomic/proof.json",
+    "acceptedProofCommit": "d9439edea",
+    "entries": [
+      {
+        "path": "docs/adr/0033-subscription-credit-and-product-billing.md",
+        "upstreamSha256": "14c67891ca23aae20ba23bcbb92d73f25456fc39dfb5d0c85c7b0a15c7ace968",
+        "composedSha256": "14c67891ca23aae20ba23bcbb92d73f25456fc39dfb5d0c85c7b0a15c7ace968",
+        "identical": true
+      },
+      {
+        "path": "docs/adr/README.md",
+        "upstreamSha256": "27d3e3a34e8e70e786468bf6fd05f31b24d72b41974d07aaded1df22969f9b28",
+        "composedSha256": "bed1b571261199986c949d059bac9a6c46232f3165e2c7533fbea57701a04e42",
+        "identical": false
+      },
+      {
+        "path": "packages/api/openapi.json",
+        "upstreamSha256": "ded83c853a5abc890eb780312a9dc3979a55e8e2e3ac65458eb1f2af19156ba5",
+        "composedSha256": "9017c7ad1879ca287efbaa009c2c3ea76c67ce9c7f1f23c531aa4ee89f9a4843",
+        "identical": false
+      },
+      {
+        "path": "packages/api/src/controllers/__tests__/subscription.controller.test.ts",
+        "upstreamSha256": "464f963190fc3f9375ed7e4ff2fb5ee62c414e16c4e99386746920e98a2cce2e",
+        "composedSha256": "464f963190fc3f9375ed7e4ff2fb5ee62c414e16c4e99386746920e98a2cce2e",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/controllers/subscription.controller.ts",
+        "upstreamSha256": "aa5e142629be9d2c48c00c0be0d14df9f29418638e0e4afb8951b3e1979da050",
+        "composedSha256": "aa5e142629be9d2c48c00c0be0d14df9f29418638e0e4afb8951b3e1979da050",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts",
+        "upstreamSha256": "8a23c4a7ff757ef2142242a209ee0b1da22673331d1564fe7ebea3fe2fd79ed3",
+        "composedSha256": "8a23c4a7ff757ef2142242a209ee0b1da22673331d1564fe7ebea3fe2fd79ed3",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/routes/billing.ts",
+        "upstreamSha256": "e9baa83cede3ad41b1cd90f1a9f548861155552663a03b8bc52aee46c61023ef",
+        "composedSha256": "e9baa83cede3ad41b1cd90f1a9f548861155552663a03b8bc52aee46c61023ef",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/schemas/billing.schemas.ts",
+        "upstreamSha256": "f8c921d6a28b10a559a11be171a7f415d3938a21f940bf8a5c1279a3aad31bfb",
+        "composedSha256": "f8c921d6a28b10a559a11be171a7f415d3938a21f940bf8a5c1279a3aad31bfb",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/productBillingCatalogue.test.ts",
+        "upstreamSha256": "0875296d24433d3611de2893a93f2a05ce7ac2c04cc25af4a333a710f219049e",
+        "composedSha256": "0875296d24433d3611de2893a93f2a05ce7ac2c04cc25af4a333a710f219049e",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/subscriptionCreditLedger.test.ts",
+        "upstreamSha256": "7c9f59522ccc09f658e8ba50426e1bf53944aea5da12626e152289a0881f3cec",
+        "composedSha256": "7c9f59522ccc09f658e8ba50426e1bf53944aea5da12626e152289a0881f3cec",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/__tests__/subscriptionCreditLockOrder.test.ts",
+        "upstreamSha256": "5f613d7931a570edf63543695737f6c698256f9880e837f42905203a82a8cd29",
+        "composedSha256": "5f613d7931a570edf63543695737f6c698256f9880e837f42905203a82a8cd29",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/applySubscriptionPeriodCredits.service.ts",
+        "upstreamSha256": "01746f120571ee51a0b1f5281f3e637d79b9a1e726863880f33e849f3b08cff4",
+        "composedSha256": "01746f120571ee51a0b1f5281f3e637d79b9a1e726863880f33e849f3b08cff4",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/productAccessPersistence.service.ts",
+        "upstreamSha256": "85aefdd1e06bf5b7afacc2495976e415fed28f7519936e78be764a43d598e3e1",
+        "composedSha256": "85aefdd1e06bf5b7afacc2495976e415fed28f7519936e78be764a43d598e3e1",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/productBillingCatalogue.service.ts",
+        "upstreamSha256": "90c6e720a6036648274d73fa2e494c7136c3776f26deb993119f681163e1576e",
+        "composedSha256": "90c6e720a6036648274d73fa2e494c7136c3776f26deb993119f681163e1576e",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/productProviderEvidence.service.ts",
+        "upstreamSha256": "1ab285a4b895994805ee84e03fad679f7f6dc9ffb545b5a2dcf417e9ddf51cc1",
+        "composedSha256": "1ab285a4b895994805ee84e03fad679f7f6dc9ffb545b5a2dcf417e9ddf51cc1",
+        "identical": true
+      },
+      {
+        "path": "packages/api/src/services/subscriptionCreditLedger.service.ts",
+        "upstreamSha256": "31fba5a79d2cbb6fad58880b3255181fb85bd217f6eeb07f6e0782cb1652bb19",
+        "composedSha256": "31fba5a79d2cbb6fad58880b3255181fb85bd217f6eeb07f6e0782cb1652bb19",
+        "identical": true
+      },
+      {
+        "path": "packages/console/src/hooks/__tests__/billing-subject.test.tsx",
+        "upstreamSha256": "93db89ab75e678486984a4b99091cc80f6ef39a15c70c18e0b22173202bbb521",
+        "composedSha256": "93db89ab75e678486984a4b99091cc80f6ef39a15c70c18e0b22173202bbb521",
+        "identical": true
+      },
+      {
+        "path": "packages/console/src/hooks/use-billing.ts",
+        "upstreamSha256": "adb2d6b3b8c9dea23f5050234af9d44e3ceaa261d3f4ff02a2e1b3a19fb69013",
+        "composedSha256": "adb2d6b3b8c9dea23f5050234af9d44e3ceaa261d3f4ff02a2e1b3a19fb69013",
+        "identical": true
+      },
+      {
+        "path": "packages/console/src/routes/_layout/billing/plans.tsx",
+        "upstreamSha256": "d4163237cbfa6023918d349a9e26b4360462ec57be44cde0fd146a94bbc645ff",
+        "composedSha256": "d4163237cbfa6023918d349a9e26b4360462ec57be44cde0fd146a94bbc645ff",
+        "identical": true
+      },
+      {
+        "path": "packages/contracts/src/index.ts",
+        "upstreamSha256": "f47d50560e432ad32f226bfa7b9e826a7d8f8981002f9929760ab7981a795b16",
+        "composedSha256": "6108ba2497a1a6f89af89b43dfb3a2ed9790a89b640656335ffbcf32bb8606ce",
+        "identical": false
+      },
+      {
+        "path": "packages/contracts/src/products/billing.ts",
+        "upstreamSha256": "08f8468a86c5592954e9446e848acd2ccb55d839f94409f81019f865c1fdfbd6",
+        "composedSha256": "08f8468a86c5592954e9446e848acd2ccb55d839f94409f81019f865c1fdfbd6",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/api/__tests__/billing.test.ts",
+        "upstreamSha256": "1ec07cd8ce1c4aad1a389e10eea410b0791fe99cd522b37fd3f939b4d0366c85",
+        "composedSha256": "1ec07cd8ce1c4aad1a389e10eea410b0791fe99cd522b37fd3f939b4d0366c85",
+        "identical": true
+      },
+      {
+        "path": "packages/core/src/api/billing.ts",
+        "upstreamSha256": "230cb9ac19f5279ab76ede4b17eed3d97adf0ff8411b16b24b7ed7552ac6cbe4",
+        "composedSha256": "230cb9ac19f5279ab76ede4b17eed3d97adf0ff8411b16b24b7ed7552ac6cbe4",
+        "identical": true
+      },
+      {
+        "path": "scripts/check-openapi-fresh.mjs",
+        "upstreamSha256": "cbf074d4c23c3383dc9487054541e9c88e4734b8f9ab3acafa93cfff48ece572",
+        "composedSha256": "cbf074d4c23c3383dc9487054541e9c88e4734b8f9ab3acafa93cfff48ece572",
+        "identical": true
+      },
+      {
+        "path": "scripts/rehearsal/test-billing-renewal-1519.py",
+        "upstreamSha256": "aa04bc46cdc4c0d063b76b1bdd0e1733dd9c597e3ad1ee41308241e0c57be4e7",
+        "composedSha256": "aa04bc46cdc4c0d063b76b1bdd0e1733dd9c597e3ad1ee41308241e0c57be4e7",
+        "identical": true
+      },
+      {
+        "path": "scripts/test-check-openapi-fresh.mjs",
+        "upstreamSha256": "201025476c3bee2b9664395ec4120dc17281e76ec4b39451411437b0c8337b4a",
+        "composedSha256": "201025476c3bee2b9664395ec4120dc17281e76ec4b39451411437b0c8337b4a",
+        "identical": true
+      },
+      {
+        "path": "packages/api/package.json",
+        "upstreamSha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510",
+        "composedSha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510",
+        "identical": true
+      },
+      {
+        "path": "packages/contracts/package.json",
+        "upstreamSha256": "fbff525612eab798d50948c8e56590e1434721bd780b6ab48faa8cc96b0e11a2",
+        "composedSha256": "fbff525612eab798d50948c8e56590e1434721bd780b6ab48faa8cc96b0e11a2",
+        "identical": true
+      },
+      {
+        "path": "packages/core/package.json",
+        "upstreamSha256": "cafe284430f4bf30392b90f75e0693fe0491ae31035d8b2a870b05dd4e8bb2e6",
+        "composedSha256": "cafe284430f4bf30392b90f75e0693fe0491ae31035d8b2a870b05dd4e8bb2e6",
+        "identical": true
+      },
+      {
+        "path": "packages/console/package.json",
+        "upstreamSha256": "ebf8800040e2c00ca7605acdf16aa990575317c09b7ece9cfb3b9f50ae876e78",
+        "composedSha256": "ebf8800040e2c00ca7605acdf16aa990575317c09b7ece9cfb3b9f50ae876e78",
+        "identical": true
+      },
+      {
+        "path": "bun.lock",
+        "upstreamSha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06",
+        "composedSha256": "d778e714a4a49a0f814a49513eb7a5ff8c164a217c0ac9989f6a6eb5785c1b06",
+        "identical": true
+      }
+    ],
+    "identical": 28,
+    "total": 31
+  }
+]

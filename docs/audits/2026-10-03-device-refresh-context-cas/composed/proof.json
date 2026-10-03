@@ -1,0 +1,118 @@
+{
+  "sourceHead": "ab2e1019de018e2a20679d8ddc5dfa041f1aec80",
+  "upstreamSource": "27c9ed55b",
+  "inputs": {
+    "packages/core/src/session/refresh.ts": "2b4f756517a7e98c7bee50833bb2255490ca21f065ac70e50718203af0916724",
+    "packages/core/src/session/__tests__/refresh.contextCas.test.ts": "1887246553268b224cc24b6ab9edd0d8db06374f3e317f6847351a324ee68f7e",
+    "packages/core/src/HttpService.ts": "5395288173a19d024a676ebda7a073286c600ed2d1167b97646a6724a7d856d6",
+    "packages/core/src/session/SessionClient.ts": "99192d1703a896bb9766240a61dfb3b89be815aeb2ca92b7c4468dec96d62005",
+    "packages/core/src/session/sessionClientHost.ts": "84ab17a8166cd24e206bdf1115cb04f601f20791930598a5b8b1ac46663f8ad9",
+    "packages/core/src/session/authStateStore.ts": "e1e58baaaaa8c9a52e125c8bafcaeb9e3a24115ccfbd069157ec63eff6b63b03",
+    "packages/api/src/routes/__tests__/nativeHolderLogoutRecovery.test.ts": "8985a26a5f255bb0a36e4b5c990f6e190a52b3962ee90bd600301b942fb2084e",
+    "scripts/rehearsal/test-native-holder-recovery-1519.py": "2290237b4b928dc4de7a9b0514cec311c0e6a2f1b177b9df99191a586d33fb27",
+    "packages/core/package.json": "cafe284430f4bf30392b90f75e0693fe0491ae31035d8b2a870b05dd4e8bb2e6",
+    "packages/services/package.json": "da64d7c6390840ebbcbd79f37cfe3fd1a2d306b943f513e707e43da29753188e",
+    "bun.lock": "729e9f5fdd43f120ca575397c41fed0881cb09e3f0001354c437790d44f0ba8e"
+  },
+  "byteEquality": [
+    {
+      "path": "packages/core/src/session/refresh.ts",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/core/src/session/__tests__/refresh.contextCas.test.ts",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/core/src/HttpService.ts",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/core/src/session/SessionClient.ts",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/core/src/session/sessionClientHost.ts",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/core/src/session/authStateStore.ts",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/nativeHolderLogoutRecovery.test.ts",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "scripts/rehearsal/test-native-holder-recovery-1519.py",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/core/package.json",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/services/package.json",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    },
+    {
+      "path": "bun.lock",
+      "upstream": "27c9ed55b",
+      "byteIdentical": true
+    }
+  ],
+  "records": {
+    "records/migrate-fresh.txt": "b192340c9f3089944ca947703325422848528e8b2522ee24a26f89f09de8ed8b",
+    "records/migrate-repeat.txt": "bfb253a593c48affda5c3a76205a50fd22ccd87b42e0ec005c18a9a7866f5ad7",
+    "records/oxy-owned.log": "77d5e85d4b3dda5f9ff9383076266094728605147f416b101c3ff583b4023235",
+    "records/oxy34.log": "e766fbac35a91b63cb2cce2a33ba374a6558d025d4e46def57fd9681a4e7482d",
+    "records/refresh-cas-composite-api-build.log": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+    "records/refresh-cas-composite-core-build.log": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+    "records/refresh-cas-composite-focused.log": "c132bd7aab8eeffb71861756b8e21b21ecf7e70a6c9aff1da1bf8da93eb8db4f",
+    "records/refresh-cas-composite-inputs.json": "6b7a9dec35aa0d9c576796cf991b46b347fcd67a037448678189b99fefc82969",
+    "records/refresh-cas-composite-services-final-full.log": "a09b85a9508866422797e470c6f47f41a7121f6b6d7b470a3c3979d203d3b92a",
+    "records/refresh-cas-composite-services-full.log": "827e0ee13128492fb13a0e6e7a4edd58d483213b23a1b305fcbc3bf954e9e8b7"
+  },
+  "compiled": {
+    "packages/core/dist/cjs/session/refresh.js": "129054cc2aa1c80cccd133d80e09fcc7e89b83937c04aa8f93f59e607c323c2b",
+    "packages/core/dist/esm/session/refresh.js": "1209054540e2bdf67edd4db40c9091548e31e1ca27e1cfeff84bfeb6049c33ad",
+    "packages/core/dist/types/session/refresh.d.ts": "e3988efc4dcb14ec659a1b8ddc649955892e44a407df8db34fa6d4bfeae0b721",
+    "packages/core/dist/cjs/session/authStateStore.js": "c172b6397bbaba069103144f35824eefa8f803e9aeb762e28f74a0a26d40ea52",
+    "packages/core/dist/cjs/HttpService.js": "735c17322bf7f346b0f8b74d0905087221f2d11964858e94a7453a4d3746f4be",
+    "packages/core/dist/cjs/session/SessionClient.js": "70d6fcba208db1bac99814edd8f4d110214acf4b73ea49aa2f9d5ccdbc31684b",
+    "packages/core/dist/cjs/session/sessionClientHost.js": "bc0ec62807b05a9aa9d6858ff42230ee3e3d49e4a06dbe6647f805406019461c"
+  },
+  "results": {
+    "focusedContextCas": 5,
+    "services": {
+      "suites": 113,
+      "tests": 1040
+    },
+    "coreBuild": 0,
+    "apiBuild": 0,
+    "oxyConsumer": 34,
+    "normalMigrationsFreshRepeat": 142
+  },
+  "ownedPostgres": {
+    "pid": 4100074,
+    "dataDirectory": "/home/nate/Oxy/.agent-evidence/fp1519/oxy-forge-final-pg-oxbo0rv8/data",
+    "pidAbsent": true,
+    "postmasterAbsent": true
+  },
+  "limits": [
+    "Full core184/2233 and actual device API/PG4 were reviewed on exact upstream source27c9;11 source inputs in composition are byte identical. They are reused explicitly, not new whole-core reruns.",
+    "Initial composed Services run overlapped API dependency build that removed telemetry dist;7 suites could not load. Build finished, full Services retry passes113/1040; original failure retained.",
+    "No Android rerun of the narrow fix; prior9e07 real threePASS remain historical scoped, final registry acceptance pending.",
+    "No ACTIVE reuse, final decision INACTIVE; canary credential API helper must compose before final freeze."
+  ]
+}

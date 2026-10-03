@@ -1,0 +1,44 @@
+[
+  {
+    "name": "@oxy.so/contracts",
+    "version": "4.8.0",
+    "sha256": "8d85acc5e787cbdaf3e7aad311f6659d07916337dcff1850d74c6c72195d97d7",
+    "artifact": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/artifacts/contracts-8d85acc5e787cbdaf3e7aad311f6659d07916337dcff1850d74c6c72195d97d7.tgz",
+    "publishable": false
+  },
+  {
+    "name": "@oxy.so/core",
+    "version": "4.1.0",
+    "sha256": "aae1b0f5a630c68edc73a96ebba756b0687f23936491290bd4a89767a58853bb",
+    "artifact": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/artifacts/core-aae1b0f5a630c68edc73a96ebba756b0687f23936491290bd4a89767a58853bb.tgz",
+    "publishable": false
+  },
+  {
+    "name": "@oxy.so/services",
+    "version": "11.0.0",
+    "sha256": "f97f3cb4140af2f994ad967a31130d636883fc790a67747409c993273bc2e433",
+    "artifact": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/artifacts/services-f97f3cb4140af2f994ad967a31130d636883fc790a67747409c993273bc2e433.tgz",
+    "publishable": false
+  },
+  {
+    "name": "@oxy.so/mcp",
+    "version": "1.0.0",
+    "sha256": "803ac140a072b29150c6d30cdeed8ae68237b272a73c45342fa11f514e22b5d9",
+    "artifact": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/artifacts/mcp-803ac140a072b29150c6d30cdeed8ae68237b272a73c45342fa11f514e22b5d9.tgz",
+    "publishable": false
+  },
+  {
+    "name": "@oxy.so/protocol",
+    "version": "1.2.1",
+    "sha256": "3ae4da75421be6c09c83aa2286a630beaa86eb01b1821e10d0badf09d5ec7729",
+    "artifact": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/artifacts/protocol-3ae4da75421be6c09c83aa2286a630beaa86eb01b1821e10d0badf09d5ec7729.tgz",
+    "publishable": false
+  },
+  {
+    "name": "@oxy.so/telemetry",
+    "version": "1.2.0",
+    "sha256": "c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12",
+    "artifact": "/home/nate/Oxy/oxy/.worktrees/1519-integration/.integration-evidence/i04-sdk/oauth-packed-consumer/artifacts/telemetry-c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12.tgz",
+    "publishable": false
+  }
+]

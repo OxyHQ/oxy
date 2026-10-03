@@ -1,0 +1,335 @@
+{
+  "recordedAt": "2026-10-03T13:16:28.336790+00:00",
+  "sourceHead": "945c8adf04ce93b0a4a487c26c6c78f09efe26ff",
+  "frozenRedHarnessHead": "282d126c5",
+  "sourceInputs": [
+    {
+      "path": "docs/auth/device-session.md",
+      "sha256": "e14fcf1fad62bda7607f6d5612d86f94ea90df2c319fc04d6ccdcd5e4f7b8500"
+    },
+    {
+      "path": "packages/core/src/boot/__tests__/nativeExplicitSignOut.test.ts",
+      "sha256": "2c092098d8b90fb739c8697858595a29d7645b771d09aa53f0c2abc58fdcf7ea"
+    },
+    {
+      "path": "packages/core/src/boot/__tests__/sessionColdBoot.identity.test.ts",
+      "sha256": "0d466f3787d6a8e0b802d9dfa4112070715e97c1e25ad404b4e853dc050b4423"
+    },
+    {
+      "path": "packages/core/src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts",
+      "sha256": "b9126fb30dfda1d38539974eb6889976ffd4915cd9b2772fa670cbb9179dfdc6"
+    },
+    {
+      "path": "packages/core/src/boot/__tests__/sessionColdBoot.test.ts",
+      "sha256": "6744c86e47638bbd1c78063bba60f8e6f4449648a67cfd065d29475dc2bffacf"
+    },
+    {
+      "path": "packages/core/src/boot/sessionColdBoot.ts",
+      "sha256": "bb5894e79042bfc3a9d05a758918a922421691e04ce107fe95d9f4abdb52183e"
+    },
+    {
+      "path": "packages/core/src/session/SessionClient.ts",
+      "sha256": "77fc00702f547eba48e63c6dc7be161cb335115425b39604f0d2fcf446bc172d"
+    },
+    {
+      "path": "packages/core/src/session/__tests__/SessionClient.rest.test.ts",
+      "sha256": "6a97bc5963cb8f2822e3ff8f21863744ed336bf4505df633fa256a76c64089ac"
+    },
+    {
+      "path": "packages/core/src/session/authStateStore.ts",
+      "sha256": "2a97f3f1f70cfd6aee71560b5ca9189d7832509b0bfb9af0ffb1b9319dea2120"
+    },
+    {
+      "path": "packages/core/src/session/refresh.ts",
+      "sha256": "2e0083f5aec5038e99c84f459b11cf0714610071748ffc100b3ad975bf44aefc"
+    },
+    {
+      "path": "packages/core/src/session/sharedDeviceCredential.ts",
+      "sha256": "064a85defa2cddf05ac89130d2e47638d8e5699cb74a8ac2eb1731a19148a4a5"
+    },
+    {
+      "path": "packages/services/__tests__/context/useAuthOperations.test.tsx",
+      "sha256": "88714277ae140289c69271542bbf4c2064bb564f74d1f51577a550b2f1c1336b"
+    },
+    {
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "07ee0d114e82fbd07a5ae8996a40d375e38451f908cf892597799828e8d92b21"
+    },
+    {
+      "path": "packages/services/src/ui/context/hooks/useAuthOperations.ts",
+      "sha256": "04c6fb7cbb518c58c0e7521d0b3a6af2978ae50d51bf8b7486a7c2d669b5ab68"
+    },
+    {
+      "path": "packages/services/src/ui/session/createSessionClient.ts",
+      "sha256": "5a69a28e42887225c3850cd9f651c6e95738dfb2228e6b15c5293a7d1b20774e"
+    },
+    {
+      "path": "packages/services/src/ui/session/deviceCredentialTracker.ts",
+      "sha256": "82868a0cfb2f152608c30cec68a6aa8a1163391fc00ce526dd42cf59e854c0fc"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-red-real.log",
+      "sha256": "b493afc6ad922f84c555cac4fbb0eff632d05eff67d429ec8c17f33d1eb5da03"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-red-final.log",
+      "sha256": "c35c6fdffb6768d625b03aca2652d33b821c35f771782edb017fb9580ecd608a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-green-initial.log",
+      "sha256": "e31837a89998c9c92e37a87c9bbc17348118e6033ed3eb52d5629e4559878a16"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-frozen-green.log",
+      "sha256": "1762c65e6d9081dfd49839e1986182db00fe320225128a51dd71ec312aa4ee6f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-core-148.log",
+      "sha256": "155031b67030dd02a638640be5fb57c1b86a59631596857b512305b63c86551e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-services-release-40.log",
+      "sha256": "2cc44217fab860cba3d57b81f4487b2daa15d9130bf5935851b9f1dc9a663ab3"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-services-release-final.log",
+      "sha256": "9958647e1a5b9203499e98d5e6161ec5b884949581ad7697fc30eb6fcea6819e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-core-release-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-services-final-build.log",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-lint-initial.log",
+      "sha256": "f634cc8bf0c0b86d53766e05db193ea2c1082dc1b8d6ad39699837d76268d493"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-lint-release-final.log",
+      "sha256": "44a12674c8e5fd173b5e7bdc78a79582ac188936c90b445f747521f42f0e1475"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/native-signout-lint-scoped-final.log",
+      "sha256": "f44bb09a612aed32092465c0aea04477c6c52fffd6c562a9386e8f3ce17de7ec"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/frozen-red-nativeExplicitSignOut.test.ts",
+      "sha256": "cf13861bda7de0cf05896645adedd0e396ce9b7939a0e31a973ee3ad12c657f1"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/reauth-observation.json",
+      "sha256": "1f29250fd443d1d7795f7cab3eda35753fc38770aaec31da239a7d8febe93033"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/http-paths-loopback0-1243.jsonl",
+      "sha256": "7739761baca3d993e374b19b0051c7e0f46fb0baa4c16ac00931b36577f11e94"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/allo-wire-actions.json",
+      "sha256": "77f4f92275a6d0e225acb290db1d00178a8486bfca16797ac752ff36c254f11b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/ui-allo-wire-signedout.xml",
+      "sha256": "66feca539db04ac8a256a54d5bb3083fbce8c730f55c86e59a6e72212f222b6c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/ui-allo-wire-cold-final.xml",
+      "sha256": "a4c34f9d6805dc13eca9e12d449a01e2c4eb6d186b0e07baf217940088d51c03"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/observations-partial-1240.json",
+      "sha256": "e38a80d62c583405d9b77cd27f44978bc4c2cb5d9b59f7b73a3762aeff55c675"
+    }
+  ],
+  "installedInputs": [
+    {
+      "path": "packages/core/dist/cjs/boot/sessionColdBoot.js",
+      "sha256": "d89258ca3b0f7dcab5e56171a570bfcc164e97a1b1be17b774c6e427ee1747c4"
+    },
+    {
+      "path": "packages/core/dist/cjs/session/SessionClient.js",
+      "sha256": "12aece078fd21eeb9ed8d0d225acc6d41bb707f36041d179391675176dc48c17"
+    },
+    {
+      "path": "packages/core/dist/cjs/session/authStateStore.js",
+      "sha256": "b161dd6ac78b59ac434113c81921138f7bdf4ecd0803eeb8a49abe63ebdfe0cb"
+    },
+    {
+      "path": "packages/core/dist/cjs/session/refresh.js",
+      "sha256": "2645a7531157a84b58604360d9e566445bd9a79aea2f067bf5455fafcee655e4"
+    },
+    {
+      "path": "packages/core/dist/esm/boot/sessionColdBoot.js",
+      "sha256": "61f93c0dbe50bfbe61d7831a02ea0ad4460d7bcaeafc549f4629160efaf60a63"
+    },
+    {
+      "path": "packages/core/dist/esm/session/SessionClient.js",
+      "sha256": "51a8bdcc7155748c29c5fb691f5fbee53d293ddbe07cf4c658f7310d9cc568fa"
+    },
+    {
+      "path": "packages/core/dist/esm/session/authStateStore.js",
+      "sha256": "b9a0bccabe0df99caf531abb036a54ea3e91a7b08750d9550b3c13c3109d1086"
+    },
+    {
+      "path": "packages/core/dist/esm/session/refresh.js",
+      "sha256": "ef2f964aa091afdaab071095fc5743d090548f3a7a406ea844c458da88f402b6"
+    },
+    {
+      "path": "packages/core/dist/types/boot/sessionColdBoot.d.ts",
+      "sha256": "124c9e1cdf5c1ac4af3fd359816fcf3de15abce185a78eeb08dd059a21a2f83e"
+    },
+    {
+      "path": "packages/core/dist/types/session/SessionClient.d.ts",
+      "sha256": "46025b0eae974d4bb2823102deb62b70001eb03cfc64dbba9ab32dab45d46450"
+    },
+    {
+      "path": "packages/core/dist/types/session/authStateStore.d.ts",
+      "sha256": "292087762865034c8d2ba303110394e980ccae2b029d4b96b4ac564613693d74"
+    },
+    {
+      "path": "packages/core/dist/types/session/refresh.d.ts",
+      "sha256": "818533f6b8f9c8738f81bebc6d6f903cdb80b8ed8d8c87b65fcb7825660d80de"
+    },
+    {
+      "path": "packages/services/lib/commonjs/ui/context/OxyContext.js",
+      "sha256": "95f14c70fe296d8e8768a112f9d0ba9782b73445175f4f5f4435aeb0f6a6a3cf"
+    },
+    {
+      "path": "packages/services/lib/commonjs/ui/context/hooks/useAuthOperations.js",
+      "sha256": "80e403b7ec70d1aa08b15549e9758e0447d8a1a1140cd6cce4f63fb71581cf7b"
+    },
+    {
+      "path": "packages/services/lib/commonjs/ui/session/createSessionClient.js",
+      "sha256": "3dca21c186015c01ac61798ce722f86c4988dd78fb1de1b4ca1bea2c5927f2e5"
+    },
+    {
+      "path": "packages/services/lib/commonjs/ui/session/deviceCredentialTracker.js",
+      "sha256": "7e31c7e2a0cf07817e8d19ae7ec3132b22208d633353cef1f6dc4e1876a503ce"
+    },
+    {
+      "path": "packages/services/lib/module/ui/context/OxyContext.js",
+      "sha256": "9afb844e271c12535da567cb874247e56f509bec0383bb0c878b23b485a6fcb9"
+    },
+    {
+      "path": "packages/services/lib/module/ui/context/hooks/useAuthOperations.js",
+      "sha256": "b2c79e2b16e3b256afbfa9a6c2a88d335e183bec53affbfb627f5f90827a8fdd"
+    },
+    {
+      "path": "packages/services/lib/module/ui/session/createSessionClient.js",
+      "sha256": "28adc69745c3fe7ac2f7f7f36f63c8671d4e42864c17ea55d2cb8734a3910f9c"
+    },
+    {
+      "path": "packages/services/lib/module/ui/session/deviceCredentialTracker.js",
+      "sha256": "df1da42db61736569d27cda523c72e0f9fb2130eefb7acad3ecf19f771b77250"
+    },
+    {
+      "path": "packages/services/lib/typescript/commonjs/ui/context/OxyContext.d.ts",
+      "sha256": "538bcaafeb4d75c135618f8dc74537ea500c132e745c0d5a50b41781fd9643f9"
+    },
+    {
+      "path": "packages/services/lib/typescript/commonjs/ui/context/hooks/useAuthOperations.d.ts",
+      "sha256": "3ca2a2d8bcc19d6c84fc7d73a4c5e63a4fba6413823c6e87b8f115173e523ee9"
+    },
+    {
+      "path": "packages/services/lib/typescript/commonjs/ui/session/createSessionClient.d.ts",
+      "sha256": "1adb572bb36be40db611497b77aa830b8da5c5e75715be3fd6869192874f57be"
+    },
+    {
+      "path": "packages/services/lib/typescript/commonjs/ui/session/deviceCredentialTracker.d.ts",
+      "sha256": "0da0da1f67797235fab829e63c9f13cd1c34499de542144e40012a3a397ef807"
+    },
+    {
+      "path": "packages/services/lib/typescript/module/ui/context/OxyContext.d.ts",
+      "sha256": "7d8844339eb333aacd49a49aa3e8297ee83d56ffdf8fb1f2e1f46310a0ccbea9"
+    },
+    {
+      "path": "packages/services/lib/typescript/module/ui/context/hooks/useAuthOperations.d.ts",
+      "sha256": "df2e5532b8fb120baaa902f1b1acdaf3020cd05a82ff6ccce65a120b52318db2"
+    },
+    {
+      "path": "packages/services/lib/typescript/module/ui/session/createSessionClient.d.ts",
+      "sha256": "1adb572bb36be40db611497b77aa830b8da5c5e75715be3fd6869192874f57be"
+    },
+    {
+      "path": "packages/services/lib/typescript/module/ui/session/deviceCredentialTracker.d.ts",
+      "sha256": "0da0da1f67797235fab829e63c9f13cd1c34499de542144e40012a3a397ef807"
+    }
+  ],
+  "observedAndroidInputs": [
+    {
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/reauth-observation.json",
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/reauth-observation.json",
+      "sha256": "1f29250fd443d1d7795f7cab3eda35753fc38770aaec31da239a7d8febe93033"
+    },
+    {
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/http-paths-loopback0-1243.jsonl",
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/http-paths-loopback0-1243.jsonl",
+      "sha256": "7739761baca3d993e374b19b0051c7e0f46fb0baa4c16ac00931b36577f11e94"
+    },
+    {
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/allo-wire-actions.json",
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/allo-wire-actions.json",
+      "sha256": "77f4f92275a6d0e225acb290db1d00178a8486bfca16797ac752ff36c254f11b"
+    },
+    {
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-allo-wire-signedout.xml",
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/ui-allo-wire-signedout.xml",
+      "sha256": "66feca539db04ac8a256a54d5bb3083fbce8c730f55c86e59a6e72212f222b6c"
+    },
+    {
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-allo-wire-cold-final.xml",
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/ui-allo-wire-cold-final.xml",
+      "sha256": "a4c34f9d6805dc13eca9e12d449a01e2c4eb6d186b0e07baf217940088d51c03"
+    },
+    {
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/observations-partial-1240.json",
+      "path": "docs/audits/2026-10-03-native-explicit-signout/records/observations-partial-1240.json",
+      "sha256": "e38a80d62c583405d9b77cd27f44978bc4c2cb5d9b59f7b73a3762aeff55c675"
+    }
+  ],
+  "results": {
+    "frozenRed": {
+      "testsFailed": 3,
+      "file": "records/native-signout-red-final.log"
+    },
+    "sameFrozenHarnessGreen": {
+      "testsPassed": 3,
+      "file": "records/native-signout-frozen-green.log"
+    },
+    "core": {
+      "suitesPassed": 9,
+      "testsPassed": 148
+    },
+    "services": {
+      "suitesPassed": 4,
+      "testsPassed": 40
+    },
+    "coreBuildExit": 0,
+    "servicesBuildExit": 0,
+    "scopedBiome": {
+      "files": 15,
+      "exit": 0,
+      "formatterEnabled": false,
+      "organizeImportsEnabled": false
+    }
+  },
+  "commands": {
+    "coreBuild": "cd packages/core && bun run build",
+    "servicesBuild": "cd packages/services && bun run build",
+    "coreTests": "$ jest --passWithNoTests --runInBand src/boot/__tests__/nativeExplicitSignOut.test.ts src/session/__tests__/authStateStore.test.ts src/boot/__tests__/sessionColdBoot.test.ts src/boot/__tests__/sessionColdBoot.identity.test.ts src/session/__tests__/SessionClient.rest.test.ts src/session/__tests__/SessionClient.directory.test.ts src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts src/session/__tests__/refresh.test.ts src/session/__tests__/refresh.identityPin.test.ts",
+    "servicesTests": "$ jest --passWithNoTests --runInBand __tests__/context/useAuthOperations.test.tsx src/ui/context/__tests__/commitSessionFlow.test.ts src/ui/context/__tests__/isolatedOAuthSession.test.ts src/ui/session/__tests__/authStore.test.ts",
+    "biome": "node node_modules/.bun/@biomejs+biome@1.9.4/node_modules/@biomejs/biome/bin/biome check --formatter-enabled=false --organize-imports-enabled=false --error-on-warnings <15 changed TS inputs>"
+  },
+  "limits": [
+    "Local SDK tests use controlled native KV and explicit Commons transport stub; actual Android RED is independently captured by root with real API/PG and synthetic identity.",
+    "No Android GREEN claim yet; siblings/Metros remain frozen for root rerun. No registry release or production adoption.",
+    "Initial RED log includes incomplete mock failure; final frozen RED has 3 semantic failures. Initial GREEN expectations and expanded Services failure are retained, superseded by terminal final passes.",
+    "Full Biome default formatting/import check failed on existing style; scoped lint explicitly disables those two checks and passed, without mass reformat.",
+    "Marker is local intent, not authority. Identity key/pin untouched. Valid server-authorized shared-holder adoption remains possible."
+  ]
+}

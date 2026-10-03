@@ -1,0 +1,6 @@
+$ jest --passWithNoTests --runInBand src/__tests__/consumerAccountBinding.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        0.428 s, estimated 1 s
+Ran all test suites matching src/__tests__/consumerAccountBinding.test.ts.

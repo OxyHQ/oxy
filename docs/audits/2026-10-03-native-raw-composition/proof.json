@@ -1,0 +1,189 @@
+{
+  "sourceHead": "9e07f55c522655e52c805244799d86dd7cffeb7c",
+  "inputs": {
+    "docs/auth/native-holder-recovery/README.md": "9450f10d4dac70b11108c238fbd57f2ea695861fbb63fddfd40d7037fd8e9941",
+    "packages/api/src/routes/__tests__/nativeHolderLogoutRecovery.test.ts": "8985a26a5f255bb0a36e4b5c990f6e190a52b3962ee90bd600301b942fb2084e",
+    "packages/core/src/boot/__tests__/nativeSharedHolderCommit.test.ts": "e3f43852644d043bdcc9d46dabae3f72d2241fdf063bb46f1dc24e59e9c1fe0b",
+    "packages/core/src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts": "61e1e9908801e54c7a1d0cc6ac437fec2d4e6183e30330977aaef1adc656fe7d",
+    "packages/core/src/boot/sessionColdBoot.ts": "a1ea618f44f9283af4f67e934f39a6237815c7a3806e016c62fefee781356ad2",
+    "packages/core/src/session/authStateStore.ts": "e1e58baaaaa8c9a52e125c8bafcaeb9e3a24115ccfbd069157ec63eff6b63b03",
+    "packages/core/src/session/index.ts": "a39cf3c2d8d7b0fc6aa79218d33b702d66c827e2ae578b4f9bb389d083cf29fd",
+    "packages/core/src/session/refresh.ts": "8afa27e914d4c1eccd76e477312bf7b977d4dd4fbf03525b6a96f1f55ca2b077",
+    "packages/core/src/session/sharedDeviceCredential.ts": "126b97d0ded74d873185e8f3661c444a39e5f9874c834faedb3f9a8de33c89a5",
+    "packages/services/__tests__/context/coldBoot.test.tsx": "ce77dec8a44078ed44ad2d1488e3fa4099793f2eb82b5a23c08d09b5120cd799",
+    "packages/services/src/ui/context/OxyContext.tsx": "69ef32021164e87baa648bd4b21b2c5a41f0a8ea54548d254ff42d4968976f0b",
+    "packages/services/src/ui/session/deviceCredentialTracker.ts": "2f05cee14ec9245eae6af73c756b8b5d238b020e566a6f1a21b0ea8e94f687a6",
+    "scripts/rehearsal/test-native-holder-recovery-1519.py": "2290237b4b928dc4de7a9b0514cec311c0e6a2f1b177b9df99191a586d33fb27",
+    "packages/core/src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts": "441d2d879cc3d6382ff1fe234afa98acb593323c08080b038cd596441ac70919",
+    "packages/core/src/HttpService.ts": "5395288173a19d024a676ebda7a073286c600ed2d1167b97646a6724a7d856d6",
+    "packages/core/src/index.ts": "493446c8d5aa967617437f1f27594c8a1dac55a3296a21d9cd149408901978a8",
+    "packages/core/src/__tests__/rawResponse.test.ts": "de6dc3b7d85056a0d425217117b767e3cc0024f4143707350b5b2142519a38af",
+    "packages/services/package.json": "da64d7c6390840ebbcbd79f37cfe3fd1a2d306b943f513e707e43da29753188e",
+    "bun.lock": "729e9f5fdd43f120ca575397c41fed0881cb09e3f0001354c437790d44f0ba8e"
+  },
+  "upstreamByteEquality": {
+    "docs/auth/native-holder-recovery/README.md": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "9450f10d4dac70b11108c238fbd57f2ea695861fbb63fddfd40d7037fd8e9941"
+    },
+    "packages/api/src/routes/__tests__/nativeHolderLogoutRecovery.test.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "8985a26a5f255bb0a36e4b5c990f6e190a52b3962ee90bd600301b942fb2084e"
+    },
+    "packages/core/src/boot/__tests__/nativeSharedHolderCommit.test.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "e3f43852644d043bdcc9d46dabae3f72d2241fdf063bb46f1dc24e59e9c1fe0b"
+    },
+    "packages/core/src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "61e1e9908801e54c7a1d0cc6ac437fec2d4e6183e30330977aaef1adc656fe7d"
+    },
+    "packages/core/src/boot/sessionColdBoot.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "a1ea618f44f9283af4f67e934f39a6237815c7a3806e016c62fefee781356ad2"
+    },
+    "packages/core/src/session/authStateStore.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "e1e58baaaaa8c9a52e125c8bafcaeb9e3a24115ccfbd069157ec63eff6b63b03"
+    },
+    "packages/core/src/session/index.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "a39cf3c2d8d7b0fc6aa79218d33b702d66c827e2ae578b4f9bb389d083cf29fd"
+    },
+    "packages/core/src/session/refresh.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "8afa27e914d4c1eccd76e477312bf7b977d4dd4fbf03525b6a96f1f55ca2b077"
+    },
+    "packages/core/src/session/sharedDeviceCredential.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "126b97d0ded74d873185e8f3661c444a39e5f9874c834faedb3f9a8de33c89a5"
+    },
+    "packages/services/__tests__/context/coldBoot.test.tsx": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "ce77dec8a44078ed44ad2d1488e3fa4099793f2eb82b5a23c08d09b5120cd799"
+    },
+    "packages/services/src/ui/context/OxyContext.tsx": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "69ef32021164e87baa648bd4b21b2c5a41f0a8ea54548d254ff42d4968976f0b"
+    },
+    "packages/services/src/ui/session/deviceCredentialTracker.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "2f05cee14ec9245eae6af73c756b8b5d238b020e566a6f1a21b0ea8e94f687a6"
+    },
+    "scripts/rehearsal/test-native-holder-recovery-1519.py": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "2290237b4b928dc4de7a9b0514cec311c0e6a2f1b177b9df99191a586d33fb27"
+    },
+    "packages/core/src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts": {
+      "commit": "f4ddce58dd9a0b83cdec5af8af8ecc7688fb91b8",
+      "sha256": "441d2d879cc3d6382ff1fe234afa98acb593323c08080b038cd596441ac70919"
+    },
+    "packages/core/src/HttpService.ts": {
+      "commit": "04f73b2a791d24f7318721c13204bd7b2a0964d8",
+      "sha256": "5395288173a19d024a676ebda7a073286c600ed2d1167b97646a6724a7d856d6"
+    },
+    "packages/core/src/__tests__/rawResponse.test.ts": {
+      "commit": "04f73b2a791d24f7318721c13204bd7b2a0964d8",
+      "sha256": "de6dc3b7d85056a0d425217117b767e3cc0024f4143707350b5b2142519a38af"
+    },
+    "packages/core/src/index.ts": {
+      "commit": "bc8c0b3d7cb4c2ba2c7c0a0773dfd110d8261a80",
+      "sha256": "493446c8d5aa967617437f1f27594c8a1dac55a3296a21d9cd149408901978a8"
+    },
+    "packages/services/package.json": {
+      "commit": "ad8faaec0db5d5a75774e50e1f6359b2022757fd",
+      "sha256": "da64d7c6390840ebbcbd79f37cfe3fd1a2d306b943f513e707e43da29753188e"
+    },
+    "bun.lock": {
+      "commit": "ad8faaec0db5d5a75774e50e1f6359b2022757fd",
+      "sha256": "729e9f5fdd43f120ca575397c41fed0881cb09e3f0001354c437790d44f0ba8e"
+    }
+  },
+  "records": {
+    "records/migration-fresh.log": "e65d74e60b433003bedff7ea465d412cee4c9af73ace40dd39f66a3f2cbe4caf",
+    "records/migration-repeat.log": "0667995ebed21b2ced34441acd5b4d91265835483e70705d0c44ba0459007b72",
+    "records/native-raw-deadline-composite-api-focused.log": "384f9c981b26ff20b0710974e0a53c1aed5adedf909093cd8df430664c869b09",
+    "records/native-raw-deadline-composite-api-owned.log": "0c5b63afd5288b2dc559e9702702fa1dfb55b53e26f91632f87fa04ead4eedb7",
+    "records/native-raw-deadline-composite-core-build.log": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+    "records/native-raw-deadline-composite-core-full.log": "031ac1057670662d966f0db318e15fa1b997a0c5cf8b0013998434d6fe9b40c1",
+    "records/native-raw-deadline-composite-provider-hook.log": "88e480b0ce69e9caca6262f36dfa3d36f5c9ba756321367d6feda03c6913d8cc",
+    "records/native-raw-deadline-composite-services-build.log": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a",
+    "records/native-raw-deadline-composite-services-full.log": "b4920e81f64d159b7fd639770274ce55bcaf5f54aca9b92fb1706df69944d2ad",
+    "records/native-raw-peer-composite-install.log": "036b87885507d7582cc2dc13482a816defe6f2e76b7f805132704c12ccc6c07f"
+  },
+  "compiled": {
+    "packages/core/dist/cjs/boot/sessionColdBoot.js": "3221b9b210791af7436dc68bfe393f42513171c699d8a03c590649de6dc98d8c",
+    "packages/core/dist/cjs/session/authStateStore.js": "c172b6397bbaba069103144f35824eefa8f803e9aeb762e28f74a0a26d40ea52",
+    "packages/core/dist/cjs/session/sharedDeviceCredential.js": "92089b29e421cda6784d12925a41b8ac19138588d867e1f64eb01ea381f8fac1",
+    "packages/core/dist/cjs/session/index.js": "dbe8e570add4b7ceb913c9a4c0d8a3393f8d39461f43ac9feb75f5c5497d725a",
+    "packages/core/dist/cjs/session/refresh.js": "d9bbfedaee303c5ab235d68cd13b50e11641bd0bc1621dcdca1ccbe669645a46",
+    "packages/core/dist/esm/boot/sessionColdBoot.js": "db2a42b62829c50f6d5bd94d075b8ee43520f45cf11277b40ffcd3d38e15a4a3",
+    "packages/core/dist/esm/session/authStateStore.js": "28c060b8d99f3ed8075513e037e67a013338ecabf16bf2dcb09d6b792b730bfc",
+    "packages/core/dist/esm/session/sharedDeviceCredential.js": "8e5ca16d0de544f06ffabd586dedc4ba2d012887653cfdf9c4b334504c6acc75",
+    "packages/core/dist/esm/session/index.js": "adcfa276ef153a60341e8745d905a61e9972fb0157756c87a4a56aa994664744",
+    "packages/core/dist/esm/session/refresh.js": "d7ba4bbf3cccfed6ac58a0a7b884d7476ffc3a568323c5f1bbeaac6ba7466719",
+    "packages/core/dist/types/boot/sessionColdBoot.d.ts": "b8c8e1a79f33b65904c025a1a02143fb3022f5554566f3493459b4276f2ad0a4",
+    "packages/core/dist/types/session/index.d.ts": "136839d12625f1bb2c2d9b8c6370b09dcca0864945d970b3fff16265c10bab29",
+    "packages/core/dist/types/session/authStateStore.d.ts": "b086bfb2d895cce49733d9b678515069697900a8593cbed85f5f2a11bdce56c5",
+    "packages/core/dist/types/session/sharedDeviceCredential.d.ts": "3afbda978eb5f41565cd11c75ba7c741731d8bfd88626da2c1702e40c57d4823",
+    "packages/core/dist/types/session/refresh.d.ts": "e3988efc4dcb14ec659a1b8ddc649955892e44a407df8db34fa6d4bfeae0b721",
+    "packages/services/lib/module/ui/session/deviceCredentialTracker.js.map": "74d2976b77a047fb9ac3a7cc08c16d1bf99da01cf0fa8918b276ab321707a222",
+    "packages/services/lib/module/ui/session/deviceCredentialTracker.js": "13e30f1d74fabe3a991551eb94941901db4ca1357ab5fff7f7c34ad1268ad360",
+    "packages/services/lib/module/ui/context/OxyContext.js": "6959f0b9e6d09cc2ddb2b9928c9256262509cc1ba4e08b7e7c64a7d82a8f7409",
+    "packages/services/lib/module/ui/context/OxyContext.js.map": "e78598b936ef3fc552e8b06d4132d8a9b65b43cebafcbd5aaf1263c1487f66d8",
+    "packages/services/lib/commonjs/ui/session/deviceCredentialTracker.js.map": "fbe0ef2db1fbe075afadc7e1de3356b04e138156d5cda1003df04f1953eeab51",
+    "packages/services/lib/commonjs/ui/session/deviceCredentialTracker.js": "143fe864777f1215e2204b2d79829ad3dbf04cdc11afebefcc45e325d878bf08",
+    "packages/services/lib/commonjs/ui/context/OxyContext.js": "dce5b33750662901dff985e63a446ad694ead05d4dbf31c1598bf588a39ebe19",
+    "packages/services/lib/commonjs/ui/context/OxyContext.js.map": "b166001fd5f4ec88dd2b26424060cd4ca09cdec7b3a2beca90c8f8e3959392f2",
+    "packages/core/dist/cjs/HttpService.js": "735c17322bf7f346b0f8b74d0905087221f2d11964858e94a7453a4d3746f4be",
+    "packages/core/dist/esm/HttpService.js": "32bed247ef0977e312030b7828060f1234b9d05dcfda5eaa1468436ddf3585e4",
+    "packages/core/dist/types/HttpService.d.ts": "9afb4348d29589f2f7281a036a3928e18c8cc6fdec08bc56b2ef84de2f4db40e",
+    "packages/core/dist/cjs/index.js": "2886a4c73c54b73ab722195e93c8ca363e84a5dd73d72b00bf5cfa7901af12be",
+    "packages/core/dist/esm/index.js": "00d34eedaeb10c7ea88ea1aa6aa7ca47a62849ebe1cea84b9baf919a5f1a5c22",
+    "packages/core/dist/types/index.d.ts": "8bc006207b36d74c4e5dbc66af860a4c0512ecdd7ac7c62a529e64bfc45c3069"
+  },
+  "results": {
+    "fullCore": "183 suites / 2228 PASS",
+    "fullServices": "113 suites / 1040 PASS",
+    "installedProviderAppState": "32 PASS; real provider subscriptions/installed refresh handler, network-shaped mint fixture",
+    "apiPostgres": "4 PASS with real routes/services/PG and built combined core; full/last/partial/re-login",
+    "normalMigrator": "142 fresh/repeat",
+    "coreBuild": 0,
+    "servicesBuild": 0,
+    "frozenInstall": 0
+  },
+  "ownedPostgres": {
+    "newLocalServerPid": 4020736,
+    "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/native-holder-rehearsal-1519-cpgbr5m3/pg1519-4e4jgfgx/data",
+    "database": "oxy_rehearsal_1519_07a793a7793d3f69",
+    "command": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "test",
+      "--runInBand",
+      "--runTestsByPath",
+      "src/routes/__tests__/nativeHolderLogoutRecovery.test.ts"
+    ],
+    "exitCode": 0,
+    "log": "/home/nate/Oxy/oxy/.worktrees/native-holder-rehearsal-1519-cpgbr5m3/pg1519-4e4jgfgx/focused.txt",
+    "productionAccess": false,
+    "stopped": true,
+    "pidAbsent": true,
+    "postmasterPidAbsent": true
+  },
+  "baseline": {
+    "preDeadlineHead": "cdaed520e",
+    "core": "183/2226",
+    "Services": "113/1040",
+    "API": "4 PASS",
+    "status": "Historical baseline; final logs above include deadline followup."
+  },
+  "limitations": [
+    "Corrected Android warm re-login and stopped explicit-holder cases require new frozen source/build/bundles and root execution.",
+    "Provider AppState fixture mocks the network mint, not Android IPC; real API/PG case validates endpoint authority separately.",
+    "Raw Response cancellation after delivery remains the consuming stream reader responsibility.",
+    "Bloom catalog/native remain exact 6.2.1; peer admits independently verified 7.1.2 maintenance line.",
+    "Final registry repetition, final CI/ARM and strict production acceptance pending; Forge remains INACTIVE."
+  ]
+}

@@ -1,0 +1,704 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/__tests__/rawResponse.test.ts
+FAIL src/__tests__/rawResponse.test.ts
+  ● does not replay or mutate the new session after switch during refresh
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  -  2
+    + Received  + 93
+
+      Object {
+    -   "error": Object {
+    -     "code": "AUTH_SESSION_CHANGED",
+    +   "response": Response {
+    +     "arrayBuffer": [Function arrayBuffer],
+    +     "blob": [Function blob],
+    +     "body": ReadableStream {
+    +       "cancel": [Function cancel],
+    +       "getReader": [Function getReader],
+    +       "locked": false,
+    +       "pipeThrough": [Function pipeThrough],
+    +       "pipeTo": [Function pipeTo],
+    +       "tee": [Function tee],
+    +       "values": [Function values],
+    +       Symbol(kType): "ReadableStream",
+    +       Symbol(kState): Object {
+    +         "closedPromise": Object {
+    +           "promise": Promise {},
+    +           "reject": [Function anonymous],
+    +           "resolve": [Function anonymous],
+    +         },
+    +         "controller": ReadableByteStreamController {
+    +           "byobRequest": null,
+    +           "close": [Function close],
+    +           "desiredSize": 0,
+    +           "enqueue": [Function enqueue],
+    +           "error": [Function error],
+    +           Symbol(kType): "ReadableByteStreamController",
+    +           Symbol(kState): Object {
+    +             "autoAllocateChunkSize": undefined,
+    +             "byobRequest": null,
+    +             "cancelAlgorithm": undefined,
+    +             "closeRequested": false,
+    +             "highWaterMark": 0,
+    +             "pendingPullIntos": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "pullAgain": false,
+    +             "pullAlgorithm": undefined,
+    +             "pullFulfilled": undefined,
+    +             "pullRejected": undefined,
+    +             "pulling": false,
+    +             "queue": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "queueTotalSize": 0,
+    +             "started": true,
+    +             "stream": [Circular],
+    +           },
+    +         },
+    +         "disturbed": true,
+    +         "reader": undefined,
+    +         "state": "closed",
+    +         "storedError": undefined,
+    +         "transfer": Object {
+    +           "port1": undefined,
+    +           "port2": undefined,
+    +           "promise": undefined,
+    +           "writable": undefined,
+    +         },
+    +       },
+    +     },
+    +     "bodyUsed": true,
+    +     "bytes": [Function bytes],
+    +     "clone": [Function clone],
+    +     "formData": [Function formData],
+    +     "headers": Headers {
+    +       "append": [Function append],
+    +       "delete": [Function delete],
+    +       "entries": [Function entries],
+    +       "forEach": [Function forEach],
+    +       "get": [Function get],
+    +       "getSetCookie": [Function getSetCookie],
+    +       "has": [Function has],
+    +       "keys": [Function keys],
+    +       "set": [Function set],
+    +       "values": [Function values],
+    +     },
+    +     "json": [Function json],
+    +     "ok": true,
+    +     "redirected": false,
+    +     "status": 200,
+    +     "statusText": "OK",
+    +     "text": [Function text],
+    +     "type": "basic",
+    +     "url": "http://127.0.0.1:56988/refresh",
+        },
+      }
+
+      194 |       const result = await outcome;
+      195 |       if ('response' in result) await result.response.body?.cancel();
+    > 196 |       expect(result).toMatchObject({ error: { code: 'AUTH_SESSION_CHANGED' } });
+          |                      ^
+      197 |       expect(oxy.http.getAccessToken()).toBe(expected);
+      198 |       expect(linked.client.getAccessToken()).toBe(expected);
+      199 |       expect(seen).toHaveLength(before + 1);
+
+      at src/__tests__/rawResponse.test.ts:196:22
+
+  ● does not replay or mutate the new session after logout during refresh
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  -  2
+    + Received  + 93
+
+      Object {
+    -   "error": Object {
+    -     "code": "AUTH_SESSION_CHANGED",
+    +   "response": Response {
+    +     "arrayBuffer": [Function arrayBuffer],
+    +     "blob": [Function blob],
+    +     "body": ReadableStream {
+    +       "cancel": [Function cancel],
+    +       "getReader": [Function getReader],
+    +       "locked": false,
+    +       "pipeThrough": [Function pipeThrough],
+    +       "pipeTo": [Function pipeTo],
+    +       "tee": [Function tee],
+    +       "values": [Function values],
+    +       Symbol(kType): "ReadableStream",
+    +       Symbol(kState): Object {
+    +         "closedPromise": Object {
+    +           "promise": Promise {},
+    +           "reject": [Function anonymous],
+    +           "resolve": [Function anonymous],
+    +         },
+    +         "controller": ReadableByteStreamController {
+    +           "byobRequest": null,
+    +           "close": [Function close],
+    +           "desiredSize": 0,
+    +           "enqueue": [Function enqueue],
+    +           "error": [Function error],
+    +           Symbol(kType): "ReadableByteStreamController",
+    +           Symbol(kState): Object {
+    +             "autoAllocateChunkSize": undefined,
+    +             "byobRequest": null,
+    +             "cancelAlgorithm": undefined,
+    +             "closeRequested": false,
+    +             "highWaterMark": 0,
+    +             "pendingPullIntos": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "pullAgain": false,
+    +             "pullAlgorithm": undefined,
+    +             "pullFulfilled": undefined,
+    +             "pullRejected": undefined,
+    +             "pulling": false,
+    +             "queue": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "queueTotalSize": 0,
+    +             "started": true,
+    +             "stream": [Circular],
+    +           },
+    +         },
+    +         "disturbed": true,
+    +         "reader": undefined,
+    +         "state": "closed",
+    +         "storedError": undefined,
+    +         "transfer": Object {
+    +           "port1": undefined,
+    +           "port2": undefined,
+    +           "promise": undefined,
+    +           "writable": undefined,
+    +         },
+    +       },
+    +     },
+    +     "bodyUsed": true,
+    +     "bytes": [Function bytes],
+    +     "clone": [Function clone],
+    +     "formData": [Function formData],
+    +     "headers": Headers {
+    +       "append": [Function append],
+    +       "delete": [Function delete],
+    +       "entries": [Function entries],
+    +       "forEach": [Function forEach],
+    +       "get": [Function get],
+    +       "getSetCookie": [Function getSetCookie],
+    +       "has": [Function has],
+    +       "keys": [Function keys],
+    +       "set": [Function set],
+    +       "values": [Function values],
+    +     },
+    +     "json": [Function json],
+    +     "ok": false,
+    +     "redirected": false,
+    +     "status": 401,
+    +     "statusText": "Unauthorized",
+    +     "text": [Function text],
+    +     "type": "basic",
+    +     "url": "http://127.0.0.1:56988/refresh",
+        },
+      }
+
+      194 |       const result = await outcome;
+      195 |       if ('response' in result) await result.response.body?.cancel();
+    > 196 |       expect(result).toMatchObject({ error: { code: 'AUTH_SESSION_CHANGED' } });
+          |                      ^
+      197 |       expect(oxy.http.getAccessToken()).toBe(expected);
+      198 |       expect(linked.client.getAccessToken()).toBe(expected);
+      199 |       expect(seen).toHaveLength(before + 1);
+
+      at src/__tests__/rawResponse.test.ts:196:22
+
+  ● does not replay or mutate the new session after logout-then-switch during refresh
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  -  2
+    + Received  + 93
+
+      Object {
+    -   "error": Object {
+    -     "code": "AUTH_SESSION_CHANGED",
+    +   "response": Response {
+    +     "arrayBuffer": [Function arrayBuffer],
+    +     "blob": [Function blob],
+    +     "body": ReadableStream {
+    +       "cancel": [Function cancel],
+    +       "getReader": [Function getReader],
+    +       "locked": false,
+    +       "pipeThrough": [Function pipeThrough],
+    +       "pipeTo": [Function pipeTo],
+    +       "tee": [Function tee],
+    +       "values": [Function values],
+    +       Symbol(kType): "ReadableStream",
+    +       Symbol(kState): Object {
+    +         "closedPromise": Object {
+    +           "promise": Promise {},
+    +           "reject": [Function anonymous],
+    +           "resolve": [Function anonymous],
+    +         },
+    +         "controller": ReadableByteStreamController {
+    +           "byobRequest": null,
+    +           "close": [Function close],
+    +           "desiredSize": 0,
+    +           "enqueue": [Function enqueue],
+    +           "error": [Function error],
+    +           Symbol(kType): "ReadableByteStreamController",
+    +           Symbol(kState): Object {
+    +             "autoAllocateChunkSize": undefined,
+    +             "byobRequest": null,
+    +             "cancelAlgorithm": undefined,
+    +             "closeRequested": false,
+    +             "highWaterMark": 0,
+    +             "pendingPullIntos": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "pullAgain": false,
+    +             "pullAlgorithm": undefined,
+    +             "pullFulfilled": undefined,
+    +             "pullRejected": undefined,
+    +             "pulling": false,
+    +             "queue": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "queueTotalSize": 0,
+    +             "started": true,
+    +             "stream": [Circular],
+    +           },
+    +         },
+    +         "disturbed": true,
+    +         "reader": undefined,
+    +         "state": "closed",
+    +         "storedError": undefined,
+    +         "transfer": Object {
+    +           "port1": undefined,
+    +           "port2": undefined,
+    +           "promise": undefined,
+    +           "writable": undefined,
+    +         },
+    +       },
+    +     },
+    +     "bodyUsed": true,
+    +     "bytes": [Function bytes],
+    +     "clone": [Function clone],
+    +     "formData": [Function formData],
+    +     "headers": Headers {
+    +       "append": [Function append],
+    +       "delete": [Function delete],
+    +       "entries": [Function entries],
+    +       "forEach": [Function forEach],
+    +       "get": [Function get],
+    +       "getSetCookie": [Function getSetCookie],
+    +       "has": [Function has],
+    +       "keys": [Function keys],
+    +       "set": [Function set],
+    +       "values": [Function values],
+    +     },
+    +     "json": [Function json],
+    +     "ok": false,
+    +     "redirected": false,
+    +     "status": 401,
+    +     "statusText": "Unauthorized",
+    +     "text": [Function text],
+    +     "type": "basic",
+    +     "url": "http://127.0.0.1:56988/refresh",
+        },
+      }
+
+      194 |       const result = await outcome;
+      195 |       if ('response' in result) await result.response.body?.cancel();
+    > 196 |       expect(result).toMatchObject({ error: { code: 'AUTH_SESSION_CHANGED' } });
+          |                      ^
+      197 |       expect(oxy.http.getAccessToken()).toBe(expected);
+      198 |       expect(linked.client.getAccessToken()).toBe(expected);
+      199 |       expect(seen).toHaveLength(before + 1);
+
+      at src/__tests__/rawResponse.test.ts:196:22
+
+  ● does not replay or mutate the new session after switch-back during refresh
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  -  2
+    + Received  + 93
+
+      Object {
+    -   "error": Object {
+    -     "code": "AUTH_SESSION_CHANGED",
+    +   "response": Response {
+    +     "arrayBuffer": [Function arrayBuffer],
+    +     "blob": [Function blob],
+    +     "body": ReadableStream {
+    +       "cancel": [Function cancel],
+    +       "getReader": [Function getReader],
+    +       "locked": false,
+    +       "pipeThrough": [Function pipeThrough],
+    +       "pipeTo": [Function pipeTo],
+    +       "tee": [Function tee],
+    +       "values": [Function values],
+    +       Symbol(kType): "ReadableStream",
+    +       Symbol(kState): Object {
+    +         "closedPromise": Object {
+    +           "promise": Promise {},
+    +           "reject": [Function anonymous],
+    +           "resolve": [Function anonymous],
+    +         },
+    +         "controller": ReadableByteStreamController {
+    +           "byobRequest": null,
+    +           "close": [Function close],
+    +           "desiredSize": 0,
+    +           "enqueue": [Function enqueue],
+    +           "error": [Function error],
+    +           Symbol(kType): "ReadableByteStreamController",
+    +           Symbol(kState): Object {
+    +             "autoAllocateChunkSize": undefined,
+    +             "byobRequest": null,
+    +             "cancelAlgorithm": undefined,
+    +             "closeRequested": false,
+    +             "highWaterMark": 0,
+    +             "pendingPullIntos": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "pullAgain": false,
+    +             "pullAlgorithm": undefined,
+    +             "pullFulfilled": undefined,
+    +             "pullRejected": undefined,
+    +             "pulling": false,
+    +             "queue": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "queueTotalSize": 0,
+    +             "started": true,
+    +             "stream": [Circular],
+    +           },
+    +         },
+    +         "disturbed": true,
+    +         "reader": undefined,
+    +         "state": "closed",
+    +         "storedError": undefined,
+    +         "transfer": Object {
+    +           "port1": undefined,
+    +           "port2": undefined,
+    +           "promise": undefined,
+    +           "writable": undefined,
+    +         },
+    +       },
+    +     },
+    +     "bodyUsed": true,
+    +     "bytes": [Function bytes],
+    +     "clone": [Function clone],
+    +     "formData": [Function formData],
+    +     "headers": Headers {
+    +       "append": [Function append],
+    +       "delete": [Function delete],
+    +       "entries": [Function entries],
+    +       "forEach": [Function forEach],
+    +       "get": [Function get],
+    +       "getSetCookie": [Function getSetCookie],
+    +       "has": [Function has],
+    +       "keys": [Function keys],
+    +       "set": [Function set],
+    +       "values": [Function values],
+    +     },
+    +     "json": [Function json],
+    +     "ok": true,
+    +     "redirected": false,
+    +     "status": 200,
+    +     "statusText": "OK",
+    +     "text": [Function text],
+    +     "type": "basic",
+    +     "url": "http://127.0.0.1:56988/refresh",
+        },
+      }
+
+      194 |       const result = await outcome;
+      195 |       if ('response' in result) await result.response.body?.cancel();
+    > 196 |       expect(result).toMatchObject({ error: { code: 'AUTH_SESSION_CHANGED' } });
+          |                      ^
+      197 |       expect(oxy.http.getAccessToken()).toBe(expected);
+      198 |       expect(linked.client.getAccessToken()).toBe(expected);
+      199 |       expect(seen).toHaveLength(before + 1);
+
+      at src/__tests__/rawResponse.test.ts:196:22
+
+  ● rejects an unread late 200 after switch
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  -  2
+    + Received  + 93
+
+      Object {
+    -   "error": Object {
+    -     "code": "AUTH_SESSION_CHANGED",
+    +   "response": Response {
+    +     "arrayBuffer": [Function arrayBuffer],
+    +     "blob": [Function blob],
+    +     "body": ReadableStream {
+    +       "cancel": [Function cancel],
+    +       "getReader": [Function getReader],
+    +       "locked": false,
+    +       "pipeThrough": [Function pipeThrough],
+    +       "pipeTo": [Function pipeTo],
+    +       "tee": [Function tee],
+    +       "values": [Function values],
+    +       Symbol(kType): "ReadableStream",
+    +       Symbol(kState): Object {
+    +         "closedPromise": Object {
+    +           "promise": Promise {},
+    +           "reject": [Function anonymous],
+    +           "resolve": [Function anonymous],
+    +         },
+    +         "controller": ReadableByteStreamController {
+    +           "byobRequest": null,
+    +           "close": [Function close],
+    +           "desiredSize": 0,
+    +           "enqueue": [Function enqueue],
+    +           "error": [Function error],
+    +           Symbol(kType): "ReadableByteStreamController",
+    +           Symbol(kState): Object {
+    +             "autoAllocateChunkSize": undefined,
+    +             "byobRequest": null,
+    +             "cancelAlgorithm": undefined,
+    +             "closeRequested": false,
+    +             "highWaterMark": 0,
+    +             "pendingPullIntos": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "pullAgain": false,
+    +             "pullAlgorithm": undefined,
+    +             "pullFulfilled": undefined,
+    +             "pullRejected": undefined,
+    +             "pulling": false,
+    +             "queue": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "queueTotalSize": 0,
+    +             "started": true,
+    +             "stream": [Circular],
+    +           },
+    +         },
+    +         "disturbed": true,
+    +         "reader": undefined,
+    +         "state": "closed",
+    +         "storedError": undefined,
+    +         "transfer": Object {
+    +           "port1": undefined,
+    +           "port2": undefined,
+    +           "promise": undefined,
+    +           "writable": undefined,
+    +         },
+    +       },
+    +     },
+    +     "bodyUsed": true,
+    +     "bytes": [Function bytes],
+    +     "clone": [Function clone],
+    +     "formData": [Function formData],
+    +     "headers": Headers {
+    +       "append": [Function append],
+    +       "delete": [Function delete],
+    +       "entries": [Function entries],
+    +       "forEach": [Function forEach],
+    +       "get": [Function get],
+    +       "getSetCookie": [Function getSetCookie],
+    +       "has": [Function has],
+    +       "keys": [Function keys],
+    +       "set": [Function set],
+    +       "values": [Function values],
+    +     },
+    +     "json": [Function json],
+    +     "ok": true,
+    +     "redirected": false,
+    +     "status": 200,
+    +     "statusText": "OK",
+    +     "text": [Function text],
+    +     "type": "basic",
+    +     "url": "http://127.0.0.1:56988/public",
+        },
+      }
+
+      217 |     const result = await outcome;
+      218 |     if ('response' in result) await result.response.body?.cancel();
+    > 219 |     expect(result).toMatchObject({ error: { code: 'AUTH_SESSION_CHANGED' } });
+          |                    ^
+      220 |   } finally { release(); linked.dispose(); }
+      221 | });
+      222 |
+
+      at src/__tests__/rawResponse.test.ts:219:20
+
+  ● rejects an unread late 200 after logout
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  -  2
+    + Received  + 93
+
+      Object {
+    -   "error": Object {
+    -     "code": "AUTH_SESSION_CHANGED",
+    +   "response": Response {
+    +     "arrayBuffer": [Function arrayBuffer],
+    +     "blob": [Function blob],
+    +     "body": ReadableStream {
+    +       "cancel": [Function cancel],
+    +       "getReader": [Function getReader],
+    +       "locked": false,
+    +       "pipeThrough": [Function pipeThrough],
+    +       "pipeTo": [Function pipeTo],
+    +       "tee": [Function tee],
+    +       "values": [Function values],
+    +       Symbol(kType): "ReadableStream",
+    +       Symbol(kState): Object {
+    +         "closedPromise": Object {
+    +           "promise": Promise {},
+    +           "reject": [Function anonymous],
+    +           "resolve": [Function anonymous],
+    +         },
+    +         "controller": ReadableByteStreamController {
+    +           "byobRequest": null,
+    +           "close": [Function close],
+    +           "desiredSize": 0,
+    +           "enqueue": [Function enqueue],
+    +           "error": [Function error],
+    +           Symbol(kType): "ReadableByteStreamController",
+    +           Symbol(kState): Object {
+    +             "autoAllocateChunkSize": undefined,
+    +             "byobRequest": null,
+    +             "cancelAlgorithm": undefined,
+    +             "closeRequested": false,
+    +             "highWaterMark": 0,
+    +             "pendingPullIntos": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "pullAgain": false,
+    +             "pullAlgorithm": undefined,
+    +             "pullFulfilled": undefined,
+    +             "pullRejected": undefined,
+    +             "pulling": false,
+    +             "queue": Queue {
+    +               "capacityMask": -1,
+    +               "dequeuedSize": 0,
+    +               "head": 0,
+    +               "length": 0,
+    +               "list": Array [],
+    +               "tail": 0,
+    +             },
+    +             "queueTotalSize": 0,
+    +             "started": true,
+    +             "stream": [Circular],
+    +           },
+    +         },
+    +         "disturbed": true,
+    +         "reader": undefined,
+    +         "state": "closed",
+    +         "storedError": undefined,
+    +         "transfer": Object {
+    +           "port1": undefined,
+    +           "port2": undefined,
+    +           "promise": undefined,
+    +           "writable": undefined,
+    +         },
+    +       },
+    +     },
+    +     "bodyUsed": true,
+    +     "bytes": [Function bytes],
+    +     "clone": [Function clone],
+    +     "formData": [Function formData],
+    +     "headers": Headers {
+    +       "append": [Function append],
+    +       "delete": [Function delete],
+    +       "entries": [Function entries],
+    +       "forEach": [Function forEach],
+    +       "get": [Function get],
+    +       "getSetCookie": [Function getSetCookie],
+    +       "has": [Function has],
+    +       "keys": [Function keys],
+    +       "set": [Function set],
+    +       "values": [Function values],
+    +     },
+    +     "json": [Function json],
+    +     "ok": true,
+    +     "redirected": false,
+    +     "status": 200,
+    +     "statusText": "OK",
+    +     "text": [Function text],
+    +     "type": "basic",
+    +     "url": "http://127.0.0.1:56988/public",
+        },
+      }
+
+      217 |     const result = await outcome;
+      218 |     if ('response' in result) await result.response.body?.cancel();
+    > 219 |     expect(result).toMatchObject({ error: { code: 'AUTH_SESSION_CHANGED' } });
+          |                    ^
+      220 |   } finally { release(); linked.dispose(); }
+      221 | });
+      222 |
+
+      at src/__tests__/rawResponse.test.ts:219:20
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 12 passed, 18 total
+Snapshots:   0 total
+Time:        0.4 s, estimated 1 s
+Ran all test suites within paths "src/__tests__/rawResponse.test.ts".
+error: script "test" exited with code 1

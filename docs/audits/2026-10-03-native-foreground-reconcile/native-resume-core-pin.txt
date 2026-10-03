@@ -1,0 +1,6 @@
+$ jest --passWithNoTests --runInBand src/session/__tests__/SessionClient.identityPin.test.ts src/session/__tests__/SessionClient.sessionEpoch.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       8 passed, 8 total
+Snapshots:   0 total
+Time:        0.398 s
+Ran all test suites matching src/session/__tests__/SessionClient.identityPin.test.ts|src/session/__tests__/SessionClient.sessionEpoch.test.ts.

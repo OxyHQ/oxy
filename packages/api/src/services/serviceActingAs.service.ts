@@ -44,21 +44,31 @@
  *
  * `requireScope` in `@oxy.so/core` intersects them for a delegated request.
  *
- * This function returns only the user's grant scopes. The resource server then
- * intersects them with the service token, so neither the platform nor the user
- * can grant authority the other side withheld.
- *
- * Neither path re-intersects with the live ceiling. That intersection already
- * happens once, at mint, so a scope staff revoked from the application is absent
- * from `req.serviceApp.scopes` and `requireScope` fails on it regardless. Doing
- * it twice would give one rule two homes.
+ * A coherent live snapshot intersects the user's grant with the current
+ * application and credential/workload ceilings. Removing acting-as:offline
+ * from any ceiling denies delegation even while an older signed token exists.
+ * The receiver also intersects this answer with that token's scopes.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
 import { applications } from '../db/schema/applications';
 import { serviceActingAsRevocations } from '../db/schema/serviceActingAsRevocations';
+import { serviceActingAsAuthorityEpochs } from '../db/schema/serviceActingAsAuthorityEpochs';
+import { users } from '../db/schema/users';
+import { accountClosureFences } from '../db/schema/accountClosureFences';
+import { applicationCredentials } from '../db/schema/applicationCredentials';
+import { resolveLiveAgencyWorkloadByHandle } from './agencyServicePrincipal.service';
+import { isWorkloadAttestationHandle } from './workloadAttestation.service';
+import { isCredentialUsable } from '../utils/credentialUsability';
+import { intersectScopes } from '../utils/applicationScopes';
+import { workloadTokenEnvironment } from '../utils/credentialEnvironment';
+import type { OxyServiceEnvironment } from '@oxy.so/core/server';
+
+/** The database handle a helper runs on — the pool, or an open transaction. */
+type Db = ReturnType<typeof getDb>;
+type Executor = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
  * The scope every application's grant must name before it may act for a user.
@@ -81,10 +91,11 @@ export const SERVICE_ACTING_AS_SCOPE = 'acting-as:offline';
 export interface ServiceActingAsGrant {
   authorized: boolean;
   scopes: string[];
+  epoch: string;
 }
 
 /** The single unauthorized answer. Every refusal is this exact value. */
-const DENIED: ServiceActingAsGrant = { authorized: false, scopes: [] };
+const DENIED: ServiceActingAsGrant = { authorized: false, scopes: [], epoch: '0' };
 
 /**
  * Resolve whether `applicationId` holds live authority to act as `userId`.
@@ -100,65 +111,86 @@ const DENIED: ServiceActingAsGrant = { authorized: false, scopes: [] };
  * Application trust is deliberately absent: it is a credential-mint decision,
  * not a per-user consent decision.
  *
- * Every negative outcome returns the SAME value. The caller cannot tell "no such
- * user" from "revoked" from "untrusted", which is what stops this endpoint
- * answering questions about who exists and who refused what. The reasons belong
- * in the server's own log, not in a response to another service.
+ * Every refusal returns authorized:false and empty scopes. The decimal pair
+ * epoch identifies authority generations, not a denial reason; this oracle
+ * remains available only to authenticated platform-trusted services.
  */
+export interface ServiceActingAsCredentialContext {
+  credentialId: string;
+  ownerAccountId: string;
+  environment: OxyServiceEnvironment;
+}
+
+/** One durable pair generation. Keep the row across revoke/delete/regrant. */
+export async function bumpServiceActingAsEpoch(
+  userId: string, applicationId: string, db: Executor,
+): Promise<string> {
+  const [row] = await db.insert(serviceActingAsAuthorityEpochs)
+    .values({ userId, applicationId, epoch: BigInt(1) })
+    .onConflictDoUpdate({
+      target: [serviceActingAsAuthorityEpochs.userId, serviceActingAsAuthorityEpochs.applicationId],
+      set: { epoch: sql`${serviceActingAsAuthorityEpochs.epoch} + 1`, updatedAt: new Date() },
+    }).returning({ epoch: serviceActingAsAuthorityEpochs.epoch });
+  return row.epoch.toString();
+}
+
 export async function resolveServiceActingAsGrant(
   applicationId: string,
-  userId: string
+  userId: string,
+  credential?: ServiceActingAsCredentialContext,
 ): Promise<ServiceActingAsGrant> {
-  if (applicationId.length === 0 || userId.length === 0) {
-    return DENIED;
-  }
-
-  const db = getDb();
-
-  // 1. An explicit refusal ends it. Checked before the application is even
-  //    looked up, so there is no arrangement of the code below that can
-  //    authorize past it.
-  const [revocation] = await db
-    .select({ id: serviceActingAsRevocations.id })
-    .from(serviceActingAsRevocations)
-    .where(
-      and(
+  if (!applicationId || !userId) return DENIED;
+  // Every authority read, including epoch, closure, credential/workload ceiling,
+  // belongs to one snapshot. Mixing several READ COMMITTED snapshots could
+  // pair the pre-revoke grant with the post-revoke epoch.
+  return getDb().transaction(async (tx) => {
+    const [generation] = await tx.select({ epoch: serviceActingAsAuthorityEpochs.epoch })
+      .from(serviceActingAsAuthorityEpochs).where(and(
+        eq(serviceActingAsAuthorityEpochs.userId, userId),
+        eq(serviceActingAsAuthorityEpochs.applicationId, applicationId),
+      )).limit(1);
+    const denied: ServiceActingAsGrant = { authorized: false, scopes: [], epoch: generation?.epoch.toString() ?? '0' };
+    const [revocation] = await tx.select({ id: serviceActingAsRevocations.id })
+      .from(serviceActingAsRevocations).where(and(
         eq(serviceActingAsRevocations.userId, userId),
-        eq(serviceActingAsRevocations.applicationId, applicationId)
-      )
-    )
-    .limit(1);
-
-  if (revocation) {
-    return DENIED;
-  }
-
-  // 2. An application that is no longer active cannot act, whatever it was
-  //    granted.
-  const [application] = await db
-    .select({ id: applications.id })
-    .from(applications)
-    .where(and(eq(applications.id, applicationId), eq(applications.status, 'active')))
-    .limit(1);
-
-  if (!application) {
-    return DENIED;
-  }
-
-  // 3. The explicit user grant is the only positive authorization path.
-  const [grant] = await db
-    .select({ scopes: appGrants.scopes })
-    .from(appGrants)
-    .where(and(eq(appGrants.userId, userId), eq(appGrants.applicationId, application.id)))
-    .limit(1);
-
-  const grantedScopes = grant?.scopes ?? [];
-  if (grantedScopes.includes(SERVICE_ACTING_AS_SCOPE)) {
-    return { authorized: true, scopes: grantedScopes };
-  }
-
-  // 4. Missing, stale or weaker grants authorize nothing, regardless of trust.
-  return DENIED;
+        eq(serviceActingAsRevocations.applicationId, applicationId),
+      )).limit(1);
+    if (revocation) return denied;
+    const [subject] = await tx.select({ status: users.accountStatus, fence: accountClosureFences.accountId })
+      .from(users).leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
+      .where(eq(users.id, userId)).limit(1);
+    if (!subject || subject.status !== 'active' || subject.fence !== null) return denied;
+    const [application] = await tx.select({ id: applications.id, ownerId: applications.ownerAccountId,
+      scopes: applications.scopes, status: applications.status }).from(applications)
+      .where(eq(applications.id, applicationId)).limit(1);
+    if (!application || application.status !== 'active') return denied;
+    const [owner] = await tx.select({ status: users.accountStatus, fence: accountClosureFences.accountId })
+      .from(users).leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
+      .where(eq(users.id, application.ownerId)).limit(1);
+    if (!owner || owner.status !== 'active' || owner.fence !== null) return denied;
+    const [grant] = await tx.select({ scopes: appGrants.scopes }).from(appGrants)
+      .where(and(eq(appGrants.userId, userId), eq(appGrants.applicationId, applicationId))).limit(1);
+    if (!grant?.scopes.includes(SERVICE_ACTING_AS_SCOPE)) return denied;
+    let liveScopes: readonly string[] = application.scopes;
+    if (credential) {
+      if (credential.ownerAccountId !== application.ownerId) return denied;
+      if (isWorkloadAttestationHandle(credential.credentialId)) {
+        const binding = await resolveLiveAgencyWorkloadByHandle(applicationId, credential.credentialId, new Date(), tx);
+        if (!binding || credential.environment !== workloadTokenEnvironment()) return denied;
+        liveScopes = binding.scopes;
+      } else {
+        const [key] = await tx.select().from(applicationCredentials).where(and(
+          eq(applicationCredentials.id, credential.credentialId),
+          eq(applicationCredentials.applicationId, applicationId),
+        )).limit(1);
+        if (!key || key.type !== 'service' || key.environment !== credential.environment || !isCredentialUsable(key)) return denied;
+        liveScopes = key.scopes.length ? intersectScopes(key.scopes, application.scopes) : application.scopes;
+      }
+    }
+    const scopes = intersectScopes(grant.scopes, liveScopes);
+    if (!scopes.includes(SERVICE_ACTING_AS_SCOPE)) return denied;
+    return { authorized: true, scopes, epoch: denied.epoch };
+  }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
 }
 
 /**
@@ -176,36 +208,49 @@ export async function resolveServiceActingAsGrant(
  */
 export async function revokeServiceActingAs(
   userId: string,
-  applicationId: string
+  applicationId: string,
+  db?: Executor,
 ): Promise<void> {
-  const now = new Date();
-  await getDb()
-    .insert(serviceActingAsRevocations)
-    .values({ userId, applicationId, revokedAt: now })
-    .onConflictDoUpdate({
-      target: [serviceActingAsRevocations.userId, serviceActingAsRevocations.applicationId],
-      set: { revokedAt: now, updatedAt: now },
-    });
+  const write = async (tx: Executor) => {
+    // Unknown applications preserve idempotent revoke without an existence oracle.
+    const [application] = await tx.select({ id: applications.id }).from(applications)
+      .where(eq(applications.id, applicationId)).limit(1);
+    if (!application) return;
+    await bumpServiceActingAsEpoch(userId, applicationId, tx);
+    await tx.delete(appGrants).where(and(eq(appGrants.userId, userId), eq(appGrants.applicationId, applicationId)));
+    const now = new Date();
+    await tx.insert(serviceActingAsRevocations).values({ userId, applicationId, revokedAt: now })
+      .onConflictDoUpdate({ target: [serviceActingAsRevocations.userId, serviceActingAsRevocations.applicationId],
+        set: { revokedAt: now, updatedAt: now } });
+  };
+  if (db) await write(db);
+  else await getDb().transaction(write);
 }
 
 /**
  * Clear `userId`'s refusal of `applicationId`, if there is one.
  *
- * Called ONLY from `recordAppGrant` and ONLY when the granted scopes name
- * {@link SERVICE_ACTING_AS_SCOPE}. That scope is consent-required, so a request
- * carrying it always reaches the consent screen — for a trusted application
- * exactly as for a third-party one — and reaching authorize with it means a
- * person read that screen and approved.
+ * Called ONLY from `persistOAuthAuthorization` (`oauthConsent.service.ts`),
+ * inside the transaction that records the grant and writes the code, and ONLY
+ * when the request EXPLICITLY named {@link SERVICE_ACTING_AS_SCOPE} and the code
+ * carries it. That scope is consent-required, so a request carrying it always
+ * reaches the consent screen — for a trusted application exactly as for a
+ * third-party one — and reaching a finalizer with it means a person read that
+ * screen and approved.
  *
  * Clearing on any successful authorize would have made revocation worthless: a
  * first-party application is auto-approved, so its very next sign-in would
  * silently undo a deliberate refusal.
+ *
+ * `db` is the pool by default, or the caller's open transaction — the clear must
+ * never commit without the grant and the code it belongs to.
  */
 export async function clearServiceActingAsRevocation(
   userId: string,
-  applicationId: string
+  applicationId: string,
+  db: Executor = getDb()
 ): Promise<void> {
-  await getDb()
+  await db
     .delete(serviceActingAsRevocations)
     .where(
       and(

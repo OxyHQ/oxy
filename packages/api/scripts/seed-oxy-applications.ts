@@ -71,6 +71,7 @@ import {
 import {
   SEED_APPS,
   seedApplicationLookupIdentity,
+  requiresPublicSeedCredential,
   type SeedAppSpec,
   type SeedAppType,
 } from '../src/scripts/seedOxyApplicationsSpecs';
@@ -97,7 +98,7 @@ interface MappingRow {
   type: SeedAppType;
   applicationId: string;
   ownerAccountId: string;
-  clientId: string;
+  clientId: string | null;
   redirectUris: string[];
   websiteUrl?: string;
   createdApplication: boolean;
@@ -393,46 +394,48 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
     const applicationId = application?.id ?? spec.id ?? DRY_RUN_PLACEHOLDER_ID;
 
     let credential: typeof applicationCredentials.$inferSelect | null = null;
-    if (application && application.id !== DRY_RUN_PLACEHOLDER_ID) {
-      credential =
-        (
-          await getDb()
-            .select()
-            .from(applicationCredentials)
-            .where(
-              and(
-                eq(applicationCredentials.applicationId, application.id),
-                eq(applicationCredentials.type, 'public'),
-                eq(applicationCredentials.environment, 'production'),
-                eq(applicationCredentials.status, 'active'),
-              ),
-            )
-            .limit(1)
-        )[0] ?? null;
-    }
-
-    if (!credential) {
-      createdCredential = true;
-      if (!dryRun && application) {
-        const [created] = await getDb()
-          .insert(applicationCredentials)
-          .values({
-            applicationId: application.id,
-            name: 'Production',
-            publicKey: generatePublicKey(),
-            secretHash: null,
-            type: 'public',
-            environment: 'production',
-            scopes: ['user:read'],
-            status: 'active',
-            createdByUserId: oxyId,
-          })
-          .returning();
-        credential = created;
-        credentialsCreated += 1;
+    if (requiresPublicSeedCredential(spec)) {
+      if (application && application.id !== DRY_RUN_PLACEHOLDER_ID) {
+        credential =
+          (
+            await getDb()
+              .select()
+              .from(applicationCredentials)
+              .where(
+                and(
+                  eq(applicationCredentials.applicationId, application.id),
+                  eq(applicationCredentials.type, 'public'),
+                  eq(applicationCredentials.environment, 'production'),
+                  eq(applicationCredentials.status, 'active'),
+                ),
+              )
+              .limit(1)
+          )[0] ?? null;
       }
-    } else {
-      credentialsReused += 1;
+
+      if (!credential) {
+        createdCredential = true;
+        if (!dryRun && application) {
+          const [created] = await getDb()
+            .insert(applicationCredentials)
+            .values({
+              applicationId: application.id,
+              name: 'Production',
+              publicKey: generatePublicKey(),
+              secretHash: null,
+              type: 'public',
+              environment: 'production',
+              scopes: ['user:read'],
+              status: 'active',
+              createdByUserId: oxyId,
+            })
+            .returning();
+          credential = created;
+          credentialsCreated += 1;
+        }
+      } else {
+        credentialsReused += 1;
+      }
     }
 
     mapping.push({
@@ -444,7 +447,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       // report and five, and the mapping is where an operator can see which it
       // got without a second query.
       ownerAccountId,
-      clientId: credential?.publicKey ?? (dryRun ? '(dry-run-not-minted)' : 'ERROR'),
+      clientId: requiresPublicSeedCredential(spec) ? credential?.publicKey ?? (dryRun ? '(dry-run-not-minted)' : 'ERROR') : null,
       redirectUris: spec.redirectUris,
       websiteUrl: spec.websiteUrl,
       createdApplication,

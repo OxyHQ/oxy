@@ -161,6 +161,7 @@ function buildFakeStore() {
     load: jest.fn(async () => null),
     save: jest.fn(async () => undefined),
     clear: jest.fn(async () => undefined),
+    setAutomaticIdentitySignInSuppressed: jest.fn(async () => true),
   };
 }
 
@@ -198,6 +199,7 @@ const setup = (opts: SetupOpts = {}) => {
 
   const { result } = renderHook(() =>
     useAuthOperations({
+      ensureDeviceSessionLane: async () => undefined,
       // Fake services match the runtime interface but TypeScript can't see
       // through mixin composition, so cast through `never`.
       oxyServices: oxyServices as never,
@@ -291,6 +293,7 @@ describe('useAuthOperations.signIn — online flow', () => {
       load: jest.fn(async () => null),
       save: jest.fn(async () => true),
       clear: jest.fn(async () => undefined),
+    setAutomaticIdentitySignInSuppressed: jest.fn(async () => true),
     };
     const refreshPinnedAccountId = jest.fn(async () => 'user-1');
     const helpers = setup({ identityBinding: { pinStore }, refreshPinnedAccountId });
@@ -326,6 +329,7 @@ describe('useAuthOperations.signIn — online flow', () => {
       'Failed to register sign-in into device session set',
       expect.any(Error),
     );
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).not.toHaveBeenCalled();
     // The registration failure must not have cascaded into re-throwing / a
     // failed sign-in. `signIn` opens by CLEARING any previous error, so the
     // assertion is that no error MESSAGE was ever recorded — not that the
@@ -484,6 +488,7 @@ describe('useAuthOperations.logout', () => {
     // store wipe (the device is still signed in).
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
     expect(helpers.store.clear).not.toHaveBeenCalled();
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).not.toHaveBeenCalled();
   });
 
   it('clears local state AND the persisted store (full sign-out) when the last device account is signed out', async () => {
@@ -498,6 +503,7 @@ describe('useAuthOperations.logout', () => {
     // Genuine FULL sign-out → the persisted device credential is cleared so the
     // next cold boot finds nothing to restore.
     expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).toHaveBeenCalledWith(true);
   });
 
   it('logs out a specific non-active session without disturbing the active one', async () => {
@@ -511,6 +517,7 @@ describe('useAuthOperations.logout', () => {
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
     // A partial sign-out (other accounts remain) must NOT clear the store.
     expect(helpers.store.clear).not.toHaveBeenCalled();
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).not.toHaveBeenCalled();
   });
 
   it('reports a clear error (no silent no-op) when the target session has no matching device account', async () => {
@@ -541,6 +548,7 @@ describe('useAuthOperations.logout', () => {
 
     expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
     expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).toHaveBeenCalledWith(true);
     expect(helpers.onError).not.toHaveBeenCalled();
   });
 
@@ -562,6 +570,7 @@ describe('useAuthOperations.logout', () => {
 
     expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
     expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).toHaveBeenCalledWith(true);
     expect(helpers.onError).not.toHaveBeenCalled();
   });
 
@@ -614,6 +623,7 @@ describe('useAuthOperations.logoutAll', () => {
     // logoutAll is ALWAYS a full sign-out → the persisted device credential is
     // cleared so the next cold boot finds nothing to restore.
     expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).toHaveBeenCalledWith(true);
   });
 
   it('does not perform device or local teardown when global revocation fails', async () => {
@@ -633,6 +643,7 @@ describe('useAuthOperations.logoutAll', () => {
     expect(helpers.sessionClient.signOut).not.toHaveBeenCalled();
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
     expect(helpers.store.clear).not.toHaveBeenCalled();
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).not.toHaveBeenCalled();
   });
 
   it('re-throws and reports when SessionClient.signOut({ all: true }) fails', async () => {
@@ -659,6 +670,7 @@ describe('useAuthOperations.logoutAll', () => {
     // The failed revoke must NOT run the local teardown or wipe the store.
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
     expect(helpers.store.clear).not.toHaveBeenCalled();
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).not.toHaveBeenCalled();
   });
 
   it('resolves (and tears down locally) when the bearer is already invalid — e.g. right after account deletion', async () => {
@@ -682,6 +694,7 @@ describe('useAuthOperations.logoutAll', () => {
     expect(sessionClient.signOut).toHaveBeenCalledWith({ all: true });
     expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
     expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).toHaveBeenCalledWith(true);
     expect(helpers.onError).not.toHaveBeenCalled();
   });
 
@@ -710,5 +723,29 @@ describe('useAuthOperations.logoutAll', () => {
     }));
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
     expect(helpers.store.clear).not.toHaveBeenCalled();
+    expect(helpers.store.setAutomaticIdentitySignInSuppressed).not.toHaveBeenCalled();
   });
+});
+
+
+it('reports a failed durable logout but still clears local state after server revocation',async()=>{
+  const sessionClient=buildFakeSessionClient([{accountId:'acc-1',sessionId:'session-1',authuser:0}]);
+  const store=buildFakeStore();store.setAutomaticIdentitySignInSuppressed.mockResolvedValue(false);
+  const helpers=setup({activeSessionId:'session-1',sessionClient,store});
+  let outcome:unknown;
+  await act(async()=>{outcome=await helpers.result.current.logout();});
+  expect(outcome).toMatchObject({status:'failed'});
+  expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
+  expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+  expect(sessionClient.getState().accounts).toEqual([]);
+});
+
+it("reports failed durable logoutAll after revocation and still clears local state", async () => {
+  const sessionClient = buildFakeSessionClient([{ accountId: "acc-1", sessionId: "session-1", authuser: 0 }]);
+  const store = buildFakeStore(); store.setAutomaticIdentitySignInSuppressed.mockResolvedValue(false);
+  const helpers = setup({ activeSessionId: "session-1", sessionClient, store });
+  await act(async () => { await expect(helpers.result.current.logoutAll()).rejects.toThrow("Failed to persist explicit sign-out intent"); });
+  expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
+  expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+  expect(sessionClient.getState().accounts).toEqual([]);
 });

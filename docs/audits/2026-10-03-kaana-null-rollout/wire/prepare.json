@@ -1,0 +1,27 @@
+{
+  "capturedAt": "2026-10-03T01:50:57.680303+00:00",
+  "liveTaskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:691",
+  "liveImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+  "kaanaImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/kaana@sha256:2ab33cfeba7c760dddc24761c7e60e1425b326153ce6c4d130465e316b0fa59b",
+  "probeSha256": "cf165be948137a4fc2ff20f7e4b4daf5e5fbd4030c383e211dddb3cc53f95e0d",
+  "taskRoleArn": "arn:aws:iam::237343248947:role/oxy-ecs-task",
+  "executionRoleArn": "arn:aws:iam::237343248947:role/oxy-ecs-execution",
+  "secretNames": [
+    "KAANA_EDGE_SIGNING_PRIVATE_KEY"
+  ],
+  "environmentNames": [
+    "KAANA_BASE_URL",
+    "KAANA_EDGE_SIGNING_KEY_ID"
+  ],
+  "command": [
+    "node",
+    "--input-type=module",
+    "-e",
+    "<exact probe bytes>"
+  ],
+  "entryPoint": null,
+  "networkSha256": "2ea917a76b1b6658a95b973c51d36d49034c5bbb1693cff8ac259c387127bfcf",
+  "serviceUpdates": 0,
+  "providerRequests": 0,
+  "oxyLedgerWrites": 0
+}

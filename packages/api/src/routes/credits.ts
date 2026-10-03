@@ -1,3 +1,4 @@
+import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 import { Router, type Response } from 'express';
 import { and, eq, gte, or, sql } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
@@ -38,6 +39,7 @@ export async function getOrCreateUserCredits(
   db: DatabaseOrTransaction,
   userId: string
 ): Promise<UserCreditsRow> {
+  await assertBillingDatabaseNamespace(db);
   const [inserted] = await db
     .insert(userCredits)
     .values({ userId })

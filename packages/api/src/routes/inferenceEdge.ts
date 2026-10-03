@@ -1422,7 +1422,7 @@ export function createInferenceEdgeRouter(
    * with a version bump, and it belongs to whoever next has a second reason for
    * one rather than to this route alone.
    *
-   * @response 200 generationReceiptResponseSchema The settled receipt, including the price snapshot the charge was computed from.
+   * @response 200 generationReceiptResponseSchema A financial receipt (v1) or an internal technical usage record without a financial charge (v2).
    */
   router.get(
     '/generations/:id',
@@ -1435,7 +1435,7 @@ export function createInferenceEdgeRouter(
       if (edge === undefined) return;
 
       try {
-        const lookup = await readGenerationReceipt(edge.principal, req.params.id);
+        const lookup = await readGenerationReceipt(edge.principal, req.params.id, delegatedUserId(req));
         if (lookup.status === 'not-found') {
           sendInferenceError(
             res,

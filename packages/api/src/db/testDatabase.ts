@@ -94,6 +94,8 @@ export type CreateTestDatabaseOptions = {
    * Global setup passes `false` while provisioning one database per worker.
    */
   assignEnv?: boolean;
+  /** Test-only provisioning on a newly created empty database, never an existing URL. */
+  billingSandboxNamespace?: 'test:test' | 'test:staging' | 'test:development';
 };
 
 /**
@@ -107,6 +109,7 @@ export async function createTestDatabase(
   options: CreateTestDatabaseOptions = {}
 ): Promise<string> {
   const { assignEnv = true } = options;
+  if (options.billingSandboxNamespace && (process.env.NODE_ENV !== 'test' || !['test:test', 'test:staging', 'test:development'].includes(options.billingSandboxNamespace))) throw new ConfigurationError('Invalid test-only billing database declaration');
   const baseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!baseUrl) {
     throw new ConfigurationError(
@@ -126,8 +129,21 @@ export async function createTestDatabase(
   const url = testUrl.toString();
 
   const create = postgres(maintenanceUrl(baseUrl), { max: 1 });
+  let created = false;
   try {
     await create.unsafe(`create database "${name}"`);
+    created = true;
+    if (options.billingSandboxNamespace) {
+      const fresh = postgres(url, { max: 1 });
+      try {
+        const rows = await fresh`select current_database() as name, (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public') as tables`;
+        if (rows[0].name !== name || rows[0].tables !== 0) throw new ConfigurationError('Billing sandbox must be a new empty test database');
+        await create.unsafe(`alter database "${name}" set oxy.billing_namespace = '${options.billingSandboxNamespace}'`);
+      } finally { await fresh.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS }); }
+    }
+  } catch (error) {
+    if (created) await dropTestDatabase(url);
+    throw error;
   } finally {
     await create.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
   }
@@ -173,8 +189,7 @@ export async function dropTestDatabase(databaseUrl: string): Promise<void> {
   const name = new URL(databaseUrl).pathname.replace(/^\//, '');
   if (!TEST_DATABASE_NAME.test(name)) {
     throw new ConfigurationError(
-      `Refusing to drop "${name}": only throwaway databases created by ` +
-      'createTestDatabase (oxy_test_<16 hex>) may be dropped.'
+      `Refusing to drop "${name}": only throwaway databases created by createTestDatabase (oxy_test_<16 hex>) may be dropped.`
     );
   }
 

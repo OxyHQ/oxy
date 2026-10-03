@@ -1,0 +1,28 @@
+packages/core/src/boot/__tests__/nativeSiblingSignOutGuards.test.ts:85:18 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    83 │   const storage = kv(); const store = createNativeAuthStateStore(storage); await store.save(current);
+    84 │   let release!: () => void; const barrier = new Promise<void>((resolve) => {release = resolve;});
+  > 85 │   const bearer = 'h.' + Buffer.from(JSON.stringify({userId: 'person'})).toString('base64url') + '.s';
+       │                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    86 │   const request = jest.fn(async () => ({state: state(2, true), activeToken: null}));
+    87 │   const receiver = new Receiver({...host, makeRequest: request, getAccessToken: () => bearer,
+  
+  i Unsafe fix: Use a template literal.
+  
+    83 83 │     const storage = kv(); const store = createNativeAuthStateStore(storage); await store.save(current);
+    84 84 │     let release!: () => void; const barrier = new Promise<void>((resolve) => {release = resolve;});
+    85    │ - ··const·bearer·=·'h.'·+·Buffer.from(JSON.stringify({userId:·'person'})).toString('base64url')·+·'.s';
+       85 │ + ··const·bearer·=·`h.${Buffer.from(JSON.stringify({userId:·'person'})).toString('base64url')}.s`;
+    86 86 │     const request = jest.fn(async () => ({state: state(2, true), activeToken: null}));
+    87 87 │     const receiver = new Receiver({...host, makeRequest: request, getAccessToken: () => bearer,
+  
+
+Checked 7 files in 5ms. No fixes applied.
+Found 1 error.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

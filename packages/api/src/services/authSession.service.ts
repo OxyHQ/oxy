@@ -35,22 +35,26 @@
 
 import type { Request } from 'express';
 import { and, eq, gt, sql } from 'drizzle-orm';
-import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import {
+  isDelegatedActAsEligibleKind,
+  isOperatorSwitchTargetKind,
+  type AccountKind,
+} from '@oxy.so/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
-import { appGrants } from '../db/schema/appGrants';
 import { applications } from '../db/schema/applications';
 import { authChallenges } from '../db/schema/authChallenges';
 import { authSessions } from '../db/schema/authSessions';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
+import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import SignatureService from './signature.service';
 import sessionService from './session.service';
-import { issueAuthCode, AUTH_CODE_TTL_MS } from './oauthCode.service';
-import { intersectScopes } from '../utils/applicationScopes';
+import { readSessionAgentBinding, type AgentKeyBinding } from './agentKeyAuthority.service';
+import { AUTH_CODE_TTL_MS } from './oauthCode.service';
+import { decideOAuthConsent, persistOAuthAuthorization, resolveOAuthScopes } from './oauthConsent.service';
 import { isAllowedRedirectUri } from '../utils/oauthRedirect';
-import { isTrustedApplication } from '../utils/trustedApplication';
 import type { AccountRole } from '../utils/accountRoles';
 import { logger } from '../utils/logger';
 
@@ -240,6 +244,71 @@ async function gateApprovalDelegation(
  */
 export function approvalMintsSession(authSession: Pick<PublicAuthSession, 'purpose'>): boolean {
   return authSession.purpose !== 'oauth_authorization';
+}
+
+export type ApprovalOperatorOutcome =
+  | { ok: true; operatedByUserId: string | null; authMethod?: AgentKeyBinding }
+  | { ok: false; reason: 'approving_session_unreadable' | 'seat_not_assumable' };
+
+/**
+ * Who OPERATES the bearer that approves a sign-in, so the session the approval
+ * mints carries the same operator (issue #1520, I01).
+ *
+ * A bearer approval mints a session for the approving SUBJECT. On an operated
+ * session that subject is the managed account and the authority is the person
+ * recorded as `operatedByUserId`. Minting without that person launders an
+ * operated seat into an unoperated one: the actor chain then names the managed
+ * account as its own actor, and the managed-session recheck — which only runs
+ * on operated sessions — no longer ends the session when the person loses the
+ * account.
+ *
+ *  - unoperated bearer → `null`: the subject approves for itself, as before;
+ *  - operated bearer on an organization/project → the operator, carried onto
+ *    the minted session exactly as `POST /accounts/:id/switch` records it;
+ *  - operated bearer on a bot (or channel) → refused. A person never occupies a
+ *    bot's seat (`isOperatorSwitchTargetKind`), so no approval hands one to a
+ *    device. A bot signs in as itself only through a way in of its own.
+ *
+ * Read from the session ROW, never a header or claim, and fail closed: the
+ * middleware validated this session a moment ago, so a row that cannot be read
+ * now is not evidence that nobody operates it.
+ */
+export async function resolveApprovalOperator(
+  approvingSessionId: string | undefined,
+  subjectAccountId: string,
+  options: { delegatedOAuth?: boolean } = {},
+): Promise<ApprovalOperatorOutcome> {
+  if (!approvingSessionId) {
+    return { ok: false, reason: 'approving_session_unreadable' };
+  }
+  const db = getDb();
+  const [approving] = await db
+    .select({ userId: sessions.userId, operatedByUserId: sessions.operatedByUserId })
+    .from(sessions)
+    .where(and(eq(sessions.sessionId, approvingSessionId), eq(sessions.isActive, true), gt(sessions.expiresAt, new Date())))
+    .limit(1);
+  if (!approving || approving.userId !== subjectAccountId) {
+    return { ok: false, reason: 'approving_session_unreadable' };
+  }
+  let authMethod: AgentKeyBinding | undefined;
+  try { authMethod = await readSessionAgentBinding(approvingSessionId, approving.operatedByUserId ?? approving.userId); }
+  catch { return { ok: false, reason: 'approving_session_unreadable' }; }
+  if (!approving.operatedByUserId) {
+    return { ok: true, operatedByUserId: null, ...(authMethod ? { authMethod } : {}) };
+  }
+  const [subject] = await db
+    .select({ kind: users.kind })
+    .from(users)
+    .where(eq(users.id, subjectAccountId))
+    .limit(1);
+  if (!subject || !(options.delegatedOAuth
+    ? isDelegatedActAsEligibleKind(subject.kind as AccountKind)
+    : isOperatorSwitchTargetKind(subject.kind as AccountKind))) {
+    return { ok: false, reason: 'seat_not_assumable' };
+  }
+  const delegation = await verifyDelegatedSubject(approving.operatedByUserId, subjectAccountId);
+  if (!delegation.ok) return { ok: false, reason: 'approving_session_unreadable' };
+  return { ok: true, operatedByUserId: approving.operatedByUserId, ...(authMethod ? { authMethod } : {}) };
 }
 
 /**
@@ -493,6 +562,11 @@ export interface AuthorizeBearerOptions {
   authenticatedPublicKey?: string;
   deviceName?: string;
   deviceFingerprint?: string;
+  /**
+   * The bearer's own session id (`authMiddleware` sets it). Read for its
+   * operator — see {@link resolveApprovalOperator}.
+   */
+  approvingSessionId: string | undefined;
   req: Request;
 }
 
@@ -530,7 +604,15 @@ export type AuthorizeBearerOutcome =
 export async function authorizeSessionWithBearer(
   options: AuthorizeBearerOptions
 ): Promise<AuthorizeBearerOutcome> {
-  const { authorizeCode, authenticatedUserId, authenticatedPublicKey, deviceName, deviceFingerprint, req } = options;
+  const {
+    authorizeCode,
+    authenticatedUserId,
+    authenticatedPublicKey,
+    deviceName,
+    deviceFingerprint,
+    approvingSessionId,
+    req,
+  } = options;
   const db = getDb();
 
   // Peek first for a precise reason (mirrors claimAuthSession) — the atomic
@@ -547,16 +629,19 @@ export async function authorizeSessionWithBearer(
     return { ok: false, status: 400, message: 'Auth session has expired' };
   }
 
-  // Delegated subject gate — the authenticated approver must hold
-  // `account:act_as` over the account the app would act as. Checked BEFORE the
-  // atomic claim so a refusal leaves the request approvable by someone who does.
-  const delegation = await gateApprovalDelegation(existing, authenticatedUserId);
+  // OAuth preserves the verified actor independently from the effective
+  // account. A bot may be represented, but never becomes an autonomous seat.
+  const oauthApproval = !approvalMintsSession(existing);
+  const operator = await resolveApprovalOperator(approvingSessionId, authenticatedUserId, {
+    delegatedOAuth: oauthApproval,
+  });
+  if (!operator.ok) {
+    return { ok: false, status: 403, message: 'This account cannot approve a sign-in from this session' };
+  }
+  const operatedByUserId = operator.operatedByUserId;
+  const approvingActorId = operatedByUserId || authenticatedUserId;
+  const delegation = await gateApprovalDelegation(existing, approvingActorId);
   if (!delegation.ok) {
-    logger.warn('[AuthSession] Delegated subject refused on bearer approval', {
-      authorizeCode: authorizeCode.substring(0, 8) + '...',
-      identityUserId: authenticatedUserId,
-      reason: delegation.reason,
-    });
     return { ok: false, status: 403, message: 'Not authorized to act as the requested account' };
   }
 
@@ -567,7 +652,10 @@ export async function authorizeSessionWithBearer(
     .update(authSessions)
     .set({
       status: 'authorized',
-      authorizedUserId: authenticatedUserId,
+      authorizedUserId: oauthApproval ? approvingActorId : authenticatedUserId,
+      ...(oauthApproval ? { approvedBySessionId: approvingSessionId } : {}),
+      ...(oauthApproval && operatedByUserId && !existing.oauthSubjectAccountId
+        ? { oauthSubjectAccountId: authenticatedUserId } : {}),
       ...(authenticatedPublicKey ? { authorizedBy: authenticatedPublicKey } : {}),
     })
     .where(
@@ -614,6 +702,8 @@ export async function authorizeSessionWithBearer(
     // The unauthenticated requester must never choose an existing device whose
     // durable restore secret it will receive from `/auth/session/claim`.
     deviceId: uuidv7(),
+    ...(operatedByUserId ? { operatedByUserId } : {}),
+    ...(operator.authMethod ? { authMethod: operator.authMethod } : {}),
   });
 
   // Only the winner of the atomic claim above ever reaches here, so this
@@ -646,6 +736,7 @@ export type FinalizeOAuthRejection =
   | 'application_unavailable'
   | 'redirect_uri_unregistered'
   | 'delegation_denied'
+  | 'invalid_scope'
   | 'issue_failed';
 
 export type FinalizeOAuthOutcome =
@@ -707,6 +798,19 @@ export async function finalizeOAuthAuthorization(
     return { ok: false, reason: 'not_authorized' };
   }
 
+  // Bearer approvals keep the exact principal session. Commons personal proof
+  // has no bearer; bot approval never falls back to that legacy personal lane.
+  let authMethod: AgentKeyBinding | undefined;
+  if (existing.approvedBySessionId) {
+    const live = await sessionService.validateSessionById(existing.approvedBySessionId, false, { useCache: false });
+    if (!live) return { ok: false, reason: 'not_authorized' };
+    try { authMethod = await readSessionAgentBinding(existing.approvedBySessionId, identityUserId); }
+    catch { return { ok: false, reason: 'not_authorized' }; }
+  } else {
+    const [actor] = await db.select({ kind: users.kind }).from(users).where(eq(users.id, identityUserId));
+    if (!actor || actor.kind !== 'personal') return { ok: false, reason: 'not_authorized' };
+  }
+
   const [app] = await db
     .select({
       id: applications.id,
@@ -740,6 +844,9 @@ export async function finalizeOAuthAuthorization(
     }
   }
 
+  const effectiveScopes = resolveOAuthScopes(app, oauth.scopes, app.scopes);
+  if (effectiveScopes === null) return { ok: false, reason: 'invalid_scope' };
+
   // ATOMIC single-use claim: reserve the code id AND spend the request in one
   // update. The loser of a concurrent race matches nothing and mints nothing.
   const codeId = uuidv7();
@@ -762,67 +869,40 @@ export async function finalizeOAuthAuthorization(
 
   const grantUserId = subjectAccountId || identityUserId;
 
-  const appScopes = [...app.scopes];
-  const effectiveScopes =
-    oauth.scopes.length > 0 ? intersectScopes(oauth.scopes, appScopes) : appScopes;
-
   try {
-    const { code } = await issueAuthCode({
-      codeId,
-      userId: grantUserId,
-      appId: app.id,
-      redirectUri: oauth.redirectUri,
-      codeChallenge: oauth.codeChallenge,
-      codeChallengeMethod: 'S256',
-      scopes: effectiveScopes,
-      ...(subjectAccountId ? { operatedByUserId: identityUserId } : {}),
-      // Thread the originating RP device so the token exchange lands on the same
-      // DeviceSession the flow started from instead of sprawling a new device.
-      ...(existing.deviceId ? { deviceId: existing.deviceId } : {}),
+    // Consent and code commit TOGETHER, through the same decision and the same
+    // transaction `POST /auth/oauth/authorize` uses (`oauthConsent.service.ts`),
+    // so both entries leave identical state for the same request. The consent
+    // belongs to the account the code authorizes — the delegated subject when
+    // there is one — never to the approving identity.
+    //
+    // The request is already spent by the claim above. If the transaction
+    // fails, NOTHING it would have written exists — no code, no grant, no
+    // cleared revocation — and the user restarts: fail closed, and recoverable
+    // because a fresh request repeats an idempotent upsert.
+    const decision = decideOAuthConsent({
+      application: app,
+      requestedScopes: oauth.scopes,
+      grantedScopes: effectiveScopes,
     });
-
-    // Same returning-user consent bookkeeping as `POST /auth/oauth/authorize`:
-    // only third-party grants are revocable "Connected apps" entries; trusted
-    // apps are auto-approved and never recorded. Best-effort — a bookkeeping
-    // failure must never invalidate an already-issued code.
-    if (!isTrustedApplication(app)) {
-      try {
-        await db
-          .insert(appGrants)
-          .values({
-            userId: grantUserId,
-            applicationId: app.id,
-            scopes: effectiveScopes,
-            firstGrantedAt: now,
-            lastUsedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: [appGrants.userId, appGrants.applicationId],
-            set: {
-              lastUsedAt: now,
-              updatedAt: now,
-              // Mongo's `$addToSet: { scopes: { $each: … } }`. The union keeps
-              // each scope's FIRST position, so an existing grant's order is
-              // preserved and genuinely new scopes are appended — `array_agg
-              // (distinct …)` alone would silently re-sort the stored set.
-              scopes: sql`(
-                select coalesce(array_agg(scope order by first_seen), '{}'::text[])
-                from (
-                  select scope, min(pos) as first_seen
-                  from unnest(${appGrants.scopes} || excluded.scopes)
-                    with ordinality as merged(scope, pos)
-                  group by scope
-                ) as unioned
-              )`,
-            },
-          });
-      } catch (error) {
-        logger.warn('[AuthSession] Failed to record AppGrant on finalize', {
-          applicationId: app.id,
-          err: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+    const { code } = await persistOAuthAuthorization({
+      decision,
+      code: {
+        codeId,
+        userId: grantUserId,
+        appId: app.id,
+        redirectUri: oauth.redirectUri,
+        codeChallenge: oauth.codeChallenge,
+        codeChallengeMethod: 'S256',
+        scopes: effectiveScopes,
+        ...(subjectAccountId ? { operatedByUserId: identityUserId } : {}),
+        ...(authMethod ? { authMethod } : {}),
+        // Thread the originating RP device so the token exchange lands on the
+        // same DeviceSession the flow started from instead of sprawling a new
+        // device.
+        ...(existing.deviceId ? { deviceId: existing.deviceId } : {}),
+      },
+    });
 
     logger.info('[AuthSession] OAuth authorization finalized', {
       sessionToken: sessionToken.substring(0, 8) + '...',

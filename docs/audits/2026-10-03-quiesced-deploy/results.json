@@ -1,0 +1,100 @@
+[
+  {
+    "name": "guard45",
+    "argv": [
+      "node",
+      "scripts/test-quiesced-deploy.mjs"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.064
+  },
+  {
+    "name": "shell9",
+    "argv": [
+      "node",
+      "scripts/test-quiesced-deploy-shell.mjs"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 2.069
+  },
+  {
+    "name": "normal-transactions",
+    "argv": [
+      "bash",
+      ".github/scripts/test-deploy-ecs-image.sh"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 25.624
+  },
+  {
+    "name": "asset-check",
+    "argv": [
+      "node",
+      "scripts/check-asset-worker-rollout.mjs"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.032
+  },
+  {
+    "name": "asset-negatives",
+    "argv": [
+      "node",
+      "scripts/test-check-asset-worker-rollout.mjs"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.165
+  },
+  {
+    "name": "secrets-check",
+    "argv": [
+      "node",
+      "scripts/check-deploy-secrets-sync.mjs"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.032
+  },
+  {
+    "name": "secrets-negatives",
+    "argv": [
+      "node",
+      "scripts/test-check-deploy-secrets-sync.mjs"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.465
+  },
+  {
+    "name": "image-scope",
+    "argv": [
+      "bun",
+      "scripts/test-deploy-image-scope.mjs"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.008
+  },
+  {
+    "name": "scoped-biome",
+    "argv": [
+      "node",
+      "node_modules/.bun/@biomejs+biome@1.9.4/node_modules/@biomejs/biome/bin/biome",
+      "check",
+      "--error-on-warnings",
+      ".github/scripts/guard-quiesced-deploy.mjs",
+      "scripts/test-quiesced-deploy.mjs",
+      "scripts/test-quiesced-deploy-shell.mjs"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.064
+  },
+  {
+    "name": "bash-syntax",
+    "argv": [
+      "bash",
+      "-n",
+      ".github/scripts/deploy-ecs-image.sh",
+      ".github/scripts/deploy-quiesced-image.sh",
+      ".github/scripts/require-current-main.sh"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.004
+  }
+]

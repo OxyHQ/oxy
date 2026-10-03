@@ -1,0 +1,290 @@
+{
+  "candidateSourceHead": "dcd3ddd425b031a26418268f0ebf34da7b333296",
+  "hostSourceHead": "c1e3787bdceaa66cd5349c4e97b2c9d960b71af4",
+  "runtimeFix": "e3d7090811244b9fcae83cbca100d955b226820d",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/routes/sessionDevice.ts",
+      "sha256": "d86b4d93eea13109bdbe065b264ba3c1642040b771d9947f265bd863c91cded1"
+    },
+    {
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "04a97a94ce9ec9bcbe455b848daaf9904a31fff05c326d9425177f1a87e17d6d"
+    }
+  ],
+  "hostInputs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/api/scripts/real-oauth-browser-api.ts",
+      "sha256": "4ee4557f496de6d4b84dc384922ae77b41375d5b9a526d271250bc06a9518110"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/packages/api/src/routes/sessionDevice.ts",
+      "sha256": "d86b4d93eea13109bdbe065b264ba3c1642040b771d9947f265bd863c91cded1"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/scripts/rehearsal/replace-real-oauth-api.py",
+      "sha256": "90b0d53a1cffc540abad74a33894bb4f7cdcb307769efb7f52670c652f4d6155"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/scripts/rehearsal/resume-real-oauth-browser.py",
+      "sha256": "98f98d3c96231414847e6c2a96be6b6b4cfa79465b968336f4e54c434b1fe66e"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/scripts/rehearsal/real-oauth-browser/main.tsx",
+      "sha256": "36a045f4d7218f02d8a873dc9f203c1791095091bf6a7ed98178cf9638b8b9a4"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/scripts/rehearsal/real-oauth-browser/vite.config.ts",
+      "sha256": "3ba85868117c93d20ab43e43369bacc892dc3ab7ff3394797df688ee64bdf024"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/scripts/rehearsal/read-first-party-browser-state.py",
+      "sha256": "19754b68f515afe866fe9a96336045377e7fd08e12fe3d280a8ec7cf8a72df74"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/00-run.mjs",
+      "sha256": "f02073419c5625c9af7362b808ee1b19f71a536e8045a5791a7a6a0ad092c54d",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-1-1215/run.mjs",
+      "originalSha256": "f02073419c5625c9af7362b808ee1b19f71a536e8045a5791a7a6a0ad092c54d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/01-transcript.log",
+      "sha256": "457bb65d3abba6c68785820a98eabd6de76380840cb0592eb76a30f869c0554d",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-1-1215/transcript.log",
+      "originalSha256": "457bb65d3abba6c68785820a98eabd6de76380840cb0592eb76a30f869c0554d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/02-network.jsonl",
+      "sha256": "74214f16c6b242501a2a49bbbea740a5e701152b4503f2ae4d4c616113dda8cb",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-1-1215/network.jsonl",
+      "originalSha256": "74214f16c6b242501a2a49bbbea740a5e701152b4503f2ae4d4c616113dda8cb"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/03-web04-state-root-complete1-before.jsonl",
+      "sha256": "0efa30f915a0d6ed4fc4855810b476aa63b164bf56477f159db2c90afbcadc00",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete1-before.jsonl",
+      "originalSha256": "0efa30f915a0d6ed4fc4855810b476aa63b164bf56477f159db2c90afbcadc00"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/04-web04-state-root-complete1-joined.jsonl",
+      "sha256": "73e3be24f7fcd9ce8fa5bfb0b1137afc35288e50526155cf93a9301d28f11b55",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete1-joined.jsonl",
+      "originalSha256": "73e3be24f7fcd9ce8fa5bfb0b1137afc35288e50526155cf93a9301d28f11b55"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/05-web04-state-root-complete1-fallback.jsonl",
+      "sha256": "9ec3b3a6a6e829f5e071495d868051a6fc36ccc612b409a3700844d4597eb8ec",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete1-fallback.jsonl",
+      "originalSha256": "9ec3b3a6a6e829f5e071495d868051a6fc36ccc612b409a3700844d4597eb8ec"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/06-web04-state-root-complete1-final.jsonl",
+      "sha256": "e94e170d2461a8eb0f79acc867c5e5d6e712ccb76952fe82ae20512330dd87d1",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete1-final.jsonl",
+      "originalSha256": "e94e170d2461a8eb0f79acc867c5e5d6e712ccb76952fe82ae20512330dd87d1"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/07-run.mjs",
+      "sha256": "5c1a038c6b914d8907e59ae63a7af2dbbdaa6214133efd4b03d18f32ce472380",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-2-1215/run.mjs",
+      "originalSha256": "5c1a038c6b914d8907e59ae63a7af2dbbdaa6214133efd4b03d18f32ce472380"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/08-transcript.log",
+      "sha256": "4492a2497f51b6b4fd107278ac3229a3059e9a30d398e966dcddb9c9f0f4468c",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-2-1215/transcript.log",
+      "originalSha256": "4492a2497f51b6b4fd107278ac3229a3059e9a30d398e966dcddb9c9f0f4468c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/09-network.jsonl",
+      "sha256": "73e1dbc220a0d280dbae0887f7afea4ca43e65e70264c8940994f0e39ef96f0c",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-2-1215/network.jsonl",
+      "originalSha256": "73e1dbc220a0d280dbae0887f7afea4ca43e65e70264c8940994f0e39ef96f0c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/10-web04-state-root-complete2-before.jsonl",
+      "sha256": "991dbb37c0282ab4e7731dd73bb3fcd6bbbac3640bb0691ee214de7d25423007",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete2-before.jsonl",
+      "originalSha256": "991dbb37c0282ab4e7731dd73bb3fcd6bbbac3640bb0691ee214de7d25423007"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/11-web04-state-root-complete2-joined.jsonl",
+      "sha256": "638e1cc1e93c7bfa3970738f93b4062e5838d0fc95f23ddb5bb7c1411d5ca58f",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete2-joined.jsonl",
+      "originalSha256": "638e1cc1e93c7bfa3970738f93b4062e5838d0fc95f23ddb5bb7c1411d5ca58f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/12-web04-state-root-complete2-fallback.jsonl",
+      "sha256": "a16e5f049780886b37586447ab70d22fdf0a4e620adfc4dae96695123cdc776e",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete2-fallback.jsonl",
+      "originalSha256": "a16e5f049780886b37586447ab70d22fdf0a4e620adfc4dae96695123cdc776e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/13-web04-state-root-complete2-final.jsonl",
+      "sha256": "296576fc7cc57b4b777357a1ac9d4602adb7b93c46c049df94c1719bc7423ee5",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete2-final.jsonl",
+      "originalSha256": "296576fc7cc57b4b777357a1ac9d4602adb7b93c46c049df94c1719bc7423ee5"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/14-run.mjs",
+      "sha256": "1ed0a1b35e52ae63deddadd1b35baee52f362d6ece43f16cd2ee7256dd304c96",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-3-1215/run.mjs",
+      "originalSha256": "1ed0a1b35e52ae63deddadd1b35baee52f362d6ece43f16cd2ee7256dd304c96"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/15-transcript.log",
+      "sha256": "1ac43d67d8a6065415e32a70240887516564aa5f9c9446dd806850c4692a0fb9",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-3-1215/transcript.log",
+      "originalSha256": "1ac43d67d8a6065415e32a70240887516564aa5f9c9446dd806850c4692a0fb9"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/16-network.jsonl",
+      "sha256": "a33987a05672b88ba00538d1f533fa6d76dcd0f1f98e9dd58aeb49f5f11c52b9",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-3-1215/network.jsonl",
+      "originalSha256": "a33987a05672b88ba00538d1f533fa6d76dcd0f1f98e9dd58aeb49f5f11c52b9"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/17-web04-state-root-complete3-before.jsonl",
+      "sha256": "c8dd34d9882fa358ce7f312f1273c0e6ec01096489f0d808893667a01c7b399e",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete3-before.jsonl",
+      "originalSha256": "c8dd34d9882fa358ce7f312f1273c0e6ec01096489f0d808893667a01c7b399e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/18-web04-state-root-complete3-joined.jsonl",
+      "sha256": "3e39f188c08838bbd6fb2f35231aacfed763c9ed7095cc0ccb6eed0890ca4299",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete3-joined.jsonl",
+      "originalSha256": "3e39f188c08838bbd6fb2f35231aacfed763c9ed7095cc0ccb6eed0890ca4299"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/19-web04-state-root-complete3-fallback.jsonl",
+      "sha256": "61aef7f37a8f2329df08ec574ae88002f09ba7333a7f9a90142f6e851b9cc3d9",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete3-fallback.jsonl",
+      "originalSha256": "61aef7f37a8f2329df08ec574ae88002f09ba7333a7f9a90142f6e851b9cc3d9"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/20-web04-state-root-complete3-final.jsonl",
+      "sha256": "d7127b491b6a0ce86f2de4b318fc001f1cddb0e5aa8ed946486131db69f5d73b",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete3-final.jsonl",
+      "originalSha256": "d7127b491b6a0ce86f2de4b318fc001f1cddb0e5aa8ed946486131db69f5d73b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/21-observations.json",
+      "sha256": "a0d64e0c57c1007c3e365914b2d2a183d7bf86d91ebcba125a0935c0abe2f716",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-1117/observations.json",
+      "originalSha256": "a0d64e0c57c1007c3e365914b2d2a183d7bf86d91ebcba125a0935c0abe2f716"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/22-takeover-failure.json",
+      "sha256": "9ff55b36d74e6a5ba68b20adccbe3cc9b25ac8c9e7e8e47d2dc02b3ad19d040b",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-green-1205/takeover-failure.json",
+      "originalSha256": "9ff55b36d74e6a5ba68b20adccbe3cc9b25ac8c9e7e8e47d2dc02b3ad19d040b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/23-transcript.log",
+      "sha256": "337531960fa8faccf5acd7abe537bcd2fc68b2ff34d84688f38091111cec6b8f",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-green-1205/transcript.log",
+      "originalSha256": "337531960fa8faccf5acd7abe537bcd2fc68b2ff34d84688f38091111cec6b8f"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/24-driver.mjs",
+      "sha256": "0e147a559e19286d5d96aac6dc0fe8c2d70ba62fdec656a18ccb6f66610c2ddd",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-1117/driver.mjs",
+      "originalSha256": "0e147a559e19286d5d96aac6dc0fe8c2d70ba62fdec656a18ccb6f66610c2ddd"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/25-transcript.log",
+      "sha256": "fc32e2665e7f8f4f4150d74850102778b3de3c098b29d6b2f10f11d20a85df15",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-1117/transcript.log",
+      "originalSha256": "fc32e2665e7f8f4f4150d74850102778b3de3c098b29d6b2f10f11d20a85df15"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/26-network.jsonl",
+      "sha256": "4dc4abd763eafd48308b7eb60339acafb86b8d3f71833cc66e5e5579673f42a1",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-1117/network.jsonl",
+      "originalSha256": "4dc4abd763eafd48308b7eb60339acafb86b8d3f71833cc66e5e5579673f42a1"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/27-web04-state-root-two-holders-1125.jsonl",
+      "sha256": "d39517202b8bb58b98b3d954a96e66c658a2ae70a42d3d9bb7ddceb461a4e3f4",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-two-holders-1125.jsonl",
+      "originalSha256": "d39517202b8bb58b98b3d954a96e66c658a2ae70a42d3d9bb7ddceb461a4e3f4"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/28-web04-state-root-orglogout-1143.jsonl",
+      "sha256": "41c2964b5f90e38b4f5698b6336527db23708fbf28fd52b28388088ba9287e46",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-orglogout-1143.jsonl",
+      "originalSha256": "41c2964b5f90e38b4f5698b6336527db23708fbf28fd52b28388088ba9287e46"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/inputs/29-web04-state-root-final-logout.jsonl",
+      "sha256": "ef38ee41bff8425d5627d410ffae636172962b113dd703f583b433578761ebcc",
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-final-logout.jsonl",
+      "originalSha256": "ef38ee41bff8425d5627d410ffae636172962b113dd703f583b433578761ebcc"
+    },
+    {
+      "path": "docs/audits/2026-10-03-web-first-party/real-browser/root-observations.json",
+      "sha256": "d487dcf3f99e01f5115cfaea2fcb5b51e1ebd5921686510dfb4c3aeb6ee21fad",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-3-1215/observations.json",
+      "originalSha256": "d487dcf3f99e01f5115cfaea2fcb5b51e1ebd5921686510dfb4c3aeb6ee21fad"
+    }
+  ],
+  "results": [
+    {
+      "run": 1,
+      "newDeviceSessionId": "01a101b0-a6ed-72c0-b656-d12fa850dfce",
+      "joinedHolderCount": 4,
+      "fallbackRevision": 3,
+      "finalRevision": 4,
+      "finalHolderCount": 0,
+      "finalSessionsInactive": 2,
+      "uiAndFreshApiCoherent": true,
+      "fallbackWithoutReload": true,
+      "finalReloadSignedOut": true,
+      "cookies": 0,
+      "unexpectedExternalRequests": 0
+    },
+    {
+      "run": 2,
+      "newDeviceSessionId": "01a101b7-79f6-7a76-85b2-5bc0bd7340dd",
+      "joinedHolderCount": 4,
+      "fallbackRevision": 3,
+      "finalRevision": 4,
+      "finalHolderCount": 0,
+      "finalSessionsInactive": 2,
+      "uiAndFreshApiCoherent": true,
+      "fallbackWithoutReload": true,
+      "finalReloadSignedOut": true,
+      "cookies": 0,
+      "unexpectedExternalRequests": 0
+    },
+    {
+      "run": 3,
+      "newDeviceSessionId": "01a101b8-24af-793a-a06d-620d806e91c7",
+      "joinedHolderCount": 4,
+      "fallbackRevision": 3,
+      "finalRevision": 4,
+      "finalHolderCount": 0,
+      "finalSessionsInactive": 2,
+      "uiAndFreshApiCoherent": true,
+      "fallbackWithoutReload": true,
+      "finalReloadSignedOut": true,
+      "cookies": 0,
+      "unexpectedExternalRequests": 0
+    }
+  ],
+  "scope": [
+    "Actual Chromium UI and HTTP against owned API/SQL and two SDK relying parties; three independent fresh browser contexts.",
+    "Password sign-in A, explicit SDK join B, switch organization B, both fresh users/me organization, organization logout B, both fresh users/me person without reload, final person logout, both signed out before/after reload.",
+    "SQL scopes isolate the new device in each run; historical fixture sessions remain separate. 401 responses around revoked credentials are retained, not suppressed.",
+    "Earlier RED and takeover failure are preserved. Initial green driver attempted a second org selection after that account had been signed out, causing a runner timeout; corrected runs each perform one complete cycle.",
+    "Local source candidate only; final registry/deployment acceptance is separate."
+  ],
+  "limits": [
+    "Candidate SDK/API only; final Oxy registry repetition remains pending.",
+    "Outer organization logout removes its context; each corrected driver performs a fresh complete cycle instead of trying to select the removed row.",
+    "Takeover fd enumeration failure stopped old children/PG cleanly; the original data and manifest survived, and root recovered them with --resume without DDL/reseed. API/IdP/RPs remain root-owned live for Android.",
+    "Three contexts use one existing synthetic fixture personal/org pair, each with a distinct real device/independent holders. No production grant or identity was touched."
+  ]
+}

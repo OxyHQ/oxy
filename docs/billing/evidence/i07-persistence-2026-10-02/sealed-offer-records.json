@@ -1,0 +1,40 @@
+{
+  "supersedesHead": "e4487c6900abbcdb04d7aa9a50bc7f428b17c141",
+  "externalFinding": "https://github.com/OxyHQ/oxy/issues/1525#issuecomment-5957548889",
+  "noDeployedMigration": true,
+  "migration0135RegeneratedFrom0134": true,
+  "redCommand": "TEST_DATABASE_URL=<owned-loopback> bun run test --runInBand src/services/__tests__/productAccessPersistence.test.ts --testNamePattern=sealed offer",
+  "greenCommand": "TEST_DATABASE_URL=<owned-loopback> bun run test --runInBand src/services/__tests__/productAccessPersistence.test.ts src/services/__tests__/productAccessClosure.test.ts src/routes/__tests__/productAccess.test.ts src/services/__tests__/productAccess.test.ts src/services/__tests__/accountFinancialHolds.service.test.ts src/db/schema/__tests__/foreignKeys.test.ts src/db/schema/__tests__/schemaInvariants.test.ts",
+  "records": [
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-sealed-offer-red.log",
+      "sha256": "ee9fda21e1a78f868e3d69baddcadc4497a4d60412af559ce9d5784288f92268",
+      "exitCode": 1
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-sealed-focused-tests.log",
+      "sha256": "9ef985f10334ee9aa8dbb9a9383c3872ed2448b9effc3ee67609e24073296667",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-sealed-typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-sealed-snapshot.log",
+      "sha256": "2ef7bdfe76ffcdce2e9e05ebcf44071ec03491105ad7bebdddc3497904e4ef1d",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-sealed-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/i07-persistence-2026-10-02/i07-sealed-api-compile.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { OXY_SERVICE_ENVIRONMENTS } from '@oxy.so/core/server';
 /**
  * `/internal` — endpoints only another Oxy service may call.
  *
@@ -190,6 +191,9 @@ router.post('/activity', (req, res) => {
  * cutover.
  */
 const serviceActingAsVerifyQuery = z.object({
+  credentialId: z.string().min(1).max(128).optional(),
+  ownerAccountId: z.string().min(1).max(128).optional(),
+  environment: z.enum(OXY_SERVICE_ENVIRONMENTS).optional(),
   appId: z.string().min(1).max(128),
   userId: z.string().min(1).max(128),
 });
@@ -214,9 +218,12 @@ router.get(
   serviceActingAsVerifyLimiter,
   validate({ query: serviceActingAsVerifyQuery }),
   asyncHandler(async (req: ServiceAuthRequest, res) => {
-    const { appId, userId } = serviceActingAsVerifyQuery.parse(req.query);
-
-    const grant = await resolveServiceActingAsGrant(appId, userId);
+    const { appId, userId, credentialId, ownerAccountId, environment } = serviceActingAsVerifyQuery.parse(req.query);
+    const anyCredentialContext = credentialId !== undefined || ownerAccountId !== undefined || environment !== undefined;
+    const grant = anyCredentialContext && (!credentialId || !ownerAccountId || !environment)
+      ? { authorized: false, scopes: [], epoch: '0' }
+      : await resolveServiceActingAsGrant(appId, userId,
+        credentialId && ownerAccountId && environment ? { credentialId, ownerAccountId, environment } : undefined);
 
     // Logged on both outcomes. A record of who asked about whom is what makes
     // the disclosure this endpoint accepts auditable, and logging only refusals
@@ -516,7 +523,11 @@ router.post(
     // door their revocation closes. `resolveServiceActingAsGrant` checks the
     // revocation FIRST, ahead of anything that could authorize, so a user who
     // said no is refused here whatever the membership below says.
-    const grant = await resolveServiceActingAsGrant(serviceApp.appId, operatorId);
+    const grant = await resolveServiceActingAsGrant(serviceApp.appId, operatorId, {
+      credentialId: serviceApp.credentialId,
+      ownerAccountId: serviceApp.ownerAccountId,
+      environment: serviceApp.environment,
+    });
     if (!grant.authorized) {
       logger.warn('[internal] service-switch refused: no live delegation', {
         callerAppId: serviceApp.appId,

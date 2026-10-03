@@ -1,0 +1,851 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-trmpnzqi/ordered-sequencer.cjs" --runTestsByPath src/routes/__tests__/nativeRequesterAssertion.routes.test.ts src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/serviceTokenCredentials.test.ts
+FAIL src/routes/__tests__/nativeRequesterAssertion.routes.test.ts
+  ● present-requester assertion routes › mints for a signed-in person with no grant, and Alia consumes it exactly once
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 401
+
+      258 |     const person = await signedInUser();
+      259 |     const minted = await mint(homiio, person.accessToken);
+    > 260 |     expect(minted.status).toBe(201);
+          |                           ^
+      261 |     expect(minted.body.data).toMatchObject({ requesterAccountId: person.userId, agentId: HOMIIO.aliaAgent.id });
+      262 |     expect(minted.raw).not.toContain(person.accessToken);
+      263 |     expect(minted.raw).not.toContain(person.sessionId);
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:260:27
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › mints for an ATTESTED Homiio backend, and Alia consumes it under the handle
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 401
+
+      288 |     const person = await signedInUser();
+      289 |     const minted = await mint(attestedHomiio, person.accessToken);
+    > 290 |     expect(minted.status).toBe(201);
+          |                           ^
+      291 |     expect(minted.body.data).toMatchObject({ requesterAccountId: person.userId, agentId: HOMIIO.aliaAgent.id });
+      292 |
+      293 |     const assertion = String(minted.body.data?.assertion);
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:290:27
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › refuses an attested caller from another role, even on the Homiio application
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 401
+
+      313 |     const person = await signedInUser();
+      314 |     const res = await mint({ ...homiio, credentialId: MENTION_HANDLE }, person.accessToken);
+    > 315 |     expect(res.status).toBe(403);
+          |                        ^
+      316 |   });
+      317 |
+      318 |   /**
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:315:24
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › refuses an attested caller whose binding was revoked
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 401
+
+      326 |       .where(eq(applicationWorkloadIdentities.subject, HOMIIO_ROLE));
+      327 |     try {
+    > 328 |       expect((await mint(attestedHomiio, person.accessToken)).status).toBe(403);
+          |                                                                       ^
+      329 |     } finally {
+      330 |       await getDb().insert(applicationWorkloadIdentities).values({
+      331 |         applicationId: HOMIIO.applicationId,
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:328:71
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › refuses an attested assertion presented under the credential id
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 401
+
+      343 |     const person = await signedInUser();
+      344 |     const minted = await mint(attestedHomiio, person.accessToken);
+    > 345 |     expect(minted.status).toBe(201);
+          |                           ^
+      346 |     const inactive = await introspect(alia, String(minted.body.data?.assertion));
+      347 |     expect(inactive.body.data).toEqual({ active: false });
+      348 |   });
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:345:27
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › refuses a non-official application at the router gate
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 401
+
+      364 |     const person = await signedInUser();
+      365 |     const res = await mint(untrusted, person.accessToken);
+    > 366 |     expect(res.status).toBe(403);
+          |                        ^
+      367 |     expect(res.body.data).toBeUndefined();
+      368 |   });
+      369 |
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:366:24
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › refuses an official application that is not a pinned entry point, with one opaque answer
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 401
+
+      372 |     for (const principal of [otherOfficial, alia]) {
+      373 |       const res = await mint(principal, person.accessToken);
+    > 374 |       expect(res.status).toBe(403);
+          |                          ^
+      375 |       expect(res.body.code).toBe('REQUESTER_ASSERTION_REFUSED');
+      376 |     }
+      377 |   });
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:374:26
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › refuses a forged bearer, a service token as subject and the wrong agent with the same answer
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 401
+
+      385 |       await mint(homiio, person.accessToken, NATIVE_PRODUCT_AGENTS.products.clarity.aliaAgent.id),
+      386 |     ]) {
+    > 387 |       expect(res.status).toBe(403);
+          |                          ^
+      388 |       expect(res.body.code).toBe('REQUESTER_ASSERTION_REFUSED');
+      389 |       expect(res.raw).not.toContain(person.accessToken);
+      390 |     }
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:387:26
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › refuses to mint for, and to honour an assertion of, a person who has signed out
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 201
+    Received: 401
+
+      394 |     const person = await signedInUser();
+      395 |     const minted = await mint(homiio, person.accessToken);
+    > 396 |     expect(minted.status).toBe(201);
+          |                           ^
+      397 |
+      398 |     // The session is still warm in this task's cache when the person signs out.
+      399 |     await sessionService.validateSession(person.accessToken);
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:396:27
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › lets only Alia consume, and a refused consumer does not spend the assertion
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: {"active": false}
+    Received: undefined
+
+      409 |     const minted = await mint(homiio, person.accessToken);
+      410 |     const assertion = String(minted.body.data?.assertion);
+    > 411 |     expect((await introspect(homiio, assertion)).body.data).toEqual({ active: false });
+          |                                                             ^
+      412 |     expect((await introspect(otherOfficial, assertion)).body.data).toEqual({ active: false });
+      413 |     expect((await introspect(alia, assertion, { applicationId: otherOfficial.appId, credentialId: otherOfficial.credentialId })).body.data)
+      414 |       .toEqual({ active: false });
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:411:61
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+  ● present-requester assertion routes › rejects unexpected body members
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 401
+
+      423 |       requesterAccountId: 'victim',
+      424 |     });
+    > 425 |     expect(res.status).toBe(400);
+          |                        ^
+      426 |   });
+      427 | });
+      428 |
+
+      at src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:425:24
+      at fulfilled (src/routes/__tests__/nativeRequesterAssertion.routes.test.ts:16:58)
+
+FAIL src/routes/__tests__/inferenceEdgeInternalMetered.test.ts
+  ● one installation, charging armed › serves Alia internal_metered with no money at all, and charges an external customer
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "status": 200,
+    +   "status": 401,
+      }
+
+      418 |     const internal = await alia();
+      419 |     const internalResponse = await post(body(internal), bearer(serviceToken(internal)));
+    > 420 |     expect(internalResponse).toMatchObject({ status: 200 });
+          |                              ^
+      421 |
+      422 |     const internalRow = await meteredFor(internalResponse.body.requestId);
+      423 |     expect(internalRow).toMatchObject({
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:420:30
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● one installation, charging armed › reads a delegated commercial receipt after key rotation without requiring the attribution header
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 116
+    + Received  +   5
+
+      Object {
+        "body": Object {
+    -     "data": Object {
+    -       "applicationId": "01a0ffac-921f-7115-a81c-30101474fd21",
+    -       "billedAmount": "0.033000000000",
+    -       "credentialId": "01a0ffac-9221-7c9c-938a-54b27a0e5a66",
+    -       "currency": "USD",
+    -       "delegatedUserId": "01a0ffac-9256-7f00-8a34-2a8d1938baf0",
+    -       "environment": "development",
+    -       "generationId": "gen-b0b986d1-c293-4a46-918b-0d4beb2f4933",
+    -       "outcome": "completed",
+    -       "platformFeeOnly": false,
+    -       "priceSnapshot": Object {
+    -         "currency": "USD",
+    -         "priceVersionId": "01a0ffac-922a-75e4-bce4-140b6beb64e4",
+    -         "unitPrices": Array [
+    -           Object {
+    -             "amount": "3.000000000000",
+    -             "currency": "USD",
+    -             "per": 1000000,
+    -             "unit": "cached_input_tokens",
+    -           },
+    -           Object {
+    -             "amount": "3.000000000000",
+    -             "currency": "USD",
+    -             "per": 1000000,
+    -             "unit": "input_tokens",
+    -           },
+    -           Object {
+    -             "amount": "15.000000000000",
+    -             "currency": "USD",
+    -             "per": 1000000,
+    -             "unit": "output_tokens",
+    -           },
+    -           Object {
+    -             "amount": "15.000000000000",
+    -             "currency": "USD",
+    -             "per": 1000000,
+    -             "unit": "reasoning_tokens",
+    -           },
+    -           Object {
+    -             "amount": "0.000000000000",
+    -             "currency": "USD",
+    -             "per": 1,
+    -             "unit": "requests",
+    -           },
+    -         ],
+    -       },
+    -       "receiptId": "01a0ffac-9302-7c76-a89d-b88f2fdddbaf",
+    -       "requestId": "c1b34910-03c3-47fa-9a0d-106ea1d6781c",
+    -       "resolvedModelReference": "pub99dc9e0cb0/model-99dc9e0cb0@2026-01-01",
+    +     "code": "authentication_failed",
+    +     "message": "The provided API key is invalid, expired, or revoked.",
+    +     "requestId": "6fd9ed1a-c8ae-4098-a96c-147bc6d25c64",
+    +     "retryable": false,
+          "schemaVersion": 1,
+    -       "servingProvider": "prov99dc9e0cb0",
+    -       "settledAt": "2026-10-03T02:51:35.042Z",
+    -       "units": Array [
+    -         Object {
+    -           "quantity": 1000,
+    -           "unit": "input_tokens",
+        },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "cached_input_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 2000,
+    -           "unit": "output_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "reasoning_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "requests",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "images",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "audio_input_milliseconds",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "audio_output_milliseconds",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "video_milliseconds",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "characters",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "embeddings",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "audio_input_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "cached_audio_input_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "audio_output_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "session_milliseconds",
+    -         },
+    -       ],
+    -       "usageSource": "provider_reported",
+    -     },
+    -   },
+    -   "status": 200,
+    +   "status": 401,
+      }
+
+      480 |     const production = await makeCredential(external.applicationId, external.accountId, 'production', ['inference:invoke', 'inference:usage:read']);
+      481 |     const productionCaller = { ...external, credentialId: production.credentialId, machineToken: production.token };
+    > 482 |     expect(await getGeneration(id, bearer(serviceToken(productionCaller, ['inference:invoke', 'inference:usage:read'])))).toEqual(record);
+          |                                                                                                                           ^
+      483 |     const newOwner = await makeAccount();
+      484 |     await getDb().update(applications).set({ ownerAccountId: newOwner }).where(eq(applications.id, external.applicationId));
+      485 |     const transferred = await makeCredential(external.applicationId, newOwner, 'development', ['inference:invoke', 'inference:usage:read']);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:482:123
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● nothing a caller sends selects the internal treatment › drops Alia to commercial the moment its application is no longer internal
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+        "body": Object {
+    -     "code": "insufficient_balance",
+    +     "code": "authentication_failed",
+        },
+    -   "status": 402,
+    +   "status": 401,
+      }
+
+      582 |       const response = await post(body(internal), bearer(serviceToken(internal)));
+      583 |       // Commercial, and Alia's owner has no billing profile: refused, not served.
+    > 584 |       expect(response).toMatchObject({ status: 402, body: { code: 'insufficient_balance' } });
+          |                        ^
+      585 |       expect(executions).toBe(0);
+      586 |     } finally {
+      587 |       await flip(true);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:584:24
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● internal_metered keeps the guards a hold used to imply › runs N concurrent retries of one Idempotency-Key exactly once
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 1
+    Received length: 0
+    Received array:  []
+
+      600 |       )
+      601 |     );
+    > 602 |     expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+          |                                                                     ^
+      603 |     expect(responses.filter((response) => response.body.code === 'idempotency_conflict')).toHaveLength(4);
+      604 |     expect(executions).toBe(1);
+      605 |
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:602:69
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● internal_metered keeps the guards a hold used to imply › blocks on exhausted technical capacity without ever asking for a top-up
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 2
+    + Received  + 2
+
+      Object {
+        "body": Object {
+    -     "code": "rate_limited",
+    +     "code": "authentication_failed",
+        },
+    -   "status": 429,
+    +   "status": 401,
+      }
+
+      628 |     try {
+      629 |       const response = await post(body(internal), bearer(serviceToken(internal)));
+    > 630 |       expect(response).toMatchObject({ status: 429, body: { code: 'rate_limited' } });
+          |                        ^
+      631 |       expect(JSON.stringify(response.body)).not.toMatch(/balance|fund|top.?up/i);
+      632 |       expect(executions).toBe(0);
+      633 |     } finally {
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:630:24
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● internal_metered keeps the guards a hold used to imply › records a failed execution durably, with no receipt
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 500
+    Received:    401
+
+      643 |     behaviour = 'fail';
+      644 |     const response = await post(body(internal), bearer(serviceToken(internal)));
+    > 645 |     expect(response.status).toBeGreaterThanOrEqual(500);
+          |                             ^
+      646 |     const row = await meteredFor(response.body.requestId);
+      647 |     expect(row).toMatchObject({ status: 'settled', outcome: 'failed', usageReceiptId: null });
+      648 |     expect((await moneyRowsFor(internal.accountId)).receipts).toEqual([]);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:645:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● I10 durable internal Auto and generation records › claims parent before a racing child, meters both and takes no financial hold
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 90
+    + Received  +  6
+
+      Object {
+        "body": Object {
+    -     "data": Object {
+    -       "applicationId": "6a2f851751b784a86fd0e934",
+    -       "credentialId": "01a0ffac-91ec-7ea3-960b-dd5f48456dc6",
+    -       "customerCharge": Object {
+    -         "status": "not_charged",
+    +     "code": "authentication_failed",
+    +     "message": "The provided API key is invalid, expired, or revoked.",
+    +     "requestId": "247b05f4-9c18-4622-8d00-e11950d93118",
+    +     "retryable": false,
+    +     "schemaVersion": 1,
+        },
+    -       "delegatedUserId": "01a0ffac-91e2-745e-9a3c-5d81a910757a",
+    -       "economicPolicyVersion": "synthetic-metering-mechanism",
+    -       "economicTreatment": "internal_metered",
+    -       "environment": "production",
+    -       "generationId": "gen-a86dfeb2-6fbf-499d-84cc-d7fcb1ca8a5e",
+    -       "kind": "metered_usage",
+    -       "meteredUsageId": "01a0ffac-9715-7990-8fe9-b4dadddc05c2",
+    -       "outcome": "completed",
+    -       "requestId": "auto-c883ce6e45",
+    -       "resolvedModelReference": "pub1dd1f3b5eb/model-1dd1f3b5eb@2026-01-01",
+    -       "schemaVersion": 2,
+    -       "servingProvider": "prov1dd1f3b5eb",
+    -       "settledAt": "2026-10-03T02:51:36.190Z",
+    -       "tariff": Object {
+    -         "amount": "0.033000000000",
+    -         "currency": "USD",
+    -         "priceVersionId": "01a0ffac-96e5-7162-9e44-527f287a76ec",
+    -         "status": "quoted",
+    -       },
+    -       "units": Array [
+    -         Object {
+    -           "quantity": 1000,
+    -           "unit": "input_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "cached_input_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 2000,
+    -           "unit": "output_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "reasoning_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "requests",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "images",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "audio_input_milliseconds",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "audio_output_milliseconds",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "video_milliseconds",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "characters",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "embeddings",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "audio_input_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "cached_audio_input_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "audio_output_tokens",
+    -         },
+    -         Object {
+    -           "quantity": 0,
+    -           "unit": "session_milliseconds",
+    -         },
+    -       ],
+    -       "usageSource": "provider_reported",
+    -     },
+    -   },
+    -   "status": 200,
+    +   "status": 401,
+      }
+
+      739 |     await getDb().update(applications).set({ scopes: ['inference:invoke', 'inference:usage:read'] }).where(eq(applications.id, f.caller.applicationId));
+      740 |     const rotatedCaller = { ...f.caller, credentialId: rotated.credentialId, machineToken: rotated.token };
+    > 741 |     expect(await getGeneration(parent.requestId, bearer(serviceToken(rotatedCaller, ['inference:invoke', 'inference:usage:read'])))).toMatchObject({ status: 200, body: { data: record.status === 'found' ? record.receipt : {} } });
+          |                                                                                                                                      ^
+      742 |     const development = await makeCredential(f.caller.applicationId, f.caller.accountId, 'development', ['inference:invoke', 'inference:usage:read']);
+      743 |     expect(await getGeneration(parent.requestId, bearer(development.token))).toMatchObject({ status: 200, body: { data: record.status === 'found' ? record.receipt : {} } });
+      744 |     const newOwner = await makeAccount();
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:741:134
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › refuses oversized controlled input (ASCII) before execution or durable claim
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 401
+
+      867 |       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId));
+      868 |     const response = await post({ ...body(caller), input, maxOutputTokens: 2048 }, bearer(serviceToken(caller)));
+    > 869 |     expect(response.status).toBe(400);
+          |                             ^
+      870 |     expect(executions).toBe(0);
+      871 |     expect(await getDb().select().from(inferenceMeteredUsage)
+      872 |       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId))).toEqual(before);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:869:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › refuses oversized controlled input (Unicode UTF-8) before execution or durable claim
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 401
+
+      867 |       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId));
+      868 |     const response = await post({ ...body(caller), input, maxOutputTokens: 2048 }, bearer(serviceToken(caller)));
+    > 869 |     expect(response.status).toBe(400);
+          |                             ^
+      870 |     expect(executions).toBe(0);
+      871 |     expect(await getDb().select().from(inferenceMeteredUsage)
+      872 |       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId))).toEqual(before);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:869:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › refuses a catalogue deployment outside the exact approved pilot tuples
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 503
+    Received: 401
+
+      877 |     const caller = await alia();
+      878 |     const response = await post({ ...body(caller), maxOutputTokens: 2048 }, bearer(serviceToken(caller)));
+    > 879 |     expect(response.status).toBe(503);
+          |                             ^
+      880 |     expect(executions).toBe(0);
+      881 |     expect(await moneyRowsFor(caller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+      882 |   });
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:879:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › caps caller output ceiling 4096 to effective signed 2048
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 401
+
+      885 |       const response = await post({ model: approvedCaller.modelReference, input: 'Hello',
+      886 |         ...(requested === undefined ? {} : { maxOutputTokens: requested }) }, bearer(serviceToken(approvedCaller)));
+    > 887 |       expect(response.status).toBe(200);
+          |                               ^
+      888 |       expect(pilotEnvelopes).toHaveLength(1);
+      889 |       expect(pilotEnvelopes[0].maxOutputTokens).toBe(expected);
+      890 |       expect(pilotEnvelopes[0].authorizedRoutes.every((route) =>
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:887:31
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › caps caller output ceiling 3000 to effective signed 2048
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 401
+
+      885 |       const response = await post({ model: approvedCaller.modelReference, input: 'Hello',
+      886 |         ...(requested === undefined ? {} : { maxOutputTokens: requested }) }, bearer(serviceToken(approvedCaller)));
+    > 887 |       expect(response.status).toBe(200);
+          |                               ^
+      888 |       expect(pilotEnvelopes).toHaveLength(1);
+      889 |       expect(pilotEnvelopes[0].maxOutputTokens).toBe(expected);
+      890 |       expect(pilotEnvelopes[0].authorizedRoutes.every((route) =>
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:887:31
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › caps caller output ceiling 512 to effective signed 512
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 401
+
+      885 |       const response = await post({ model: approvedCaller.modelReference, input: 'Hello',
+      886 |         ...(requested === undefined ? {} : { maxOutputTokens: requested }) }, bearer(serviceToken(approvedCaller)));
+    > 887 |       expect(response.status).toBe(200);
+          |                               ^
+      888 |       expect(pilotEnvelopes).toHaveLength(1);
+      889 |       expect(pilotEnvelopes[0].maxOutputTokens).toBe(expected);
+      890 |       expect(pilotEnvelopes[0].authorizedRoutes.every((route) =>
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:887:31
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › caps caller output ceiling undefined to effective signed 2048
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 401
+
+      885 |       const response = await post({ model: approvedCaller.modelReference, input: 'Hello',
+      886 |         ...(requested === undefined ? {} : { maxOutputTokens: requested }) }, bearer(serviceToken(approvedCaller)));
+    > 887 |       expect(response.status).toBe(200);
+          |                               ^
+      888 |       expect(pilotEnvelopes).toHaveLength(1);
+      889 |       expect(pilotEnvelopes[0].maxOutputTokens).toBe(expected);
+      890 |       expect(pilotEnvelopes[0].authorizedRoutes.every((route) =>
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:887:31
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › refuses an oversized tool before the provider
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 401
+
+      907 |         : { responseFormat: { type: 'json_schema', name: 'result', schema, strict: true } }) },
+      908 |       bearer(serviceToken(approvedCaller)));
+    > 909 |     expect(response.status).toBe(400);
+          |                             ^
+      910 |     expect(executions).toBe(0);
+      911 |   });
+      912 |
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:909:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › refuses an oversized response schema before the provider
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 401
+
+      907 |         : { responseFormat: { type: 'json_schema', name: 'result', schema, strict: true } }) },
+      908 |       bearer(serviceToken(approvedCaller)));
+    > 909 |     expect(response.status).toBe(400);
+          |                             ^
+      910 |     expect(executions).toBe(0);
+      911 |   });
+      912 |
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:909:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › does not execute or claim a duplicate pilot request twice
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   200,
+    -   409,
+    +   401,
+    +   401,
+      ]
+
+      915 |     const input = { model: approvedCaller.modelReference, input: 'Hello', maxOutputTokens: 4096 };
+      916 |     const results = await Promise.all([post(input, headers), post(input, headers)]);
+    > 917 |     expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+          |                                                           ^
+      918 |     expect(executions).toBe(1);
+      919 |     expect(pilotEnvelopes[0].maxOutputTokens).toBe(2048);
+      920 |   });
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:917:59
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › excludes an unapproved alternate from the actual signed authorization set
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 401
+
+      929 |     });
+      930 |     const response = await post({ model: approvedCaller.modelReference, input: 'Hello' }, bearer(serviceToken(approvedCaller)));
+    > 931 |     expect(response.status).toBe(200);
+          |                             ^
+      932 |     expect(pilotEnvelopes[0].authorizedRoutes.map((route) => route.deploymentId))
+      933 |       .toEqual(['dep_cerebras_gpt_oss_120b_observed_2026_09_01']);
+      934 |   });
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:931:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › rejects an approved deployment ID with mismatched modelReference
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 503
+    Received: 401
+
+      942 |     });
+      943 |     const response = await post({ model: approvedCaller.modelReference, input: 'Hello' }, bearer(serviceToken(approvedCaller)));
+    > 944 |     expect(response.status).toBe(503);
+          |                             ^
+      945 |     expect(executions).toBe(0);
+      946 |   });
+      947 |
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:944:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › rejects an approved deployment ID with mismatched provider
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 503
+    Received: 401
+
+      942 |     });
+      943 |     const response = await post({ model: approvedCaller.modelReference, input: 'Hello' }, bearer(serviceToken(approvedCaller)));
+    > 944 |     expect(response.status).toBe(503);
+          |                             ^
+      945 |     expect(executions).toBe(0);
+      946 |   });
+      947 |
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:944:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+FAIL src/routes/__tests__/serviceTokenCredentials.test.ts
+  ● POST /auth/service-token — credential usability › mints a token for an ACTIVE service credential with the correct secret
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "appName": "App 48b63bda-e0a4-4bd3-a257-fb1360742159",
+    -   "expiresIn": 3600,
+    +   "expiresIn": 300,
+      }
+
+      226 |
+      227 |     expect(res.status).toBe(200);
+    > 228 |     expect(res.body.data).toMatchObject({ expiresIn: 3600, appName: client.appName });
+          |                           ^
+      229 |   });
+      230 |
+      231 |   it('accepts a DEPRECATED credential still inside its rotation grace', async () => {
+
+      at src/routes/__tests__/serviceTokenCredentials.test.ts:228:27
+      at fulfilled (src/routes/__tests__/serviceTokenCredentials.test.ts:54:58)
+
+Test Suites: 3 failed, 3 total
+Tests:       32 failed, 40 passed, 72 total
+Snapshots:   0 total
+Time:        6.409 s
+Ran all test suites within paths "src/routes/__tests__/nativeRequesterAssertion.routes.test.ts", "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/routes/__tests__/serviceTokenCredentials.test.ts".
+error: script "test" exited with code 1

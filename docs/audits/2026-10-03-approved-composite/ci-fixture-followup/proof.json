@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "3d7c952673d65cbeb4d54a97f7ba0bcaf4d6c05f",
+  "observedFailedHead": "26cf80a5e74459de28e8477b98a8e1fa8b2690b0",
+  "observedRun": 37092451244,
+  "capturedAt": "2026-10-03T03:21:57.182110+00:00",
+  "sources": [
+    {
+      "path": "packages/api/src/routes/__tests__/oauthConsentGrants.test.ts",
+      "sha256": "522c16b4dc3fd33fe4726b545cd26522a4e8729c22a09faf234949f2579406b7"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/workloadIdentity.db.test.ts",
+      "sha256": "f47d2aa085c9df71774abd3ea9c20915ada7dd8bc733a2b5b7efaf0a6aa702b0"
+    },
+    {
+      "path": "packages/console/src/hooks/use-account.tsx",
+      "sha256": "17f04328885f1b502d6498d43dccdf81264c3a9b0bdfe352f76e2fc03200d03e"
+    },
+    {
+      "path": "scripts/check-permission-vocabulary.mjs",
+      "sha256": "74948f1afa299c8b6bf61750d61dc9e31e0decc11e1643c2f37ca8ff29c54d26"
+    },
+    {
+      "path": "scripts/rehearsal/test-approved-api-1519.py",
+      "sha256": "465c4b574dae6e517cdf9e284eb0098b89189f5edf3fa37c18d0d5a32a1ffce4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-fixtures-focal.log",
+      "sha256": "6df6c0d43d8124608dc4b055660b84140848c96b07fa655f600939f86844604b"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-permission-vocabulary-fixed.log",
+      "sha256": "a444791288ef56df1a4d478b7e7edaf72cddb92c691fa797cfa7e5e0d2aa2725"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-api-fixtures-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-console-union-lint.log",
+      "sha256": "0599ab95e49e18c238d234ec99992ca77553f2e5905435cd4e8d48e3342775a9"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-console-union-lint-baseline.log",
+      "sha256": "57d9898b436c8f7ff78342a00e485325d6131b6964836ffc52f250a5f0181d22"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-fixtures-focal-stdout.log",
+      "sha256": "e991976f7c656951514aced6308f8df3895d70142aa622fa7e6a1ebc0f0a006d"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-job-111115465202.log",
+      "sha256": "5737029e43e1b9e6c90ecfdbcbd23c3946ce14d38771b96bbeb43345edb9f7c6"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-job-111115494785.log",
+      "sha256": "9a2bd1db968a9ede980220077bd61ff0ba898d90051f433494831e439af47601"
+    },
+    {
+      "path": "docs/audits/2026-10-03-approved-composite/ci-fixture-followup/ci-job-111115494800.log",
+      "sha256": "e3cb735a3bdad5135a5b627e0da0f262af3e2c1fc3bb7ecc77949757a1a04cc7"
+    }
+  ],
+  "results": {
+    "apiSuites": 2,
+    "apiTests": 47,
+    "apiExitCode": 0,
+    "launcher": {
+      "newLocalServerPid": 3449630,
+      "dataDirectory": "/tmp/oxy1519-i09-9hoqiew1/pg1519-wysdbodn/data",
+      "database": "oxy_rehearsal_1519_f3a4f9ce8e493738",
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--testSequencer",
+        "/tmp/oxy1519-i09-9hoqiew1/ordered-sequencer.cjs",
+        "--runTestsByPath",
+        "src/services/__tests__/workloadIdentity.db.test.ts",
+        "src/routes/__tests__/oauthConsentGrants.test.ts"
+      ],
+      "exitCode": 0,
+      "log": "/tmp/oxy1519-i09-9hoqiew1/api/focused.txt",
+      "productionAccess": false
+    },
+    "permissionVocabulary": {
+      "exitCode": 0,
+      "accountPermissions": 30,
+      "applicationPermissions": 23
+    },
+    "apiEslint": 0,
+    "consoleScopedEslint": 1,
+    "consoleBaselineSameFailure": true
+  },
+  "limits": [
+    "No runtime authority/TTL/grant rules changed. Strict epoch assertions0/1/2/1 preserve authorized/scopes expectations. Workload mint assertion now300. Console type vocabulary adds the existing backend credentials:manage permission; it does not grant permission.",
+    "Console scoped lint reports an unchanged optional-chain diagnostic in hasImplicitOwnership: baseline26cf line159 and changed-source line160. Original bytes restored after baseline comparison. No unrelated fix or claimed green lint.",
+    "Normal fresh139 owned PostgreSQL17 PID3449630 stopped; no production/network/provider requests.",
+    "Observed run API5 has one old3600 expectation failure; API6 has three missing-epoch equality failures (first test aborted before its postrevoke equality). API2 still in progress at capture; no claim all functional CI green. Forge Audit expected INACTIVE failure remains separate."
+  ]
+}

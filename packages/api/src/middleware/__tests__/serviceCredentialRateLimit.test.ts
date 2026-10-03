@@ -35,6 +35,7 @@ import { authRateLimiter, rateLimiter, serviceCredentialLimiter, userRateLimiter
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 function serviceToken(overrides: Record<string, unknown> = {}): string {
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
       appId: 'app-1',
@@ -49,7 +50,8 @@ function serviceToken(overrides: Record<string, unknown> = {}): string {
       ...overrides,
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 300,
+      iat: issuedAt,
+      exp: issuedAt + 300,
     });
 }
 

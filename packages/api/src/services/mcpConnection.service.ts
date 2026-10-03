@@ -1,3 +1,4 @@
+import type { AgentKeyBinding } from './agentKeyAuthority.service';
 /**
  * Multi-account MCP connections.
  *
@@ -35,6 +36,7 @@ import {
 import {
   McpOAuthError,
   grantAccountAuthorityHolds,
+  reusableMcpGrant,
   normalizeMcpScopes,
   resolveMcpResource,
 } from './mcpOAuth.service';
@@ -347,6 +349,7 @@ export async function describeMcpAccountLinkIntent(input: {
  * its own settings without touching anybody else's.
  */
 export async function approveMcpAccountLink(input: {
+  authMethod?: AgentKeyBinding;
   secret: string;
   principalUserId: string;
   effectiveAccountId: string;
@@ -362,11 +365,15 @@ export async function approveMcpAccountLink(input: {
   if (!await grantAccountAuthorityHolds({
     principalUserId: input.principalUserId,
     effectiveAccountId: input.effectiveAccountId,
+    authMethodId: input.authMethod?.authMethodId,
   })) {
     throw new McpOAuthError('access_denied', 'You cannot operate the selected account', 403);
   }
 
   return getDb().transaction(async (tx) => {
+    const existingGrant = await reusableMcpGrant(tx, { principalUserId: input.principalUserId,
+      effectiveAccountId: input.effectiveAccountId, clientRecordId: originGrant.clientRecordId,
+      resource: originGrant.resource, authMethod: input.authMethod }, now);
     await lockKey(tx, `mcp-link:${connection.id}:${input.effectiveAccountId}`);
     const [claimed] = await tx.update(mcpOauthAccountLinkIntents)
       .set({ usedAt: now, updatedAt: now })
@@ -379,15 +386,6 @@ export async function approveMcpAccountLink(input: {
       throw new McpOAuthError('invalid_grant', 'This account link was already used');
     }
 
-    const [existingGrant] = await tx.select().from(mcpOauthGrants)
-      .where(and(
-        eq(mcpOauthGrants.principalUserId, input.principalUserId),
-        eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
-        eq(mcpOauthGrants.clientRecordId, originGrant.clientRecordId),
-        eq(mcpOauthGrants.resource, originGrant.resource),
-        isNull(mcpOauthGrants.revokedAt),
-      ))
-      .limit(1);
     const scopes = normalizeMcpScopes([...(existingGrant?.scopes ?? []), ...intent.scopes]);
     const grant = existingGrant
       ? (await tx.update(mcpOauthGrants).set({
@@ -399,6 +397,7 @@ export async function approveMcpAccountLink(input: {
         }).where(eq(mcpOauthGrants.id, existingGrant.id)).returning())[0]
       : (await tx.insert(mcpOauthGrants).values({
           principalUserId: input.principalUserId,
+          authMethodId: input.authMethod?.authMethodId ?? null,
           effectiveAccountId: input.effectiveAccountId,
           clientRecordId: originGrant.clientRecordId,
           appSlug: descriptor.appSlug,

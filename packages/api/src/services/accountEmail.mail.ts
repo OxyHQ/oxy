@@ -102,6 +102,7 @@ const REAUTH_ACTION_TEXT: Record<ReauthAction, string> = {
   totp: 'change the authenticator app of your Oxy account',
   link_commons: 'link your Oxy account to Commons (this email will be removed from it)',
   delete_account: 'DELETE your Oxy account permanently',
+  credentials_manage: 'manage autonomous credentials for an account you govern',
 };
 
 /** A code a signed-in person enters to confirm ONE named sensitive change. */

@@ -1,0 +1,121 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts
+FAIL src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts
+  ● invalidated authenticated native holder and explicit shared re-login › cold preserves holder history and prevents automatic key sign-in after invalid-secret
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unauthenticated"
+    Received: "session"
+
+      32 |   it.each(['cold', 'refresh'])('%s preserves holder history and prevents automatic key sign-in after invalid-secret', async lane => {
+      33 |     const f = fixture(); await f.store.save(prior);
+    > 34 |     if (lane === 'cold') expect((await runSessionColdBoot({oxy: f.oxy, store: f.store, platform: {isWeb: false, isNative: true}})).kind).toBe('unauthenticated');
+         |                                                                                                                                          ^
+      35 |     else expect(await refreshPersistedSession({oxy: f.oxy, store: f.store, allowCommonsIdentityFallback: true})).toBeNull();
+      36 |     expect(f.signInWithCommonsIdentity).not.toHaveBeenCalled();
+      37 |     const restarted = createNativeAuthStateStore(f.storage);
+
+      at src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts:34:138
+
+  ● invalidated authenticated native holder and explicit shared re-login › refresh preserves holder history and prevents automatic key sign-in after invalid-secret
+
+    expect(received).toBeNull()
+
+    Received: "identity-token"
+
+      33 |     const f = fixture(); await f.store.save(prior);
+      34 |     if (lane === 'cold') expect((await runSessionColdBoot({oxy: f.oxy, store: f.store, platform: {isWeb: false, isNative: true}})).kind).toBe('unauthenticated');
+    > 35 |     else expect(await refreshPersistedSession({oxy: f.oxy, store: f.store, allowCommonsIdentityFallback: true})).toBeNull();
+         |                                                                                                                  ^
+      36 |     expect(f.signInWithCommonsIdentity).not.toHaveBeenCalled();
+      37 |     const restarted = createNativeAuthStateStore(f.storage);
+      38 |     expect(await restarted.isAutomaticIdentitySignInSuppressed?.()).toBe(true);
+
+      at src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts:35:114
+
+  ● invalidated authenticated native holder and explicit shared re-login › warm recovery proves a new shared holder before persisting or planting
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "new-token"
+    Received: "identity-token"
+
+      57 |     const f = fixture(); await f.store.save(prior);
+      58 |     f.mintToken.mockImplementation(async device => {if (device === prior.deviceId) throw reject(); expect(await f.store.load()).toEqual(prior); expect(f.plant).not.toHaveBeenCalled(); return mint;});
+    > 59 |     expect(await refreshPersistedSession(deps(f))).toBe(mint.accessToken);
+         |                                                    ^
+      60 |     expect(await f.store.load()).toMatchObject({...shared, sessionId: 'new-session', userId: 'person'});
+      61 |     expect(f.plant).toHaveBeenCalledWith(mint.accessToken); expect(f.signInWithCommonsIdentity).not.toHaveBeenCalled();
+      62 |   });
+
+      at Object.<anonymous> (src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts:59:52)
+
+  ● invalidated authenticated native holder and explicit shared re-login › cold recovery proves shared re-login after rejecting local holder history
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "kind": "session",
+        "session": Object {
+    -     "userId": "person",
+    +     "userId": "identity-owner",
+        },
+      }
+
+      64 |     const f = fixture(); await f.store.save(prior);
+      65 |     f.mintToken.mockImplementation(async device => {if (device === prior.deviceId) throw reject(); expect(await f.store.load()).toEqual(prior); return mint;});
+    > 66 |     expect(await runSessionColdBoot({oxy: f.oxy, store: f.store, platform: {isWeb: false, isNative: true}, sharedDeviceCredential: f.slot})).toMatchObject({kind: 'session', session: {userId: 'person'}});
+         |                                                                                                                                              ^
+      67 |     expect(f.signInWithCommonsIdentity).not.toHaveBeenCalled();
+      68 |   });
+      69 |   it('late invalid-secret cannot mark a replaced session', async () => {
+
+      at Object.<anonymous> (src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts:66:142)
+
+  ● invalidated authenticated native holder and explicit shared re-login › late invalid-secret cannot mark a replaced session
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "status": "session-ended",
+    +   "status": "invalid-secret",
+      }
+
+      70 |     const f = fixture(); await f.store.save(prior);
+      71 |     f.mintToken.mockImplementation(async () => {await f.store.save({...prior, userId: 'new-person'}); throw reject();});
+    > 72 |     expect(await refreshDeviceSecretArm({oxy: f.oxy, store: f.store})).toEqual({status: 'session-ended'});
+         |                                                                        ^
+      73 |     expect(await f.store.isAutomaticIdentitySignInSuppressed?.()).toBe(false);
+      74 |   });
+      75 |   it('a shared mint that outlives its epoch plants nothing', async () => {
+
+      at Object.<anonymous> (src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts:72:72)
+
+  ● invalidated authenticated native holder and explicit shared re-login › a shared mint that outlives its epoch plants nothing
+
+    expect(received).toBeNull()
+
+    Received: "identity-token"
+
+      76 |     const f = fixture(); await f.store.save(prior);
+      77 |     f.mintToken.mockImplementation(async device => {if (device === prior.deviceId) throw reject(); f.bump(); return mint;});
+    > 78 |     expect(await refreshPersistedSession(deps(f))).toBeNull(); expect(await f.store.load()).toEqual(prior); expect(f.plant).not.toHaveBeenCalled(); expect(f.signInWithCommonsIdentity).not.toHaveBeenCalled();
+         |                                                    ^
+      79 |   });
+      80 | });
+      81 |
+
+      at Object.<anonymous> (src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts:78:52)
+
+Test Suites: 1 failed, 1 total
+Tests:       6 failed, 4 passed, 10 total
+Snapshots:   0 total
+Time:        0.382 s
+Ran all test suites within paths "src/boot/__tests__/nativeInvalidatedHolderRecovery.test.ts".
+error: script "test" exited with code 1

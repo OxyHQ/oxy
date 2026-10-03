@@ -1,4 +1,4 @@
-import type { OxyServiceEnvironment } from '@oxy.so/core/server';
+import { OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS, type OxyServiceEnvironment } from '@oxy.so/core/server';
 
 import { signServiceTokenEd25519 } from '../config/serviceTokenSigning';
 import type { ServiceTier } from '../middleware/serviceToken';
@@ -18,8 +18,8 @@ import type { ServiceTier } from '../middleware/serviceToken';
  * two paths and belong to them.
  */
 
-/** Five minutes. Issuer-only rollout stage; verification remains unchanged here. */
-export const SERVICE_TOKEN_EXPIRY = 300;
+/** Approved I03 lifetime; shared with both JWT verifiers. */
+export const SERVICE_TOKEN_EXPIRY = OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS;
 
 export interface ServiceTokenClaims {
   appId: string;

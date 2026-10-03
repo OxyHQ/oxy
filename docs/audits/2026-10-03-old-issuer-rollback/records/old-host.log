@@ -1,0 +1,3 @@
+{"level":40,"time":1791030638363,"pid":3830052,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":43,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791030639182,"pid":3830052,"hostname":"SuperPC","reason":"invalid_grant","clientId":"oxy_dk_cba0c...","msg":"[OAuth] Token exchange rejected"}
+{"stopped":true,"pid":3830052}

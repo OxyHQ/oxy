@@ -1,0 +1,54 @@
+$ jest --passWithNoTests --runInBand __tests__/context/coldBoot.test.tsx -t "native foreground device-state"
+FAIL __tests__/context/coldBoot.test.tsx
+  ● native foreground device-state reconciliation › projects a sibling account switch on background→active without a manual refresh
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "fixture-org"
+    Received: undefined
+
+    Ignored nodes: comments, script, style
+    [36m<html>[39m
+      [36m<head />[39m
+      [36m<body>[39m
+        [36m<div />[39m
+      [36m</body>[39m
+    [36m</html>[39m
+
+      512 |     expect(fakeSessionClient.bootstrap).not.toHaveBeenCalled();
+      513 |     await emit('active');
+    > 514 |     await waitFor(() => expect(capturedContext?.user?.id).toBe('fixture-org'));
+          |                                                           ^
+      515 |     expect(capturedContext?.activeSessionId).toBe('fixture-org-session');
+      516 |     expect(fakeSessionClient.bootstrap).toHaveBeenCalledTimes(1);
+      517 |     expect(stub.http.refreshAccessToken).not.toHaveBeenCalled();
+
+      at __tests__/context/coldBoot.test.tsx:514:59
+      at runWithExpensiveErrorDiagnosticsDisabled (../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:47:12)
+      at checkCallback (../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:124:77)
+      at checkRealTimersCallback (../../node_modules/.bun/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:118:16)
+      at Timeout.task [as _onTimeout] (../../node_modules/.bun/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:579:19)
+
+  ● native foreground device-state reconciliation › coalesces repeated foreground events while the authoritative read is pending
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 1
+    Received number of calls: 0
+
+      530 |     await emit('background');
+      531 |     await emit('active');
+    > 532 |     expect(fakeSessionClient.bootstrap).toHaveBeenCalledTimes(1);
+          |                                         ^
+      533 |     if (!complete) throw new Error('Expected an authoritative foreground read');
+      534 |     await act(async () => { complete(); });
+      535 |     await emit('inactive');
+
+      at Object.<anonymous> (__tests__/context/coldBoot.test.tsx:532:41)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 24 skipped, 3 passed, 29 total
+Snapshots:   0 total
+Time:        2.399 s
+Ran all test suites matching __tests__/context/coldBoot.test.tsx with tests matching "native foreground device-state".
+error: script "test" exited with code 1

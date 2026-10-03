@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "productRuntimeChanged": false,
+  "newBloomRequired": false,
+  "rootSoleAdbOperator": true,
+  "privateRecords": {
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-auth-repeat-1326/observation.json": {
+      "sha256": "a7e32187fb88f5837ea9293af5d3e9967ee339eb1716f87ae55aa7f6eeeadc94",
+      "bytes": 4693,
+      "inputs": 27,
+      "verified": true
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-stable-touch-1320/observation.json": {
+      "sha256": "4441b972c77a31a291bfdfb94a0e2aecc7e00dad1f6fcefdf96343208f0613ea",
+      "bytes": 3594,
+      "inputs": 23,
+      "verified": true
+    },
+    "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-otp-touch-1300/observation.json": {
+      "sha256": "76a66da783c66fb1a2bb8d88348a8edadbd52ceb8faabedd36508bb768911eac",
+      "bytes": 3031,
+      "inputs": 18,
+      "verified": true
+    }
+  },
+  "records": {
+    "docs/audits/2026-10-03-native-siblings/auth-touch-dev-overlay/verified-geometry.json": {
+      "sha256": "07c9f595dccfbeeff0687165dcd4ca0676fa5a38ca2af9d1e938796761d77377",
+      "bytes": 564
+    },
+    "docs/audits/2026-10-03-native-siblings/auth-touch-dev-overlay/android-stable-touch-1320.json": {
+      "sha256": "4441b972c77a31a291bfdfb94a0e2aecc7e00dad1f6fcefdf96343208f0613ea",
+      "bytes": 3594
+    },
+    "docs/audits/2026-10-03-native-siblings/auth-touch-dev-overlay/android-otp-touch-1300.json": {
+      "sha256": "76a66da783c66fb1a2bb8d88348a8edadbd52ceb8faabedd36508bb768911eac",
+      "bytes": 3031
+    },
+    "docs/audits/2026-10-03-native-siblings/auth-touch-dev-overlay/android-auth-repeat-1326.json": {
+      "sha256": "a7e32187fb88f5837ea9293af5d3e9967ee339eb1716f87ae55aa7f6eeeadc94",
+      "bytes": 4693
+    },
+    "docs/audits/2026-10-03-native-siblings/auth-touch-dev-overlay/README.md": {
+      "sha256": "8f619fc79a42c7220f79961ff4c143bf20ae3ef87dbfbdf81651caec6333b81f",
+      "bytes": 2885
+    }
+  },
+  "installedReactNative": {
+    "version": "0.86.0",
+    "sourceFiles": {
+      "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/node_modules/react-native/Libraries/LogBox/LogBoxNotificationContainer.js": {
+        "sha256": "ca332650315dca44374bfe34362d1b170dee5838e2849866a6899df652d7343b",
+        "bytes": 3421
+      },
+      "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/node_modules/react-native/Libraries/LogBox/UI/LogBoxNotification.js": {
+        "sha256": "d7639eed8ecc4a9307cbe0faff4635a5690b721a85019926d546332c6449b9d5",
+        "bytes": 2580
+      },
+      "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/node_modules/react-native/Libraries/LogBox/UI/LogBoxNotificationDismissButton.js": {
+        "sha256": "66c5f3e49c2876ba8b745e3d5069f3ac212bc81ecdfaa4258615d5ff22aba01a",
+        "bytes": 1599
+      },
+      "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/node_modules/react-native/src/private/components/safeareaview/SafeAreaView_INTERNAL_DO_NOT_USE.js": {
+        "sha256": "964b82d9206c9ad28be788cd393346bf2bbf4ac91a785ed8b337d45c129b255a",
+        "bytes": 1015
+      }
+    }
+  }
+}

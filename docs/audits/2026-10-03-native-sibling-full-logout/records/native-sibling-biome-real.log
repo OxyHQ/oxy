@@ -1,0 +1,47 @@
+packages/core/src/boot/__tests__/nativeSiblingSignOut.test.ts:12:57 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    10 │ const state = (revision: number, account: string | null = 'person'): DeviceSessionState => ({
+    11 │   deviceId: 'shared-device', revision, updatedAt: 1720000000000, activeAccountId: account,
+  > 12 │   accounts: account ? [{ accountId: account, sessionId: 'session-' + account, authuser: 0 }] : [],
+       │                                                         ^^^^^^^^^^^^^^^^^^^^
+    13 │ });
+    14 │ const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+  
+  i Unsafe fix: Use a template literal.
+  
+     10  10 │   const state = (revision: number, account: string | null = 'person'): DeviceSessionState => ({
+     11  11 │     deviceId: 'shared-device', revision, updatedAt: 1720000000000, activeAccountId: account,
+     12     │ - ··accounts:·account·?·[{·accountId:·account,·sessionId:·'session-'·+·account,·authuser:·0·}]·:·[],
+         12 │ + ··accounts:·account·?·[{·accountId:·account,·sessionId:·`session-${account}`,·authuser:·0·}]·:·[],
+     13  13 │   });
+     14  14 │   const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+  
+
+packages/core/src/session/refresh.ts:347:5 lint/suspicious/noFallthroughSwitchClause ━━━━━━━━━━━━━━━
+
+  × This case is falling through to the next case.
+  
+    345 │       );
+    346 │       return null;
+  > 347 │     case 'no-session':
+        │     ^^^^^^^^^^^^^^^^^^
+  > 348 │       if (!identity) {
+         ...
+  > 357 │         return null;
+  > 358 │       }
+        │       ^
+    359 │       // Identity mode retains its separate pinned-key recovery contract.
+    360 │       // falls through
+  
+  i Add a `break` or `return` statement to the end of this case to prevent fallthrough.
+  
+
+Checked 6 files in 5ms. No fixes applied.
+Found 2 errors.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

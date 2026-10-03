@@ -1,0 +1,19 @@
+packages/core/src/boot/__tests__/nativeExplicitSignOut.test.ts:87:20 lint/style/noNonNullAssertion ━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    85 │     const {storage,oxy,signInWithCommonsIdentity}=fixture();
+    86 │     const store=createNativeAuthStateStore(storage);
+  > 87 │     const original=signInWithCommonsIdentity.getMockImplementation()!;
+       │                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    88 │     signInWithCommonsIdentity.mockImplementation(async()=>{
+    89 │       await store.setAutomaticIdentitySignInSuppressed?.(true);
+  
+
+Checked 15 files in 21ms. No fixes applied.
+Found 1 error.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

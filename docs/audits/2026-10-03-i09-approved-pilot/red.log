@@ -1,0 +1,62 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/inferenceEdgeInternalMetered.test.ts
+FAIL src/routes/__tests__/inferenceEdgeInternalMetered.test.ts (10.298 s)
+  ● approved production pilot admission › refuses oversized controlled input (ASCII) before execution or durable claim
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 200
+
+      840 |       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId));
+      841 |     const response = await post({ ...body(caller), input, maxOutputTokens: 2048 }, bearer(serviceToken(caller)));
+    > 842 |     expect(response.status).toBe(400);
+          |                             ^
+      843 |     expect(executions).toBe(0);
+      844 |     expect(await getDb().select().from(inferenceMeteredUsage)
+      845 |       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId))).toEqual(before);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:842:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › refuses oversized controlled input (Unicode UTF-8) before execution or durable claim
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 400
+    Received: 200
+
+      840 |       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId));
+      841 |     const response = await post({ ...body(caller), input, maxOutputTokens: 2048 }, bearer(serviceToken(caller)));
+    > 842 |     expect(response.status).toBe(400);
+          |                             ^
+      843 |     expect(executions).toBe(0);
+      844 |     expect(await getDb().select().from(inferenceMeteredUsage)
+      845 |       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId))).toEqual(before);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:842:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › refuses a catalogue deployment outside the exact approved pilot tuples
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 503
+    Received: 200
+
+      850 |     const caller = await alia();
+      851 |     const response = await post({ ...body(caller), maxOutputTokens: 2048 }, bearer(serviceToken(caller)));
+    > 852 |     expect(response.status).toBe(503);
+          |                             ^
+      853 |     expect(executions).toBe(0);
+      854 |     expect(await moneyRowsFor(caller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+      855 |   });
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:852:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 16 passed, 19 total
+Snapshots:   0 total
+Time:        10.371 s
+Ran all test suites within paths "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts".
+error: script "test" exited with code 1

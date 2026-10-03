@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand __tests__/context/coldBoot.test.tsx __tests__/context/identitySessionMode.test.tsx __tests__/context/tokenLossKeepsSession.test.tsx __tests__/context/sessionClientProjection.test.tsx
+
+Test Suites: 4 passed, 4 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        5.119 s
+Ran all test suites matching __tests__/context/coldBoot.test.tsx|__tests__/context/identitySessionMode.test.tsx|__tests__/context/tokenLossKeepsSession.test.tsx|__tests__/context/sessionClientProjection.test.tsx.

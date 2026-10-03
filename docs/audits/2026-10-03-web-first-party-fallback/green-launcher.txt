@@ -1,0 +1,33 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/web04-pg1519-gdfzpsvz/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/web04-pg1519-gdfzpsvz/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"command": ["bun", "--no-env-file", "run", "db:migrate"], "exitCode": 0, "log": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/web04-pg1519-gdfzpsvz/migration-fresh.txt"}
+{"command": ["bun", "--no-env-file", "run", "db:migrate"], "exitCode": 0, "log": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/web04-pg1519-gdfzpsvz/migration-repeat.txt"}
+{"newLocalServerPid": 3804986, "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/web04-pg1519-gdfzpsvz/data", "database": "oxy_rehearsal_1519_a37259d3db306e8d", "command": ["bun", "--no-env-file", "run", "test", "--runInBand", "--runTestsByPath", "src/routes/__tests__/browserBridge.test.ts"], "exitCode": 0, "log": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/web04-pg1519-gdfzpsvz/web04-api.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+

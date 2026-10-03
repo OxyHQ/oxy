@@ -1,0 +1,48 @@
+$ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+$ rm -rf dist
+$ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+$ tsc -p tsconfig.esm.json
+$ tsc -p tsconfig.types.json
+bun pack v1.4.2 (744846f84)
+
+packed 3.69KB package.json
+packed 31.49KB LICENSE
+packed 7.11KB README.md
+packed 5.68KB dist/cjs/browser.js
+packed 9.79KB dist/cjs/collector.js
+packed 6.35KB dist/cjs/edge.js
+packed 259B dist/cjs/index.js
+packed 20B dist/cjs/package.json
+packed 2.44KB dist/cjs/server.js
+packed 4.79KB dist/cjs/socket.js
+packed 5.0KB dist/esm/browser.js
+packed 9.37KB dist/esm/collector.js
+packed 6.19KB dist/esm/edge.js
+packed 118B dist/esm/index.js
+packed 2.0KB dist/esm/server.js
+packed 4.52KB dist/esm/socket.js
+packed 1.82KB dist/types/browser.d.ts
+packed 2.1KB dist/types/collector.d.ts
+packed 1.14KB dist/types/edge.d.ts
+packed 468B dist/types/index.d.ts
+packed 1.34KB dist/types/server.d.ts
+packed 2.1KB dist/types/socket.d.ts
+packed 3.97KB src/__tests__/browser.test.ts
+packed 6.16KB src/__tests__/collector.test.ts
+packed 6.86KB src/__tests__/edge.test.ts
+packed 1.57KB src/__tests__/server.test.ts
+packed 6.39KB src/__tests__/socket.test.ts
+packed 5.97KB src/browser.ts
+packed 10.27KB src/collector.ts
+packed 6.74KB src/edge.ts
+packed 434B src/index.ts
+packed 2.79KB src/server.ts
+packed 5.71KB src/socket.ts
+
+oxy.so-telemetry-1.2.0.tgz
+
+Total files: 33
+Shasum: 5a495bd68212a35e319253519eb286158791ddea
+Integrity: sha512-ryydgkL5jDUVz[...]HwhWpFsGLLrzA==
+Unpacked size: 164.62KB
+Packed size: 44.22KB

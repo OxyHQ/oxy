@@ -1,0 +1,9 @@
+{
+  "recordedAt": 1791028406.9485643,
+  "publishExitCode": 0,
+  "cliAck": "+ @oxy.so/bloom@6.2.1",
+  "readback": "version metadata, dist-tag and tarball404/absent at11:52UTC",
+  "republishAttempts": 0,
+  "dryRunEnvironmentOrConfig": false,
+  "acceptance": "pending publicregistryreadback"
+}

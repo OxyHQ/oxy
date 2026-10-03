@@ -1,0 +1,4 @@
+$ node transport.mjs
+ESM: installed foreground method/schema; independent service header/requester body and requester-only DELETE; malformed authority rejected before transport
+CJS: installed foreground method/schema; independent service header/requester body and requester-only DELETE; malformed authority rejected before transport
+candidateOnly=true publishedAcceptance=false realAuthorityAcceptance=false remoteProviderRequests=0

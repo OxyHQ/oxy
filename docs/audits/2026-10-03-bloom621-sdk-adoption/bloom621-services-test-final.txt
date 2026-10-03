@@ -1,0 +1,46 @@
+$ jest --passWithNoTests --runInBand
+FAIL __tests__/packaging/bloomTypographyTokens.test.ts
+  ● Bloom's typography tokens survive a native pipeline › requires a Bloom whose type-scale line-heights are ratios
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 4021001
+    Received:    NaN
+
+      38 |     // so the floor is compared as a version, not pinned to one major.
+      39 |     const floor = (major ?? 0) * 1_000_000 + (minor ?? 0) * 1000 + (patch ?? 0);
+    > 40 |     expect(floor).toBeGreaterThanOrEqual(4_021_001);
+         |                   ^
+      41 |   });
+      42 |
+      43 |   it.each(USED_TYPE_SCALE)('`text-%s` declares a unitless line-height', (step) => {
+
+      at Object.<anonymous> (__tests__/packaging/bloomTypographyTokens.test.ts:40:19)
+
+
+Summary of all failing tests
+FAIL __tests__/packaging/bloomTypographyTokens.test.ts
+  ● Bloom's typography tokens survive a native pipeline › requires a Bloom whose type-scale line-heights are ratios
+
+    expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 4021001
+    Received:    NaN
+
+      38 |     // so the floor is compared as a version, not pinned to one major.
+      39 |     const floor = (major ?? 0) * 1_000_000 + (minor ?? 0) * 1000 + (patch ?? 0);
+    > 40 |     expect(floor).toBeGreaterThanOrEqual(4_021_001);
+         |                   ^
+      41 |   });
+      42 |
+      43 |   it.each(USED_TYPE_SCALE)('`text-%s` declares a unitless line-height', (step) => {
+
+      at Object.<anonymous> (__tests__/packaging/bloomTypographyTokens.test.ts:40:19)
+
+
+Test Suites: 1 failed, 112 passed, 113 total
+Tests:       1 failed, 1035 passed, 1036 total
+Snapshots:   0 total
+Time:        27.627 s
+Ran all test suites.
+error: script "test" exited with code 1

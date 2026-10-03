@@ -1,3 +1,5 @@
+import { revokeApplicationCredential } from '../services/applicationCredentialRevocation.service';
+import { generateCredentialMaterial } from '../utils/credentialMaterial';
 import express from 'express';
 import crypto from 'crypto';
 import { and, count, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
@@ -136,9 +138,6 @@ interface AppContextRequest extends AuthRequest {
   access?: AppAccess;
 }
 
-const CREDENTIAL_PUBLIC_KEY_PREFIX = 'oxy_dk_';
-const PUBLIC_KEY_RANDOM_BYTES = 24;
-const SECRET_RANDOM_BYTES = 32;
 const WEBHOOK_SECRET_RANDOM_BYTES = 24;
 
 /**
@@ -593,15 +592,6 @@ async function getUsageStats(applicationId: string, startDate: Date): Promise<Us
   return { summary, byDay, byEndpoint };
 }
 
-/** Generate a fresh credential public key + plaintext secret + its hash. */
-function generateCredentialMaterial(): { publicKey: string; secret: string; secretHash: string } {
-  const publicKey =
-    CREDENTIAL_PUBLIC_KEY_PREFIX + crypto.randomBytes(PUBLIC_KEY_RANDOM_BYTES).toString('hex');
-  const secret = crypto.randomBytes(SECRET_RANDOM_BYTES).toString('hex');
-  const secretHash = crypto.createHash('sha256').update(secret).digest('hex');
-  return { publicKey, secret, secretHash };
-}
-
 /** Build the `callerMembership` projection from resolved access. */
 function callerMembershipFromAccess(access: AppAccess | undefined): SerializedCallerMembership | null {
   if (!access) return null;
@@ -639,7 +629,8 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
 
   const accountAccess = await accountService.resolveEffectiveAccess(
     operatorId,
-    application.ownerAccountId
+    application.ownerAccountId,
+    req.sessionId
   );
   if (!accountAccess) {
     throw new ForbiddenError('You do not have access to this application');
@@ -697,7 +688,7 @@ router.get(
     >();
 
     if (ownerAccountIdFilter !== undefined) {
-      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter);
+      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter, req.sessionId);
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
@@ -787,7 +778,7 @@ router.post(
     // which is what switching into it is for.
     const ownerAccountId = body.ownerAccountId ?? subjectId;
 
-    const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountId);
+    const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountId, req.sessionId);
     if (!access) {
       throw new ForbiddenError('You do not have access to the owning account');
     }
@@ -1419,44 +1410,8 @@ router.delete(
 
     const actorUserId = requireUserId(req);
 
-    // One statement, and its RESULT decides the outcome: a credential that does
-    // not belong to this application updates no row and is a 404. The audit row
-    // rides the same transaction — a revocation nobody can date is the one this
-    // trail exists to answer.
-    const credential = await getDb().transaction(async (tx) => {
-      const [row] = await tx
-        .update(applicationCredentials)
-        .set({ status: 'revoked' })
-        .where(
-          and(
-            eq(applicationCredentials.id, req.params.credId),
-            eq(applicationCredentials.applicationId, application.id),
-            // Revoking a workload row would revoke nothing — an attested caller's
-            // liveness is its binding's, re-read on every call — while leaving a
-            // row that reads as revoked and an operator who believes a service was
-            // cut off. Deleting the binding is how that is actually done.
-            excludeWorkloadRows()
-          )
-        )
-        .returning({
-          id: applicationCredentials.id,
-          environment: applicationCredentials.environment,
-          type: applicationCredentials.type,
-        });
-      if (!row) {
-        throw new NotFoundError('Credential not found');
-      }
-
-      await recordCredentialLifecycleEvent(tx, {
-        applicationId: application.id,
-        credentialId: row.id,
-        eventType: 'revoked',
-        actorUserId,
-        environment: row.environment,
-        metadata: { type: row.type },
-      });
-
-      return row;
+    const credential = await revokeApplicationCredential(application.id, req.params.credId, {
+      kind: 'customer', userId: actorUserId,
     });
 
     logger.info('Application credential revoked', {

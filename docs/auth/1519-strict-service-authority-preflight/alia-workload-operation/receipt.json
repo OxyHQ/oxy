@@ -1,0 +1,10 @@
+{
+  "planSha256": "63d8e703101561cbf86039a65bc4273b8e5ba87c3f674533a013237c7272ac75",
+  "resultSha256": "23debc5e24618d79671b313e09339ba64ae6be2cc42fef18e6daa9f5d74845b3",
+  "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/a4a65c0a86af40e095e3b43606122566",
+  "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-workload-binding-oxy:1",
+  "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:4512fc8d29abedf67caa2a77194e6fa351c38ebe2201e57bf320276e105da38a",
+  "profile": "oxy",
+  "readOnly": false,
+  "tables": {}
+}

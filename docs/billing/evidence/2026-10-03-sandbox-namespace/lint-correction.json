@@ -1,0 +1,68 @@
+{
+  "sourceHead": "671908eef964caa5d14e13026cff6dd2e3bb32a5",
+  "baselineSourceHead": "a4401e90721dd493b2e19e5688ac3625f2582a60",
+  "command": [
+    "bunx",
+    "@biomejs/biome@1.9.4",
+    "lint",
+    "--error-on-warnings",
+    "packages/api/src/config/__tests__/billingNamespace.test.ts",
+    "packages/api/src/config/billingNamespace.ts",
+    "packages/api/src/config/postgres.ts",
+    "packages/api/src/controllers/subscription.controller.ts",
+    "packages/api/src/db/credits.ts",
+    "packages/api/src/db/schema/productAccess.ts",
+    "packages/api/src/db/schema/productProviderEvidence.ts",
+    "packages/api/src/db/testDatabase.ts",
+    "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts",
+    "packages/api/src/routes/billing.ts",
+    "packages/api/src/routes/credits.ts",
+    "packages/api/src/services/productAccessPersistence.service.ts",
+    "packages/api/src/services/productBillingCatalogue.service.ts",
+    "packages/api/src/services/stripeAccountBilling.service.ts",
+    "packages/api/src/services/stripeSubscriptionEvidence.service.ts",
+    "packages/api/src/services/subscriptionCreditLedger.service.ts",
+    "packages/api/src/utils/billingStripe.ts"
+  ],
+  "sourceSha256": {
+    "packages/api/src/config/__tests__/billingNamespace.test.ts": "913ac6eed0ab37b67994ab611aedc49d58c0610fe643291ab02c977889d8e6b9",
+    "packages/api/src/config/billingNamespace.ts": "9fdd62ecb26569f0781ef02acbe4d2239cc80b1b4853f79890b4f7830a171fc4",
+    "packages/api/src/config/postgres.ts": "cde261995eb5c66710a977b164bb0b72208d41528c6bfc9520b48d866e15793f",
+    "packages/api/src/controllers/subscription.controller.ts": "3d2db5025662f468987da0fc5be52f4280d82bd251b2a9042d04c61772fb8430",
+    "packages/api/src/db/credits.ts": "1525c45659b82680822dc2962a95cb795fdcb30c91dca637485cf5c69a464934",
+    "packages/api/src/db/schema/productAccess.ts": "0054805d5a08b9509e21b89b02e7f62a27a9cbc10ce698a6d80d4d8504af675f",
+    "packages/api/src/db/schema/productProviderEvidence.ts": "3454a7f63d0801e80d6a1dda485a78830ad73882d7c26ffbf8baea1551aa8014",
+    "packages/api/src/db/testDatabase.ts": "bbf0dc820ed53d601e26b05f5c9e2f458e69ff75f1363c7d044d0c0edcad35d1",
+    "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts": "e4f6c87d9e3e5fb09368ec5288caef388e11d3e71e08cb0539b7e6e401c81fa3",
+    "packages/api/src/routes/billing.ts": "43dcaeeecf8a9f936d4501d7c2eacc6c05d15c551ad3f980d3ffbbff87f3f130",
+    "packages/api/src/routes/credits.ts": "9de060b4f5d4e00df4b00cd190036f0109c0a63fc16f07fdadd3bf546a8b0497",
+    "packages/api/src/services/productAccessPersistence.service.ts": "9802500e994126c3e8b9b834b54b9cbe7a8e52335061bf4436e8401e10a3c3fd",
+    "packages/api/src/services/productBillingCatalogue.service.ts": "f4cb683f668f8877866369e7bb9d7a1d71a8767b0f0a9ee0a4312ae2e20a4b69",
+    "packages/api/src/services/stripeAccountBilling.service.ts": "28c513af473812ad96427d1dd7cd7a4501168a99132eaf90100279e6ca0d2763",
+    "packages/api/src/services/stripeSubscriptionEvidence.service.ts": "b4a2489e5d599e14a652264ee2b7080dfa6545873741489c0479cd1c19718705",
+    "packages/api/src/services/subscriptionCreditLedger.service.ts": "9ca3a8a93798552adad467f1a2d0355d869d491a202a95e1d85583ca1efc25e7",
+    "packages/api/src/utils/billingStripe.ts": "9e959a019b59f034c902a758ab8fe705d9f9c8419678751546e4dd5f27981977"
+  },
+  "records": {
+    "docs/billing/evidence/2026-10-03-sandbox-namespace/lint-real-before.log": {
+      "sha256": "78d3273e9e3c71bbfa017d016d03e36deab9e08b3925c7eb4cb5363b604a6fa1",
+      "bytes": 1656
+    },
+    "docs/billing/evidence/2026-10-03-sandbox-namespace/lint-real-after.log": {
+      "sha256": "2689db535d120d706a2d749963446f4b85b595d986f0e5fa97543f9fd18c8f25",
+      "bytes": 44
+    }
+  },
+  "before": {
+    "exitCode": 1,
+    "files": 17,
+    "diagnostics": 1,
+    "rule": "lint/style/useTemplate"
+  },
+  "after": {
+    "exitCode": 0,
+    "files": 17,
+    "diagnostics": 0
+  },
+  "correction": "The prior bunx biome invocation selected the unrelated biome 0.3.3 package; its empty output is not a lint check. The real @biomejs/biome@1.9.4 invocation found one string-concatenation diagnostic already present in the helper. The followup preserves the exact refusal text in one template literal. All other source inputs are byte-identical; no runtime tests were repeated for this message-only change."
+}

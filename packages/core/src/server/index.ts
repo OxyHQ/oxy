@@ -26,6 +26,12 @@ export {
   ServerNotificationsApi,
   ServerReputationApi,
 } from './namespaces';
+export type {
+  CapabilityTicketGrant,
+  CapabilityTicketIntrospection,
+  CreateExecutionAuthorizationInput,
+  ServiceCapabilityCatalog,
+} from './namespaces';
 export { OxyAccountEventError, OXY_ACCOUNT_DELETED_EVENT_URI } from './middleware';
 export type {
   AuthMiddlewareOptions,
@@ -40,6 +46,7 @@ export type {
 export {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
+  getOxyActor,
   getOxyAuthRefusal,
   getOxyBillingPrincipal,
   getOxyDelegatedUserId,
@@ -163,6 +170,8 @@ export type {
 
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
+export { createLiveCapabilityTicketVerifier } from './liveCapabilityTicket';
+export type { LiveCapabilityTicketVerifierOptions } from './liveCapabilityTicket';
 
 // Cross-service user-invalidation signal: oxy-api publishes when identity
 // changes, every consuming backend sweeps its caches instead of waiting out a TTL.
@@ -200,3 +209,7 @@ export { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';
  */
 export { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './workloadIdentity';
 export type { WorkloadServiceToken, WorkloadServiceTokenOptions } from './workloadIdentity';
+
+export { OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS, hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
+export { signInAgentAccount } from './agentAccount';
+export type { AgentAccountSigner } from './agentAccount';

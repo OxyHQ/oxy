@@ -1,0 +1,69 @@
+$ bun test
+bun test v1.4.2 (744846f84)
+
+src/__tests__/versions.test.ts:
+(pass) VERSIONS drift guard > the published CLI has no workspace runtime dependencies [0.20ms]
+(pass) VERSIONS drift guard > Oxy SDK dependencies use publishable semver ranges [0.06ms]
+(pass) VERSIONS drift guard > no Oxy pin names a version above what this workspace has reached [0.42ms]
+(pass) VERSIONS drift guard > scaffold smoke resolves the generated ranges against the public registry [0.07ms]
+(pass) VERSIONS drift guard > published Bloom pin is not ahead of the workspace; its Services peer is checked against npm [0.14ms]
+(pass) VERSIONS drift guard > HEAD smoke pairs packed Services with the workspace Bloom catalog, not the published snapshot [0.04ms]
+(pass) VERSIONS drift guard > scaffold smoke consumes every generated Oxy workspace package from a HEAD tarball [0.09ms]
+
+src/__tests__/gitignore.test.ts:
+(pass) the template does not ignore its own source > every rendered file is addable [11.36ms]
+(pass) the template does not ignore its own source > `lib/` is not ignored, which is the specific regression [0.18ms]
+
+src/__tests__/nativeBuild.test.ts:
+(pass) the native splash and icons > the splash is the shared Oxy splash, with an image, and its branding plugin follows it [0.18ms]
+(pass) the native splash and icons > every asset app.config.js names is shipped [0.29ms]
+(pass) the native splash and icons > the frontend depends on @oxy.so/expo-splash, which the config and layout import [0.20ms]
+(pass) lightningcss > the whole tree is forced onto the exact version react-native-css can read [0.13ms]
+(pass) the prebuilt native projects > are ignored where expo prebuild writes them [2.66ms]
+
+src/__tests__/render.test.ts:
+(pass) renderString > substitutes known tokens [0.02ms]
+(pass) renderString > substitutes dotted version tokens
+(pass) renderString > throws on an unknown token [0.05ms]
+(pass) renderString > keeps a truthy #section and drops its markers
+(pass) renderString > removes a falsy #section entirely
+(pass) renderString > inverted ^section keeps content when the flag is falsy
+(pass) renderString > inverted ^section drops content when the flag is truthy
+(pass) renderString > a dropped section leaves valid JSON (comma inside the block) [0.01ms]
+(pass) renderString > leaves GitHub Actions ${{ }} expressions untouched
+(pass) targetSegment > rewrites DOT_ prefix to a dot
+(pass) targetSegment > strips the .tpl suffix on files only
+(pass) targetSegment > combines DOT_ and .tpl
+(pass) renderTree > renders names + content and applies overlays without residual tokens [1.43ms]
+(pass) base template bunfig.toml > ships as bunfig.toml.tpl and renders a hoisted-linker bunfig.toml [0.11ms]
+(pass) base template document theme > ships light and dark startup fallbacks for Bloom to adopt [0.10ms]
+(pass) AWS deploy template > uses an app-specific role and cannot overwrite shared secrets [0.14ms]
+(pass) AWS deploy template > never enumerates the secrets context, and names every synced secret [0.29ms]
+
+src/__tests__/backendTemplate.test.ts:
+(pass) backend package.json > depends on the Postgres stack and not on mongoose [0.02ms]
+(pass) backend package.json > drizzle-kit is a devDependency — it generates migrations, never applies them
+(pass) backend package.json > drizzle-orm and postgres are pinned exactly, matching @oxy.so/db peers [0.02ms]
+(pass) backend package.json > ships the db:generate / db:migrate scripts
+(pass) generated .env.example > carries DATABASE_URL and no MONGODB_URI
+(pass) generated .env.example > its DATABASE_URL matches the port and database docker-compose creates [0.08ms]
+(pass) docker-compose.postgres.yml > pins a Postgres major rather than floating [0.01ms]
+(pass) docker-compose.postgres.yml > does not bind 5432 — an Oxy machine already has databases there
+(pass) shipped migration 0000 > the journal holds exactly the one migration the scaffold ships
+(pass) shipped migration 0000 > every journal tag has its .sql and the schema snapshot beside it [0.04ms]
+(pass) shipped migration 0000 > every migration declares exactly one deploy phase [0.04ms]
+(pass) shipped migration 0000 > the marker pattern rejects the near-misses it has to reject [0.02ms]
+(pass) schema barrel > re-exports the example table [0.02ms]
+(pass) schema barrel > the mongoose connector is gone [0.02ms]
+(pass) backend tsconfig > keeps drizzle.config.ts out of the emitting build [0.03ms]
+
+src/__tests__/bloomPair.test.js:
+(pass) published scaffold Services/Bloom compatibility > accepts a published pair without requiring unreleased workspace majors [0.22ms]
+(pass) published scaffold Services/Bloom compatibility > rejects a resolvable Bloom major outside the selected Services peer [0.09ms]
+(pass) published scaffold Services/Bloom compatibility > does not treat missing peer metadata as compatibility [0.03ms]
+(pass) published scaffold Services/Bloom compatibility > fails closed when the registry cannot verify the pair [0.03ms]
+
+ 50 pass
+ 0 fail
+ 137 expect() calls
+Ran 50 tests across 6 files. [34.00ms]

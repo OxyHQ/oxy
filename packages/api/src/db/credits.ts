@@ -1,40 +1,16 @@
+import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
 /**
- * Credit Balance Mutations — the guarded writes `user_credits` depends on
- *
- * `models/UserCredits.ts` declares three instance methods, and two of them are
- * OPTIMISTIC-CONCURRENCY updates rather than plain writes: `refreshCreditsIfNeeded`
- * compare-and-sets on `credits.lastRefresh`, and `deductCredits` runs a
- * `$gte`-guarded `$inc`. Porting either as a read-modify-write would lose that
- * silently — two racing deductions would both read the same balance, both decide
- * they could afford it, and both write. The balance would go negative, or one
- * spend would vanish, with nothing in the code to show why.
- *
- * So the guard travels INTO the statement. Every function here is one
- * `UPDATE ... WHERE <guard>` whose success is decided by whether it matched a
- * row, never by a value the caller read earlier. Under READ COMMITTED — the
- * default — a concurrent `UPDATE` on the same row blocks on the row lock and
- * then RE-EVALUATES its `WHERE` against the committed new version, so the loser
- * of a race matches nothing and returns `false`. That is the whole mechanism.
- *
- * This module lives beside `db/expiry.ts` for the same reason that one does: it
- * is a database MECHANISM with no DDL counterpart, defined once so no call site
- * has to re-derive it, and it is not a service, controller or route.
- *
- * The CHECK constraints on `user_credits` are the second line. If some other
- * write path ever drives a balance negative, it fails loudly there instead of
- * being discovered in a support ticket.
- *
- * Every function takes `DatabaseOrTransaction`, not `Database`. A grant is
- * frequently one half of a pair — `handleCheckoutCompleted` writes the receipt
- * that CLAIMS the charge and then grants against it — and those two must commit
- * or roll back together. Typed as `Database` these would refuse a `tx` and
- * silently push the grant outside the caller's transaction, which is precisely
- * the atomicity the pairing exists to buy.
+ * Atomic credit mutations. Free refresh and plain top-ups retain their guarded
+ * SQL writes; deduction locks the balance and records FIFO subscription-grant
+ * consumption in the same transaction. Historical/purchased balance remains
+ * opaque and is spent after tracked grants, before free credits.
+ * DatabaseOrTransaction preserves the caller's receipt/award rollback boundary.
  */
 
 import { and, eq, sql, type SQL } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../config/postgres';
 import { CREDIT_REFRESH_INTERVAL_HOURS, userCredits } from './schema/userCredits';
+import { spendSubscriptionTrackedCredits } from '../services/subscriptionCreditLedger.service';
 
 /** Which half of the balance a grant lands in. */
 export type CreditKind = 'free' | 'paid';
@@ -78,6 +54,7 @@ export async function refreshCreditsIfNeeded(
   db: DatabaseOrTransaction,
   userId: string
 ): Promise<boolean> {
+  await assertBillingDatabaseNamespace(db);
   const [row] = await db
     .update(userCredits)
     .set({
@@ -111,6 +88,7 @@ export async function addCredits(
   amount: number,
   kind: CreditKind
 ): Promise<boolean> {
+  await assertBillingDatabaseNamespace(db);
   // The arithmetic runs in `numeric` and is cast back at the end: the guard has
   // already established the amount is a whole number, so the cast is exact.
   const granted: { creditsFree?: SQL; creditsPaid?: SQL } =
@@ -128,45 +106,15 @@ export async function addCredits(
 }
 
 /**
- * Spend credits, paid balance first, then free.
- *
- * The Mongoose original split the amount in JavaScript from a possibly-stale
- * `this.credits`, then issued one of two guarded updates. Here the split is
- * computed in the statement from the row's own values — `least(credits_paid,
- * amount)` — so the caller never holds a number that can go stale, and there is
- * exactly one statement to reason about instead of three branches.
- *
- * All `SET` expressions read the pre-update row, so the two subtractions are
- * consistent with each other and with the guard.
- *
- * @returns Whether the full amount was spent. `false` means insufficient
- *   balance, no such account, or an amount that is not a whole non-negative
- *   number of credits — and NOTHING was spent, since the guard is part of the
- *   same statement.
+ * Spend paid before free. New subscription grants are attributed FIFO, then
+ * the unchanged opaque legacy/purchased remainder. The balance, immutable
+ * consumption rows and grant counters commit together under the balance lock.
  */
 export async function deductCredits(
   db: DatabaseOrTransaction,
   userId: string,
   amount: number
 ): Promise<boolean> {
-  const fromPaid = sql`least(${userCredits.creditsPaid}, ${amount}::numeric)`;
-
-  const [row] = await db
-    .update(userCredits)
-    .set({
-      creditsPaid: sql`(${userCredits.creditsPaid} - ${fromPaid})::bigint`,
-      creditsFree: sql`(${userCredits.creditsFree} - (${amount}::numeric - ${fromPaid}))::bigint`,
-    })
-    .where(
-      and(
-        eq(userCredits.userId, userId),
-        wholeNonNegative(amount),
-        // The guard the whole module exists for. Evaluated against the row under
-        // lock, so a concurrent spend that got there first is already reflected.
-        sql`${userCredits.creditsPaid} + ${userCredits.creditsFree} >= ${amount}::numeric`
-      )
-    )
-    .returning({ userId: userCredits.userId });
-
-  return row !== undefined;
+  await assertBillingDatabaseNamespace(db);
+  return spendSubscriptionTrackedCredits(db, userId, amount);
 }

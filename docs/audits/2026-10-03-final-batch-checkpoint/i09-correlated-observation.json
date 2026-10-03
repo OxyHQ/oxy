@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-10-03 12:44:30.109877+00",
+  "readOnly": true,
+  "isolation": "repeatable read",
+  "relatedDatabaseRows": 3,
+  "deployments": [
+    {
+      "id": "01a083c2-a8ff-702f-8ac7-2430f40e3cca",
+      "model_revision_id": "01a083c2-a8ae-7a13-b9f1-28a8c68b4a0b",
+      "provider_slug": "cerebras",
+      "internal_route_id_digest": "15a54870a76e3652cbddd4164aa9166de3cb5e5f9e2ec2b812e6acfa9f599f33",
+      "exact_pilot_route_match": true,
+      "availability_scope": "internal_alia",
+      "permission_state": "approved",
+      "legal_review_status": "approved",
+      "status": "active",
+      "price_version_id": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+      "platform_fee_price_version_id": null
+    },
+    {
+      "id": "01a083c2-a95f-7772-9ba8-1cd4ac420ece",
+      "model_revision_id": "01a083c2-a8ae-7a13-b9f1-28a8c68b4a0b",
+      "provider_slug": "groq",
+      "internal_route_id_digest": "28b55983294c0d2e84e8bdc7100f2388828fdef4fbaf75208ed56e31c9879a18",
+      "exact_pilot_route_match": true,
+      "availability_scope": "internal_alia",
+      "permission_state": "approved",
+      "legal_review_status": "approved",
+      "status": "active",
+      "price_version_id": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+      "platform_fee_price_version_id": null
+    },
+    {
+      "id": "01a096a6-6f21-7248-a714-94aa6ffb9092",
+      "model_revision_id": "01a083c2-a8ae-7a13-b9f1-28a8c68b4a0b",
+      "provider_slug": "openrouter",
+      "internal_route_id_digest": "2798ecd9601642c07222f46268e25d5b12f100a5bd7aae16071394445b5c4d93",
+      "exact_pilot_route_match": true,
+      "availability_scope": "internal_alia",
+      "permission_state": "approved",
+      "legal_review_status": "approved",
+      "status": "active",
+      "price_version_id": "01a096a6-6f15-74b2-aaf3-931763417c04",
+      "platform_fee_price_version_id": null
+    }
+  ],
+  "priceReferences": 3,
+  "units": 15,
+  "cleanup": {
+    "task": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/9fdeef528b344788ba10e6e0eda1c390",
+    "status": "STOPPED",
+    "exit": 0,
+    "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-inference-pilot-readiness-oxy_related:1",
+    "definitionStatus": "INACTIVE"
+  },
+  "limits": "Read-only existing metadata; no permission/price mutation, inference, quote or runtime eligibility claim. Earlier empty deployment result queried route aliases against generated DB IDs and does not prove missing deployments."
+}

@@ -1,4 +1,4 @@
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 import type { Request } from 'express';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type {
@@ -26,6 +26,7 @@ import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
 import sessionCache from '../utils/sessionCache';
 import sessionService from './session.service';
+import { readSessionAgentBinding } from './agentKeyAuthority.service';
 import { sha256Hex, base64UrlEncode, timingSafeStringEqual } from './oauthCode.service';
 import { effectivePermissionsForMember } from '../utils/accountRoles';
 import { formatUserNameResponse } from '../utils/displayName';
@@ -232,6 +233,7 @@ export function electReplacementContext(
 interface DeviceSessionRow {
   id: string;
   deviceId: string;
+  activeContextId: string | null;
   activeAccountId: string | null;
   backgroundSecretHash: string | null;
   backgroundSecretAccountId: string | null;
@@ -239,9 +241,10 @@ interface DeviceSessionRow {
   revision: number;
   updatedAt: Date;
   accounts: DeviceAccountRow[];
+  contexts: DeviceContextRow[];
 }
 
-export function projectState(doc: DeviceSessionRow): DeviceSessionState {
+export function projectState(doc: Omit<DeviceSessionRow, 'activeContextId' | 'contexts'>): DeviceSessionState {
   const accounts: SessionAccount[] = doc.accounts.map((entry) => {
     const account: SessionAccount = {
       accountId: entry.accountId,
@@ -426,9 +429,8 @@ class DeviceSessionService {
   /**
    * Read a device and the flat projection of what is signed in on it.
    *
-   * Every field is named rather than spread: `active_context_id` is the new
-   * authority and deliberately absent from the flat row, so spreading would
-   * carry it into a shape whose whole purpose is to describe the OLD contract.
+   * Keep context authority internally. `projectState` explicitly emits only
+   * the flat compatibility contract; it never infers a context from accountId.
    */
   private async load(db: Queryable, deviceId: string): Promise<DeviceSessionRow | null> {
     const device = await this.loadDevice(db, deviceId);
@@ -437,6 +439,7 @@ class DeviceSessionService {
     return {
       id: device.id,
       deviceId: device.deviceId,
+      activeContextId: device.activeContextId,
       activeAccountId: device.activeAccountId,
       backgroundSecretHash: device.backgroundSecretHash,
       backgroundSecretAccountId: device.backgroundSecretAccountId,
@@ -444,6 +447,7 @@ class DeviceSessionService {
       revision: device.revision,
       updatedAt: device.updatedAt,
       accounts: projectAccounts(contexts),
+      contexts,
     };
   }
 
@@ -606,12 +610,21 @@ class DeviceSessionService {
     return row;
   }
 
+  /** Binding writers take this device lock before reading contexts or secrets.
+   * Session deactivation stays after COMMIT: a device transaction never waits
+   * for a pool write to a row whose FK points back to the locked device.
+   */
+  private async lockDevice(db: Queryable, deviceId: string): Promise<DeviceSessionRow | null> {
+    const [locked] = await db.select({ id: deviceSessions.id }).from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, deviceId)).for('update');
+    return locked ? this.load(db, deviceId) : null;
+  }
+
   /**
    * The RAW `device_sessions` row, created empty if absent.
    *
-   * Distinct from {@link DeviceSessionService.ensureDevice} because the flat row
-   * that one returns deliberately drops `active_context_id` — the directory is
-   * the contract that reports it, so it needs the row itself.
+   * Unlike {@link DeviceSessionService.ensureDevice}, this reads only the
+   * device record, without loading contexts or their compatibility projection.
    */
   private async ensureDeviceRecord(db: Queryable, deviceId: string) {
     await db
@@ -638,27 +651,27 @@ class DeviceSessionService {
   // but without this the dead account keeps sitting in `accounts`/
   // `activeAccountId` forever — the client would durably render "logged in
   // as <org>" while holding the previous account's bearer. One pass only:
-  // drop the revoked account via the existing signout cascade and return the
+  // drop only the revoked principal/account context and return the
   // healed state; a newly-elected active account is left for the *next*
   // getState call to re-validate rather than re-checked recursively here.
   // Non-managed (personal) active accounts are never touched by this path —
   // a personal account with a transiently-unresolvable access token must not
   // be dropped, only a managed account whose act_as membership check failed.
   private async healActiveAccount(doc: DeviceSessionRow): Promise<DeviceSessionState> {
-    const activeId = doc.activeAccountId;
-    if (!activeId) return projectState(doc);
-    const active = doc.accounts.find((a) => a.accountId === activeId);
-    // A NULL `operated_by_user_id` means "not a delegated session". Only a
-    // delegated entry is re-checked here; widening this to every entry would
-    // drop a personal account on a transient lookup failure.
-    if (!active || !active.operatedByUserId) return projectState(doc);
+    const active = doc.contexts.find((context) => context.contextId === doc.activeContextId);
+    // Only the selected delegated pair is re-checked. Other people may reach
+    // the same account through independent sessions and memberships.
+    if (!active?.sessionId || isPersonalContext(active)) return projectState(doc);
     const validated = await sessionService.validateSessionById(active.sessionId, false);
     if (validated) return projectState(doc);
     logger.info('deviceSession.getState: dropping revoked managed active account', {
       deviceId: doc.deviceId,
-      accountId: activeId,
+      accountId: active.accountId,
     });
-    return this.signout(doc.deviceId, { accountId: activeId });
+    const removed = await this.removeFromDevice(doc.deviceId, (contexts, locked) => locked.revision !== doc.revision ? [] : contexts.filter(
+      (context) => context.contextId === active.contextId && context.sessionId === active.sessionId
+    ));
+    return removed.ok ? removed.state : this.readState(doc.deviceId);
   }
 
   // Registering a session into the device set. Reload ≠ sign-in: the client
@@ -695,7 +708,9 @@ class DeviceSessionService {
     const result = await this.withAuthuserRaceRetry(async () => {
       displacedSessionId = null;
       return getDb().transaction(async (tx) => {
-        const current = await this.ensureDevice(tx, deviceId);
+        await this.ensureDeviceRecord(tx, deviceId);
+        const current = await this.lockDevice(tx, deviceId);
+        if (!current) throw new Error(`device_sessions row for "${deviceId}" vanished after lock`);
         const contexts = await this.loadContexts(tx, current.id);
         // Keyed on the ACCOUNT, not on the pair, which keeps this path
         // producing the one-entry-per-account set the flat contract promises.
@@ -810,8 +825,10 @@ class DeviceSessionService {
   async switchActive(deviceId: string, accountId: string): Promise<SwitchActiveResult> {
     const db = getDb();
     const current = await this.load(db, deviceId);
-    const target = current?.accounts.find((a) => a.accountId === accountId);
-    if (!current || !target) return { ok: false, reason: 'not_found' };
+    const targets = current?.contexts.filter((context) => context.accountId === accountId) ?? [];
+    if (!current || targets.length !== 1 || !targets[0].sessionId) return { ok: false, reason: 'not_found' };
+    const target = targets[0];
+    const sessionId = targets[0].sessionId;
 
     // Re-validate the target account's session BEFORE committing the switch.
     // For a managed account this re-checks the operator's act_as membership
@@ -819,22 +836,28 @@ class DeviceSessionService {
     // durably pointing the device at an account the caller no longer has
     // authority over (see resolveActiveToken, which does the same check on
     // read but can't undo an already-committed activeAccountId).
-    const validated = await sessionService.validateSessionById(target.sessionId, false);
+    const validated = await sessionService.validateSessionById(sessionId, false);
     if (!validated) {
-      // The target session is revoked (e.g. the operator's act_as membership
-      // was pulled). Leaving it in the device set strands a dead account the
-      // device can never switch into. Heal by removing it through the SAME
-      // signout cascade a normal removal uses, and return the healed state so
-      // the route can broadcast it to the device's other tabs/connections.
-      const state = await this.signout(deviceId, { accountId });
+      // A new context or re-authentication may have arrived during validation.
+      // Remove only the exact rejected session, never this account globally.
+      const removed = await this.removeFromDevice(deviceId, (contexts, locked) => locked.revision !== current.revision ? [] : contexts.filter(
+        (context) => context.contextId === target.contextId && context.sessionId === target.sessionId
+      ));
+      const state = removed.ok ? removed.state : await this.readState(deviceId);
       return { ok: false, reason: 'unauthorized', state };
     }
 
     const updated = await db.transaction(async (tx) => {
+      await tx.select({ id: deviceSessions.id }).from(deviceSessions)
+        .where(eq(deviceSessions.id, current.id)).for('update');
+      const latest = await this.load(tx, deviceId);
+      const matches = latest?.contexts.filter((context) => context.accountId === accountId) ?? [];
+      if (!latest || latest.revision !== current.revision || matches.length !== 1
+        || matches[0].contextId !== target.contextId || matches[0].sessionId !== target.sessionId) return null;
       await tx
         .update(deviceSessions)
         .set({
-          ...(await this.resolveActiveFields(tx, current.id, accountId)),
+          ...this.activeFieldsFor(matches[0]),
           revision: sql`${deviceSessions.revision} + 1`,
         })
         .where(eq(deviceSessions.id, current.id));
@@ -855,9 +878,18 @@ class DeviceSessionService {
    * observing a state change.
    */
   async resolveTokenForAccount(state: DeviceSessionState, accountId: string): Promise<{ accessToken: string; expiresAt: string } | null> {
-    const account = state.accounts.find((a) => a.accountId === accountId);
-    if (!account) return null;
-    return this.resolveTokenForSession(account.sessionId);
+    const accounts = state.accounts.filter((account) => account.accountId === accountId);
+    if (accounts.length !== 1) return null;
+    const account = accounts[0];
+    const current = await this.load(getDb(), state.deviceId);
+    const contexts = current?.contexts.filter((context) => context.accountId === accountId) ?? [];
+    if (contexts.length !== 1 || contexts[0].sessionId !== account.sessionId) return null;
+    const token = await this.resolveTokenForSession(account.sessionId);
+    const latest = await this.load(getDb(), state.deviceId);
+    const remaining = latest?.contexts.filter((context) => context.accountId === accountId) ?? [];
+    if (remaining.length !== 1 || remaining[0].contextId !== contexts[0].contextId
+      || remaining[0].sessionId !== account.sessionId) return null;
+    return token;
   }
 
   /**
@@ -882,66 +914,71 @@ class DeviceSessionService {
 
   async resolveActiveToken(state: DeviceSessionState): Promise<{ accessToken: string; expiresAt: string } | null> {
     if (!state.activeAccountId) return null;
-    return this.resolveTokenForAccount(state, state.activeAccountId);
+    const current = await this.load(getDb(), state.deviceId);
+    if (!current || current.revision !== state.revision || current.activeAccountId !== state.activeAccountId) return null;
+    const active = current.contexts.find((context) => context.contextId === current.activeContextId);
+    if (!active?.sessionId || active.accountId !== state.activeAccountId
+      || !state.accounts.some((account) => account.accountId === active.accountId && account.sessionId === active.sessionId)) return null;
+    const token = await this.resolveTokenForSession(active.sessionId);
+    // A concurrent activation of another operator may retain activeAccountId.
+    // Never pair its token with the earlier revision's public state.
+    const latest = await this.load(getDb(), state.deviceId);
+    if (!latest || latest.revision !== state.revision || latest.activeContextId !== active.contextId
+      || !latest.contexts.some((context) => context.contextId === active.contextId && context.sessionId === active.sessionId)) return null;
+    return token;
   }
 
   async signout(deviceId: string, target: { accountId: string } | { all: true }): Promise<DeviceSessionState> {
     const db = getDb();
-    const current = await this.load(db, deviceId);
-    if (!current) return this.getState(deviceId);
-    const allAccounts = current.accounts;
+    let removedSessionIds: string[] = [];
+    const updated = await db.transaction(async (tx) => {
+      const current = await this.lockDevice(tx, deviceId);
+      if (!current) return null;
+      const allAccounts = current.accounts;
 
-    let removingIds: Set<string>;
-    if ('all' in target) {
-      removingIds = new Set(allAccounts.map((a) => a.accountId));
-    } else {
-      const targetPresent = allAccounts.some((a) => a.accountId === target.accountId);
-      if (!targetPresent) return projectState(current);
-      removingIds = new Set([target.accountId]);
-      // Cascade: signing out an operator's own account must also remove every
-      // managed/org account that operator switched into on this device (one
-      // level deep — operated accounts can't themselves operate others). This
-      // is ADR 0001's "removing a principal removes exactly its own contexts",
-      // and it is the same rule `device_account_contexts.principal_id`'s
-      // ON DELETE CASCADE enforces for a delete that never reaches this service.
-      for (const a of allAccounts) {
-        if (a.operatedByUserId === target.accountId) {
-          removingIds.add(a.accountId);
+      let removingIds: Set<string>;
+      if ('all' in target) {
+        removingIds = new Set(allAccounts.map((a) => a.accountId));
+      } else {
+        const targetPresent = allAccounts.some((a) => a.accountId === target.accountId);
+        if (!targetPresent) return current;
+        removingIds = new Set([target.accountId]);
+        // Cascade: signing out an operator's own account must also remove every
+        // managed/org account that operator switched into on this device (one
+        // level deep — operated accounts can't themselves operate others). This
+        // is ADR 0001's "removing a principal removes exactly its own contexts",
+        // and it is the same rule `device_account_contexts.principal_id`'s
+        // ON DELETE CASCADE enforces for a delete that never reaches this service.
+        for (const a of allAccounts) {
+          if (a.operatedByUserId === target.accountId) {
+            removingIds.add(a.accountId);
+          }
         }
       }
-    }
 
-    const removing = allAccounts.filter((a) => removingIds.has(a.accountId));
-    for (const a of removing) {
-      try {
-        await sessionService.deactivateSession(a.sessionId);
-      } catch (error) {
-        logger.warn('deviceSession.signout: deactivate failed', { sessionId: a.sessionId, error });
-      }
-    }
+      removedSessionIds = allAccounts.filter((a) => removingIds.has(a.accountId)).map((a) => a.sessionId);
 
-    const remaining = allAccounts.filter((a) => !removingIds.has(a.accountId));
-    const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
-    const nextActive = activeStillPresent
-      ? current.activeAccountId
-      : (remaining[0] ? remaining[0].accountId : null);
-    const boundBackgroundAccountId = current.backgroundSecretAccountId;
-    const shouldClearBackground =
-      'all' in target ||
-      (boundBackgroundAccountId !== null && removingIds.has(boundBackgroundAccountId));
+      const remaining = allAccounts.filter((a) => !removingIds.has(a.accountId));
+      const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
+      const nextActive = activeStillPresent
+        ? current.activeAccountId
+        : (remaining[0] ? remaining[0].accountId : null);
+      const boundBackgroundAccountId = current.backgroundSecretAccountId;
+      const shouldClearBackground =
+        'all' in target ||
+        (boundBackgroundAccountId !== null && removingIds.has(boundBackgroundAccountId));
 
-    // The holders' `device_credentials` are NOT revoked here: ADR 0029 D2 makes
-    // the browser's DeviceSession shared by every official web app on it, so a
-    // credential proves "this browser", not "this account". Removing one account
-    // removes it for every holder at once (the contexts below), and each holder
-    // keeps minting for whichever accounts remain — Google's model. The
-    // credentials go when the device ends with nobody signed in, inside the
-    // transaction below, and always on signout-ALL.
-    const clearedSecrets = {
-      ...(shouldClearBackground ? this.clearedBackgroundCredentialFields() : {}),
-    };
+      // The holders' `device_credentials` are NOT revoked here: ADR 0029 D2 makes
+      // the browser's DeviceSession shared by every official web app on it, so a
+      // credential proves "this browser", not "this account". Removing one account
+      // removes it for every holder at once (the contexts below), and each holder
+      // keeps minting for whichever accounts remain — Google's model. The
+      // credentials go when the device ends with nobody signed in, inside the
+      // transaction below, and always on signout-ALL.
+      const clearedSecrets = {
+        ...(shouldClearBackground ? this.clearedBackgroundCredentialFields() : {}),
+      };
 
-    const updated = await db.transaction(async (tx) => {
       if (removingIds.size > 0) {
         // Scoped by ACCOUNT, so it removes that account under every principal
         // of this device. Under this path there is only ever one — the flat
@@ -975,8 +1012,10 @@ class DeviceSessionService {
       }
       return this.load(tx, deviceId);
     });
-    if (!updated) {
-      throw new Error(`device_sessions row for "${deviceId}" vanished during signout`);
+    if (!updated) return this.getState(deviceId);
+    for (const sessionId of removedSessionIds) {
+      try { await sessionService.deactivateSession(sessionId); }
+      catch (error) { logger.warn('deviceSession.signout: deactivate failed', { sessionId, error }); }
     }
     return projectState(updated);
   }
@@ -1116,32 +1155,37 @@ class DeviceSessionService {
     db: Queryable,
     deviceSessionId: string,
     principals: readonly DevicePrincipalRow[],
-    contexts: readonly DeviceContextRow[],
     actAsByPrincipal: ReadonlyMap<string, ReadonlyMap<string, ActAsAccount>>
   ): Promise<boolean> {
-    const missing: { principalId: string; accountId: string }[] = [];
-    const staleContextIds: string[] = [];
-
-    for (const principal of principals) {
-      const actAs = actAsByPrincipal.get(principal.id);
-      if (!actAs) continue;
-      const own = contexts.filter((context) => context.principalId === principal.id);
-      const held = new Set(own.map((context) => context.accountId));
-      // Sorted so a device that gains three organizations at once materializes
-      // them in one order, not in whatever order the graph query returned.
-      for (const accountId of [...actAs.keys()].sort()) {
-        if (!held.has(accountId)) missing.push({ principalId: principal.id, accountId });
-      }
-      for (const context of own) {
-        if (context.sessionId === null && !actAs.has(context.accountId)) {
-          staleContextIds.push(context.contextId);
+    return db.transaction(async (tx) => {
+      const [locked] = await tx.select({ id: deviceSessions.id }).from(deviceSessions)
+        .where(eq(deviceSessions.id, deviceSessionId)).for('update');
+      if (!locked) return false;
+      const currentPrincipals = await this.loadPrincipals(tx, deviceSessionId);
+      const currentContexts = await this.loadContexts(tx, deviceSessionId);
+      const missing: { principalId: string; accountId: string }[] = [];
+      const staleContextIds: string[] = [];
+      for (const principal of currentPrincipals) {
+        const original = principals.find((entry) => entry.id === principal.id);
+        if (!original || original.personalSessionId !== principal.personalSessionId) continue;
+        const actAs = actAsByPrincipal.get(principal.id);
+        if (!actAs) continue;
+        const own = currentContexts.filter((context) => context.principalId === principal.id);
+        const held = new Set(own.map((context) => context.accountId));
+        // Sorted so a device that gains three organizations at once materializes
+        // them in one order, not in whatever order the graph query returned.
+        for (const accountId of [...actAs.keys()].sort()) {
+          if (!held.has(accountId)) missing.push({ principalId: principal.id, accountId });
+        }
+        for (const context of own) {
+          if (context.sessionId === null && !actAs.has(context.accountId)) {
+            staleContextIds.push(context.contextId);
+          }
         }
       }
-    }
 
-    if (missing.length === 0 && staleContextIds.length === 0) return false;
+      if (missing.length === 0 && staleContextIds.length === 0) return false;
 
-    await db.transaction(async (tx) => {
       if (missing.length > 0) {
         await tx
           .insert(deviceAccountContexts)
@@ -1171,8 +1215,8 @@ class DeviceSessionService {
           .delete(deviceAccountContexts)
           .where(inArray(deviceAccountContexts.id, staleContextIds));
       }
+      return true;
     });
-    return true;
   }
 
   /**
@@ -1298,7 +1342,6 @@ class DeviceSessionService {
       db,
       device.id,
       principals,
-      initial,
       actAsByPrincipal
     );
     const contexts = reconciled ? await this.loadContexts(db, device.id) : initial;
@@ -1369,6 +1412,7 @@ class DeviceSessionService {
           id: deviceSessions.id,
           deviceId: deviceSessions.deviceId,
           activeContextId: deviceSessions.activeContextId,
+          backgroundSecretAccountId: deviceSessions.backgroundSecretAccountId,
           revision: deviceSessions.revision,
           updatedAt: deviceSessions.updatedAt,
         })
@@ -1418,8 +1462,10 @@ class DeviceSessionService {
         // call to return, and nothing breaks the cycle because only one half of
         // it is a lock Postgres can see. The binding is written after COMMIT
         // instead (issue #937, Phase 6).
+        const authMethod = await readSessionAgentBinding(principal.personalSessionId ?? undefined, principal.userId);
         const minted = await sessionService.createSession(target.accountId, req, {
           operatedByUserId: principal.userId,
+          ...(authMethod ? { authMethod } : {}),
           deviceId: locked.deviceId,
         });
         sessionId = minted.sessionId;
@@ -1520,7 +1566,7 @@ class DeviceSessionService {
    */
   private async removeContextRows(
     tx: Queryable,
-    device: { id: string; activeContextId: string | null },
+    device: { id: string; activeContextId: string | null; backgroundSecretAccountId: string | null },
     contexts: readonly DeviceContextRow[],
     principals: readonly DevicePrincipalRow[],
     victims: readonly DeviceContextRow[]
@@ -1552,6 +1598,12 @@ class DeviceSessionService {
       .set({
         ...this.activeFieldsFor(elected),
         revision: sql`${deviceSessions.revision} + 1`,
+        // Legacy storage names only the account, not its original context.
+        // Retiring any context of that account invalidates this credential;
+        // another account's binding and every surviving holder remain intact.
+        ...(victims.some((context) => context.accountId === device.backgroundSecretAccountId)
+          ? this.clearedBackgroundCredentialFields()
+          : {}),
       })
       .where(eq(deviceSessions.id, device.id));
     await this.revokeHolderCredentialsIfSignedOut(tx, device.id);
@@ -1586,7 +1638,7 @@ class DeviceSessionService {
   /** The shared body of the two removals: pick victims, delete, re-elect, emit. */
   private async removeFromDevice(
     deviceId: string,
-    pick: (contexts: readonly DeviceContextRow[]) => DeviceContextRow[]
+    pick: (contexts: readonly DeviceContextRow[], device: { revision: number }) => DeviceContextRow[]
   ): Promise<RemoveFromDeviceResult> {
     const db = getDb();
     const device = await this.loadDevice(db, deviceId);
@@ -1600,6 +1652,8 @@ class DeviceSessionService {
         .select({
           id: deviceSessions.id,
           activeContextId: deviceSessions.activeContextId,
+          backgroundSecretAccountId: deviceSessions.backgroundSecretAccountId,
+          revision: deviceSessions.revision,
         })
         .from(deviceSessions)
         .where(eq(deviceSessions.id, device.id))
@@ -1608,7 +1662,7 @@ class DeviceSessionService {
 
       const contexts = await this.loadContexts(tx, locked.id);
       const principals = await this.loadPrincipals(tx, locked.id);
-      const victims = pick(contexts);
+      const victims = pick(contexts, locked);
       if (victims.length === 0) return false;
 
       removedSessionIds = victims
@@ -1665,28 +1719,20 @@ class DeviceSessionService {
     preserveSessionId: string
   ): Promise<DeviceSessionState | null> {
     const db = getDb();
-    const current = await this.load(db, deviceId);
-    if (!current) return null;
-    const entry = current.accounts.find((a) => a.accountId === accountId);
-    if (!entry) return null;
-
-    // Deactivate a DIFFERENT (genuinely stale) session the row referenced —
-    // never the one that just migrated and is now live on the caller's device.
-    if (entry.sessionId && entry.sessionId !== preserveSessionId) {
-      try {
-        await sessionService.deactivateSession(entry.sessionId);
-      } catch (error) {
-        logger.warn('deviceSession.detachMigratedAccount: deactivate failed', { sessionId: entry.sessionId, error });
-      }
-    }
-
-    const remaining = current.accounts.filter((a) => a.accountId !== accountId);
-    const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
-    const nextActive = activeStillPresent
-      ? current.activeAccountId
-      : (remaining[0] ? remaining[0].accountId : null);
-
+    let displacedSessionId: string | null = null;
     const updated = await db.transaction(async (tx) => {
+      const current = await this.lockDevice(tx, deviceId);
+      if (!current) return null;
+      const entry = current.accounts.find((a) => a.accountId === accountId);
+      if (!entry) return null;
+      displacedSessionId = entry.sessionId !== preserveSessionId ? entry.sessionId : null;
+
+      const remaining = current.accounts.filter((a) => a.accountId !== accountId);
+      const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
+      const nextActive = activeStillPresent
+        ? current.activeAccountId
+        : (remaining[0] ? remaining[0].accountId : null);
+
       await tx
         .delete(deviceAccountContexts)
         .where(
@@ -1701,13 +1747,16 @@ class DeviceSessionService {
         .set({
           ...(await this.resolveActiveFields(tx, current.id, nextActive)),
           revision: sql`${deviceSessions.revision} + 1`,
+          ...(current.backgroundSecretAccountId === accountId ? this.clearedBackgroundCredentialFields() : {}),
         })
         .where(eq(deviceSessions.id, current.id));
       await this.revokeHolderCredentialsIfSignedOut(tx, current.id);
       return this.load(tx, deviceId);
     });
-    if (!updated) {
-      throw new Error(`device_sessions row for "${deviceId}" vanished during detachMigratedAccount`);
+    if (!updated) return null;
+    if (displacedSessionId) {
+      try { await sessionService.deactivateSession(displacedSessionId); }
+      catch (error) { logger.warn('deviceSession.detachMigratedAccount: deactivate failed', { sessionId: displacedSessionId, error }); }
     }
     return projectState(updated);
   }
@@ -1930,24 +1979,35 @@ class DeviceSessionService {
     deviceId: string,
     accountId: string,
   ): Promise<{ deviceId: string; secret: string; accountId: string; expiresAt: string } | null> {
-    const state = await this.getState(deviceId);
-    const token = await this.resolveTokenForAccount(state, accountId);
+    await this.getState(deviceId);
+    const current = await this.load(getDb(), deviceId);
+    const targets = current?.contexts.filter((context) => context.accountId === accountId) ?? [];
+    if (!current || targets.length !== 1 || !targets[0].sessionId) return null;
+    const target = targets[0];
+    const token = await this.resolveTokenForAccount(projectState(current), accountId);
     if (!token) return null;
 
     const rawSecret = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
     const secretHash = sha256Hex(rawSecret);
     const expiresAt = new Date(Date.now() + BACKGROUND_CREDENTIAL_TTL_MS);
 
-    const updated = await getDb()
-      .update(deviceSessions)
-      .set({
+    // Mint outside the row lock: session writes can take a device FK lock.
+    // Persist only if the exact validated context/revision survives the await.
+    const issued = await getDb().transaction(async (tx) => {
+      await tx.select({ id: deviceSessions.id }).from(deviceSessions)
+        .where(eq(deviceSessions.id, current.id)).for('update');
+      const latest = await this.load(tx, deviceId);
+      const matching = latest?.contexts.filter((context) => context.accountId === accountId) ?? [];
+      if (!latest || latest.revision !== current.revision || matching.length !== 1
+        || matching[0].contextId !== target.contextId || matching[0].sessionId !== target.sessionId) return false;
+      await tx.update(deviceSessions).set({
         backgroundSecretHash: secretHash,
         backgroundSecretAccountId: accountId,
         backgroundSecretExpiresAt: expiresAt,
-      })
-      .where(eq(deviceSessions.deviceId, deviceId))
-      .returning({ id: deviceSessions.id });
-    if (updated.length === 0) return null;
+      }).where(eq(deviceSessions.id, latest.id));
+      return true;
+    });
+    if (!issued) return null;
 
     return {
       deviceId,
@@ -1995,6 +2055,24 @@ class DeviceSessionService {
       return { ok: false, reason: 'account_not_on_device' };
     }
 
+    // Retirement or reprovisioning may happen while the live minter awaits.
+    // Serialize the final proof/context comparison with those writes.
+    const accepted = await getDb().transaction(async (tx) => {
+      await tx.select({ id: deviceSessions.id }).from(deviceSessions)
+        .where(eq(deviceSessions.id, doc.id)).for('update');
+      const latest = await this.load(tx, deviceId);
+      const original = doc.contexts.filter((context) => context.accountId === boundAccountId);
+      const matching = latest?.contexts.filter((context) => context.accountId === boundAccountId) ?? [];
+      return latest !== null && typeof latest.backgroundSecretHash === 'string'
+        && timingSafeStringEqual(hash, latest.backgroundSecretHash)
+        && latest.backgroundSecretAccountId === boundAccountId
+        && latest.backgroundSecretExpiresAt instanceof Date
+        && latest.backgroundSecretExpiresAt.getTime() > Date.now()
+        && original.length === 1 && matching.length === 1
+        && matching[0].contextId === original[0].contextId
+        && matching[0].sessionId === original[0].sessionId;
+    });
+    if (!accepted) return { ok: false, reason: 'background_credential_invalid' };
     return {
       ok: true,
       accessToken: token.accessToken,

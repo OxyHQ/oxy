@@ -1,0 +1,22 @@
+READY
+"clicked"
+"clicked"
+"clicked"
+"filled"
+"clicked"
+"clicked"
+"filled"
+"clicked"
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+"clicked"
+{"console":"[vite] Failed to reload /app/globals.css. This could be due to syntax errors or importing non-existent modules. (see errors above)"}
+"clicked"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject"}]
+"clicked"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"Choose an account\nto continue to I11 disposable a 14560d051a\nbrowser14560d051a\n@browser14560d051a\nB\ngroup14560d051a\nOperated by browser14560d051a\nG\nUse another account\nBy continuing, you agree to our Terms of Service and Privacy Policy.\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"clicked"
+{"console":"[vite] Failed to reload /app/globals.css. This could be due to syntax errors or importing non-existent modules. (see errors above)"}
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nConsent: failed"}]
+"clicked"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}]
+[]

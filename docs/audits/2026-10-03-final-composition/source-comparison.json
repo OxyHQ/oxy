@@ -1,0 +1,200 @@
+{
+  "baseMain": "67c09e853db308d102624a2ffd40db19959344f4",
+  "priorComposite": "b4c4ae1d9da4f429a340ff9474776c0a7c17dc93",
+  "current": "1e719545f290cfb6308c2648cabc10d311136716",
+  "method": "git ls-tree compares immutable blob IDs; equal object IDs prove equal file bytes",
+  "packageFilesIdentical": 3950,
+  "packageFilesChanged": [
+    {
+      "path": "packages/api/openapi.json",
+      "priorBlob": "5cc0c6e8c093c68513d2fea2da4e850c070f56cb",
+      "currentBlob": "b23cc5b7e696d0aa8706b91c8971be7f848d3217"
+    },
+    {
+      "path": "packages/api/scripts/mercaria-ephemeral-credential.ts",
+      "priorBlob": null,
+      "currentBlob": "ff26a22e9f9b4ae05096d45c144b91378a355cdb"
+    },
+    {
+      "path": "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts",
+      "priorBlob": "b8ab0a0a981f15846593b5061b19335eac81a3f4",
+      "currentBlob": "7127880babfdbcc87e7a3d95fe278f9a0c77e24c"
+    },
+    {
+      "path": "packages/api/src/operations/mercariaEphemeralCredential.ts",
+      "priorBlob": null,
+      "currentBlob": "b1e8b7d32ce67f9411f9a830f010529f75f6ca10"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/serviceTokenCredentials.test.ts",
+      "priorBlob": "648fd4ca0e3d064a1d073dd3d19324727083dda6",
+      "currentBlob": "f60d4cc3d9362447688527e1c92094b3531a9a76"
+    },
+    {
+      "path": "packages/api/src/routes/applications.ts",
+      "priorBlob": "a696016b132d0e1a205aa7adc14842c8f431af47",
+      "currentBlob": "9db3e062806e3c57698bccfeb8aa01a6815aabeb"
+    },
+    {
+      "path": "packages/api/src/routes/auth.ts",
+      "priorBlob": "d1023b22a6156f08304a1ed5d3499fd3ea14f20d",
+      "currentBlob": "96d55e20924f2aee2c51350a12ce804613131500"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mercariaEphemeralCredential.db.test.ts",
+      "priorBlob": null,
+      "currentBlob": "b043ec602c85b536e237be24fafbf0f1f7e984dc"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/workloadIdentity.db.test.ts",
+      "priorBlob": "c7faf3c8e6d369fc7160809a98eb24322dee24ec",
+      "currentBlob": "c89346378d8e74217a16587fef6294ee3eebb38f"
+    },
+    {
+      "path": "packages/api/src/services/mercariaEphemeralCredential.contract.ts",
+      "priorBlob": null,
+      "currentBlob": "61eb0ebda797c0b91a25510ff05a3bb3be848b29"
+    },
+    {
+      "path": "packages/api/src/services/mercariaEphemeralCredential.service.ts",
+      "priorBlob": null,
+      "currentBlob": "d003ff70bb12dffc2341d9cda48b501b00bcedb5"
+    },
+    {
+      "path": "packages/api/src/utils/__tests__/privateOperatorFiles.test.ts",
+      "priorBlob": null,
+      "currentBlob": "d10d547709939b644cb9aec3ed6e8235b5d2d998"
+    },
+    {
+      "path": "packages/api/src/utils/credentialMaterial.ts",
+      "priorBlob": null,
+      "currentBlob": "3510ce4f9835dbcabeddb2def3822a776c1bb028"
+    },
+    {
+      "path": "packages/api/src/utils/privateOperatorFiles.ts",
+      "priorBlob": null,
+      "currentBlob": "a5eb30af43447b76512f51bdff6b748834dc016b"
+    }
+  ],
+  "upstreamChecks": [
+    {
+      "path": "packages/api/scripts/mercaria-ephemeral-credential.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "ff26a22e9f9b4ae05096d45c144b91378a355cdb",
+      "compositeBlob": "ff26a22e9f9b4ae05096d45c144b91378a355cdb",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/operations/mercariaEphemeralCredential.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "b1e8b7d32ce67f9411f9a830f010529f75f6ca10",
+      "compositeBlob": "b1e8b7d32ce67f9411f9a830f010529f75f6ca10",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/serviceTokenCredentials.test.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "bb82508dd6d7e1af7793e341ad3886d3001fb47e",
+      "compositeBlob": "f60d4cc3d9362447688527e1c92094b3531a9a76",
+      "identical": false
+    },
+    {
+      "path": "packages/api/src/routes/applications.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "9db3e062806e3c57698bccfeb8aa01a6815aabeb",
+      "compositeBlob": "9db3e062806e3c57698bccfeb8aa01a6815aabeb",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mercariaEphemeralCredential.db.test.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "b043ec602c85b536e237be24fafbf0f1f7e984dc",
+      "compositeBlob": "b043ec602c85b536e237be24fafbf0f1f7e984dc",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/services/mercariaEphemeralCredential.contract.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "61eb0ebda797c0b91a25510ff05a3bb3be848b29",
+      "compositeBlob": "61eb0ebda797c0b91a25510ff05a3bb3be848b29",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/services/mercariaEphemeralCredential.service.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "d003ff70bb12dffc2341d9cda48b501b00bcedb5",
+      "compositeBlob": "d003ff70bb12dffc2341d9cda48b501b00bcedb5",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/utils/__tests__/privateOperatorFiles.test.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "d10d547709939b644cb9aec3ed6e8235b5d2d998",
+      "compositeBlob": "d10d547709939b644cb9aec3ed6e8235b5d2d998",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/utils/credentialMaterial.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "3510ce4f9835dbcabeddb2def3822a776c1bb028",
+      "compositeBlob": "3510ce4f9835dbcabeddb2def3822a776c1bb028",
+      "identical": true
+    },
+    {
+      "path": "packages/api/src/utils/privateOperatorFiles.ts",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "a5eb30af43447b76512f51bdff6b748834dc016b",
+      "compositeBlob": "a5eb30af43447b76512f51bdff6b748834dc016b",
+      "identical": true
+    },
+    {
+      "path": "scripts/auth/mercaria-ephemeral-ecs.py",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "0f649f134d2904b352c91f5242bf745dec82b7ff",
+      "compositeBlob": "0f649f134d2904b352c91f5242bf745dec82b7ff",
+      "identical": true
+    },
+    {
+      "path": "scripts/auth/test-mercaria-ephemeral-ecs.py",
+      "acceptedSource": "4bec40ee8",
+      "acceptedBlob": "095682b7988f1480b8066d0b4b17680873be92fe",
+      "compositeBlob": "095682b7988f1480b8066d0b4b17680873be92fe",
+      "identical": true
+    },
+    {
+      "path": "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts",
+      "acceptedSource": "f77675a86",
+      "acceptedBlob": "7127880babfdbcc87e7a3d95fe278f9a0c77e24c",
+      "compositeBlob": "7127880babfdbcc87e7a3d95fe278f9a0c77e24c",
+      "identical": true
+    },
+    {
+      "path": "scripts/billing/stripe-oxy-sandbox.py",
+      "acceptedSource": "f77675a86",
+      "acceptedBlob": "9720d9b189175fee4b9432f332ed08a4ce729a88",
+      "compositeBlob": "9720d9b189175fee4b9432f332ed08a4ce729a88",
+      "identical": true
+    },
+    {
+      "path": "scripts/billing/test-stripe-zero-receiver.mjs",
+      "acceptedSource": "f77675a86",
+      "acceptedBlob": "739a79595823e5b18ab2a63044c1464844445a61",
+      "compositeBlob": "739a79595823e5b18ab2a63044c1464844445a61",
+      "identical": true
+    },
+    {
+      "path": "scripts/billing/test-stripe-zero-receiver.py",
+      "acceptedSource": "f77675a86",
+      "acceptedBlob": "0caacc8d0e8a264d42160cc06b97e5c19fbcb0e5",
+      "compositeBlob": "0caacc8d0e8a264d42160cc06b97e5c19fbcb0e5",
+      "identical": true
+    },
+    {
+      "path": "scripts/billing/test-stripe-zero-isolation.py",
+      "acceptedSource": "f77675a86",
+      "acceptedBlob": "8a226da5516a1ad13fe8fec591e5e5d255b2cda1",
+      "compositeBlob": "8a226da5516a1ad13fe8fec591e5e5d255b2cda1",
+      "identical": true
+    }
+  ]
+}

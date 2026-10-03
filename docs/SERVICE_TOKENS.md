@@ -98,7 +98,7 @@ app.get('/data', (req, res) => {
   "iss": "oxy-auth",
   "aud": "oxy-api",
   "iat": 1707235200,
-  "exp": 1707238800
+  "exp": 1707235500
 }
 ```
 
@@ -111,8 +111,10 @@ verifiers — the API's `verifyServiceToken` answers `not_service`, and
 - `credentialId` attributes the token to the specific `ApplicationCredential` that minted it (useful for post-rotation revocation).
 - `ownerAccountId` is `applications.owner_account_id`: the Oxy account that owns the application and is **financially responsible** for what it does (ADR 0007). It is resolved server-side from the presented credential at mint time and is never accepted from the request; it is read live, so an application transferred to another account mints the new owner from the next token onward.
 - `environment` mirrors the minting `ApplicationCredential.environment`, for test/live isolation.
-- `tier` says which side of the ecosystem boundary the application is on: `internal` for one of Oxy's own applications (`isTrustedApplication` — every workload-identity token), `external` for anything else (today only the payments-only exception reaches the mint). App to app, an internal caller is trusted outright; scopes, consent and quotas are the external lane. What a USER may do — their accounts, their plan, their limits — is decided separately and applies to both. A token with no `tier` (minted before it existed) reads as `external`. Introspection (`/auth/resources/introspect`) returns the same field.
-- `scopes` are the EFFECTIVE scopes: the credential's requested scopes **intersected** with the application's granted scopes (`intersectScopes`, the single authority — nothing intersects a second time downstream). A credential with no explicit scopes inherits the app's full set. The intersection runs at MINT time, so a scope the application has since lost is gone from the next token even though the credential row still names it.
+- `tier` classifies the registered application. Internal applications obey the same scope ceilings and offline delegation check as external applications; classification alone grants no user authority.
+- `scopes` carry the mint-time credential ∩ application ceiling. An empty credential scope list inherits the existing application ceiling. A delegated effect additionally verifies the current application and credential/workload ceiling in the authority snapshot; `acting-as:offline` must survive this live intersection.
+- `iat` and `exp` are required integer seconds with a positive lifetime of at most 300 seconds. Both JWT verifiers reject older hour-long tokens; there is no grace that broadens that ceiling. The common issuer produces 300-second tokens.
+
 
 There is deliberately **no user claim**. A delegated end user travels in the
 `X-Oxy-User-Id` header, is authorised per request against an explicit acting-as
@@ -151,8 +153,8 @@ therefore treats it as a request to be authorised, not as an identity: on every
 request carrying it, the middleware calls
 
 ```
-GET /internal/service-acting-as/verify?appId=<app>&userId=<user>
-→ { "authorized": boolean, "scopes": string[] }
+GET /internal/service-acting-as/verify?appId=<app>&userId=<user>&credentialId=<verified credential>&ownerAccountId=<verified owner>&environment=<verified environment>
+→ { "authorized": boolean, "scopes": string[], "epoch": "<decimal bigint>" }
 ```
 
 and refuses with `403 SERVICE_ACTING_AS_UNAUTHORIZED` unless the answer is yes.
@@ -174,8 +176,8 @@ Resolution order, and the order is the security property:
 | | condition | answer |
 |---|---|---|
 | 1 | the user revoked this application | no |
-| 2 | the application is missing or not `active` | no |
-| 3 | the user granted it `acting-as:offline` | yes, with the **grant's** scopes |
+| 2 | subject/owner is inactive or fenced, application inactive, or the credential/workload binding is unusable/mismatched | no |
+| 3 | the grant ∩ live application ∩ credential/workload ceiling contains `acting-as:offline` | yes, with that live intersection |
 | 4 | otherwise | no |
 
 Revocation is checked **first**, so it wins over a stale or concurrently
@@ -188,7 +190,7 @@ This bounds a leaked first-party credential to users who explicitly opted in.
 
 `DELETE /auth/grants/:applicationId` is the one user action. It deletes the
 `app_grants` row if there is one **and** writes a marker to
-`service_acting_as_revocations`. The marker makes an explicit refusal win even
+`service_acting_as_revocations`, and increments the durable user/application epoch in the same transaction. Consent increments that same epoch with grant upsert, explicit marker clear and code insertion; failures roll all of them back. The marker makes an explicit refusal win even
 if a stale or racing writer recreates the grant; absence of a grant always means
 unauthorized.
 
@@ -220,7 +222,7 @@ agreed to.
 | | source | says |
 |---|---|---|
 | `req.serviceApp.scopes` | credential ∩ application ceiling, at mint | what the PLATFORM allows this app to do |
-| `req.serviceActingAs.scopes` | the explicit grant row | what the USER allows it to do |
+| `req.serviceActingAs.scopes` | grant ∩ live application ∩ live credential/workload ceiling, one repeatable-read snapshot with epoch | currently delegated authority |
 
 `oxy.middleware.requireScope(s)` requires `s` in **both** for a delegated request, and in
 `serviceApp.scopes` alone for a request acting as itself. The intersection is
@@ -228,8 +230,7 @@ the point: only the app scope would let an app do to a user what that user never
 consented to; only the grant would let a user hand an app authority staff never
 gave it.
 
-There is no automatic path. The verify endpoint returns the grant's scopes, so
-the user's decision always narrows the token.
+There is no automatic path, including for internal applications. The user's decision and current ceilings always narrow the token.
 
 ### Who may call the verify endpoint
 
@@ -279,3 +280,50 @@ the endpoint is not an oracle for which users or applications exist.
 | `packages/api/src/utils/credentialUsability.ts` | `isCredentialUsable()` (active or in rotation grace) |
 | `packages/core/src/server/middleware.ts` | `middleware.auth()` + `middleware.service()` |
 | `packages/core/src/server/OxyServer.ts` | `OxyServer`: `serviceToken()`, `serviceRequest()`, `configureServiceAuth()`, `verifyActingAs()` |
+
+### Approved freshness and rollout boundary (I03, 2026-10-03)
+
+`OxyServer.verifyActingAs` defaults to a fresh, non-retrying authority request;
+all header-based delegated middleware effects use this default with the verified
+credential/owner/environment tuple. Only explicit `{ cache: true }` read callers
+reuse a positive answer for at most 60 seconds or an authoritative denial for at
+most 10 seconds, measured from lookup start. Errors and malformed answers are
+never cached. A request taking five seconds or more cannot authorize. Durable
+pair epochs and local request order reject delayed responses after a newer deny,
+including credential/application/owner revocations that leave the epoch unchanged.
+The five-second deadline is not a measurement of production revocation latency.
+
+The authority reader uses one repeatable-read snapshot for epoch, grant,
+revocation, accounts, application and credential/workload binding. A request
+already reading before a revocation can complete with that older coherent
+snapshot within its deadline; a subsequent fresh request sees the committed deny.
+The local test records revoke-commit → fresh denials in two independent SDK
+processes. It does not establish production p99 or every receiver's adoption.
+
+`POST /internal/accounts/:id/service-switch` passes the credential, owner and
+environment already verified by the service-token middleware to that same live
+reader before creating or reusing a delegated session. A still-valid signed JWT
+does not preserve permission after credential revocation or removal of
+`acting-as:offline` from its live ceiling; an owner or environment mismatch also
+denies the mint. Existing operator consent and account membership remain separate
+requirements. The HTTP/JWT/PostgreSQL regression covers those four denials and
+the existing successful managed-account mints; it is local acceptance, not a
+measurement of production freshness.
+
+Deploy the common issuer and verifiers, wait for the new API revision to be
+steady with all older API tasks retired, then refresh each verified live caller
+that retains an older hour token. The new SDK discards a cached token whose
+unverified lifetime metadata exceeds 300 seconds and remints; that cache check
+confers no authority. Published older SDKs require existing explicit invalidation
+or a coordinated restart of the exact workload after new issuance is available.
+Do not treat API-first deployment alone as recovery for those older caches.
+During a rolling API deployment, an older task can still issue an hour token
+that the newer verifier rejects; record this possible failure window and exercise
+the existing rollout/canary mechanism. Do not claim zero downtime or weaken TTL.
+
+Caller refresh and receiver adoption are separate gates. Restarting a caller
+with old core resolves its token cache but leaves any old receiving middleware's
+internal-tier bypass in place. Extend the effect guarantee to a concrete receiver
+only after it adopts the published core containing these checks and verifies its
+live domain authorization. Preserve image/shape readback and rollback per workload;
+no blanket restart or claim of complete ecosystem coverage follows from this source.

@@ -1,0 +1,92 @@
+$ tsc --noEmit
+src/HttpService.ts(21,31): error TS2307: Cannot find module '@oxy.so/protocol/random' or its corresponding type declarations.
+src/HttpService.ts(1544,85): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+src/HttpService.ts(1546,85): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+src/api/accounts.ts(21,121): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/accounts.ts(23,71): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/accounts.ts(53,53): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/accounts.ts(63,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/agency.ts(19,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/assets.ts(16,31): error TS2307: Cannot find module '@oxy.so/protocol/random' or its corresponding type declarations.
+src/api/auth.ts(19,66): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/auth.ts(47,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/billing.ts(14,70): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/billing.ts(21,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/civic.ts(33,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/civic.ts(170,14): error TS2353: Object literal may only specify known properties, and 'card' does not exist in type 'CivicCardResult'.
+src/api/devices.ts(28,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/follows.ts(21,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/identity.ts(25,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/identity.ts(43,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/identity.ts(412,12): error TS7006: Parameter 'vm' implicitly has an 'any' type.
+src/api/linkedAccounts.ts(25,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/reputation.ts(18,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/reputation.ts(19,41): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/session.ts(9,53): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/users.ts(8,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/api/users.ts(9,45): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/boot/sessionColdBoot.ts(60,41): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/civic/payloads.ts(12,52): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/crypto/ecdh.ts(18,45): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+src/crypto/identityDerivations.ts(21,8): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+src/crypto/identityMarker.ts(30,34): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/identityProof.ts(12,29): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/identityProof.ts(19,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/crypto/internal.ts(20,87): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/keyManager.ts(20,8): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/keyManager.ts(30,8): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+src/crypto/polyfill.ts(38,34): error TS2307: Cannot find module '@oxy.so/protocol/random' or its corresponding type declarations.
+src/crypto/registrationPow.ts(17,8): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/signatureService.ts(11,43): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/crypto/signatureService.ts(21,8): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/i18n/accountCategoryLabels.ts(1,40): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/i18n/reputationCategoryLabels.ts(1,41): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/i18n/trustTierLabels.ts(1,32): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/inference/OxyInferenceClient.ts(1,40): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/inference/OxyInferenceClient.ts(54,128): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/inference/OxyInferenceClient.ts(77,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/inference/OxyInferenceClient.ts(84,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/models/interfaces.ts(9,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/models/session.ts(1,39): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/server/OxyServer.ts(40,32): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/server/agentAccount.ts(2,58): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/server/agentAccount.ts(3,45): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+src/server/auth.ts(3,40): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/server/capabilityTicket.ts(11,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/server/capabilityTicket.ts(218,48): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/server/liveCapabilityTicket.ts(1,100): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/server/middleware.ts(10,65): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/server/middleware.ts(14,32): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/server/namespaces.ts(7,442): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/server/traffic.ts(2,106): error TS2307: Cannot find module '@oxy.so/telemetry/socket' or its corresponding type declarations.
+src/server/traffic.ts(12,174): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+src/server/traffic.ts(85,44): error TS7006: Parameter 'events' implicitly has an 'any' type.
+src/server/trafficNodeHttp.ts(5,100): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+src/server/userInvalidation.ts(60,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/session/SessionClient.ts(13,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/session/SessionClient.ts(165,62): error TS2531: Object is possibly 'null'.
+src/session/SessionClient.ts(471,36): error TS7006: Parameter 'issue' implicitly has an 'any' type.
+src/session/SessionClient.ts(481,66): error TS2531: Object is possibly 'null'.
+src/session/SessionClient.ts(826,66): error TS2531: Object is possibly 'null'.
+src/session/accountDelegationAccess.ts(17,46): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/session/accountDialogController.ts(53,38): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/session/accountDialogController.ts(893,49): error TS7006: Parameter 'principal' implicitly has an 'any' type.
+src/session/accountDialogController.ts(894,32): error TS7006: Parameter 'context' implicitly has an 'any' type.
+src/session/accountSwitchTargets.ts(19,44): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/session/deviceDirectory.ts(8,8): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/session/deviceDirectory.ts(188,36): error TS7006: Parameter 'principal' implicitly has an 'any' type.
+src/session/deviceDirectory.ts(193,39): error TS7006: Parameter 'context' implicitly has an 'any' type.
+src/session/deviceDirectory.ts(196,32): error TS7006: Parameter 'context' implicitly has an 'any' type.
+src/session/projectSessionState.ts(1,41): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/session/projectSessionState.ts(67,30): error TS7006: Parameter 'account' implicitly has an 'any' type.
+src/session/projectSessionState.ts(100,45): error TS7006: Parameter 'account' implicitly has an 'any' type.
+src/session/projectSessionState.ts(136,30): error TS7006: Parameter 'account' implicitly has an 'any' type.
+src/session/refresh.ts(24,66): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/session/refresh.ts(247,45): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/utils/activityId.ts(2,44): error TS2307: Cannot find module '@oxy.so/telemetry/browser' or its corresponding type declarations.
+src/utils/deviceManager.ts(1,34): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/utils/edgeRegion.ts(1,45): error TS2307: Cannot find module '@oxy.so/telemetry/browser' or its corresponding type declarations.
+src/utils/oauthPkce.ts(20,81): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/utils/officialOrigins.ts(1,34): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/utils/officialOrigins.ts(2,34): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.
+src/utils/validationUtils.ts(12,32): error TS2307: Cannot find module '@oxy.so/contracts' or its corresponding type declarations.

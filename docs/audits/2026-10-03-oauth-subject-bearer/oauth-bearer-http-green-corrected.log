@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/ui/oauth/__tests__/oauthBearerCommit.http.test.ts src/ui/oauth/__tests__/completeOAuthCode.test.ts src/ui/oauth/__tests__/explicitOAuthConsent.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       25 passed, 25 total
+Snapshots:   0 total
+Time:        0.663 s, estimated 1 s
+Ran all test suites within paths "src/ui/oauth/__tests__/oauthBearerCommit.http.test.ts", "src/ui/oauth/__tests__/completeOAuthCode.test.ts", "src/ui/oauth/__tests__/explicitOAuthConsent.test.ts".

@@ -1,0 +1,33 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/authority-composite-pg1519-7bbgrv0p/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/authority-composite-pg1519-7bbgrv0p/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"command": ["bun", "--no-env-file", "run", "db:migrate"], "exitCode": 0, "log": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/authority-composite-pg1519-7bbgrv0p/migration-fresh.txt"}
+{"command": ["bun", "--no-env-file", "run", "db:migrate"], "exitCode": 0, "log": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/authority-composite-pg1519-7bbgrv0p/migration-repeat.txt"}
+{"newLocalServerPid": 3807985, "dataDirectory": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/authority-composite-pg1519-7bbgrv0p/data", "database": "oxy_rehearsal_1519_c90382ebbb023734", "command": ["bun", "--no-env-file", "run", "test", "--runInBand", "--runTestsByPath", "src/routes/__tests__/browserBridge.test.ts", "src/services/__tests__/foregroundCapabilities.db.test.ts", "src/services/__tests__/capabilityAuthority.db.test.ts", "src/services/__tests__/capabilityAuthority.policy.test.ts", "src/services/__tests__/workloadIdentity.db.test.ts", "src/db/schema/__tests__/foreignKeys.test.ts", "src/db/schema/__tests__/schemaInvariants.test.ts", "src/db/schema/__tests__/agencyPayloadBounds.test.ts"], "exitCode": 0, "log": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/.integration-evidence/authority-composite-pg1519-7bbgrv0p/composite-api.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+

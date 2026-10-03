@@ -1,0 +1,57 @@
+[
+  {
+    "path": "packages/core/src/session/refresh.ts",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "packages/core/src/session/__tests__/refresh.contextCas.test.ts",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "packages/core/src/HttpService.ts",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "packages/core/src/session/SessionClient.ts",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "packages/core/src/session/sessionClientHost.ts",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "packages/core/src/session/authStateStore.ts",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "packages/api/src/routes/__tests__/nativeHolderLogoutRecovery.test.ts",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "scripts/rehearsal/test-native-holder-recovery-1519.py",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "packages/core/package.json",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "packages/services/package.json",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  },
+  {
+    "path": "bun.lock",
+    "upstream": "27c9ed55b",
+    "byteIdentical": true
+  }
+]

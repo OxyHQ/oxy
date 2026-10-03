@@ -1,0 +1,1 @@
+Migration deploy phases are sound: all 136 migration(s) declare a phase (118 pre, 18 post), deploy-aws.yml applies them before its rollout, and its post-rollout grep matches the marker syntax the migrator reads.

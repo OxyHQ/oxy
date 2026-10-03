@@ -37,6 +37,10 @@ jest.mock('../../services/account.service', () => ({
   },
 }));
 
+// This suite stubs the authenticated session boundary; agentAutonomousFlow covers
+// the real source-session/key reads, mint, switch and revocation over HTTP/SQL.
+jest.mock('../../services/agentKeyAuthority.service', () => ({ readSessionAgentBinding: jest.fn(async () => undefined) }));
+
 const mockCreateSession = jest.fn();
 const mockGetSession = jest.fn();
 jest.mock('../../services/session.service', () => ({

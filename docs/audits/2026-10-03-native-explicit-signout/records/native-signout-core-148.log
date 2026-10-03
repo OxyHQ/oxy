@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand src/boot/__tests__/nativeExplicitSignOut.test.ts src/session/__tests__/authStateStore.test.ts src/boot/__tests__/sessionColdBoot.test.ts src/boot/__tests__/sessionColdBoot.identity.test.ts src/session/__tests__/SessionClient.rest.test.ts src/session/__tests__/SessionClient.directory.test.ts src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts src/session/__tests__/refresh.test.ts src/session/__tests__/refresh.identityPin.test.ts
+
+Test Suites: 9 passed, 9 total
+Tests:       148 passed, 148 total
+Snapshots:   0 total
+Time:        0.76 s, estimated 1 s
+Ran all test suites matching src/boot/__tests__/nativeExplicitSignOut.test.ts|src/session/__tests__/authStateStore.test.ts|src/boot/__tests__/sessionColdBoot.test.ts|src/boot/__tests__/sessionColdBoot.identity.test.ts|src/session/__tests__/SessionClient.rest.test.ts|src/session/__tests__/SessionClient.directory.test.ts|src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts|src/session/__tests__/refresh.test.ts|src/session/__tests__/refresh.identityPin.test.ts.

@@ -1,0 +1,8 @@
+{
+  "ref": "main",
+  "inputs": {
+    "expected_live_task_definition_arn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:691",
+    "expected_live_image_digest": "sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+    "reason": "1519/I09 approved pilot exact deployment preflight; no inference or database writes"
+  }
+}

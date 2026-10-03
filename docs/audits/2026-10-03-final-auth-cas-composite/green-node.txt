@@ -1,0 +1,3 @@
+{"level":30,"time":1791038588302,"pid":3945192,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791038588870,"pid":3945192,"hostname":"SuperPC","sessionId":"5e9d1394","msg":"[SessionService] Deactivated session"}
+{"compiledNode":"v24.21.0","environmentKeys":["DATABASE_URL","NODE_ENV","OXY_API_URL"],"signingKeys":false,"redisConfigured":false,"liveQuiescence":false,"providerRequests":0,"readOnlyCliChecks":1,"canonicalExecutorChecks":1,"productionReady":false}

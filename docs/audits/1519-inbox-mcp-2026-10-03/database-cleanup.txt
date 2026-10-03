@@ -1,0 +1,7 @@
+Server: PostgreSQL 17.11, existing I06 process, 127.0.0.1:5549
+Sanitized maintenance URL: postgres://oxy@127.0.0.1:5549/postgres (local test role, no password)
+Data directory: /tmp/oxy-i06-pg-20261002; server intentionally remains running, not owned by this subtask.
+Fixture database: oxy_test_d747136097335e1f
+After Jest globalTeardown: SELECT count(*) FROM pg_database WHERE datname = 'oxy_test_d747136097335e1f';
+Result: 0
+No unrelated databases were changed or dropped.

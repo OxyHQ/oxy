@@ -1,0 +1,31 @@
+{
+  "liveRuntimeSource": "67c09e853db308d102624a2ffd40db19959344f4",
+  "liveImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:4512fc8d29abedf67caa2a77194e6fa351c38ebe2201e57bf320276e105da38a",
+  "sourceHashes": {
+    "packages/api/scripts/bind-workload-identity.ts": "75efbdd0758313b0926ca71ce400b6138270f1b4247171f27a723a6cc77224fa",
+    "packages/api/src/services/workloadIdentityBinding.service.ts": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb",
+    "packages/api/src/services/workloadIdentity.service.ts": "b2170ada295bb60476aefd38c7be01457348027b6996b34123c58dde553923ad"
+  },
+  "records": {
+    "root-final-review.json": "ba5b5a940906f32c65ccbff520c4bd788a5c08cd08e3cac054756264d4dd109f",
+    "receipt.json": "b4aeee31648f3af1412f6e4c03b8b46fe2cd148c86b2755a314764b2fa1f2480",
+    "cleanup.json": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+  },
+  "operation": "exact existing Alia workload binding gains only acting-as:offline; four prior scopes preserved",
+  "observedAt": "2026-10-03 15:44:16.842783+00",
+  "preservation": {
+    "grantsUnchanged": true,
+    "applicationAndOwnerUnchanged": true,
+    "otherBindingsUnchanged": true
+  },
+  "cleanup": {
+    "taskStopped": true,
+    "definitionInactive": true,
+    "failures": []
+  },
+  "limitations": [
+    "This is the single Alia workload ceiling, not a new human consent/grant",
+    "Does not prove fleet receiver adoption, live revocation latency or final strict rollout",
+    "Canonical writer plus serialized reviewed operation; no external database CAS was claimed"
+  ]
+}

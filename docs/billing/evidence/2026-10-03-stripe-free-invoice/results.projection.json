@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "d060dc695ff000a3cf54bc7a3b8da69e8e95fb98",
+  "planSha256": "9518ef4b3d412f1c8d4d32bd9e0a1311213f25455957a5b02cbdf540736f6b41",
+  "scenario": "zero_invoice",
+  "syntheticPaidMinorUnits": 0,
+  "providerObjects": 7,
+  "mutableCleanups": 7,
+  "cleanupFailures": 0,
+  "unresolvedCreationIntents": 0,
+  "originalCompletedCheckpoints": 0,
+  "originalPrimaryError": {
+    "phase": "undeclaredZeroInvoice",
+    "name": "AssertionError",
+    "reason": "unclassified",
+    "sourceLocation": "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts:468:10"
+  },
+  "terminal": {
+    "exitCode": 1,
+    "newLocalServerPid": 3618358,
+    "stopped": true,
+    "lastManagedProcessPid": 3619551,
+    "lastManagedProcessStopped": true,
+    "cleanupRequiresManifestReview": true
+  },
+  "localRecovery": {
+    "sameAuthenticatedOwnEvent": true,
+    "sameInvoiceCustomerPayerBindings": true,
+    "invalidPaidCatalogueStatus": 500,
+    "validNoPaidMappingStatus": 200,
+    "replayStatus": 200,
+    "receiptAttempts": 3,
+    "outcome": "not_granted",
+    "credits": 0,
+    "accessGrants": 0,
+    "balance": 0,
+    "providerMutations": 0,
+    "providerSignedDelivery": false
+  },
+  "originalRemoteHttpStatus": "not captured; original only asserted status !=200",
+  "requestDefect": "runner registered amount0 in a paid-price binding requiring positive amount; original product schema is preserved",
+  "initialLocalHarnessFailure": {
+    "cause": "fixture queried nonexistent detail column instead of outcome_detail",
+    "pgStopped": true,
+    "noProviderMutations": true
+  }
+}

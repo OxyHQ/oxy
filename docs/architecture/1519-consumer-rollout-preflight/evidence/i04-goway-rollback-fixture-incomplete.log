@@ -1,0 +1,93 @@
+$ jest --runInBand src/scripts/__tests__/gowaySeedRollback.test.ts
+FAIL src/scripts/__tests__/gowaySeedRollback.test.ts
+  ✕ executes the exact SQL template atomically and retains both history rows (15 ms)
+  ✕ rejects a changed credential without suspending the application (1 ms)
+  ✕ rejects an application changed after the receipt without revoking the credential (1 ms)
+  ✕ rejects additional credentials even when the original receipt versions match (1 ms)
+
+  ● executes the exact SQL template atomically and retains both history rows
+
+    PostgresError: null value in column "color" of relation "users" violates not-null constraint
+
+      32 | beforeEach(async () => {
+      33 |   await sql`delete from applications where id=${appId}`;
+    > 34 |   await sql`insert into users (id) values (${ownerId}) on conflict do nothing`;
+         |            ^
+      35 |   await sql`insert into applications (id,name,website_url,type,status,is_official,is_internal,owner_account_id,created_by_user_id,redirect_uris,scopes)
+      36 |     values (${appId},'GoWay','https://goway.to','first_party','active',true,false,${ownerId},${ownerId},ARRAY['https://goway.to'],ARRAY['user:read'])`;
+      37 |   await sql`insert into application_credentials (id,application_id,name,type,environment,status,public_key,created_by_user_id,scopes)
+
+      at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+      at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+      at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+      at cachedError (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:170:23)
+      at new Query (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:36:24)
+      at sql (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/index.js:112:11)
+      at src/scripts/__tests__/gowaySeedRollback.test.ts:34:12
+
+  ● rejects a changed credential without suspending the application
+
+    PostgresError: null value in column "color" of relation "users" violates not-null constraint
+
+      32 | beforeEach(async () => {
+      33 |   await sql`delete from applications where id=${appId}`;
+    > 34 |   await sql`insert into users (id) values (${ownerId}) on conflict do nothing`;
+         |            ^
+      35 |   await sql`insert into applications (id,name,website_url,type,status,is_official,is_internal,owner_account_id,created_by_user_id,redirect_uris,scopes)
+      36 |     values (${appId},'GoWay','https://goway.to','first_party','active',true,false,${ownerId},${ownerId},ARRAY['https://goway.to'],ARRAY['user:read'])`;
+      37 |   await sql`insert into application_credentials (id,application_id,name,type,environment,status,public_key,created_by_user_id,scopes)
+
+      at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+      at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+      at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+      at cachedError (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:170:23)
+      at new Query (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:36:24)
+      at sql (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/index.js:112:11)
+      at src/scripts/__tests__/gowaySeedRollback.test.ts:34:12
+
+  ● rejects an application changed after the receipt without revoking the credential
+
+    PostgresError: null value in column "color" of relation "users" violates not-null constraint
+
+      32 | beforeEach(async () => {
+      33 |   await sql`delete from applications where id=${appId}`;
+    > 34 |   await sql`insert into users (id) values (${ownerId}) on conflict do nothing`;
+         |            ^
+      35 |   await sql`insert into applications (id,name,website_url,type,status,is_official,is_internal,owner_account_id,created_by_user_id,redirect_uris,scopes)
+      36 |     values (${appId},'GoWay','https://goway.to','first_party','active',true,false,${ownerId},${ownerId},ARRAY['https://goway.to'],ARRAY['user:read'])`;
+      37 |   await sql`insert into application_credentials (id,application_id,name,type,environment,status,public_key,created_by_user_id,scopes)
+
+      at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+      at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+      at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+      at cachedError (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:170:23)
+      at new Query (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:36:24)
+      at sql (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/index.js:112:11)
+      at src/scripts/__tests__/gowaySeedRollback.test.ts:34:12
+
+  ● rejects additional credentials even when the original receipt versions match
+
+    PostgresError: null value in column "color" of relation "users" violates not-null constraint
+
+      32 | beforeEach(async () => {
+      33 |   await sql`delete from applications where id=${appId}`;
+    > 34 |   await sql`insert into users (id) values (${ownerId}) on conflict do nothing`;
+         |            ^
+      35 |   await sql`insert into applications (id,name,website_url,type,status,is_official,is_internal,owner_account_id,created_by_user_id,redirect_uris,scopes)
+      36 |     values (${appId},'GoWay','https://goway.to','first_party','active',true,false,${ownerId},${ownerId},ARRAY['https://goway.to'],ARRAY['user:read'])`;
+      37 |   await sql`insert into application_credentials (id,application_id,name,type,environment,status,public_key,created_by_user_id,scopes)
+
+      at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+      at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+      at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+      at cachedError (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:170:23)
+      at new Query (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:36:24)
+      at sql (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/index.js:112:11)
+      at src/scripts/__tests__/gowaySeedRollback.test.ts:34:12
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 4 total
+Snapshots:   0 total
+Time:        0.145 s
+Ran all test suites matching src/scripts/__tests__/gowaySeedRollback.test.ts.
+error: script "test" exited with code 1

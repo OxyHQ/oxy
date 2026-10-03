@@ -1,0 +1,23 @@
+{
+  "linkBoundsBeforeAndAfter": "[303,2032][779,2137]",
+  "warningAncestorBounds": "[26,2081][1054,2348]",
+  "visibleWarningBounds": "[26,2146][1054,2271]",
+  "center": [
+    541,
+    2084
+  ],
+  "topControl": [
+    541,
+    2040
+  ],
+  "centerInsideWarningAncestor": true,
+  "topOutsideWarningAncestor": true,
+  "warningDismissedBeforeFinalCenter": true,
+  "finalPasswordTitle": true,
+  "screenshotsIndependentlyViewed": [
+    "after-top.png",
+    "center-without-warning.png"
+  ],
+  "imeVisibleInScreenshots": true,
+  "xmlAloneCannotEstablishImeAbsence": true
+}

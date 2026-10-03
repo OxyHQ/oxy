@@ -1,0 +1,43 @@
+{
+  "baseline": "9b1288b1789c23e1dbb787bf1fcea2c8f9c49aed",
+  "fixtureSha256": {
+    "packages/api/src/services/__tests__/deviceDirectory.service.test.ts": "a0abd22a7c16156ed9472a2b2e5d8aac40c3162d073c59ee5c20d029bc8d944f",
+    "packages/api/src/routes/__tests__/agentAutonomousFlow.test.ts": "9f3baf5d9ab57f94663a6cbc7b54f102d83caf260a4d8694e90173e05120388b",
+    "packages/core/src/server/__tests__/agentAccount.test.ts": "63bf58983fcdfc35849133b0261767ee61edbd2be7a6c9838c0ba0245a18960a",
+    "scripts/rehearsal/test-agent-device-regressions-1519.py": "b02abf8b2b4670d66cb2765db50d8035c17493f39f99ebe78eb2cd0f1d094a1e"
+  },
+  "restoredSourceSha256": {
+    "packages/api/src/services/deviceSession.service.ts": "ba9358568c5cde4a8d4fc2e3f1ae0aad7462b6e1cc3cc60ed8e946ce187101cc",
+    "packages/core/src/server/agentAccount.ts": "7bb2c2eb2665bc003773f33dab80b971921947a9ea808ffea6e10225627832d2"
+  },
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "scripts/rehearsal/test-agent-device-regressions-1519.py"
+      ],
+      "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003",
+      "exitCode": 1,
+      "log": "api-red.txt"
+    },
+    {
+      "command": [
+        "bun",
+        "run",
+        "test",
+        "--runInBand",
+        "--runTestsByPath",
+        "src/server/__tests__/agentAccount.test.ts"
+      ],
+      "cwd": "/home/nate/Oxy/oxy/.worktrees/1519-agent-device-regressions-20261003/packages/core",
+      "exitCode": 1,
+      "log": "core-red.txt"
+    }
+  ],
+  "baselineSourceSha256": {
+    "packages/api/src/services/deviceSession.service.ts": "ec1ce9715725542b567d0e7066ce56b5310b5784f136b34d3456bcb1e8ed23f8",
+    "packages/core/src/server/agentAccount.ts": "75ff10d774973250cd5e06c8ffc4e886fb7afd42ee0c4d82660a40e0b9b3f173"
+  },
+  "restoreVerified": true,
+  "fixturesUnchanged": true
+}

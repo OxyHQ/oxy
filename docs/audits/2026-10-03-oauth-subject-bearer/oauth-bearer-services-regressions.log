@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand "--testPathPatterns=ui/oauth/__tests__|isolatedOAuthSession|commitSessionFlow"
+
+Test Suites: 11 passed, 11 total
+Tests:       124 passed, 124 total
+Snapshots:   0 total
+Time:        1.91 s
+Ran all test suites matching ui/oauth/__tests__|isolatedOAuthSession|commitSessionFlow.

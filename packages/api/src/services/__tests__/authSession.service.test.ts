@@ -64,6 +64,7 @@ import { applications } from '../../db/schema/applications';
 import { authChallenges } from '../../db/schema/authChallenges';
 import { authSessions } from '../../db/schema/authSessions';
 import { users } from '../../db/schema/users';
+import { insertBearerSession } from '../../routes/__fixtures__/bearerSessionFixtures';
 import {
   approvalMintsSession,
   authorizeSessionWithBearer,
@@ -748,6 +749,7 @@ describe('authorizeSessionWithBearer', () => {
     return {
       authorizeCode: '',
       authenticatedUserId: '',
+      approvingSessionId: undefined as string | undefined,
       req: {} as never,
       ...over,
     };
@@ -755,11 +757,12 @@ describe('authorizeSessionWithBearer', () => {
 
   it('claims the request, binds the bearer identity, and attaches the minted session', async () => {
     const userId = await account();
+    const approvingSessionId = await insertBearerSession(userId);
     const { id, authorizeCode, sessionToken } = await authSession();
     mockCreateSession.mockResolvedValueOnce({ sessionId: 'sess-bearer' });
 
     const outcome = await authorizeSessionWithBearer(
-      input({ authorizeCode, authenticatedUserId: userId, authenticatedPublicKey: 'pk-hub' })
+      input({ authorizeCode, authenticatedUserId: userId, approvingSessionId, authenticatedPublicKey: 'pk-hub' })
     );
 
     expect(outcome).toEqual({ ok: true, sessionToken, sessionId: 'sess-bearer' });
@@ -773,6 +776,7 @@ describe('authorizeSessionWithBearer', () => {
 
   it('mints NOTHING when the request expires between the peek and the claim', async () => {
     const userId = await account();
+    const approvingSessionId = await insertBearerSession(userId);
     const { id, authorizeCode } = await authSession();
 
     const outcome = await loseTheRaceTo(
@@ -782,7 +786,7 @@ describe('authorizeSessionWithBearer', () => {
           .set({ expiresAt: new Date(Date.now() - 1_000) })
           .where(eq(authSessions.id, id))
           .then(() => undefined),
-      () => authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId }))
+      () => authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
     );
 
     // VACUITY FLOOR: 404 comes ONLY from the atomic claim matching nothing. Had
@@ -801,25 +805,27 @@ describe('authorizeSessionWithBearer', () => {
 
   it('returns 404 for an unknown code and for an already-processed one', async () => {
     const userId = await account();
+    const approvingSessionId = await insertBearerSession(userId);
     expect(
       await authorizeSessionWithBearer(
-        input({ authorizeCode: `ac-${randomUUID()}`, authenticatedUserId: userId })
+        input({ authorizeCode: `ac-${randomUUID()}`, authenticatedUserId: userId, approvingSessionId })
       )
     ).toEqual({ ok: false, status: 404, message: 'Auth session not found or already processed' });
 
     const { authorizeCode } = await authSession({ status: 'authorized' });
     expect(
-      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId }))
+      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
     ).toEqual({ ok: false, status: 404, message: 'Auth session not found or already processed' });
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it('returns 400 for an elapsed request without attempting the claim', async () => {
     const userId = await account();
+    const approvingSessionId = await insertBearerSession(userId);
     const { id, authorizeCode } = await authSession({ expiresAt: new Date(Date.now() - 1_000) });
 
     expect(
-      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId }))
+      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
     ).toEqual({ ok: false, status: 400, message: 'Auth session has expired' });
     expect((await stored(id)).status).toBe('pending');
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -827,10 +833,11 @@ describe('authorizeSessionWithBearer', () => {
 
   it('approves an OAuth request without minting a session', async () => {
     const userId = await account();
+    const approvingSessionId = await insertBearerSession(userId);
     const { id, authorizeCode, sessionToken } = await authSession(oauthBinding());
 
     expect(
-      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId }))
+      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
     ).toEqual({ ok: true, sessionToken });
     expect(mockCreateSession).not.toHaveBeenCalled();
     expect((await stored(id)).authorizedSessionId).toBeNull();
@@ -839,12 +846,13 @@ describe('authorizeSessionWithBearer', () => {
   it('refuses (403) a delegated subject the bearer cannot act as, before claiming', async () => {
     mockVerifyActingAs.mockResolvedValueOnce(null);
     const userId = await account();
+    const approvingSessionId = await insertBearerSession(userId);
     const { id, authorizeCode } = await authSession(
       oauthBinding({ oauthSubjectAccountId: await organization() })
     );
 
     expect(
-      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId }))
+      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
     ).toEqual({
       ok: false,
       status: 403,
@@ -855,9 +863,10 @@ describe('authorizeSessionWithBearer', () => {
 
   it('isolates the claimant from a requester-supplied deviceId', async () => {
     const userId = await account();
+    const approvingSessionId = await insertBearerSession(userId);
     const { authorizeCode } = await authSession({ deviceId: 'device-xyz' });
 
-    await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId }));
+    await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }));
 
     const options = mockCreateSession.mock.calls[0]?.[2] as { deviceId: string };
     expect(options.deviceId).toMatch(/^[0-9a-f-]{36}$/);
@@ -1028,8 +1037,8 @@ describe('finalizeOAuthAuthorization', () => {
     );
   });
 
-  it('falls back to the application scopes when the request named none', async () => {
-    const { sessionToken } = await approved({ oauthScopes: [] }, { scopes: ['user:read'] });
+  it('falls back to ordinary scopes for a trusted application when the request named none', async () => {
+    const { sessionToken } = await approved({ oauthScopes: [] }, { type: 'first_party', scopes: ['user:read'] });
 
     await finalizeOAuthAuthorization({ sessionToken });
 

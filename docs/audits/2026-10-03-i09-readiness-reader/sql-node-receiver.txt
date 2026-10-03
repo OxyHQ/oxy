@@ -1,0 +1,1 @@
+I09 readiness SQL/Node receiver: 10 passed; owned schema fragments, no eligibility verdict.

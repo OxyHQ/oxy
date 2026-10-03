@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "8f0aa227c8f84042d0cfe07a477e7b4e5e490e1a",
+  "sourceSha256": {
+    "packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts": "8424ef0b5a1ab3fbd9577c7b02cedc7d4f2bcf9bb9febf25ccb85b71bda2b3a6",
+    "packages/api/src/routes/auth.ts": "e683ffb4e60462ffc2066b0c45c7a5092387c8fd550ccba179b3ce0a885f142d",
+    "packages/api/src/routes/capabilities.ts": "1f78fcf5b9c555385cefc607e19df865ab31621d926a59feb0d05a1c35413cfa",
+    "packages/api/src/services/capabilityCatalog.service.ts": "382ff1f6d9fe06f4692bc895c030f35e2612f952e78d15b6a8ef2c5640452dce",
+    "packages/api/src/services/capabilityAuthority.service.ts": "8adb1e355abb9eb2effd38a056ca71dad91f9f45e14b833a9678b0371389d46c",
+    "packages/api/src/services/serviceTokenMint.service.ts": "52bf84cb73b3a8bfbda329f10b2f86c6db54ebf64e51aa3fbd6bc2c429aea911",
+    "packages/api/src/capabilities/oxy-profile.transport.ts": "41cd4da3cfc85e5f7e2cbe83285d40acf5c5c013145489b230910b8a203de45a",
+    "packages/api/src/utils/credentialUsability.ts": "e9128bfa1c8218da52bd8f538007914c68a776851ce001bb6f9e78bdf54538cf",
+    "docs/architecture/i05-foreground-pilot/cas-plan.md": "52bc68847438285cc6b41e22cf6953d9db650ae4318e5e451e99f32f2b762882"
+  },
+  "records": {
+    "docs/audits/2026-10-03-i05-ephemeral-registrar/api-ts.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/2026-10-03-i05-ephemeral-registrar/biome.log": {
+      "sha256": "54f6d733b3e5d94b76402889f2b1c51b01ad2ad873dbdc8cf019b03357d7c044",
+      "bytes": 41
+    },
+    "docs/audits/2026-10-03-i05-ephemeral-registrar/initial-fixture-setup.log": {
+      "sha256": "47cefea1dde4b426ac792888eee447270ba869018f21758a6de6c950487998bb",
+      "bytes": 2789
+    },
+    "docs/audits/2026-10-03-i05-ephemeral-registrar/owned-harness.py": {
+      "sha256": "501327bd48f36dcea273d1cc0e0fab34ed42512379733c921bb8102fafc5460e",
+      "bytes": 5276
+    },
+    "docs/audits/2026-10-03-i05-ephemeral-registrar/registrar-run.log": {
+      "sha256": "5a8fc74a17dc3de64bb66b1d5923094c7f6933d150cacbc8d15f01ca33add42d",
+      "bytes": 1978
+    },
+    "docs/audits/2026-10-03-i05-ephemeral-registrar/registrar-selected.log": {
+      "sha256": "33e3a068da61bb5f16eda5782225a199ff99f53ca1f1aec5f67095fd0e1f0690",
+      "bytes": 4288
+    }
+  },
+  "checks": {
+    "selectedTestsPassed": 1,
+    "unselectedTests": 21,
+    "typeScriptExitCode": 0,
+    "biomeExitCode": 0,
+    "mint": "actual canonical Ed25519 service-token endpoint",
+    "credentialScope": [
+      "catalogs:write"
+    ],
+    "credentialExpiresInSeconds": 300,
+    "secretPersistedOrLogged": false,
+    "creatorCredentialRevokedRowRetained": true,
+    "catalogueDiscoveryTicketReadAfterRevocation": true,
+    "retiredCredentialMintAndRegistrationRefused": true
+  },
+  "localPostgresPidsStopped": [
+    3797170,
+    3796764
+  ],
+  "liveAuthorityWrites": 0,
+  "awsWrites": 0,
+  "stripeWrites": 0,
+  "casExecutorImplemented": false
+}

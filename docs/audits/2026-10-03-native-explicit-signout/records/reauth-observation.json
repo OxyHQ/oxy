@@ -1,0 +1,29 @@
+{
+  "recordedAt": "2026-10-03T12:47:56.120979+00:00",
+  "kind": "native-signout-coldboot-reauth-observed",
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/http-paths-loopback0-1243.jsonl",
+      "sha256": "7739761baca3d993e374b19b0051c7e0f46fb0baa4c16ac00931b36577f11e94"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/allo-wire-actions.json",
+      "sha256": "77f4f92275a6d0e225acb290db1d00178a8486bfca16797ac752ff36c254f11b"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-allo-wire-signedout.xml",
+      "sha256": "66feca539db04ac8a256a54d5bb3083fbce8c730f55c86e59a6e72212f222b6c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/ui-allo-wire-cold-final.xml",
+      "sha256": "a4c34f9d6805dc13eca9e12d449a01e2c4eb6d186b0e07baf217940088d51c03"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-siblings-1208/observations-partial-1240.json",
+      "sha256": "e38a80d62c583405d9b77cd27f44978bc4c2cb5d9b59f7b73a3762aeff55c675"
+    }
+  ],
+  "observation": "Allo signout resolved signed-out. Force-stop/start then actual POST /session/device/token, POST /auth/challenge, POST /auth/verify, GET /users/me, POST /session/device/add; UI authenticated as original synthetic Commons owner. New automatic key authentication after explicit logout; no key/storage deletion.",
+  "capture": "Passive header-path observer on host loopback0, destination TCP17960 only; does not store headers, bodies or secrets. Initial lo-interface observer captured nothing and is not a negative network test.",
+  "scope": "Candidate source; no final registry acceptance."
+}

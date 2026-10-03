@@ -1,0 +1,38 @@
+{
+  "at": "2026-10-03T12:10:36.251205+00:00",
+  "result": "FAILED operational fixture replacement before ready",
+  "source": "cb135a16e843408e4cfd42fc5c30a00756364969",
+  "error": "FileNotFoundError /proc/3814703/fd/3 while listener enumerated descriptors during startup",
+  "records": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-api-replacement-reviewed-plan.json",
+      "bytes": 3204,
+      "sha256": "9c41a40f85e4d298b0560e543072930a7b739ae35238a791dd0a51bd9dce623a"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-api-replacement-reviewed-plan-cleanup.json",
+      "bytes": 186,
+      "sha256": "0dde6b421eb01ff98e31fa0c2299efaea9d58cd175791da42441ff2d804a207e"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-api-replacement-reviewed-plan-replacement-api.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "observedStopped": [
+    3671473,
+    3671647,
+    3671515,
+    3814703
+  ],
+  "webFirstRpsStillRunning": [
+    3782975,
+    3782976
+  ],
+  "existingDataDirectoryPreserved": true,
+  "manifestPreserved": true,
+  "productionEffects": false,
+  "reseedPerformed": false,
+  "next": "review corrected listener and owned existing-data resume supervisor"
+}

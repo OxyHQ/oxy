@@ -44,7 +44,7 @@
  */
 
 import { logger } from '../logger';
-import type { AuthStateStore, PersistedAuthState } from './authStateStore';
+import type { AuthStateStore, AuthStateWriteGuard, PersistedAuthState } from './authStateStore';
 
 /**
  * The zero-cookie device credential, as shared between apps. Exactly the pair
@@ -294,7 +294,9 @@ export async function publishProvenDeviceCredential(deps: {
  *    seam, no lane left out, and no new call site to forget.
  *  - Adopting on read would hide a change of WHO THIS APP IS SIGNED IN AS inside
  *    a storage primitive, and would run on every `load()`. Adoption is an
- *    explicit, once-per-boot cold-boot step instead (`shared-device-adopt`).
+ *    explicit cold-boot/resume recovery instead; an existing local holder must
+ *    first be rejected by the server, and a new shared holder must mint before
+ *    conditional persistence.
  *
  * `clear()` deliberately does NOT clear the shared slot. This app signing out is
  * not authority over the device-wide join point: other apps may still be signed
@@ -313,8 +315,18 @@ export function createSharedMirroringAuthStateStore(deps: {
   let mirrored: SharedDeviceCredential | null = null;
 
   return {
+    ...local,
     load: () => local.load(),
     clear: () => local.clear(),
+    ...(local.saveIfCurrent ? {saveIfCurrent: async (state: PersistedAuthState, guard: AuthStateWriteGuard) => {
+      const committed = await local.saveIfCurrent?.(state, guard);
+      if (!committed) return false;
+      const credential = readLocalDeviceCredential(state);
+      if (credential && guard.isCurrent()) {
+        try { await publishProvenDeviceCredential({shared, credential}); } catch { /* Local durability already verified. */ }
+      }
+      return true;
+    }} : {}),
     save: async (state) => {
       // The durable local write is the contract this store owes its caller —
       // run it first and report ITS result, unchanged. The mirror is additive.

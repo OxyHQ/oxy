@@ -1,0 +1,40 @@
+packages/core/src/session/__tests__/refresh.contextCas.test.ts:19:101 lint/style/noNonNullAssertion ━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    17 │ });
+    18 │ const prior: PersistedAuthState = {...holder, sessionId: 'session-a', userId: 'person-a', accessToken: tokenA, expiresAt: new Date(Date.now() + 3600000).toISOString()};
+  > 19 │ const response: DeviceTokenMintResponse = {accessToken: jwt('person-a', 'session-a', 1), expiresAt: prior.expiresAt!, nextDeviceSecret: 'rotated-holder-a', state: state('person-a', 1)};
+       │                                                                                                     ^^^^^^^^^^^^^^^^
+    20 │ function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => {resolve = done;}); return {promise, resolve}; }
+    21 │ const clients: OxyServices[] = [];
+  
+
+packages/core/src/session/__tests__/refresh.contextCas.test.ts:47:283 lint/style/noNonNullAssertion  FIXABLE  ━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    45 │     }) as typeof fetch;
+    46 │     const sharedPublish = jest.fn();
+  > 47 │     const native = {...store, save: async (next: PersistedAuthState) => {const ok = await store.save(next); if (ok) sharedPublish(next); return ok;}, saveIfCurrent: async (next: PersistedAuthState, guard: Parameters<NonNullable<typeof store.saveIfCurrent>>[1]) => {const ok = await store.saveIfCurrent!(next, guard); if (ok) sharedPublish(next); return ok;}};
+       │                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^
+    48 │     const pending = refreshDeviceSecretArm({oxy, store: native}); await entered.promise;
+    49 │     const epochA = oxy.http.getSessionEpoch();
+  
+  i Unsafe fix: Replace with optional chain operator ?. This operator includes runtime checks, so it is safer than the compile-only non-null assertion operator
+  
+    45 45 │       }) as typeof fetch;
+    46 46 │       const sharedPublish = jest.fn();
+    47    │ - ····const·native·=·{...store,·save:·async·(next:·PersistedAuthState)·=>·{const·ok·=·await·store.save(next);·if·(ok)·sharedPublish(next);·return·ok;},·saveIfCurrent:·async·(next:·PersistedAuthState,·guard:·Parameters<NonNullable<typeof·store.saveIfCurrent>>[1])·=>·{const·ok·=·await·store.saveIfCurrent!(next,·guard);·if·(ok)·sharedPublish(next);·return·ok;}};
+       47 │ + ····const·native·=·{...store,·save:·async·(next:·PersistedAuthState)·=>·{const·ok·=·await·store.save(next);·if·(ok)·sharedPublish(next);·return·ok;},·saveIfCurrent:·async·(next:·PersistedAuthState,·guard:·Parameters<NonNullable<typeof·store.saveIfCurrent>>[1])·=>·{const·ok·=·await·store.saveIfCurrent?.(next,·guard);·if·(ok)·sharedPublish(next);·return·ok;}};
+    48 48 │       const pending = refreshDeviceSecretArm({oxy, store: native}); await entered.promise;
+    49 49 │       const epochA = oxy.http.getSessionEpoch();
+  
+
+Checked 2 files in 4ms. No fixes applied.
+Found 2 errors.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

@@ -35,6 +35,17 @@ on:
         required: false
         default: false
 
+      quiesced_deploy_plan:
+        description: Reviewed maintenance plan JSON; old API stopped, final image only, scalers suspended
+        type: string
+        required: false
+        default: ""
+      quiesced_deploy_plan_sha256:
+        description: Exact SHA256 of maintenance plan bytes
+        type: string
+        required: false
+        default: ""
+
 permissions:
   id-token: write
   contents: read
@@ -55,6 +66,8 @@ env:
   APP: oxy-api
   CLUSTER: oxy-cluster
   DOCKERFILE: Dockerfile
+  QUIESCED_DEPLOY_PLAN_JSON: ${{ github.event_name == 'workflow_dispatch' && inputs.quiesced_deploy_plan || '' }}
+  QUIESCED_DEPLOY_PLAN_SHA256: ${{ github.event_name == 'workflow_dispatch' && inputs.quiesced_deploy_plan_sha256 || '' }}
 
 jobs:
   deploy:
@@ -72,6 +85,9 @@ jobs:
           set -euo pipefail
           status="$(git show HEAD:docs/security/forge-candidate/provenance/audit-policy-decision.json | python3 -c 'import json,sys; x=json.load(sys.stdin); assert set(x)==set(["schemaVersion","status","targetSourceHead","expiresAt","authorizationRecord","independentEvidence"]); assert x["schemaVersion"]==1 and x["status"] in ["INACTIVE","ACTIVE"]; print(x["status"])')"
           echo "active=$([[ "$status" == ACTIVE ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          if [[ -n "$QUIESCED_DEPLOY_PLAN_JSON" || -n "$QUIESCED_DEPLOY_PLAN_SHA256" ]]; then
+            DEPLOY_SHA="$GITHUB_SHA" CONTAINER_NAME=oxy-api ISSUER_IMAGE_ONLY='${{ inputs.issuer_image_only }}' node .github/scripts/guard-quiesced-deploy.mjs --validate-input
+          fi
       - uses: oven-sh/setup-bun@v2
         if: steps.forge_policy.outputs.active == 'true'
         with:
@@ -93,7 +109,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Sync API deployment secrets -> SSM (GitHub is the source of truth)
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.issuer_image_only) }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.issuer_image_only || inputs.quiesced_deploy_plan != '')) }}
         # Synced secrets use a SYNC_ prefix so they never collide with the AWS
         # CLI's reserved credential env vars (AWS_ACCESS_KEY_ID /
         # AWS_SECRET_ACCESS_KEY / AWS_ENDPOINT_URL). secrets.AWS_ACCESS_KEY_ID is
@@ -196,7 +212,7 @@ jobs:
           done
 
       - name: Verify Inbox service credential bindings
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.issuer_image_only) }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.issuer_image_only || inputs.quiesced_deploy_plan != '')) }}
         run: |
           set -euo pipefail
           for parameter in OXY_APPLICATION_KEY OXY_APPLICATION_SECRET; do
@@ -451,6 +467,8 @@ jobs:
 
           if [[ "$ISSUER_IMAGE_ONLY" == true ]]; then
             bash .github/scripts/deploy-issuer-image-only.sh
+          elif [[ -n "$QUIESCED_DEPLOY_PLAN_JSON" ]]; then
+            bash .github/scripts/deploy-quiesced-image.sh
           else
             bash .github/scripts/deploy-ecs-image.sh
           fi

@@ -1,0 +1,223 @@
+packages/api/scripts/seed-oxy-applications.ts:53:20 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    51 │  */
+    52 │ 
+  > 53 │ import crypto from 'crypto';
+       │                    ^^^^^^^^
+    54 │ import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
+    55 │ import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+     51  51 │    */
+     52  52 │   
+     53     │ - import·crypto·from·'crypto';
+         53 │ + import·crypto·from·'node:crypto';
+     54  54 │   import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
+     55  55 │   import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
+  
+
+packages/api/scripts/seed-oxy-applications.ts:154:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    152 │   if (!account) {
+    153 │     throw new Error(
+  > 154 │       `Application "${appName}" is owned by the account "${username}", which does not exist. ` +
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 155 │         'Run `scripts/seed-internal-cost-centers.ts` first — it mints the project accounts ' +
+  > 156 │         'the cost-centre report is built from. Refusing to seed onto the platform owner.',
+        │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    157 │     );
+    158 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    152 152 │     if (!account) {
+    153 153 │       throw new Error(
+    154     │ - ······`Application·"${appName}"·is·owned·by·the·account·"${username}",·which·does·not·exist.·`·+
+    155     │ - ········'Run·`scripts/seed-internal-cost-centers.ts`·first·—·it·mints·the·project·accounts·'·+
+    156     │ - ········'the·cost-centre·report·is·built·from.·Refusing·to·seed·onto·the·platform·owner.',
+        154 │ + ······`Application·"${appName}"·is·owned·by·the·account·"${username}",·which·does·not·exist.·Run·\`scripts/seed-internal-cost-centers.ts\`·first·—·it·mints·the·project·accounts·the·cost-centre·report·is·built·from.·Refusing·to·seed·onto·the·platform·owner.`,
+    157 155 │       );
+    158 156 │     }
+  
+
+packages/api/scripts/seed-oxy-applications.ts:161:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    159 │   if (account.kind !== 'project') {
+    160 │     throw new Error(
+  > 161 │       `Application "${appName}" is owned by the account "${username}", which is a ` +
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 162 │         `"${account.kind}" account, not a project. Refusing: a handle collision must never ` +
+  > 163 │         'silently re-point an official application at somebody else’s account.',
+        │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    164 │     );
+    165 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    159 159 │     if (account.kind !== 'project') {
+    160 160 │       throw new Error(
+    161     │ - ······`Application·"${appName}"·is·owned·by·the·account·"${username}",·which·is·a·`·+
+    162     │ - ········`"${account.kind}"·account,·not·a·project.·Refusing:·a·handle·collision·must·never·`·+
+    163     │ - ········'silently·re-point·an·official·application·at·somebody·else’s·account.',
+        161 │ + ······`Application·"${appName}"·is·owned·by·the·account·"${username}",·which·is·a·"${account.kind}"·account,·not·a·project.·Refusing:·a·handle·collision·must·never·silently·re-point·an·official·application·at·somebody·else’s·account.`,
+    164 162 │       );
+    165 163 │     }
+  
+
+packages/api/scripts/seed-oxy-applications.ts:168:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    166 │   if (account.parentAccountId !== platformOwnerId) {
+    167 │     throw new Error(
+  > 168 │       `Application "${appName}" is owned by the project account "${username}", which is not a ` +
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 169 │         'child of the platform owner. Refusing: its spend would be reported under a subtree ' +
+  > 170 │         'this seed does not own.',
+        │         ^^^^^^^^^^^^^^^^^^^^^^^^^
+    171 │     );
+    172 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    166 166 │     if (account.parentAccountId !== platformOwnerId) {
+    167 167 │       throw new Error(
+    168     │ - ······`Application·"${appName}"·is·owned·by·the·project·account·"${username}",·which·is·not·a·`·+
+    169     │ - ········'child·of·the·platform·owner.·Refusing:·its·spend·would·be·reported·under·a·subtree·'·+
+    170     │ - ········'this·seed·does·not·own.',
+        168 │ + ······`Application·"${appName}"·is·owned·by·the·project·account·"${username}",·which·is·not·a·child·of·the·platform·owner.·Refusing:·its·spend·would·be·reported·under·a·subtree·this·seed·does·not·own.`,
+    171 169 │       );
+    172 170 │     }
+  
+
+packages/api/scripts/seed-oxy-applications.ts:175:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    173 │   if (account.accountStatus !== 'active') {
+    174 │     throw new Error(
+  > 175 │       `Application "${appName}" is owned by the project account "${username}", which is ` +
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 176 │         `"${account.accountStatus}". Refusing: spend booked to an archived account is spend ` +
+  > 177 │         'nobody is watching.',
+        │         ^^^^^^^^^^^^^^^^^^^^^
+    178 │     );
+    179 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    173 173 │     if (account.accountStatus !== 'active') {
+    174 174 │       throw new Error(
+    175     │ - ······`Application·"${appName}"·is·owned·by·the·project·account·"${username}",·which·is·`·+
+    176     │ - ········`"${account.accountStatus}".·Refusing:·spend·booked·to·an·archived·account·is·spend·`·+
+    177     │ - ········'nobody·is·watching.',
+        175 │ + ······`Application·"${appName}"·is·owned·by·the·project·account·"${username}",·which·is·"${account.accountStatus}".·Refusing:·spend·booked·to·an·archived·account·is·spend·nobody·is·watching.`,
+    178 176 │       );
+    179 177 │     }
+  
+
+packages/api/scripts/seed-oxy-applications.ts:235:7 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    233 │   if (!owner) {
+    234 │     throw new Error(
+  > 235 │       `Owner user "${ownerUsername}" not found — refusing to seed. ` +
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 236 │         `Set OXY_USERNAME to the correct platform owner username.`,
+        │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    237 │     );
+    238 │   }
+  
+  i Unsafe fix: Use a template literal.
+  
+    233 233 │     if (!owner) {
+    234 234 │       throw new Error(
+    235     │ - ······`Owner·user·"${ownerUsername}"·not·found·—·refusing·to·seed.·`·+
+    236     │ - ········`Set·OXY_USERNAME·to·the·correct·platform·owner·username.`,
+        235 │ + ······`Owner·user·"${ownerUsername}"·not·found·—·refusing·to·seed.·Set·OXY_USERNAME·to·the·correct·platform·owner·username.`,
+    237 236 │       );
+    238 237 │     }
+  
+
+packages/api/scripts/seed-oxy-applications.ts:236:9 lint/style/noUnusedTemplateLiteral  FIXABLE  ━━━━━━━━━━
+
+  × Do not use template literals if interpolation and special-character handling are not needed.
+  
+    234 │     throw new Error(
+    235 │       `Owner user "${ownerUsername}" not found — refusing to seed. ` +
+  > 236 │         `Set OXY_USERNAME to the correct platform owner username.`,
+        │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    237 │     );
+    238 │   }
+  
+  i Unsafe fix: Replace with string literal
+  
+    234 234 │       throw new Error(
+    235 235 │         `Owner user "${ownerUsername}" not found — refusing to seed. ` +
+    236     │ - ········`Set·OXY_USERNAME·to·the·correct·platform·owner·username.`,
+        236 │ + ········"Set·OXY_USERNAME·to·the·correct·platform·owner·username.",
+    237 237 │       );
+    238 238 │     }
+  
+
+packages/api/scripts/seed-oxy-applications.ts:287:9 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    285 │     if (application && application.name !== spec.name) {
+    286 │       throw new Error(
+  > 287 │         `Exact application id ${spec.id} is named "${application.name}", not "${spec.name}"; ` +
+        │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 288 │           'refusing to select or rename it by display name',
+        │           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    289 │       );
+    290 │     }
+  
+  i Unsafe fix: Use a template literal.
+  
+    285 285 │       if (application && application.name !== spec.name) {
+    286 286 │         throw new Error(
+    287     │ - ········`Exact·application·id·${spec.id}·is·named·"${application.name}",·not·"${spec.name}";·`·+
+    288     │ - ··········'refusing·to·select·or·rename·it·by·display·name',
+        287 │ + ········`Exact·application·id·${spec.id}·is·named·"${application.name}",·not·"${spec.name}";·refusing·to·select·or·rename·it·by·display·name`,
+    289 288 │         );
+    290 289 │       }
+  
+
+packages/api/scripts/seed-oxy-applications.ts:476:15 lint/style/useTemplate  FIXABLE  ━━━━━━━━━━━━━━
+
+  × Template literals are preferred over string concatenation.
+  
+    475 │   // eslint-disable-next-line no-console
+  > 476 │   console.log('OXY_APP_MAPPING_JSON=' + JSON.stringify(mapping));
+        │               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    477 │ }
+    478 │ 
+  
+  i Unsafe fix: Use a template literal.
+  
+    474 474 │   
+    475 475 │     // eslint-disable-next-line no-console
+    476     │ - ··console.log('OXY_APP_MAPPING_JSON='·+·JSON.stringify(mapping));
+        476 │ + ··console.log(`OXY_APP_MAPPING_JSON=${JSON.stringify(mapping)}`);
+    477 477 │   }
+    478 478 │   
+  
+
+Checked 1 file in 5ms. No fixes applied.
+Found 9 errors.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

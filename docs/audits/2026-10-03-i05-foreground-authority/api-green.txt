@@ -1,0 +1,49 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/foregroundCapabilities.db.test.ts src/services/__tests__/capabilityAuthority.db.test.ts src/services/__tests__/capabilityAuthority.policy.test.ts src/services/__tests__/workloadIdentity.db.test.ts src/db/schema/__tests__/foreignKeys.test.ts src/db/schema/__tests__/schemaInvariants.test.ts src/db/schema/__tests__/agencyPayloadBounds.test.ts
+{"level":30,"time":1791019259044,"pid":3692369,"hostname":"SuperPC","binaryPath":"/usr/bin/ffmpeg","msg":"[VariantService] Using system ffmpeg"}
+{"level":30,"time":1791019259046,"pid":3692369,"hostname":"SuperPC","binaryPath":"/usr/bin/ffprobe","msg":"[VariantService] Using system ffprobe"}
+{"level":30,"time":1791019259046,"pid":3692369,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","msg":"[VariantService] Resolved FFmpeg path"}
+{"level":30,"time":1791019259046,"pid":3692369,"hostname":"SuperPC","ffprobePath":"/usr/bin/ffprobe","msg":"[VariantService] Resolved FFprobe path"}
+{"level":30,"time":1791019259046,"pid":3692369,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","ffprobePath":"/usr/bin/ffprobe","ffmpegExists":true,"ffprobeExists":true,"msg":"FFmpeg/FFprobe paths initialized"}
+{"level":30,"time":1791019259328,"pid":3692369,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791019259351,"pid":3692369,"hostname":"SuperPC","kid":"dev-ephemeral-b27c24077cdf","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791019260103,"pid":3692369,"hostname":"SuperPC","sessionId":"c7a9a80f","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791019260696,"pid":3692369,"hostname":"SuperPC","sessionId":"4b03afe7","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791019260890,"pid":3692369,"hostname":"SuperPC","sessionId":"fd4b689b","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791019261437,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-15cd-7c84-9081-ff424b93b8d5","appName":"Foreground c31b879f-752e-4e11-935f-b093881393e3","provider":"aws-iam","attestationId":"wl_b2bb90ee1a3e756630efc1e0","attribution":"unchanged","scopes":["user:read","capability-tickets:issue","capabilities:read","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019262230,"pid":3692369,"hostname":"SuperPC","sessionId":"d69d7b52","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791019262230,"pid":3692369,"hostname":"SuperPC","sessionId":"d69d7b52","operatorId":"01a10111-204a-7d87-8b99-a2370437b706","accountId":"01a10111-2055-745b-8b80-3b20e8e9b00b","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+PASS src/services/__tests__/foregroundCapabilities.db.test.ts
+{"level":30,"time":1791019262629,"pid":3692369,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791019263047,"pid":3692369,"hostname":"SuperPC","kid":"dev-ephemeral-e24db948a497","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+PASS src/services/__tests__/capabilityAuthority.db.test.ts
+{"level":30,"time":1791019263575,"pid":3692369,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791019263596,"pid":3692369,"hostname":"SuperPC","kid":"dev-ephemeral-e031f808a606","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791019263599,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-2660-7f7c-86a8-ac823704af65","appName":"Workload test 03e706f2-75bf-4416-9dcf-c4cf80becba0","provider":"aws-iam","attestationId":"wl_a4d155d5e60d123b05d6d3e8","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019263617,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-2673-750d-82fa-f3941d9eceda","appName":"Workload test 8656b4c4-a302-4cb7-a2a4-ca9edeaac994","provider":"aws-iam","attestationId":"wl_48e8d574bb5e63ffe944062a","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019263640,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-2686-7351-9f0b-5171873028c8","appName":"Workload test ad885fdf-b82f-490f-affa-b05a1aff0451","provider":"aws-iam","attestationId":"wl_3a2a7b507fe2c6f2bd6b0a0a","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":50,"time":1791019263647,"pid":3692369,"hostname":"SuperPC","provider":"aws-iam","attestationId":"wl_3a2a7b507fe2c6f2bd6b0a0a","applicationId":"01a10111-268c-74ff-b4be-37f287cbe694","msg":"[WorkloadIdentity] attested identity is attributed to another application"}
+{"level":30,"time":1791019263665,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-26a5-7cee-af69-a0247b53d51e","appName":"Workload test b8f2f298-7c75-4759-a8f2-4c6b5e7534ac","provider":"aws-iam","attestationId":"wl_762a81956c6febf8d8efd5d6","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":40,"time":1791019263666,"pid":3692369,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":43,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791019263666,"pid":3692369,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":35,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791019263667,"pid":3692369,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":33,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791019263668,"pid":3692369,"hostname":"SuperPC","provider":"aws-iam","msg":"[WorkloadIdentity] attested workload has no binding"}
+{"level":40,"time":1791019263698,"pid":3692369,"hostname":"SuperPC","provider":"aws-iam","msg":"[WorkloadIdentity] attested workload has no binding"}
+{"level":30,"time":1791019263714,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-26d6-794a-9230-c40ba241d723","appName":"Workload test df6bbdec-998e-4e0f-bd26-d965f4a38adc","provider":"aws-iam","attestationId":"wl_a41ef6903da33166c912268b","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019263732,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-26e6-7257-ac77-fed5e8566ff4","appName":"Workload test 4ba10599-9f1c-4b40-baad-83743370972a","provider":"aws-iam","attestationId":"wl_62154b0d1b60868901fffe6b","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019263749,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-26f9-7223-9275-a9e5e09c8347","appName":"Workload test cef6b57a-200d-4821-91c0-84d1a0a6f82d","provider":"aws-iam","attestationId":"wl_b359e00e89ab406cf8a7cf92","attribution":"created","scopes":["federation:write","signals:write","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019263772,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-2710-759e-84fc-69f34ad1e3c0","appName":"Workload test f61e1538-6d66-4ac3-baab-0282894c10b5","provider":"aws-iam","attestationId":"wl_ebecfdac3488e12b8a6dd43d","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019263788,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-2720-76af-9c52-7c82abb09c2d","appName":"Workload test 9f3b2b2d-eb0c-42c3-99f0-a0ed4aec59f6","provider":"aws-iam","attestationId":"wl_1ab2cea974fca07cc91eef24","attribution":"created","scopes":["user:read","signals:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791019263796,"pid":3692369,"hostname":"SuperPC","applicationId":"01a10111-2720-76af-9c52-7c82abb09c2d","appName":"Workload test 9f3b2b2d-eb0c-42c3-99f0-a0ed4aec59f6","provider":"aws-iam","attestationId":"wl_1ab2cea974fca07cc91eef24","attribution":"unchanged","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+PASS src/services/__tests__/workloadIdentity.db.test.ts
+{"level":30,"time":1791019263939,"pid":3692369,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/db/schema/__tests__/schemaInvariants.test.ts
+PASS src/db/schema/__tests__/agencyPayloadBounds.test.ts
+{"level":30,"time":1791019264137,"pid":3692369,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/db/schema/__tests__/foreignKeys.test.ts
+PASS src/services/__tests__/capabilityAuthority.policy.test.ts
+
+Test Suites: 7 passed, 7 total
+Tests:       66 passed, 66 total
+Snapshots:   0 total
+Time:        6.382 s, estimated 7 s
+Ran all test suites within paths "src/services/__tests__/foregroundCapabilities.db.test.ts", "src/services/__tests__/capabilityAuthority.db.test.ts", "src/services/__tests__/capabilityAuthority.policy.test.ts", "src/services/__tests__/workloadIdentity.db.test.ts", "src/db/schema/__tests__/foreignKeys.test.ts", "src/db/schema/__tests__/schemaInvariants.test.ts", "src/db/schema/__tests__/agencyPayloadBounds.test.ts".

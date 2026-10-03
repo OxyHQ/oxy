@@ -864,6 +864,8 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          node scripts/test-quiesced-deploy.mjs
+          node scripts/test-quiesced-deploy-shell.mjs
           bash .github/scripts/test-resolve-queue-image.sh
           bash .github/scripts/test-verify-reused-service-credential.sh
           bash .github/scripts/test-put-secure-parameter.sh
@@ -1199,6 +1201,11 @@ jobs:
         id: build-contracts
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bunx turbo run build --filter=@oxy.so/contracts
+      # MCP tests import the built contracts; execute the package's own suite.
+      - name: 'MCP Tests: test'
+        if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
+        run: bun run test
+        working-directory: ./packages/mcp
       - name: 'Protocol Tests: test'
         if: ${{ !cancelled() && steps.build-contracts.outcome == 'success' }}
         run: bun run test

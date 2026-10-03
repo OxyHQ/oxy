@@ -57,7 +57,7 @@ describe('verifyActingAs', () => {
   });
 
   it("authenticates with the VERIFIER's own service token", async () => {
-    const calls = captureRequests(oxy, { authorized: true, scopes: ['podcasts:write'] });
+    const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['podcasts:write'] });
 
     await oxy.verifyActingAs(APP, USER);
 
@@ -71,7 +71,7 @@ describe('verifyActingAs', () => {
     // This runs inside request-handling middleware. A retry loop here multiplies
     // the latency of every delegated request by the number of attempts, and a
     // cached GET would serve a revoked grant.
-    const calls = captureRequests(oxy, { authorized: true, scopes: [] });
+    const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: [] });
 
     await oxy.verifyActingAs(APP, USER);
 
@@ -82,18 +82,19 @@ describe('verifyActingAs', () => {
   });
 
   it('returns the grant when the API authorizes, carrying the scopes through', async () => {
-    captureRequests(oxy, { authorized: true, scopes: ['acting-as:offline', 'podcasts:write'] });
+    captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['acting-as:offline', 'podcasts:write'] });
 
     const grant = await oxy.verifyActingAs(APP, USER);
 
     expect(grant).toEqual({
       authorized: true,
+      epoch: '1',
       scopes: ['acting-as:offline', 'podcasts:write'],
     });
   });
 
   it('returns null when the API answers authorized:false', async () => {
-    captureRequests(oxy, { authorized: false, scopes: [] });
+    captureRequests(oxy, { authorized: false, epoch: '1', scopes: [] });
 
     await expect(oxy.verifyActingAs(APP, USER)).resolves.toBeNull();
   });
@@ -120,7 +121,7 @@ describe('verifyActingAs', () => {
     jest
       .spyOn(oxy, 'serviceToken')
       .mockRejectedValue(new Error('Service credentials not provided.'));
-    const calls = captureRequests(oxy, { authorized: true, scopes: ['podcasts:write'] });
+    const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['podcasts:write'] });
 
     await expect(oxy.verifyActingAs(APP, USER)).resolves.toBeNull();
     expect(calls).toHaveLength(0);
@@ -128,19 +129,19 @@ describe('verifyActingAs', () => {
 
   describe('caching', () => {
     it('serves a positive grant from cache rather than re-asking', async () => {
-      const calls = captureRequests(oxy, { authorized: true, scopes: ['podcasts:write'] });
+      const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['podcasts:write'] });
 
-      await oxy.verifyActingAs(APP, USER);
-      await oxy.verifyActingAs(APP, USER);
+      await oxy.verifyActingAs(APP, USER, { cache: true });
+      await oxy.verifyActingAs(APP, USER, { cache: true });
 
       expect(calls).toHaveLength(1);
     });
 
     it('caches a REFUSAL too, so a misconfigured caller cannot hammer the endpoint', async () => {
-      const calls = captureRequests(oxy, { authorized: false, scopes: [] });
+      const calls = captureRequests(oxy, { authorized: false, epoch: '1', scopes: [] });
 
-      await expect(oxy.verifyActingAs(APP, USER)).resolves.toBeNull();
-      await expect(oxy.verifyActingAs(APP, USER)).resolves.toBeNull();
+      await expect(oxy.verifyActingAs(APP, USER, { cache: true })).resolves.toBeNull();
+      await expect(oxy.verifyActingAs(APP, USER, { cache: true })).resolves.toBeNull();
 
       expect(calls).toHaveLength(1);
     });
@@ -150,11 +151,11 @@ describe('verifyActingAs', () => {
       // the user alone, one application's grant would authorize every other
       // application for that user; keyed on the app alone, one user's grant
       // would authorize acting as everybody.
-      const calls = captureRequests(oxy, { authorized: true, scopes: ['podcasts:write'] });
+      const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['podcasts:write'] });
 
-      await oxy.verifyActingAs(APP, USER);
-      await oxy.verifyActingAs('other-app', USER);
-      await oxy.verifyActingAs(APP, 'other-user');
+      await oxy.verifyActingAs(APP, USER, { cache: true });
+      await oxy.verifyActingAs('other-app', USER, { cache: true });
+      await oxy.verifyActingAs(APP, 'other-user', { cache: true });
 
       expect(calls).toHaveLength(3);
       expect(calls.map((c) => c.data)).toEqual([
@@ -179,30 +180,30 @@ describe('verifyActingAs cache', () => {
       () => new Promise((resolve) => { release = resolve; }) as never,
     );
 
-    const first = oxy.verifyActingAs(APP, USER);
-    const second = oxy.verifyActingAs(APP, USER);
+    const first = oxy.verifyActingAs(APP, USER, { cache: true });
+    const second = oxy.verifyActingAs(APP, USER, { cache: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    release({ authorized: true, scopes: ['a'] });
+    release({ authorized: true, epoch: '1', scopes: ['a'] });
 
-    await expect(first).resolves.toEqual({ authorized: true, scopes: ['a'] });
-    await expect(second).resolves.toEqual({ authorized: true, scopes: ['a'] });
+    await expect(first).resolves.toEqual({ authorized: true, epoch: '1', scopes: ['a'] });
+    await expect(second).resolves.toEqual({ authorized: true, epoch: '1', scopes: ['a'] });
     expect(request).toHaveBeenCalledTimes(1);
   });
 
   it('forgets the least recently used pair past 1000 entries', async () => {
     const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
-    const request = jest.spyOn(oxy, 'request').mockResolvedValue({ authorized: false, scopes: [] } as never);
+    const request = jest.spyOn(oxy, 'request').mockResolvedValue({ authorized: false, epoch: '1', scopes: [] } as never);
 
     for (let i = 0; i < 1001; i++) {
-      await oxy.verifyActingAs(APP, `user-${i}`);
+      await oxy.verifyActingAs(APP, `user-${i}`, { cache: true });
     }
     expect(request).toHaveBeenCalledTimes(1001);
 
     // The newest pair is still remembered; the oldest was evicted.
-    await oxy.verifyActingAs(APP, 'user-1000');
+    await oxy.verifyActingAs(APP, 'user-1000', { cache: true });
     expect(request).toHaveBeenCalledTimes(1001);
-    await oxy.verifyActingAs(APP, 'user-0');
+    await oxy.verifyActingAs(APP, 'user-0', { cache: true });
     expect(request).toHaveBeenCalledTimes(1002);
   });
 });

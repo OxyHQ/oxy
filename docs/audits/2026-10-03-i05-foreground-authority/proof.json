@@ -1,0 +1,228 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "e12930eb49af4297b0fb74274b1baa08fb0eea21",
+  "sourceSha256": {
+    "docs/adr/0034-present-requester-profile-capabilities.md": "8e5f8f4788e84e5465042bd4d3df8428e8f77b881eef04225cdeecb4dc5e578d",
+    "docs/adr/README.md": "378626a96e9a32822f096671ea32f18d87a444d1eb717882a761faf03f849672",
+    "packages/api/drizzle/0141_i05_foreground_requester.sql": "929fb090f5d61c2b3e58bda7989113daec0b31a7dbe3cd41b77da17c1ce5689a",
+    "packages/api/drizzle/meta/0141_snapshot.json": "45c5ebf5d9e8f231cc23ac43b2a81345c9809e138374d09f2dcc66674104974b",
+    "packages/api/drizzle/meta/_journal.json": "a5a3f8aef280f43d32112818d44dbcda435d04431e85bbdb81950e08739327d6",
+    "packages/api/openapi.json": "fcae87f6cb5656292d2dd6b6063ed8a8ff3da4c9ae97cd1346883378011f92ee",
+    "packages/api/scripts/generate-openapi.ts": "1eb350bab70ead0275c2be1c680dc010da750beb2e41fb61c2ac6e8d7c5847cf",
+    "packages/api/src/capabilities/oxy-profile.catalog.ts": "e70f308b24d00904991556874fb3b004f9f41467b797a0a93b586a93375f5e9a",
+    "packages/api/src/capabilities/oxy-profile.handlers.ts": "e484d873040027c97dd9d62cdbb02528ab32e1a7ac570de7b350fa2fbdb8a8b0",
+    "packages/api/src/capabilities/oxy-profile.transport.ts": "41cd4da3cfc85e5f7e2cbe83285d40acf5c5c013145489b230910b8a203de45a",
+    "packages/api/src/db/schema/agency.ts": "f0ce2beb92a4cc00d5ffe66b99198784ad3b6ecc906367b36e91d3bb99a9ebde",
+    "packages/api/src/db/schema/deferredForeignKeys.ts": "265ccdbb43fa55ddf1de1d8825db01939369a2bd2dfdfca53d055af232a53568",
+    "packages/api/src/routes/capabilities.ts": "1a8c3643888ff032065d4455e626dbfb979e65dbec28ac80c79747dd5d828d0b",
+    "packages/api/src/routes/foregroundProfiles.ts": "28b2cda00d4c74006d986005ee3270a5fc967c416565b1dc55e9aa98532afa70",
+    "packages/api/src/routes/profiles.ts": "32ed7c707075be79f0d655c971d4e172f9f5a0a07c9d6a32bff5331d05e4b16c",
+    "packages/api/src/server.ts": "1f1601f64549228b0024fe4c3b33b300dfa6a353d19e431e4efc7f3e9e4ed66a",
+    "packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts": "d8867c2152d47abfc8ad619ba3100de2203d0aac5e5d9d0db3b6e98901b0b948",
+    "packages/api/src/services/capabilityAuthority.service.ts": "77377fd514153d278083bc3cb8bef25a37d548c8155a0918210fad17dfe7c8c4",
+    "packages/api/src/services/capabilityRuntimeStore.service.ts": "06e891bf4a6908ab68c9552ae189545e1604d894daba3f6e024ffa635e3a5742",
+    "packages/api/src/services/foregroundCapabilityRequester.service.ts": "4912576e436135d1d71d752fb74869a245a2d127a3082846ab0f3e0ba63d6342",
+    "packages/contracts/src/__tests__/agency.test.ts": "860f702d67c588638d752bb3016e25c4e6566ec718594dc217cea9e322b5d7ad",
+    "packages/contracts/src/agency.ts": "80439933c9f12d2d1908b4634b0e062daee165ac7ef197d41947f1f82e368f77",
+    "packages/contracts/src/index.ts": "d3757bd1dfdb3ffc5c5989fd25a2fca63044a4df85f974ff477b22eb86833d0d",
+    "packages/core/src/api/agency.ts": "4995c585315de19f4cdea39d2c3cb68889516a3f33c49eb39350cce3fa40826a",
+    "packages/core/src/server/__tests__/agencyAuthority.test.ts": "1160b873b534d03d4bc52da3189b465bff92a5a20f89b011f195edd6ee2d45ee",
+    "packages/core/src/server/namespaces.ts": "63ee8f482bc2fb13b780541bd4a6b695125f3a2a4869bb26fe0adfc137db774e",
+    "scripts/check-openapi-fresh.mjs": "09b39a303001a3992527e51fa7e47d2bfd54dd8559de808591a2023fe5cc5798",
+    "scripts/rehearsal/test-i05-foreground-authority.py": "5273f4fdee8673299ce32f4fa27a1b9b9b74e5345dec600eb91642df32d2b203",
+    "scripts/test-check-openapi-fresh.mjs": "f31e10d7f17f1d97f183f8485601f41bdaceabb0b48ea4471a209ad558fd8372"
+  },
+  "records": {
+    "api-audit-mutant-red.txt": {
+      "sha256": "5527cda461d7c80c79f1d5d3606027b7d01897d32c3b03c75fa11caed63d0b3e",
+      "bytes": 10694
+    },
+    "api-green.txt": {
+      "sha256": "7df4039ce98f28551fe50648af70c91d1ab53630da64f77e0f7bfddd27f575aa",
+      "bytes": 9310
+    },
+    "api-ts-final.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "consumer-bun.lock": {
+      "sha256": "9ffe0ca9437c9bf91e3cd8f3e088fb17ec5f6868d77fd07fdde587c3ce17f214",
+      "bytes": 67681
+    },
+    "consumer-consumer.mts": {
+      "sha256": "25741fa71a6558e2bf3415a53ffb7e6a7e0349c9f75a25086ac6051e4d34cdfe",
+      "bytes": 621
+    },
+    "consumer-package.json": {
+      "sha256": "42a9e60ecef5e2ad4ecb994efab622cdb111ddebe9cb2ee3d9274578794f5db3",
+      "bytes": 1407
+    },
+    "consumer-packed-manifests.json": {
+      "sha256": "70549d22e40f7201417aa27ecaee1d3864eea11bf08892ff043ad9606a008671",
+      "bytes": 4254
+    },
+    "consumer-transport.mjs": {
+      "sha256": "c5948629a7e111aaf01db09cc30c76a88417aafac04b63d9ba2971db30936c9e",
+      "bytes": 3068
+    },
+    "contracts-final.txt": {
+      "sha256": "6042cc7fe0b0fa387dd069ac971e55ab27c9b1ed3cbf2bff361118632613a403",
+      "bytes": 254
+    },
+    "contracts-pack.txt": {
+      "sha256": "e218ba9c35a3710f6488a005cd3e30b435cf370964f328e4d6425d0400035953",
+      "bytes": 8868
+    },
+    "core-final.txt": {
+      "sha256": "178c3a059c834202d7c45c7477406d17a0e51757334a1f5ce72a04b8f40ab155",
+      "bytes": 499
+    },
+    "core-pack.txt": {
+      "sha256": "210a9d0b4fd3ec1a180376c97e3343d9d6a691f404f8b0dd04be27d989effb5c",
+      "bytes": 26682
+    },
+    "fresh141.txt": {
+      "sha256": "0841afaebddb50a889623ba967311ab10041c1416e857ed7a639d9acad7dd855",
+      "bytes": 8821
+    },
+    "installed-files.json": {
+      "sha256": "4cbbddeb0429140e620245257ec53849f7293326e50e689c84e9562c4dc8bbe1",
+      "bytes": 130318
+    },
+    "journal.txt": {
+      "sha256": "e60a6f88c2d991134df185016aa460d3f47617162cd34c377d748f90aa5deddb",
+      "bytes": 150
+    },
+    "lint-baseline.json": {
+      "sha256": "5b7dcdb65212cdd17fc5e777ab3bc649e52e8aac923d20b0bf3cb15e99ffc71b",
+      "bytes": 10317
+    },
+    "lint-new.txt": {
+      "sha256": "07e502c50a5411323449306bbd483f1425d891f012800cb40569e6fdfb9e5be8",
+      "bytes": 43
+    },
+    "mcp-final.txt": {
+      "sha256": "ef62f8c1cce9b7431ff3d97eda16e065d21de3173879aef557e7e0657eec2457",
+      "bytes": 153
+    },
+    "openapi-fixtures.txt": {
+      "sha256": "d1b6863b530fd65f26dab8940fc7cad1f6fa47cb0788eb8f9f8cda43dda31037",
+      "bytes": 58
+    },
+    "openapi-fresh.txt": {
+      "sha256": "a8a8a561b75049eb0e98574d8f3541d30519feef6c86479a9ab5ee01ec0a1d2c",
+      "bytes": 305
+    },
+    "owned-pg-green.txt": {
+      "sha256": "73253f477de431799aaa5e5a685e43e4152b6e5c1cf0a3637ab9df85774e12ef",
+      "bytes": 2267
+    },
+    "owned-pg-red.txt": {
+      "sha256": "40ec1e098e70a3fe24a267186115fd0c43ec94ff2e0494b3688dd48171fa7e04",
+      "bytes": 3407
+    },
+    "payload.txt": {
+      "sha256": "4058bf5fec21d05936fd68900a5da765e3cc8ba7a8ea010972efed38c2773d32",
+      "bytes": 195
+    },
+    "phases.txt": {
+      "sha256": "8628b70c136aebaa3f455680a90d91af49634477fd542b880ed79ee027c8bd8b",
+      "bytes": 758
+    },
+    "repeat141.txt": {
+      "sha256": "fb3d96257b1fd34123e49b906179f2a1b2d79dc7394f516723596ec25150f857",
+      "bytes": 173
+    },
+    "scripts-ts-final.txt": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    },
+    "snapshot.txt": {
+      "sha256": "b6ab8a8bb0f1c5854b5d2a14d86b6bde73dcbdd1554bcc237901e2c2527d8883",
+      "bytes": 85
+    },
+    "consumer-install.txt": {
+      "sha256": "ceedd09a7f73fff477cb670cf6af62bb7566c9fb8c9763ac0299c7847dd1fd7d",
+      "bytes": 685
+    },
+    "consumer-test.txt": {
+      "sha256": "161effd50748e0fb577d8b45552e4ba3a9f4cd5de080436920b204017b746a3c",
+      "bytes": 381
+    },
+    "consumer-typecheck.txt": {
+      "sha256": "7700e7e6338ba074abf49273ae20013ccbb99184992fd5acb01c6dc2620d9e66",
+      "bytes": 98
+    }
+  },
+  "artifacts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-contracts-4.9.0.tgz",
+      "sha256": "6b1e6a8da92341871d2832834ad063df1a1e84a46dc367786599fdd26be6e635",
+      "package": "@oxy.so/contracts",
+      "version": "4.9.0",
+      "candidateOnly": true
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-i05-foreground-20261003/packs/oxy.so-core-4.2.0.tgz",
+      "sha256": "abb442260be7edadafcea3f6435b22900aa7c22002eb70c74877a739f2e9a0d9",
+      "package": "@oxy.so/core",
+      "version": "4.2.0",
+      "candidateOnly": true
+    }
+  ],
+  "installedFileCount": 779,
+  "mutant": {
+    "source": "packages/api/src/capabilities/oxy-profile.handlers.ts",
+    "originalSha256": "e484d873040027c97dd9d62cdbb02528ab32e1a7ac570de7b350fa2fbdb8a8b0",
+    "mutatedSha256": "23884595ddd5838c877d127f16308e179e8ad0d0e8328626553a6570b5437193",
+    "change": "Remove only final await requireCurrent after audit; same committed harness and tests",
+    "failedTests": 2,
+    "passedTests": 64,
+    "restoredExactBytes": true
+  },
+  "acceptance": {
+    "apiGroupSuites": 7,
+    "apiGroupTests": 66,
+    "newForegroundTests": 16,
+    "contractsTests": 11,
+    "coreSuites": 3,
+    "coreTests": 14,
+    "mcpSuites": 9,
+    "mcpTests": 49,
+    "freshMigrations": 141,
+    "repeatAddedRows": 0,
+    "schemaTables": 223,
+    "payloadColumns": 2632,
+    "openapiFixtureCases": 37,
+    "apiStrictTypecheckExit": 0,
+    "apiScriptsTypecheckExit": 0,
+    "newScopedBiomeFiles": 12,
+    "newScopedBiomeExit": 0,
+    "sharedFilesComparedToParent": 8,
+    "sharedDiagnosticsUnchanged": true,
+    "installedConsumerFormats": [
+      "ESM",
+      "CJS"
+    ],
+    "installedConsumerStrictTypecheck": {
+      "exitCode": 0,
+      "skipLibCheck": true
+    },
+    "productionConfigurationApplied": false,
+    "publishedSdkAcceptance": false,
+    "consumerPilotAcceptance": false
+  },
+  "ownedPostgres": {
+    "greenPid": 3692239,
+    "redPid": 3699498,
+    "bothStopped": true,
+    "noExternalConnectionOverrides": true
+  },
+  "limits": [
+    "JWT/signature/PG/domain/router/MCP paths real; external AWS identity verifier and Redis transport isolated in fixtures",
+    "Candidate installed transport uses synthetic loopback HTTP service; authority acceptance is the separate real SQL/JWT/API fixture",
+    "No production catalogue registration or Mention permission changes",
+    "Requester read replay is allowed while bounded live authority remains current; no one-use assertion claim",
+    "Contract build stdout was emitted to the tool transcript; pack log captures packing output; core build and pack share one durable log"
+  ]
+}

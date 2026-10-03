@@ -1,0 +1,41 @@
+{
+  "failedHead": "98e5e96abfa56b9e8237f7e0da826fd539e12f71",
+  "failedRun": 37042468466,
+  "records": [
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-api.txt",
+      "sha256": "2858811d24302a48c879e0c03757ca527829491bbb4696eb1b61ba3795a1b78d"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-brands-api.txt",
+      "sha256": "6198a21463e42e65a025060a85e6c6054b7e91f7bfa7edd7cd773e547c444c1f"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-brands-scripts.txt",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-brands-tsc.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-census.txt",
+      "sha256": "b1c96af662e6eed1e1e457e9a00cc0c9e1459213d564e871eaaf854a05a3b3c6"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-openapi.txt",
+      "sha256": "9c73dfcdc933fd7d75222a070ffbd0005d6173fcea5cf4c00f277f2fc7824ba7"
+    },
+    {
+      "path": "docs/audits/1519-ci-fixtures-2026-10-02/ci-fix-tsc.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "limits": "Focused real PostgreSQL tests and tracked discovery; new full CI pending. No security policy changes.",
+  "followupFailure": {
+    "head": "3696401a5d685bca285d4d6ce3ed48361c1afd71",
+    "run": 37044329063,
+    "step": "Typecheck one-shot scripts",
+    "reason": "Moved fixture was now included; synthetic string account IDs require contract branding."
+  }
+}

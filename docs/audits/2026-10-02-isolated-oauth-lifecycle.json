@@ -1,0 +1,461 @@
+{
+  "observed_at": "2026-10-02T19:22:03.821403+00:00",
+  "original_base": "3696401a5d685bca285d4d6ce3ed48361c1afd71",
+  "integration_base_target": "72d41bf5c39cd635453440ce258177574dc1270e",
+  "scope": "Candidate local source and isolated packaged verification only; no release/publication/adoption/deployment/runtime SSO",
+  "toolchain": {
+    "bun": "1.4.2",
+    "node": "v24.21.0"
+  },
+  "evidence_namespace": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002",
+  "packed_consumer": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer",
+  "artifact_records": [
+    {
+      "name": "@oxy.so/core",
+      "nominal_version": "4.1.0",
+      "sha256": "596a8ea21968d5b0885285eb89d483e9b4bcbdcaa1ca4d600185cbc351f6b01b",
+      "artifact": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/artifacts/core-596a8ea21968d5b0885285eb89d483e9b4bcbdcaa1ca4d600185cbc351f6b01b.tgz",
+      "publishable": false
+    },
+    {
+      "name": "@oxy.so/services",
+      "nominal_version": "11.0.0",
+      "sha256": "f3ed3ff29f09f21ff2f95f4a0454dc3f172089d5fb4e082a0de2dff52fa03851",
+      "artifact": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/artifacts/services-f3ed3ff29f09f21ff2f95f4a0454dc3f172089d5fb4e082a0de2dff52fa03851.tgz",
+      "publishable": false
+    },
+    {
+      "name": "@oxy.so/contracts",
+      "nominal_version": "4.8.0",
+      "sha256": "e2178d497fb90638c166acb29f56a7e444f32747a7a32733be8d25f9b945ab46",
+      "artifact": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/artifacts/contracts-e2178d497fb90638c166acb29f56a7e444f32747a7a32733be8d25f9b945ab46.tgz",
+      "publishable": false
+    },
+    {
+      "name": "@oxy.so/protocol",
+      "nominal_version": "1.2.1",
+      "sha256": "4f9673813077dd2ed12bd49273473e025267b1da2ad38cbdd2c455fb2503c716",
+      "artifact": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/artifacts/protocol-4f9673813077dd2ed12bd49273473e025267b1da2ad38cbdd2c455fb2503c716.tgz",
+      "publishable": false
+    },
+    {
+      "name": "@oxy.so/telemetry",
+      "nominal_version": "1.2.0",
+      "sha256": "c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12",
+      "artifact": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/artifacts/telemetry-c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12.tgz",
+      "publishable": false
+    }
+  ],
+  "installed_resolution": {
+    "cwd": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer",
+    "node": "v24.21.0",
+    "records": [
+      {
+        "name": "@oxy.so/core",
+        "entry": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/core/dist/cjs/index.js"
+      },
+      {
+        "name": "@oxy.so/services",
+        "entry": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/services/lib/commonjs/index.js"
+      },
+      {
+        "name": "@oxy.so/contracts",
+        "entry": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/contracts/dist/cjs/index.js"
+      },
+      {
+        "name": "@oxy.so/protocol",
+        "entry": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/protocol/dist/cjs/index.js"
+      },
+      {
+        "name": "@oxy.so/telemetry",
+        "entry": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/telemetry/dist/cjs/index.js"
+      }
+    ]
+  },
+  "installed_modules": [
+    {
+      "package": "core",
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/core/dist/esm/api/apps.js",
+      "sha256": "067fe654be383f629be48f9053ee2e7de5fa26b49eafa20c66a22b5449046e94"
+    },
+    {
+      "package": "core",
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/core/dist/esm/session/SessionClient.js",
+      "sha256": "b15bdd16bf70a36caf5ebc501e1acfa19eea29bce73b73823af18c06fc9c33ae"
+    },
+    {
+      "package": "services",
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/services/lib/module/ui/context/OxyContext.js",
+      "sha256": "d6739e0083dc560f481fef09a7bdb030a2f42c26e5ed8299bd7367969bacf785"
+    },
+    {
+      "package": "services",
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/services/lib/module/ui/context/isolatedOAuthSession.js",
+      "sha256": "317a07a13cf8057538fa55306b80b7e1d4b2609ed80ec9d6e0e6b6100ce21f69"
+    },
+    {
+      "package": "services",
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/services/lib/module/ui/oauth/nativeAuthTransport.js",
+      "sha256": "78d8753528e7fd00c655246a7d3de89b786f4c932335fc452164e46864f43f3b"
+    },
+    {
+      "package": "services",
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-1519-20261002/isolated-oauth-packed-consumer/node_modules/@oxy.so/services/lib/module/ui/oauth/applicationSessionLane.js",
+      "sha256": "9712ca5409be6216769fba2cbbc707f50039ffffb5544307ab71453d391f88b6"
+    }
+  ],
+  "source_inputs": [
+    {
+      "path": "packages/api/src/controllers/session.controller.ts",
+      "sha256": "927007e16adeeb7bb1e6bf6a8c61e605ba5754e26c4acccd989b3e6e762d7ff5"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/isolatedOAuthLogout.test.ts",
+      "sha256": "42f2a7bc5267906e51772d468a826ae191e753fcf2a5acf09fce23bb75b5e555"
+    },
+    {
+      "path": "packages/core/src/api/__tests__/apps.test.ts",
+      "sha256": "4501f20ff7fcfeff30621ebfcd7c0a2f9b82aff4dd88fc60830bb2844fb7a75d"
+    },
+    {
+      "path": "packages/core/src/api/apps.ts",
+      "sha256": "2887a5fbfbec1c717cc4a92d85d9debe95f12b15111d05025a283dbe0598c660"
+    },
+    {
+      "path": "packages/core/src/session/SessionClient.ts",
+      "sha256": "3b5b2a8007d48677737a48794fab4a9abf5cbdb0841d422469244909f20dd9c3"
+    },
+    {
+      "path": "packages/core/src/session/__tests__/SessionClient.rest.test.ts",
+      "sha256": "8acb634347c0d2bc8f7a9d484ee81f10eb87c401851906c7830ad5b148c532f0"
+    },
+    {
+      "path": "packages/core/src/session/__tests__/SessionClient.socket.test.ts",
+      "sha256": "7d466a43afb5707b2740f9e54aadc34b65469cb46d6824096d4a8838eb4dd32f"
+    },
+    {
+      "path": "packages/services/__tests__/boot/runProviderColdBoot.test.ts",
+      "sha256": "dcd647ed77c790625a30c82ea3e913427e5370054809b26de1c9abca5b58b0d3"
+    },
+    {
+      "path": "packages/services/__tests__/components/OxySignInButton.test.tsx",
+      "sha256": "d77bdec99e0e9cb9c75ca384fef1671d9887d1be0e53dca3fc92888164f6089e"
+    },
+    {
+      "path": "packages/services/__tests__/context/browserBridge.test.tsx",
+      "sha256": "a7d2f9d264f927df461733122d71924c9dbaf2a8941863207c87e3bd32bef074"
+    },
+    {
+      "path": "packages/services/__tests__/context/coldBoot.test.tsx",
+      "sha256": "f2c264c6571c0e9e208d82b2951423764f62d393be92f390644a685939bc18c0"
+    },
+    {
+      "path": "packages/services/__tests__/context/identitySessionMode.test.tsx",
+      "sha256": "39e0e132d17c1d174bcb22f35d1d9b88301f30451e6092efc2e5d448aa481ff3"
+    },
+    {
+      "path": "packages/services/__tests__/context/mutationsSessionClient.test.tsx",
+      "sha256": "cb730dfc7660c75f8876ebef16cc4468b59f55ea24169473b76ed407d23a9ed4"
+    },
+    {
+      "path": "packages/services/__tests__/context/sessionClientSocket.test.tsx",
+      "sha256": "dd6daaa615c5b2f885c9b0df85543cc8afb14479b6e08b39c7e17a330bf8caf9"
+    },
+    {
+      "path": "packages/services/__tests__/context/tokenLossKeepsSession.test.tsx",
+      "sha256": "bdd403e943f930e885d88f90277f47fd154b2f23465808993214ef746c373f40"
+    },
+    {
+      "path": "packages/services/src/index.ts",
+      "sha256": "24e270cb55ca27cfca16af611ec56108071aa0d1f4c44943c3c593d93baa79ec"
+    },
+    {
+      "path": "packages/services/src/ui/boot/__tests__/coldBootNoIdpRedirect.test.ts",
+      "sha256": "3c998415aca9f58a2742aabed422ec8755d142ee1463987c0aa630193a44dd7c"
+    },
+    {
+      "path": "packages/services/src/ui/boot/runProviderColdBoot.ts",
+      "sha256": "958717c37e74088cd80add944a168304c95c0e654e4003cfb56e3bbb90825a39"
+    },
+    {
+      "path": "packages/services/src/ui/components/OxySignInButton.tsx",
+      "sha256": "8243de3df8c685fb7e6b217b37b117a458b829d863ffb3101e91784f7f61f0ca"
+    },
+    {
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "2d67bfd01569e4e47f3ceec87d5f03be2afc13164fc32adc0a96061b903bfdde"
+    },
+    {
+      "path": "packages/services/src/ui/context/__tests__/commitSessionFlow.test.ts",
+      "sha256": "8ba81b8af2ec86ba4273b01d5bf966359ef309c7b8a6ba5429ea45c8a2692865"
+    },
+    {
+      "path": "packages/services/src/ui/context/__tests__/isolatedOAuthSession.test.ts",
+      "sha256": "662c7030f7bbdc3dc29eca735459d0ed701ecaf12d41e146994e7e85128f1a16"
+    },
+    {
+      "path": "packages/services/src/ui/context/commitSessionFlow.ts",
+      "sha256": "fbf0b836c96cc1622866fbc634b04ca78129047138b01a74e2aa43330e3f9fd1"
+    },
+    {
+      "path": "packages/services/src/ui/context/hooks/useAuthOperations.ts",
+      "sha256": "1c6ef951ece1b6100fd433345da8c73f862f1ff24e50bbb25fddc02ae6d99629"
+    },
+    {
+      "path": "packages/services/src/ui/context/isolatedOAuthSession.ts",
+      "sha256": "aab661b7ffbdc9b4a26b42ed5f90daeeeee3f27644046820f8bba8671fa40597"
+    },
+    {
+      "path": "packages/services/src/ui/context/oxyContextTypes.ts",
+      "sha256": "59455348862ffd997a5c54359492ac1fda2c4ccf4d2f034c142798a517eaf685"
+    },
+    {
+      "path": "packages/services/src/ui/context/useOxyAccountGraph.ts",
+      "sha256": "e25c546ea7b11144c95004e8f272259640b5bfd8c86ff5e1292207e718af3959"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/__tests__/nativeAuthTransport.test.ts",
+      "sha256": "468235d7851ebe46f99b495500b3d758474c75ce8a5373e2b45177ab70661e11"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/applicationSessionLane.ts",
+      "sha256": "8501955ae988fbdbdfbe72ba0ff0bfe476156d1103f2d1ca9459240535a9f5bd"
+    },
+    {
+      "path": "packages/services/src/ui/oauth/nativeAuthTransport.ts",
+      "sha256": "e69f53d35a7549214522c011bd3152329c609da288c655a1d39714139f15f187"
+    },
+    {
+      "path": "packages/services/src/ui/session/createSessionClient.ts",
+      "sha256": "b9d2bdab0d5e778512f745e858464fafa04a3b557912c8b28cb71c6be71d3c08"
+    }
+  ],
+  "log_records": [
+    {
+      "file": "i11-oauth-services-full-tests.log",
+      "sha256": "ff9f3db6ed258c2ae7d61c2bce9f153f62a1e4e9a397b7266cfb69b333e24e5b",
+      "bytes": 190
+    },
+    {
+      "file": "i11-oauth-services-regression-tests.log",
+      "sha256": "682788dedbb55c758f73ec7e6260022630151e304e4cf1607523b66349db7617",
+      "bytes": 982
+    },
+    {
+      "file": "i11-oauth-core-regression-tests.log",
+      "sha256": "afa4014de15616d679fab39643e4f570dee0b88eaf56bc132293e64c16756ccb",
+      "bytes": 715
+    },
+    {
+      "file": "i11-oauth-apps-tests.log",
+      "sha256": "383f82b58ab766d918c4533a0f99d00591accae1edea6f64cbaedee345ee9631",
+      "bytes": 258
+    },
+    {
+      "file": "i11-oauth-api-regression-tests.log",
+      "sha256": "e941c12d8a5b98fde6790ecfc74f282d3ccc7d466260104fd824ec0149736c9e",
+      "bytes": 386
+    },
+    {
+      "file": "i11-oauth-api-metadata-repro.log",
+      "sha256": "cb001ebe93bb2b58a7fbbb71ecb1ea246e4da377f8d6abb21d692ea55c62a47a",
+      "bytes": 289
+    },
+    {
+      "file": "i11-oauth-services-tsc.log",
+      "sha256": "7d26c6ecc2d5061aa553334c914743e9b22caa425d5a2dd2173cd61e58e1b1b4",
+      "bytes": 30
+    },
+    {
+      "file": "i11-oauth-api-tsc.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "file": "i11-oauth-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "file": "i11-oauth-agents-check.log",
+      "sha256": "fb6a97cff758cd5cda4c0a20d31e4ddeee3f1fb57a4caea7e2fb0b0c1f5b094d",
+      "bytes": 806
+    },
+    {
+      "file": "i11-oauth-published-red-reproduced.log",
+      "sha256": "273c9c58fada4ee6fe9c7cd1627e842d390b8b6dc6414cd943f5ece3648c1cbd",
+      "bytes": 1560
+    },
+    {
+      "file": "i11-oauth-candidate-browser.log",
+      "sha256": "0617e0b3fe7b731831085a75f99adadbb9810ff5821103304535142f9ebcff49",
+      "bytes": 169027
+    },
+    {
+      "file": "i11-oauth-packed-browser.log",
+      "sha256": "ebf59babf57b1723ea1b95d6e998456854c47cb107e872afed652b4597947667",
+      "bytes": 1528
+    },
+    {
+      "file": "i11-oauth-packed-install.log",
+      "sha256": "2c19690b4eb6f16029599d5f1e0b14398b5a8705f0d8add9ec4e4b3630ea6aa2",
+      "bytes": 2253
+    },
+    {
+      "file": "i11-oauth-packed-frozen-install.log",
+      "sha256": "b779a904fca07442388d8810e296a978682bc5ab3a222699b41d139b5597263d",
+      "bytes": 605
+    },
+    {
+      "file": "i11-oauth-packed-resolution.json",
+      "sha256": "1e44aef1ac20fa85a57748c6659846f20fdb004765c2ce1fb4c17c6ac92a4b2b",
+      "bytes": 1126
+    },
+    {
+      "file": "i11-oauth-services-build-final.log",
+      "sha256": "5a5958e6ac66968e07e2a35557df3c9bf29172c7e6c81af6d20f985848531458",
+      "bytes": 1551
+    },
+    {
+      "file": "i11-oauth-services-pack-final.log",
+      "sha256": "3751796d52c8db26954975c1f8d1ab1810fb84422f231a289303f08075e686f3",
+      "bytes": 157312
+    },
+    {
+      "file": "i11-oauth-core-pack.log",
+      "sha256": "69a65bd5841563731017cf6cea877b06338cbfbaa28791d3bc964196e2a70b22",
+      "bytes": 25429
+    },
+    {
+      "file": "i11-oauth-contracts-pack.log",
+      "sha256": "24b8b07d0d4790f833dc6d078b151e4adbb1b783c1405081c4b9e38ab813e0c9",
+      "bytes": 8410
+    },
+    {
+      "file": "i11-oauth-protocol-pack.log",
+      "sha256": "38b6f9aeaeec83094df9d6dc4f23571980bc1b684278542fb9d82febe1ca2e80",
+      "bytes": 6371
+    },
+    {
+      "file": "i11-oauth-telemetry-pack.log",
+      "sha256": "451ecba7f8810f88f30708bbd5dbee5577ff56e0862e817e2c1604c73958e58f",
+      "bytes": 1323
+    },
+    {
+      "file": "i11-oauth-openapi-check.log",
+      "sha256": "935e542839b74c76205ced859c6250d4c28caa42c9019dfe673b1d630c4854b3",
+      "bytes": 295
+    },
+    {
+      "file": "i11-oauth-payload-census.log",
+      "sha256": "88b25b741e435a1f042d04dddb9dfd293bed08e112da703776c66e96ef5ef3e0",
+      "bytes": 195
+    }
+  ],
+  "results": {
+    "services_full": {
+      "suites": 112,
+      "tests": 1009,
+      "passed": true
+    },
+    "core_regression": {
+      "suites": 5,
+      "tests": 61,
+      "passed": true
+    },
+    "core_apps": {
+      "tests": 11,
+      "passed": true
+    },
+    "api_postgres": {
+      "suites": 2,
+      "tests": 17,
+      "passed": true
+    },
+    "source_browser": {
+      "scenarios": 2,
+      "passed": true
+    },
+    "packed_browser": {
+      "scenarios": 2,
+      "passed": true,
+      "device_requests": 0,
+      "cookies": 0,
+      "page_errors": 0
+    },
+    "published_browser": {
+      "scenarios": 2,
+      "exit": 1,
+      "result": "intentional RED isolated self logout, state mismatch PASS"
+    },
+    "typescript_services": true,
+    "typescript_api": true,
+    "lint": true,
+    "openapi_fresh": {
+      "paths": 354,
+      "operations": 409,
+      "passed": true
+    },
+    "schema_payload_census": true
+  },
+  "history": [
+    "First services full run:107passed/5failed suites,989passed/20failed tests; old device fixtures omitted registered clientId/public metadata. Registered first-party fixtures updated without removing assertions, focused22passed and final112suites1009passed.",
+    "Browser fixture setup initially lacked plugin-react and root react-dom; standalone fixture now uses built-in JSX transform and own services workspace React paths. These are harness setup failures, not SDK acceptance results."
+  ],
+  "pending": [
+    "Coordinated release with concrete minimum core version; nominal local tarball versions not publishable",
+    "Examples web release adoption and Expo migration only after published shared helper/lifecycle",
+    "Real registered OAuth/consent, web/native/Android SSO, rollback and full I11/I01 acceptance"
+  ],
+  "consumer_inputs": [
+    {
+      "file": "package.json",
+      "sha256": "4fc5be73b9d4d44dd632eddaa1738e0be704f2b6197dcb04b46fec94a653b0e3"
+    },
+    {
+      "file": "bun.lock",
+      "sha256": "cd52129176903438175b8a0563b0eb425fe3200fd4bb3d231e97d22ef54f3c06"
+    },
+    {
+      "file": "vite.config.ts",
+      "sha256": "d6fc805dab2363059111187dcbf8eadeae4422b1e9aa1a46ff7d0627ee058ba3"
+    },
+    {
+      "file": "main.tsx",
+      "sha256": "698eb8b2bbc5a0a729bf167514496b1f75a5935d07a8d8c09645274537cc3aae"
+    },
+    {
+      "file": "index.html",
+      "sha256": "0ba6a258bd2bd5778a8cfcb540f443f0db89c56118b8a79d28956687ade03624"
+    }
+  ],
+  "harness_inputs": [
+    {
+      "file": "scripts/rehearsal/isolated-oauth-browser.mjs",
+      "sha256": "e156367053f7b504b9748665fb1a715a3fc1d568a5a7723c6e783214c1a446e3"
+    },
+    {
+      "file": "scripts/rehearsal/isolated-oauth-browser/index.html",
+      "sha256": "0ba6a258bd2bd5778a8cfcb540f443f0db89c56118b8a79d28956687ade03624"
+    },
+    {
+      "file": "scripts/rehearsal/isolated-oauth-browser/main.tsx",
+      "sha256": "698eb8b2bbc5a0a729bf167514496b1f75a5935d07a8d8c09645274537cc3aae"
+    },
+    {
+      "file": "scripts/rehearsal/isolated-oauth-browser/vite.config.ts",
+      "sha256": "9e60a58343380a81a3aa2c0407a4974304acb4b30423d9edc34d51582411ae3b"
+    }
+  ],
+  "rebased_on": "72d41bf5c39cd635453440ce258177574dc1270e",
+  "commands": {
+    "services_full": "cd packages/services && bun run test -- --runInBand",
+    "core_regression": "cd packages/core && bun run test -- --runInBand --runTestsByPath src/session/__tests__/SessionClient.rest.test.ts src/session/__tests__/SessionClient.state.test.ts src/session/__tests__/SessionClient.socket.test.ts src/session/__tests__/SessionClient.socketFactory.test.ts src/session/__tests__/refresh.test.ts",
+    "core_apps": "cd packages/core && bun run test -- --runInBand --runTestsByPath src/api/__tests__/apps.test.ts",
+    "api_pg": "cd packages/api && TEST_DATABASE_URL=postgres://oxy@127.0.0.1:5549/postgres bun run test -- --runInBand --runTestsByPath src/routes/__tests__/isolatedOAuthLogout.test.ts src/routes/__tests__/sessionDeviceThirdParty.test.ts",
+    "pack": "In each of core/services/contracts/protocol/telemetry: bun run build && bun pm pack",
+    "packed_install": "In separate consumer: bun install --minimum-release-age=0 --ignore-scripts; bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts",
+    "openapi": "node scripts/check-openapi-fresh.mjs",
+    "payload": "bun scripts/check-no-payload-persistence.mjs"
+  }
+}

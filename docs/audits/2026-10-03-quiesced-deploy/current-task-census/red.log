@@ -1,0 +1,17 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Missing expected exception.
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/test-quiesced-deploy.mjs:259:17
+    at ok (file:///home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/test-quiesced-deploy.mjs:110:2)
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/scripts/test-quiesced-deploy.mjs:259:1 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: undefined,
+  operator: 'throws',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

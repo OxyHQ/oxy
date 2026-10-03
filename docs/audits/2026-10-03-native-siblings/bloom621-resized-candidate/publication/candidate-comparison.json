@@ -1,0 +1,7 @@
+{
+  "candidateFiles": 20940,
+  "releaseFiles": 20940,
+  "changedDocumentationOnly": [
+    "package/docs/adoption-matrix.mdx"
+  ]
+}

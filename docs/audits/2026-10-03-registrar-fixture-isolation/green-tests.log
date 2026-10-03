@@ -1,0 +1,26 @@
+$ jest --runInBand --testSequencer "/home/nate/Oxy/.agent-evidence/coverage-registrar-fixture-isolation-20261003/ordered-sequencer.cjs" --runTestsByPath src/services/__tests__/foregroundCapabilities.db.test.ts src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts
+{"level":30,"time":1791055028932,"pid":4187835,"hostname":"SuperPC","binaryPath":"/usr/bin/ffmpeg","msg":"[VariantService] Using system ffmpeg"}
+{"level":30,"time":1791055028935,"pid":4187835,"hostname":"SuperPC","binaryPath":"/usr/bin/ffprobe","msg":"[VariantService] Using system ffprobe"}
+{"level":30,"time":1791055028935,"pid":4187835,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","msg":"[VariantService] Resolved FFmpeg path"}
+{"level":30,"time":1791055028935,"pid":4187835,"hostname":"SuperPC","ffprobePath":"/usr/bin/ffprobe","msg":"[VariantService] Resolved FFprobe path"}
+{"level":30,"time":1791055028935,"pid":4187835,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","ffprobePath":"/usr/bin/ffprobe","ffmpegExists":true,"ffprobeExists":true,"msg":"FFmpeg/FFprobe paths initialized"}
+{"level":30,"time":1791055029165,"pid":4187835,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791055029193,"pid":4187835,"hostname":"SuperPC","kid":"dev-ephemeral-8c9a75e27412","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791055030038,"pid":4187835,"hostname":"SuperPC","sessionId":"2cfcea2e","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791055030679,"pid":4187835,"hostname":"SuperPC","sessionId":"fe9c7a3f","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791055030873,"pid":4187835,"hostname":"SuperPC","sessionId":"23362a8a","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791055031535,"pid":4187835,"hostname":"SuperPC","applicationId":"01a10332-e3bc-75d1-b0fa-b45cfaf45af7","appName":"Foreground 87c17afe-4d19-4f83-bce8-3b4b0c5533fd","provider":"aws-iam","attestationId":"wl_06d6e001426f1fcb4f226850","attribution":"unchanged","scopes":["user:read","capability-tickets:issue","capabilities:read","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791055032431,"pid":4187835,"hostname":"SuperPC","sessionId":"c48cf732","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791055032431,"pid":4187835,"hostname":"SuperPC","sessionId":"c48cf732","operatorId":"01a10332-ef89-7f53-b174-563d36a34d38","accountId":"01a10332-ef92-78d5-9b6c-c88eba60802c","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+{"level":50,"time":1791055033489,"pid":4187835,"hostname":"SuperPC","path":"/tickets","method":"POST","err":{"type":"Object","message":"synthetic SQL unavailable","stack":"Error: synthetic SQL unavailable\n    at /home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts:351:75\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Unexpected error in route handler"}
+{"level":30,"time":1791055033515,"pid":4187835,"hostname":"SuperPC","credentialId":"01a10332-f492-7cd4-986f-79e622bb1d17","applicationId":"01a10332-e3bc-75d1-b0fa-b45cfaf45af7","appName":"Foreground 87c17afe-4d19-4f83-bce8-3b4b0c5533fd","expiresIn":300,"msg":"[ServiceToken] Service token issued"}
+PASS src/services/__tests__/foregroundCapabilities.db.test.ts (5.448 s)
+{"level":40,"time":1791055033710,"pid":4187835,"hostname":"SuperPC","apiKey":"[redacted]","msg":"[ServiceToken] Invalid apiKey attempt"}
+{"level":30,"time":1791055035413,"pid":4187835,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts (9.82 s)
+
+Test Suites: 2 passed, 2 total
+Tests:       26 passed, 26 total
+Snapshots:   0 total
+Time:        15.298 s
+Ran all test suites within paths "src/services/__tests__/foregroundCapabilities.db.test.ts", "src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts".

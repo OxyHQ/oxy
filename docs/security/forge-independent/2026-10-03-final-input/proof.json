@@ -1,7 +1,7 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-03T05:29:17.501160+00:00",
-  "candidateCommit": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
+  "recordedAtUTC": "2026-10-03T20:17:14.604714+00:00",
+  "candidateCommit": "9157c9c4bce3f4453f91b094410bcdffb564cb9c",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
   "toolchain": {
@@ -15,11 +15,11 @@
     "mocha": "5.2.0"
   },
   "inputs": {
-    "bun.lock": "864b175c3684fa10fb62769363a2128faeede5fb8f766ec34e232d853f9e206d",
-    "package.json": "bc2aac184dd2f80e25ce69ab52843ce9a29da7a11a04b5677bf0a6bc3a9ae889",
+    "bun.lock": "729e9f5fdd43f120ca575397c41fed0881cb09e3f0001354c437790d44f0ba8e",
+    "package.json": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1",
     "patches/node-forge@1.4.0.patch": "6c8b35a750038ddae3b2973dd81cad4826fa31744053c878cd8959338edcd776",
     "docs/security/forge-candidate/toolchain.bun.lock": "4d79aaf8585817aa08681a2c14728b1f30612b4d146543f50691f3382b4f8a49",
-    "scripts/rehearsal/test-forge-final-input-1519.py": "790e0899a1cf65eae8cca07f4908f5dab6a289d8e9866f56574387be8ce8bd31",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "2116f8dc1a152942efd6b414f60ebc211dc97c495232fd8d489ad5c6942b0407",
     "scripts/forge-independent-expo-compat.cjs": "97bb588e63d8c47a21157c48ca39dfc203a481fb4405fd1b19b28f9599a6b8df"
   },
   "webpackConfigSha256": "5e70f8af959af5edf27b5a42985da607ad4047ba014a0a3da39d83973449f1dd",
@@ -62,28 +62,36 @@
     "packageVersion": "0.0.6",
     "ownPublicApiChecksPassing": 14,
     "upstreamExpoSuiteExecuted": false,
-    "historicalInitialHarness": {
-      "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
-      "passing": 12,
-      "failing": 2,
-      "meaning": "historical b093 harness correction; not the current issuer-stage command"
+    "historicalHarnessFailures": {
+      "packageVersion": "0.0.6",
+      "ownPublicApiChecksPassing": 14,
+      "upstreamExpoSuiteExecuted": false,
+      "historicalInitialHarness": {
+        "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
+        "passing": 12,
+        "failing": 2,
+        "meaning": "historical b093 harness correction; not the current issuer-stage command"
+      },
+      "stageInitialInvocation": {
+        "command": "node --test scripts/forge-independent-expo-compat.cjs packages/api",
+        "ownChecksPassing": 14,
+        "extraneousPackageEntryFailing": 1,
+        "correctedCommand": "node scripts/forge-independent-expo-compat.cjs packages/api",
+        "correctedChecksPassing": 14
+      }
     },
-    "stageInitialInvocation": {
-      "command": "node --test scripts/forge-independent-expo-compat.cjs packages/api",
-      "ownChecksPassing": 14,
-      "extraneousPackageEntryFailing": 1,
-      "correctedCommand": "node scripts/forge-independent-expo-compat.cjs packages/api",
-      "correctedChecksPassing": 14
-    }
+    "currentCommand": "node scripts/forge-independent-expo-compat.cjs packages/api",
+    "currentExitCode": 0
   },
   "oxyTests": {
     "suitesPassing": 3,
     "testsPassing": 34,
-    "ownedPostgresPid": 3517840,
+    "ownedPostgresPid": 4170519,
     "ownedPostgresMajor": 17,
     "ownedPostgresPort": 5578,
-    "ownedPostgresDataDirectory": "/tmp/oxy-forge-final-pg-nhuo2o26/data",
-    "databaseLifecycle": "fresh initdb owned PID/UID/data/executable/listening socket verified; normal migrator130+repeat; Jest random databases migrated/dropped; server stopped finally"
+    "ownedPostgresDataDirectory": "/home/nate/Oxy/.agent-evidence/fc3/oxy-forge-final-pg-li6bsdvt/data",
+    "database": "oxy_rehearsal_1519_c190ae830476590f",
+    "databaseLifecycle": "New owned PostgreSQL17/port5578 verified PID/UID/exe/data/socket; normal142 fresh and repeat;34PASS. pg_ctl fast stop, PID/postmaster.pid absent."
   },
   "knownKeyControls": {
     "stock": {
@@ -158,28 +166,27 @@
     },
     {
       "file": "expo-14-final.log",
-      "sha256": "f1fe1f3cd6e34950f5f4ca57d77d22b17143e11077ab31e278171735d79e8c20",
-      "completedFileMtimeUTC": "2026-10-03T05:29:17.501160+00:00",
+      "sha256": "05f317216049707a6f26db2ab93cc9c39be3f684ecad4c0e87bca8168e4e0c48",
+      "completedFileMtimeUTC": "2026-10-03T19:02:21.698760+00:00",
       "command": "node scripts/forge-independent-expo-compat.cjs packages/api",
       "exitCode": 0,
-      "reusedHistorical": false
+      "reusedHistorical": true
     },
     {
       "file": "oxy-34.log",
-      "sha256": "f5a543db3b41e8d8a6762ce1516f0bed83888f11a23248f470ffc8c842e2c3db",
-      "completedFileMtimeUTC": "2026-10-03T05:29:17.501160+00:00",
-      "command": "python3 scripts/rehearsal/test-forge-final-input-1519.py (owned server, normal API test/migrator)",
+      "sha256": "dc79a0bb97acacfad143afe2266240e4fbc53ea2b10ecda2bc8e98d1cd509238",
+      "completedFileMtimeUTC": "2026-10-03T19:02:21.699847+00:00",
+      "command": "python3 scripts/rehearsal/test-forge-final-input-1519.py; normal142 fresh/repeat; ownPG4170519 stopped",
       "exitCode": 0,
-      "reusedHistorical": false
+      "reusedHistorical": true
     },
     {
       "file": "oxy-db-build.log",
-      "sha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d",
-      "completedFileMtimeUTC": "2026-10-03T04:09:46.059281+00:00",
-      "command": "bunx turbo run build --filter=@oxy.so/api^... (eight dependencies built)",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "completedFileMtimeUTC": "2026-10-03T19:02:21.698575+00:00",
+      "command": "bun run build (packages/api; workspace dependency order then API tsc)",
       "exitCode": 0,
-      "reusedHistorical": true,
-      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
+      "reusedHistorical": true
     },
     {
       "file": "stock-install-pinned.log",
@@ -199,12 +206,11 @@
     },
     {
       "file": "oxy-install.log",
-      "sha256": "974dd273bbe6e12a0e94b05649e21a5a9e9ed5afad792773d510508b1a92376b",
-      "completedFileMtimeUTC": "2026-10-03T04:09:46.059325+00:00",
-      "command": "bun install --frozen-lockfile --minimum-release-age=0 (issuer-only staging input)",
+      "sha256": "075d9b2008777216763c4e131bffaab5f44df95192cdb577e6d035507397b803",
+      "completedFileMtimeUTC": "2026-10-03T19:02:21.698637+00:00",
+      "command": "bun --no-env-file install --frozen-lockfile --minimum-release-age=0",
       "exitCode": 0,
-      "reusedHistorical": true,
-      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
+      "reusedHistorical": true
     },
     {
       "file": "stock-controls.json",
@@ -216,12 +222,11 @@
     },
     {
       "file": "candidate-controls.json",
-      "sha256": "ee62bcfa872ce593ee1c4dba709d04fe1b9c52c1ce1ddc12dec7cdfa03d79033",
-      "completedFileMtimeUTC": "2026-10-03T04:09:46.059394+00:00",
-      "command": "node scripts/forge-candidate-regression.cjs <final installed Forge root> candidate",
+      "sha256": "363475799ad0f3c687298909e5ecfaf270e321b423c000ffafbee6f6af11f6f2",
+      "completedFileMtimeUTC": "2026-10-03T19:02:21.699000+00:00",
+      "command": "node scripts/forge-candidate-regression.cjs node_modules/.bun/node-forge@1.4.0/node_modules/node-forge candidate",
       "exitCode": 0,
-      "reusedHistorical": true,
-      "reusedSourceHead": "15cf6b6e5a2743e15486df4943c9b6eda1909ece"
+      "reusedHistorical": true
     },
     {
       "file": "hashes-after-build-2.json",
@@ -244,8 +249,8 @@
     "evidenceRoot": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002",
     "stockClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock",
     "candidateClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate",
-    "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003",
-    "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-service-token-issuer-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge"
+    "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003",
+    "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge"
   },
   "historicalCryptoEvidence": {
     "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
@@ -264,107 +269,361 @@
       "hashes-after-build-2.json",
       "candidate-build-repeat.json"
     ],
-    "scope": "Historical stock/candidate Forge builds, upstream828+4pending, and known-key321 controls are reused on unchanged source/patch/toolchain and15 verified output hashes. Current Oxy34 and Expo14 rerun on source9efa8d28e. Dependency build/install and installed321 from15cf explicitly reused because dependency input trees and allfive installedForge outputs unchanged; only API comments/OpenAPI changed between15cf and9efa. New ARM target still required."
+    "scope": "Forge source/patch/pinned toolchain unchanged; all17 records retained byte-identically from prior measured sources. Installed321/Expo14/Oxy34/normal142/APIbuild/frozeninstall and actualPG4170519 lifecycle are explicitly reused historical. Fresh topology23/policy144/DAG82/resolver14 are framework-only rechecks."
   },
   "supplementalRecords": [
     {
       "file": "consumer-runner-final.log",
-      "sha256": "07117c816cf897a8e11c2c9283498d1e6ca6b8f5f312001d2feae3d572cc487e"
+      "sha256": "1af7f2e6ae70efbee630a1a30416e38038433d2da9007c3de843850e5d957e41",
+      "reusedHistorical": true
     },
     {
       "file": "migrate-fresh.txt",
-      "sha256": "e8a9e2b605f8d81a9b17ef4b5fcf819521c6b50e5eafba2f2ea171cc667c6c6b"
+      "sha256": "eb04eedbc6290ca12475ffd5058fdc5151268bd5c0be93ab7d776e3ebf6e0ef6",
+      "reusedHistorical": true
     },
     {
       "file": "migrate-repeat.txt",
-      "sha256": "b3a8918777c87fa23ea35591d9778ef23d9264abecbb83bd47e22c7d4929028d"
+      "sha256": "30fbb36a141fcff679ee4b8dc4b99d62a918e75a2fd804542cf2a00653185a51",
+      "reusedHistorical": true
     },
     {
       "file": "inventory.json",
-      "sha256": "47c6b1f8bcde4f332eb6cdc3b1913f6fc55015aab3261f48d6300b43308f6314"
+      "sha256": "aeb662c679e3b3b371bc5da771d247257fddb33aede784789e9cad08d2b65f0c",
+      "reusedHistorical": true
     },
     {
       "file": "policy-final.log",
-      "sha256": "b5301cec2da2ba4115792c31924802f4d94bb8d65be57b6bd7ac0cdfaad22b33"
-    },
-    {
-      "file": "framework-inputs.json",
-      "sha256": "cfa7d1e82fd58c72ecc890e270dada8f05a6c75890ea0a84a37cdc2ea174a8da"
+      "sha256": "82b1290ade8edc1b7274941466f9e02d599b29c5ea381da04fab3cae1ac5f23b",
+      "reusedHistorical": true
     },
     {
       "file": "dag82.log",
-      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
+      "reusedHistorical": true
     },
     {
       "file": "resolver14.log",
-      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3",
+      "reusedHistorical": true
     },
     {
-      "file": "topology20.log",
-      "sha256": "b11f784808c503afd7758fb8b018d41ab2ccc5ebe574f5da8fab144875823ed0"
+      "file": "raw-audit.json",
+      "sha256": "496b6b4085635ba813c61d01452b72fe1099f5b79493cbaef5b05b6db8bc4f07",
+      "reusedHistorical": true
     },
     {
-      "file": "binding43.log",
-      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4"
+      "file": "framework-inputs.json",
+      "sha256": "9d2ddd24c5fa0580df797d4082b4d3848384c0e49d0e2dbe44212a32d9838b14"
     },
     {
-      "file": "collector61.log",
-      "sha256": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95"
+      "file": "quiesced-census61.log",
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca",
+      "reusedHistorical": true
     },
     {
-      "file": "clock13.log",
-      "sha256": "095db5ea3c1425fcc0c6c5486c36f7dd9b19d6993b3291969c165a0939d44441"
+      "file": "quiesced-census-shell10.log",
+      "sha256": "44ef42ef01cd322870a3bf2ea4a556b2c5088b3dc067d829f59864a7707b3fb9",
+      "reusedHistorical": true
     },
     {
-      "file": "stream13.log",
-      "sha256": "d034ab39354c2f034fa02526bcbb2b25197c79369aa9fb04ff68ee72fc6a232f"
+      "file": "quiesced-census-biome3.log",
+      "sha256": "94cf74da15f5f347365d8f075e8b8810699bf75fbd5792ea2824107d092a192d",
+      "reusedHistorical": true
     },
     {
-      "file": "audit-fixtures.log",
-      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce"
+      "file": "fixed-main-topology-red.log",
+      "sha256": "bd0c44a6498bd87cd77fd03a0fa3fb968fbe912fc69acbc96fe8fd2bdb3165e1",
+      "exitCode": 1
     },
     {
-      "file": "proposal131.log",
-      "sha256": "d029c2e020cf6fafc5acce840c0a5e116ec25d18cae4e0520dd713f07dacbe77"
+      "file": "fixed-main-topology-green.log",
+      "sha256": "42c3f57beb42c5302d38f534e5148ee96cda6ba6f06dcf2e210ff3e790fac463",
+      "exitCode": 0
     },
     {
-      "file": "expo-invocation-error.log",
-      "sha256": "f63682204c89951d63fe9a0f1bd156242cc5f3636b396549c73eaa5be1a70c87"
+      "file": "fixed-main-policy144.log",
+      "sha256": "219be3a507bb54a02f15d53d4d75dad6510f1d4eb3f078eb9de88f62199ea84c",
+      "exitCode": 0
     },
     {
-      "file": "openapi-fresh.log",
-      "sha256": "9e6fb144dfee1c9fbe5a4db3f7165209f2bb9bf4c5c4a806416563e35130cd0b"
+      "file": "fixed-main-dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
+      "exitCode": 0
+    },
+    {
+      "file": "fixed-main-resolver14.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3",
+      "exitCode": 0
     }
   ],
   "inputTrees": {
-    "packages": "0dd0ca266d583f50abb62335cff8434aea953cf2",
-    "bun.lock": "266d2176150ca013b673908bb22bc84f20a65b5f",
-    "package.json": "19136677bba961cb17936a52f1262b4d54801a78",
+    "packages": "4d5e4192ce80e390658175f72f80fdf60751a007",
+    "bun.lock": "b3a19f253e2a9f1944ca373f1866507d8130be17",
+    "package.json": "81684a59a64778423aa390dcd748b771d581c96e",
     "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
     "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
     "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
     "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
     "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
-    "scripts/rehearsal/test-forge-final-input-1519.py": "c61511bc703368530a680bd54bd082406e86a0e7",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "f16e16d751bcf074d979e6dc9552182da9150204",
     "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
   },
   "stage": {
-    "base": "4b145040afca38be93ad4096241d4c60e12e1c82",
-    "runtimeChange": "issuer300 only; verifier unchanged",
-    "normalMigrationCount": 130,
+    "base": "67c09e853db308d102624a2ffd40db19959344f4",
+    "runtimeChange": "Final auth/billing/schema142 plus reviewed same-holder context CAS, narrow canary API shared DELETE/operator audit, GoWay public seed and explicit quiesced deployment. No new migration since142.",
+    "normalMigrationCount": 142,
     "ownPGStopped": true,
     "policyStatus": "INACTIVE",
     "armProofCollected": false,
     "expiryNotExtended": "2026-10-09T22:00:00Z",
-    "firstExpoInvocation": "node --test also treated packages/api as a test; 14 own checks passed but invocation failed; corrected direct runner passed14",
-    "machineInputBindingCorrection": "Policy EVIDENCE_PATH requires this17-record proof. It now names9efa and refreshed Oxy/Expo/PG+Gitinputs. Separate refreeze23-record proof is supplemental, not a bypass/substitute for the policy machine format.",
-    "correctedPolicySuite": {
-      "sourceHead": "afd7cbf24f346dec255dd6e88167c370fa2cc1f9",
-      "command": "bun scripts/test-forge-audit-policy.mjs",
-      "exitCode": 0,
-      "assertions": 123,
-      "auditFixtureCases": 10,
-      "scope": "Only test expected total9\u219210 changed. All runtime policy, package inputs and crypto evidence unchanged; prior refreeze policy log failed and is preserved, never credited."
+    "currentResults": {
+      "policyAssertions": 144,
+      "policyExit": 0,
+      "dagAssertions": 82,
+      "dagExit": 0,
+      "resolverTests": 14,
+      "resolverExit": 0,
+      "oxyTests": 34,
+      "oxyExit": 0,
+      "expoTests": 14,
+      "expoExit": 0,
+      "candidateKnownKeyControls": 321,
+      "candidateControlsExit": 0,
+      "apiBuildExit": 0,
+      "frozenInstallExit": 0,
+      "rawAuditExit": 1,
+      "canonicalAuditSha256": "8c6c938a06ddc218daed240793a26d4a0ed55f504b3edbc54cb415468bb0b6b8",
+      "canaryApiTests": 58,
+      "compiledNodeCanaryChecks": 5,
+      "quiescedGuardChecks": 61,
+      "quiescedShellChecks": 10,
+      "fixedMainTopologyAssertions": 23
+    },
+    "limits": [
+      "Fresh ARM and authenticated full gate required before declarative ACTIVE; historical ebb fullgreen does not promote new source",
+      "Native9e07 candidate3PASS is historical bounded; final registry replay/consumer adoption remains pending",
+      "Live two-process revocation and cutover watcher are operational acceptance gates, not this local proof",
+      "Root-reviewed session authorization persists; same expiry2026-10-09T22:00Z",
+      "Crypto results and ownedPG4170519 lifecycle are measured on200134 and explicitly reused for test-only refreeze; own RED/GREEN processes4186959/4187728 stopped. New full CI/ARM remains pending.",
+      "Queuecd71 failed fixed base topology against authenticmain67c09; original9dc CI PASS is historical. Corrected literal requires own ARM/authenticated gate, not inherited ACTIVE approval."
+    ],
+    "historicalIssuerProofCandidate": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
+    "currentNativeSdkSource": "9e07f55c522655e52c805244799d86dd7cffeb7c",
+    "currentNativeSdkProof": "7ab2c891d",
+    "historicalSetupFailures": [
+      "Recheck initial scratch Unix socket path exceeded107bytes; PG terminated before migration/test. Retried with short owned workspace scratch, no source change.",
+      "DAG initial Node invocation failed Bun.YAML before assertions; final bun --no-env-file invocation passes82. Separate collector61 PASS was not counted as resolver14.",
+      "Current short-scratch retry passed after initial UNIX socket path was too long; first failed launcher retained. Wrong DAG filename was an invocation error; corrected discovered Bun script passed82."
+    ],
+    "historicalSetupRecords": [
+      {
+        "file": "recheck-setup-history/rechecked-oxy-owned.log",
+        "sha256": "2ccf7464c5fee61cad99c07802138e449252aef5a985943dafaaeb23b0e3ef7b",
+        "exitCode": 1
+      },
+      {
+        "file": "recheck-setup-history/rechecked-dag82.log",
+        "sha256": "bc0c50bf014fce5f0ac521329dd50fb25bdfede3412050b643ed18ac44cbf49b",
+        "exitCode": 1
+      },
+      {
+        "file": "recheck-setup-history/canary-maintenance-forge-oxy34.log",
+        "sha256": "3fcd3d15fa3f7cb905795f8df824c78668dd391e4053118ba0008c2fc1e032f8",
+        "exitCode": 1
+      },
+      {
+        "file": "recheck-setup-history/canary-maintenance-dag82-invocation-error.log",
+        "sha256": "382df29c02220c7b223097ebb0a5098554c45fffdd7b4b436a628f20ab6cead2",
+        "exitCode": 1
+      }
+    ],
+    "fixtureOnlyRefreeze": {
+      "baselineFreeze": "20013421a4cc07545a7685931db68f4ee55f1773",
+      "baselineProofSha256": "96afe44ff8652a8e71f3213563786449ec528f7b8f4c2e763e9b64b9f8598b0e",
+      "source": "8a646ebd90639f61bf36c3ffd0aaaec21586ae52",
+      "proofCommit": "6c9a83deb19ca5a0ff4d62e541866157cf091c83",
+      "proofPath": "docs/audits/2026-10-03-registrar-fixture-isolation/proof.json",
+      "proofSha256": "b2586d3594d26273d5042a2033506d1685a5e536ac32ec142fb903d2d74c6968",
+      "packageDiff": [
+        "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts"
+      ],
+      "changedInputObjects": [
+        "packages"
+      ],
+      "RED": "Same ordered suites23PASS/3FAIL; I05 registrar no longer absent",
+      "GREEN": "Same immutable runner/sequencer26PASS, compiled Node3, normal142 fresh/repeat, Biome1",
+      "reusedCryptoEvidence": "All17 records reused byte-identically from200134. Test fixture setup/teardown only; patch, lock, toolchain, runtime shipping sources and43 framework inputs unchanged. No Oxy34/Expo14/build/control rerun or current-PID claim. Fresh new ARM/fullgate/CI required.",
+      "ciBaseline": {
+        "run": 37146494447,
+        "functional": "API1 fails3 registrar fixture tests; other5shards passed; Forge INACTIVE guard expected"
+      },
+      "armBaseline": {
+        "run": 37146494476,
+        "artifact": 11282540708,
+        "status": "Historical PASS200134; not provenance for new tree"
+      }
+    },
+    "maintenanceCensusRefreeze": {
+      "baselineFreeze": "19539733931a0219b4f817b8aa64fd5826bfc00b",
+      "source": "d2c1315c77e9f36ec3b50c10ced0ed106b9f2d53",
+      "proofCommit": "f68d6896b0dd0eb07a97eb60c049563cb2067e5f",
+      "proofPath": "docs/audits/2026-10-03-quiesced-deploy/current-task-census/proof.json",
+      "proofSha256": "082eb5a46f6a24d5beb70b9eeeec6d64d8faa8bde5718699647ca89e8e32ee8b",
+      "changedFrameworkPaths": [
+        ".github/scripts/guard-quiesced-deploy.mjs",
+        "scripts/test-quiesced-deploy.mjs",
+        "scripts/test-quiesced-deploy-shell.mjs"
+      ],
+      "all10PackageInputObjectsUnchangedFrom195397": true,
+      "recordReuse": "17 crypto records reused byte-identically from200134. Guard3 source inputs changed; fresh61guard/10canonical-shell/Biome3 recorded. Runtime product API/SDK/schema142, patch/toolchain and packages unchanged. New ARM/fullgate/CI required."
+    },
+    "mainTopologyRefreeze": {
+      "baselineFreeze": "8c8163755abddd1046ebea65b290634676759112",
+      "baselineMachineProofSha256": "49a79473bcdb2c109a1e014cc7d1f138fe822c47a2060ea4af9980407793eb12",
+      "source": "6b03be9c8262795a34e6201cac085669054752f2",
+      "proofCommit": "9157c9c4bce3f4453f91b094410bcdffb564cb9c",
+      "proofPath": "docs/audits/2026-10-03-forge-main-topology/proof.json",
+      "proofSha256": "fdad9bed326e901e2f699a9e0599e18d2218a44947fd8b56089469c517ba270d",
+      "changedFrameworkPaths": [
+        "scripts/forge-source-topology.mjs",
+        "scripts/test-forge-source-topology.mjs"
+      ],
+      "unchangedPackageInputObjects": 10,
+      "frameworkCount": 43,
+      "freshTopologyAssertions": 23,
+      "freshPolicyAssertions": 144,
+      "freshDagAssertions": 82,
+      "freshResolverCases": 14,
+      "scope": "Fixed main literal and topology regression only. All17 crypto records, Oxy34/Expo14/API build/install/321 and actualPG4170519 lifecycle reused from prior measured source, not freshly executed. Product API/SDK/schema142 and all6SHA/10objects/15Forge files unchanged. Own ARM/fullgate/CI required."
     }
-  }
+  },
+  "historicalSupplementalRecords": [
+    {
+      "file": "consumer-runner-final.log",
+      "sha256": "07117c816cf897a8e11c2c9283498d1e6ca6b8f5f312001d2feae3d572cc487e",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "migrate-fresh.txt",
+      "sha256": "e8a9e2b605f8d81a9b17ef4b5fcf819521c6b50e5eafba2f2ea171cc667c6c6b",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "migrate-repeat.txt",
+      "sha256": "b3a8918777c87fa23ea35591d9778ef23d9264abecbb83bd47e22c7d4929028d",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "inventory.json",
+      "sha256": "47c6b1f8bcde4f332eb6cdc3b1913f6fc55015aab3261f48d6300b43308f6314",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "policy-final.log",
+      "sha256": "b5301cec2da2ba4115792c31924802f4d94bb8d65be57b6bd7ac0cdfaad22b33",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "framework-inputs.json",
+      "sha256": "cfa7d1e82fd58c72ecc890e270dada8f05a6c75890ea0a84a37cdc2ea174a8da",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "resolver14.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "topology20.log",
+      "sha256": "b11f784808c503afd7758fb8b018d41ab2ccc5ebe574f5da8fab144875823ed0",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "binding43.log",
+      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "collector61.log",
+      "sha256": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "clock13.log",
+      "sha256": "095db5ea3c1425fcc0c6c5486c36f7dd9b19d6993b3291969c165a0939d44441",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "stream13.log",
+      "sha256": "d034ab39354c2f034fa02526bcbb2b25197c79369aa9fb04ff68ee72fc6a232f",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "audit-fixtures.log",
+      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "proposal131.log",
+      "sha256": "d029c2e020cf6fafc5acce840c0a5e116ec25d18cae4e0520dd713f07dacbe77",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "expo-invocation-error.log",
+      "sha256": "f63682204c89951d63fe9a0f1bd156242cc5f3636b396549c73eaa5be1a70c87",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "file": "openapi-fresh.log",
+      "sha256": "9e6fb144dfee1c9fbe5a4db3f7165209f2bb9bf4c5c4a806416563e35130cd0b",
+      "sourceCommit": "dfcfb079968c86f150baa440d1cc50647ceced5f"
+    },
+    {
+      "sourceHead": "dfcfb079968c86f150baa440d1cc50647ceced5f",
+      "records": [
+        {
+          "file": "historical-refreeze-f364/consumer-runner-final.log",
+          "sha256": "cc2425fb85b04fab0b8b8739619b00a6614c6201f2b07aa306e51da810228cb6"
+        },
+        {
+          "file": "historical-refreeze-f364/migrate-fresh.txt",
+          "sha256": "44706d31328d5518514443003ac2a6c679ed4bb670625235759f1bcdc8cecc96"
+        },
+        {
+          "file": "historical-refreeze-f364/migrate-repeat.txt",
+          "sha256": "f68327f022d81511ed738723e76dca1d4b3cee632bdcdac5aa14392b8c6b3b0f"
+        },
+        {
+          "file": "historical-refreeze-f364/inventory.json",
+          "sha256": "56b4a39dd88916af8b17d7e1291fc19a3ad825a91ef70d46afeb9b77784f5c67"
+        },
+        {
+          "file": "historical-refreeze-f364/policy-final.log",
+          "sha256": "998e385295fc648afe86c7dfa630fde16cc2e5429cb432f5306f0c2e061147fd"
+        },
+        {
+          "file": "historical-refreeze-f364/dag82.log",
+          "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
+        },
+        {
+          "file": "historical-refreeze-f364/resolver14.log",
+          "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
+        },
+        {
+          "file": "historical-refreeze-f364/raw-audit.json",
+          "sha256": "496b6b4085635ba813c61d01452b72fe1099f5b79493cbaef5b05b6db8bc4f07"
+        },
+        {
+          "file": "historical-refreeze-f364/framework-inputs.json",
+          "sha256": "b2714c824f3891185275307d5cc1e0e15f57d19b46d911f3915bc444b13d85e3"
+        }
+      ]
+    }
+  ]
 }

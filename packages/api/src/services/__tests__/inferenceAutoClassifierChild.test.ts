@@ -6,6 +6,7 @@ import * as ledger from '../inferenceLedger.service';
 import * as policies from '../inferenceRoutingPolicy.service';
 import * as publication from '../kaanaDeploymentPublication.service';
 import * as telemetry from '../inferenceTelemetry.service';
+import * as metered from '../inferenceMeteredUsage.service';
 import * as postgres from '../../config/postgres';
 import * as powerLevels from '../inferencePowerLevels.service';
 import * as childAdapter from '../inferenceAutoClassifierChild.service';
@@ -158,6 +159,10 @@ async function admissionFixture() {
   const outputPrice = jest.spyOn(ledger, 'publishedUnitPrice').mockResolvedValue('zero');
   const quote = jest.spyOn(ledger, 'quoteUnits').mockResolvedValue({ status: 'quoted', amount: '0.000500000000', currency: 'USD' });
   const reserve = jest.spyOn(ledger, 'reserve').mockResolvedValue({ status: 'reserved', reservation: {} } as Awaited<ReturnType<typeof ledger.reserve>>);
+  // The durable usage claim (#1526) is a database boundary like the ledger's.
+  jest.spyOn(metered, 'finalizeMeteredAuthorization').mockResolvedValue(true);
+  jest.spyOn(metered, 'claimMeteredAdmission').mockResolvedValue({ status: 'claimed', meteredUsageId: 'synthetic-metered' });
+  jest.spyOn(metered, 'markMeteredAdmissionRefused').mockResolvedValue(undefined);
   const limit = jest.fn(async () => []);
   jest.spyOn(postgres, 'getDb').mockReturnValue({ select: () => ({ from: () => ({ where: () => ({ limit }) }) }) } as unknown as ReturnType<typeof postgres.getDb>);
   const p = parent();

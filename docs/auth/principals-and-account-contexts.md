@@ -23,11 +23,11 @@ and never follows the account switcher.
 
 ### Principal
 
-A human who has authenticated onto one device or browser profile.
-
-Never an organization, project, channel or bot. `authuser` — the Google-style
-signed-in-human slot number — belongs to the principal: adding an organization
-never consumes one.
+An authenticated account that owns the proof for a device context: a personal
+account, or an autonomous bot with a live `agent_key` ([ADR 0032](../adr/0032-autonomous-account-agent-keys.md)).
+Organizations, projects and channels remain effective subjects, not independent
+sign-in principals. `authuser` names a principal slot; adding a delegated
+organization never consumes one. A bot key is not a Commons identity root.
 
 ### Account
 
@@ -56,6 +56,41 @@ This is the globally switchable unit, and the thing `contextId` names. A context
 is **personal** when `principal.userId === accountId` and **delegated**
 otherwise; a delegated context requires a live `account:act_as` membership,
 re-checked at activation, never assumed from the row's existence.
+
+## A bot is a complete account
+
+A `bot` is an AI agent's own identity (issue #1520). It owns resources, holds
+roles, plans and a balance, receives funds and pays for itself under exactly the
+rules a personal account does; nothing commercial derives from its kind
+(`KIND_INDEPENDENT_ACCOUNT_DIMENSIONS`, guarded by
+`commercialTreatmentIgnoresAccountKind.test.ts`). Three answers stay separate,
+each with its own predicate in `@oxy.so/contracts`:
+
+| Question | `bot` | Predicate |
+|---|---|---|
+| May a person switch into it (occupy its seat)? | no | `isOperatorSwitchTargetKind` |
+| May someone act as it on their own authority? | yes, recorded with that person as actor | `isDelegatedActAsEligibleKind` |
+| Who is the actor when nobody operates it? | the bot itself — never its owner | `accountKindActorNature` → `'agent'` |
+
+A bot with a live registered agent key authenticates as its own principal with
+an ordinary session. Its key provenance follows it into delegated organization
+contexts and OAuth AppBound sessions. A bare bot id proves no authority; a
+revoked key, archived bot or closure fence denies validation. Current owner/admin
+government remains separate from self operational permissions. See
+[ADR 0032](../adr/0032-autonomous-account-agent-keys.md) for enrollment, recovery,
+rotation and persistent MCP/automation provenance.
+
+## Who acted: the actor chain
+
+`GET /session/validate/:id` and `/session/validate-header/:id` return an
+`actor` (`AccountActorChain`) read off the session row:
+`effectiveAccountId` is the token's `sub`, `actorAccountId` its `act.sub`, and
+`delegated` is true exactly when they differ. `@oxy.so/core/server`'s
+`middleware.auth()` exposes it as `getOxyActor(req)`; a chain that does not
+describe the validated session is refused (`SESSION_ACTOR_MISMATCH`), and an API
+that sends none yields `null`. No header or token claim can move it. A
+financial effect belongs to the effective account, never the operator
+(`attributeFinancialEffect`); which balance FUNDS it is still ADR 0014's walk.
 
 ## Why the pair, and not the account
 

@@ -21,11 +21,12 @@ import { randomUUID } from 'node:crypto';
 
 const mockIssueAuthCode = jest.fn();
 
+let authenticatedSessionId: string | undefined;
 let authenticatedUser: { _id: string; username?: string } | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: unknown },
+    req: { user?: unknown; sessionId?: string },
     res: { status: (code: number) => { json: (body: unknown) => void } },
     next: () => void,
   ) => {
@@ -34,6 +35,7 @@ jest.mock('../../middleware/auth', () => ({
       return;
     }
     req.user = authenticatedUser;
+    req.sessionId = authenticatedSessionId;
     next();
   },
   serviceAuthMiddleware: jest.fn(),
@@ -84,6 +86,7 @@ import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { serviceActingAsRevocations } from '../../db/schema/serviceActingAsRevocations';
 import { users } from '../../db/schema/users';
+import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 import { errorHandler } from '../../middleware/errorHandler';
 import { resolveServiceActingAsGrant } from '../../services/serviceActingAs.service';
 import authRouter from '../auth';
@@ -208,6 +211,7 @@ beforeEach(async () => {
   mockIssueAuthCode.mockResolvedValue({ code: 'raw-code', expiresAt: new Date() });
   const [user] = await getDb().insert(users).values({}).returning({ id: users.id });
   authenticatedUser = { _id: user.id, username: 'nate' };
+  authenticatedSessionId = await insertBearerSession(user.id);
 });
 
 describe('GET /auth/oauth/consent', () => {
@@ -484,9 +488,17 @@ describe('DELETE /auth/grants/:applicationId', () => {
  * same requested scopes, and the only thing that changes the outcome is what the
  * user granted.
  */
+/**
+ * Registered for the follow graph, so a follow scope survives the narrowing to
+ * the application's registered scopes both `/oauth/consent` and
+ * `/oauth/authorize` apply — what is under test here is the consent rule, not
+ * the ceiling.
+ */
+const FOLLOW_APP_SCOPES = ['user:read', 'files:read', 'follows:read', 'follows:write'];
+
 describe('follow scopes are never auto-approved, for anybody', () => {
   it('asks a TRUSTED app for consent, and names the scope that forced it', async () => {
-    const { clientId } = await client({ isOfficial: true });
+    const { clientId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
 
     const res = await send('GET', consentUrl(clientId, 'user:read follows:write'));
 
@@ -501,7 +513,7 @@ describe('follow scopes are never auto-approved, for anybody', () => {
   it('still auto-approves that same trusted app for everything else', async () => {
     // The bypass is narrowed, not removed: an app reading its own files should
     // not start prompting because an unrelated scope family was added.
-    const { clientId } = await client({ isOfficial: true });
+    const { clientId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
 
     const res = await send('GET', consentUrl(clientId, 'user:read files:read'));
 
@@ -509,8 +521,8 @@ describe('follow scopes are never auto-approved, for anybody', () => {
   });
 
   it('gives an official and a third-party app the SAME answer for the same scopes', async () => {
-    const official = await client({ isOfficial: true });
-    const thirdParty = await client();
+    const official = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
+    const thirdParty = await client({ scopes: FOLLOW_APP_SCOPES });
 
     const officialRes = await send('GET', consentUrl(official.clientId, 'follows:read'));
     const thirdPartyRes = await send('GET', consentUrl(thirdParty.clientId, 'follows:read'));
@@ -522,7 +534,7 @@ describe('follow scopes are never auto-approved, for anybody', () => {
   it('lets the USER\u2019s grant do the authorizing, for a trusted app too', async () => {
     // Once consented, the returning-user path applies as it does for anyone —
     // the grant is what authorizes, which is the whole claim being made here.
-    const { clientId, applicationId } = await client({ isOfficial: true });
+    const { clientId, applicationId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
     await getDb().insert(appGrants).values({
       userId: authenticatedUser?._id ?? '',
       applicationId,
@@ -538,7 +550,7 @@ describe('follow scopes are never auto-approved, for anybody', () => {
     // A trusted app normally records none, because it never prompted. Here it
     // did prompt, and a permission the user granted but cannot find or withdraw
     // would be worse than one they were never asked for.
-    const { clientId, applicationId } = await client({ isOfficial: true });
+    const { clientId, applicationId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
 
     await send('POST', '/auth/oauth/authorize', {
       clientId,
@@ -573,6 +585,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
     });
 
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      epoch: '0',
       authorized: true,
       scopes: ['user:read', 'acting-as:offline'],
     });
@@ -583,6 +596,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
     expect(await storedGrant(userId, applicationId)).toBeUndefined();
     expect(await storedRevocation(userId, applicationId)).toBeDefined();
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      epoch: '1',
       authorized: false,
       scopes: [],
     });
@@ -639,7 +653,7 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
  *
  * These drive the real `POST /auth/oauth/authorize` rather than calling
  * `clearServiceActingAsRevocation` directly, and that is the whole point of
- * them: the condition guarding the clear lives in `recordAppGrant`, so a test
+ * them: the condition guarding the clear lives in `decideOAuthConsent`, so a test
  * that calls the clear itself proves the clear works and says nothing about WHEN
  * it runs. Mutation-verified — removing the `acting-as:offline` condition and
  * clearing on every authorize survived the suite until these existed.
@@ -649,7 +663,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     // The scope here has to be consent-required but NOT `acting-as:offline`,
     // and that is the whole subtlety of this test.
     //
-    // `recordAppGrant` — where the clear lives — is only called when the app is
+    // The grant — and with it the clear — is only written when the app is
     // untrusted OR the request names a consent-required scope. So an ORDINARY
     // first-party authorize (`user:read`) never reaches the clear at all, and a
     // test using one passes whether the condition exists or not. Measured: with
@@ -680,6 +694,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     ]);
     expect(await storedRevocation(userId, applicationId)).toBeDefined();
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      epoch: '2',
       authorized: false,
       scopes: [],
     });
@@ -704,6 +719,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
     expect(res.status).toBe(200);
     expect(await storedRevocation(userId, applicationId)).toBeDefined();
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      epoch: '1',
       authorized: false,
       scopes: [],
     });

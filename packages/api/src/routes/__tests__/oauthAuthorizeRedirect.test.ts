@@ -20,11 +20,12 @@ import { randomUUID } from 'node:crypto';
 
 const mockIssueAuthCode = jest.fn();
 
+let authenticatedSessionId: string | undefined;
 let authenticatedUser: { _id: string; username?: string } | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: unknown },
+    req: { user?: unknown; sessionId?: string },
     res: { status: (code: number) => { json: (body: unknown) => void } },
     next: () => void,
   ) => {
@@ -33,6 +34,7 @@ jest.mock('../../middleware/auth', () => ({
       return;
     }
     req.user = authenticatedUser;
+    req.sessionId = authenticatedSessionId;
     next();
   },
   serviceAuthMiddleware: jest.fn(),
@@ -81,6 +83,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
+import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 import { errorHandler } from '../../middleware/errorHandler';
 import authRouter from '../auth';
 
@@ -175,6 +178,7 @@ beforeEach(async () => {
   mockIssueAuthCode.mockResolvedValue({ code: 'raw-code', expiresAt: new Date() });
   const [user] = await getDb().insert(users).values({}).returning({ id: users.id });
   authenticatedUser = { _id: user.id, username: 'nate' };
+  authenticatedSessionId = await insertBearerSession(user.id);
 });
 
 describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
@@ -208,6 +212,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client(['https://acme.example/oauth/callback']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/oauth/callback/',
     });
@@ -220,6 +225,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client(['https://acme.example/oauth/callback']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://evil.example/steal',
     });
@@ -232,6 +238,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client(['https://acme.example/oauth/callback']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/oauth',
     });
@@ -248,6 +255,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     ]);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/b',
     });
@@ -259,6 +267,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client(['http://localhost:8081/callback']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'http://localhost:8081/callback',
     });
@@ -270,6 +279,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
     const { clientId } = await client([]);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/oauth/callback',
     });
@@ -282,6 +292,7 @@ describe('POST /auth/oauth/authorize — redirect_uri allowlist', () => {
 describe('POST /auth/oauth/authorize — client resolution', () => {
   it('rejects an unknown client with 400 and no code', async () => {
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId: 'oxy_dk_unknown',
       redirectUri: 'https://acme.example/oauth/callback',
     });
@@ -294,6 +305,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
     const { clientId } = await client(['https://acme.example/cb'], { status: 'revoked' });
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
     });
@@ -309,6 +321,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
     });
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
     });
@@ -323,6 +336,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
     });
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
     });
@@ -338,6 +352,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
       .where(eq(applications.id, applicationId));
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
     });
@@ -350,6 +365,7 @@ describe('POST /auth/oauth/authorize — client resolution', () => {
     const { clientId } = await client(['https://acme.example/cb']);
 
     const res = await post('/auth/oauth/authorize', {
+      scope: 'user:read',
       clientId,
       redirectUri: 'https://acme.example/cb',
       codeChallenge: 'x'.repeat(43),

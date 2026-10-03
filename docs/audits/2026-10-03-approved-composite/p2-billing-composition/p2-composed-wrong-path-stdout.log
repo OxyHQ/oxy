@@ -1,0 +1,15 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-7qoeir5e/ordered-sequencer.cjs" --runTestsByPath src/services/__tests__/productAccessPersistence.test.ts src/__tests__/billingWebhookIdempotency.test.ts
+{"level":30,"time":1790997832319,"pid":3453983,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/__tests__/billingWebhookIdempotency.test.ts
+  ● Test suite failed to run
+
+    ENOENT: no such file or directory, open '/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/packages/api/src/__tests__/billingWebhookIdempotency.test.ts'
+
+      at runTestInternal (../../node_modules/.bun/jest-runner@30.5.1/node_modules/jest-runner/build/index.js:129:27)
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       19 passed, 19 total
+Snapshots:   0 total
+Time:        1.899 s
+Ran all test suites within paths "src/services/__tests__/productAccessPersistence.test.ts", "src/__tests__/billingWebhookIdempotency.test.ts".
+error: script "test" exited with code 1

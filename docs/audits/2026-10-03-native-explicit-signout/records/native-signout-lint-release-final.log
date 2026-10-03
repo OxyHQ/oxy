@@ -1,0 +1,1600 @@
+packages/core/src/boot/__tests__/nativeExplicitSignOut.test.ts organizeImports ━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+      2   2 │   import type { SessionLoginResponse } from "../../models/session";
+      3   3 │   import {
+      4     │ - → createNativeAuthStateStore,
+      5     │ - → type·AuthStateStore,
+          4 │ + → type·AuthStateStore,
+      6   5 │   	type NativeKeyValueStorage,
+          6 │ + → createNativeAuthStateStore,
+      7   7 │   } from "../../session/authStateStore";
+      8   8 │   import { refreshPersistedSession } from "../../session/refresh";
+  
+
+packages/core/src/boot/sessionColdBoot.ts organizeImports ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+      1     │ - /**
+          1 │ + import·type·{·DeviceSessionState·}·from·'@oxy.so/contracts';
+          2 │ + import·type·{·OxyServices·}·from·'../OxyServices';
+          3 │ + import·{·logger·}·from·'../logger';
+          4 │ + import·type·{·AuthStateStore,·PersistedAuthState·}·from·'../session/authStateStore';
+          5 │ + import·type·{·IdentityPin·}·from·'../session/identityPin';
+          6 │ + import·{
+          7 │ + ··type·IdentityBinding,
+          8 │ + ··establishIdentitySession,
+          9 │ + ··resolveIdentityPin,
+         10 │ + }·from·'../session/identitySession';
+         11 │ + import·{·TOKEN_REFRESH_LEAD_MS,·refreshDeviceSecretArm·}·from·'../session/refresh';
+         12 │ + import·{
+         13 │ + ··type·SharedDeviceCredentialStore,
+         14 │ + ··decideSharedDeviceJoin,
+         15 │ + }·from·'../session/sharedDeviceCredential';
+         16 │ + import·{·computeIdentityTag·}·from·'../utils/cacheKey';
+         17 │ + /**
+      2  18 │    * Device-first session cold boot for every consumer.
+      3  19 │    *
+    ······· │ 
+     41  57 │    * ESM-safe (no `require()`); no react/react-native/expo imports.
+     42  58 │    */
+     43     │ - import·{·runColdBoot,·type·ColdBootOutcome,·type·ColdBootStep·}·from·'../utils/coldBoot';
+     44     │ - import·{·isNative·as·detectNative·}·from·'../utils/platform';
+     45     │ - import·{·logger·}·from·'../logger';
+     46     │ - import·{·computeIdentityTag·}·from·'../utils/cacheKey';
+     47     │ - import·{·TOKEN_REFRESH_LEAD_MS,·refreshDeviceSecretArm·}·from·'../session/refresh';
+     48     │ - import·{
+     49     │ - ··establishIdentitySession,
+     50     │ - ··resolveIdentityPin,
+     51     │ - ··type·IdentityBinding,
+     52     │ - }·from·'../session/identitySession';
+     53     │ - import·type·{·IdentityPin·}·from·'../session/identityPin';
+     54     │ - import·{
+     55     │ - ··decideSharedDeviceJoin,
+     56     │ - ··type·SharedDeviceCredentialStore,
+     57     │ - }·from·'../session/sharedDeviceCredential';
+     58     │ - import·type·{·OxyServices·}·from·'../OxyServices';
+     59     │ - import·type·{·AuthStateStore,·PersistedAuthState·}·from·'../session/authStateStore';
+     60     │ - import·type·{·DeviceSessionState·}·from·'@oxy.so/contracts';
+         59 │ + import·{·type·ColdBootOutcome,·type·ColdBootStep,·runColdBoot·}·from·'../utils/coldBoot';
+         60 │ + import·{·isNative·as·detectNative·}·from·'../utils/platform';
+     61  61 │   
+     62  62 │   /**
+  
+
+packages/services/src/ui/session/createSessionClient.ts organizeImports ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+     1    │ - import·{·SessionClient,·createSessionClientHost,·type·SessionStateOrigin·}·from·'@oxy.so/core/session';
+     2    │ - import·type·{·OxyServices·}·from·'@oxy.so/core';
+        1 │ + import·type·{·OxyServices·}·from·'@oxy.so/core';
+        2 │ + import·{·SessionClient,·type·SessionStateOrigin,·createSessionClientHost·}·from·'@oxy.so/core/session';
+     3  3 │   import { createTokenTransport } from './tokenTransport';
+     4  4 │   
+  
+
+packages/core/src/boot/__tests__/nativeExplicitSignOut.test.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    181 181 │   });
+    182 182 │   
+    183     │ - 
+    184     │ - it('a·generic·late·save·cannot·warm-plant·a·bearer·while·logout·intent·remains',·async·()·=>·{
+    185     │ - ··const·{storage,oxy,signInWithCommonsIdentity}=fixture();
+    186     │ - ··const·original=createNativeAuthStateStore(storage);
+    187     │ - ··await·original.setAutomaticIdentitySignInSuppressed?.(true);
+    188     │ - ··await·original.save({sessionId:'old',userId:'commons-owner',accessToken:'old-warm-bearer',expiresAt:'2030-01-01T00:00:00Z'});
+    189     │ - ··const·outcome=await·runSessionColdBoot({oxy,store:createNativeAuthStateStore(storage),platform:{isWeb:false,isNative:true}});
+    190     │ - ··expect(outcome.kind).toBe('unauthenticated');
+    191     │ - ··expect(oxy.session.setAccessToken).not.toHaveBeenCalled();
+    192     │ - ··expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
+        183 │ + it("a·generic·late·save·cannot·warm-plant·a·bearer·while·logout·intent·remains",·async·()·=>·{
+        184 │ + → const·{·storage,·oxy,·signInWithCommonsIdentity·}·=·fixture();
+        185 │ + → const·original·=·createNativeAuthStateStore(storage);
+        186 │ + → await·original.setAutomaticIdentitySignInSuppressed?.(true);
+        187 │ + → await·original.save({
+        188 │ + → → sessionId:·"old",
+        189 │ + → → userId:·"commons-owner",
+        190 │ + → → accessToken:·"old-warm-bearer",
+        191 │ + → → expiresAt:·"2030-01-01T00:00:00Z",
+        192 │ + → });
+        193 │ + → const·outcome·=·await·runSessionColdBoot({
+        194 │ + → → oxy,
+        195 │ + → → store:·createNativeAuthStateStore(storage),
+        196 │ + → → platform:·{·isWeb:·false,·isNative:·true·},
+        197 │ + → });
+        198 │ + → expect(outcome.kind).toBe("unauthenticated");
+        199 │ + → expect(oxy.session.setAccessToken).not.toHaveBeenCalled();
+        200 │ + → expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
+    193 201 │   });
+    194 202 │   
+  
+
+packages/core/src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts organizeImports ━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+          1 │ + import·type·{·DeviceTokenMintResponse·}·from·'@oxy.so/contracts';
+      1   2 │   /**
+      2   3 │    * `shared-device-adopt` — the cold-boot lane that lets a freshly installed
+    ······· │ 
+     15  16 │    */
+     16  17 │   import type { OxyServices } from '../../OxyServices';
+     17     │ - import·type·{·DeviceTokenMintResponse·}·from·'@oxy.so/contracts';
+     18     │ - import·type·{·SessionLoginResponse·}·from·'../../models/session';
+     19     │ - import·{·runSessionColdBoot·}·from·'../sessionColdBoot';
+     20     │ - import·type·{·DeviceSecretMintOutcome·}·from·'../../session/refresh';
+     21     │ - import·{·createMemoryAuthStateStore,·type·PersistedAuthState·}·from·'../../session/authStateStore';
+         18 │ + import·type·{·SessionLoginResponse·}·from·'../../models/session';
+         19 │ + import·{·type·PersistedAuthState,·createMemoryAuthStateStore·}·from·'../../session/authStateStore';
+         20 │ + import·{·createMemoryIdentityPinStore·}·from·'../../session/identityPin';
+         21 │ + import·type·{·IdentityBinding·}·from·'../../session/identitySession';
+         22 │ + import·type·{·DeviceSecretMintOutcome·}·from·'../../session/refresh';
+     22  23 │   import type {
+     23  24 │     SharedDeviceCredentialRead,
+     24  25 │     SharedDeviceCredentialStore,
+     25  26 │   } from '../../session/sharedDeviceCredential';
+     26     │ - import·{·createMemoryIdentityPinStore·}·from·'../../session/identityPin';
+     27     │ - import·type·{·IdentityBinding·}·from·'../../session/identitySession';
+         27 │ + import·{·runSessionColdBoot·}·from·'../sessionColdBoot';
+     28  28 │   
+     29  29 │   const WEB = { isWeb: true, isNative: false };
+  
+
+packages/core/src/session/refresh.ts organizeImports ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+     23  23 │    */
+     24  24 │   import type { DeviceSessionState, DeviceTokenMintResponse } from '@oxy.so/contracts';
+     25     │ - import·type·{·OxyServices·}·from·'../OxyServices';
+     26     │ - import·type·{·AuthRefreshHandler,·AuthRefreshReason·}·from·'../HttpService';
+     27     │ - import·type·{·AuthStateStore,·PersistedAuthState·}·from·'./authStateStore';
+     28     │ - import·type·{·IdentityPin·}·from·'./identityPin';
+     29     │ - import·{·establishIdentitySession,·resolveIdentityPin,·type·IdentityBinding·}·from·'./identitySession';
+     30     │ - import·{·isNative·}·from·'../utils/platform';
+     31     │ - import·{·extractErrorStatus·}·from·'../utils/errorUtils';
+     32     │ - import·{·logger·}·from·'../logger';
+         25 │ + import·type·{·AuthRefreshHandler,·AuthRefreshReason·}·from·'../HttpService';
+         26 │ + import·type·{·OxyServices·}·from·'../OxyServices';
+         27 │ + import·{·logger·}·from·'../logger';
+         28 │ + import·{·extractErrorStatus·}·from·'../utils/errorUtils';
+         29 │ + import·{·isNative·}·from·'../utils/platform';
+         30 │ + import·type·{·AuthStateStore,·PersistedAuthState·}·from·'./authStateStore';
+         31 │ + import·type·{·IdentityPin·}·from·'./identityPin';
+         32 │ + import·{·type·IdentityBinding,·establishIdentitySession,·resolveIdentityPin·}·from·'./identitySession';
+     33  33 │   
+     34  34 │   /**
+  
+
+packages/services/src/ui/context/hooks/useAuthOperations.ts organizeImports ━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+      1     │ - import·{·useCallback·}·from·'react';
+      2     │ - import·{·logoutIsolatedOAuthSession,·readIsolatedOAuthSession·}·from·'../isolatedOAuthSession';
+      3     │ - import·type·{·ApiError,·User·}·from·'@oxy.so/core';
+      4     │ - import·type·{·AuthStateStore,·IdentityBinding,·SessionClient·}·from·'@oxy.so/core/session';
+      5     │ - import·type·{·ClientSession,·SessionLoginResponse·}·from·'@oxy.so/core';
+      6     │ - import·type·{·OxyRuntime·}·from·'../../runtime';
+      7     │ - import·type·{·LogoutResult·}·from·'../oxyContextTypes';
+      8     │ - import·{·DeviceManager·}·from·'@oxy.so/core/session';
+      9     │ - import·{·fetchSessionsWithFallback·}·from·'../../utils/sessionHelpers';
+     10     │ - import·{·handleAuthError,·isInvalidSessionError·}·from·'../../utils/errorHandlers';
+          1 │ + import·type·{·ApiError,·User·}·from·'@oxy.so/core';
+          2 │ + import·type·{·ClientSession,·SessionLoginResponse·}·from·'@oxy.so/core';
+          3 │ + import·type·{·OxyServices·}·from·'@oxy.so/core';
+          4 │ + import·{·SignatureService·}·from·'@oxy.so/core/crypto';
+          5 │ + import·type·{·AuthStateStore,·IdentityBinding,·SessionClient·}·from·'@oxy.so/core/session';
+          6 │ + import·{·DeviceManager·}·from·'@oxy.so/core/session';
+          7 │ + import·{·useCallback·}·from·'react';
+          8 │ + import·type·{·OxyRuntime·}·from·'../../runtime';
+          9 │ + import·{·handleAuthError,·isInvalidSessionError·}·from·'../../utils/errorHandlers';
+         10 │ + import·{·fetchSessionsWithFallback·}·from·'../../utils/sessionHelpers';
+     11  11 │   import type { StorageInterface } from '../../utils/storageHelpers';
+     12     │ - import·type·{·OxyServices·}·from·'@oxy.so/core';
+     13     │ - import·{·SignatureService·}·from·'@oxy.so/core/crypto';
+         12 │ + import·{·logoutIsolatedOAuthSession,·readIsolatedOAuthSession·}·from·'../isolatedOAuthSession';
+         13 │ + import·type·{·LogoutResult·}·from·'../oxyContextTypes';
+     14  14 │   
+     15  15 │   export interface UseAuthOperationsOptions {
+  
+
+packages/core/src/boot/__tests__/sessionColdBoot.test.ts organizeImports ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+          1 │ + import·type·{·DeviceTokenMintResponse·}·from·'@oxy.so/contracts';
+      1   2 │   /**
+      2   3 │    * Cold boot v3 (`runSessionColdBoot`) — the zero-cookie, DOM-less device-first
+    ······· │ 
+      7   8 │    * Anything unresolved ends signed out (never a redirect).
+      8   9 │    */
+      9     │ - import·type·{·OxyServices·}·from·'../../OxyServices';
+     10     │ - import·type·{·DeviceTokenMintResponse·}·from·'@oxy.so/contracts';
+         10 │ + import·type·{·OxyServices·}·from·'../../OxyServices';
+     11  11 │   import type { SessionLoginResponse } from '../../models/session';
+     12     │ - import·{·runSessionColdBoot·}·from·'../sessionColdBoot';
+         12 │ + import·{·type·PersistedAuthState,·createMemoryAuthStateStore·}·from·'../../session/authStateStore';
+     13  13 │   import type { DeviceSecretMintOutcome } from '../../session/refresh';
+     14     │ - import·{·createMemoryAuthStateStore,·type·PersistedAuthState·}·from·'../../session/authStateStore';
+         14 │ + import·{·runSessionColdBoot·}·from·'../sessionColdBoot';
+     15  15 │   
+     16  16 │   interface OxyOverrides {
+  
+
+packages/services/src/ui/session/deviceCredentialTracker.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     8  8 │    * The cold boot loads the store on mount, long before anyone presses sign-in.
+     9  9 │    */
+    10    │ - import·type·{·AuthStateStore·}·from·'@oxy.so/core/session';
+       10 │ + import·type·{·AuthStateStore·}·from·"@oxy.so/core/session";
+    11 11 │   
+    12 12 │   export interface HeldDeviceCredential {
+    13    │ - ··deviceId:·string;
+    14    │ - ··deviceSecret:·string;
+       13 │ + → deviceId:·string;
+       14 │ + → deviceSecret:·string;
+    15 15 │   }
+    16 16 │   
+    17 17 │   export interface CredentialTrackingAuthStateStore extends AuthStateStore {
+    18    │ - ··/**
+    19    │ - ···*·The·credential·last·seen·through·this·store;·`undefined`·until·the·store·has
+    20    │ - ···*·been·read·at·least·once·(unknown·—·the·caller·should·not·guess).
+    21    │ - ···*/
+    22    │ - ··heldDeviceCredential():·HeldDeviceCredential·|·null·|·undefined;
+       18 │ + → /**
+       19 │ + → ·*·The·credential·last·seen·through·this·store;·`undefined`·until·the·store·has
+       20 │ + → ·*·been·read·at·least·once·(unknown·—·the·caller·should·not·guess).
+       21 │ + → ·*/
+       22 │ + → heldDeviceCredential():·HeldDeviceCredential·|·null·|·undefined;
+    23 23 │   }
+    24 24 │   
+    25    │ - function·credentialOf(state:·{·deviceId?:·string;·deviceSecret?:·string·}·|·null):·HeldDeviceCredential·|·null·{
+    26    │ - ··return·state?.deviceId·&&·state.deviceSecret
+    27    │ - ····?·{·deviceId:·state.deviceId,·deviceSecret:·state.deviceSecret·}
+    28    │ - ····:·null;
+       25 │ + function·credentialOf(
+       26 │ + → state:·{·deviceId?:·string;·deviceSecret?:·string·}·|·null,
+       27 │ + ):·HeldDeviceCredential·|·null·{
+       28 │ + → return·state?.deviceId·&&·state.deviceSecret
+       29 │ + → → ?·{·deviceId:·state.deviceId,·deviceSecret:·state.deviceSecret·}
+       30 │ + → → :·null;
+    29 31 │   }
+    30 32 │   
+    31    │ - export·function·trackDeviceCredential(store:·AuthStateStore):·CredentialTrackingAuthStateStore·{
+    32    │ - ··let·held:·HeldDeviceCredential·|·null·|·undefined;
+    33    │ - ··return·{
+    34    │ - ····...store,
+    35    │ - ····load:·async·()·=>·{
+    36    │ - ······const·state·=·await·store.load();
+    37    │ - ······held·=·credentialOf(state);
+    38    │ - ······return·state;
+    39    │ - ····},
+    40    │ - ····save:·async·(state)·=>·{
+    41    │ - ······held·=·credentialOf(state);
+    42    │ - ······return·store.save(state);
+    43    │ - ····},
+    44    │ - ····clear:·async·()·=>·{
+    45    │ - ······held·=·null;
+    46    │ - ······await·store.clear();
+    47    │ - ····},
+    48    │ - ····heldDeviceCredential:·()·=>·held,
+    49    │ - ··};
+       33 │ + export·function·trackDeviceCredential(
+       34 │ + → store:·AuthStateStore,
+       35 │ + ):·CredentialTrackingAuthStateStore·{
+       36 │ + → let·held:·HeldDeviceCredential·|·null·|·undefined;
+       37 │ + → return·{
+       38 │ + → → ...store,
+       39 │ + → → load:·async·()·=>·{
+       40 │ + → → → const·state·=·await·store.load();
+       41 │ + → → → held·=·credentialOf(state);
+       42 │ + → → → return·state;
+       43 │ + → → },
+       44 │ + → → save:·async·(state)·=>·{
+       45 │ + → → → held·=·credentialOf(state);
+       46 │ + → → → return·store.save(state);
+       47 │ + → → },
+       48 │ + → → clear:·async·()·=>·{
+       49 │ + → → → held·=·null;
+       50 │ + → → → await·store.clear();
+       51 │ + → → },
+       52 │ + → → heldDeviceCredential:·()·=>·held,
+       53 │ + → };
+    50 54 │   }
+    51 55 │   
+  
+
+packages/services/src/ui/session/createSessionClient.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1    │ - import·{·SessionClient,·createSessionClientHost,·type·SessionStateOrigin·}·from·'@oxy.so/core/session';
+     2    │ - import·type·{·OxyServices·}·from·'@oxy.so/core';
+     3    │ - import·{·createTokenTransport·}·from·'./tokenTransport';
+        1 │ + import·{
+        2 │ + → SessionClient,
+        3 │ + → createSessionClientHost,
+        4 │ + → type·SessionStateOrigin,
+        5 │ + }·from·"@oxy.so/core/session";
+        6 │ + import·type·{·OxyServices·}·from·"@oxy.so/core";
+        7 │ + import·{·createTokenTransport·}·from·"./tokenTransport";
+     4  8 │   
+     5  9 │   /**
+    ····· │ 
+    38 42 │    */
+    39 43 │   export function createSessionClient(
+    40    │ - ··oxyServices:·OxyServices,
+    41    │ - ··onUnauthenticated?:·(origin:·SessionStateOrigin)·=>·void,
+    42    │ - ··getPinnedAccountId?:·()·=>·string·|·null,
+    43    │ - ··isDeviceSessionAllowed:·()·=>·boolean·=·()·=>·true,
+    44    │ - ··onFullExplicitSignOut?:·()·=>·Promise<void>,
+       44 │ + → oxyServices:·OxyServices,
+       45 │ + → onUnauthenticated?:·(origin:·SessionStateOrigin)·=>·void,
+       46 │ + → getPinnedAccountId?:·()·=>·string·|·null,
+       47 │ + → isDeviceSessionAllowed:·()·=>·boolean·=·()·=>·true,
+       48 │ + → onFullExplicitSignOut?:·()·=>·Promise<void>,
+    45 49 │   ): {
+    46    │ - ··client:·SessionClient;
+    47    │ - ··host:·ReturnType<typeof·createSessionClientHost>;
+       50 │ + → client:·SessionClient;
+       51 │ + → host:·ReturnType<typeof·createSessionClientHost>;
+    48 52 │   } {
+    49    │ - ··const·baseHost·=·createSessionClientHost(oxyServices);
+    50    │ - ··const·host·=·{
+    51    │ - ····...baseHost,
+    52    │ - ····getAccessToken:·()·=>·isDeviceSessionAllowed()·?·baseHost.getAccessToken()·:·null,
+    53    │ - ····setTokens:·(token:·string)·=>·{·if·(isDeviceSessionAllowed())·baseHost.setTokens(token);·},
+    54    │ - ····makeRequest:·async·<T>(method:·'GET'·|·'POST',·url:·string,·data?:·unknown,·requestOptions?:·{·cache?:·boolean·}):·Promise<T>·=>·{
+    55    │ - ······if·(!isDeviceSessionAllowed())·throw·new·Error('An·isolated·OAuth·session·cannot·access·the·shared·device');
+    56    │ - ······return·baseHost.makeRequest<T>(method,·url,·data,·requestOptions);
+    57    │ - ····},
+    58    │ - ··};
+    59    │ - ··const·transport·=·createTokenTransport(oxyServices,·getPinnedAccountId);
+    60    │ - ··const·client·=·new·SessionClient(host,·{
+    61    │ - ····transport,
+    62    │ - ····onUnauthenticated,
+    63    │ - ····onFullExplicitSignOut,
+    64    │ - ····getPinnedAccountId,
+    65    │ - ··});
+    66    │ - ··return·{·client,·host·};
+       53 │ + → const·baseHost·=·createSessionClientHost(oxyServices);
+       54 │ + → const·host·=·{
+       55 │ + → → ...baseHost,
+       56 │ + → → getAccessToken:·()·=>
+       57 │ + → → → isDeviceSessionAllowed()·?·baseHost.getAccessToken()·:·null,
+       58 │ + → → setTokens:·(token:·string)·=>·{
+       59 │ + → → → if·(isDeviceSessionAllowed())·baseHost.setTokens(token);
+       60 │ + → → },
+       61 │ + → → makeRequest:·async·<T>(
+       62 │ + → → → method:·"GET"·|·"POST",
+       63 │ + → → → url:·string,
+       64 │ + → → → data?:·unknown,
+       65 │ + → → → requestOptions?:·{·cache?:·boolean·},
+       66 │ + → → ):·Promise<T>·=>·{
+       67 │ + → → → if·(!isDeviceSessionAllowed())
+       68 │ + → → → → throw·new·Error(
+       69 │ + → → → → → "An·isolated·OAuth·session·cannot·access·the·shared·device",
+       70 │ + → → → → );
+       71 │ + → → → return·baseHost.makeRequest<T>(method,·url,·data,·requestOptions);
+       72 │ + → → },
+       73 │ + → };
+       74 │ + → const·transport·=·createTokenTransport(oxyServices,·getPinnedAccountId);
+       75 │ + → const·client·=·new·SessionClient(host,·{
+       76 │ + → → transport,
+       77 │ + → → onUnauthenticated,
+       78 │ + → → onFullExplicitSignOut,
+       79 │ + → → getPinnedAccountId,
+       80 │ + → });
+       81 │ + → return·{·client,·host·};
+    67 82 │   }
+    68 83 │   
+  
+
+packages/core/src/session/__tests__/SessionClient.rest.test.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1     │ - import·type·{·DeviceSessionState·}·from·'@oxy.so/contracts';
+      2     │ - import·{·SessionClient,·type·SessionClientHost·}·from·'../SessionClient';
+          1 │ + import·type·{·DeviceSessionState·}·from·"@oxy.so/contracts";
+          2 │ + import·{·SessionClient,·type·SessionClientHost·}·from·"../SessionClient";
+      3   3 │   
+      4   4 │   const STATE = (rev: number): DeviceSessionState => ({
+      5     │ - ··deviceId:·'d1',·accounts:·[{·accountId:·'a1',·sessionId:·'s1',·authuser:·0·}],·activeAccountId:·'a1',·revision:·rev,·updatedAt:·1720000000000,
+          5 │ + → deviceId:·"d1",
+          6 │ + → accounts:·[{·accountId:·"a1",·sessionId:·"s1",·authuser:·0·}],
+          7 │ + → activeAccountId:·"a1",
+          8 │ + → revision:·rev,
+          9 │ + → updatedAt:·1720000000000,
+      6  10 │   });
+      7  11 │   
+      8  12 │   function makeHost(makeRequest: jest.Mock): SessionClientHost {
+      9     │ - ··return·{
+     10     │ - ····makeRequest,
+     11     │ - ····getBaseURL:·()·=>·'http://test.invalid',
+     12     │ - ····getAccessToken:·()·=>·'t',
+     13     │ - ····getDeviceCredential:·()·=>·null,
+     14     │ - ····onTokensChanged:·()·=>·()·=>·undefined,
+     15     │ - ····setTokens:·jest.fn(),
+     16     │ - ····getCurrentAccountId:·()·=>·null,
+     17     │ - ··};
+         13 │ + → return·{
+         14 │ + → → makeRequest,
+         15 │ + → → getBaseURL:·()·=>·"http://test.invalid",
+         16 │ + → → getAccessToken:·()·=>·"t",
+         17 │ + → → getDeviceCredential:·()·=>·null,
+         18 │ + → → onTokensChanged:·()·=>·()·=>·undefined,
+         19 │ + → → setTokens:·jest.fn(),
+         20 │ + → → getCurrentAccountId:·()·=>·null,
+         21 │ + → };
+     18  22 │   }
+     19  23 │   
+     20  24 │   // `makeRequest` (HttpService) already strips the server's outer `{ data }` envelope, so it
+     21  25 │   // returns the unwrapped sync body directly — that is exactly what SessionClient consumes.
+     22     │ - const·SYNC·=·(rev:·number)·=>·({·state:·STATE(rev),·activeToken:·{·accessToken:·`jwt-${rev}`,·expiresAt:·'x'·}·});
+         26 │ + const·SYNC·=·(rev:·number)·=>·({
+         27 │ + → state:·STATE(rev),
+         28 │ + → activeToken:·{·accessToken:·`jwt-${rev}`,·expiresAt:·"x"·},
+         29 │ + });
+     23  30 │   
+     24     │ - describe('SessionClient·REST',·()·=>·{
+     25     │ - ··it('discards·a·delayed·device·response·across·isolation·and·a·later·device·lifecycle',·async·()·=>·{
+     26     │ - ····let·resolve!:·(value:·ReturnType<typeof·SYNC>)·=>·void;
+     27     │ - ····const·host·=·makeHost(jest.fn(()·=>·new·Promise((done)·=>·{·resolve·=·done;·})));
+     28     │ - ····const·client·=·new·SessionClient(host);
+     29     │ - ····client.adoptState(STATE(1));
+     30     │ - ····const·oldBootstrap·=·client.bootstrap();
+     31     │ - ····const·rejection·=·expect(oldBootstrap).rejects.toThrow('superseded');
+     32     │ - ····client.resetLocalState();·//·device·->·isolated·OAuth,·no·remote·revocation
+     33     │ - ····expect(client.getState()).toBeNull();
+     34     │ - ····expect(client.getDirectory()).toBeNull();
+     35     │ - ····client.resetLocalState();·//·isolated·OAuth·->·later·device·lifecycle
+     36     │ - ····client.adoptState(STATE(2));
+     37     │ - ····resolve(SYNC(99));
+     38     │ - ····await·rejection;
+     39     │ - ····expect(client.getState()?.revision).toBe(2);
+     40     │ - ····expect(host.setTokens).not.toHaveBeenCalled();
+     41     │ - ····client.stop();
+     42     │ - ··});
+         31 │ + describe("SessionClient·REST",·()·=>·{
+         32 │ + → it("discards·a·delayed·device·response·across·isolation·and·a·later·device·lifecycle",·async·()·=>·{
+         33 │ + → → let·resolve!:·(value:·ReturnType<typeof·SYNC>)·=>·void;
+         34 │ + → → const·host·=·makeHost(
+         35 │ + → → → jest.fn(
+         36 │ + → → → → ()·=>
+         37 │ + → → → → → new·Promise((done)·=>·{
+         38 │ + → → → → → → resolve·=·done;
+         39 │ + → → → → → }),
+         40 │ + → → → ),
+         41 │ + → → );
+         42 │ + → → const·client·=·new·SessionClient(host);
+         43 │ + → → client.adoptState(STATE(1));
+         44 │ + → → const·oldBootstrap·=·client.bootstrap();
+         45 │ + → → const·rejection·=·expect(oldBootstrap).rejects.toThrow("superseded");
+         46 │ + → → client.resetLocalState();·//·device·->·isolated·OAuth,·no·remote·revocation
+         47 │ + → → expect(client.getState()).toBeNull();
+         48 │ + → → expect(client.getDirectory()).toBeNull();
+         49 │ + → → client.resetLocalState();·//·isolated·OAuth·->·later·device·lifecycle
+         50 │ + → → client.adoptState(STATE(2));
+         51 │ + → → resolve(SYNC(99));
+         52 │ + → → await·rejection;
+         53 │ + → → expect(client.getState()?.revision).toBe(2);
+         54 │ + → → expect(host.setTokens).not.toHaveBeenCalled();
+         55 │ + → → client.stop();
+         56 │ + → });
+     43  57 │   
+     44     │ - ··it('adopts·state·already·returned·by·a·mint·without·another·request',·()·=>·{
+     45     │ - ····const·makeRequest·=·jest.fn();
+     46     │ - ····const·c·=·new·SessionClient(makeHost(makeRequest));
+         58 │ + → it("adopts·state·already·returned·by·a·mint·without·another·request",·()·=>·{
+         59 │ + → → const·makeRequest·=·jest.fn();
+         60 │ + → → const·c·=·new·SessionClient(makeHost(makeRequest));
+     47  61 │   
+     48     │ - ····expect(c.adoptState(STATE(2))).toBe(true);
+     49     │ - ····expect(c.getState()?.revision).toBe(2);
+     50     │ - ····expect(makeRequest).not.toHaveBeenCalled();
+     51     │ - ··});
+         62 │ + → → expect(c.adoptState(STATE(2))).toBe(true);
+         63 │ + → → expect(c.getState()?.revision).toBe(2);
+         64 │ + → → expect(makeRequest).not.toHaveBeenCalled();
+         65 │ + → });
+     52  66 │   
+     53     │ - ··it('bootstrap·GETs·/session/device/state·and·applies·it',·async·()·=>·{
+     54     │ - ····const·makeRequest·=·jest.fn().mockResolvedValueOnce(SYNC(3));
+     55     │ - ····const·host·=·makeHost(makeRequest);
+     56     │ - ····const·c·=·new·SessionClient(host);
+     57     │ - ····await·c.bootstrap();
+     58     │ - ····expect(makeRequest).toHaveBeenCalledWith('GET',·'/session/device/state',·undefined,·{·cache:·false·});
+     59     │ - ····expect(c.getState()?.revision).toBe(3);
+     60     │ - ····expect(host.setTokens).toHaveBeenCalledWith('jwt-3');
+     61     │ - ··});
+         67 │ + → it("bootstrap·GETs·/session/device/state·and·applies·it",·async·()·=>·{
+         68 │ + → → const·makeRequest·=·jest.fn().mockResolvedValueOnce(SYNC(3));
+         69 │ + → → const·host·=·makeHost(makeRequest);
+         70 │ + → → const·c·=·new·SessionClient(host);
+         71 │ + → → await·c.bootstrap();
+         72 │ + → → expect(makeRequest).toHaveBeenCalledWith(
+         73 │ + → → → "GET",
+         74 │ + → → → "/session/device/state",
+         75 │ + → → → undefined,
+         76 │ + → → → {·cache:·false·},
+         77 │ + → → );
+         78 │ + → → expect(c.getState()?.revision).toBe(3);
+         79 │ + → → expect(host.setTokens).toHaveBeenCalledWith("jwt-3");
+         80 │ + → });
+     62  81 │   
+     63     │ - ··it('switchAccount·POSTs·and·applies·the·returned·state',·async·()·=>·{
+     64     │ - ····const·makeRequest·=·jest.fn().mockResolvedValueOnce(SYNC(4));
+     65     │ - ····const·host·=·makeHost(makeRequest);
+     66     │ - ····const·c·=·new·SessionClient(host);
+     67     │ - ····await·c.switchAccount('a1');
+     68     │ - ····expect(makeRequest).toHaveBeenCalledWith('POST',·'/session/device/switch',·{·accountId:·'a1'·},·{·cache:·false·});
+     69     │ - ····expect(c.getState()?.revision).toBe(4);
+     70     │ - ····expect(host.setTokens).toHaveBeenCalledWith('jwt-4');
+     71     │ - ····c.stop();
+     72     │ - ··});
+         82 │ + → it("switchAccount·POSTs·and·applies·the·returned·state",·async·()·=>·{
+         83 │ + → → const·makeRequest·=·jest.fn().mockResolvedValueOnce(SYNC(4));
+         84 │ + → → const·host·=·makeHost(makeRequest);
+         85 │ + → → const·c·=·new·SessionClient(host);
+         86 │ + → → await·c.switchAccount("a1");
+         87 │ + → → expect(makeRequest).toHaveBeenCalledWith(
+         88 │ + → → → "POST",
+         89 │ + → → → "/session/device/switch",
+         90 │ + → → → {·accountId:·"a1"·},
+         91 │ + → → → {·cache:·false·},
+         92 │ + → → );
+  225 more lines truncated
+  
+
+packages/core/src/session/sharedDeviceCredential.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     44  44 │    */
+     45  45 │   
+     46     │ - import·{·logger·}·from·'../logger';
+     47     │ - import·type·{·AuthStateStore,·PersistedAuthState·}·from·'./authStateStore';
+         46 │ + import·{·logger·}·from·"../logger";
+         47 │ + import·type·{·AuthStateStore,·PersistedAuthState·}·from·"./authStateStore";
+     48  48 │   
+     49  49 │   /**
+    ······· │ 
+     53  53 │    */
+     54  54 │   export interface SharedDeviceCredential {
+     55     │ - ··deviceId:·string;
+     56     │ - ··deviceSecret:·string;
+         55 │ + → deviceId:·string;
+         56 │ + → deviceSecret:·string;
+     57  57 │   }
+     58  58 │   
+    ······· │ 
+     72  72 │    */
+     73  73 │   export type SharedDeviceCredentialRead =
+     74     │ - ··|·{·state:·'present';·credential:·SharedDeviceCredential·}
+     75     │ - ··|·{·state:·'absent'·}
+     76     │ - ··|·{·state:·'unavailable';·cause:·unknown·}
+     77     │ - ··|·{·state:·'unsupported'·};
+         74 │ + → |·{·state:·"present";·credential:·SharedDeviceCredential·}
+         75 │ + → |·{·state:·"absent"·}
+         76 │ + → |·{·state:·"unavailable";·cause:·unknown·}
+         77 │ + → |·{·state:·"unsupported"·};
+     78  78 │   
+     79  79 │   /**
+    ······· │ 
+     83  83 │    */
+     84  84 │   export interface SharedDeviceCredentialStore {
+     85     │ - ··/**·Never·throws·—·a·failure·is·reported·as·`unavailable`,·never·as·`absent`.·*/
+     86     │ - ··read():·Promise<SharedDeviceCredentialRead>;
+     87     │ - ··/**
+     88     │ - ···*·Publish·the·credential.·Resolves·`true`·only·when·a·read-back·confirmed·the
+     89     │ - ···*·exact·bytes·landed;·`false`·on·any·failure.·Never·throws.
+     90     │ - ···*/
+     91     │ - ··publish(credential:·SharedDeviceCredential):·Promise<boolean>;
+     92     │ - ··/**·Drop·this·app's·copy·of·the·shared·credential.·Never·throws.·*/
+     93     │ - ··clear():·Promise<void>;
+         85 │ + → /**·Never·throws·—·a·failure·is·reported·as·`unavailable`,·never·as·`absent`.·*/
+         86 │ + → read():·Promise<SharedDeviceCredentialRead>;
+         87 │ + → /**
+         88 │ + → ·*·Publish·the·credential.·Resolves·`true`·only·when·a·read-back·confirmed·the
+         89 │ + → ·*·exact·bytes·landed;·`false`·on·any·failure.·Never·throws.
+         90 │ + → ·*/
+         91 │ + → publish(credential:·SharedDeviceCredential):·Promise<boolean>;
+         92 │ + → /**·Drop·this·app's·copy·of·the·shared·credential.·Never·throws.·*/
+         93 │ + → clear():·Promise<void>;
+     94  94 │   }
+     95  95 │   
+     96  96 │   /** Why {@link decideSharedDeviceJoin} declined to adopt the shared credential. */
+     97  97 │   export type SharedDeviceJoinSkipReason =
+     98     │ - ··|·'shared-unsupported'
+     99     │ - ··|·'shared-unreadable'
+    100     │ - ··|·'shared-empty'
+    101     │ - ··|·'local-credential-present';
+         98 │ + → |·"shared-unsupported"
+         99 │ + → |·"shared-unreadable"
+        100 │ + → |·"shared-empty"
+        101 │ + → |·"local-credential-present";
+    102 102 │   
+    103 103 │   /** What a booting app should do with the shared slot it just read. */
+    104 104 │   export type SharedDeviceJoinDecision =
+    105     │ - ··|·{·action:·'adopt';·credential:·SharedDeviceCredential·}
+    106     │ - ··|·{·action:·'skip';·reason:·SharedDeviceJoinSkipReason·};
+        105 │ + → |·{·action:·"adopt";·credential:·SharedDeviceCredential·}
+        106 │ + → |·{·action:·"skip";·reason:·SharedDeviceJoinSkipReason·};
+    107 107 │   
+    108 108 │   /** Why {@link decideSharedDevicePublish} declined to write the shared slot. */
+    109 109 │   export type SharedDevicePublishSkipReason =
+    110     │ - ··|·'shared-unsupported'
+    111     │ - ··|·'shared-unreadable'
+    112     │ - ··|·'already-current'
+    113     │ - ··|·'owned-by-another-device';
+        110 │ + → |·"shared-unsupported"
+        111 │ + → |·"shared-unreadable"
+        112 │ + → |·"already-current"
+        113 │ + → |·"owned-by-another-device";
+    114 114 │   
+    115 115 │   /** What an app that just PROVED a credential should do with the shared slot. */
+    116 116 │   export type SharedDevicePublishDecision =
+    117     │ - ··|·{·action:·'publish'·}
+    118     │ - ··|·{·action:·'skip';·reason:·SharedDevicePublishSkipReason·};
+        117 │ + → |·{·action:·"publish"·}
+        118 │ + → |·{·action:·"skip";·reason:·SharedDevicePublishSkipReason·};
+    119 119 │   
+    120 120 │   /** The usable `{deviceId, deviceSecret}` pair in a persisted state, or null. */
+    121 121 │   export function readLocalDeviceCredential(
+    122     │ - ··state:·PersistedAuthState·|·null,
+        122 │ + → state:·PersistedAuthState·|·null,
+    123 123 │   ): SharedDeviceCredential | null {
+    124     │ - ··if·(!state?.deviceId·||·!state.deviceSecret)·{
+    125     │ - ····return·null;
+    126     │ - ··}
+    127     │ - ··return·{·deviceId:·state.deviceId,·deviceSecret:·state.deviceSecret·};
+        124 │ + → if·(!state?.deviceId·||·!state.deviceSecret)·{
+        125 │ + → → return·null;
+        126 │ + → }
+        127 │ + → return·{·deviceId:·state.deviceId,·deviceSecret:·state.deviceSecret·};
+    128 128 │   }
+    129 129 │   
+    ······· │ 
+    137 137 │    * that would overwrite one.
+    138 138 │    */
+    139     │ - export·function·normalizeSharedDeviceSessionRead(raw:·unknown):·SharedDeviceCredentialRead·{
+    140     │ - ··if·(!raw·||·typeof·raw·!==·'object')·{
+    141     │ - ····return·{·state:·'unavailable',·cause:·new·Error('shared·device·session·bridge·returned·a·non-object')·};
+    142     │ - ··}
+    143     │ - ··const·payload·=·raw·as·Record<string,·unknown>;
+    144     │ - ··if·(payload.status·===·'absent')·{
+    145     │ - ····return·{·state:·'absent'·};
+    146     │ - ··}
+    147     │ - ··if·(payload.status·===·'present')·{
+    148     │ - ····const·deviceId·=·payload.deviceId;
+    149     │ - ····const·deviceSecret·=·payload.deviceSecret;
+    150     │ - ····if·(
+    151     │ - ······typeof·deviceId·===·'string'·&&
+    152     │ - ······deviceId.length·>·0·&&
+    153     │ - ······typeof·deviceSecret·===·'string'·&&
+    154     │ - ······deviceSecret.length·>·0
+    155     │ - ····)·{
+    156     │ - ······return·{·state:·'present',·credential:·{·deviceId,·deviceSecret·}·};
+    157     │ - ····}
+    158     │ - ····//·A·`present`·verdict·whose·payload·is·incomplete·is·a·broken·slot,·not·an
+    159     │ - ····//·empty·one.·Reporting·`absent`·here·would·let·the·next·successful·sign-in
+    160     │ - ····//·overwrite·whatever·is·really·in·there.
+    161     │ - ····return·{
+    162     │ - ······state:·'unavailable',
+    163     │ - ······cause:·new·Error('shared·device·session·bridge·reported·`present`·with·an·incomplete·credential'),
+    164     │ - ····};
+    165     │ - ··}
+    166     │ - ··if·(payload.status·===·'unavailable')·{
+    167     │ - ····const·reason·=·typeof·payload.reason·===·'string'·?·payload.reason·:·'unknown';
+    168     │ - ····return·{·state:·'unavailable',·cause:·new·Error(`shared·device·session·slot·unavailable:·${reason}`)·};
+    169     │ - ··}
+    170     │ - ··return·{
+    171     │ - ····state:·'unavailable',
+    172     │ - ····cause:·new·Error(`shared·device·session·bridge·returned·an·unrecognised·status:·${String(payload.status)}`),
+    173     │ - ··};
+        139 │ + export·function·normalizeSharedDeviceSessionRead(
+        140 │ + → raw:·unknown,
+        141 │ + ):·SharedDeviceCredentialRead·{
+        142 │ + → if·(!raw·||·typeof·raw·!==·"object")·{
+        143 │ + → → return·{
+        144 │ + → → → state:·"unavailable",
+        145 │ + → → → cause:·new·Error("shared·device·session·bridge·returned·a·non-object"),
+        146 │ + → → };
+        147 │ + → }
+        148 │ + → const·payload·=·raw·as·Record<string,·unknown>;
+        149 │ + → if·(payload.status·===·"absent")·{
+        150 │ + → → return·{·state:·"absent"·};
+  272 more lines truncated
+  
+
+packages/services/__tests__/context/useAuthOperations.test.tsx organizeImports ━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+     22  22 │    */
+     23  23 │   
+     24     │ - import·{·renderHook,·act·}·from·'@testing-library/react';
+     25     │ - import·type·{·SessionLoginResponse,·User·}·from·'@oxy.so/core';
+         24 │ + import·type·{·SessionLoginResponse,·User·}·from·'@oxy.so/core';
+         25 │ + import·{·act,·renderHook·}·from·'@testing-library/react';
+     26  26 │   
+     27  27 │   jest.mock('@oxy.so/core/session', () => {
+  
+
+packages/core/src/boot/__tests__/sessionColdBoot.identity.test.ts organizeImports ━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+     14  14 │   import type { DeviceTokenMintResponse } from '@oxy.so/contracts';
+     15  15 │   import type { OxyServices } from '../../OxyServices';
+     16     │ - import·type·{·SessionLoginResponse·}·from·'../../models/session';
+     17     │ - import·type·{·AuthChallenge·}·from·'../../crypto/signatureService';
+     18     │ - import·{·runSessionColdBoot·}·from·'../sessionColdBoot';
+     19     │ - import·type·{·DeviceSecretMintOutcome·}·from·'../../session/refresh';
+     20     │ - import·{·createMemoryAuthStateStore,·type·PersistedAuthState·}·from·'../../session/authStateStore';
+     21     │ - import·{·createMemoryIdentityPinStore,·type·IdentityPin·}·from·'../../session/identityPin';
+     22     │ - import·type·{·IdentityBinding·}·from·'../../session/identitySession';
+         16 │ + import·type·{·AuthChallenge·}·from·'../../crypto/signatureService';
+         17 │ + import·type·{·SessionLoginResponse·}·from·'../../models/session';
+         18 │ + import·{·type·PersistedAuthState,·createMemoryAuthStateStore·}·from·'../../session/authStateStore';
+         19 │ + import·{·type·IdentityPin,·createMemoryIdentityPinStore·}·from·'../../session/identityPin';
+         20 │ + import·type·{·IdentityBinding·}·from·'../../session/identitySession';
+         21 │ + import·type·{·DeviceSecretMintOutcome·}·from·'../../session/refresh';
+         22 │ + import·{·runSessionColdBoot·}·from·'../sessionColdBoot';
+     23  23 │   
+     24  24 │   const PUBLIC_KEY = `02${'a'.repeat(64)}`;
+  
+
+packages/core/src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts format ━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     14  14 │    *   - web never runs it.
+     15  15 │    */
+     16     │ - import·type·{·OxyServices·}·from·'../../OxyServices';
+     17     │ - import·type·{·DeviceTokenMintResponse·}·from·'@oxy.so/contracts';
+     18     │ - import·type·{·SessionLoginResponse·}·from·'../../models/session';
+     19     │ - import·{·runSessionColdBoot·}·from·'../sessionColdBoot';
+     20     │ - import·type·{·DeviceSecretMintOutcome·}·from·'../../session/refresh';
+     21     │ - import·{·createMemoryAuthStateStore,·type·PersistedAuthState·}·from·'../../session/authStateStore';
+         16 │ + import·type·{·OxyServices·}·from·"../../OxyServices";
+         17 │ + import·type·{·DeviceTokenMintResponse·}·from·"@oxy.so/contracts";
+         18 │ + import·type·{·SessionLoginResponse·}·from·"../../models/session";
+         19 │ + import·{·runSessionColdBoot·}·from·"../sessionColdBoot";
+         20 │ + import·type·{·DeviceSecretMintOutcome·}·from·"../../session/refresh";
+         21 │ + import·{
+         22 │ + → createMemoryAuthStateStore,
+         23 │ + → type·PersistedAuthState,
+         24 │ + }·from·"../../session/authStateStore";
+     22  25 │   import type {
+     23     │ - ··SharedDeviceCredentialRead,
+     24     │ - ··SharedDeviceCredentialStore,
+     25     │ - }·from·'../../session/sharedDeviceCredential';
+     26     │ - import·{·createMemoryIdentityPinStore·}·from·'../../session/identityPin';
+     27     │ - import·type·{·IdentityBinding·}·from·'../../session/identitySession';
+         26 │ + → SharedDeviceCredentialRead,
+         27 │ + → SharedDeviceCredentialStore,
+         28 │ + }·from·"../../session/sharedDeviceCredential";
+         29 │ + import·{·createMemoryIdentityPinStore·}·from·"../../session/identityPin";
+         30 │ + import·type·{·IdentityBinding·}·from·"../../session/identitySession";
+     28  31 │   
+     29  32 │   const WEB = { isWeb: true, isNative: false };
+     30  33 │   const NATIVE = { isWeb: false, isNative: true };
+     31  34 │   
+     32     │ - const·SHARED_CRED·=·{·deviceId:·'dev-shared',·deviceSecret:·'ds-shared'·};
+     33     │ - const·OWN_CRED·=·{·deviceId:·'dev-own',·deviceSecret:·'ds-own'·};
+         35 │ + const·SHARED_CRED·=·{·deviceId:·"dev-shared",·deviceSecret:·"ds-shared"·};
+         36 │ + const·OWN_CRED·=·{·deviceId:·"dev-own",·deviceSecret:·"ds-own"·};
+     34  37 │   
+     35  38 │   const MINT: DeviceTokenMintResponse = {
+     36     │ - ··accessToken:·'access-joined',
+     37     │ - ··expiresAt:·new·Date(Date.now()·+·3_600_000).toISOString(),
+     38     │ - ··nextDeviceSecret:·SHARED_CRED.deviceSecret,
+     39     │ - ··state:·{
+     40     │ - ····deviceId:·SHARED_CRED.deviceId,
+     41     │ - ····accounts:·[{·accountId:·'user-shared',·sessionId:·'sess-shared',·authuser:·0·}],
+     42     │ - ····activeAccountId:·'user-shared',
+     43     │ - ····revision:·9,
+     44     │ - ····updatedAt:·1_700_000_000_000,
+     45     │ - ··},
+         39 │ + → accessToken:·"access-joined",
+         40 │ + → expiresAt:·new·Date(Date.now()·+·3_600_000).toISOString(),
+         41 │ + → nextDeviceSecret:·SHARED_CRED.deviceSecret,
+         42 │ + → state:·{
+         43 │ + → → deviceId:·SHARED_CRED.deviceId,
+         44 │ + → → accounts:·[
+         45 │ + → → → {·accountId:·"user-shared",·sessionId:·"sess-shared",·authuser:·0·},
+         46 │ + → → ],
+         47 │ + → → activeAccountId:·"user-shared",
+         48 │ + → → revision:·9,
+         49 │ + → → updatedAt:·1_700_000_000_000,
+         50 │ + → },
+     46  51 │   };
+     47  52 │   
+     48  53 │   /** A real device-secret mint single-flight matching HttpService's. */
+     49     │ - function·makeMintSingleFlight():·(mint:·()·=>·Promise<DeviceSecretMintOutcome>)·=>·Promise<DeviceSecretMintOutcome>·{
+     50     │ - ··let·inFlight:·Promise<DeviceSecretMintOutcome>·|·null·=·null;
+     51     │ - ··return·(mint)·=>·{
+     52     │ - ····if·(!inFlight)·{
+     53     │ - ······inFlight·=·mint().finally(()·=>·{
+     54     │ - ········inFlight·=·null;
+     55     │ - ······});
+     56     │ - ····}
+     57     │ - ····return·inFlight;
+     58     │ - ··};
+         54 │ + function·makeMintSingleFlight():·(
+         55 │ + → mint:·()·=>·Promise<DeviceSecretMintOutcome>,
+         56 │ + )·=>·Promise<DeviceSecretMintOutcome>·{
+         57 │ + → let·inFlight:·Promise<DeviceSecretMintOutcome>·|·null·=·null;
+         58 │ + → return·(mint)·=>·{
+         59 │ + → → if·(!inFlight)·{
+         60 │ + → → → inFlight·=·mint().finally(()·=>·{
+         61 │ + → → → → inFlight·=·null;
+         62 │ + → → → });
+         63 │ + → → }
+         64 │ + → → return·inFlight;
+         65 │ + → };
+     59  66 │   }
+     60  67 │   
+     61  68 │   /** A 401 error shaped like `HttpService`/`handleError` output for the given body. */
+     62  69 │   function mint401(body: string): Error & { status: number } {
+     63     │ - ··return·Object.assign(new·Error(body),·{·status:·401·});
+         70 │ + → return·Object.assign(new·Error(body),·{·status:·401·});
+     64  71 │   }
+     65  72 │   
+     66     │ - function·makeOxy(overrides:·{
+     67     │ - ··mintFromDeviceSecret?:·OxyServices['devices']['mintToken'];
+     68     │ - ··signInWithCommonsIdentity?:·OxyServices['auth']['signInWithCommonsIdentity'];
+     69     │ - }·=·{})·{
+     70     │ - ··const·setTokens·=·jest.fn();
+     71     │ - ··const·mintFromDeviceSecret·=·jest.fn(
+     72     │ - ····overrides.mintFromDeviceSecret·??·(async·()·=>·MINT),
+     73     │ - ··)·as·unknown·as·OxyServices['devices']['mintToken'];
+     74     │ - ··const·signInWithCommonsIdentity·=·jest.fn(
+     75     │ - ····overrides.signInWithCommonsIdentity·??·(async·()·=>·null),
+     76     │ - ··)·as·unknown·as·OxyServices['auth']['signInWithCommonsIdentity'];
+     77     │ - ··const·oxy·=·{
+     78     │ - ····get·baseURL()·{·return·'https://api.oxy.so';·},
+     79     │ - ····http:·{·runSingleFlightDeviceSecretMint:·makeMintSingleFlight(),·getSessionEpoch:·()·=>·0·},
+     80     │ - ····session:·{
+     81     │ - ······setAccessToken:·setTokens,
+     82     │ - ····},
+     83     │ - ····devices:·{
+     84     │ - ······mintToken:·mintFromDeviceSecret,
+     85     │ - ····},
+     86     │ - ····auth:·{
+     87     │ - ······signInWithCommonsIdentity:·signInWithCommonsIdentity,
+     88     │ - ····},
+     89     │ - ··}·as·unknown·as·OxyServices;
+     90     │ - ··return·{·oxy,·setTokens,·mintFromDeviceSecret,·signInWithCommonsIdentity·};
+         73 │ + function·makeOxy(
+         74 │ + → overrides:·{
+         75 │ + → → mintFromDeviceSecret?:·OxyServices["devices"]["mintToken"];
+         76 │ + → → signInWithCommonsIdentity?:·OxyServices["auth"]["signInWithCommonsIdentity"];
+         77 │ + → }·=·{},
+         78 │ + )·{
+         79 │ + → const·setTokens·=·jest.fn();
+         80 │ + → const·mintFromDeviceSecret·=·jest.fn(
+         81 │ + → → overrides.mintFromDeviceSecret·??·(async·()·=>·MINT),
+         82 │ + → )·as·unknown·as·OxyServices["devices"]["mintToken"];
+         83 │ + → const·signInWithCommonsIdentity·=·jest.fn(
+         84 │ + → → overrides.signInWithCommonsIdentity·??·(async·()·=>·null),
+         85 │ + → )·as·unknown·as·OxyServices["auth"]["signInWithCommonsIdentity"];
+         86 │ + → const·oxy·=·{
+         87 │ + → → get·baseURL()·{
+         88 │ + → → → return·"https://api.oxy.so";
+         89 │ + → → },
+         90 │ + → → http:·{
+         91 │ + → → → runSingleFlightDeviceSecretMint:·makeMintSingleFlight(),
+         92 │ + → → → getSessionEpoch:·()·=>·0,
+         93 │ + → → },
+         94 │ + → → session:·{
+         95 │ + → → → setAccessToken:·setTokens,
+         96 │ + → → },
+         97 │ + → → devices:·{
+         98 │ + → → → mintToken:·mintFromDeviceSecret,
+         99 │ + → → },
+        100 │ + → → auth:·{
+        101 │ + → → → signInWithCommonsIdentity:·signInWithCommonsIdentity,
+        102 │ + → → },
+        103 │ + → }·as·unknown·as·OxyServices;
+        104 │ + → return·{·oxy,·setTokens,·mintFromDeviceSecret,·signInWithCommonsIdentity·};
+  481 more lines truncated
+  
+
+packages/core/src/boot/sessionColdBoot.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     41  41 │    * ESM-safe (no `require()`); no react/react-native/expo imports.
+     42  42 │    */
+     43     │ - import·{·runColdBoot,·type·ColdBootOutcome,·type·ColdBootStep·}·from·'../utils/coldBoot';
+     44     │ - import·{·isNative·as·detectNative·}·from·'../utils/platform';
+     45     │ - import·{·logger·}·from·'../logger';
+     46     │ - import·{·computeIdentityTag·}·from·'../utils/cacheKey';
+     47     │ - import·{·TOKEN_REFRESH_LEAD_MS,·refreshDeviceSecretArm·}·from·'../session/refresh';
+         43 │ + import·{
+         44 │ + → runColdBoot,
+         45 │ + → type·ColdBootOutcome,
+         46 │ + → type·ColdBootStep,
+         47 │ + }·from·"../utils/coldBoot";
+         48 │ + import·{·isNative·as·detectNative·}·from·"../utils/platform";
+         49 │ + import·{·logger·}·from·"../logger";
+         50 │ + import·{·computeIdentityTag·}·from·"../utils/cacheKey";
+         51 │ + import·{
+         52 │ + → TOKEN_REFRESH_LEAD_MS,
+         53 │ + → refreshDeviceSecretArm,
+         54 │ + }·from·"../session/refresh";
+     48  55 │   import {
+     49     │ - ··establishIdentitySession,
+     50     │ - ··resolveIdentityPin,
+     51     │ - ··type·IdentityBinding,
+     52     │ - }·from·'../session/identitySession';
+     53     │ - import·type·{·IdentityPin·}·from·'../session/identityPin';
+         56 │ + → establishIdentitySession,
+         57 │ + → resolveIdentityPin,
+         58 │ + → type·IdentityBinding,
+         59 │ + }·from·"../session/identitySession";
+         60 │ + import·type·{·IdentityPin·}·from·"../session/identityPin";
+     54  61 │   import {
+     55     │ - ··decideSharedDeviceJoin,
+     56     │ - ··type·SharedDeviceCredentialStore,
+     57     │ - }·from·'../session/sharedDeviceCredential';
+     58     │ - import·type·{·OxyServices·}·from·'../OxyServices';
+     59     │ - import·type·{·AuthStateStore,·PersistedAuthState·}·from·'../session/authStateStore';
+     60     │ - import·type·{·DeviceSessionState·}·from·'@oxy.so/contracts';
+         62 │ + → decideSharedDeviceJoin,
+         63 │ + → type·SharedDeviceCredentialStore,
+         64 │ + }·from·"../session/sharedDeviceCredential";
+         65 │ + import·type·{·OxyServices·}·from·"../OxyServices";
+         66 │ + import·type·{
+         67 │ + → AuthStateStore,
+         68 │ + → PersistedAuthState,
+         69 │ + }·from·"../session/authStateStore";
+         70 │ + import·type·{·DeviceSessionState·}·from·"@oxy.so/contracts";
+     61  71 │   
+     62  72 │   /**
+    ······· │ 
+     67  77 │    *   vault). Requires {@link RunSessionColdBootOptions.identity}.
+     68  78 │    */
+     69     │ - export·type·SessionMode·=·'account'·|·'identity';
+         79 │ + export·type·SessionMode·=·"account"·|·"identity";
+     70  80 │   
+     71  81 │   /** The winning session shape a cold-boot step reports. */
+     72  82 │   export interface DeviceBootSession {
+     73     │ - ··sessionId:·string;
+     74     │ - ··userId:·string;
+     75     │ - ··accessToken:·string;
+     76     │ - ··/**·Server·state·already·returned·by·the·mint;·absent·on·warm-token·restore.·*/
+     77     │ - ··state?:·DeviceSessionState;
+         83 │ + → sessionId:·string;
+         84 │ + → userId:·string;
+         85 │ + → accessToken:·string;
+         86 │ + → /**·Server·state·already·returned·by·the·mint;·absent·on·warm-token·restore.·*/
+         87 │ + → state?:·DeviceSessionState;
+     78  88 │   }
+     79  89 │   
+     80  90 │   /** Why a cold boot ended without a session. */
+     81     │ - export·type·SignedOutReason·=·'no_session'·|·'error';
+         91 │ + export·type·SignedOutReason·=·"no_session"·|·"error";
+     82  92 │   
+     83  93 │   export interface RunSessionColdBootOptions {
+     84     │ - ··oxy:·OxyServices;
+     85     │ - ··store:·AuthStateStore;
+     86     │ - ··/**·Platform·hints;·default·derived·from·`@oxy.so/core`'s·platform·detection.·*/
+     87     │ - ··platform?:·{·isWeb?:·boolean;·isNative?:·boolean·};
+     88     │ - ··/**·Invoked·with·the·winning·session·(token·already·planted).·*/
+     89     │ - ··onSession?:·(session:·DeviceBootSession·&·{·via:·string·})·=>·void·|·Promise<void>;
+     90     │ - ··/**·Invoked·when·the·boot·ended·signed·out.·*/
+     91     │ - ··onSignedOut?:·(reason:·SignedOutReason)·=>·void·|·Promise<void>;
+     92     │ - ··onStepError?:·(id:·string,·error:·unknown)·=>·void;
+     93     │ - ··/**
+     94     │ - ···*·HARD·overall·deadline·(ms)·for·the·whole·ordered·step·chain,·forwarded·to
+     95     │ - ···*·{@link·runColdBoot}.·Defense-in-depth·so·a·single·non-settling·network·step
+     96     │ - ···*·(a·black-hole·network·that·neither·connects·nor·rejects)·can·NEVER·hang·the
+     97     │ - ···*·boot·—·and·therefore·app·routing·—·indefinitely.·Inert·on·healthy·loads
+     98     │ - ···*·(every·step·settles·well·under·it);·only·trips·on·pathological·networks.
+     99     │ - ···*·When·omitted·there·is·no·overall·deadline·(unchanged·behavior).
+    100     │ - ···*/
+    101     │ - ··overallDeadlineMs?:·number;
+    102     │ - ··/**
+    103     │ - ···*·Invoked·once·per·step·abandoned·because·{@link·overallDeadlineMs}·expired
+    104     │ - ···*·before·it·settled.·Forwarded·to·{@link·runColdBoot}.·Must·not·throw.
+    105     │ - ···*/
+    106     │ - ··onStepDeadline?:·(stepId:·string)·=>·void;
+    107     │ - ··/**
+    108     │ - ···*·Best-effort·connectivity·hint.·When·it·returns·`true`·the·two·NETWORK·steps
+    109     │ - ···*·(`device-secret-mint`,·`commons-proof-signin`)·are·skipped·—·an·offline·device
+    110     │ - ···*·cannot·mint,·and·attempting·to·would·burn·the·whole·deadline·on·a·doomed
+    111     │ - ···*·request·before·routing·settles.·The·pure-local·`warm-token-plant`·step·is
+    112     │ - ···*·NEVER·gated·by·this:·an·offline·returning·user·with·an·unexpired·persisted
+    113     │ - ···*·token·must·still·boot·authenticated.·Only·an·EXPLICIT·offline·verdict·should
+    114     │ - ···*·be·returned;·the·caller·resolves·unknown/timeout·to·`false`·(assume·online)
+    115     │ - ···*·so·a·flaky·probe·can·never·falsely·skip·a·real·sign-in.
+    116     │ - ···*/
+    117     │ - ··isOffline?:·()·=>·boolean;
+    118     │ - ··/**
+    119     │ - ···*·Who·owns·the·resolved·session.·Defaults·to·`'account'`·—·the·device's·active
+    120     │ - ···*·account·—·which·is·the·behaviour·every·ordinary·Oxy·app·has·today·and·which
+    121     │ - ···*·this·option·leaves·byte-for-byte·unchanged.
+    122     │ - ···*
+    123     │ - ···*·`'identity'`·binds·the·boot·to·the·owner·of·this·device's·PRIMARY·identity
+    124     │ - ···*·key·and·REQUIRES·{@link·identity}.·When·it·is·missing·the·boot·refuses·to
+    125     │ - ···*·run·any·lane·(an·identity-bound·client·silently·falling·back·to·the·device's
+    126     │ - ···*·active·account·is·precisely·the·bug·this·mode·exists·to·prevent)·and
+    127     │ - ···*·resolves·signed·out.
+    128     │ - ···*/
+    129     │ - ··sessionMode?:·SessionMode;
+    130     │ - ··/**
+    131     │ - ···*·The·identity·binding·(pin·store·+·key/signature·access)·used·by
+    132     │ - ···*·`sessionMode:·'identity'`.·Ignored·in·`'account'`·mode.
+    133     │ - ···*/
+    134     │ - ··identity?:·IdentityBinding;
+    135     │ - ··/**
+    136     │ - ···*·The·cross-app·native·slot·holding·this·device's·shared·DeviceSession
+    137     │ - ···*·credential,·enabling·the·`shared-device-adopt`·lane.·Supplied·by
+    138     │ - ···*·`@oxy.so/services`·on·native;·absent·on·web,·where·each·origin·is·its·own
+    139     │ - ···*·device·by·design.
+    140     │ - ···*
+    141     │ - ···*·IGNORED·in·`sessionMode:·'identity'`.·The·shared·slot·belongs·to·whichever
+    142     │ - ···*·principal·signed·in·on·this·device;·an·identity-bound·client·must·resolve
+    143     │ - ···*·its·session·from·the·local·key·alone,·and·adopting·a·device·credential·is
+    144     │ - ···*·exactly·the·drift·that·mode·exists·to·prevent.
+    145     │ - ···*/
+    146     │ - ··sharedDeviceCredential?:·SharedDeviceCredentialStore;
+         94 │ + → oxy:·OxyServices;
+         95 │ + → store:·AuthStateStore;
+         96 │ + → /**·Platform·hints;·default·derived·from·`@oxy.so/core`'s·platform·detection.·*/
+         97 │ + → platform?:·{·isWeb?:·boolean;·isNative?:·boolean·};
+         98 │ + → /**·Invoked·with·the·winning·session·(token·already·planted).·*/
+         99 │ + → onSession?:·(
+        100 │ + → → session:·DeviceBootSession·&·{·via:·string·},
+        101 │ + → )·=>·void·|·Promise<void>;
+        102 │ + → /**·Invoked·when·the·boot·ended·signed·out.·*/
+        103 │ + → onSignedOut?:·(reason:·SignedOutReason)·=>·void·|·Promise<void>;
+        104 │ + → onStepError?:·(id:·string,·error:·unknown)·=>·void;
+        105 │ + → /**
+        106 │ + → ·*·HARD·overall·deadline·(ms)·for·the·whole·ordered·step·chain,·forwarded·to
+        107 │ + → ·*·{@link·runColdBoot}.·Defense-in-depth·so·a·single·non-settling·network·step
+        108 │ + → ·*·(a·black-hole·network·that·neither·connects·nor·rejects)·can·NEVER·hang·the
+  842 more lines truncated
+  
+
+packages/core/src/session/authStateStore.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     18  18 │    */
+     19  19 │   
+     20     │ - import·{·logger·}·from·'../logger';
+         20 │ + import·{·logger·}·from·"../logger";
+     21  21 │   
+     22  22 │   /**
+    ······· │ 
+     40  40 │    */
+     41  41 │   export interface PersistedAuthState {
+     42     │ - ··sessionId:·string;
+     43     │ - ··userId:·string;
+     44     │ - ··/**
+     45     │ - ···*·The·stable·device·identifier·this·session·is·bound·to·(zero-cookie
+     46     │ - ···*·transport).·Persisted·alongside·{@link·deviceSecret}·because·the
+     47     │ - ···*·`POST·/session/device/token`·mint·presents·BOTH.·Sourced·from·every·login
+     48     │ - ···*·lane·(password·/·2FA·/·QR·claim·/·challenge·verify)·via·the·response's
+     49     │ - ···*·`deviceId`.
+     50     │ - ···*/
+     51     │ - ··deviceId?:·string;
+     52     │ - ··/**
+     53     │ - ···*·This·holder's·device·secret·(zero-cookie·transport).·Possession·of·it·mints
+     54     │ - ···*·a·short·access·token·for·the·device's·active·account·via
+     55     │ - ···*·`POST·/session/device/token`.·Stable:·the·server·never·rotates·it.
+     56     │ - ···*/
+     57     │ - ··deviceSecret?:·string;
+     58     │ - ··/**·Optional·warm-boot·access·token·(short-lived;·see·interface·docs).·*/
+     59     │ - ··accessToken?:·string;
+     60     │ - ··/**·Optional·warm-boot·access-token·expiry,·ISO-8601.·*/
+     61     │ - ··expiresAt?:·string;
+         42 │ + → sessionId:·string;
+         43 │ + → userId:·string;
+         44 │ + → /**
+         45 │ + → ·*·The·stable·device·identifier·this·session·is·bound·to·(zero-cookie
+         46 │ + → ·*·transport).·Persisted·alongside·{@link·deviceSecret}·because·the
+         47 │ + → ·*·`POST·/session/device/token`·mint·presents·BOTH.·Sourced·from·every·login
+         48 │ + → ·*·lane·(password·/·2FA·/·QR·claim·/·challenge·verify)·via·the·response's
+         49 │ + → ·*·`deviceId`.
+         50 │ + → ·*/
+         51 │ + → deviceId?:·string;
+         52 │ + → /**
+         53 │ + → ·*·This·holder's·device·secret·(zero-cookie·transport).·Possession·of·it·mints
+         54 │ + → ·*·a·short·access·token·for·the·device's·active·account·via
+         55 │ + → ·*·`POST·/session/device/token`.·Stable:·the·server·never·rotates·it.
+         56 │ + → ·*/
+         57 │ + → deviceSecret?:·string;
+         58 │ + → /**·Optional·warm-boot·access·token·(short-lived;·see·interface·docs).·*/
+         59 │ + → accessToken?:·string;
+         60 │ + → /**·Optional·warm-boot·access-token·expiry,·ISO-8601.·*/
+         61 │ + → expiresAt?:·string;
+     62  62 │   }
+     63  63 │   
+    ······· │ 
+     69  69 │    */
+     70  70 │   export interface AuthStateStore {
+     71     │ - ··load():·Promise<PersistedAuthState·|·null>;
+     72     │ - ··/**
+     73     │ - ···*·Persist·the·credential·blob·and·report·whether·it·durably·landed.
+     74     │ - ···*
+     75     │ - ···*·Resolves·`true`·when·the·state·is·retained·consistent·with·this·store's
+     76     │ - ···*·durability·guarantee·—·a·durable·backing·whose·read-back·matched,·or·a
+     77     │ - ···*·degraded/in-memory·store·that·held·it·in·memory.·Resolves·`false`·when·a
+     78     │ - ···*·DURABLE·backing·was·expected·but·the·write·did·NOT·land·(read-back·mismatch
+     79     │ - ···*·or·a·thrown·write);·the·in-memory·mirror·still·keeps·the·session·live·for
+     80     │ - ···*·this·process,·but·it·will·be·lost·on·reload.
+     81     │ - ···*
+     82     │ - ···*·A·lane·persisting·a·ROTATED·device·secret·(the·mint's·`nextDeviceSecret`)
+     83     │ - ···*·MUST·treat·`false`·as·fatal·for·that·mint:·it·must·NOT·plant/advertise·a
+     84     │ - ···*·session·built·on·a·secret·that·will·not·survive·a·reload.
+     85     │ - ···*/
+     86     │ - ··save(state:·PersistedAuthState):·Promise<boolean>;
+     87     │ - ··clear():·Promise<void>;
+     88     │ - ··/**·Durable·local·intent·only:·never·authority·or·a·mutation·of·an·identity·key.·*/
+     89     │ - ··isAutomaticIdentitySignInSuppressed?():·Promise<boolean>;
+     90     │ - ··setAutomaticIdentitySignInSuppressed?(suppressed:·boolean):·Promise<boolean>;
+         71 │ + → load():·Promise<PersistedAuthState·|·null>;
+         72 │ + → /**
+         73 │ + → ·*·Persist·the·credential·blob·and·report·whether·it·durably·landed.
+         74 │ + → ·*
+         75 │ + → ·*·Resolves·`true`·when·the·state·is·retained·consistent·with·this·store's
+         76 │ + → ·*·durability·guarantee·—·a·durable·backing·whose·read-back·matched,·or·a
+         77 │ + → ·*·degraded/in-memory·store·that·held·it·in·memory.·Resolves·`false`·when·a
+         78 │ + → ·*·DURABLE·backing·was·expected·but·the·write·did·NOT·land·(read-back·mismatch
+         79 │ + → ·*·or·a·thrown·write);·the·in-memory·mirror·still·keeps·the·session·live·for
+         80 │ + → ·*·this·process,·but·it·will·be·lost·on·reload.
+         81 │ + → ·*
+         82 │ + → ·*·A·lane·persisting·a·ROTATED·device·secret·(the·mint's·`nextDeviceSecret`)
+         83 │ + → ·*·MUST·treat·`false`·as·fatal·for·that·mint:·it·must·NOT·plant/advertise·a
+         84 │ + → ·*·session·built·on·a·secret·that·will·not·survive·a·reload.
+         85 │ + → ·*/
+         86 │ + → save(state:·PersistedAuthState):·Promise<boolean>;
+         87 │ + → clear():·Promise<void>;
+         88 │ + → /**·Durable·local·intent·only:·never·authority·or·a·mutation·of·an·identity·key.·*/
+         89 │ + → isAutomaticIdentitySignInSuppressed?():·Promise<boolean>;
+         90 │ + → setAutomaticIdentitySignInSuppressed?(suppressed:·boolean):·Promise<boolean>;
+     91  91 │   }
+     92  92 │   
+    ······· │ 
+     96  96 │    */
+     97  97 │   export interface NativeKeyValueStorage {
+     98     │ - ··getItem(key:·string):·Promise<string·|·null>;
+     99     │ - ··setItem(key:·string,·value:·string):·Promise<void>;
+    100     │ - ··removeItem(key:·string):·Promise<void>;
+         98 │ + → getItem(key:·string):·Promise<string·|·null>;
+         99 │ + → setItem(key:·string,·value:·string):·Promise<void>;
+        100 │ + → removeItem(key:·string):·Promise<void>;
+    101 101 │   }
+    102 102 │   
+    ······· │ 
+    118 118 │    * so upgrading users are not signed out; the next `save()` splits them apart.
+    119 119 │    */
+    120     │ - export·const·AUTH_STATE_STORAGE_KEY·=·'oxy.auth.v1';
+    121     │ - export·const·AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY·=·'oxy.auth.automatic-identity-signin-suppressed.v1';
+        120 │ + export·const·AUTH_STATE_STORAGE_KEY·=·"oxy.auth.v1";
+        121 │ + export·const·AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY·=
+        122 │ + → "oxy.auth.automatic-identity-signin-suppressed.v1";
+    122 123 │   
+    123 124 │   /**
+    ······· │ 
+    129 130 │    * corrupt the durable credential write.
+    130 131 │    */
+    131     │ - export·const·AUTH_STATE_TOKEN_STORAGE_KEY·=·'oxy.auth.token.v1';
+        132 │ + export·const·AUTH_STATE_TOKEN_STORAGE_KEY·=·"oxy.auth.token.v1";
+    132 133 │   
+    133 134 │   /**
+    ······· │ 
+    137 138 │    */
+    138 139 │   function deserialize(raw: string | null): PersistedAuthState | null {
+    139     │ - ··if·(!raw)·{
+    140     │ - ····return·null;
+    141     │ - ··}
+    142     │ - ··let·parsed:·unknown;
+    143     │ - ··try·{
+    144     │ - ····parsed·=·JSON.parse(raw);
+    145     │ - ··}·catch·{
+    146     │ - ····return·null;
+    147     │ - ··}
+    148     │ - ··if·(!parsed·||·typeof·parsed·!==·'object')·{
+    149     │ - ····return·null;
+    150     │ - ··}
+    151     │ - ··const·candidate·=·parsed·as·Record<string,·unknown>;
+    152     │ - ··const·hasDeviceCredential·=
+    153     │ - ····typeof·candidate.deviceId·===·'string'·&&
+    154     │ - ····candidate.deviceId.length·>·0·&&
+    155     │ - ····typeof·candidate.deviceSecret·===·'string'·&&
+    156     │ - ····candidate.deviceSecret.length·>·0;
+        140 │ + → if·(!raw)·{
+        141 │ + → → return·null;
+        142 │ + → }
+        143 │ + → let·parsed:·unknown;
+        144 │ + → try·{
+        145 │ + → → parsed·=·JSON.parse(raw);
+        146 │ + → }·catch·{
+        147 │ + → → return·null;
+        148 │ + → }
+        149 │ + → if·(!parsed·||·typeof·parsed·!==·"object")·{
+        150 │ + → → return·null;
+  680 more lines truncated
+  
+
+packages/core/src/session/refresh.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     22  22 │    * Framework-free; no module-level mutable state.
+     23  23 │    */
+     24     │ - import·type·{·DeviceSessionState,·DeviceTokenMintResponse·}·from·'@oxy.so/contracts';
+     25     │ - import·type·{·OxyServices·}·from·'../OxyServices';
+     26     │ - import·type·{·AuthRefreshHandler,·AuthRefreshReason·}·from·'../HttpService';
+     27     │ - import·type·{·AuthStateStore,·PersistedAuthState·}·from·'./authStateStore';
+     28     │ - import·type·{·IdentityPin·}·from·'./identityPin';
+     29     │ - import·{·establishIdentitySession,·resolveIdentityPin,·type·IdentityBinding·}·from·'./identitySession';
+     30     │ - import·{·isNative·}·from·'../utils/platform';
+     31     │ - import·{·extractErrorStatus·}·from·'../utils/errorUtils';
+     32     │ - import·{·logger·}·from·'../logger';
+         24 │ + import·type·{
+         25 │ + → DeviceSessionState,
+         26 │ + → DeviceTokenMintResponse,
+         27 │ + }·from·"@oxy.so/contracts";
+         28 │ + import·type·{·OxyServices·}·from·"../OxyServices";
+         29 │ + import·type·{·AuthRefreshHandler,·AuthRefreshReason·}·from·"../HttpService";
+         30 │ + import·type·{·AuthStateStore,·PersistedAuthState·}·from·"./authStateStore";
+         31 │ + import·type·{·IdentityPin·}·from·"./identityPin";
+         32 │ + import·{
+         33 │ + → establishIdentitySession,
+         34 │ + → resolveIdentityPin,
+         35 │ + → type·IdentityBinding,
+         36 │ + }·from·"./identitySession";
+         37 │ + import·{·isNative·}·from·"../utils/platform";
+         38 │ + import·{·extractErrorStatus·}·from·"../utils/errorUtils";
+         39 │ + import·{·logger·}·from·"../logger";
+     33  40 │   
+     34  41 │   /**
+    ······· │ 
+     81  88 │   
+     82  89 │   export interface RefreshDeps {
+     83     │ - ··oxy:·OxyServices;
+     84     │ - ··store:·AuthStateStore;
+     85     │ - ··/**
+     86     │ - ···*·Whether·to·fall·back·to·the·native·Commons-identity·re-mint·(arm·2,
+     87     │ - ···*·`signInWithCommonsIdentity`)·when·the·persisted·secret·is·absent·/·rejected.
+     88     │ - ···*·Defaults·to·`isNative()`·—·web·has·neither·Commons·nor·the·keychain·group.
+     89     │ - ···*·Exposed·for·tests.·IGNORED·when·{@link·identity}·is·set:·an·identity-bound
+     90     │ - ···*·client·must·never·adopt·the·device's·SHARED·identity,·which·may·be·a
+     91     │ - ···*·different·one·than·this·device's·primary·key.
+     92     │ - ···*/
+     93     │ - ··allowCommonsIdentityFallback?:·boolean;
+     94     │ - ··/**
+     95     │ - ···*·Identity-bound·(pinned)·mode.·When·present,·every·re-mint·targets·the
+     96     │ - ···*·PINNED·account·—·resolved·fresh·from·the·pin·store·on·each·call,·since·a
+     97     │ - ···*·re-established·session·can·move·it·—·instead·of·the·device's·active
+     98     │ - ···*·account,·and·arm·2·becomes·the·PRIMARY-key·identity·sign-in·rather·than·the
+     99     │ - ···*·Commons-identity·one.
+    100     │ - ···*/
+    101     │ - ··identity?:·IdentityBinding;
+         90 │ + → oxy:·OxyServices;
+         91 │ + → store:·AuthStateStore;
+         92 │ + → /**
+         93 │ + → ·*·Whether·to·fall·back·to·the·native·Commons-identity·re-mint·(arm·2,
+         94 │ + → ·*·`signInWithCommonsIdentity`)·when·the·persisted·secret·is·absent·/·rejected.
+         95 │ + → ·*·Defaults·to·`isNative()`·—·web·has·neither·Commons·nor·the·keychain·group.
+         96 │ + → ·*·Exposed·for·tests.·IGNORED·when·{@link·identity}·is·set:·an·identity-bound
+         97 │ + → ·*·client·must·never·adopt·the·device's·SHARED·identity,·which·may·be·a
+         98 │ + → ·*·different·one·than·this·device's·primary·key.
+         99 │ + → ·*/
+        100 │ + → allowCommonsIdentityFallback?:·boolean;
+        101 │ + → /**
+        102 │ + → ·*·Identity-bound·(pinned)·mode.·When·present,·every·re-mint·targets·the
+        103 │ + → ·*·PINNED·account·—·resolved·fresh·from·the·pin·store·on·each·call,·since·a
+        104 │ + → ·*·re-established·session·can·move·it·—·instead·of·the·device's·active
+        105 │ + → ·*·account,·and·arm·2·becomes·the·PRIMARY-key·identity·sign-in·rather·than·the
+        106 │ + → ·*·Commons-identity·one.
+        107 │ + → ·*/
+        108 │ + → identity?:·IdentityBinding;
+    102 109 │   }
+    103 110 │   
+    ······· │ 
+    128 135 │    */
+    129 136 │   export type DeviceSecretMintOutcome =
+    130     │ - ··|·{·status:·'ok';·token:·string;·sessionId:·string;·userId:·string;·state:·DeviceSessionState·}
+    131     │ - ··|·{·status:·'no-secret'·}
+    132     │ - ··|·{·status:·'invalid-secret'·}
+    133     │ - ··|·{·status:·'no-session'·}
+    134     │ - ··|·{·status:·'account-not-on-device'·}
+    135     │ - ··|·{·status:·'transient'·}
+    136     │ - ··|·{·status:·'session-ended'·}
+    137     │ - ··|·{·status:·'persist-failed'·};
+        137 │ + → |·{
+        138 │ + → → → status:·"ok";
+        139 │ + → → → token:·string;
+        140 │ + → → → sessionId:·string;
+        141 │ + → → → userId:·string;
+        142 │ + → → → state:·DeviceSessionState;
+        143 │ + → ··}
+        144 │ + → |·{·status:·"no-secret"·}
+        145 │ + → |·{·status:·"invalid-secret"·}
+        146 │ + → |·{·status:·"no-session"·}
+        147 │ + → |·{·status:·"account-not-on-device"·}
+        148 │ + → |·{·status:·"transient"·}
+        149 │ + → |·{·status:·"session-ended"·}
+        150 │ + → |·{·status:·"persist-failed"·};
+    138 151 │   
+    139 152 │   /**
+    ······· │ 
+    160 173 │    */
+    161 174 │   export async function refreshDeviceSecretArm(deps: {
+    162     │ - ··oxy:·OxyServices;
+    163     │ - ··store:·AuthStateStore;
+    164     │ - ··/**·The·identity·pin,·when·this·client·is·identity-bound.·*/
+    165     │ - ··pin?:·IdentityPin·|·null;
+        175 │ + → oxy:·OxyServices;
+        176 │ + → store:·AuthStateStore;
+        177 │ + → /**·The·identity·pin,·when·this·client·is·identity-bound.·*/
+        178 │ + → pin?:·IdentityPin·|·null;
+    166 179 │   }): Promise<DeviceSecretMintOutcome> {
+    167     │ - ··const·{·oxy,·store·}·=·deps;
+    168     │ - ··const·pin·=·deps.pin·??·null;
+    169     │ - ··return·oxy.http.runSingleFlightDeviceSecretMint(async·()·=>·{
+    170     │ - ····const·epoch·=·oxy.http.getSessionEpoch();
+    171     │ - ····const·persisted·=·await·store.load();
+    172     │ - ····if·(!persisted?.deviceId·||·!persisted?.deviceSecret)·{
+    173     │ - ······return·{·status:·'no-secret'·};
+    174     │ - ····}
+        180 │ + → const·{·oxy,·store·}·=·deps;
+        181 │ + → const·pin·=·deps.pin·??·null;
+        182 │ + → return·oxy.http.runSingleFlightDeviceSecretMint(async·()·=>·{
+        183 │ + → → const·epoch·=·oxy.http.getSessionEpoch();
+        184 │ + → → const·persisted·=·await·store.load();
+        185 │ + → → if·(!persisted?.deviceId·||·!persisted?.deviceSecret)·{
+        186 │ + → → → return·{·status:·"no-secret"·};
+        187 │ + → → }
+    175 188 │   
+    176     │ - ····let·mint:·DeviceTokenMintResponse;
+    177     │ - ····try·{
+    178     │ - ······//·Unpinned·callers·pass·NO·third·argument·at·all,·so·the·account-mode·call
+    179     │ - ······//·shape·(and·therefore·the·request·body)·is·untouched·by·this·feature.
+    180     │ - ······mint·=·pin
+    181     │ - ········?·await·oxy.devices.mintToken(persisted.deviceId,·persisted.deviceSecret,·{
+    182     │ - ············accountId:·pin.accountId,
+    183     │ - ··········})
+    184     │ - ········:·await·oxy.devices.mintToken(persisted.deviceId,·persisted.deviceSecret);
+    185     │ - ····}·catch·(error)·{
+    186     │ - ······//·429·keeps·the·credential·like·any·other·transient·failure·—·the·secret
+    187     │ - ······//·was·never·judged·—·but·it·must·NOT·retry·on·the·transient·cadence.·The
+    188     │ - ······//·request-driven·lanes·(request-time·preflight,·401·retry)·reattempt·every
+    189     │ - ······//·second·once·the·access·token·is·expired,·which·is·60·mints/min·against·a
+    190     │ - ······//·30/min·server·budget:·the·client's·own·retries·then·hold·the·limiter
+    191     │ - ······//·tripped·and·the·session·cannot·recover·while·the·app·keeps·making
+    192     │ - ······//·requests.·Telling·HttpService·lengthens·the·next·cooldown·to·one·attempt
+    193     │ - ······//·per·limiter·window,·which·lets·the·budget·drain·and·the·session·heal.
+    194     │ - ······if·(extractErrorStatus(error)·===·429)·{
+    195     │ - ········oxy.http.noteRefreshRateLimited();
+    196     │ - ········return·{·status:·'transient'·};
+    197     │ - ······}
+    198     │ - ······if·(extractErrorStatus(error)·===·401)·{
+    199     │ - ········//·Structural·read·(not·`instanceof·Error`):·the·thrown·value·can·be·a
+    200     │ - ········//·plain·ApiError-shaped·object·or·come·from·another·realm.
+  744 more lines truncated
+  
+
+packages/services/src/ui/context/hooks/useAuthOperations.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+      1     │ - import·{·useCallback·}·from·'react';
+      2     │ - import·{·logoutIsolatedOAuthSession,·readIsolatedOAuthSession·}·from·'../isolatedOAuthSession';
+      3     │ - import·type·{·ApiError,·User·}·from·'@oxy.so/core';
+      4     │ - import·type·{·AuthStateStore,·IdentityBinding,·SessionClient·}·from·'@oxy.so/core/session';
+      5     │ - import·type·{·ClientSession,·SessionLoginResponse·}·from·'@oxy.so/core';
+      6     │ - import·type·{·OxyRuntime·}·from·'../../runtime';
+      7     │ - import·type·{·LogoutResult·}·from·'../oxyContextTypes';
+      8     │ - import·{·DeviceManager·}·from·'@oxy.so/core/session';
+      9     │ - import·{·fetchSessionsWithFallback·}·from·'../../utils/sessionHelpers';
+     10     │ - import·{·handleAuthError,·isInvalidSessionError·}·from·'../../utils/errorHandlers';
+     11     │ - import·type·{·StorageInterface·}·from·'../../utils/storageHelpers';
+     12     │ - import·type·{·OxyServices·}·from·'@oxy.so/core';
+     13     │ - import·{·SignatureService·}·from·'@oxy.so/core/crypto';
+          1 │ + import·{·useCallback·}·from·"react";
+          2 │ + import·{
+          3 │ + → logoutIsolatedOAuthSession,
+          4 │ + → readIsolatedOAuthSession,
+          5 │ + }·from·"../isolatedOAuthSession";
+          6 │ + import·type·{·ApiError,·User·}·from·"@oxy.so/core";
+          7 │ + import·type·{
+          8 │ + → AuthStateStore,
+          9 │ + → IdentityBinding,
+         10 │ + → SessionClient,
+         11 │ + }·from·"@oxy.so/core/session";
+         12 │ + import·type·{·ClientSession,·SessionLoginResponse·}·from·"@oxy.so/core";
+         13 │ + import·type·{·OxyRuntime·}·from·"../../runtime";
+         14 │ + import·type·{·LogoutResult·}·from·"../oxyContextTypes";
+         15 │ + import·{·DeviceManager·}·from·"@oxy.so/core/session";
+         16 │ + import·{·fetchSessionsWithFallback·}·from·"../../utils/sessionHelpers";
+         17 │ + import·{
+         18 │ + → handleAuthError,
+         19 │ + → isInvalidSessionError,
+         20 │ + }·from·"../../utils/errorHandlers";
+         21 │ + import·type·{·StorageInterface·}·from·"../../utils/storageHelpers";
+         22 │ + import·type·{·OxyServices·}·from·"@oxy.so/core";
+         23 │ + import·{·SignatureService·}·from·"@oxy.so/core/crypto";
+     14  24 │   
+     15  25 │   export interface UseAuthOperationsOptions {
+     16     │ - ··oxyServices:·OxyServices;
+     17     │ - ··ensureDeviceSessionLane:·()·=>·void·|·Promise<void>;
+     18     │ - ··storage:·StorageInterface·|·null;
+     19     │ - ··/**
+     20     │ - ···*·The·device-first·persisted·auth-state·store.·On·EXPLICIT·full·sign-out·the
+     21     │ - ···*·session·blob·is·cleared·(`store.clear()`)·so·a·reload's·cold·boot·finds·no
+     22     │ - ···*·device·credential·to·restore;·on·sign-in·the·returned·zero-cookie·device
+     23     │ - ···*·credential·(`deviceId`·+·`deviceSecret`)·is·persisted·so·the·next·boot
+     24     │ - ···*·warm-restores·without·a·redirect.
+     25     │ - ···*/
+     26     │ - ··store:·AuthStateStore;
+     27     │ - ··/**
+     28     │ - ···*·The·one·owner·of·the·session·facts.·Reads·(`activeSessionId`)·and·writes
+     29     │ - ···*·(the·account,·the·session·mirror,·the·loading/error·gates)·both·go·through
+     30     │ - ···*·it,·so·this·hook·holds·no·copy·of·anything·to·fall·out·of·step.
+     31     │ - ···*/
+     32     │ - ··runtime:·OxyRuntime;
+     33     │ - ··saveActiveSessionId:·(sessionId:·string)·=>·Promise<void>;
+     34     │ - ··clearSessionState:·()·=>·Promise<void>;
+     35     │ - ··/**·Used·only·by·`performSignIn`'s·same-user·duplicate-session·dedup·(legacy·session-validate·path;·unrelated·to·the·SessionClient·device-account·set).·*/
+     36     │ - ··switchSession:·(sessionId:·string)·=>·Promise<User>;
+     37     │ - ··/**
+     38     │ - ···*·The·Phase·3-A/3-B·`SessionClient`·(server-authoritative·device·account
+     39     │ - ···*·set).·Device-scoped·sign-out·routes·through·`sessionClient.signOut(...)`.
+     40     │ - ···*·`logoutAll`·additionally·uses·the·global·bearer·endpoint·so·sessions·on
+     41     │ - ···*·other·devices·and·their·refresh-token·families·are·revoked.
+     42     │ - ···*/
+     43     │ - ··sessionClient:·SessionClient;
+     44     │ - ··/**·Reprojects·`sessionClient.getState()`·onto·sessions/activeSessionId/user·(Task·1's·callback).·Awaited·after·a·partial·`signOut`·so·the·exposed·state·reflects·the·server·truth·before·the·call·resolves.·*/
+     45     │ - ··syncFromClient:·()·=>·Promise<void>;
+     46     │ - ··onAuthStateChange?:·(user:·User·|·null)·=>·void;
+     47     │ - ··onError?:·(error:·ApiError)·=>·void;
+     48     │ - ··logger?:·(message:·string,·error?:·unknown)·=>·void;
+     49     │ - ··/**
+     50     │ - ···*·Identity-bound·session·(`sessionMode:·'identity'`).·When·set,·a·successful
+     51     │ - ···*·key·sign-in·writes·the·durable·`{publicKey,·accountId}`·pin·so·pinned
+     52     │ - ···*·re-mints·and·projections·bind·immediately·instead·of·waiting·for·a·second
+     53     │ - ···*·`establishIdentitySession`·round-trip.
+     54     │ - ···*/
+     55     │ - ··identityBinding?:·IdentityBinding;
+     56     │ - ··/**·Refreshes·the·provider's·memoised·pinned·account·id·after·the·pin·lands.·*/
+     57     │ - ··refreshPinnedAccountId?:·()·=>·Promise<string·|·null>;
+         26 │ + → oxyServices:·OxyServices;
+         27 │ + → ensureDeviceSessionLane:·()·=>·void·|·Promise<void>;
+         28 │ + → storage:·StorageInterface·|·null;
+         29 │ + → /**
+         30 │ + → ·*·The·device-first·persisted·auth-state·store.·On·EXPLICIT·full·sign-out·the
+         31 │ + → ·*·session·blob·is·cleared·(`store.clear()`)·so·a·reload's·cold·boot·finds·no
+         32 │ + → ·*·device·credential·to·restore;·on·sign-in·the·returned·zero-cookie·device
+         33 │ + → ·*·credential·(`deviceId`·+·`deviceSecret`)·is·persisted·so·the·next·boot
+         34 │ + → ·*·warm-restores·without·a·redirect.
+         35 │ + → ·*/
+         36 │ + → store:·AuthStateStore;
+         37 │ + → /**
+         38 │ + → ·*·The·one·owner·of·the·session·facts.·Reads·(`activeSessionId`)·and·writes
+         39 │ + → ·*·(the·account,·the·session·mirror,·the·loading/error·gates)·both·go·through
+         40 │ + → ·*·it,·so·this·hook·holds·no·copy·of·anything·to·fall·out·of·step.
+         41 │ + → ·*/
+         42 │ + → runtime:·OxyRuntime;
+         43 │ + → saveActiveSessionId:·(sessionId:·string)·=>·Promise<void>;
+         44 │ + → clearSessionState:·()·=>·Promise<void>;
+         45 │ + → /**·Used·only·by·`performSignIn`'s·same-user·duplicate-session·dedup·(legacy·session-validate·path;·unrelated·to·the·SessionClient·device-account·set).·*/
+         46 │ + → switchSession:·(sessionId:·string)·=>·Promise<User>;
+         47 │ + → /**
+         48 │ + → ·*·The·Phase·3-A/3-B·`SessionClient`·(server-authoritative·device·account
+         49 │ + → ·*·set).·Device-scoped·sign-out·routes·through·`sessionClient.signOut(...)`.
+         50 │ + → ·*·`logoutAll`·additionally·uses·the·global·bearer·endpoint·so·sessions·on
+         51 │ + → ·*·other·devices·and·their·refresh-token·families·are·revoked.
+         52 │ + → ·*/
+         53 │ + → sessionClient:·SessionClient;
+         54 │ + → /**·Reprojects·`sessionClient.getState()`·onto·sessions/activeSessionId/user·(Task·1's·callback).·Awaited·after·a·partial·`signOut`·so·the·exposed·state·reflects·the·server·truth·before·the·call·resolves.·*/
+         55 │ + → syncFromClient:·()·=>·Promise<void>;
+         56 │ + → onAuthStateChange?:·(user:·User·|·null)·=>·void;
+         57 │ + → onError?:·(error:·ApiError)·=>·void;
+         58 │ + → logger?:·(message:·string,·error?:·unknown)·=>·void;
+         59 │ + → /**
+         60 │ + → ·*·Identity-bound·session·(`sessionMode:·'identity'`).·When·set,·a·successful
+         61 │ + → ·*·key·sign-in·writes·the·durable·`{publicKey,·accountId}`·pin·so·pinned
+         62 │ + → ·*·re-mints·and·projections·bind·immediately·instead·of·waiting·for·a·second
+         63 │ + → ·*·`establishIdentitySession`·round-trip.
+         64 │ + → ·*/
+         65 │ + → identityBinding?:·IdentityBinding;
+         66 │ + → /**·Refreshes·the·provider's·memoised·pinned·account·id·after·the·pin·lands.·*/
+         67 │ + → refreshPinnedAccountId?:·()·=>·Promise<string·|·null>;
+     58  68 │   }
+     59  69 │   
+     60  70 │   export interface UseAuthOperationsResult {
+     61     │ - ··/**·Sign·in·with·existing·public·key·*/
+     62     │ - ··signIn:·(publicKey:·string,·deviceName?:·string)·=>·Promise<User>;
+     63     │ - ··/**·Logout·from·current·session.·Never·rejects·—·see·{@link·LogoutResult}.·*/
+     64     │ - ··logout:·(targetSessionId?:·string)·=>·Promise<LogoutResult>;
+     65     │ - ··/**·Logout·from·all·sessions·*/
+     66     │ - ··logoutAll:·()·=>·Promise<void>;
+         71 │ + → /**·Sign·in·with·existing·public·key·*/
+         72 │ + → signIn:·(publicKey:·string,·deviceName?:·string)·=>·Promise<User>;
+         73 │ + → /**·Logout·from·current·session.·Never·rejects·—·see·{@link·LogoutResult}.·*/
+         74 │ + → logout:·(targetSessionId?:·string)·=>·Promise<LogoutResult>;
+         75 │ + → /**·Logout·from·all·sessions·*/
+         76 │ + → logoutAll:·()·=>·Promise<void>;
+     67  77 │   }
+     68  78 │   
+     69     │ - const·LOGIN_ERROR_CODE·=·'LOGIN_ERROR';
+     70     │ - const·LOGOUT_ERROR_CODE·=·'LOGOUT_ERROR';
+     71     │ - const·LOGOUT_ALL_ERROR_CODE·=·'LOGOUT_ALL_ERROR';
+         79 │ + const·LOGIN_ERROR_CODE·=·"LOGIN_ERROR";
+         80 │ + const·LOGOUT_ERROR_CODE·=·"LOGOUT_ERROR";
+         81 │ + const·LOGOUT_ALL_ERROR_CODE·=·"LOGOUT_ALL_ERROR";
+     72  82 │   
+     73  83 │   /**
+    ······· │ 
+     80  90 │    */
+     81  91 │   export function clearPersistedAuthSafe(
+     82     │ - ··store:·AuthStateStore,
+  821 more lines truncated
+  
+
+packages/core/src/session/SessionClient.ts organizeImports ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+       1    1 │   import {
+       2      │ - ··deviceActivateResponseSchema,
+       3      │ - ··deviceDirectorySchema,
+       4      │ - ··deviceDirectorySyncSchema,
+       5      │ - ··deviceSessionStateSchema,
+       6      │ - ··deviceSessionSyncSchema,
+       7      │ - ··safeParseContract,
+       8      │ - ··SESSION_ACCOUNTS_CHANGED_EVENT,
+       9      │ - ··sessionAccountsChangedEventSchema,
+      10      │ - ··type·DeviceDirectory,
+      11      │ - ··type·DeviceSessionState,
+      12      │ - ··type·DeviceSessionSync,
+            2 │ + ··type·DeviceDirectory,
+            3 │ + ··type·DeviceSessionState,
+            4 │ + ··type·DeviceSessionSync,
+            5 │ + ··SESSION_ACCOUNTS_CHANGED_EVENT,
+            6 │ + ··deviceActivateResponseSchema,
+            7 │ + ··deviceDirectorySchema,
+            8 │ + ··deviceDirectorySyncSchema,
+            9 │ + ··deviceSessionStateSchema,
+           10 │ + ··deviceSessionSyncSchema,
+           11 │ + ··safeParseContract,
+           12 │ + ··sessionAccountsChangedEventSchema,
+      13   13 │   } from '@oxy.so/contracts';
+      14   14 │   import { logger } from '../logger';
+      15   15 │   import { computeIdentityTag } from '../utils/cacheKey';
+      16      │ - import·{·resolveActiveContext,·type·DeviceContext·}·from·'./deviceDirectory';
+           16 │ + import·{·type·DeviceContext,·resolveActiveContext·}·from·'./deviceDirectory';
+      17   17 │   import { getSocketIO } from './socketLoader';
+      18   18 │   import type { MinimalSocket, SocketIOFactory } from './socketLoader';
+  
+
+Skipped 11 suggested fixes.
+If you wish to apply the suggested (unsafe) fixes, use the command biome check --fix --unsafe
+
+The number of diagnostics exceeds the number allowed by Biome.
+Diagnostics not shown: 6.
+Checked 15 files in 18ms. No fixes applied.
+Found 26 errors.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

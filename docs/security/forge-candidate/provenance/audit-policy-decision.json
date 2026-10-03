@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "ACTIVE",
-  "targetSourceHead": "c06a24d4f3e3e08b254b94cf62677a946fd70ca5",
+  "targetSourceHead": "27b96e9d6bf4fec78a17af7ab2f88c3cbb406354",
   "expiresAt": "2026-10-09T22:00:00.000Z",
   "authorizationRecord": {
     "channel": "explicit-user-session",
@@ -10,7 +10,7 @@
     "recordedAt": "2026-10-02T22:45:04.000Z"
   },
   "independentEvidence": {
-    "sourceHead": "9efa8d28e64f51ed32fc17dd1856e3a88d688268",
-    "proofSha256": "d4c9a8c9330b362ff82eb5b4e2368e3abcd73e2f885aa36525b8c0d9d2a8dbcf"
+    "sourceHead": "9157c9c4bce3f4453f91b094410bcdffb564cb9c",
+    "proofSha256": "fb2a2cb359c28d50c25e91ef158f7847f241c17c6f71e3c3672280050a9f4087"
   }
 }

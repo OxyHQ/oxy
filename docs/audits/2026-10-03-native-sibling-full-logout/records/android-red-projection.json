@@ -1,0 +1,526 @@
+{
+  "reviewedAt": "2026-10-03T13:57:52.775433+00:00",
+  "sdkSource": "945c8adf04ce93b0a4a487c26c6c78f09efe26ff",
+  "status": "RED-sibling-cold-recreates-Commons",
+  "passed": [
+    "Settled explicit local logout Allo and cold unauthenticated with no challenge/verify",
+    "Settled explicit local logout Mention and cold unauthenticated with no challenge/verify",
+    "Explicit password sign-in after marker",
+    "Shared person adoption Allo",
+    "Allo org switch and Mention foreground resume UI plus fresh SDK users.me org",
+    "Allo org signout fallback person and Mention resume UI plus fresh SDK users.me person",
+    "Allo final person signout and Mention resume both unauthenticated",
+    "Allo cold remains unauthenticated"
+  ],
+  "failed": [
+    "Mention cold after Allo final logout recreates Commons owner via challenge/verify"
+  ],
+  "finalColdPaths": [
+    {
+      "observedAt": "2026-10-03T13:55:37.330241+00:00",
+      "method": "GET",
+      "path": "/session/device/state"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:43.930185+00:00",
+      "method": "GET",
+      "path": "/auth/oauth/client/oxy_dk_fdd8bad9263ac96d8f44e10c7cee68c62f0a1896a9ac6c4c"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:44.430167+00:00",
+      "method": "GET",
+      "path": "/session/device/directory"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:44.430226+00:00",
+      "method": "GET",
+      "path": "/users/me"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:44.930250+00:00",
+      "method": "POST",
+      "path": "/auth/challenge"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:44.930323+00:00",
+      "method": "POST",
+      "path": "/auth/verify"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.130228+00:00",
+      "method": "GET",
+      "path": "/session/device/directory"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.130306+00:00",
+      "method": "GET",
+      "path": "/users/me"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.130320+00:00",
+      "method": "GET",
+      "path": "/accounts"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.130334+00:00",
+      "method": "GET",
+      "path": "/session/device/directory"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.130437+00:00",
+      "method": "POST",
+      "path": "/session/device/add"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.230437+00:00",
+      "method": "POST",
+      "path": "/users/by-ids"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.230525+00:00",
+      "method": "GET",
+      "path": "/session/device/state"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.230550+00:00",
+      "method": "POST",
+      "path": "/users/by-ids"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.330284+00:00",
+      "method": "GET",
+      "path": "/socket.io/"
+    },
+    {
+      "observedAt": "2026-10-03T13:55:45.330351+00:00",
+      "method": "POST",
+      "path": "/users/by-ids"
+    },
+    {
+      "observedAt": "2026-10-03T13:56:45.830176+00:00",
+      "method": "GET",
+      "path": "/auth/oauth/client/oxy_dk_0d3595f8bb0182adb0972a4981ec4c609567a1eea56e4747"
+    },
+    {
+      "observedAt": "2026-10-03T13:57:13.230265+00:00",
+      "method": "GET",
+      "path": "/health"
+    },
+    {
+      "observedAt": "2026-10-03T13:57:13.230355+00:00",
+      "method": "GET",
+      "path": "/health"
+    }
+  ],
+  "limitations": [
+    "First early Allo click while resolved:false is not accepted settled logout evidence",
+    "No final registry SDK or production API tested",
+    "Observed method/path only, no request credentials or bodies",
+    "Fresh users.me was invoked only after UI state already checked; cached profile text was not accepted as fresh API proof"
+  ],
+  "observerStopped": true,
+  "originalReceiptSha256": "1c96a91d509919357d62b017bd74576e8cccf7506b6d101f4ca31799eb3c484a",
+  "privateInputHashes": {
+    "action.py": {
+      "sha256": "7aaa65da72a878946b5c07219021fbdd90f8b42d2273aea13626a598b36fb5ea",
+      "bytes": 1167
+    },
+    "actions.jsonl": {
+      "sha256": "21e842bd267a98575a0807f0f3f414402270ec7bf9bd035383b94cf0d7bf551a",
+      "bytes": 8388
+    },
+    "allo-code-password.log": {
+      "sha256": "a457475e0fbcac17e74cd9f1217cdc6cfe0a46a20154cd29fd8b01f52f8da933",
+      "bytes": 3093
+    },
+    "allo-code-ready.log": {
+      "sha256": "2c517b4880d6234bbe2b6e60a06440ad5fe9d0420de46bb9325971397a6bd282",
+      "bytes": 3481
+    },
+    "allo-cold-after-settled.log": {
+      "sha256": "68c2f2d384c3ef329cbccfaa3b5738085ff5720643db595c916f4d46ad3a2055",
+      "bytes": 2766
+    },
+    "allo-cold-baseline.log": {
+      "sha256": "68c2f2d384c3ef329cbccfaa3b5738085ff5720643db595c916f4d46ad3a2055",
+      "bytes": 2766
+    },
+    "allo-cold-start.json": {
+      "sha256": "beee3b7d79ef233c9c4798922753d95853f3651bc758b336dd12d8c1406ba7c5",
+      "bytes": 44
+    },
+    "allo-dialog.log": {
+      "sha256": "68c2f2d384c3ef329cbccfaa3b5738085ff5720643db595c916f4d46ad3a2055",
+      "bytes": 2766
+    },
+    "allo-fallback-profile.log": {
+      "sha256": "4e463fb60e21f87648a4c7f1780131d4aa06bcf54fec812a6129e1a762afeca5",
+      "bytes": 3202
+    },
+    "allo-fallback.log": {
+      "sha256": "4968861ce38c4023917c6e461b88d95c19372c75cb69e3cff8c44b0414438546",
+      "bytes": 3168
+    },
+    "allo-final-cold-inspect.log": {
+      "sha256": "68c2f2d384c3ef329cbccfaa3b5738085ff5720643db595c916f4d46ad3a2055",
+      "bytes": 2766
+    },
+    "allo-final-out.log": {
+      "sha256": "1dda3337a806faeca5c862d96cc0bdb5d353921a8d35d56e3809bb0b9ca437ec",
+      "bytes": 3384
+    },
+    "allo-identifier-submit.log": {
+      "sha256": "07800ed6fe856228fc1153e0e29f1aa1a9bda98519fab5431638b6f471069579",
+      "bytes": 2622
+    },
+    "allo-identifier.log": {
+      "sha256": "3b727950968b0617634e386ba1ca31dcf9526da55602ead89df8f5f70697895a",
+      "bytes": 2620
+    },
+    "allo-org-after.log": {
+      "sha256": "572b5a73d4db03c699325f61c4bc675f994fb6f4150379a68056e0c5cf8fb3bf",
+      "bytes": 3206
+    },
+    "allo-org-profile.log": {
+      "sha256": "c23a2359d710dcdeb88529e463892fa0b2cb1d592068c6db2aad487a7cebeb5b",
+      "bytes": 3202
+    },
+    "allo-org-read.log": {
+      "sha256": "572b5a73d4db03c699325f61c4bc675f994fb6f4150379a68056e0c5cf8fb3bf",
+      "bytes": 3206
+    },
+    "allo-org-signout.log": {
+      "sha256": "c23a2359d710dcdeb88529e463892fa0b2cb1d592068c6db2aad487a7cebeb5b",
+      "bytes": 3202
+    },
+    "allo-password-focus.log": {
+      "sha256": "57f729818ec02e2bc331b465409a2c6155ff043454a4216b89ccaa0c89b4b4c5",
+      "bytes": 1672
+    },
+    "allo-password-submit.log": {
+      "sha256": "79970c2d3a04c31859149f7dc7f284904fe4d1ff179f57be6c41328371695c05",
+      "bytes": 1672
+    },
+    "allo-person-final-signout.log": {
+      "sha256": "4e463fb60e21f87648a4c7f1780131d4aa06bcf54fec812a6129e1a762afeca5",
+      "bytes": 3202
+    },
+    "allo-profile-signout.log": {
+      "sha256": "75079a03141a2cfa88c64c1154924f4de647df5e7752fb6aa5d28d86fb8ea94c",
+      "bytes": 2814
+    },
+    "allo-settled-signedout.log": {
+      "sha256": "ae044e24b278f30d83c7ec8197e59cf73db1eb49b36c175ffc48a20590c7981e",
+      "bytes": 2996
+    },
+    "allo-shared-adoption.log": {
+      "sha256": "a9b26f9771b1429fd45340571fb21dc89ead085958d5330b1cf46f8a2d90ee25",
+      "bytes": 3162
+    },
+    "allo-shared-profile.log": {
+      "sha256": "a9b26f9771b1429fd45340571fb21dc89ead085958d5330b1cf46f8a2d90ee25",
+      "bytes": 3162
+    },
+    "allo-signed-in.log": {
+      "sha256": "660527d939d71dd42b10d97f716c175e1e994edfbf152b078528867d7dcfa104",
+      "bytes": 2786
+    },
+    "allo-switch-org.log": {
+      "sha256": "4e463fb60e21f87648a4c7f1780131d4aa06bcf54fec812a6129e1a762afeca5",
+      "bytes": 3202
+    },
+    "final-cold-start.json": {
+      "sha256": "082c88fbc2fbf086870fdf1efb89a1a6e8fa773619fc814d6212b8987a5084cc",
+      "bytes": 388
+    },
+    "http-paths.jsonl": {
+      "sha256": "00bd210a70d5ffbcd963a7dadfe9fc17db2a49133928c9effedc3700b889852c",
+      "bytes": 20983
+    },
+    "mention-code-password.log": {
+      "sha256": "a457475e0fbcac17e74cd9f1217cdc6cfe0a46a20154cd29fd8b01f52f8da933",
+      "bytes": 3093
+    },
+    "mention-code-ready.log": {
+      "sha256": "2c517b4880d6234bbe2b6e60a06440ad5fe9d0420de46bb9325971397a6bd282",
+      "bytes": 3481
+    },
+    "mention-cold-after-settled.log": {
+      "sha256": "6f880febabd2430fa7785dac9ae8958088f48d74b73da927036f52226867b345",
+      "bytes": 2769
+    },
+    "mention-cold-start.json": {
+      "sha256": "f19b44ab25c37260a16538a2681e9913bef64f6c695c0e2c1bcb03a05c4ae41a",
+      "bytes": 44
+    },
+    "mention-dialog.log": {
+      "sha256": "6f880febabd2430fa7785dac9ae8958088f48d74b73da927036f52226867b345",
+      "bytes": 2769
+    },
+    "mention-fallback-profile.log": {
+      "sha256": "7eee2a1d9c7ba95b1549411b6e1ffa1edb32f209786eb21c7df21e9acee8e821",
+      "bytes": 2817
+    },
+    "mention-fallback.log": {
+      "sha256": "8bb17c82f883db569d916fd905102f8dab27956032018dbc4f828febd5250cf8",
+      "bytes": 2817
+    },
+    "mention-final-cold-inspect.log": {
+      "sha256": "841e80de67cbf7c1025dd9ace69455fefa3cc612aafd88672116020e1d0a39d7",
+      "bytes": 2859
+    },
+    "mention-final-cold.log": {
+      "sha256": "841e80de67cbf7c1025dd9ace69455fefa3cc612aafd88672116020e1d0a39d7",
+      "bytes": 2859
+    },
+    "mention-final-out.log": {
+      "sha256": "004d4e82d4ad0c6623c6d9f0a29a9f8fa0b47573680be3584f9782e72be8ef18",
+      "bytes": 3033
+    },
+    "mention-identifier-submit.log": {
+      "sha256": "07800ed6fe856228fc1153e0e29f1aa1a9bda98519fab5431638b6f471069579",
+      "bytes": 2622
+    },
+    "mention-identifier.log": {
+      "sha256": "3b727950968b0617634e386ba1ca31dcf9526da55602ead89df8f5f70697895a",
+      "bytes": 2620
+    },
+    "mention-org-profile.log": {
+      "sha256": "1873633195d9bcccffb4cc2d35de6d84c588dddd992f7f46d177e20394ff9539",
+      "bytes": 2817
+    },
+    "mention-org-resume.log": {
+      "sha256": "de1457d6397edda1ad92be42852c18d07da738b9c66c753ca432f76916c0db2f",
+      "bytes": 2817
+    },
+    "mention-password-focus.log": {
+      "sha256": "57f729818ec02e2bc331b465409a2c6155ff043454a4216b89ccaa0c89b4b4c5",
+      "bytes": 1672
+    },
+    "mention-password-submit.log": {
+      "sha256": "79970c2d3a04c31859149f7dc7f284904fe4d1ff179f57be6c41328371695c05",
+      "bytes": 1672
+    },
+    "mention-person-profile.log": {
+      "sha256": "7244d51eeb2dbf0b1639b780e342ed4d37ddaa758e093e42c2f3ad679a0e7599",
+      "bytes": 2789
+    },
+    "mention-profile-verified.log": {
+      "sha256": "7eee2a1d9c7ba95b1549411b6e1ffa1edb32f209786eb21c7df21e9acee8e821",
+      "bytes": 2817
+    },
+    "mention-settled-signedout.log": {
+      "sha256": "d3481d540b1ad70842352c05852a2d5d7e32c6eaee1855951c5fa4db852c7fae",
+      "bytes": 3081
+    },
+    "mention-settled.log": {
+      "sha256": "841e80de67cbf7c1025dd9ace69455fefa3cc612aafd88672116020e1d0a39d7",
+      "bytes": 2859
+    },
+    "mention-signout.log": {
+      "sha256": "841e80de67cbf7c1025dd9ace69455fefa3cc612aafd88672116020e1d0a39d7",
+      "bytes": 2859
+    },
+    "observe-paths.py": {
+      "sha256": "11c32725b695cb4735c0af0cf882dcf633b766ec553ea54ed8bf9d3176dc1496",
+      "bytes": 1145
+    },
+    "observer-pid.json": {
+      "sha256": "47087fa2b6cabc78e3b7d9d294d97ee08ed711db2d414f71aaa19a1217491362",
+      "bytes": 41
+    },
+    "tcpdump-status.log": {
+      "sha256": "6b90b7a254c6319d2e8f0e8e4f994040b537da0b35113b7101872385ecd287b0",
+      "bytes": 238
+    },
+    "ui-allo-after-early-click.xml": {
+      "sha256": "66feca539db04ac8a256a54d5bb3083fbce8c730f55c86e59a6e72212f222b6c",
+      "bytes": 22451
+    },
+    "ui-allo-code-password.xml": {
+      "sha256": "15d8e5f878466fb10fcb8905a18a67176871be7c4bfd5af07e85d84dcb505394",
+      "bytes": 29783
+    },
+    "ui-allo-code-ready.xml": {
+      "sha256": "4fe7171cbc82c0d32ef0147cdd651f34c0cb9b44612d3372e74db37a14851786",
+      "bytes": 33712
+    },
+    "ui-allo-cold-after-settled.xml": {
+      "sha256": "7f47a322a0050d9c2412e5b8beb36ad8b2a18b93c77bb01f7cf0e778c4ee644c",
+      "bytes": 21653
+    },
+    "ui-allo-cold-baseline.xml": {
+      "sha256": "7f47a322a0050d9c2412e5b8beb36ad8b2a18b93c77bb01f7cf0e778c4ee644c",
+      "bytes": 21653
+    },
+    "ui-allo-dialog.xml": {
+      "sha256": "7f47a322a0050d9c2412e5b8beb36ad8b2a18b93c77bb01f7cf0e778c4ee644c",
+      "bytes": 21653
+    },
+    "ui-allo-fallback-profile.xml": {
+      "sha256": "739dd5067186601a61375279e7d63e9b0fb2fe6b2be1c76be75398dcdd9f2f67",
+      "bytes": 17326
+    },
+    "ui-allo-fallback.xml": {
+      "sha256": "ff3a62f265e014fde3f19564f8677f00cb2a4814074af5c07b886b3f606c14f4",
+      "bytes": 17292
+    },
+    "ui-allo-final-cold-inspect.xml": {
+      "sha256": "7f47a322a0050d9c2412e5b8beb36ad8b2a18b93c77bb01f7cf0e778c4ee644c",
+      "bytes": 21653
+    },
+    "ui-allo-final-out.xml": {
+      "sha256": "135da00957b44760a68a0e95b369708c94e5d206deb20a409c7c326a6c0a0e1e",
+      "bytes": 23243
+    },
+    "ui-allo-identifier-submit.xml": {
+      "sha256": "2470566738f4359ca148a84b2a0dea146c121e36d181ce1bc9b4653203f69bce",
+      "bytes": 35274
+    },
+    "ui-allo-identifier.xml": {
+      "sha256": "842574a040e3d6a0d412beea12f0b56308ab2d5682debd28f0c2faf1af1dead7",
+      "bytes": 35273
+    },
+    "ui-allo-initial.xml": {
+      "sha256": "41097be1a019313aec9bcc9581e127e105c7dea1779ff649bc337539e2a4e2ae",
+      "bytes": 21654
+    },
+    "ui-allo-org-after.xml": {
+      "sha256": "f80d45a4691c411f0765c33263873df4fd76b11e904bda9f4d2faad7f946b9e3",
+      "bytes": 17330
+    },
+    "ui-allo-org-profile.xml": {
+      "sha256": "1b6657a15c2dca7262ad613930676fd46293df37a5d47d81d8c014ed753d22f7",
+      "bytes": 17326
+    },
+    "ui-allo-org-read.xml": {
+      "sha256": "f80d45a4691c411f0765c33263873df4fd76b11e904bda9f4d2faad7f946b9e3",
+      "bytes": 17330
+    },
+    "ui-allo-org-signout.xml": {
+      "sha256": "1b6657a15c2dca7262ad613930676fd46293df37a5d47d81d8c014ed753d22f7",
+      "bytes": 17326
+    },
+    "ui-allo-password-focus.xml": {
+      "sha256": "d0c87f12d18f0a30011b97e294b4ed2999f38b78b9f94f097ab8576c814b41d4",
+      "bytes": 27663
+    },
+    "ui-allo-password-submit.xml": {
+      "sha256": "5d374bf29f3f320d9937910060109c4fcd136df73c2c0430c7d073ab891638a3",
+      "bytes": 27763
+    },
+    "ui-allo-person-final-signout.xml": {
+      "sha256": "739dd5067186601a61375279e7d63e9b0fb2fe6b2be1c76be75398dcdd9f2f67",
+      "bytes": 17326
+    },
+    "ui-allo-profile-signout.xml": {
+      "sha256": "e31a296262311755942968298ae6bfad6aac1fdaf87c7b7d774978e241fdcb2f",
+      "bytes": 13397
+    },
+    "ui-allo-settled-signedout.xml": {
+      "sha256": "e540ff9ac8dadc0bdfa7360ecae7796fe908f32ce326660d60a6e17fcd36d471",
+      "bytes": 19314
+    },
+    "ui-allo-shared-adoption.xml": {
+      "sha256": "8608e18efc94dd9626907749aa59608c230bec3105d0e23482b767b905d73c10",
+      "bytes": 17286
+    },
+    "ui-allo-shared-profile.xml": {
+      "sha256": "8608e18efc94dd9626907749aa59608c230bec3105d0e23482b767b905d73c10",
+      "bytes": 17286
+    },
+    "ui-allo-signed-in.xml": {
+      "sha256": "ebf789f8ba757131654ddf22dbf9ea08b9c0af59774476e56beedf52ba9e88ec",
+      "bytes": 13369
+    },
+    "ui-allo-switch-org.xml": {
+      "sha256": "739dd5067186601a61375279e7d63e9b0fb2fe6b2be1c76be75398dcdd9f2f67",
+      "bytes": 17326
+    },
+    "ui-fresh.py": {
+      "sha256": "688e237230420bfcdf4e8c6913060f22cd0ad6ec4cb7d45dde56d85637dd7144",
+      "bytes": 1415
+    },
+    "ui-mention-code-password.xml": {
+      "sha256": "86b9a45da65ad7091a8028066a9d690f14f380317157dabd0164dee168561ff4",
+      "bytes": 30198
+    },
+    "ui-mention-code-ready.xml": {
+      "sha256": "057ec2fb47afb3ca36012e1b9799dc2ce81a992dc2516ad6fa490a53cc9bf66f",
+      "bytes": 34182
+    },
+    "ui-mention-cold-after-settled.xml": {
+      "sha256": "9e16a911ffa8b5b249f2fde483e33702a67ef9f7e88a14c61596d0b4533b1075",
+      "bytes": 21961
+    },
+    "ui-mention-dialog.xml": {
+      "sha256": "9e16a911ffa8b5b249f2fde483e33702a67ef9f7e88a14c61596d0b4533b1075",
+      "bytes": 21961
+    },
+    "ui-mention-fallback-profile.xml": {
+      "sha256": "8822775886bb23dc92723869dd7d347dfd774454bab853eaabfbafb790cca483",
+      "bytes": 13585
+    },
+    "ui-mention-fallback.xml": {
+      "sha256": "bcc0d032d5d6c78af7c8b9d37e232e32a861ad735a01b3d86ed41142ae9135e4",
+      "bytes": 13585
+    },
+    "ui-mention-final-cold-inspect.xml": {
+      "sha256": "7f0c1dcb67ae455318c7638dd8b1cc7560eb3e25a70a1ed7f00265df8ac20fe7",
+      "bytes": 16727
+    },
+    "ui-mention-final-cold.xml": {
+      "sha256": "7f0c1dcb67ae455318c7638dd8b1cc7560eb3e25a70a1ed7f00265df8ac20fe7",
+      "bytes": 16727
+    },
+    "ui-mention-final-out.xml": {
+      "sha256": "2ba58a5ac06394b878e2d7d1258a5569cca3afc2d8591171fb581d2e00bc99f5",
+      "bytes": 19621
+    },
+    "ui-mention-identifier-submit.xml": {
+      "sha256": "342bd425d823becf23c018ab8b4740925c0de8126e10503cb678687471b663c1",
+      "bytes": 35769
+    },
+    "ui-mention-identifier.xml": {
+      "sha256": "15ac7579b68c85d64e92bce3cf98966bdfed6ce6eabf1cb2ef214f859009c4a0",
+      "bytes": 35768
+    },
+    "ui-mention-org-profile.xml": {
+      "sha256": "4987662654623330aa20c04a49c923f4b11fd6dfe65c241608bd5451d030ec93",
+      "bytes": 13585
+    },
+    "ui-mention-org-resume.xml": {
+      "sha256": "e9f3611402a37e8116be7559bd0964e235c2b0ae33c86f911eb7c6be16cb7f3b",
+      "bytes": 13585
+    },
+    "ui-mention-password-focus.xml": {
+      "sha256": "ce3da5bdb74c1941469e8cc3c3baf967b695295c2418feaf2ad6938c7e2883d1",
+      "bytes": 28053
+    },
+    "ui-mention-password-submit.xml": {
+      "sha256": "78715a7bb9e80f4660a185f0d21613c84778d1a09b5b1829cae361f9af8f89be",
+      "bytes": 28153
+    },
+    "ui-mention-person-profile.xml": {
+      "sha256": "85c1ac49d09b0de63a2122f7994c3691af881d0626fc6c51d13453ee2fd2fb6f",
+      "bytes": 13557
+    },
+    "ui-mention-profile-verified.xml": {
+      "sha256": "8822775886bb23dc92723869dd7d347dfd774454bab853eaabfbafb790cca483",
+      "bytes": 13585
+    },
+    "ui-mention-settled-signedout.xml": {
+      "sha256": "393efe28f6000b72cbf660fb567f81971e819ff16c23bccab415fb20f2590921",
+      "bytes": 22769
+    },
+    "ui-mention-settled.xml": {
+      "sha256": "7f0c1dcb67ae455318c7638dd8b1cc7560eb3e25a70a1ed7f00265df8ac20fe7",
+      "bytes": 16727
+    },
+    "ui-mention-signout.xml": {
+      "sha256": "7f0c1dcb67ae455318c7638dd8b1cc7560eb3e25a70a1ed7f00265df8ac20fe7",
+      "bytes": 16727
+    }
+  },
+  "privacy": "Hash-only original XML/login/action files. No original XML or password fields copied."
+}

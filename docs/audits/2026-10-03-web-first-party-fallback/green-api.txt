@@ -1,0 +1,81 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/browserBridge.test.ts
+{"level":30,"time":1791028540990,"pid":3805067,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791028541018,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b64b-70d5-ae78-cbc648d53e89","msg":"device.bridge.register"}
+{"level":30,"time":1791028541097,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b69e-717e-a8a4-e34320b26c8f","msg":"device.bridge.register"}
+{"level":30,"time":1791028541115,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b6b2-70ab-9dd2-b67332ff3127","msg":"device.bridge.register"}
+{"level":30,"time":1791028541251,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b73a-71fc-af3e-1f0c06a3436b","msg":"device.bridge.register"}
+{"level":30,"time":1791028541372,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b73a-71fc-af3e-1f0c06a3436b","msg":"device.bridge.join"}
+{"level":30,"time":1791028541528,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b73a-71fc-af3e-1f0c06a3436b","msg":"device.bridge.join"}
+{"level":30,"time":1791028541597,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b894-74ed-a970-526e32208f03","msg":"device.bridge.register"}
+{"level":30,"time":1791028541632,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b894-74ed-a970-526e32208f03","msg":"device.bridge.join"}
+{"level":30,"time":1791028541679,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_96347...","userId":"01a1019e-b88e-746f-8f68-066374f6802f","applicationId":"01a1019e-b87e-7b57-ba8f-6531a22bd7d1","msg":"Auth session authorized"}
+{"level":30,"time":1791028541705,"pid":3805067,"hostname":"SuperPC","sessionId":"74cd07ac","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028541739,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_96347...","sessionId":"94915356-e700-4699-9764-ac2e5f80bf7c","userId":"01a1019e-b88e-746f-8f68-066374f6802f","applicationId":"01a1019e-b87e-7b57-ba8f-6531a22bd7d1","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028541754,"pid":3805067,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a1019e-b894-74ed-a970-526e32208f03","msg":"device.token.mint"}
+{"level":30,"time":1791028541774,"pid":3805067,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a1019e-b894-74ed-a970-526e32208f03","msg":"device.token.mint"}
+{"level":30,"time":1791028541814,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-b894-74ed-a970-526e32208f03","msg":"device.bridge.join"}
+{"level":30,"time":1791028541837,"pid":3805067,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a1019e-b894-74ed-a970-526e32208f03","msg":"device.token.mint"}
+{"level":30,"time":1791028541852,"pid":3805067,"hostname":"SuperPC","sessionId":"94915356","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028541972,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-ba0a-735a-9c79-aae41c262098","msg":"device.bridge.register"}
+{"level":30,"time":1791028542012,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-ba0a-735a-9c79-aae41c262098","msg":"device.bridge.join"}
+{"level":30,"time":1791028542036,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_7a323...","userId":"01a1019e-ba02-7f98-904d-71acf1060388","applicationId":"01a1019e-b9e2-7a18-91d9-4279e0a9c621","msg":"Auth session authorized"}
+{"level":30,"time":1791028542066,"pid":3805067,"hostname":"SuperPC","sessionId":"af0b272b","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028542095,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_7a323...","sessionId":"57d35c4b-5a32-492f-813a-95cbd83781a1","userId":"01a1019e-ba02-7f98-904d-71acf1060388","applicationId":"01a1019e-b9e2-7a18-91d9-4279e0a9c621","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028542153,"pid":3805067,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a1019e-ba0a-735a-9c79-aae41c262098","msg":"device.token.mint"}
+{"level":30,"time":1791028542175,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-bad7-7334-82e6-f4a86134a941","msg":"device.bridge.register"}
+{"level":30,"time":1791028542202,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_ca310...","userId":"01a1019e-bad3-76e0-93d7-9997683891c3","applicationId":"01a1019e-bace-756a-ad24-43b748ca495d","msg":"Auth session authorized"}
+{"level":30,"time":1791028542244,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_ca310...","sessionId":"5f06f939-ae4f-4a60-8ed5-08033a50b76d","userId":"01a1019e-bad3-76e0-93d7-9997683891c3","applicationId":"01a1019e-bace-756a-ad24-43b748ca495d","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028542314,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-bb61-7195-b664-21eeb1e3a741","msg":"device.bridge.register"}
+{"level":30,"time":1791028542339,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_08544...","userId":"01a1019e-bb5b-7bd1-98a2-7b022acdd31c","applicationId":"01a1019e-bb56-7e7c-8bcc-897d407c9f87","msg":"Auth session authorized"}
+{"level":30,"time":1791028542388,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_08544...","sessionId":"6ce6df93-87e9-4836-b4a4-dcd6b13af616","userId":"01a1019e-bb5b-7bd1-98a2-7b022acdd31c","applicationId":"01a1019e-bb56-7e7c-8bcc-897d407c9f87","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028542420,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-bbcc-7527-98a7-6389a245693a","msg":"device.bridge.register"}
+{"level":30,"time":1791028542463,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-bbcc-7527-98a7-6389a245693a","msg":"device.bridge.join"}
+{"level":30,"time":1791028542486,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_cdad1...","userId":"01a1019e-bbbd-7097-8676-412e5d93d459","applicationId":"01a1019e-bbd8-7ac6-8298-4e714cda66dd","msg":"Auth session authorized"}
+{"level":30,"time":1791028542515,"pid":3805067,"hostname":"SuperPC","sessionId":"88210b0b","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028542542,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_cdad1...","sessionId":"d661896b-8cfb-4266-9f25-8a0c124557a2","userId":"01a1019e-bbbd-7097-8676-412e5d93d459","applicationId":"01a1019e-bbd8-7ac6-8298-4e714cda66dd","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028542642,"pid":3805067,"hostname":"SuperPC","sessionId":"5e1339ba","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028542655,"pid":3805067,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a1019e-bbcc-7527-98a7-6389a245693a","msg":"device.token.mint"}
+{"level":30,"time":1791028542680,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-bcd0-74fc-bed8-95fc6f38a824","msg":"device.bridge.register"}
+{"level":30,"time":1791028542723,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-bcd0-74fc-bed8-95fc6f38a824","msg":"device.bridge.join"}
+{"level":30,"time":1791028542745,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_c9de7...","userId":"01a1019e-bcc1-7044-8269-90c3ef01f95e","applicationId":"01a1019e-bcdd-79ce-a35d-f8b5ac55d857","msg":"Auth session authorized"}
+{"level":30,"time":1791028542773,"pid":3805067,"hostname":"SuperPC","sessionId":"6f8241ef","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028542801,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_c9de7...","sessionId":"fa134b64-58e7-4ed5-98a3-c55b8cfcab28","userId":"01a1019e-bcc1-7044-8269-90c3ef01f95e","applicationId":"01a1019e-bcdd-79ce-a35d-f8b5ac55d857","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028542898,"pid":3805067,"hostname":"SuperPC","sessionId":"ec6bd32c","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028542922,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-bdc1-7589-95c6-aa20f5492ace","msg":"device.bridge.register"}
+{"level":30,"time":1791028542964,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-bdc1-7589-95c6-aa20f5492ace","msg":"device.bridge.join"}
+{"level":30,"time":1791028542989,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_e11ab...","userId":"01a1019e-bdb6-7454-85ed-47a9869ff315","applicationId":"01a1019e-bdce-73a6-a7c2-d904216c016a","msg":"Auth session authorized"}
+{"level":30,"time":1791028543014,"pid":3805067,"hostname":"SuperPC","sessionId":"1296a15a","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028543041,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_e11ab...","sessionId":"5f7e37c7-69c5-4865-a514-4223d505b19f","userId":"01a1019e-bdb6-7454-85ed-47a9869ff315","applicationId":"01a1019e-bdce-73a6-a7c2-d904216c016a","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028543120,"pid":3805067,"hostname":"SuperPC","sessionId":"5f7e37c7","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028543122,"pid":3805067,"hostname":"SuperPC","sessionId":"ea32835c","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028543136,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-be98-7038-aea1-c6e9c8d806e6","msg":"device.bridge.register"}
+{"level":30,"time":1791028543170,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-beba-73ff-bfec-782f6adbec19","msg":"device.bridge.register"}
+{"level":30,"time":1791028543213,"pid":3805067,"hostname":"SuperPC","deviceId":"01a1019e-beba-73ff-bfec-782f6adbec19","msg":"device.bridge.join"}
+{"level":30,"time":1791028543236,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_cf61f...","userId":"01a1019e-beac-7a30-9d5e-aebf0c29810f","applicationId":"01a1019e-bec6-73d9-a097-5cd228fb267a","msg":"Auth session authorized"}
+{"level":30,"time":1791028543261,"pid":3805067,"hostname":"SuperPC","sessionId":"ddd0b218","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028543289,"pid":3805067,"hostname":"SuperPC","sessionToken":"at_cf61f...","sessionId":"81bc860b-a35f-4c73-8dab-0e6a3bf9ef20","userId":"01a1019e-beac-7a30-9d5e-aebf0c29810f","applicationId":"01a1019e-bec6-73d9-a097-5cd228fb267a","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028543374,"pid":3805067,"hostname":"SuperPC","sessionId":"a736f404","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028543394,"pid":3805067,"hostname":"SuperPC","sessionId":"81bc860b","msg":"[SessionService] Deactivated session"}
+PASS src/routes/__tests__/browserBridge.test.ts
+  POST /session/device/register
+    ✓ creates an empty device with one credential, for auth.oxy.so only (106 ms)
+  POST /session/device/join-code and /join
+    ✓ issues codes only to auth.oxy.so, for a proven device, an official app and its exact redirect URI (123 ms)
+    ✓ a code is one-use, PKCE-bound, app-bound, origin-bound and short-lived (340 ms)
+  one browser, one session through the bridge
+    ✓ QR sign-in in A lands on the shared device; B joins signed in; sign-out in B signs A out (337 ms)
+    ✓ a sign-in with the device proof adds the account to that device (255 ms)
+    ✓ an invalid proof never fails a sign-in; it just keeps its own device (136 ms)
+    ✓ a third-party claim keeps its isolated device even with a valid proof (106 ms)
+  device token while another holder signs out the active organization
+    ✓ reauthenticates the same holder after changed revision and returns the personal fallback token with its state (259 ms)
+    ✓ keeps a removed explicit pin rejected instead of returning the personal fallback (245 ms)
+    ✓ rejects a holder revoked by final sign-out before attempting a fallback mint (225 ms)
+    ✓ does not retry the token resolver for an unchanged empty device (22 ms)
+    ✓ fails closed with no further retry if the authenticated fallback revision changes again (249 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        3.043 s, estimated 4 s
+Ran all test suites within paths "src/routes/__tests__/browserBridge.test.ts".

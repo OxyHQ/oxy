@@ -1,0 +1,1 @@
+Quiesced canonical shell: 9 checks PASS (mock AWS CLI; real shell, migration/worker/update ordering, failure stopped).

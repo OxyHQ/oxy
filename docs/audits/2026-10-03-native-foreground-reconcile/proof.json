@@ -1,0 +1,115 @@
+{
+  "sourceHead": "eda4e5f490e4d232bba14b26caa098434b27b60b",
+  "runtimeCommit": "6cacee275ac59ed6715b3199cbf86bba69d12646",
+  "redHarnessCommit": "3a60b4da729de750aa5f9d4b65d3e6f938b19a02",
+  "redHarnessSha256": "e05e2fa1186ea07166872cf58700e1e9faaa5288327d090d80eede3415b1510f",
+  "sourceInputs": [
+    {
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "04a97a94ce9ec9bcbe455b848daaf9904a31fff05c326d9425177f1a87e17d6d"
+    },
+    {
+      "path": "packages/services/__tests__/context/coldBoot.test.tsx",
+      "sha256": "434107871efbb35f5f342dcc6aed20cdcececed9da79c544427e3735f7f9213f"
+    },
+    {
+      "path": "packages/core/src/session/SessionClient.ts",
+      "sha256": "3b5b2a8007d48677737a48794fab4a9abf5cbdb0841d422469244909f20dd9c3"
+    },
+    {
+      "path": "packages/core/src/session/__tests__/SessionClient.identityPin.test.ts",
+      "sha256": "50e4738b840719ebf31ed16a1dca239ac6d8e695d2339aee07c9d693b42780ff"
+    },
+    {
+      "path": "docs/auth/device-session.md",
+      "sha256": "30354cca5e0be050ad2a10a3ecd9b284921b0ec0881f1f55443b7c5e01844d03"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/native-resume-red.txt",
+      "sha256": "81d6a09a8bfe5232acbda47cdc0257bb13d7c5390db70769c2468d9c5f15e187",
+      "exitCode": 1,
+      "scope": "First frozen five AppState provider cases: 2 failed, 3 passed, 24 skipped; no native device-state reconcile"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/native-resume-green.txt",
+      "sha256": "8ed8ef0c3579f7dc7c0ca5832dcf4602cbfe8c277e9473f1e80aba74b238e68e",
+      "exitCode": 0,
+      "scope": "Original five cases plus provider identity/projection/token-loss regressions: 4 suites, 39 pass"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/native-resume-final-green.txt",
+      "sha256": "7cdac5701244ef69c6a020418be7856fcd26d8d37eb69329f0ebf23242b2ae2c",
+      "exitCode": 0,
+      "scope": "After adding initial null-to-active negative requested by review: 4 suites, 40 pass"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/native-resume-services-all.txt",
+      "sha256": "44e14deabb8ce5e2b49d1f31c91282f401b7091135be6490cbaffde2ceb7a428",
+      "exitCode": 0,
+      "scope": "Complete Services test command after native fix: 113 suites, 1036 pass"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/native-resume-core-pin.txt",
+      "sha256": "f55ddecc47e02cca85d364d59d8b634d1e468274defe21f0a0b7544419f5bfb4",
+      "exitCode": 0,
+      "scope": "Only the existing SessionClient.identityPin suite matched: 8 pass; the additional nonexistent pattern matched no suite"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/native-resume-types.txt",
+      "sha256": "7d26c6ecc2d5061aa553334c914743e9b22caa425d5a2dd2173cd61e58e1b1b4",
+      "exitCode": 0,
+      "scope": "Services tsc --skipLibCheck --noEmit"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/native-resume-final-lint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exitCode": 0,
+      "scope": "Installed Biome lint --error-on-warnings over changed native source and test"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/native-resume-build.txt",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a",
+      "exitCode": 0,
+      "scope": "Full Services package build and verify-package: 2418 files, 33 export targets, 251 CJS and 251 ESM modules"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-foreground-reconcile/android-before-fix.json",
+      "sha256": "b52929e86c08d553ec9bf1a79a7d420d708de5ebc97b0a867a5d9bdca73d240c",
+      "scope": "Root-operated Android fixture observations from candidate1e719, 14 sanitized UI state files with exact original hashes; full XML retained privately"
+    }
+  ],
+  "builtInputs": [
+    {
+      "path": "packages/services/lib/commonjs/ui/context/OxyContext.js",
+      "sha256": "00d7ffb034e290481bc6ddb1219a671f015c47065fe534b05b08e4855d105dbd"
+    },
+    {
+      "path": "packages/services/lib/module/ui/context/OxyContext.js",
+      "sha256": "57ce1b932f7c9c8d7b9da4f49e0262743df5b37f55b5a10ab4cc69331d285b95"
+    },
+    {
+      "path": "packages/services/lib/typescript/commonjs/ui/context/OxyContext.d.ts",
+      "sha256": "538bcaafeb4d75c135618f8dc74537ea500c132e745c0d5a50b41781fd9643f9"
+    }
+  ],
+  "results": {
+    "providerSuites": 4,
+    "providerTests": 40,
+    "servicesSuites": 113,
+    "servicesTests": 1036,
+    "corePinTests": 8,
+    "typesExit": 0,
+    "buildExit": 0,
+    "lintExit": 0
+  },
+  "limits": [
+    "Provider AppState listeners and runtime projection are real. The SessionClient network-shaped calls and profile service are controlled doubles, not a real backend or Android bridge.",
+    "The first frozen five tests remain, with one additional null-to-active initialization negative after review. The final whole test file is therefore not claimed byte-identical to the first RED file.",
+    "Android observations are pre-fix on candidate1e719: resume and fallback active-subject changes remained stale; manual SDKrefresh converged. Final principal logout automatically propagated and subsequent fresh profile read was denied.",
+    "Foreground fix Android rerun and registry package repetition remain pending. No native global SSO acceptance claimed.",
+    "Existing SessionClient pin suite verifies bearer stays pinned; resume reuses the same bootstrap and runtime identity projection. No new private mint lane or authorization policy.",
+    "The observed durable-credential readback warning during logout is an independent pending diagnostic, not proved resolved by this change."
+  ]
+}

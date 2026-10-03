@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "29cb5ee4e7fe03cf4cdf15d13fa36e0fa93a726b",
+  "sources": [
+    {
+      "path": "docs/billing/commercial-inventory-readonly.md",
+      "bytes": 7964,
+      "sha256": "03da3b3036aa8da5603bd7a7260afa675010144cbb524bb97c143fd0d2575028",
+      "sourceCommit": "29cb5ee4e7fe03cf4cdf15d13fa36e0fa93a726b"
+    },
+    {
+      "path": "scripts/billing/commercial-inventory-ecs.py",
+      "bytes": 19431,
+      "sha256": "8bff2b39d443914c9ce9281c740705d544821e22b92ec3095cf5c889e1e9564b",
+      "sourceCommit": "29cb5ee4e7fe03cf4cdf15d13fa36e0fa93a726b"
+    },
+    {
+      "path": "scripts/billing/read-commercial-inventory.mjs",
+      "bytes": 9294,
+      "sha256": "4200e2712537ca8ce4fc055ed14ceb93b62a758c08d7d416a2d2ee0cc4b53d69",
+      "sourceCommit": "29cb5ee4e7fe03cf4cdf15d13fa36e0fa93a726b"
+    },
+    {
+      "path": "scripts/billing/test-commercial-inventory-ecs.py",
+      "bytes": 5084,
+      "sha256": "8d3f0cdbdd33f6741e7d62b90d90049e6c8322f13d1a3fb3e8eb1f6fa3ace286",
+      "sourceCommit": "29cb5ee4e7fe03cf4cdf15d13fa36e0fa93a726b"
+    },
+    {
+      "path": "scripts/billing/test-commercial-inventory.mjs",
+      "bytes": 6528,
+      "sha256": "77ee103b73cfd514aaf9645f346edee4576a5625c85a29ab17243776a029a3e0",
+      "sourceCommit": "29cb5ee4e7fe03cf4cdf15d13fa36e0fa93a726b"
+    },
+    {
+      "path": "scripts/rehearsal/test-commercial-inventory-1519.py",
+      "bytes": 4367,
+      "sha256": "0b63b4172cd5505e941c7056ce0c8bbe265fa88c4751103572dad35818634a00",
+      "sourceCommit": "29cb5ee4e7fe03cf4cdf15d13fa36e0fa93a726b"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-v3/inventory-v3-python.log",
+      "bytes": 104,
+      "sha256": "c6b9b1f09add0403cc07e90bfdf272129b1ddfa2f8f7675ea8218862f2516371",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-v3/inventory-v3-pg.log",
+      "bytes": 1780,
+      "sha256": "4a1b145593575874180a00cb650392debe9ecf280e61b72fe0187a4070eb8d70",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-v3/inventory-v3-lint.log",
+      "bytes": 42,
+      "sha256": "c943f80d97ee27c0306b6fa62ad39ec0e2f32d37d6e2c4c94958bb9b75b08254",
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-commercial-inventory-v3/inventory-v3-sql-receiver.log",
+      "bytes": 80,
+      "sha256": "0a7f7f3e89406da5f35ac6786544dd5d4a3c1914d87af45b3db197c07e2cef72",
+      "exitCode": 0
+    }
+  ],
+  "preparedPlans": [
+    {
+      "profile": "oxy",
+      "privatePlanSha256": "2081eda5b69de76ebfe82b76b10dcc28f1c7b5f1a32ba018b7de2a30bf0846dd",
+      "preparedAt": 1790997821,
+      "expiresAt": 1791001421,
+      "readerSha256": "4200e2712537ca8ce4fc055ed14ceb93b62a758c08d7d416a2d2ee0cc4b53d69",
+      "launcherSha256": "8bff2b39d443914c9ce9281c740705d544821e22b92ec3095cf5c889e1e9564b",
+      "taskDefinitionSha256": "b28afc2a4ba072992dcda4198537bdc74c01e7b774c0f54b63a0ade2f51d59ad",
+      "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:29502ab56460ed8261b5dd747d93fd36e345f28e633a17c865c34d4fae7b653a",
+      "logStreamPrefix": "oxy-api",
+      "stripeBindingPresent": false,
+      "databaseSecretCount": 1,
+      "taskRolePresent": false,
+      "dispatchPerformedByThisAgent": false
+    },
+    {
+      "profile": "clarity",
+      "privatePlanSha256": "e826cc1b420cf9d8fc36c8499c0a61d58b4cd9cc09e86c2fddb210f9a1b5088c",
+      "preparedAt": 1790997827,
+      "expiresAt": 1791001427,
+      "readerSha256": "4200e2712537ca8ce4fc055ed14ceb93b62a758c08d7d416a2d2ee0cc4b53d69",
+      "launcherSha256": "8bff2b39d443914c9ce9281c740705d544821e22b92ec3095cf5c889e1e9564b",
+      "taskDefinitionSha256": "e600e5cfbde9eaf4299fc07b68db3c3bd9de58254673ea37a00488eb4420ef3e",
+      "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/clarity@sha256:3e9d5cc075c78344a3cc8998b8cb7a3e86f63114681471354064de92d8b24a5a",
+      "logStreamPrefix": "clarity-api",
+      "stripeBindingPresent": false,
+      "databaseSecretCount": 1,
+      "taskRolePresent": false,
+      "dispatchPerformedByThisAgent": false
+    }
+  ],
+  "productionDatabaseAccess": false,
+  "acceptance": {
+    "ownedSqlReceiverFixtures": 10,
+    "offlineAwsFixtures": 6,
+    "registeredDefinitionNegativeVariants": 11,
+    "biomeFiles": 2,
+    "ownedPgPid": 3453498,
+    "ownedPgStopped": true
+  }
+}

@@ -40,6 +40,28 @@ export type {
 } from './accountGraph';
 
 export {
+    ACCOUNT_ACTOR_NATURES,
+    ACCOUNT_SUBJECT_CONTRACT_VERSION,
+    FINANCIAL_EFFECT_DIRECTIONS,
+    KIND_INDEPENDENT_ACCOUNT_DIMENSIONS,
+    accountActorChainFromSession,
+    accountActorChainSchema,
+    accountActorNatureSchema,
+    accountKindActorNature,
+    accountKindActsAsItself,
+    attributeFinancialEffect,
+    financialEffectAttributionSchema,
+} from './accountSubject';
+
+export type {
+    AccountActorChain,
+    AccountActorNature,
+    FinancialEffectAttribution,
+    FinancialEffectDirection,
+    KindIndependentAccountDimension,
+} from './accountSubject';
+
+export {
     usernameSchema,
     usernameSchemaForAccountKind,
     isValidUsername,
@@ -1321,23 +1343,42 @@ export type {
 } from './inference/entitlement';
 
 export {
+    // Economic treatment (I09): derived by the server, never sent by a caller.
+    INFERENCE_ECONOMIC_TREATMENTS,
+    inferenceEconomicTreatmentSchema,
+    PROVIDER_COST_SOURCES,
+    providerCostSourceSchema,
+    costCenterUsageSchema,
+} from './inference/economics';
+
+export type {
+    InferenceEconomicTreatment,
+    ProviderCostSource,
+    CostCenterUsage,
+} from './inference/economics';
+
+export {
     AUTONOMY_LEVELS,
     CAPABILITY_PACKAGES,
     autonomyLevelSchema,
     capabilityPackageSchema,
     actorRefSchema,
+    executionActorRefSchema,
+    foregroundExecutionAuthorizationInputSchema,
     resourceRefSchema,
     toolGrantOverrideSchema,
     grantLimitSchema,
     capabilityCatalogBindingSchema,
     executionAuthorizationRefSchema,
     capabilityCoordinatorSchema,
+    capabilityTicketRequestSchema,
     delegationGrantSchema,
     automationTriggerSchema,
     automationActorSelectionSchema,
     automationDataFlowSchema,
     automationDefinitionSchema,
     capabilityTicketClaimsSchema,
+    invocationPrincipalSchema,
     policyDecisionSchema,
     auditResultSchema,
     auditEventSchema,
@@ -1352,17 +1393,21 @@ export type {
     AutonomyLevel,
     CapabilityPackage,
     ActorRef,
+    ExecutionActorRef,
+    ForegroundExecutionAuthorizationInput,
     ResourceRef,
     ToolGrantOverride,
     GrantLimit,
     CapabilityCatalogBinding,
     ExecutionAuthorizationRef,
     CapabilityCoordinator,
+    CapabilityTicketRequest,
     DelegationGrant,
     AutomationTrigger,
     AutomationActorSelection,
     AutomationDefinition,
     CapabilityTicketClaims,
+    InvocationPrincipal,
     PolicyDecision,
     AuditEvent,
     CatalogTool,
@@ -1443,3 +1488,32 @@ export { SCOPED_EXECUTION_CONTRACT_VERSION, SCOPED_REQUEST_ENVELOPE_VERSION, sco
 export type { ScopedExecutionAudience, ScopedExecution } from './inference/scopedExecution';
 export { scopedInferenceRequestSchema } from './inference/request';
 export type { ScopedInferenceRequest } from './inference/request';
+
+export {
+    productDefinitionSchema,
+    subjectProductAccessQuerySchema,
+    productBenefitSchema,
+    productOfferSchema,
+    productSubscriptionSourceSchema,
+    productAccessGrantSchema,
+    productOfferSegmentSchema,
+    subjectProductAccessSchema,
+} from './products/access';
+export type {
+    ProductDefinition,
+    SubjectProductAccessQuery,
+    ProductBenefit,
+    ProductOffer,
+    ProductSubscriptionSource,
+    ProductAccessGrant,
+    ProductOfferSegment,
+    SubjectProductAccess,
+} from './products/access';
+export { meteredGenerationSchema, type MeteredGeneration } from "./inference/economics";
+
+export { canonicalCapabilityJson, inputSatisfiesCapabilityLimits, isLoopbackOrigin } from './capabilityBindings';
+
+export * from './agentKeys';
+export { productSubscriptionSummarySchema, productSubscriptionsResponseSchema,
+    subscriptionCreditGrantSchema, subscriptionCreditGrantsResponseSchema, cancelProductSubscriptionSchema, productSubscriptionCancellationResultSchema,
+    type ProductSubscriptionSummary, type SubscriptionCreditGrant, type ProductSubscriptionCancellationResult } from './products/billing';

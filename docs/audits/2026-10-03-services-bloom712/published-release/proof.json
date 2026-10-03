@@ -1,0 +1,19 @@
+{
+  "recordedBy": "coverage; root performed publication and authenticated registry readback",
+  "sourceHead": "fb52fa49007f6325a1d802683417d67b1546940b",
+  "record": "registry-readback.json",
+  "sha256": "e06aa9915efd6db077755fdbc55b1ef3269466f6b01c7ed623fcd60bfe5840bc",
+  "archiveSha256": "9e7796b206cded1acc8edf640591fa80f6f0b99f73d557c262ab55103a2a4df9",
+  "verifiedAt": "2026-10-03T16:14:49.960159+00:00",
+  "byteEqualFiles": 21941,
+  "publishedVersion": "7.1.2",
+  "preservedTags": {
+    "maintenance-6": "6.2.1",
+    "inbox-maintenance": "4.34.5"
+  },
+  "limits": [
+    "Bloom publication only; Oxy SDK is still unpublished.",
+    "Initial metadata absence retained in root receipt; no second publish.",
+    "Catalog/native remain exact6.2.1; verified peer maintenance lines only."
+  ]
+}

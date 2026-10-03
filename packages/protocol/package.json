@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/protocol",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Oxy Protocol — the app-agnostic base substrate: signed-record envelope, canonical JSON, signature/verification, and platform crypto. Reused by any Oxy app to decentralize its own content.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -135,11 +135,11 @@
     "zod": "^3.25.64"
   },
   "peerDependencies": {
-    "@react-native-async-storage/async-storage": "*",
-    "expo-crypto": "*",
-    "expo-secure-store": "*",
+    "@react-native-async-storage/async-storage": "<3.0.0",
+    "expo-crypto": "<58.0.0",
+    "expo-secure-store": "<58.0.0",
     "express": "^4.18.0 || ^5.0.0",
-    "expo-modules-core": "*"
+    "expo-modules-core": "<58.0.0"
   },
   "peerDependenciesMeta": {
     "@react-native-async-storage/async-storage": {

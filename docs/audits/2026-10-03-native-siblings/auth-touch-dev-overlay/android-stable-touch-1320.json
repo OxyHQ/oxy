@@ -1,0 +1,100 @@
+{
+  "time": "2026-10-03T13:11:51.806573+00:00",
+  "source": "e04691beb084fe170d9bc0c55e7d3e6491109568",
+  "bundleSha256": "1482ce2e9954c9f0179a1791fab47449fec5fc8db2318de7c6a34df53eb33a08",
+  "outcome": "Stable frame touch passes with capture on and off, both exact password bounds [303,2032][779,2137] lead to Enter your password. No visible IME. Real AUTH defect not resolved.",
+  "records": {
+    "after-no-capture.log": {
+      "sha256": "8f40efabaf437b53a017fe47e1c584a8a60cc8dd320ab8dc8a709e753389d2de",
+      "bytes": 819
+    },
+    "after-password.log": {
+      "sha256": "8f40efabaf437b53a017fe47e1c584a8a60cc8dd320ab8dc8a709e753389d2de",
+      "bytes": 819
+    },
+    "capture-off.log": {
+      "sha256": "8c43fac6ac1f90ea4e38c8b2396cf468ba702624f93899ff8c3912ee7c8f7f90",
+      "bytes": 2192
+    },
+    "closed.log": {
+      "sha256": "4b5cd6e09e5cebcf56398236cfc1b2caa343999164f3f005c6b2ee01b4ca3086",
+      "bytes": 2126
+    },
+    "code-no-capture.log": {
+      "sha256": "654aa789c0cb16795b47d9d0d5dcccb13543848b37ebe29a415009b07f387047",
+      "bytes": 3203
+    },
+    "continue-no-capture.log": {
+      "sha256": "f6127171d36a14285efe788930926913b032d885eccb72b5bbfe86369f43b093",
+      "bytes": 1731
+    },
+    "focus-no-capture.log": {
+      "sha256": "8a5edd31c6a6af38c532ffa5192cc18d509374718c143cfd75a6aa346fa8d878",
+      "bytes": 1740
+    },
+    "open-no-capture.log": {
+      "sha256": "55c1ff3fcdae8070e319f106109c4ffaf05b0dbdef93418455d9407ff668262e",
+      "bytes": 2198
+    },
+    "ui-after-no-capture.xml": {
+      "sha256": "1100df56356ad6563b5a60eec60a973652bbd0338a4f8d3e759cd315b649410f",
+      "bytes": 18754
+    },
+    "ui-after-password.xml": {
+      "sha256": "724a42e6dcd52f4ffadb6f69cf2f175b5bfe4dd499ecb01ab0f73e50f1bb63ee",
+      "bytes": 19111
+    },
+    "ui-capture-off.xml": {
+      "sha256": "4312f7ffe29028c520efbab85d83c8589bb0ca20077d5948db3274986a925340",
+      "bytes": 8640
+    },
+    "ui-closed.xml": {
+      "sha256": "4312f7ffe29028c520efbab85d83c8589bb0ca20077d5948db3274986a925340",
+      "bytes": 8640
+    },
+    "ui-code-no-capture.xml": {
+      "sha256": "c50da4c49c8fe8c4e49dc03aee273ccf06f7914225d38003cf2a5d45a4e971da",
+      "bytes": 28362
+    },
+    "ui-code.xml": {
+      "sha256": "1c43e3f4f4803d33db4ecb9d70883fcfb71628763b885517fab25c68fcc016f5",
+      "bytes": 28718
+    },
+    "ui-continue-no-capture.xml": {
+      "sha256": "e06ff27058c3f5dcbfd0eaa751795c9e4a7e5f9a24b2960d715ba0fb57cde686",
+      "bytes": 27776
+    },
+    "ui-continue.xml": {
+      "sha256": "8590f9b0c84663e90b59d6c74f543a223088c3b2490d1c6de1c2a81aee1c63f1",
+      "bytes": 28133
+    },
+    "ui-focus-no-capture.xml": {
+      "sha256": "4cfbf9398cc419cdace8be2b6401328f65a95fce544749ca75330d6f58c598fb",
+      "bytes": 27777
+    },
+    "ui-focus.xml": {
+      "sha256": "0417d5831ae73ec8b6c82f11ec83c276d075ac66bb412994c53872710c64c3c3",
+      "bytes": 28134
+    },
+    "ui-fresh.py": {
+      "sha256": "688e237230420bfcdf4e8c6913060f22cd0ad6ec4cb7d45dde56d85637dd7144",
+      "bytes": 1415
+    },
+    "ui-identifier.xml": {
+      "sha256": "0417d5831ae73ec8b6c82f11ec83c276d075ac66bb412994c53872710c64c3c3",
+      "bytes": 28134
+    },
+    "ui-initial.xml": {
+      "sha256": "6577bed66a6015ebcbb29965d467e7a50522d05f123209cf5f13e120b7069fdb",
+      "bytes": 7838
+    },
+    "ui-open-no-capture.xml": {
+      "sha256": "bd0d4d2fabae97678ff91e47dae55a4456c926b3608aa6f4175b293e0ccec1f7",
+      "bytes": 8642
+    },
+    "ui-open.xml": {
+      "sha256": "6577bed66a6015ebcbb29965d467e7a50522d05f123209cf5f13e120b7069fdb",
+      "bytes": 7838
+    }
+  }
+}

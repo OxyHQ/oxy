@@ -347,3 +347,15 @@ describe('GET /auth/session/approve-info/:authorizeCode', () => {
     expect(res.status).toBe(404);
   });
 });
+
+
+describe('OAuth approval info uses the approved empty-scope policy', () => {
+  it.each(['first_party', 'third_party'] as const)('%s', async (type) => {
+    const applicationId = await application({ type, scopes: ['user:read', 'acting-as:offline'] });
+    const { authorizeCode } = await authRequest({ ...oauthBinding([]), applicationId });
+    const result = await get(`/auth/session/approve-info/${authorizeCode}`);
+    expect(result.status).toBe(type === 'third_party' ? 400 : 200);
+    if (type === 'third_party') expect(result.body.error).toBe('invalid_scope');
+    else expect((result.body.data as { scopes: string[] }).scopes).toEqual(['user:read']);
+  });
+});

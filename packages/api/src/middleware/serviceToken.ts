@@ -1,5 +1,5 @@
 import { createPublicKey, verify as verifyBytes } from 'node:crypto';
-import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxy.so/core/server';
+import { hasBoundedServiceTokenLifetime, OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxy.so/core/server';
 import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
 
 /**
@@ -40,12 +40,9 @@ import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
 /**
  * Which side of the ecosystem boundary the calling application is on.
  *
- * `internal` — one of Oxy's own applications (`isTrustedApplication`): app to
- * app, it is trusted outright and no scope is checked. `external` — anything
- * else, which keeps every scope, consent and quota rule. What a USER may do
- * (their accounts, their plan, their limits) is decided elsewhere and applies
- * to both. A token minted before this claim existed reads as `external`, the
- * conservative answer.
+ * `internal` and `external` classify the registered application; neither
+ * bypasses scope ceilings or live offline delegation at a receiver. A token
+ * minted before this claim existed reads as external.
  */
 export type ServiceTier = 'internal' | 'external';
 
@@ -193,7 +190,7 @@ export function verifyServiceToken(token: string): ServiceTokenVerification {
     decoded.iss !== 'oxy-auth'
     || !(decoded.aud === 'oxy-api' || (Array.isArray(decoded.aud) && decoded.aud.includes('oxy-api')))
     || (decoded.nbf !== undefined && (!Number.isInteger(decoded.nbf) || decoded.nbf > now))
-    || (decoded.iat !== undefined && !Number.isInteger(decoded.iat))
+    || !hasBoundedServiceTokenLifetime(decoded, now)
   ) {
     return { ok: false, reason: 'invalid' };
   }

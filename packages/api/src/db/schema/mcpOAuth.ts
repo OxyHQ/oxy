@@ -12,6 +12,7 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  foreignKey,
   index,
   pgTable,
   text,
@@ -20,6 +21,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
+import { userAuthMethods } from './userAuthMethods';
 
 export const MCP_OAUTH_CLIENT_STATUSES = ['active', 'revoked'] as const;
 
@@ -68,8 +70,10 @@ export const mcpOauthGrants = pgTable(
   'mcp_oauth_grants',
   {
     id: generatedId(),
-    /** Human who approved the connection. */
+    /** Principal who approved the connection. */
     principalUserId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    /** Agent credential bound at approval; never replaced on an existing grant. */
+    authMethodId: text(),
     /** Exact Oxy account exposed through the MCP resource. */
     effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
     clientRecordId: text().notNull().references(() => mcpOauthClients.id, { onDelete: 'cascade' }),
@@ -83,6 +87,9 @@ export const mcpOauthGrants = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    foreignKey({ name: 'mcp_oauth_grants_principal_method_fk', columns: [t.authMethodId, t.principalUserId],
+      foreignColumns: [userAuthMethods.id, userAuthMethods.userId] }).onDelete('restrict'),
+    index('mcp_oauth_grants_auth_method_idx').on(t.authMethodId).where(sql`${t.authMethodId} is not null`),
     uniqueIndex('mcp_oauth_grants_active_key')
       .on(t.principalUserId, t.effectiveAccountId, t.clientRecordId, t.resource)
       .where(sql`${t.revokedAt} is null`),

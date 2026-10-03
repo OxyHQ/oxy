@@ -1,0 +1,154 @@
+{
+  "recordedAt": "2026-10-03T12:24:53.869918+00:00",
+  "kind": "WEB04-real-firstparty-browser-root",
+  "runtimeFix": "e3d7090811244b9fcae83cbca100d955b226820d",
+  "results": [
+    {
+      "run": 1,
+      "newDeviceSessionId": "01a101b0-a6ed-72c0-b656-d12fa850dfce",
+      "joinedHolderCount": 4,
+      "fallbackRevision": 3,
+      "finalRevision": 4,
+      "finalHolderCount": 0,
+      "finalSessionsInactive": 2,
+      "uiAndFreshApiCoherent": true,
+      "fallbackWithoutReload": true,
+      "finalReloadSignedOut": true,
+      "cookies": 0,
+      "unexpectedExternalRequests": 0
+    },
+    {
+      "run": 2,
+      "newDeviceSessionId": "01a101b7-79f6-7a76-85b2-5bc0bd7340dd",
+      "joinedHolderCount": 4,
+      "fallbackRevision": 3,
+      "finalRevision": 4,
+      "finalHolderCount": 0,
+      "finalSessionsInactive": 2,
+      "uiAndFreshApiCoherent": true,
+      "fallbackWithoutReload": true,
+      "finalReloadSignedOut": true,
+      "cookies": 0,
+      "unexpectedExternalRequests": 0
+    },
+    {
+      "run": 3,
+      "newDeviceSessionId": "01a101b8-24af-793a-a06d-620d806e91c7",
+      "joinedHolderCount": 4,
+      "fallbackRevision": 3,
+      "finalRevision": 4,
+      "finalHolderCount": 0,
+      "finalSessionsInactive": 2,
+      "uiAndFreshApiCoherent": true,
+      "fallbackWithoutReload": true,
+      "finalReloadSignedOut": true,
+      "cookies": 0,
+      "unexpectedExternalRequests": 0
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-1-1215/run.mjs",
+      "sha256": "f02073419c5625c9af7362b808ee1b19f71a536e8045a5791a7a6a0ad092c54d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-1-1215/transcript.log",
+      "sha256": "457bb65d3abba6c68785820a98eabd6de76380840cb0592eb76a30f869c0554d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-1-1215/network.jsonl",
+      "sha256": "74214f16c6b242501a2a49bbbea740a5e701152b4503f2ae4d4c616113dda8cb"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete1-before.jsonl",
+      "sha256": "0efa30f915a0d6ed4fc4855810b476aa63b164bf56477f159db2c90afbcadc00"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete1-joined.jsonl",
+      "sha256": "73e3be24f7fcd9ce8fa5bfb0b1137afc35288e50526155cf93a9301d28f11b55"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete1-fallback.jsonl",
+      "sha256": "9ec3b3a6a6e829f5e071495d868051a6fc36ccc612b409a3700844d4597eb8ec"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete1-final.jsonl",
+      "sha256": "e94e170d2461a8eb0f79acc867c5e5d6e712ccb76952fe82ae20512330dd87d1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-2-1215/run.mjs",
+      "sha256": "5c1a038c6b914d8907e59ae63a7af2dbbdaa6214133efd4b03d18f32ce472380"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-2-1215/transcript.log",
+      "sha256": "4492a2497f51b6b4fd107278ac3229a3059e9a30d398e966dcddb9c9f0f4468c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-2-1215/network.jsonl",
+      "sha256": "73e1dbc220a0d280dbae0887f7afea4ca43e65e70264c8940994f0e39ef96f0c"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete2-before.jsonl",
+      "sha256": "991dbb37c0282ab4e7731dd73bb3fcd6bbbac3640bb0691ee214de7d25423007"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete2-joined.jsonl",
+      "sha256": "638e1cc1e93c7bfa3970738f93b4062e5838d0fc95f23ddb5bb7c1411d5ca58f"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete2-fallback.jsonl",
+      "sha256": "a16e5f049780886b37586447ab70d22fdf0a4e620adfc4dae96695123cdc776e"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete2-final.jsonl",
+      "sha256": "296576fc7cc57b4b777357a1ac9d4602adb7b93c46c049df94c1719bc7423ee5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-3-1215/run.mjs",
+      "sha256": "1ed0a1b35e52ae63deddadd1b35baee52f362d6ece43f16cd2ee7256dd304c96"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-3-1215/transcript.log",
+      "sha256": "1ac43d67d8a6065415e32a70240887516564aa5f9c9446dd806850c4692a0fb9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-complete-3-1215/network.jsonl",
+      "sha256": "a33987a05672b88ba00538d1f533fa6d76dcd0f1f98e9dd58aeb49f5f11c52b9"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete3-before.jsonl",
+      "sha256": "c8dd34d9882fa358ce7f312f1273c0e6ec01096489f0d808893667a01c7b399e"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete3-joined.jsonl",
+      "sha256": "3e39f188c08838bbd6fb2f35231aacfed763c9ed7095cc0ccb6eed0890ca4299"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete3-fallback.jsonl",
+      "sha256": "61aef7f37a8f2329df08ec574ae88002f09ba7333a7f9a90142f6e851b9cc3d9"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-real-oauth-browser-20261003/.integration-evidence/oauth1519-1n8d1xvu/web04-state-root-complete3-final.jsonl",
+      "sha256": "d7127b491b6a0ce86f2de4b318fc001f1cddb0e5aa8ed946486131db69f5d73b"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-1117/observations.json",
+      "sha256": "a0d64e0c57c1007c3e365914b2d2a183d7bf86d91ebcba125a0935c0abe2f716"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-green-1205/takeover-failure.json",
+      "sha256": "9ff55b36d74e6a5ba68b20adccbe3cc9b25ac8c9e7e8e47d2dc02b3ad19d040b"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/browser-firstparty-green-1205/transcript.log",
+      "sha256": "337531960fa8faccf5acd7abe537bcd2fc68b2ff34d84688f38091111cec6b8f"
+    }
+  ],
+  "scope": [
+    "Actual Chromium UI and HTTP against owned API/SQL and two SDK relying parties; three independent fresh browser contexts.",
+    "Password sign-in A, explicit SDK join B, switch organization B, both fresh users/me organization, organization logout B, both fresh users/me person without reload, final person logout, both signed out before/after reload.",
+    "SQL scopes isolate the new device in each run; historical fixture sessions remain separate. 401 responses around revoked credentials are retained, not suppressed.",
+    "Earlier RED and takeover failure are preserved. Initial green driver attempted a second org selection after that account had been signed out, causing a runner timeout; corrected runs each perform one complete cycle.",
+    "Local source candidate only; final registry/deployment acceptance is separate."
+  ]
+}

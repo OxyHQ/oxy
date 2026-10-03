@@ -1,0 +1,1 @@
+Generated foreground requester-token pattern constrains non-whitespace proof; writeOnly and bound retained

@@ -13,6 +13,7 @@ import {
 } from '@oxy.so/contracts';
 import { logger } from '../logger';
 import { computeIdentityTag } from '../utils/cacheKey';
+import { decodeTokenClaims } from '../utils/tokenClaims';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
 import { getSocketIO } from './socketLoader';
 import type { MinimalSocket, SocketIOFactory } from './socketLoader';
@@ -55,6 +56,8 @@ export interface SessionClientHost {
 }
 
 export interface SessionClientOptions {
+  /** Await durable local logout intent after an explicit removal or an applied nonempty→empty device transition. */
+  onFullExplicitSignOut?: () => Promise<void>;
   transport?: TokenTransport;
   /**
    * Invoked when an APPLIED state has zero accounts — i.e. a device
@@ -142,6 +145,8 @@ export class SessionClient {
   protected socket: MinimalSocket | null = null;
   private tokenUnsub: (() => void) | null = null;
   private started = false;
+  private lifecycleGeneration = 0;
+  private fullSignOutPersistence: { state: DeviceSessionState; pending: Promise<void> } | null = null;
   /** Same-origin cross-tab state-propagation channel; null on platforms without BroadcastChannel. */
   private channel: SessionBroadcastChannel | null = null;
   /** App-facing subscriptions to named server-pushed socket events. */
@@ -153,6 +158,34 @@ export class SessionClient {
     protected readonly host: SessionClientHost,
     protected readonly options: SessionClientOptions = {},
   ) {}
+
+  private persistFullSignOut(): Promise<void> {
+    const state = this.state;
+    if (!state || !this.options.onFullExplicitSignOut) return Promise.resolve();
+    if (this.fullSignOutPersistence?.state === state) return this.fullSignOutPersistence.pending;
+    const pending = this.options.onFullExplicitSignOut();
+    this.fullSignOutPersistence = { state, pending };
+    void pending.catch(() => {
+      if (this.fullSignOutPersistence?.pending === pending) this.fullSignOutPersistence = null;
+    });
+    return pending;
+  }
+
+  private async requestDevice<T>(method: 'GET' | 'POST', url: string, data?: unknown, requestOptions?: { cache?: boolean }): Promise<T> {
+    const generation = this.lifecycleGeneration;
+    const response = await this.host.makeRequest<T>(method, url, data, requestOptions);
+    if (generation !== this.lifecycleGeneration) throw new Error('Device session request was superseded');
+    return response;
+  }
+
+  /** Stop and discard only this client's local device projection; no server revocation. */
+  resetLocalState(): void {
+    this.lifecycleGeneration += 1;
+    this.stop();
+    this.state = null;
+    this.directory = null;
+    this.notify();
+  }
 
   getState(): DeviceSessionState | null {
     return this.state;
@@ -280,6 +313,7 @@ export class SessionClient {
    * cross-device push, a cold mint), not just the initial "no bearer yet" case.
    */
   protected applyState(raw: unknown, origin: SessionStateOrigin = 'push', activeToken?: string): boolean {
+    const generation = this.lifecycleGeneration;
     const next = safeParseContract(deviceSessionStateSchema, raw);
     if (!next) {
       logger.warn('[SessionClient] discarded invalid session state');
@@ -341,6 +375,7 @@ export class SessionClient {
       (activeAccountId === null || computeIdentityTag(this.host.getAccessToken()) !== activeAccountId);
 
     const publish = (): void => {
+      if (generation !== this.lifecycleGeneration || this.state !== next) return;
       this.notify();
       if (next.accounts.length === 0 && this.options.onUnauthenticated) {
         try {
@@ -359,6 +394,7 @@ export class SessionClient {
     // (and this stays synchronous) for every client that never read a
     // directory, i.e. the whole account lane.
     const finishApply = (): void => {
+      if (generation !== this.lifecycleGeneration || this.state !== next) return;
       const settling = this.settleDirectory(next);
       if (settling === null) {
         publish();
@@ -367,8 +403,39 @@ export class SessionClient {
       void settling.then(publish);
     };
 
+    // A sibling's validated full removal is logout here too. Persist the local
+    // account-mode recovery suppression before publishing signed-out or running
+    // the empty-state refresh (which could otherwise challenge Commons again).
+    // Keep the push credential intact; a marker is not a destructive wipe.
+    // Unknown initial empty state, stale revisions and identity pins do not
+    // turn into logout intent. A newer state/lifecycle suppresses this publish.
+    const priorBearer = this.host.getAccessToken();
+    const bearerAccount = priorBearer ? decodeTokenClaims(priorBearer)?.userId : null;
+    // Warm cold boot may fetch authoritative empty state before it ever had a
+    // local projection. Its authenticated holder is history too. Decoding only
+    // identifies local history; authority remains the validated REST response.
+    const warmHolderEnded = previousState === null && origin === 'request' &&
+      typeof bearerAccount === 'string' && bearerAccount.length > 0 &&
+      this.host.getDeviceCredential()?.deviceId === next.deviceId;
+    if (
+      ((previousState?.deviceId === next.deviceId && previousState.accounts.length > 0) || warmHolderEnded) &&
+      next.accounts.length === 0 && pinnedAccountId === null && this.options.onFullExplicitSignOut
+    ) {
+      try {
+        void this.persistFullSignOut().then(finishApply).catch((error) => {
+          logger.error('[SessionClient] failed to persist received full sign-out', error);
+          finishApply();
+        });
+      } catch (error) {
+        logger.error('[SessionClient] failed to persist received full sign-out', error);
+        finishApply();
+      }
+      return true;
+    }
+
     if (needsMintBeforeNotify) {
       void transport.ensureActiveToken(next).then(finishApply).catch((error) => {
+        if (generation !== this.lifecycleGeneration) return;
         logger.warn('[SessionClient] ensureActiveToken failed — reverting session state', { component: 'SessionClient' }, error);
         // Do NOT notify under a mismatched bearer. Revert to the last applied
         // state so subscribers keep observing the account whose token is planted.
@@ -392,7 +459,7 @@ export class SessionClient {
    * the token still needs to be planted. The account-match guard rejects a stale response for an
    * account that is no longer active.
    */
-  private applySync(raw: unknown): void {
+  private async applySync(raw: unknown): Promise<void> {
     const sync = safeParseContract(deviceSessionSyncSchema, raw);
     if (!sync) {
       const parsed = deviceSessionSyncSchema.safeParse(raw);
@@ -411,6 +478,7 @@ export class SessionClient {
       return;
     }
     this.commitSync(sync);
+    if (this.fullSignOutPersistence?.state === this.state) await this.fullSignOutPersistence.pending;
   }
 
   /**
@@ -495,7 +563,7 @@ export class SessionClient {
 
   /** `GET /session/device/directory` → {@link applyDirectory}. No notify. */
   private async fetchDirectory(): Promise<boolean> {
-    const res = await this.host.makeRequest<unknown>('GET', '/session/device/directory', undefined, { cache: false });
+    const res = await this.requestDevice<unknown>('GET', '/session/device/directory', undefined, { cache: false });
     return this.applyDirectory(res);
   }
 
@@ -611,8 +679,8 @@ export class SessionClient {
   }
 
   async bootstrap(): Promise<void> {
-    const res = await this.host.makeRequest<unknown>('GET', '/session/device/state', undefined, { cache: false });
-    this.applySync(res);
+    const res = await this.requestDevice<unknown>('GET', '/session/device/state', undefined, { cache: false });
+    await this.applySync(res);
   }
 
   /**
@@ -658,7 +726,7 @@ export class SessionClient {
    * compatibility path for callers still keyed on account ids.
    */
   async activateContext(contextId: string): Promise<void> {
-    const res = await this.host.makeRequest<unknown>('POST', '/session/device/activate', { contextId }, { cache: false });
+    const res = await this.requestDevice<unknown>('POST', '/session/device/activate', { contextId }, { cache: false });
     const activation = safeParseContract(deviceActivateResponseSchema, res);
     if (!activation) {
       logger.warn('[SessionClient] discarded invalid activation response');
@@ -685,8 +753,8 @@ export class SessionClient {
   }
 
   async switchAccount(accountId: string): Promise<void> {
-    const res = await this.host.makeRequest<unknown>('POST', '/session/device/switch', { accountId }, { cache: false });
-    this.applySync(res);
+    const res = await this.requestDevice<unknown>('POST', '/session/device/switch', { accountId }, { cache: false });
+    await this.applySync(res);
     this.postCommitPing();
   }
 
@@ -702,9 +770,10 @@ export class SessionClient {
    * {@link signOutPrincipal} for the two that can tell those apart.
    */
   async signOut(target: { accountId: string } | { all: true }): Promise<void> {
-    const res = await this.host.makeRequest<unknown>('POST', '/session/device/signout', target, { cache: false });
-    this.applySync(res);
+    const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, { cache: false });
+    await this.applySync(res);
     this.postCommitPing();
+    if (this.state?.accounts.length === 0) await this.persistFullSignOut();
   }
 
   /**
@@ -746,7 +815,7 @@ export class SessionClient {
    * applied this revision.
    */
   private async removeFromDevice(target: { contextId: string } | { principalId: string }): Promise<void> {
-    const res = await this.host.makeRequest<unknown>('POST', '/session/device/signout', target, { cache: false });
+    const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, { cache: false });
     const removal = safeParseContract(deviceDirectorySyncSchema, res);
     if (!removal) {
       logger.warn('[SessionClient] discarded invalid device removal response');
@@ -754,6 +823,7 @@ export class SessionClient {
     }
     const directoryApplied = this.applyDirectory(removal.directory);
     const stateApplied = this.commitSync({ state: removal.state, activeToken: removal.activeToken });
+    if (this.fullSignOutPersistence?.state === this.state) await this.fullSignOutPersistence.pending;
     // `commitSync` publishes whenever the flat state moved. When only the
     // directory did — a socket push already applied this revision — the
     // directory half would otherwise never reach a subscriber.
@@ -761,11 +831,12 @@ export class SessionClient {
       this.notify();
     }
     this.postCommitPing();
+    if (this.state?.accounts.length === 0) await this.persistFullSignOut();
   }
 
   async addCurrentAccount(): Promise<void> {
-    const res = await this.host.makeRequest<unknown>('POST', '/session/device/add', undefined, { cache: false });
-    this.applySync(res);
+    const res = await this.requestDevice<unknown>('POST', '/session/device/add', undefined, { cache: false });
+    await this.applySync(res);
     this.postCommitPing();
   }
 
@@ -866,6 +937,7 @@ export class SessionClient {
     const deviceCredential = this.host.getDeviceCredential();
     if (!token && !deviceCredential) return;
 
+    const generation = this.lifecycleGeneration;
     const socket = io(this.host.getBaseURL(), {
       transports: ['websocket'],
       autoConnect: true,
@@ -890,6 +962,7 @@ export class SessionClient {
     socket.on('session_state', (payload: unknown) => {
       // A socket broadcast is a `push`-origin — potentially transient, so an
       // empty state here must not erase the durable device credential.
+      if (generation !== this.lifecycleGeneration) return;
       const applied = this.applyState(payload, 'push');
       if (!applied) return;
       // An identity-bound client tracks the pushed state but NEVER chases the

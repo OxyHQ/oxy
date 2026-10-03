@@ -13,12 +13,14 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { check, index, pgTable, text, unique, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { users } from './users';
 
 /** The kinds of proof an account can carry. */
-export const AUTH_METHOD_TYPES = ['identity'] as const;
+export const AUTH_METHOD_TYPES = ['identity', 'agent_key'] as const;
+
+export const AGENT_KEY_ENROLLMENT_METHODS = ['governor', 'rotation', 'recovery'] as const;
 
 export const userAuthMethods = pgTable(
   'user_auth_methods',
@@ -40,9 +42,21 @@ export const userAuthMethods = pgTable(
     /** Contact email captured at link time. Advisory only; never an identifier. */
     methodEmail: text(),
 
+    /** Agent runtime credentials are separate from the personal Commons root. */
+    label: text(),
+    /** Audit attribution only; losing the actor must not remove or promote a credential. */
+    enrolledByUserId: text().references(() => users.id, { onDelete: 'set null' }),
+    enrollmentMethod: text({ enum: AGENT_KEY_ENROLLMENT_METHODS }),
+    lastUsedAt: timestamptz(),
+    /** Tombstone: revocation never deletes a key or permits re-registration of it. */
+    revokedAt: timestamptz(),
     createdAt: createdAt(),
   },
   (t) => [
+    // Target of session/code composite ownership foreign keys.
+    unique('user_auth_methods_id_user_id_key').on(t.id, t.userId),
+    check('user_auth_methods_agent_metadata_check', sql`${t.type} <> 'agent_key' or (${t.label} is not null and ${t.enrollmentMethod} is not null)`),
+    check('user_auth_methods_enrollment_method_check', sql`${t.enrollmentMethod} in (${sql.raw(AGENT_KEY_ENROLLMENT_METHODS.map((value) => `'${value}'`).join(', '))})`),
     index('user_auth_methods_user_id_idx').on(t.userId),
     // Not an index for a query — today every signer lookup goes through
     // `users.public_key`. It is a CONSTRAINT: one identity key may authenticate

@@ -126,7 +126,8 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
   }
   const access = await accountService.resolveEffectiveAccess(
     operatorId,
-    application.ownerAccountId
+    application.ownerAccountId,
+    req.sessionId
   );
   if (!access) {
     throw new ForbiddenError('You do not have access to this application');

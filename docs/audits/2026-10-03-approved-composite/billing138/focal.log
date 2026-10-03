@@ -1,0 +1,10 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-eghhemt6/ordered-sequencer.cjs" --runTestsByPath src/services/__tests__/subscriptionCreditLedger.test.ts src/services/__tests__/productProviderEvidence.test.ts src/db/schema/__tests__/agentAuthoritySchema.test.ts
+{"level":30,"time":1790991884420,"pid":3362219,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790991886208,"pid":3362219,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1790991890809,"pid":3362219,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+
+Test Suites: 3 passed, 3 total
+Tests:       44 passed, 44 total
+Snapshots:   0 total
+Time:        7.201 s
+Ran all test suites within paths "src/services/__tests__/subscriptionCreditLedger.test.ts", "src/services/__tests__/productProviderEvidence.test.ts", "src/db/schema/__tests__/agentAuthoritySchema.test.ts".

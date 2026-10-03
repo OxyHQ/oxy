@@ -1,0 +1,108 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/browserBridge.test.ts src/services/__tests__/foregroundCapabilities.db.test.ts src/services/__tests__/capabilityAuthority.db.test.ts src/services/__tests__/capabilityAuthority.policy.test.ts src/services/__tests__/workloadIdentity.db.test.ts src/db/schema/__tests__/foreignKeys.test.ts src/db/schema/__tests__/schemaInvariants.test.ts src/db/schema/__tests__/agencyPayloadBounds.test.ts
+{"level":30,"time":1791028759274,"pid":3808066,"hostname":"SuperPC","binaryPath":"/usr/bin/ffmpeg","msg":"[VariantService] Using system ffmpeg"}
+{"level":30,"time":1791028759277,"pid":3808066,"hostname":"SuperPC","binaryPath":"/usr/bin/ffprobe","msg":"[VariantService] Using system ffprobe"}
+{"level":30,"time":1791028759277,"pid":3808066,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","msg":"[VariantService] Resolved FFmpeg path"}
+{"level":30,"time":1791028759277,"pid":3808066,"hostname":"SuperPC","ffprobePath":"/usr/bin/ffprobe","msg":"[VariantService] Resolved FFprobe path"}
+{"level":30,"time":1791028759277,"pid":3808066,"hostname":"SuperPC","ffmpegPath":"/usr/bin/ffmpeg","ffprobePath":"/usr/bin/ffprobe","ffmpegExists":true,"ffprobeExists":true,"msg":"FFmpeg/FFprobe paths initialized"}
+{"level":30,"time":1791028759500,"pid":3808066,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791028759525,"pid":3808066,"hostname":"SuperPC","kid":"dev-ephemeral-abc3bd90886f","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791028760432,"pid":3808066,"hostname":"SuperPC","sessionId":"94ab3931","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028761063,"pid":3808066,"hostname":"SuperPC","sessionId":"305ce12e","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028761253,"pid":3808066,"hostname":"SuperPC","sessionId":"99b6be01","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028761812,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-0bd9-7bd0-abb9-35cdb3677c3e","appName":"Foreground cafd1349-c453-410d-8776-5718877ba2de","provider":"aws-iam","attestationId":"wl_e99a06b44718788a3cc2c175","attribution":"unchanged","scopes":["user:read","capability-tickets:issue","capabilities:read","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791028762621,"pid":3808066,"hostname":"SuperPC","sessionId":"b52028a4","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028762621,"pid":3808066,"hostname":"SuperPC","sessionId":"b52028a4","operatorId":"01a101a2-1732-737e-9edc-55e8e8bfffc9","accountId":"01a101a2-173c-7e3b-a63b-41b0059271ae","msg":"[SessionService] Managed-account session revoked — operator lost act_as"}
+PASS src/services/__tests__/foregroundCapabilities.db.test.ts
+{"level":50,"time":1791028763503,"pid":3808066,"hostname":"SuperPC","path":"/tickets","method":"POST","err":{"type":"Object","message":"synthetic SQL unavailable","stack":"Error: synthetic SQL unavailable\n    at /home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts:351:75\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/packages/api/src/services/__tests__/foregroundCapabilities.db.test.ts:38:58)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)","name":"Error"},"msg":"Unexpected error in route handler"}
+{"level":30,"time":1791028763648,"pid":3808066,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":30,"time":1791028763664,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1c04-77f6-ac05-5df93977dfce","msg":"device.bridge.register"}
+{"level":30,"time":1791028763743,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1c55-7315-a554-db44c5afb359","msg":"device.bridge.register"}
+{"level":30,"time":1791028763763,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1c6b-743d-b1f3-229ad4e16861","msg":"device.bridge.register"}
+{"level":30,"time":1791028763900,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1cf2-77b9-9f7e-051fa727f754","msg":"device.bridge.register"}
+{"level":30,"time":1791028764027,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1cf2-77b9-9f7e-051fa727f754","msg":"device.bridge.join"}
+{"level":30,"time":1791028764175,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1cf2-77b9-9f7e-051fa727f754","msg":"device.bridge.join"}
+{"level":30,"time":1791028764243,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1e4a-717d-adf9-21cdd99689e2","msg":"device.bridge.register"}
+{"level":30,"time":1791028764285,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1e4a-717d-adf9-21cdd99689e2","msg":"device.bridge.join"}
+{"level":30,"time":1791028764330,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_e4edb...","userId":"01a101a2-1e45-7e7b-9baf-60b456bccfe4","applicationId":"01a101a2-1e35-773a-aee7-71aa5c931af3","msg":"Auth session authorized"}
+{"level":30,"time":1791028764360,"pid":3808066,"hostname":"SuperPC","sessionId":"20c8d241","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028764391,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_e4edb...","sessionId":"7bc703d9-4611-45f5-8281-4593bf0709b5","userId":"01a101a2-1e45-7e7b-9baf-60b456bccfe4","applicationId":"01a101a2-1e35-773a-aee7-71aa5c931af3","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028764405,"pid":3808066,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a101a2-1e4a-717d-adf9-21cdd99689e2","msg":"device.token.mint"}
+{"level":30,"time":1791028764417,"pid":3808066,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a101a2-1e4a-717d-adf9-21cdd99689e2","msg":"device.token.mint"}
+{"level":30,"time":1791028764456,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1e4a-717d-adf9-21cdd99689e2","msg":"device.bridge.join"}
+{"level":30,"time":1791028764480,"pid":3808066,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a101a2-1e4a-717d-adf9-21cdd99689e2","msg":"device.token.mint"}
+{"level":30,"time":1791028764492,"pid":3808066,"hostname":"SuperPC","sessionId":"7bc703d9","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028764566,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1f8e-7553-962f-da80bce526c9","msg":"device.bridge.register"}
+{"level":30,"time":1791028764610,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-1f8e-7553-962f-da80bce526c9","msg":"device.bridge.join"}
+{"level":30,"time":1791028764633,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_e717b...","userId":"01a101a2-1f85-7cca-8305-86a96c1e2771","applicationId":"01a101a2-1f7f-74e0-b2e7-d7ac83d4ddd1","msg":"Auth session authorized"}
+{"level":30,"time":1791028764660,"pid":3808066,"hostname":"SuperPC","sessionId":"e7264a75","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028764688,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_e717b...","sessionId":"41d061d2-b7c3-4469-a357-cc7034435d40","userId":"01a101a2-1f85-7cca-8305-86a96c1e2771","applicationId":"01a101a2-1f7f-74e0-b2e7-d7ac83d4ddd1","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028764745,"pid":3808066,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a101a2-1f8e-7553-962f-da80bce526c9","msg":"device.token.mint"}
+{"level":30,"time":1791028764766,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-2056-763b-85f9-724e39999982","msg":"device.bridge.register"}
+{"level":30,"time":1791028764792,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_34ae6...","userId":"01a101a2-2052-7562-8c0e-331debd7290f","applicationId":"01a101a2-204c-7e74-ba98-94dbd105bed8","msg":"Auth session authorized"}
+{"level":30,"time":1791028764832,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_34ae6...","sessionId":"8a87dd6a-dc4d-410e-9629-74d1fbc56227","userId":"01a101a2-2052-7562-8c0e-331debd7290f","applicationId":"01a101a2-204c-7e74-ba98-94dbd105bed8","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028764903,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-20de-7358-b559-4759ef3d38a5","msg":"device.bridge.register"}
+{"level":30,"time":1791028764923,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_71ce0...","userId":"01a101a2-20d8-7389-8bcf-5bf8b50a5ca6","applicationId":"01a101a2-20d2-772e-874c-2d829fe74b47","msg":"Auth session authorized"}
+{"level":30,"time":1791028764967,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_71ce0...","sessionId":"cf783a27-3a8d-4a99-a03f-e9bac388394d","userId":"01a101a2-20d8-7389-8bcf-5bf8b50a5ca6","applicationId":"01a101a2-20d2-772e-874c-2d829fe74b47","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028765000,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-2140-72bb-a09a-9db86d5ce3cf","msg":"device.bridge.register"}
+{"level":30,"time":1791028765041,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-2140-72bb-a09a-9db86d5ce3cf","msg":"device.bridge.join"}
+{"level":30,"time":1791028765070,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_a7386...","userId":"01a101a2-2130-713c-8234-f44eb5949258","applicationId":"01a101a2-214b-7de7-8f2c-30092fa93743","msg":"Auth session authorized"}
+{"level":30,"time":1791028765095,"pid":3808066,"hostname":"SuperPC","sessionId":"ff2d294c","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765124,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_a7386...","sessionId":"ee198e6a-e8dd-4b01-9487-f1ba957633e7","userId":"01a101a2-2130-713c-8234-f44eb5949258","applicationId":"01a101a2-214b-7de7-8f2c-30092fa93743","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028765214,"pid":3808066,"hostname":"SuperPC","sessionId":"93be87ee","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765227,"pid":3808066,"hostname":"SuperPC","mint_source":"secret","deviceId":"01a101a2-2140-72bb-a09a-9db86d5ce3cf","msg":"device.token.mint"}
+{"level":30,"time":1791028765247,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-2237-73f6-b0a8-9567f5fb7292","msg":"device.bridge.register"}
+{"level":30,"time":1791028765292,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-2237-73f6-b0a8-9567f5fb7292","msg":"device.bridge.join"}
+{"level":30,"time":1791028765322,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_d4ea1...","userId":"01a101a2-222d-7ee4-8ae9-be8cc1f6fc31","applicationId":"01a101a2-2244-709e-a689-fc9dd0edf516","msg":"Auth session authorized"}
+{"level":30,"time":1791028765344,"pid":3808066,"hostname":"SuperPC","sessionId":"1f2764e2","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765375,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_d4ea1...","sessionId":"f5d93000-ca01-4f99-bed5-197b9ca09d75","userId":"01a101a2-222d-7ee4-8ae9-be8cc1f6fc31","applicationId":"01a101a2-2244-709e-a689-fc9dd0edf516","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028765466,"pid":3808066,"hostname":"SuperPC","sessionId":"f81bbedd","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765488,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-2327-703b-9c45-071b54cfbbfa","msg":"device.bridge.register"}
+{"level":30,"time":1791028765530,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-2327-703b-9c45-071b54cfbbfa","msg":"device.bridge.join"}
+{"level":30,"time":1791028765553,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_79d65...","userId":"01a101a2-231e-78e2-903b-6e2efbdaad35","applicationId":"01a101a2-2334-7e6a-b513-4cb8b78e911a","msg":"Auth session authorized"}
+{"level":30,"time":1791028765581,"pid":3808066,"hostname":"SuperPC","sessionId":"4967b05c","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765608,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_79d65...","sessionId":"93a630d7-4be5-4c05-a72d-88d6889df071","userId":"01a101a2-231e-78e2-903b-6e2efbdaad35","applicationId":"01a101a2-2334-7e6a-b513-4cb8b78e911a","msg":"[AuthSession] Claim succeeded"}
+{"level":30,"time":1791028765691,"pid":3808066,"hostname":"SuperPC","sessionId":"93a630d7","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765693,"pid":3808066,"hostname":"SuperPC","sessionId":"f5a6ad1f","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765705,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-2402-7114-909f-b66de63baffe","msg":"device.bridge.register"}
+{"level":30,"time":1791028765748,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-242c-7771-9492-25d01a695963","msg":"device.bridge.register"}
+{"level":30,"time":1791028765800,"pid":3808066,"hostname":"SuperPC","deviceId":"01a101a2-242c-7771-9492-25d01a695963","msg":"device.bridge.join"}
+{"level":30,"time":1791028765825,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_83a9d...","userId":"01a101a2-241e-7d3c-b5aa-3224c5864c35","applicationId":"01a101a2-2438-7746-a8fb-ce99501f73f6","msg":"Auth session authorized"}
+{"level":30,"time":1791028765856,"pid":3808066,"hostname":"SuperPC","sessionId":"15aa8a49","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765885,"pid":3808066,"hostname":"SuperPC","sessionToken":"at_83a9d...","sessionId":"95718f4d-4b43-4d01-9b78-3b571181e744","userId":"01a101a2-241e-7d3c-b5aa-3224c5864c35","applicationId":"01a101a2-2438-7746-a8fb-ce99501f73f6","msg":"[AuthSession] Claim succeeded"}
+PASS src/routes/__tests__/browserBridge.test.ts
+{"level":30,"time":1791028765977,"pid":3808066,"hostname":"SuperPC","sessionId":"96ff86e7","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028765996,"pid":3808066,"hostname":"SuperPC","sessionId":"95718f4d","msg":"[SessionService] Deactivated session"}
+{"level":30,"time":1791028766131,"pid":3808066,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791028766603,"pid":3808066,"hostname":"SuperPC","kid":"dev-ephemeral-06987cc4bd48","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+PASS src/services/__tests__/capabilityAuthority.db.test.ts
+{"level":30,"time":1791028767148,"pid":3808066,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+{"level":40,"time":1791028767169,"pid":3808066,"hostname":"SuperPC","kid":"dev-ephemeral-a1dd5e154250","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+{"level":30,"time":1791028767172,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-29b4-77ea-96d8-4feee6f7bf29","appName":"Workload test 38e0fc21-1fe2-43d8-ab72-dae2f1c33a91","provider":"aws-iam","attestationId":"wl_e9f89b1bf8843fe1c2e2cfcc","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791028767193,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-29c9-7a21-88bb-bdd3ec659319","appName":"Workload test 41b3dcb6-7528-4616-bece-4e8a9e3d800a","provider":"aws-iam","attestationId":"wl_0a238beb90fc4ae451e5bc90","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791028767216,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-29dd-707e-bb34-113ca4391da3","appName":"Workload test 182b47fd-69c1-44e9-9994-9d6dacf6e74b","provider":"aws-iam","attestationId":"wl_931659504612a1ab8551a5c8","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":50,"time":1791028767223,"pid":3808066,"hostname":"SuperPC","provider":"aws-iam","attestationId":"wl_931659504612a1ab8551a5c8","applicationId":"01a101a2-29e4-7ecf-a00b-db1eba40e3cf","msg":"[WorkloadIdentity] attested identity is attributed to another application"}
+{"level":30,"time":1791028767243,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-29fe-7b9e-94df-5d5137bd994f","appName":"Workload test 2f046d7e-8fcf-41b6-a4a4-203fc8bd7704","provider":"aws-iam","attestationId":"wl_7e30e29896b8a7fa5df9b942","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":40,"time":1791028767243,"pid":3808066,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":43,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791028767243,"pid":3808066,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":35,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791028767244,"pid":3808066,"hostname":"SuperPC","provider":"aws-iam","reason":"unknown_challenge","nonceLength":33,"msg":"[WorkloadIdentity] attestation refused"}
+{"level":40,"time":1791028767245,"pid":3808066,"hostname":"SuperPC","provider":"aws-iam","msg":"[WorkloadIdentity] attested workload has no binding"}
+{"level":40,"time":1791028767275,"pid":3808066,"hostname":"SuperPC","provider":"aws-iam","msg":"[WorkloadIdentity] attested workload has no binding"}
+{"level":30,"time":1791028767291,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-2a2f-7d93-8105-40fa87b251d4","appName":"Workload test cd265760-c925-4e46-b7db-d953fd847018","provider":"aws-iam","attestationId":"wl_1231d40b5232696b37c14724","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791028767307,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-2a3e-79a1-91f1-a4410aeb5530","appName":"Workload test 36b7e31a-763d-4c97-a16e-a86a144b5c0d","provider":"aws-iam","attestationId":"wl_3c475d471794567013f768ec","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791028767324,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-2a4f-7be1-bf62-47e7cc453450","appName":"Workload test 7f11ee8e-8ccf-40b7-bde8-4a90a5dda9a4","provider":"aws-iam","attestationId":"wl_08bedcaa507d9eadd8664b44","attribution":"created","scopes":["federation:write","signals:write","catalogs:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791028767341,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-2a60-7ee0-9b2f-04ae59af2a21","appName":"Workload test 932d3504-865e-4907-a7c1-4dc2b0472910","provider":"aws-iam","attestationId":"wl_b1683783d839d9de01f1d2ff","attribution":"created","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791028767358,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-2a71-70f2-814e-c2f23a7dc1f7","appName":"Workload test 5ba8be62-d563-4fe9-91a7-792fcee90175","provider":"aws-iam","attestationId":"wl_a079c50c5ceb1572010396a0","attribution":"created","scopes":["user:read","signals:write"],"msg":"[WorkloadIdentity] service token issued"}
+{"level":30,"time":1791028767366,"pid":3808066,"hostname":"SuperPC","applicationId":"01a101a2-2a71-70f2-814e-c2f23a7dc1f7","appName":"Workload test 5ba8be62-d563-4fe9-91a7-792fcee90175","provider":"aws-iam","attestationId":"wl_a079c50c5ceb1572010396a0","attribution":"unchanged","scopes":["user:read"],"msg":"[WorkloadIdentity] service token issued"}
+PASS src/services/__tests__/workloadIdentity.db.test.ts
+PASS src/db/schema/__tests__/foreignKeys.test.ts
+{"level":30,"time":1791028767823,"pid":3808066,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/db/schema/__tests__/schemaInvariants.test.ts
+PASS src/db/schema/__tests__/agencyPayloadBounds.test.ts
+{"level":30,"time":1791028768015,"pid":3808066,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/capabilityAuthority.policy.test.ts
+
+Test Suites: 8 passed, 8 total
+Tests:       83 passed, 83 total
+Snapshots:   0 total
+Time:        9.521 s, estimated 11 s
+Ran all test suites within paths "src/routes/__tests__/browserBridge.test.ts", "src/services/__tests__/foregroundCapabilities.db.test.ts", "src/services/__tests__/capabilityAuthority.db.test.ts", "src/services/__tests__/capabilityAuthority.policy.test.ts", "src/services/__tests__/workloadIdentity.db.test.ts", "src/db/schema/__tests__/foreignKeys.test.ts", "src/db/schema/__tests__/schemaInvariants.test.ts", "src/db/schema/__tests__/agencyPayloadBounds.test.ts".

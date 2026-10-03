@@ -1,0 +1,1 @@
+$ tsc --strict --skipLibCheck --noEmit --module NodeNext --moduleResolution NodeNext consumer.mts

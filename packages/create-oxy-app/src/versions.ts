@@ -23,7 +23,7 @@ export const VERSIONS = {
   // releasing the scaffolder: its ranges must resolve outside this workspace.
   oxyServices: '^11.0.0', // @oxy.so/services — requires the Bloom 6 context family
   oxyCore: '^4.0.0', // @oxy.so/core — OxyServer and the namespaced client the backend template uses
-  oxyBloom: '^6.2.0', // @oxy.so/bloom
+  oxyBloom: '6.2.1', // @oxy.so/bloom — reviewed maintenance fixes; 6.4.0 lacks them
 
   oxyContracts: '^4.1.0', // @oxy.so/contracts
   oxyAppPreset: '^3.0.0', // @oxy.so/app-preset

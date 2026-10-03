@@ -1,0 +1,2 @@
+$ node scripts/check-icon-font-subsets.mjs
+Services icon subsets match source usage, package version and recorded hashes.

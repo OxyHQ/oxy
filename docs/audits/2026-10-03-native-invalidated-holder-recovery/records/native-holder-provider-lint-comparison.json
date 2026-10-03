@@ -1,0 +1,8 @@
+{
+  "baselineSource": "bc728e68b",
+  "command": "installed packages/services/node_modules/.bin/biome lint --error-on-warnings --reporter=json FILE",
+  "baselineErrors": 13,
+  "currentErrors": 13,
+  "newDiagnostics": 0,
+  "sameRuleAndDescription": true
+}

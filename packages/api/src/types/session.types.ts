@@ -4,6 +4,8 @@
  * Centralized type definitions for session-related operations.
  */
 
+import type { Transaction } from '../config/postgres';
+import type { AgentKeyBinding } from '../services/agentKeyAuthority.service';
 import type { CachedSession } from '../utils/sessionCache';
 import type { AccountDocument } from '../services/user.service';
 import type { DeviceFingerprintInput } from '../utils/deviceUtils';
@@ -36,6 +38,10 @@ export interface SessionValidationResult {
 }
 
 export interface SessionCreateOptions {
+  /** Server-derived autonomous signer; propagated through switch/OAuth. */
+  authMethod?: AgentKeyBinding;
+  /** Internal only: proof consumption and session write share this transaction. */
+  executor?: Transaction;
   deviceName?: string;
   deviceFingerprint?: DeviceFingerprintInput;
   /**

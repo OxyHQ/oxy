@@ -1,3 +1,4 @@
+import type { StartNativeOAuthSignInOptions, NativeOAuthSignInResult } from '../oauth/nativeAuthTransport';
 import type { ReactNode } from 'react';
 import type { LoginSessionResult } from '@oxy.so/contracts';
 import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, ApiError } from '@oxy.so/core';
@@ -106,6 +107,9 @@ export interface OxyContextState {
    * No-op outside a browser and in `sessionMode: 'identity'`, both of which
    * resolve to `{ status: 'unsupported' }`.
    */
+  /** Native SDK finalizer; call only from an explicit user gesture. */
+  startNativeOAuthSignIn: (options: StartNativeOAuthSignInOptions) => Promise<NativeOAuthSignInResult>;
+
   startWebOAuthSignIn: (options: StartWebOAuthSignInOptions) => Promise<WebOAuthSignInResult>;
 
   /**

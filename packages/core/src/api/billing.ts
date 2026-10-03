@@ -9,6 +9,16 @@
  * `payment.controller`, `wallet.routes` in `packages/api`); `Date` columns
  * arrive as ISO-8601 strings.
  */
+import { type SubjectProductAccess,
+	type SubjectProductAccessQuery,
+	subjectProductAccessQuerySchema, subjectProductAccessSchema, } from '@oxy.so/contracts';
+import {
+	type ProductSubscriptionSummary, type SubscriptionCreditGrant, type ProductSubscriptionCancellationResult,
+  productSubscriptionCancellationResultSchema,
+	cancelProductSubscriptionSchema,
+	productSubscriptionsResponseSchema,
+	subscriptionCreditGrantsResponseSchema,
+} from '@oxy.so/contracts';
 import type { OxyContext } from '../client/context';
 
 const SUBSCRIPTION_TTL = 2 * 60 * 1000;
@@ -105,13 +115,65 @@ export interface WalletTransactionsPage {
 export class BillingApi {
   constructor(protected readonly ctx: OxyContext) {}
 
-  /** The signed-in user's payment history. Never cached. */
-  async payments(): Promise<Payment[]> {
+  /** Product rights only; requires a production application-bound user session. Never cached. */
+  async productAccess(query: SubjectProductAccessQuery): Promise<SubjectProductAccess> {
+    const parsed = subjectProductAccessQuerySchema.parse(query);
+    const response = await this.ctx.request<unknown>('GET',
+      `/v1/products/${encodeURIComponent(parsed.productId)}/access/${encodeURIComponent(parsed.subjectAccountId)}`,
+      undefined, { cache: false });
+    return subjectProductAccessSchema.parse(response);
+  }
+
+	/** Named commercial sources for the current subject; no inferred plan collapse. */
+	async productSubscriptions(): Promise<ProductSubscriptionSummary[]> {
+		return productSubscriptionsResponseSchema.parse(
+			await this.ctx.request<unknown>(
+				"GET",
+				"/billing/product-subscriptions",
+				undefined,
+				{ cache: false },
+			),
+		).subscriptions;
+	}
+
+	/** Per-grant credit provenance; no interpretation of the historical mixed balance. */
+	async creditGrants(): Promise<SubscriptionCreditGrant[]> {
+		return subscriptionCreditGrantsResponseSchema.parse(
+			await this.ctx.request<unknown>(
+				"GET",
+				"/billing/credit-grants",
+				undefined,
+				{ cache: false },
+			),
+		).grants;
+	}
+
+	/** Payer-only named-source cancellation. Resolves on provider acceptance, including pending local reconciliation. Use cancelProductSubscriptionWithStatus for detailed completion state. */
+	async cancelProductSubscription(sourceId: string, expectedSubjectAccountId?: string): Promise<void> {
+		await this.ctx.request(
+			"POST",
+			"/billing/product-subscriptions/cancel",
+			cancelProductSubscriptionSchema.parse({ sourceId, ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}) }),
+			{ cache: false },
+		);
+	}
+
+  /** Provider acceptance versus completed local cancellation, for user-facing flows. */
+  async cancelProductSubscriptionWithStatus(sourceId: string, expectedSubjectAccountId?: string): Promise<ProductSubscriptionCancellationResult> {
+    return productSubscriptionCancellationResultSchema.parse(await this.ctx.request<unknown>(
+      'POST', '/billing/product-subscriptions/cancel',
+      cancelProductSubscriptionSchema.parse({ sourceId, ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}) }),
+      { cache: false },
+    ));
+  }
+
+	/** The signed-in user's payment history. Never cached. */
+	async payments(): Promise<Payment[]> {
     return this.ctx.request<Payment[]>('GET', '/payments/user', undefined, { cache: false });
   }
 
-  /** A user's subscription (default: the signed-in user's). */
-  async subscription(userId?: string): Promise<Subscription> {
+	/** A user's subscription (default: the signed-in user's). */
+	async subscription(userId?: string): Promise<Subscription> {
     const id = this.resolveUserId(userId);
     return this.ctx.request<Subscription>('GET', `/subscription/${id}`, undefined, {
       cache: true,
@@ -119,14 +181,14 @@ export class BillingApi {
     });
   }
 
-  /** A user's wallet (default: the signed-in user's). Cached briefly: the balance moves. */
-  async wallet(userId?: string): Promise<Wallet> {
+	/** A user's wallet (default: the signed-in user's). Cached briefly: the balance moves. */
+	async wallet(userId?: string): Promise<Wallet> {
     const id = this.resolveUserId(userId);
     return this.ctx.request<Wallet>('GET', `/wallet/${id}`, undefined, { cache: true, cacheTTL: WALLET_TTL });
   }
 
-  /** A page of a user's wallet transactions (default: the signed-in user's). Never cached. */
-  async walletTransactions(
+	/** A page of a user's wallet transactions (default: the signed-in user's). Never cached. */
+	async walletTransactions(
     options: { userId?: string; limit?: number; offset?: number } = {},
   ): Promise<WalletTransactionsPage> {
     const id = this.resolveUserId(options.userId);
@@ -136,7 +198,7 @@ export class BillingApi {
     return this.ctx.request<WalletTransactionsPage>('GET', `/wallet/transactions/${id}`, params, { cache: false });
   }
 
-  private resolveUserId(userId?: string): string {
+	private resolveUserId(userId?: string): string {
     const id = userId || this.ctx.oxy.session.userId;
     if (!id) throw new Error('User not authenticated');
     return id;

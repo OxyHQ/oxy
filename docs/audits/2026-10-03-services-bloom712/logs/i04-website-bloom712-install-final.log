@@ -1,0 +1,15 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [18]
+warn: incorrect peer dependency "@react-native-async-storage/async-storage@3.1.1"
+
+warn: incorrect peer dependency "react-native-gesture-handler@3.0.2"
+Saved lockfile
+
++ @oxy.so/bloom@/home/nate/Oxy/.agent-evidence/i04-bloom712-compat-pack/oxy.so-bloom-7.1.2.tgz
++ @oxy.so/contracts@/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-contracts-4.9.0.tgz
++ @oxy.so/core@/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-core-4.2.0.tgz
++ @oxy.so/mcp@/home/nate/Oxy/.agent-evidence/i04-consumer-candidate-f364-packs/oxy.so-mcp-1.1.0.tgz
++ @oxy.so/services@/home/nate/Oxy/.agent-evidence/i04-services-bloom712-pack/oxy.so-services-11.1.0.tgz
+
+8 packages installed [782.00ms]

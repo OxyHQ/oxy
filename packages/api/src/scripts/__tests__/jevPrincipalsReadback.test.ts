@@ -12,6 +12,11 @@ import {
   validateJevPrincipalsReadback,
 } from "../jevPrincipalsReadback";
 
+function required<T>(value: T | null | undefined): T {
+  if (value === null || value === undefined) throw new Error('Missing required fixture value');
+  return value;
+}
+
 const OBSERVED_AT = new Date("2026-10-02T12:00:00.000Z");
 const MENTION_OWNER = "mention-owner-0001";
 const PARENT_ORG = "oxy-org-0001";
@@ -132,10 +137,10 @@ function reasonsFor(input: JevPrincipalsReadbackInput) {
 }
 
 const base = validInput();
-const mentionBinding = base.mention.bindings[0]!;
-const mentionCredential = base.mention.credentials[0]!;
-const mentionApp = base.mention.applications[0]!;
-const kaanaCredential = base.kaana.credentials[0]!;
+const mentionBinding = required(base.mention.bindings[0]);
+const mentionCredential = required(base.mention.credentials[0]);
+const mentionApp = required(base.mention.applications[0]);
+const kaanaCredential = required(base.kaana.credentials[0]);
 
 describe("Jev principals readback", () => {
   it("returns only the allowlisted projection when both principals are ready", () => {
@@ -378,8 +383,8 @@ describe("Jev principals readback", () => {
             status: "resolved",
             billingAccount: { accountId: PARENT_ORG, currency: "USD", billingMode: "prepaid" },
           },
-          balances: [{ ...base.mention.balances[0]!, accountId: PARENT_ORG }],
-          journals: [{ ...base.mention.journals[0]!, accountId: PARENT_ORG }],
+          balances: [{ ...required(base.mention.balances[0]), accountId: PARENT_ORG }],
+          journals: [{ ...required(base.mention.journals[0]), accountId: PARENT_ORG }],
         }),
       );
       expect(result.status).toBe("ready");
@@ -435,8 +440,8 @@ describe("Jev principals readback", () => {
               status: "resolved",
               billingAccount: { accountId: MENTION_OWNER, currency: "USD", billingMode: "invoiced" },
             },
-            balances: [{ ...base.mention.balances[0]!, purchasedBalance: "9999", promotionalBalance: "0.50" }],
-            journals: [{ ...base.mention.journals[0]!, purchasedFunds: "9999", promotionalFunds: "0.50" }],
+            balances: [{ ...required(base.mention.balances[0]), purchasedBalance: "9999", promotionalBalance: "0.50" }],
+            journals: [{ ...required(base.mention.journals[0]), purchasedFunds: "9999", promotionalFunds: "0.50" }],
           }),
         ),
       ).toEqual(["mention_missing_funds"]);
@@ -445,8 +450,8 @@ describe("Jev principals readback", () => {
     it("blocks under one cent after reserves and accepts exactly one cent", () => {
       const at = (promotional: string) =>
         withMention({
-          balances: [{ ...base.mention.balances[0]!, promotionalBalance: promotional }],
-          journals: [{ ...base.mention.journals[0]!, promotionalFunds: promotional }],
+          balances: [{ ...required(base.mention.balances[0]), promotionalBalance: promotional }],
+          journals: [{ ...required(base.mention.journals[0]), promotionalFunds: promotional }],
         });
       expect(reasonsFor(at("0.509999999999"))).toEqual(["mention_missing_funds"]);
       expect(validateJevPrincipalsReadback(at("0.51")).status).toBe("ready");
@@ -454,17 +459,17 @@ describe("Jev principals readback", () => {
 
     it("blocks a projection the journal does not reproduce and an ungranted balance", () => {
       expect(
-        reasonsFor(withMention({ journals: [{ ...base.mention.journals[0]!, reservedFunds: "0" }] })),
+        reasonsFor(withMention({ journals: [{ ...required(base.mention.journals[0]), reservedFunds: "0" }] })),
       ).toEqual(["mention_ledger_projection_mismatch"]);
       expect(
-        reasonsFor(withMention({ journals: [{ ...base.mention.journals[0]!, promotionalGrantEntries: 0 }] })),
+        reasonsFor(withMention({ journals: [{ ...required(base.mention.journals[0]), promotionalGrantEntries: 0 }] })),
       ).toEqual(["mention_promotional_grant_missing"]);
     });
 
     it("refuses a negative bucket", () => {
       expect(() =>
         validateJevPrincipalsReadback(
-          withMention({ balances: [{ ...base.mention.balances[0]!, reservedBalance: "-5" }] }),
+          withMention({ balances: [{ ...required(base.mention.balances[0]), reservedBalance: "-5" }] }),
         ),
       ).toThrow("negative");
     });
@@ -500,7 +505,7 @@ describe("Jev principals readback", () => {
       const input = validInput();
       expect(
         reasonsFor(
-          withKaana({ applications: [{ ...input.kaana.applications[0]!, scopes: ["catalogs:write"] }] }),
+          withKaana({ applications: [{ ...required(input.kaana.applications[0]), scopes: ["catalogs:write"] }] }),
         ),
       ).toEqual(["kaana_invoke_credential_missing"]);
     });
@@ -575,9 +580,9 @@ describe("distinct Alia Auto metadata candidate", () => {
   function withAlia(): JevPrincipalsReadbackInput {
     const input = validInput();
     const alia = structuredClone(input.mention);
-    (alia.applications as JevPrincipalsReadbackInput["mention"]["applications"][number][])[0] = { ...alia.applications[0]!, id: JEV_ALIA_APPLICATION_ID };
-    (alia.bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...alia.bindings[0]!, applicationId: JEV_ALIA_APPLICATION_ID, subject: JEV_ALIA_WORKLOAD_ROLE_ARN };
-    (alia.credentials as JevPrincipalsReadbackInput["mention"]["credentials"][number][])[0] = { ...alia.credentials[0]!, id: deriveJevAliaWorkloadCredentialId(), applicationId: JEV_ALIA_APPLICATION_ID };
+    (alia.applications as JevPrincipalsReadbackInput["mention"]["applications"][number][])[0] = { ...required(alia.applications[0]), id: JEV_ALIA_APPLICATION_ID };
+    (alia.bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...required(alia.bindings[0]), applicationId: JEV_ALIA_APPLICATION_ID, subject: JEV_ALIA_WORKLOAD_ROLE_ARN };
+    (alia.credentials as JevPrincipalsReadbackInput["mention"]["credentials"][number][])[0] = { ...required(alia.credentials[0]), id: deriveJevAliaWorkloadCredentialId(), applicationId: JEV_ALIA_APPLICATION_ID };
     return { ...input, alia };
   }
   it("proves Alia independently without altering Mention identity", () => {
@@ -589,23 +594,52 @@ describe("distinct Alia Auto metadata candidate", () => {
   });
   it("refuses borrowing the Mention binding for Alia", () => {
     const input = withAlia();
-    (input.alia!.bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...input.alia!.bindings[0]!, subject: JEV_MENTION_WORKLOAD_ROLE_ARN };
+    (required(input.alia).bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...required(required(input.alia).bindings[0]), subject: JEV_MENTION_WORKLOAD_ROLE_ARN };
     expect(() => validateJevPrincipalsReadback(input)).toThrow();
   });
   it("blocks missing Alia invocation authority", () => {
     const input = withAlia();
-    (input.alia!.bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...input.alia!.bindings[0]!, scopes: ["user:read"] };
+    (required(input.alia).bindings as JevPrincipalsReadbackInput["mention"]["bindings"][number][])[0] = { ...required(required(input.alia).bindings[0]), scopes: ["user:read"] };
     expect(validateJevPrincipalsReadback(input).alia?.blockedReasons).toContain("alia_effective_invoke_missing");
   });
   it("blocks an unbound Alia materialized credential", () => {
     const input = withAlia();
-    (input.alia!.credentials as JevPrincipalsReadbackInput["mention"]["credentials"][number][])[0] = { ...input.alia!.credentials[0]!, workloadIdentityId: "other-binding" };
+    (required(input.alia).credentials as JevPrincipalsReadbackInput["mention"]["credentials"][number][])[0] = { ...required(required(input.alia).credentials[0]), workloadIdentityId: "other-binding" };
     expect(validateJevPrincipalsReadback(input).alia?.blockedReasons).toContain("alia_credential_unbound");
   });
   it("never pays the Alia canary from purchased funds", () => {
     const input = withAlia();
-    (input.alia!.balances as JevPrincipalsReadbackInput["mention"]["balances"][number][])[0] = { ...input.alia!.balances[0]!, promotionalBalance: "0" };
-    (input.alia!.journals as JevPrincipalsReadbackInput["mention"]["journals"][number][])[0] = { ...input.alia!.journals[0]!, promotionalFunds: "0" };
+    (required(input.alia).balances as JevPrincipalsReadbackInput["mention"]["balances"][number][])[0] = { ...required(required(input.alia).balances[0]), promotionalBalance: "0" };
+    (required(input.alia).journals as JevPrincipalsReadbackInput["mention"]["journals"][number][])[0] = { ...required(required(input.alia).journals[0]), promotionalFunds: "0" };
     expect(validateJevPrincipalsReadback(input).alia?.blockedReasons).toContain("alia_missing_funds");
   });
+  function internalInput(): JevPrincipalsReadbackInput {
+    const input = withAlia();
+    if (input.alia === undefined) throw new Error('Missing Alia fixture');
+    const apps = input.alia.applications.map(app => ({ ...app, type: 'internal', isInternal: true }));
+    return { ...input, alia: { ...input.alia, applications: apps, billing: null, balances: [], journals: [],
+      technicalMetering: { schemaAvailable: true, activeAdmissions: 0, dailyAdmissions: 1 } } };
+  }
+  it('reports internal technical readiness without any commercial profile, balance or promotional grant', () => {
+    const result = validateJevPrincipalsReadback(internalInput());
+    expect(result).toMatchObject({ schemaVersion: 2, alia: { status: 'ready', economicTreatment: 'internal_metered',
+      commercialFundingRequired: false, providerActivationAuthorized: false,
+      technicalMetering: { schemaAvailable: true, maxInFlight: 32, maxRequestsPerDay: 5000 } } });
+  });
+  it.each(['schema', 'concurrency', 'daily', 'scope', 'credential'] as const)('keeps technical/identity gate %s independent of funding', fault => {
+    const input = internalInput();
+    if (input.alia === undefined) throw new Error('Missing Alia fixture');
+    const alia = { ...input.alia,
+      ...(fault === 'schema' ? { technicalMetering: { schemaAvailable: false, activeAdmissions: 0, dailyAdmissions: 1 } } : {}),
+      ...(fault === 'concurrency' ? { technicalMetering: { schemaAvailable: true, activeAdmissions: 32, dailyAdmissions: 1 } } : {}),
+      ...(fault === 'daily' ? { technicalMetering: { schemaAvailable: true, activeAdmissions: 0, dailyAdmissions: 5000 } } : {}),
+      ...(fault === 'scope' ? { bindings: input.alia.bindings.map(b => ({ ...b, scopes: ['user:read'] })) } : {}),
+      ...(fault === 'credential' ? { credentials: input.alia.credentials.map(c => ({ ...c, status: 'revoked' })) } : {}),
+    };
+    const result = validateJevPrincipalsReadback({ ...input, alia });
+    expect(result.alia?.status).toBe('blocked');
+    expect(result.alia?.blockedReasons).not.toContain('alia_missing_funds');
+    expect(result.alia?.providerActivationAuthorized).toBe(false);
+  });
+
 });

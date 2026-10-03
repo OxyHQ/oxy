@@ -21,8 +21,7 @@ PORT = 5578
 
 
 def clean_env():
-    return {k: v for k, v in os.environ.items()
-            if not k.startswith('PG') and k not in ('DATABASE_URL', 'TEST_DATABASE_URL')}
+    return {k: os.environ[k] for k in ('PATH', 'HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL') if k in os.environ} | {'BUN_OPTIONS': '--no-env-file'}
 
 
 def run(args, **kwargs):
@@ -76,7 +75,7 @@ def main():
         evidence.mkdir(exist_ok=True)
         # Same normal migrator as API/globalSetup, followed by an unchanged repeat.
         for phase in ('fresh', 'repeat'):
-            migrated = subprocess.run(['bun', 'run', 'db:migrate'],
+            migrated = subprocess.run(['bun', '--no-env-file', 'run', 'db:migrate'],
                                       cwd=ROOT / 'packages/api', env=env,
                                       text=True, stdout=subprocess.PIPE,
                                       stderr=subprocess.STDOUT, check=False)
@@ -84,7 +83,7 @@ def main():
             migrated.check_returncode()
         entries = json.loads((ROOT / 'packages/api/drizzle/meta/_journal.json').read_text())['entries']
         assert int(sql('SELECT count(*) FROM drizzle.__drizzle_migrations', db)) == len(entries)
-        command = ['bun', 'run', 'test', '--runInBand', '--runTestsByPath',
+        command = ['bun', '--no-env-file', 'run', 'test', '--runInBand', '--runTestsByPath',
                    'src/services/updates/__tests__/signing.service.test.ts',
                    'src/services/updates/__tests__/manifest.service.test.ts',
                    'src/routes/__tests__/updatesManifest.test.ts']

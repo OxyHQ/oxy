@@ -330,6 +330,241 @@
         "operationId": "getWellKnownDidJson"
       }
     },
+    "/_oxy/capabilities/profiles/recommendations": {
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Rank profiles for the signed present subject and verified presenting application",
+        "security": [
+          {
+            "capabilityTicketAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Must equal the signed presenting Application.id if supplied."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "offset": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "excludeTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "federated",
+                        "agent",
+                        "automated"
+                      ]
+                    }
+                  },
+                  "excludeIds": {
+                    "type": "array",
+                    "maxItems": 500,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "boosts": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "userIds",
+                        "weight"
+                      ],
+                      "properties": {
+                        "userIds": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 200,
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "weight": {
+                          "type": "number",
+                          "minimum": -5,
+                          "maximum": 5
+                        },
+                        "reason": {
+                          "type": "string",
+                          "maxLength": 120
+                        }
+                      }
+                    }
+                  },
+                  "signalWeights": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "graph": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "verified": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "repCandidate": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "interest": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "completeness": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "curation": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "appBoost": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      },
+                      "affinity": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 10
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing recommendation domain result for the signed subject and application.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "recommendations"
+                  ],
+                  "properties": {
+                    "recommendations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Capability authorization required."
+          },
+          "403": {
+            "description": "Signed catalogue",
+            "tool or current authority refused.": null
+          }
+        },
+        "operationId": "postOxyCapabilitiesProfilesRecommendations"
+      }
+    },
+    "/_oxy/capabilities/users/me/graph": {
+      "get": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Read the graph of the signed present subject with no free account selector",
+        "security": [
+          {
+            "capabilityTicketAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing viewer graph domain result; no other account selector is accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "followingIds",
+                    "mutualIds",
+                    "blockedIds",
+                    "restrictedIds"
+                  ],
+                  "properties": {
+                    "followingIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mutualIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "blockedIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "restrictedIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Capability authorization required."
+          },
+          "403": {
+            "description": "Signed catalogue",
+            "tool or current authority refused.": null
+          }
+        },
+        "operationId": "getOxyCapabilitiesUsersMeGraph"
+      }
+    },
     "/accounts": {
       "get": {
         "tags": [
@@ -944,6 +1179,516 @@
         "operationId": "deleteAccountsId"
       }
     },
+    "/accounts/{id}/agent-keys": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List public runtime-key metadata for the autonomous account or its current governors.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/agentKeys.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentKeys.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getAccountsIdAgentKeys"
+      }
+    },
+    "/accounts/{id}/agent-keys/challenge": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Request a single-use, action- and payload-bound credential-governance challenge.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/agentKeys.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentKeys.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "enroll"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 130
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "publicKey",
+                      "label"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "recover"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 130
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "publicKey",
+                      "label"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "rotate"
+                        ]
+                      },
+                      "publicKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 130
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "retireCurrent": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "publicKey",
+                      "label"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "revoke"
+                        ]
+                      },
+                      "methodId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "methodId"
+                    ]
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "operation"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postAccountsIdAgentKeysChallenge"
+      }
+    },
+    "/accounts/{id}/agent-keys/execute": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Apply enrollment, rotation, revocation or recovery atomically with fresh proof.",
+        "description": "Current owner/admin governance is rechecked; autonomous rotation proves old and new keys.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentKeys.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "enroll"
+                            ]
+                          },
+                          "publicKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 130
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "publicKey",
+                          "label"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "recover"
+                            ]
+                          },
+                          "publicKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 130
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "publicKey",
+                          "label"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "rotate"
+                            ]
+                          },
+                          "publicKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 130
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "retireCurrent": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "publicKey",
+                          "label"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "revoke"
+                            ]
+                          },
+                          "methodId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "methodId"
+                        ]
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "operation"
+                    }
+                  },
+                  "proof": {
+                    "type": "object",
+                    "properties": {
+                      "challenge": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "timestamp": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "keySignature": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]+$",
+                        "maxLength": 160
+                      },
+                      "governorSignature": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]+$",
+                        "maxLength": 160
+                      },
+                      "reauth": {
+                        "type": "object",
+                        "properties": {
+                          "password": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "emailCode": {
+                            "type": "object",
+                            "properties": {
+                              "verificationId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "code": {
+                                "type": "string",
+                                "pattern": "^\\d{6}$"
+                              }
+                            },
+                            "required": [
+                              "verificationId",
+                              "code"
+                            ]
+                          },
+                          "totpCode": {
+                            "type": "string",
+                            "minLength": 6,
+                            "maxLength": 16
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "challenge",
+                      "timestamp"
+                    ]
+                  }
+                },
+                "required": [
+                  "operation",
+                  "proof"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAccountsIdAgentKeysExecute"
+      }
+    },
     "/accounts/{id}/audit": {
       "get": {
         "tags": [
@@ -1471,6 +2216,7 @@
                         "credentials:create",
                         "credentials:rotate",
                         "credentials:revoke",
+                        "credentials:manage",
                         "billing:read",
                         "billing:manage",
                         "ownership:transfer",
@@ -1482,7 +2228,7 @@
                         "inference:usage:read"
                       ]
                     },
-                    "maxItems": 29
+                    "maxItems": 30
                   },
                   "permissionRevokes": {
                     "type": "array",
@@ -1509,6 +2255,7 @@
                         "credentials:create",
                         "credentials:rotate",
                         "credentials:revoke",
+                        "credentials:manage",
                         "billing:read",
                         "billing:manage",
                         "ownership:transfer",
@@ -1520,7 +2267,7 @@
                         "inference:usage:read"
                       ]
                     },
-                    "maxItems": 29
+                    "maxItems": 30
                   }
                 }
               }
@@ -6451,6 +7198,160 @@
         "operationId": "patchAssetsIdVisibility"
       }
     },
+    "/auth/agent/challenge": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "Request a single-use autonomous sign-in challenge, bound to account, key and purpose.",
+        "description": "Unknown, revoked, archived or closing accounts cannot receive a challenge.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentAuth.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publicKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 130
+                  }
+                },
+                "required": [
+                  "publicKey"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAuthAgentChallenge"
+      }
+    },
+    "/auth/agent/verify": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "Verify an autonomous key proof and return an ordinary account session and device state.",
+        "description": "Proof consumption and session creation are atomic; replay and invalid signatures fail closed.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/agentAuth.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challenge": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "signature": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]+$",
+                    "maxLength": 160
+                  },
+                  "timestamp": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "publicKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 130
+                  }
+                },
+                "required": [
+                  "challenge",
+                  "signature",
+                  "timestamp",
+                  "publicKey"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAuthAgentVerify"
+      }
+    },
     "/auth/challenge": {
       "post": {
         "tags": [
@@ -6904,6 +7805,9 @@
           },
           "403": {
             "description": "Redirect URI is not registered for this client."
+          },
+          "500": {
+            "description": "The consent or the code could not be stored. Nothing was written — no code was issued and no grant recorded — so retrying is safe.\n"
           }
         },
         "operationId": "postAuthOauthAuthorize"
@@ -8470,7 +9374,7 @@
         ],
         "security": [],
         "summary": "Finalize an approved OAuth-bound auth session into an authorization code",
-        "description": "Terminal step of an OAuth authorization request created with `POST /auth/session/create` + an `oauth` binding and approved through any delivery surface (popup, push, QR, verified app link). Mints the ONE single-use `AuthCode` the relying party redeems at `POST /auth/oauth/token` with its PKCE verifier.\nNo `Authorization` header: the 128-bit `sessionToken` — held only by the originating client, never echoed to observers — IS the credential, exactly as on `POST /auth/session/claim`. No access token is ever handed out here.\nAtomic and single-use: the authorization code's identity is reserved by the same update that spends the request, so a request can never mint a second code, even under concurrent calls. Every failure mode collapses to one generic `invalid_grant` (RFC 6749 §5.2) — nothing enumerates which precondition failed.\n",
+        "description": "Terminal step of an OAuth authorization request created with `POST /auth/session/create` + an `oauth` binding and approved through any delivery surface (popup, push, QR, verified app link). Mints the ONE single-use `AuthCode` the relying party redeems at `POST /auth/oauth/token` with its PKCE verifier.\nNo `Authorization` header: the 128-bit `sessionToken` — held only by the originating client, never echoed to observers — IS the credential, exactly as on `POST /auth/session/claim`. No access token is ever handed out here.\nAtomic and single-use: the authorization code's identity is reserved by the same update that spends the request, so a request can never mint a second code, even under concurrent calls. An otherwise valid third-party request with no scopes receives HTTP 400 `invalid_scope`. Other rejected preconditions return the generic HTTP 401 `invalid_grant`; their precise reason remains server-side.\n",
         "parameters": [
           {
             "name": "sessionToken",
@@ -8499,6 +9403,31 @@
                     "expiresIn": {
                       "type": "integer",
                       "example": 60
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The third-party request names no scopes (`invalid_scope`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "message"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_scope"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
                     }
                   }
                 }
@@ -9083,6 +10012,146 @@
         "operationId": "postBillingCheckoutSubscription"
       }
     },
+    "/billing/credit-grants": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Read attributable credits only; financial money remains in its separate ledger.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Credit provenance and conserved remaining quantities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "grants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "invoiceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "origin": {
+                            "type": "string",
+                            "enum": [
+                              "subscription_payment",
+                              "subscription_proration",
+                              "subscription_promotional_grant"
+                            ]
+                          },
+                          "period": {
+                            "type": "object",
+                            "properties": {
+                              "start": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "end": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": [
+                              "start",
+                              "end"
+                            ]
+                          },
+                          "granted": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "consumed": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "clawed": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "remaining": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "promotionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "invoiceId",
+                          "origin",
+                          "period",
+                          "granted",
+                          "consumed",
+                          "clawed",
+                          "remaining",
+                          "promotionId",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "grants"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getBillingCreditGrants"
+      }
+    },
     "/billing/packages": {
       "get": {
         "tags": [
@@ -9211,6 +10280,330 @@
         "operationId": "postBillingPortal"
       }
     },
+    "/billing/product-subscriptions": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "List source lifecycle and paid segments separately; historical offers never masquerade as current access.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Source lifecycle and paid segment provenance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subscriptions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "trialing",
+                              "past_due",
+                              "unpaid",
+                              "canceled",
+                              "paused",
+                              "incomplete",
+                              "incomplete_expired"
+                            ]
+                          },
+                          "period": {
+                            "type": "object",
+                            "properties": {
+                              "start": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "end": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": [
+                              "start",
+                              "end"
+                            ]
+                          },
+                          "cancelAtPeriodEnd": {
+                            "type": "boolean"
+                          },
+                          "canCancel": {
+                            "type": "boolean"
+                          },
+                          "offers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "segmentId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                },
+                                "offerId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                },
+                                "offerVersion": {
+                                  "type": "integer",
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "displayName": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 100
+                                },
+                                "origin": {
+                                  "type": "string",
+                                  "enum": [
+                                    "individual",
+                                    "bundle"
+                                  ]
+                                },
+                                "period": {
+                                  "type": "object",
+                                  "properties": {
+                                    "start": {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    "end": {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    }
+                                  },
+                                  "required": [
+                                    "start",
+                                    "end"
+                                  ]
+                                },
+                                "current": {
+                                  "type": "boolean"
+                                },
+                                "products": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 160
+                                      },
+                                      "displayName": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 100
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "displayName"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "segmentId",
+                                "offerId",
+                                "offerVersion",
+                                "displayName",
+                                "origin",
+                                "period",
+                                "current",
+                                "products"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "sourceId",
+                          "status",
+                          "period",
+                          "cancelAtPeriodEnd",
+                          "canCancel",
+                          "offers"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "subscriptions"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getBillingProductSubscriptions"
+      }
+    },
+    "/billing/product-subscriptions/cancel": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "A cancellation addresses one commercial source and never changes privacy choices.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Named source will cancel at its period end.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sourceId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    },
+                    "cancelAtPeriodEnd": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "sourceId",
+                    "cancelAtPeriodEnd"
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Provider accepted cancellation; local reconciliation is pending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sourceId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    },
+                    "reconciliationPending": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "sourceId",
+                    "reconciliationPending"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sourceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "expectedSubjectAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "sourceId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postBillingProductSubscriptionsCancel"
+      }
+    },
     "/billing/subscription": {
       "get": {
         "tags": [
@@ -9293,6 +10686,347 @@
         "operationId": "postBillingSubscriptionCancel"
       }
     },
+    "/billing/subscriptions": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Plural API-credit plans are kept separate from product-access sources.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current and historic API-credit subscription mirrors.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subscriptions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "userId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "stripeCustomerId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "stripeSubscriptionId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "stripePriceId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "trialing",
+                              "past_due",
+                              "unpaid",
+                              "canceled",
+                              "paused",
+                              "incomplete",
+                              "incomplete_expired"
+                            ]
+                          },
+                          "currentPeriodStart": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "currentPeriodEnd": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "cancelAtPeriodEnd": {
+                            "type": "boolean"
+                          },
+                          "plan": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "creditsPerMonth": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "price": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "currency": {
+                                "type": "string",
+                                "pattern": "^[a-z]{3}$"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "creditsPerMonth",
+                              "price",
+                              "currency"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "_id",
+                          "userId",
+                          "stripeCustomerId",
+                          "stripeSubscriptionId",
+                          "stripePriceId",
+                          "status",
+                          "currentPeriodStart",
+                          "currentPeriodEnd",
+                          "cancelAtPeriodEnd",
+                          "plan",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "subscriptions"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getBillingSubscriptions"
+      }
+    },
+    "/billing/subscriptions/cancel": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Select one API-credit mirror; a product source and a legacy plan are never cancelled implicitly.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The selected credit mirror.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subscription": {
+                      "type": "object",
+                      "properties": {
+                        "_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "userId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "stripeCustomerId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "stripeSubscriptionId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "stripePriceId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "active",
+                            "trialing",
+                            "past_due",
+                            "unpaid",
+                            "canceled",
+                            "paused",
+                            "incomplete",
+                            "incomplete_expired"
+                          ]
+                        },
+                        "currentPeriodStart": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "currentPeriodEnd": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "cancelAtPeriodEnd": {
+                          "type": "boolean"
+                        },
+                        "plan": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "creditsPerMonth": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "price": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[a-z]{3}$"
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "creditsPerMonth",
+                            "price",
+                            "currency"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "_id",
+                        "userId",
+                        "stripeCustomerId",
+                        "stripeSubscriptionId",
+                        "stripePriceId",
+                        "status",
+                        "currentPeriodStart",
+                        "currentPeriodEnd",
+                        "cancelAtPeriodEnd",
+                        "plan",
+                        "createdAt",
+                        "updatedAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "subscription"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subscriptionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expectedSubjectAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "subscriptionId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postBillingSubscriptionsCancel"
+      }
+    },
     "/billing/transactions": {
       "get": {
         "tags": [
@@ -9369,7 +11103,7 @@
           "Billing"
         ],
         "summary": "Stripe webhook receiver. Verifies the `stripe-signature` header against",
-        "description": "`STRIPE_WEBHOOK_SECRET` and dispatches handled events (subscription\ncreated/updated, invoice paid, checkout completed, etc.). No auth.",
+        "description": "`STRIPE_WEBHOOK_SECRET`, records the delivery in `billing_stripe_events`, and\ndispatches handled events. No auth.\n\nEvery accepted delivery is recorded BEFORE its handler runs and its outcome\nafter, so a renewal that did not grant, or a mirror that did not move, is a\nqueryable row rather than a log line. A handler that throws is recorded as\n`failed` and answered 500, which is what makes Stripe redeliver it.",
         "parameters": [],
         "responses": {
           "200": {
@@ -9390,6 +11124,219 @@
           {}
         ],
         "operationId": "postBillingWebhook"
+      }
+    },
+    "/capabilities/foreground-execution-authorizations": {
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Authorize one present requester read for a verified presenting service",
+        "description": "Separate service bearer and requester subjectToken; neither free actor nor subject IDs are accepted. No standing or automation authority is created.",
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "subjectToken",
+                  "tool",
+                  "expectedCatalog",
+                  "runId",
+                  "expiresAt"
+                ],
+                "properties": {
+                  "subjectToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16384,
+                    "pattern": "^\\S+$",
+                    "writeOnly": true
+                  },
+                  "tool": {
+                    "type": "string",
+                    "enum": [
+                      "recommendProfiles",
+                      "readViewerGraph"
+                    ]
+                  },
+                  "expectedCatalog": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "registrationId",
+                      "version",
+                      "digest"
+                    ],
+                    "properties": {
+                      "registrationId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "version": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "digest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    }
+                  },
+                  "runId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "stepId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "At most 15 minutes and never beyond the requester session or bearer."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Read-only direct authorization with actor and subject derived from live requester authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "authorization"
+                  ],
+                  "properties": {
+                    "authorization": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind",
+                        "requesterAccountId",
+                        "ownerAccountId",
+                        "coordinatorApplicationId",
+                        "coordinatorCredentialId",
+                        "actorType",
+                        "actorAccountId",
+                        "requesterSessionId",
+                        "requesterSessionBindingDigest",
+                        "requesterCatalogRegistrationId",
+                        "requesterCatalogVersion",
+                        "requesterCatalogDigest",
+                        "resourceApp",
+                        "effectiveAccountId",
+                        "resourceType",
+                        "resourceKey",
+                        "tool",
+                        "maximumAutonomy",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "const": "direct_request"
+                        },
+                        "requesterAccountId": {
+                          "type": "string"
+                        },
+                        "ownerAccountId": {
+                          "type": "string"
+                        },
+                        "coordinatorApplicationId": {
+                          "type": "string"
+                        },
+                        "coordinatorCredentialId": {
+                          "type": "string"
+                        },
+                        "actorType": {
+                          "type": "string",
+                          "const": "requester"
+                        },
+                        "actorAccountId": {
+                          "type": "string"
+                        },
+                        "requesterSessionId": {
+                          "type": "string"
+                        },
+                        "requesterSessionBindingDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "requesterCatalogRegistrationId": {
+                          "type": "string"
+                        },
+                        "requesterCatalogVersion": {
+                          "type": "string"
+                        },
+                        "requesterCatalogDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "resourceApp": {
+                          "type": "string",
+                          "const": "oxy"
+                        },
+                        "effectiveAccountId": {
+                          "type": "string"
+                        },
+                        "resourceType": {
+                          "type": "string",
+                          "const": "account"
+                        },
+                        "resourceKey": {
+                          "type": "string"
+                        },
+                        "tool": {
+                          "type": "string",
+                          "enum": [
+                            "recommendProfiles",
+                            "readViewerGraph"
+                          ]
+                        },
+                        "maximumAutonomy": {
+                          "type": "string",
+                          "const": "read_only"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or expiry."
+          },
+          "401": {
+            "description": "Service or requester proof missing or no longer current."
+          },
+          "403": {
+            "description": "Live presenter or requester authority refused."
+          },
+          "409": {
+            "description": "Catalogue pin is not current."
+          }
+        },
+        "operationId": "postCapabilitiesForegroundExecutionAuthorizations"
       }
     },
     "/cdn/{id}": {
@@ -33311,6 +35258,27 @@
                     "expiresAt": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "description": "Who acted, and as whom, read off the session row (`AccountActorChain` in `@oxy.so/contracts`). `actorAccountId` differs from `effectiveAccountId` exactly when `delegated` is true; a bot acting with nobody operating it is its own actor.\n",
+                      "properties": {
+                        "schemaVersion": {
+                          "type": "integer",
+                          "enum": [
+                            1
+                          ]
+                        },
+                        "effectiveAccountId": {
+                          "type": "string"
+                        },
+                        "actorAccountId": {
+                          "type": "string"
+                        },
+                        "delegated": {
+                          "type": "boolean"
+                        }
+                      }
                     }
                   }
                 }
@@ -36917,109 +38885,73 @@
         ],
         "responses": {
           "200": {
-            "description": "The settled receipt, including the price snapshot the charge was computed from.",
+            "description": "A financial receipt (v1) or an internal technical usage record without a financial charge (v2).",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "data": {
-                      "type": "object",
-                      "properties": {
-                        "schemaVersion": {
-                          "type": "number",
-                          "enum": [
-                            1
-                          ]
-                        },
-                        "receiptId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "generationId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "applicationId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "credentialId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "delegatedUserId": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "environment": {
-                          "type": "string",
-                          "enum": [
-                            "development",
-                            "staging",
-                            "production"
-                          ]
-                        },
-                        "outcome": {
-                          "type": "string",
-                          "enum": [
-                            "completed",
-                            "partial",
-                            "cancelled",
-                            "failed"
-                          ]
-                        },
-                        "usageSource": {
-                          "type": "string",
-                          "enum": [
-                            "provider_reported",
-                            "oxy_measured",
-                            "estimated"
-                          ]
-                        },
-                        "units": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "unit": {
-                                "type": "string"
-                              },
-                              "quantity": {
-                                "type": "integer",
-                                "minimum": 0
-                              }
-                            },
-                            "required": [
-                              "unit",
-                              "quantity"
-                            ]
-                          }
-                        },
-                        "resolvedModelReference": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "servingProvider": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "priceSnapshot": {
+                      "oneOf": [
+                        {
                           "type": "object",
                           "properties": {
-                            "priceVersionId": {
+                            "schemaVersion": {
+                              "type": "number",
+                              "enum": [
+                                1
+                              ]
+                            },
+                            "receiptId": {
                               "type": "string",
                               "minLength": 1
                             },
-                            "currency": {
+                            "requestId": {
                               "type": "string",
-                              "pattern": "^[A-Z]{3}$"
+                              "minLength": 1
                             },
-                            "unitPrices": {
+                            "generationId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "applicationId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "credentialId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "delegatedUserId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "environment": {
+                              "type": "string",
+                              "enum": [
+                                "development",
+                                "staging",
+                                "production"
+                              ]
+                            },
+                            "outcome": {
+                              "type": "string",
+                              "enum": [
+                                "completed",
+                                "partial",
+                                "cancelled",
+                                "failed"
+                              ]
+                            },
+                            "usageSource": {
+                              "type": "string",
+                              "enum": [
+                                "provider_reported",
+                                "oxy_measured",
+                                "estimated"
+                              ]
+                            },
+                            "units": {
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -37027,65 +38959,326 @@
                                   "unit": {
                                     "type": "string"
                                   },
-                                  "amount": {
-                                    "type": "string"
-                                  },
-                                  "per": {
+                                  "quantity": {
                                     "type": "integer",
-                                    "exclusiveMinimum": 0
-                                  },
-                                  "currency": {
-                                    "type": "string",
-                                    "pattern": "^[A-Z]{3}$"
+                                    "minimum": 0
                                   }
                                 },
                                 "required": [
                                   "unit",
-                                  "amount",
-                                  "per",
-                                  "currency"
+                                  "quantity"
                                 ]
                               }
+                            },
+                            "resolvedModelReference": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "servingProvider": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "priceSnapshot": {
+                              "type": "object",
+                              "properties": {
+                                "priceVersionId": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "pattern": "^[A-Z]{3}$"
+                                },
+                                "unitPrices": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "unit": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string"
+                                      },
+                                      "per": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0
+                                      },
+                                      "currency": {
+                                        "type": "string",
+                                        "pattern": "^[A-Z]{3}$"
+                                      }
+                                    },
+                                    "required": [
+                                      "unit",
+                                      "amount",
+                                      "per",
+                                      "currency"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "priceVersionId",
+                                "currency",
+                                "unitPrices"
+                              ]
+                            },
+                            "billedAmount": {
+                              "type": "string"
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            },
+                            "platformFeeOnly": {
+                              "type": "boolean"
+                            },
+                            "settledAt": {
+                              "type": "string",
+                              "format": "date-time"
                             }
                           },
                           "required": [
-                            "priceVersionId",
+                            "schemaVersion",
+                            "receiptId",
+                            "requestId",
+                            "applicationId",
+                            "credentialId",
+                            "environment",
+                            "outcome",
+                            "usageSource",
+                            "units",
+                            "resolvedModelReference",
+                            "servingProvider",
+                            "priceSnapshot",
+                            "billedAmount",
                             "currency",
-                            "unitPrices"
+                            "platformFeeOnly",
+                            "settledAt"
                           ]
                         },
-                        "billedAmount": {
-                          "type": "string"
-                        },
-                        "currency": {
-                          "type": "string",
-                          "pattern": "^[A-Z]{3}$"
-                        },
-                        "platformFeeOnly": {
-                          "type": "boolean"
-                        },
-                        "settledAt": {
-                          "type": "string",
-                          "format": "date-time"
+                        {
+                          "type": "object",
+                          "properties": {
+                            "schemaVersion": {
+                              "type": "number",
+                              "enum": [
+                                2
+                              ]
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "metered_usage"
+                              ]
+                            },
+                            "meteredUsageId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "requestId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "generationId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "parentRequestId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "applicationId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "credentialId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "delegatedUserId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "environment": {
+                              "type": "string",
+                              "enum": [
+                                "development",
+                                "staging",
+                                "production"
+                              ]
+                            },
+                            "economicTreatment": {
+                              "type": "string",
+                              "enum": [
+                                "internal_metered"
+                              ]
+                            },
+                            "economicPolicyVersion": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "outcome": {
+                              "type": "string",
+                              "enum": [
+                                "completed",
+                                "partial",
+                                "cancelled",
+                                "failed"
+                              ]
+                            },
+                            "usageSource": {
+                              "type": "string",
+                              "enum": [
+                                "provider_reported",
+                                "oxy_measured",
+                                "estimated"
+                              ]
+                            },
+                            "units": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "unit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "input_tokens",
+                                      "cached_input_tokens",
+                                      "output_tokens",
+                                      "reasoning_tokens",
+                                      "requests",
+                                      "images",
+                                      "audio_input_milliseconds",
+                                      "audio_output_milliseconds",
+                                      "video_milliseconds",
+                                      "characters",
+                                      "embeddings",
+                                      "audio_input_tokens",
+                                      "cached_audio_input_tokens",
+                                      "audio_output_tokens",
+                                      "session_milliseconds"
+                                    ]
+                                  },
+                                  "quantity": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "unit",
+                                  "quantity"
+                                ]
+                              }
+                            },
+                            "resolvedModelReference": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$",
+                              "maxLength": 194
+                            },
+                            "servingProvider": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "tariff": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "quoted"
+                                      ]
+                                    },
+                                    "amount": {
+                                      "type": "string",
+                                      "pattern": "^(?:0|[1-9][0-9]{0,17})(?:\\.[0-9]{1,12})?$"
+                                    },
+                                    "currency": {
+                                      "type": "string",
+                                      "pattern": "^[A-Z]{3}$"
+                                    },
+                                    "priceVersionId": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    }
+                                  },
+                                  "required": [
+                                    "status",
+                                    "amount",
+                                    "currency",
+                                    "priceVersionId"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "status": {
+                                      "type": "string",
+                                      "enum": [
+                                        "unpriced"
+                                      ]
+                                    },
+                                    "priceVersionId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "minLength": 1
+                                    }
+                                  },
+                                  "required": [
+                                    "status",
+                                    "priceVersionId"
+                                  ]
+                                }
+                              ],
+                              "discriminator": {
+                                "propertyName": "status"
+                              }
+                            },
+                            "customerCharge": {
+                              "type": "object",
+                              "properties": {
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "not_charged"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ]
+                            },
+                            "settledAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "required": [
+                            "schemaVersion",
+                            "kind",
+                            "meteredUsageId",
+                            "requestId",
+                            "applicationId",
+                            "credentialId",
+                            "environment",
+                            "economicTreatment",
+                            "economicPolicyVersion",
+                            "outcome",
+                            "usageSource",
+                            "units",
+                            "resolvedModelReference",
+                            "servingProvider",
+                            "tariff",
+                            "customerCharge",
+                            "settledAt"
+                          ]
                         }
-                      },
-                      "required": [
-                        "schemaVersion",
-                        "receiptId",
-                        "requestId",
-                        "applicationId",
-                        "credentialId",
-                        "environment",
-                        "outcome",
-                        "usageSource",
-                        "units",
-                        "resolvedModelReference",
-                        "servingProvider",
-                        "priceSnapshot",
-                        "billedAmount",
-                        "currency",
-                        "platformFeeOnly",
-                        "settledAt"
                       ]
                     }
                   },
@@ -39903,6 +42096,270 @@
           {}
         ],
         "operationId": "getV1ModelsPublisherModelDocumentation"
+      }
+    },
+    "/v1/products/{productId}/access/{subjectAccountId}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Read the effective subject's rights for the session's application product.",
+        "description": "Requires an application-bound user:read session, live account:read authority\nand a usable production credential. Subject must equal the current session\nsubject. Missing/inconsistent configuration fails closed. No legacy balances\nare interpreted; reads explicitly registered live production sources only.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "subjectAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Access-only result; Cache-Control no-store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "schemaVersion": {
+                          "type": "number",
+                          "enum": [
+                            1
+                          ]
+                        },
+                        "subjectAccountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "productId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "evaluatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "capabilities": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160
+                              },
+                              "grantIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "grantIds"
+                            ]
+                          }
+                        },
+                        "quotas": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160
+                              },
+                              "unit": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160
+                              },
+                              "included": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "combination": {
+                                "type": "string",
+                                "enum": [
+                                  "maximum",
+                                  "sum",
+                                  "exclusive"
+                                ]
+                              },
+                              "grantIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "unit",
+                              "included",
+                              "combination",
+                              "grantIds"
+                            ]
+                          }
+                        },
+                        "conflicts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160
+                              },
+                              "reason": {
+                                "type": "string",
+                                "enum": [
+                                  "combination_mismatch",
+                                  "unit_mismatch",
+                                  "exclusive_overlap",
+                                  "unsafe_total"
+                                ]
+                              },
+                              "grantIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 160
+                                }
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "reason",
+                              "grantIds"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "schemaVersion",
+                        "subjectAccountId",
+                        "productId",
+                        "evaluatedAt",
+                        "capabilities",
+                        "quotas",
+                        "conflicts"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Current session authority unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Required credential, scope or account permission unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subject or product audience unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Product configuration missing or inconsistent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getV1ProductsProductIdAccessSubjectAccountId"
       }
     },
     "/v1/responses": {

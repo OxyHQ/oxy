@@ -58,6 +58,7 @@ jest.mock('../../src/ui/session', () => {
 });
 
 import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
+import { useAuth } from '../../src/ui/hooks/useAuth';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 
@@ -88,6 +89,7 @@ function buildStub(overrides: { devices?: Record<string, unknown> } = {}) {
       getSessionBaseUrl: () => API_BASE_URL,
       session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; } },
 cache: { clear: jest.fn() },
+apps: { getPublic: jest.fn(async () => ({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) },
 devices: { mintToken: jest.fn(async () => ({
         accessToken: 'cb.minted.access',
         expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -110,9 +112,11 @@ devices: { mintToken: jest.fn(async () => ({
 }
 
 let capturedContext: OxyContextState | null = null;
+let capturedAuth: ReturnType<typeof useAuth> | null = null;
 
 function Capture() {
   capturedContext = useOxy();
+  capturedAuth = useAuth();
   return null;
 }
 
@@ -166,10 +170,12 @@ describe('OxyContext — the browser bridge', () => {
 
     const popup = fakePopup();
     const open = jest.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
+    const classifications = stub.apps.getPublic.mock.calls.length;
     act(() => {
-      capturedContext?.openAccountDialog('signin');
+      void capturedAuth!.signIn();
     });
-    // Synchronously, inside the call — gesture attribution.
+    expect(stub.apps.getPublic).toHaveBeenCalledTimes(classifications);
+    // Synchronously through the public hook — gesture attribution.
     expect(open).toHaveBeenCalledWith('', OXY_BRIDGE_WINDOW_NAME, expect.any(String));
 
     const url = await navigated(popup);

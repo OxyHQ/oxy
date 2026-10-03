@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "514790b7387d4a2636e0ef1efc3cba09c71654e4",
+  "productionEffects": false,
+  "migrationChanged": false,
+  "sources": [
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "f016285e4afeaa63f038fc86559c69bab6d89556397487b02b72cb3c5fd366e7",
+      "bytes": 1485498,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts",
+      "sha256": "8bbd283ddf5686f679f5a11fc9df4a033f2d331eeb9b80a979fe52e20ff4aa2f",
+      "bytes": 79860,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/api/src/routes/billing.ts",
+      "sha256": "e90bbceadb3ab64c4f4a9407a6bc6ba15b9ebb225813b173154a3c21a1ab40a6",
+      "bytes": 68383,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/api/src/schemas/billing.schemas.ts",
+      "sha256": "754928a7cd723aa6b1be3db06dfd8f644e16ebf1089498f735bdae8c59d9a861",
+      "bytes": 2201,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/productAccessPersistence.test.ts",
+      "sha256": "c703ed63d3ceb218317b5d6d82d0b244e2d10d3c0fc1def4100c18e9c4761e70",
+      "bytes": 16492,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/api/src/services/productAccessPersistence.service.ts",
+      "sha256": "fa723236747eb487cc7128e5b6f0d41e16f8667a28f937971088c493836ddeec",
+      "bytes": 24766,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/api/src/services/productBillingCatalogue.service.ts",
+      "sha256": "55fe06d8d00a25c5faf4135c33c33ae569067b272f61c34551fd2758628075fb",
+      "bytes": 10935,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/api/src/services/productProviderEvidence.service.ts",
+      "sha256": "76a6d9f9a4e99f18a9a4be924069956bd24593682156dd6023c11266e5406087",
+      "bytes": 7921,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/console/src/hooks/__tests__/billing-subject.test.tsx",
+      "sha256": "73537d3efcde10f0df6a2a19df08c178cef3c019eb8dce2a87da3c0bc9fd12fc",
+      "bytes": 4982,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/console/src/hooks/use-billing.ts",
+      "sha256": "71293ea24881ccd33c1cea16f2d7e958967b63200c3f5f7ea7b9096b3814a82f",
+      "bytes": 8359,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/console/src/routes/_layout/billing/plans.tsx",
+      "sha256": "0aef5c8fd04f72a6209de0e96b0f7559b8f0362f63e992cca4b9a276e9d7abb6",
+      "bytes": 15695,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "b594fe916f9668945cd9e0f5650b3c4cc3437d43bfc5cbc5cfa7100f2dfe7078",
+      "bytes": 42678,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/contracts/src/products/billing.ts",
+      "sha256": "30b2a97d143eecaa4f5bfd5984751345b2284ef3c63778f7817f46e1fc5c8ebe",
+      "bytes": 2527,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/core/src/api/__tests__/billing.test.ts",
+      "sha256": "42680220194df8fc9bd80c8943a5209dacfa506301ed568f5ca810eac04d6534",
+      "bytes": 6089,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "packages/core/src/api/billing.ts",
+      "sha256": "dccf3f87c329578a24e01a3ceb07785b39bd2959d0a40d3ea2e2ff6fd472ea26",
+      "bytes": 7273,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    },
+    {
+      "path": "scripts/rehearsal/test-billing-renewal-1519.py",
+      "sha256": "aa04bc46cdc4c0d063b76b1bdd0e1733dd9c597e3ad1ee41308241e0c57be4e7",
+      "bytes": 5183,
+      "sourceCommit": "514790b7387d4a2636e0ef1efc3cba09c71654e4"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-config-cancel-red.log",
+      "sha256": "47a2b0e85c16584a325416510e3f5968d376d42d09d32ea15cfaae7fd217668a",
+      "bytes": 4445,
+      "exitCode": 1
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-config-cancel-green.log",
+      "sha256": "f776824166ab958ab269ff214a398e47bf7263828921aa7048a2d4394f961fd8",
+      "bytes": 4443,
+      "exitCode": 1
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-config-cancel-final-v2.log",
+      "sha256": "0386fcd4a029825e1a0faf2b0b3de484fc893c12e9fef176e5045d9033abea9c",
+      "bytes": 3033,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-core.log",
+      "sha256": "5f2fb3ce307f0b8d5e992596491697c1885ae83d642149930dde44168ad32caf",
+      "bytes": 279,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-console-final.log",
+      "sha256": "1275f9af323c8c4d7272cc54718df55345c432cad2ded5b22c3690738fc31f11",
+      "bytes": 668,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-api-ts-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-scripts-ts.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-console-ts.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-services-build.log",
+      "sha256": "bcc1b87dc90f5d1807abdaa9d686bfb06016eb713dda1beada7e7789fd4a98ba",
+      "bytes": 1551,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-lint-final.log",
+      "sha256": "8f12d5bf99743d839dc147afc355652ce90ab367d0e1203997d03bbb516cbd18",
+      "bytes": 44,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-openapi-final.log",
+      "sha256": "dabd3cf081b1fea121b63b093eaf98640ff7b471e0ff3d80ad4171f13df371bc",
+      "bytes": 180,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-openapi-gate.log",
+      "sha256": "504f8919dd1016456f280d41831401e6c429c14dcabdaaa312e5eb6f7f6748cd",
+      "bytes": 298,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/p2-openapi-fixtures-final.log",
+      "sha256": "9f231cbda032379ca4809fe1d9f267f60300f5ddb33c69f8d5bd35e4b33128fb",
+      "bytes": 58,
+      "exitCode": 0
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/red-api.log",
+      "sha256": "99d7b17bf1f0ff5fc48dbe9916a51b98aa1cbeb6982dd2325766dc524edbd20c",
+      "bytes": 29233,
+      "exitCode": 1
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/intermediate-api.log",
+      "sha256": "23348e27b453b92a825277e6664330c66542f7e8d6a9759f6fb8fd9a7217f0c8",
+      "bytes": 25858,
+      "exitCode": 1
+    },
+    {
+      "path": "docs/billing/evidence/2026-10-03-full-catalogue-cancellation/final-api.log",
+      "sha256": "d254a368b65feb11478f9596392428e173b1562dc0b7a4511d7ff7a7aa2f8fb2",
+      "bytes": 25257,
+      "exitCode": 0
+    }
+  ],
+  "acceptance": {
+    "api": "11 suites / 176 tests",
+    "core": "1 suite / 10 tests",
+    "console": "3 Vitest + 2 edge tests",
+    "typechecks": [
+      "API",
+      "scripts",
+      "Console"
+    ],
+    "biome": "13 files / 0 warnings",
+    "openapiFixtures": 32
+  },
+  "reproductionNotes": [
+    "Original source fd6400c16: seven new regressions failed while 166 baseline tests passed.",
+    "First corrected run: 172 passed, one fixture counter was reset in a grant mock instead of beforeEach. Counter isolation corrected; original failure retained.",
+    "Final adds strict quota-field and immutable financial identity/closure/stale-observation cases plus provider-confirmed unprojectable-snapshot case. No claim of identical RED harness for those additional cases.",
+    "API typecheck initially overlapped telemetry rebuild and observed missing declarations; rerun after ordered dependency build passed. No source workaround."
+  ]
+}

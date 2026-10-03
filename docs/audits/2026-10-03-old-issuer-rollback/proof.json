@@ -1,0 +1,510 @@
+{
+  "schemaVersion": 1,
+  "harnessHead": "122b66a4042b6c63107f96c467cc56e2e25a2bd6",
+  "oldSource": "67c09e853db308d102624a2ffd40db19959344f4",
+  "productSource": "dcd3ddd425b031a26418268f0ebf34da7b333296",
+  "sourceSha256": {
+    "scripts/rehearsal/old-issuer/capability-probe.mjs": "95d199eca16f887296c4d18e32be0ca19d45073c1cd6b71db257e4551f3cbc4b",
+    "scripts/rehearsal/old-issuer/host.mjs": "924a15cece2b66f7524271d2b6021d221a03b26cac42d5874d72020697437ab4",
+    "scripts/rehearsal/old-issuer/io-guard.mjs": "a707a2cd4b3bfb5669a50e87a515ce11506b7e763d38c70511849a6c70ce36e8",
+    "scripts/rehearsal/old-issuer/probe.mjs": "401a8e9d4df1e4cdcef3038c54e3ba7eb3d3ebe31e4b7bf2ddef4f93f72beadd",
+    "scripts/rehearsal/old-issuer/run.py": "afa326cdb0faf349d493f9aac4ad50b37bd4c3351026fb2b8f6a61b451ac0e6f",
+    "scripts/rehearsal/old-issuer/seed-preserved.mjs": "44e00ecd17933520ab009548f2d7fed885aad17742958d0a3f5c56a140d6a891"
+  },
+  "productTrees": {
+    "old": {
+      "packages/api/src": "98e9589d34257d446e26a2942089469103f46b3e",
+      "packages/api/drizzle": "d977730f32de95e456e5055e051a4d6b922ce06e",
+      "packages/utils": "8c1c3ae56dc9a8ab0d7038971631d20f50b42068",
+      "packages/telemetry": "4a8f21d125797d5560ff18a22f237c5b2aa04f54",
+      "packages/contracts": "90fcfbfbbc8bc89f4451f8ecce745972cece01aa",
+      "packages/protocol": "d466c7a33acd4f2b59393663aecef4e65edb11b0",
+      "packages/core": "330f5a6ae579a60ef34215eaf3e13bd870b2aaca",
+      "packages/federation": "bb1a677fed4c4f80f273f1dd800cc6bf4c5db001",
+      "packages/db": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+      "packages/mcp": "9f8ecc6bc17134e60f050d4791193d081115c81e"
+    },
+    "final": {
+      "packages/api/src": "2f0774ccc153b0dd5aa66bd2b8e40bee2542bba1",
+      "packages/api/drizzle": "bbcf39958337dbe0ede4a57285e2c929170bf21e",
+      "packages/utils": "8c1c3ae56dc9a8ab0d7038971631d20f50b42068",
+      "packages/telemetry": "4a8f21d125797d5560ff18a22f237c5b2aa04f54",
+      "packages/contracts": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+      "packages/protocol": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "packages/core": "753e79412ff42de4e6100394de53dbfaa6400a89",
+      "packages/federation": "bb1a677fed4c4f80f273f1dd800cc6bf4c5db001",
+      "packages/db": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+      "packages/mcp": "828269746b7b3ce63a80d6df0881fa4f8e2c7520"
+    }
+  },
+  "historicalPrivateRecords": {
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-7pm43tbb": {
+      "classification": "fixture response-field error",
+      "records": {
+        "final-host.log": {
+          "sha256": "250ab39b63f6efe3e129bfa376dce4e1845d36277488eb9b9f4611a9379cd08b",
+          "bytes": 203
+        },
+        "http-sql-probe.log": {
+          "sha256": "764da6f2a854d76b7bb2e698b2772c0bd931036c8fdb8f7a8d2e0c98c134fdbb",
+          "bytes": 912
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-host.log": {
+          "sha256": "64c28b8d994bd58a89d3f20097f8d81aff85a533be387174d667346309bbd56f",
+          "bytes": 203
+        },
+        "postgres.log": {
+          "sha256": "95e6f8d0cb981e54cceab56520203b05e12f704f9ca4efed90016c32c4859962",
+          "bytes": 1775
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "c4cc74f43fef0eafd591146c282f9111a1b3bf237bf9b13d3f333f29dc2d1981",
+          "bytes": 1603
+        }
+      }
+    },
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-vfup0q0k": {
+      "classification": "earlier partial pass",
+      "records": {
+        "final-host.log": {
+          "sha256": "ffe17f6535287f1b7ca12160863955877f477820fb992c4943023fb19d91ad98",
+          "bytes": 203
+        },
+        "http-sql-probe.log": {
+          "sha256": "7e97c1d681c12d5c45beac045038db090ac3d63198ecb3b48abaf8e8bfa32ffe",
+          "bytes": 407
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-host.log": {
+          "sha256": "63297514a0d3edc626ba6cb804a34b33f5f3f8f438520827f4ec69122ffba421",
+          "bytes": 203
+        },
+        "postgres.log": {
+          "sha256": "5aad49b38213381662c1f7c0cc8c55bf48c46d2bdda8c776d9b8656afdd653e5",
+          "bytes": 1775
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "3e8f1eb9db8ce218aaf9ecb8bac8c636ca0790fa10c6a7731c7d2a49cafa0b17",
+          "bytes": 1626
+        }
+      }
+    },
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-yls_qxiu": {
+      "classification": "actual RED warmed old cache",
+      "records": {
+        "final-host.log": {
+          "sha256": "d497858f0e82cc0d4c331b32b09a8b4e18ce3d4fcbde6d4277e672b55b521afe",
+          "bytes": 203
+        },
+        "http-sql-probe.log": {
+          "sha256": "5eb04fad56ad0a15241d25574c95733b681f461c3c2b34984bcdb99ac3bd4bf0",
+          "bytes": 976
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-host.log": {
+          "sha256": "614cb0a67bccc4390f59f2323dd5c3504e4697ded868fa7b280b26b276d69c82",
+          "bytes": 203
+        },
+        "postgres.log": {
+          "sha256": "c3042989a86b3678976afc5b3391c6deb91b1757b75ecd94e76cce27dc7aaae3",
+          "bytes": 1775
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "39d266c04219a35af1ef954651192e41c9d5f05024515b07189de007435fe46a",
+          "bytes": 1603
+        }
+      }
+    },
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-0gno8cu6": {
+      "classification": "earlier cold-control pass",
+      "records": {
+        "cold-stop-control.log": {
+          "sha256": "54c5a4dc3a805b2bde7e46cabcdf32eb266a8fdb9cd1989fdcf913f2db30fb31",
+          "bytes": 105
+        },
+        "final-host.log": {
+          "sha256": "6c1b63bebebcaeadedda4840eb8d6818ebdf781001201065c6c8dbc8f14791bf",
+          "bytes": 203
+        },
+        "http-sql-probe.log": {
+          "sha256": "3f8b0c89e11eb606dabdb8c826493c742b37656e4abebed193fb11b6217db45f",
+          "bytes": 554
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-cold-host.log": {
+          "sha256": "7013d8498c3b604f27ea06354bd2e68e3e2d8ae74db5a38f669c44aedf2a5d2a",
+          "bytes": 203
+        },
+        "old-host.log": {
+          "sha256": "3686b7a4759da43332c5eb81b275bf77f61d9289ec2afd94ac197aaac3fecd7b",
+          "bytes": 203
+        },
+        "postgres.log": {
+          "sha256": "bc56e3c128970c56a15f4c0311373622fcc004d81c74a53c24c08e53f0097bb9",
+          "bytes": 1775
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "424625553f0e16439dd325245badf4ea92385c0fc518d56f72a95fe193b1b9e5",
+          "bytes": 6040
+        }
+      }
+    },
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-8q_jzgwh": {
+      "classification": "fixture wrong content type",
+      "records": {
+        "cold-stop-control.log": {
+          "sha256": "54c5a4dc3a805b2bde7e46cabcdf32eb266a8fdb9cd1989fdcf913f2db30fb31",
+          "bytes": 105
+        },
+        "final-host.log": {
+          "sha256": "7ee04c69fa6d200d2f67901de6d3e1191ea78af71b43d8449118683fe40941a5",
+          "bytes": 203
+        },
+        "http-sql-probe.log": {
+          "sha256": "45ed3aaea85b5044831efe2064a39a481ca4843ada49d80a7bc8f4fa38f4598c",
+          "bytes": 689
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-cold-host.log": {
+          "sha256": "75b28676a3227b1157311ea6d0f35482a11f92ae46419328ced33aed98903baa",
+          "bytes": 203
+        },
+        "old-host.log": {
+          "sha256": "154698c92f8afc90b8bec0c254c15b9f7e9e8ee82e19d6edef779105c900573d",
+          "bytes": 203
+        },
+        "postgres.log": {
+          "sha256": "43269db7f6da0cf219d87723f7cbfbff2c325e91c02bf2f7db29943fc69e363b",
+          "bytes": 1775
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "8420ff9538fd960cf5d40ba21791de7defa34417cb508313362f9dae28d93207",
+          "bytes": 6040
+        }
+      }
+    },
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-mmcodjlr": {
+      "classification": "correct form code control",
+      "records": {
+        "cold-stop-control.log": {
+          "sha256": "54c5a4dc3a805b2bde7e46cabcdf32eb266a8fdb9cd1989fdcf913f2db30fb31",
+          "bytes": 105
+        },
+        "final-host.log": {
+          "sha256": "679f7e9151cc5090cb6df7920ae7d28927a6685c2a1e06f989dfa1a209ae907d",
+          "bytes": 366
+        },
+        "http-sql-probe.log": {
+          "sha256": "a76ff994d8b3d59abb7a74154b5e2d61653228b667d3f54278a6382185831eef",
+          "bytes": 689
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-cold-host.log": {
+          "sha256": "6914132b5ee3c4a87da9c6d922d5282248bdb41e8e85722d97a5143a58ee0168",
+          "bytes": 203
+        },
+        "old-host.log": {
+          "sha256": "fb758fddff50d2fbcee1c4ac92c8b9c0c0892e40bdc7cb949c1773c44a3066d3",
+          "bytes": 366
+        },
+        "postgres.log": {
+          "sha256": "23894136550185457bc13df94a0c5ba484633e0e035aff113f0f676aeeb54b9a",
+          "bytes": 1775
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "642dc41b12269e993c27428fd5af888afe61f80afe04f5287a61ffb93ff59605",
+          "bytes": 6040
+        }
+      }
+    },
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-1t118ikd": {
+      "classification": "fixture Redis cleanup timeout; own process stopped",
+      "records": {
+        "final-host.log": {
+          "sha256": "61b84546b690e98cffc63d10d0051a0a8441de21bae330b88334f7fec338124a",
+          "bytes": 601
+        },
+        "http-sql-probe.log": {
+          "sha256": "637f0fa521edc951bfa249040c2c75433c89cf6d93db48f81b5f1413e4c06f3c",
+          "bytes": 935
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-host.log": {
+          "sha256": "384022e3e5bbb41595de3caa2d85612d3ad949c62cd7d697bda86d32760bbc80",
+          "bytes": 601
+        },
+        "postgres.log": {
+          "sha256": "6ea9baefda5f5fafcd0a88abb62815a5dbfe3cb3269b5c3e03960466e3fed276",
+          "bytes": 1775
+        },
+        "redis.log": {
+          "sha256": "ce3669c9d5dffec4f89fb48dffa4489112ddc59044a4f664179fe1f49906048b",
+          "bytes": 1201
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "73207a2933d80408ecab157883e7ed08e372f63622007bf334f613b8231ffd2a",
+          "bytes": 3761
+        }
+      }
+    },
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-vz4pp41l": {
+      "classification": "fixture wrong stored-pin expectation",
+      "records": {
+        "final-host.log": {
+          "sha256": "9f7b564a830af4f418db3771983d8f523a332300f4fbd257608bcf04613d24af",
+          "bytes": 235
+        },
+        "http-sql-probe.log": {
+          "sha256": "e86b776d7950a17dcb7499e21d3b008e9ee50b565e8eaa429212ab9730b713f0",
+          "bytes": 1293
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-host.log": {
+          "sha256": "65dfe91ef02688f0d207983c4a0f14e7c5d23749b07d5a377b33bd5f3d3e94f2",
+          "bytes": 235
+        },
+        "postgres.log": {
+          "sha256": "57464759ba93637de3709907aa58ca42f0261bf5c442e835fcc87b0648a71ce0",
+          "bytes": 1775
+        },
+        "redis.log": {
+          "sha256": "38d945f93011f28f1fff8c460d8204c00bbf8ef67fcfa08b04418360222fb057",
+          "bytes": 1201
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "926f58bb9db2475613626e7894080f4fe22097ed63ed3862766aedf860c012bb",
+          "bytes": 3759
+        }
+      }
+    },
+    "/home/nate/Oxy/oxy/.worktrees/1519-old-issuer-rehearsal-20261003/.integration-evidence/rollback-fas4y0uv": {
+      "classification": "full pass before final rebase",
+      "records": {
+        "cold-stop-control.log": {
+          "sha256": "54c5a4dc3a805b2bde7e46cabcdf32eb266a8fdb9cd1989fdcf913f2db30fb31",
+          "bytes": 105
+        },
+        "final-host.log": {
+          "sha256": "5dd0f033ee644cd94af03d9a033d6b7db0eda302715f60e77392da7efb1b1957",
+          "bytes": 398
+        },
+        "http-sql-probe.log": {
+          "sha256": "bd2c1f25651e1f7b3c2569e1534caae10d2a4c1668de4b0eae306bbb8a11a12c",
+          "bytes": 1291
+        },
+        "migrate-fresh.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "migrate-repeat.log": {
+          "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+          "bytes": 40
+        },
+        "old-cold-host.log": {
+          "sha256": "5d81a8964efa78ba4d04aa5969958af2871185a73e8e7eb420a0a96ba97bb82f",
+          "bytes": 52
+        },
+        "old-host.log": {
+          "sha256": "998b60171a9dae3db8204130bdb55e7771219adb61c20245f54d32354f2c4214",
+          "bytes": 398
+        },
+        "postgres.log": {
+          "sha256": "916de5b39b82783f8a32901e12133fbec4146163148a4263df330ce0600323ae",
+          "bytes": 1775
+        },
+        "redis.log": {
+          "sha256": "075acba3ab6d999f94edeaf1f23866a0892ac479777bb96d522029079a09745b",
+          "bytes": 1201
+        },
+        "seed.log": {
+          "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625",
+          "bytes": 61
+        },
+        "receipt.json": {
+          "sha256": "d97ad4b9434a8223969e4238903f1a20562180d43e9c7f123a6e537108d4da0e",
+          "bytes": 6199
+        }
+      }
+    }
+  },
+  "records": {
+    "docs/audits/2026-10-03-old-issuer-rollback/README.md": {
+      "sha256": "b72ddf7f77403a157286c35b07ce163e2cf083d29ee90dfafa769266360eb5a4",
+      "bytes": 11771
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/built-dependencies.json": {
+      "sha256": "9ba33319dce295089f048df08e161d399569eb4473547a0f071d7bf3745d3df6",
+      "bytes": 330559
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/cold-stop-control.log": {
+      "sha256": "54c5a4dc3a805b2bde7e46cabcdf32eb266a8fdb9cd1989fdcf913f2db30fb31",
+      "bytes": 105
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/final-host.log": {
+      "sha256": "c883841184b72a92a9c000dc0fdc53a27c43564ba3e873516334c46d5e16b39d",
+      "bytes": 377
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/final-receipt.json": {
+      "sha256": "35d55d9e97f5decabd796a1ce31ab65019c4f64ad5610c4a0ee91544146d1e70",
+      "bytes": 6222
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/http-sql-probe.log": {
+      "sha256": "d9b7f0084a40e179df9ee7b7d28b4b61962bd8f404294fd1c0f4466287f2cfdb",
+      "bytes": 1402
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-final-dcd-deps.log": {
+      "sha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d",
+      "bytes": 4181
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-final-dcd-install.log": {
+      "sha256": "09a035f19090c777a2e70500c6bcded747bd6d8a5ffe90eb6c8ecec3b00fa337",
+      "bytes": 148
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-final-dcd.log": {
+      "sha256": "0386e775bdd7db9df895a84850c424307bb9e406d7479eba145e775b3baff77e",
+      "bytes": 203
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-old-deps.log": {
+      "sha256": "d0b583f8cca2af94fd55a1f0198cf9cd6f00925ae2b8a239dd323b58b709e95d",
+      "bytes": 4181
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/i04-rollback-old-install.log": {
+      "sha256": "84b44793690c2a198843d67b971edf1542eecc1a1874a1394bf8cea28cc7b343",
+      "bytes": 784
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/migrate-fresh.log": {
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+      "bytes": 40
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/migrate-repeat.log": {
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2",
+      "bytes": 40
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/old-cold-host.log": {
+      "sha256": "216fcc266162edb8f6e81d9aac7e4c4a5bd19ae50eff2d4d0e6f6d7716534996",
+      "bytes": 31
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/old-host.log": {
+      "sha256": "40949632a134880eabaf054c1a87819aa603d02a61bb69bca77ea6402d56b809",
+      "bytes": 377
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/red-warmed-old.log": {
+      "sha256": "5eb04fad56ad0a15241d25574c95733b681f461c3c2b34984bcdb99ac3bd4bf0",
+      "bytes": 976
+    },
+    "docs/audits/2026-10-03-old-issuer-rollback/records/source-and-proof-check.log": {
+      "sha256": "9a236487b94278541d7403cfa109af744ee96863522ab1397e3089d4d259fdec",
+      "bytes": 196
+    }
+  },
+  "reusedMigrationProof": {
+    "path": "docs/audits/2026-10-03-i05-foreground-approval-p2/proof.json",
+    "sha256": "4153bcac2f3b5af9f9ab68763fa9f7e13d91a224b7ac2d69c808c7fe6a89a8af",
+    "bytes": 7838,
+    "matchedInputs": {
+      "packages/api/drizzle/0142_melodic_sister_grimm.sql": "39171c5cfae5c33ba756389cf69741e096a31dc1130684b963efdb46275196e7",
+      "scripts/rehearsal/test-i05-foreground-migration.py": "56b3cdfa9bde912c3bf3d9f6f2a1b98f4b8f4a006fc5b04548f66772438a8c12"
+    }
+  },
+  "limits": {
+    "productionOperations": false,
+    "apiSourceLoadedByBun": true,
+    "productionBootstrapSchedulersStarted": false,
+    "externalNetworkAttempts": 0,
+    "awsWorkloadAttestation": "synthetic trusted seam",
+    "fullApiSuite": false,
+    "productionRollbackAccepted": false,
+    "independentReceiverStopStillRequired": true,
+    "oldProductionBootstrapStartsFinancialWriters": true,
+    "productionColdStartBlockedUntilEmbeddedWriterStopVerified": true
+  }
+}

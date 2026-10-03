@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { logoutIsolatedOAuthSession, readIsolatedOAuthSession } from '../isolatedOAuthSession';
 import type { ApiError, User } from '@oxy.so/core';
 import type { AuthStateStore, IdentityBinding, SessionClient } from '@oxy.so/core/session';
 import type { ClientSession, SessionLoginResponse } from '@oxy.so/core';
@@ -13,6 +14,7 @@ import { SignatureService } from '@oxy.so/core/crypto';
 
 export interface UseAuthOperationsOptions {
   oxyServices: OxyServices;
+  ensureDeviceSessionLane: () => void | Promise<void>;
   storage: StorageInterface | null;
   /**
    * The device-first persisted auth-state store. On EXPLICIT full sign-out the
@@ -79,8 +81,8 @@ const LOGOUT_ALL_ERROR_CODE = 'LOGOUT_ALL_ERROR';
 export function clearPersistedAuthSafe(
   store: AuthStateStore,
   logger?: (message: string, error?: unknown) => void,
-): void {
-  store.clear().catch((clearError) => {
+): Promise<void> {
+  return store.clear().catch((clearError) => {
     logger?.('Failed to clear persisted auth state on sign-out', clearError);
   });
 }
@@ -91,6 +93,7 @@ export function clearPersistedAuthSafe(
  */
 export const useAuthOperations = ({
   oxyServices,
+  ensureDeviceSessionLane,
   store,
   runtime,
   saveActiveSessionId,
@@ -109,6 +112,7 @@ export const useAuthOperations = ({
    */
   const performSignIn = useCallback(
     async (publicKey: string): Promise<User> => {
+      await ensureDeviceSessionLane();
       const deviceFingerprintObj = DeviceManager.getDeviceFingerprint();
       const deviceFingerprint = JSON.stringify(deviceFingerprintObj);
       const deviceInfo = await DeviceManager.getDeviceInfo();
@@ -181,9 +185,11 @@ export const useAuthOperations = ({
       // exposed sessions/activeSessionId/user. Best-effort: a failure here must
       // NEVER fail the sign-in itself — cold boot re-registers this account into
       // the device set on the next load regardless.
+      let deviceRegistrationCommitted = false;
       try {
         await sessionClient.registerAndActivate(sessionResponse.user.id);
         await syncFromClient();
+        deviceRegistrationCommitted = true;
       } catch (registrationError) {
         logger?.('Failed to register sign-in into device session set', registrationError);
       }
@@ -231,6 +237,7 @@ export const useAuthOperations = ({
           { merge: false },
         );
         onAuthStateChange?.(fullUser);
+        if (deviceRegistrationCommitted && !identityBinding && await store.setAutomaticIdentitySignInSuppressed?.(false) === false) logger?.('Failed to release explicit sign-out intent after sign-in');
         return fullUser;
       }
 
@@ -243,10 +250,11 @@ export const useAuthOperations = ({
       });
       await saveActiveSessionId(sessionResponse.sessionId);
       onAuthStateChange?.(fullUser);
-
+      if (deviceRegistrationCommitted && !identityBinding && await store.setAutomaticIdentitySignInSuppressed?.(false) === false) logger?.('Failed to release explicit sign-out intent after sign-in');
       return fullUser;
     },
     [
+      ensureDeviceSessionLane,
       logger,
       onAuthStateChange,
       oxyServices,
@@ -298,6 +306,23 @@ export const useAuthOperations = ({
       const activeSessionId = runtime.getSnapshot().activeSessionId;
       if (!activeSessionId) return { status: 'signed-out' };
 
+      const isolated = readIsolatedOAuthSession(runtime);
+      if (isolated) {
+        const result = await logoutIsolatedOAuthSession({
+          session: isolated,
+          targetSessionId,
+          revokeSelf: (sessionId) => oxyServices.session.logout(sessionId),
+          clearSessionState,
+        });
+        if (result.status === 'failed') {
+          handleAuthError(result.error, {
+            defaultMessage: 'Logout failed', code: LOGOUT_ERROR_CODE, onError,
+            setAuthError: (message) => runtime.setError(message), logger,
+          });
+        }
+        return result;
+      }
+
       const sessionToLogout = targetSessionId || activeSessionId;
 
       try {
@@ -325,7 +350,8 @@ export const useAuthOperations = ({
           // Genuine FULL sign-out (no sessions remain): clear the persisted
           // device credential so a reload's cold boot finds nothing to restore,
           // then tear down local state.
-          clearPersistedAuthSafe(store, logger);
+          if (!identityBinding && await store.setAutomaticIdentitySignInSuppressed?.(true) === false) throw new Error('Failed to persist explicit sign-out intent');
+          await clearPersistedAuthSafe(store, logger);
           await clearSessionState();
         }
         return { status: 'signed-out' };
@@ -338,11 +364,16 @@ export const useAuthOperations = ({
         // "signed in" against a bearer the 401 lane has already cleared.
         if (isInvalid && sessionToLogout === activeSessionId) {
           // The active session is invalid → full sign-out; clear persisted state.
-          clearPersistedAuthSafe(store, logger);
+          const intentPersisted = identityBinding ? true : await store.setAutomaticIdentitySignInSuppressed?.(true);
+          await clearPersistedAuthSafe(store, logger);
           await clearSessionState();
-          return { status: 'signed-out' };
+          return intentPersisted === false ? { status: 'failed', error: new Error('Failed to persist explicit sign-out intent') } : { status: 'signed-out' };
         }
 
+        if (sessionClient.getState()?.accounts.length === 0) {
+          await clearPersistedAuthSafe(store, logger);
+          await clearSessionState();
+        }
         handleAuthError(error, {
           defaultMessage: 'Logout failed',
           code: LOGOUT_ERROR_CODE,
@@ -358,12 +389,14 @@ export const useAuthOperations = ({
     },
     [
       clearSessionState,
+      oxyServices,
       store,
       logger,
       onError,
       runtime,
       sessionClient,
       syncFromClient,
+      identityBinding,
     ],
   );
 
@@ -371,6 +404,9 @@ export const useAuthOperations = ({
    * Logout from all sessions
    */
   const logoutAll = useCallback(async (): Promise<void> => {
+    if (readIsolatedOAuthSession(runtime)) {
+      throw new Error('An isolated OAuth session cannot sign out other sessions');
+    }
     const activeSessionId = runtime.getSnapshot().activeSessionId;
     if (!activeSessionId) {
       const error = new Error('No active session found');
@@ -379,6 +415,7 @@ export const useAuthOperations = ({
       throw error;
     }
 
+    let deviceSignOutAttempted = false;
     try {
       // Revoke the user's sessions on every other device and every refresh-
       // token family first. SessionClient's `{ all: true }` operation is only
@@ -386,11 +423,13 @@ export const useAuthOperations = ({
       // itself. The global endpoint deliberately preserves the current
       // session long enough for the device-scoped cleanup below to authenticate.
       await oxyServices.session.logoutAll(activeSessionId);
+      deviceSignOutAttempted = true;
       await sessionClient.signOut({ all: true });
       // logoutAll is ALWAYS a full sign-out: clear the persisted device
       // credential so the next cold boot finds no session to restore, then tear
       // down local state.
-      clearPersistedAuthSafe(store, logger);
+      if (!identityBinding && await store.setAutomaticIdentitySignInSuppressed?.(true) === false) throw new Error('Failed to persist explicit sign-out intent');
+      await clearPersistedAuthSafe(store, logger);
       await clearSessionState();
     } catch (error) {
       if (isInvalidSessionError(error)) {
@@ -403,9 +442,16 @@ export const useAuthOperations = ({
         // `onTokensChanged(null)` by now, so rejecting here would contradict
         // the SDK's own authoritative 401 lane and hand the caller a failure
         // for work that is complete. Finish the local teardown and resolve.
-        clearPersistedAuthSafe(store, logger);
+        const intentPersisted = identityBinding ? true : await store.setAutomaticIdentitySignInSuppressed?.(true);
+        await clearPersistedAuthSafe(store, logger);
         await clearSessionState();
+        if (intentPersisted === false) throw new Error('Failed to persist explicit sign-out intent');
         return;
+      }
+
+      if (deviceSignOutAttempted && sessionClient.getState()?.accounts.length === 0) {
+        await clearPersistedAuthSafe(store, logger);
+        await clearSessionState();
       }
 
       const message = handleAuthError(error, {
@@ -421,7 +467,7 @@ export const useAuthOperations = ({
       // would erase the server's reason from every caller's toast.
       throw error instanceof Error ? error : new Error(message);
     }
-  }, [clearSessionState, store, logger, onError, oxyServices, runtime, sessionClient]);
+  }, [clearSessionState, store, logger, onError, oxyServices, runtime, sessionClient, identityBinding]);
 
   return {
     signIn,

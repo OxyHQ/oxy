@@ -1,0 +1,95 @@
+{
+  "base": "24653406f17289244fb3b1cecd3f548b146c40f5",
+  "date": "2026-10-03",
+  "source": [
+    {
+      "path": "docs/adr/README.md",
+      "sha256": "0b350d5510c674424f57bca17be588c9db9d2d940f942e25f0ae0a5bae6637b3",
+      "bytes": 11493
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/authSessionOAuthRequest.test.ts",
+      "sha256": "1682324c03c3b90d87834c3610086bce683e8981eb12909d768da7c5ebd6c34e",
+      "bytes": 16038
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/oauthConsentFinalizers.test.ts",
+      "sha256": "536d9ca1575c0ed3208ab476e72d456736fe4241e797b8546dfa5e2fa885c06f",
+      "bytes": 30890
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/sessionApproveInfo.test.ts",
+      "sha256": "1f784126d258c79417b0a3021ddb21ee58342351cdc5553c2147d92a5a7f3893",
+      "bytes": 13369
+    },
+    {
+      "path": "packages/api/src/routes/auth.ts",
+      "sha256": "bca21f9b56f927ac7dbad3e131a7bee3f768d6d421af3353cdc47d0ff975f40b",
+      "bytes": 155824
+    },
+    {
+      "path": "packages/api/src/services/authSession.service.ts",
+      "sha256": "83e154c0ad80b0c03a0bcbe4f8fe9f8ed469e54914ce5215891148fe4ae9ff4a",
+      "bytes": 36724
+    },
+    {
+      "path": "packages/api/src/services/oauthConsent.service.ts",
+      "sha256": "d6f059eb897aabfb0aed21ad55246ce9c717118bd6d443c3dd28087a7a2069df",
+      "bytes": 8937
+    },
+    {
+      "path": "docs/adr/0031-explicit-oauth-consent-fallback.md",
+      "sha256": "eb67e92d1a0d5ffd0637d3cad3a1e3a0d727ad676b367f0b88f78f9555cf977a",
+      "bytes": 1980
+    }
+  ],
+  "logs": [
+    {
+      "path": "docs/audits/2026-10-03-i02-approved-consent/i02-red.log",
+      "sha256": "768f8a4667ad302c65cbf529e6316b7dce60a52ec3565141d2cd92d36da44e2b",
+      "bytes": 4918
+    },
+    {
+      "path": "docs/audits/2026-10-03-i02-approved-consent/i02-focal-final.log",
+      "sha256": "814b4d1260ea4fb19683ac8faac283f1f666fcf2950034da4068ca92b46c7ab3",
+      "bytes": 652
+    },
+    {
+      "path": "docs/audits/2026-10-03-i02-approved-consent/i02-ts.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-i02-approved-consent/i02-eslint-scoped.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-03-i02-approved-consent/i02-biome-baseline.log",
+      "sha256": "ecfc4b94037ae4b8d678cff1b8999d031fd1a6613eed6f855abe192d9c04be40",
+      "bytes": 31005
+    },
+    {
+      "path": "docs/audits/2026-10-03-i02-approved-consent/i02-biome-final.log",
+      "sha256": "7a747d030fb40746d2cce1ea3a4c0a5e2ced198714b8d77830a62e3c43ba9c69",
+      "bytes": 30396
+    },
+    {
+      "path": "docs/audits/2026-10-03-i02-approved-consent/api-baseline-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    }
+  ],
+  "postgres": {
+    "owner": "i04_handoff",
+    "server": "PostgreSQL 17, loopback 127.0.0.1:5574",
+    "user": "oxy_i01",
+    "lifecycle": "own instance, harness creates/drops oxy_test_<16hex>; post-test census contains only postgres"
+  },
+  "limits": [
+    "HTTP authentication/rate/socket boundaries mocked; route/consent/grant/code/revocation SQL real",
+    "No production latency or rollout claim",
+    "Build log is baseline; noEmit validates changed runtime",
+    "Biome 1.9.4: 30 existing diagnostics, zero added; scoped ESLint zero warnings"
+  ]
+}

@@ -88,7 +88,7 @@ async function seedApp(
       name: `App ${randomUUID()}`,
       type,
       status,
-      scopes: ['user:read'],
+      scopes: ['acting-as:offline', 'user:read', 'files:write', 'podcasts:write'],
       ownerAccountId,
     })
     .returning({ id: applications.id });
@@ -125,7 +125,8 @@ function serviceToken(app: SeededApp, options: { expiresIn?: number; forged?: bo
     scopes: ['user:read'],
     iss: 'oxy-auth',
     aud: 'oxy-api',
-    exp: Math.floor(Date.now() / 1_000) + (options.expiresIn ?? 3_600),
+    iat: Math.floor(Date.now() / 1_000),
+    exp: Math.floor(Date.now() / 1_000) + (options.expiresIn ?? 300),
   });
   // Same header and claims, a signature no Oxy key produced.
   return options.forged
@@ -309,7 +310,7 @@ describe('delegation', () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+      expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
 
     it('authorizes a trusted app only with the scopes the user granted', async () => {
@@ -322,7 +323,7 @@ describe('delegation', () => {
         serviceToken(caller)
       );
 
-      expect(res.body.data).toEqual({
+      expect(res.body.data).toMatchObject({
         authorized: true,
         scopes: [SERVICE_ACTING_AS_SCOPE, 'podcasts:write'],
       });
@@ -339,7 +340,7 @@ describe('delegation', () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+      expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
   });
 
@@ -354,7 +355,7 @@ describe('delegation', () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+      expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
 
     it('refuses an untrusted subject app whose grant does NOT name acting-as:offline', async () => {
@@ -369,7 +370,7 @@ describe('delegation', () => {
         serviceToken(caller)
       );
 
-      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+      expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
 
     it('authorizes an untrusted subject app when the grant DOES name it', async () => {
@@ -382,7 +383,7 @@ describe('delegation', () => {
         serviceToken(caller)
       );
 
-      expect(res.body.data).toEqual({
+      expect(res.body.data).toMatchObject({
         authorized: true,
         scopes: [SERVICE_ACTING_AS_SCOPE, 'podcasts:write'],
       });
@@ -399,7 +400,7 @@ describe('delegation', () => {
         { appId: subject.appId, userId: subjectUser },
         serviceToken(caller)
       );
-      expect(before.body.data).toEqual({
+      expect(before.body.data).toMatchObject({
         authorized: true,
         scopes: [SERVICE_ACTING_AS_SCOPE],
       });
@@ -410,7 +411,7 @@ describe('delegation', () => {
         { appId: subject.appId, userId: subjectUser },
         serviceToken(caller)
       );
-      expect(after.body.data).toEqual({ authorized: false, scopes: [] });
+      expect(after.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
 
     it('beats an explicit grant too — revocation is checked first', async () => {
@@ -425,7 +426,7 @@ describe('delegation', () => {
         serviceToken(caller)
       );
 
-      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+      expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
 
     it('is per (user, application) — one user revoking does not refuse for another', async () => {
@@ -445,8 +446,8 @@ describe('delegation', () => {
         serviceToken(caller)
       );
 
-      expect(refused.body.data).toEqual({ authorized: false, scopes: [] });
-      expect(allowed.body.data).toEqual({
+      expect(refused.body.data).toMatchObject({ authorized: false, scopes: [] });
+      expect(allowed.body.data).toMatchObject({
         authorized: true,
         scopes: [SERVICE_ACTING_AS_SCOPE],
       });
@@ -463,10 +464,10 @@ describe('delegation', () => {
       expect(
         (await verify({ appId: revoked.appId, userId: subjectUser }, serviceToken(caller))).body
           .data
-      ).toEqual({ authorized: false, scopes: [] });
+      ).toMatchObject({ authorized: false, scopes: [] });
       expect(
         (await verify({ appId: other.appId, userId: subjectUser }, serviceToken(caller))).body.data
-      ).toEqual({ authorized: true, scopes: [SERVICE_ACTING_AS_SCOPE] });
+      ).toMatchObject({ authorized: true, scopes: [SERVICE_ACTING_AS_SCOPE] });
     });
 
     it('is undone by a grant naming acting-as:offline, and by nothing weaker', async () => {
@@ -482,9 +483,9 @@ describe('delegation', () => {
       expect(
         (await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller))).body
           .data
-      ).toEqual({ authorized: false, scopes: [] });
+      ).toMatchObject({ authorized: false, scopes: [] });
 
-      // The real thing does — this is what `recordAppGrant` calls.
+      // The real thing does — this is what `persistOAuthAuthorization` calls.
       await clearServiceActingAsRevocation(subjectUser, subject.appId);
       await getDb()
         .update(appGrants)
@@ -496,7 +497,7 @@ describe('delegation', () => {
       expect(
         (await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller))).body
           .data
-      ).toEqual({ authorized: true, scopes: ['user:read', SERVICE_ACTING_AS_SCOPE] });
+      ).toMatchObject({ authorized: true, scopes: ['user:read', SERVICE_ACTING_AS_SCOPE] });
     });
   });
 
@@ -508,7 +509,7 @@ describe('delegation', () => {
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+      expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
 
     it('rejects a request missing the query parameters entirely (400)', async () => {

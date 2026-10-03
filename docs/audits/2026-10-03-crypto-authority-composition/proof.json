@@ -1,0 +1,142 @@
+{
+  "sourceHead": "0559651f41844c6750adb69f4b34203b96f488f5",
+  "baseHead": "2d1072329fb2f37754c7351c74faa50a184b87d1",
+  "sourceInputs": [
+    {
+      "path": "packages/api/scripts/reconcile-mercaria-billing-authority.ts",
+      "sha256": "b0a719440e8412f5690b5e7c48a27ffe3d097114ef75c14afc03429a3ec6c514",
+      "acceptedUpstream": "3201f6f4ccd792aa78fff1a4897e8464f677e994",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/api/src/scripts/seedOxyApplicationsSpecs.ts",
+      "sha256": "fdbcecbc8de052f94cd5da2997e48ba6c63c892c6aa71d45c379ae3546c7017e",
+      "acceptedUpstream": "3201f6f4ccd792aa78fff1a4897e8464f677e994",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mercariaBillingAuthority.db.test.ts",
+      "sha256": "5a638462fa6274ed52c606241f3645956cd2f3ab329d773ac6c6f421fbbcca0b",
+      "acceptedUpstream": "3201f6f4ccd792aa78fff1a4897e8464f677e994",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/api/src/services/mercariaBillingAuthority.service.ts",
+      "sha256": "aee073957ceed5abc1a7a2afb54448ac67aaf9eb3d66ea33554b7e2d7ef978c5",
+      "acceptedUpstream": "3201f6f4ccd792aa78fff1a4897e8464f677e994",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/api/scripts/stripe-billing-sandbox-rehearsal.ts",
+      "sha256": "7a13ac76a86265939c12479c614f06bc6d663db63ad2070ac180f9f2d3efcf8b",
+      "acceptedUpstream": "bae958ff654fa2aa5bd7872afe79c85918db337a",
+      "byteIdentical": true
+    },
+    {
+      "path": "scripts/billing/stripe-oxy-sandbox.py",
+      "sha256": "28353a74c901a2d48dc910884de03ad0ecb951a48162189bdefc414e9d2a9ffe",
+      "acceptedUpstream": "843156f609681cda9c75ac830a4b0f9884204907",
+      "byteIdentical": true
+    },
+    {
+      "path": "scripts/billing/test-stripe-oxy-sandbox.py",
+      "sha256": "808472a1b1a6e7e6eb3b1b3d4665874c9c18b2a9c11cb73ce27bd39e921cceb8",
+      "acceptedUpstream": "843156f609681cda9c75ac830a4b0f9884204907",
+      "byteIdentical": true
+    },
+    {
+      "path": "scripts/billing/test-stripe-webhook-crypto.mjs",
+      "sha256": "82b93eb698be6d2fb466f7463b2bfec58f381546bd1c274c3b5ebd6979769c17",
+      "acceptedUpstream": "bae958ff654fa2aa5bd7872afe79c85918db337a",
+      "byteIdentical": true
+    },
+    {
+      "path": "scripts/billing/test-stripe-webhook-crypto.py",
+      "sha256": "424185fad4b6d25f73b771d1bc7aa6c72c5f124411857e1f32ae8a858a48b1ed",
+      "acceptedUpstream": "6c80202984a4d5144e514b9f760d3230a2f4d51e",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/billingWebhookIdempotency.test.ts",
+      "sha256": "01a7d529149726a911f39a576c9681e78168e22e39e0378cb0767511d648ce62",
+      "acceptedUpstream": "bae958ff654fa2aa5bd7872afe79c85918db337a",
+      "byteIdentical": true
+    },
+    {
+      "path": "packages/api/src/routes/billing.ts",
+      "sha256": "52dca1754fb0a139b3c127154834ad4a4c3db22ae2337bbfcd74d29386667422",
+      "acceptedUpstream": "bae958ff654fa2aa5bd7872afe79c85918db337a",
+      "byteIdentical": true
+    },
+    {
+      "path": "scripts/billing/test-stripe-runner-isolation.py",
+      "sha256": "0243f8ba2545aef13cd1898da8e94e70d596a1a91fadb31d28eb1271a4c60a14",
+      "acceptedUpstream": "843156f609681cda9c75ac830a4b0f9884204907",
+      "byteIdentical": true
+    }
+  ],
+  "records": [
+    {
+      "file": "api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "file": "bun-crypto.log",
+      "sha256": "a6bdc74c4fbb5434c99df414cbb82b82b86b6e3f493ace015756bef9f37093ee"
+    },
+    {
+      "file": "crypto-route.log",
+      "sha256": "3f7fb6abd4ec9c1e4185410ef8cccbaa26645ee93413de3eb01b2f263474afa0"
+    },
+    {
+      "file": "migrate-fresh.txt",
+      "sha256": "8fcefc3d6aae3a59cf99182e2b9102422da6b988b118504820b275af23e7820a"
+    },
+    {
+      "file": "migrate-repeat.txt",
+      "sha256": "e7a14df0a107f1fda818e833b9219300b05d942291670199394cc3b6f63921f6"
+    },
+    {
+      "file": "node-crypto.log",
+      "sha256": "99f8f7d194b129f135134fc21d3cc3fb451603976c0130d064061e3d2fa7704f"
+    },
+    {
+      "file": "plan-tests.log",
+      "sha256": "5e799a20d8814874aabf1b20f836536581c3825248c12d16717db8d079d67ed8"
+    },
+    {
+      "file": "results.json",
+      "sha256": "17948b2f32927ea6a4c43cb9194a30c75b49189aff163adc951e8f1c13a4279e"
+    },
+    {
+      "file": "runner-isolation.log",
+      "sha256": "03ef4d2995ed80f9cf3b3e6ab9f1bae1ef9874a7989c6622e8d931ccad6589f3"
+    },
+    {
+      "file": "sandbox-migration.log",
+      "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+    }
+  ],
+  "results": {
+    "apiBuildExit": 0,
+    "realOfflineStripeRawBody": {
+      "node": 7,
+      "bun": 7,
+      "remoteRequests": 0,
+      "providerSignedDelivery": false
+    },
+    "launcherIsolation": 5,
+    "planTests": 8,
+    "freshAndRepeatMigrationExit": 0,
+    "ownPostgres": {
+      "pid": 3607161,
+      "port": 5595,
+      "stopped": true
+    }
+  },
+  "limits": [
+    "No live Mercaria scope reconciliation or Stripe financial request executed. Offline signatures and local SQL only.",
+    "CAS12 tests and prior billing186 remain accepted upstream evidence, not a fresh full suite claim. Source bytes match accepted upstream; API rebuild and raw-route Node/Bun composition are fresh.",
+    "Issuer freeze/ARM/policy remain separate and unchanged; final Oxy runtime freeze/release still pending."
+  ]
+}

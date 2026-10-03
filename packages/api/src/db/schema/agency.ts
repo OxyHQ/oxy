@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -23,6 +24,7 @@ import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import { users } from './users';
+import { userAuthMethods } from './userAuthMethods';
 
 export const delegationGrants = pgTable(
   'delegation_grants',
@@ -115,10 +117,19 @@ export const capabilityExecutionAuthorizations = pgTable(
     id: generatedId(),
     kind: text({ enum: ['direct_request', 'automation'] }).notNull(),
     requesterAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    /** Autonomous approval provenance; revocation is live, never SET NULL. */
+    requesterAuthMethodId: text(),
     ownerAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
     coordinatorApplicationId: text().notNull().references(() => applications.id, { onDelete: 'cascade' }),
     coordinatorCredentialId: text().notNull().references(() => applicationCredentials.id, { onDelete: 'cascade' }),
-    actorType: text({ enum: ['alia', 'agent'] }).notNull(),
+    actorType: text({ enum: ['alia', 'agent', 'requester'] }).notNull(),
+    /** Historical approval handle: live session checks deny absent/expired rows. */
+    requesterSessionId: text(),
+    requesterSessionBindingDigest: text(),
+    /** Frozen foreground approval: a new catalogue requires new approval. */
+    requesterCatalogRegistrationId: text().references(() => appCapabilityCatalogRegistrations.id, { onDelete: 'restrict' }),
+    requesterCatalogVersion: text(),
+    requesterCatalogDigest: text(),
     actorAccountId: text().references(() => users.id, { onDelete: 'cascade' }),
     resourceApp: text().notNull(),
     effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -137,8 +148,28 @@ export const capabilityExecutionAuthorizations = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    foreignKey({ name: 'capability_execution_requester_method_fk',
+      columns: [t.requesterAuthMethodId, t.requesterAccountId], foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
+    }).onDelete('restrict'),
+    index('capability_execution_requester_method_idx').on(t.requesterAuthMethodId).where(sql`${t.requesterAuthMethodId} is not null`),
     check('capability_execution_authorizations_kind_check', sql`${t.kind} in ('direct_request', 'automation')`),
-    check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} = 'agent' and ${t.actorAccountId} is not null)`),
+    check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} in ('agent', 'requester') and ${t.actorAccountId} is not null)`),
+    check('capability_execution_requester_session_check', sql`
+      (${t.actorType} = 'requester' and ${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
+       and ${t.requesterSessionBindingDigest} is not null
+       and ${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$'
+       and ${t.kind} = 'direct_request' and ${t.maximumAutonomy} = 'read_only'
+       and ${t.actorAccountId} = ${t.requesterAccountId})
+      or (${t.actorType} <> 'requester' and ${t.requesterSessionId} is null and ${t.requesterSessionBindingDigest} is null)`),
+    check('capability_execution_requester_catalog_check', sql`
+      (${t.actorType} = 'requester' and (
+        (${t.requesterCatalogRegistrationId} is not null and length(${t.requesterCatalogRegistrationId}) > 0
+         and ${t.requesterCatalogVersion} is not null and length(${t.requesterCatalogVersion}) > 0
+         and ${t.requesterCatalogDigest} is not null and ${t.requesterCatalogDigest} ~ '^[a-f0-9]{64}$')
+        or (${t.revokedAt} is not null and ${t.requesterCatalogRegistrationId} is null
+         and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)))
+      or (${t.actorType} <> 'requester' and ${t.requesterCatalogRegistrationId} is null
+       and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)`),
     check('capability_execution_authorizations_automation_check', sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`),
     check(
       'capability_execution_authorizations_run_scope_check',

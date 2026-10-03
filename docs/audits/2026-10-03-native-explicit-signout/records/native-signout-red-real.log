@@ -1,0 +1,56 @@
+$ jest --passWithNoTests --runInBand src/boot/__tests__/nativeExplicitSignOut.test.ts
+FAIL src/boot/__tests__/nativeExplicitSignOut.test.ts
+  ● explicit native account logout survives a new process › does not challenge Commons after full signout and a recreated store
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unauthenticated"
+    Received: "session"
+
+      30 |     const restarted=createNativeAuthStateStore(storage);
+      31 |     const outcome=await runSessionColdBoot({oxy,store:restarted,platform:{isWeb:false,isNative:true}});
+    > 32 |     expect(outcome.kind).toBe('unauthenticated');
+         |                          ^
+      33 |     expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
+      34 |   });
+      35 |   it('also blocks the automatic refresh key lane after logout',async()=>{
+
+      at Object.<anonymous> (src/boot/__tests__/nativeExplicitSignOut.test.ts:32:26)
+
+  ● explicit native account logout survives a new process › also blocks the automatic refresh key lane after logout
+
+    TypeError: oxy.http.hasSessionEnded is not a function
+
+      363 |   // Never after a sign-out: the shared identity is a KEY, not a session, and
+      364 |   // proving it here would sign the user straight back in.
+    > 365 |   if (allowCommonsIdentityFallback && !oxy.http.hasSessionEnded()) {
+          |                                                 ^
+      366 |     try {
+      367 |       // Planted here, not by the sign-in: a sign-out that lands while the
+      368 |       // challenge round-trips must win, or the identity proof signs the user
+
+      at refreshPersistedSession (src/session/refresh.ts:365:49)
+      at Object.<anonymous> (src/boot/__tests__/nativeExplicitSignOut.test.ts:40:17)
+
+  ● explicit native account logout survives a new process › a pending save cannot restore a credential after the later clear
+
+    expect(received).toBeNull()
+
+    Received: {"deviceId": "old-device", "deviceSecret": "old-secret", "sessionId": "old", "userId": "old-user"}
+
+      53 |     release();
+      54 |     await Promise.all([saving,clearing]);
+    > 55 |     expect(await createNativeAuthStateStore(storage).load()).toBeNull();
+         |                                                              ^
+      56 |   });
+      57 | });
+      58 |
+
+      at Object.<anonymous> (src/boot/__tests__/nativeExplicitSignOut.test.ts:55:62)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 3 total
+Snapshots:   0 total
+Time:        0.388 s
+Ran all test suites matching src/boot/__tests__/nativeExplicitSignOut.test.ts.
+error: script "test" exited with code 1

@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
-import {
-  type AppCapabilityCatalog,
-  type ActorRef,
-  type AutonomyLevel,
-  type CapabilityTicketClaims,
-  type GrantLimit,
-  type PolicyDecision,
-  type ResourceRef,
+import type {
+  AppCapabilityCatalog,
+  ExecutionActorRef,
+  AutonomyLevel,
+  CapabilityCatalogBinding,
+  CapabilityTicketClaims,
+  GrantLimit,
+  PolicyDecision,
+  ResourceRef,
 } from '@oxy.so/contracts';
 import { issueCapabilityTicket } from '@oxy.so/core/server';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
@@ -24,6 +25,8 @@ import {
 } from '../db/schema/agency';
 import { users } from '../db/schema/users';
 import accountService from './account.service';
+import { revalidateForegroundRequester } from './foregroundCapabilityRequester.service';
+import { readLiveAgentKey } from './agentKeyAuthority.service';
 import { activeCapabilityCatalog } from './capabilityCatalog.service';
 import { resolveLiveAgencyCoordinator } from './agencyServicePrincipal.service';
 import { AGENCY_COORDINATE_CAPABILITY } from '../utils/applicationCapabilities';
@@ -47,6 +50,8 @@ export interface AuthorityRequest {
   /** Required when durable automation authority is materialized for one run. */
   runId?: string;
   stepId?: string;
+  /** Supplied only by the new pinned-catalogue invocation lane. */
+  expectedCatalog?: CapabilityCatalogBinding;
 }
 
 export interface AuthorityResult {
@@ -112,12 +117,12 @@ async function loadExecutionAuthorization(
   return authorization ?? null;
 }
 
-function actorOf(authorization: ExecutionAuthorizationRow): ActorRef {
+function actorOf(authorization: ExecutionAuthorizationRow): ExecutionActorRef {
   if (authorization.actorType === 'alia') {
     return { type: 'alia', ownerAccountId: authorization.ownerAccountId };
   }
   if (!authorization.actorAccountId) throw new Error('Agent execution authorization has no actor account');
-  return { type: 'agent', accountId: authorization.actorAccountId };
+  return { type: authorization.actorType, accountId: authorization.actorAccountId };
 }
 
 function resourceOf(authorization: ExecutionAuthorizationRow): ResourceRef {
@@ -194,6 +199,30 @@ export async function evaluateCapabilityAuthority(
   }
   const authorization = await loadExecutionAuthorization(request, now);
   if (!authorization) return denied('execution_authorization_not_active');
+  if (authorization.requesterAuthMethodId && !await readLiveAgentKey({
+    authMethodId: authorization.requesterAuthMethodId, authMethodOwnerId: authorization.requesterAccountId,
+  })) return denied('requester_autonomous_credential_not_active');
+  if (authorization.actorType === 'requester') {
+    if (!authorization.requesterSessionId || !authorization.requesterSessionBindingDigest
+      || authorization.kind !== 'direct_request' || authorization.maximumAutonomy !== 'read_only'
+      || authorization.actorAccountId !== authorization.requesterAccountId
+      || authorization.ownerAccountId !== authorization.effectiveAccountId
+      || authorization.resourceApp !== 'oxy' || authorization.resourceType !== 'account'
+      || authorization.resourceKey !== authorization.effectiveAccountId
+      || !['recommendProfiles', 'readViewerGraph'].includes(authorization.tool)
+      || !await revalidateForegroundRequester({
+        sessionId: authorization.requesterSessionId,
+        principalAccountId: authorization.requesterAccountId,
+        subjectAccountId: authorization.effectiveAccountId,
+        digest: authorization.requesterSessionBindingDigest,
+      }, coordinator)) return denied('foreground_requester_no_longer_authorized');
+  }
+  const autonomousSelf = !!authorization.requesterAuthMethodId
+    && authorization.actorType === 'agent'
+    && authorization.actorAccountId === authorization.requesterAccountId
+    && authorization.ownerAccountId === authorization.requesterAccountId
+    && authorization.effectiveAccountId === authorization.requesterAccountId;
+
   let runId: string;
   let stepId: string | undefined;
   if (authorization.kind === 'automation') {
@@ -208,17 +237,28 @@ export async function evaluateCapabilityAuthority(
     runId = authorization.runId;
     stepId = authorization.stepId ?? undefined;
   }
-  if (!await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId)) {
+  if (authorization.actorType !== 'requester' && !autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId)) {
     return denied('requester_lacks_current_account_authority');
   }
-  if (!await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId)) {
+  if (authorization.actorType !== 'requester' && !autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId)) {
     return denied('requester_lacks_grant_owner_authority');
   }
 
   const registration = await activeCapabilityCatalog(authorization.resourceApp);
   if (!registration) return denied('catalog_not_registered');
+  if (authorization.actorType === 'requester' && (
+    authorization.requesterCatalogRegistrationId !== registration.id
+    || authorization.requesterCatalogVersion !== registration.version
+    || authorization.requesterCatalogDigest !== registration.digest
+  )) return denied('foreground_approved_catalog_no_longer_current');
+  if (request.expectedCatalog && (
+    request.expectedCatalog.registrationId !== registration.id
+    || request.expectedCatalog.version !== registration.version
+    || request.expectedCatalog.digest !== registration.digest
+  )) return denied('ticket_catalog_no_longer_current');
   const tool = registration.catalog.tools.find((entry) => entry.name === authorization.tool);
   if (!tool || !tool.exposure.includes('internal')) return denied('tool_not_exposed_internally');
+  if (authorization.actorType === 'requester' && tool.effect !== 'read') return denied('foreground_effect_not_allowed');
   if (!tool.resourceTypes.includes(authorization.resourceType)) return denied('resource_type_mismatch');
 
   const [policy] = await getDb().select().from(accountCapabilityPolicies).where(and(
@@ -242,7 +282,7 @@ export async function evaluateCapabilityAuthority(
     limits,
   );
   if (authorizationSensitiveLimitError) return denied(authorizationSensitiveLimitError);
-  if (actor.type === 'agent') {
+  if (actor.type === 'agent' && !autonomousSelf) {
     const [actorRow] = await getDb().select({ kind: users.kind, accountStatus: users.accountStatus })
       .from(users).where(eq(users.id, actor.accountId)).limit(1);
     if (!actorRow || actorRow.kind !== 'bot' || actorRow.accountStatus === 'archived') {
@@ -321,12 +361,15 @@ export async function evaluateCapabilityAuthority(
   const jti = randomUUID();
   const unsignedClaims: Omit<CapabilityTicketClaims, 'iss' | 'iat' | 'exp' | 'jti'> = {
     aud: registration.catalog.audience,
-    sub: actor.type === 'agent' ? actor.accountId : `alia:${authorization.ownerAccountId}`,
+    sub: actor.type !== 'alia' ? actor.accountId : `alia:${authorization.ownerAccountId}`,
     runId,
     ...(stepId ? { stepId } : {}),
     ...(automationId ? { automationId } : {}),
     executionAuthorization,
     coordinator: request.coordinator,
+    ...(authorization.actorType === 'requester'
+      ? { catalog: { registrationId: registration.id, version: registration.version, digest: registration.digest } }
+      : request.expectedCatalog ? { catalog: request.expectedCatalog } : {}),
     ...(grantParts ? { grantId: grantParts.grant.id } : {}),
     requesterAccountId: authorization.requesterAccountId,
     ownerAccountId: authorization.ownerAccountId,
@@ -401,7 +444,7 @@ function claimsMatchAuthorization(claims: CapabilityTicketClaims, authorization:
     && claims.actor.type === actor.type
     && (actor.type === 'alia'
       ? claims.actor.type === 'alia' && claims.actor.ownerAccountId === actor.ownerAccountId
-      : claims.actor.type === 'agent' && claims.actor.accountId === actor.accountId)
+      : claims.actor.type === actor.type && claims.actor.accountId === actor.accountId)
     && claims.resource.appId === authorization.resourceApp
     && claims.resource.effectiveAccountId === authorization.effectiveAccountId
     && claims.resource.resourceType === authorization.resourceType
@@ -417,6 +460,7 @@ export async function reauthorizeCapabilityTicket(claims: CapabilityTicketClaims
   const request = {
     executionAuthorizationId: claims.executionAuthorization.id,
     coordinator: claims.coordinator,
+    ...(claims.catalog ? { expectedCatalog: claims.catalog } : {}),
     ...(claims.executionAuthorization.kind === 'automation' ? {
       runId: claims.runId,
       ...(claims.stepId ? { stepId: claims.stepId } : {}),

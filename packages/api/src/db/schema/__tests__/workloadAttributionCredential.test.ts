@@ -21,7 +21,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { accountBalances } from '../accountBalances';
 import { applications } from '../applications';
@@ -34,7 +34,9 @@ import { zeroUsageUnits } from '../ledgerColumns';
 import { priceVersions } from '../priceVersions';
 import { usageReceipts } from '../usageReceipts';
 import { usageReservations } from '../usageReservations';
+import { createTestDatabase, dropTestDatabase } from '../../testDatabase';
 import { users } from '../users';
+import { expireReservations, reserve } from '../../../services/inferenceLedger.service';
 import { workloadAttestationHandle } from '../../../services/workloadAttestation.service';
 
 /** Postgres `check_violation`. */
@@ -49,12 +51,25 @@ const UNIQUE_VIOLATION = '23505';
  */
 const RESTRICT_REFUSAL = FOREIGN_KEY_VIOLATION;
 
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let ownDatabaseUrl: string | undefined;
+jest.setTimeout(60_000);
 beforeAll(async () => {
+  // This schema fixture deliberately creates synthetic financial history.
+  // Keep its expiry sweep and append-only rows in its own harness-owned DB.
+  ownDatabaseUrl = await createTestDatabase();
   await connectPostgres();
 });
 
 afterAll(async () => {
-  await closePostgres();
+  try { await closePostgres(); }
+  finally {
+    try { if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl); }
+    finally {
+      if (originalDatabaseUrl === undefined) Reflect.deleteProperty(process.env, 'DATABASE_URL');
+      else process.env.DATABASE_URL = originalDatabaseUrl;
+    }
+  }
 });
 
 /** The SQLSTATE a driver error carries, walking drizzle's wrapper chain. */
@@ -94,12 +109,14 @@ interface Fixture {
   priceVersionId: string;
 }
 
+const ownedAccounts: string[] = [];
 async function fixture(): Promise<Fixture> {
   const suffix = randomUUID().slice(0, 8);
   const [account] = await getDb()
     .insert(users)
     .values({ username: `wlattr-${suffix}`, email: `wlattr-${suffix}@example.test` })
     .returning({ id: users.id });
+  ownedAccounts.push(account.id);
   const [application] = await getDb()
     .insert(applications)
     .values({
@@ -125,7 +142,7 @@ async function fixture(): Promise<Fixture> {
     })
     .returning({ id: priceVersions.id });
   await getDb().insert(billingProfiles).values({ accountId: account.id });
-  await getDb().insert(accountBalances).values({ accountId: account.id, currency: 'USD' });
+  await getDb().insert(accountBalances).values({ accountId: account.id, currency: 'USD', purchasedBalance: '1.000000000000' });
   return {
     accountId: account.id,
     applicationId: application.id,
@@ -152,30 +169,24 @@ async function insertWorkloadRow(f: Fixture): Promise<void> {
     });
 }
 
+/** Use the real hold writer so a global sweep can safely observe this schema fixture. */
+async function backedReservation(f: Fixture, requestId = `req-${randomUUID()}`) {
+  const result = await reserve({ idempotencyKey: `res-${randomUUID()}`,
+    attribution: { accountId: f.accountId, applicationId: f.applicationId,
+      applicationCredentialId: f.handle, requestId, environment: 'production' },
+    ceilingPriceVersionId: f.priceVersionId, maxAmount: '1.000000000000', currency: 'USD', expiresInSeconds: 60 });
+  if (result.status !== 'reserved') throw new Error(`Fixture hold refused: ${result.status}`);
+  const [row] = await getDb().select().from(usageReservations).where(eq(usageReservations.id, result.reservation.reservationId));
+  return row;
+}
+
 describe('the ledger can name an attested identity', () => {
   it('holds a reservation and a receipt whose credential is a wl_ handle', async () => {
     const f = await fixture();
     await insertWorkloadRow(f);
 
     const requestId = `req-${randomUUID()}`;
-    const [reservation] = await getDb()
-      .insert(usageReservations)
-      .values({
-        idempotencyKey: `res-${randomUUID()}`,
-        accountId: f.accountId,
-        applicationId: f.applicationId,
-        applicationCredentialId: f.handle,
-        requestId,
-        environment: 'production',
-        reservedAmount: '1.000000000000',
-        ceilingPriceVersionId: f.priceVersionId,
-        ...zeroUsageUnits(),
-        expiresAt: new Date(Date.now() + 60_000),
-      })
-      .returning({
-        id: usageReservations.id,
-        applicationCredentialId: usageReservations.applicationCredentialId,
-      });
+    const reservation = await backedReservation(f, requestId);
     expect(reservation.applicationCredentialId).toBe(f.handle);
     expect(reservation.applicationCredentialId.startsWith('wl_')).toBe(true);
 
@@ -279,20 +290,7 @@ describe('a deleted binding does not take the spend with it', () => {
   it('keeps the row and its ledger history, and records the deletion as a NULL link', async () => {
     const f = await fixture();
     await insertWorkloadRow(f);
-    await getDb()
-      .insert(usageReservations)
-      .values({
-        idempotencyKey: `res-${randomUUID()}`,
-        accountId: f.accountId,
-        applicationId: f.applicationId,
-        applicationCredentialId: f.handle,
-        requestId: `req-${randomUUID()}`,
-        environment: 'production',
-        reservedAmount: '1.000000000000',
-        ceilingPriceVersionId: f.priceVersionId,
-        ...zeroUsageUnits(),
-        expiresAt: new Date(Date.now() + 60_000),
-      });
+    await backedReservation(f);
 
     // Deleting the binding is how a compromised workload is cut off.
     await getDb()
@@ -323,20 +321,7 @@ describe('a deleted binding does not take the spend with it', () => {
   it('refuses to delete the materialised row while a reservation references it', async () => {
     const f = await fixture();
     await insertWorkloadRow(f);
-    await getDb()
-      .insert(usageReservations)
-      .values({
-        idempotencyKey: `res-${randomUUID()}`,
-        accountId: f.accountId,
-        applicationId: f.applicationId,
-        applicationCredentialId: f.handle,
-        requestId: `req-${randomUUID()}`,
-        environment: 'production',
-        reservedAmount: '1.000000000000',
-        ceilingPriceVersionId: f.priceVersionId,
-        ...zeroUsageUnits(),
-        expiresAt: new Date(Date.now() + 60_000),
-      });
+    await backedReservation(f);
 
     const error = await rejection(
       getDb().delete(applicationCredentials).where(eq(applicationCredentials.id, f.handle))
@@ -543,4 +528,15 @@ describe('a workload row cannot be made to look like a credential', () => {
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
+});
+
+
+it('its attribution holds remain valid when a later global expiry sweep reaches them', async () => {
+  const held = await getDb().select({ id: usageReservations.id }).from(usageReservations)
+    .where(and(inArray(usageReservations.accountId, ownedAccounts), eq(usageReservations.status, 'held')));
+  expect(held.length).toBeGreaterThan(0);
+  await getDb().update(usageReservations).set({ expiresAt: new Date(Date.now() - 1000) })
+    .where(inArray(usageReservations.id, held.map((row) => row.id)));
+  const expired = await expireReservations(1000);
+  expect(expired.map((row) => row.reservationId)).toEqual(expect.arrayContaining(held.map((row) => row.id)));
 });

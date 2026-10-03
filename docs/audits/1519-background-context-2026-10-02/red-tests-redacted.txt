@@ -1,0 +1,89 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/deviceDirectory.service.test.ts src/routes/__tests__/sessionDeviceDirectory.test.ts
+FAIL src/services/__tests__/deviceDirectory.service.test.ts
+  ● removal — one context and one principal are different operations › #1549 background secret cannot follow the remaining operator after exact autoheal
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 3
+    + Received  + 3
+
+      Object {
+    -   "actor": null,
+    -   "hash": null,
+    -   "ok": false,
+    +   "actor": "01a0fe4f-f8c6-7328-be72-44e4812eee9c",
+    +   "hash": "81932df6ac807583fb02da50e5c7a770df8edefb23e4b8e30101a87241c0bd00",
+    +   "ok": true,
+      }
+
+      778 |     const mintedActor = minted.ok ? validateAccessToken(minted.accessToken).payload?.act?.sub : null;
+      779 |     expect({ ok: minted.ok, actor: mintedActor, hash: (await storedDevice(pair.device)).backgroundSecretHash })
+    > 780 |       .toEqual({ ok: false, actor: null, hash: null });
+          |        ^
+      781 |   });
+      782 |
+      783 |   it('#1549 cannot persist an issuance after its exact context was removed during validation', async () => {
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:780:8
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+  ● removal — one context and one principal are different operations › #1549 cannot persist an issuance after its exact context was removed during validation
+
+    expect(received).toBeNull()
+
+    Received: {"accountId": "01a0fe4f-f9cd-79ab-8a36-70196d8cfc75", "deviceId": "dev-09920a54-8dd3-424e-92c7-43f2e10f0dec", "expiresAt": "2026-11-01T20:30:49.415Z", "secret": "SYNTHETIC_FIXTURE_SECRET_REDACTED"}
+
+      797 |       expect((await deviceSessionService.removeContext(pair.device, pair.firstContext)).ok).toBe(true);
+      798 |       release();
+    > 799 |       expect(await pending).toBeNull();
+          |                             ^
+      800 |       expect((await storedDevice(pair.device)).backgroundSecretHash).toBeNull();
+      801 |     } finally { release(); spy.mockRestore(); }
+      802 |   });
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:799:29
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+  ● removal — one context and one principal are different operations › #1549 background mint rejects a secret replaced while its real session mint awaits
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      811 |       expect(replacement).not.toBeNull();
+      812 |       barrier.release();
+    > 813 |       expect((await pending).ok).toBe(false);
+          |                                  ^
+      814 |       if (!replacement) throw new Error('Expected other-account credential');
+      815 |       expect((await deviceSessionService.mintFromBackgroundSecret(pair.device, replacement.secret)).ok).toBe(true);
+      816 |     } finally { barrier.release(); barrier.restore(); }
+
+      at src/services/__tests__/deviceDirectory.service.test.ts:813:34
+      at fulfilled (src/services/__tests__/deviceDirectory.service.test.ts:57:58)
+
+FAIL src/routes/__tests__/sessionDeviceDirectory.test.ts
+  ● #1549 bearerless background-token context binding › rejects a former operator secret after autoheal while the other operator stays usable
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 401
+    Received: 200
+
+      460 |     const response = await requestJson('POST', '/session/device/background-token', { deviceId: device, secret: credential.secret }, false);
+      461 |     expect(mockAuthMiddleware).not.toHaveBeenCalled();
+    > 462 |     expect(response.status).toBe(401);
+          |                             ^
+      463 |     expect(response.body).toEqual({ error: 'background_credential_invalid' });
+      464 |     expect((await storedContextIds(device)).includes(secondContext)).toBe(true);
+      465 |     expect((await storedContextIds(device)).includes(firstContext)).toBe(false);
+
+      at src/routes/__tests__/sessionDeviceDirectory.test.ts:462:29
+      at fulfilled (src/routes/__tests__/sessionDeviceDirectory.test.ts:20:58)
+
+Test Suites: 2 failed, 2 total
+Tests:       4 failed, 58 passed, 62 total
+Snapshots:   0 total
+Time:        6.015 s, estimated 8 s
+Ran all test suites within paths "src/services/__tests__/deviceDirectory.service.test.ts", "src/routes/__tests__/sessionDeviceDirectory.test.ts".
+error: script "test" exited with code 1

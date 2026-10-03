@@ -236,8 +236,8 @@ describe('POST /auth/session/create — the OAuth binding', () => {
     expect(row.oauthSubjectAccountId).toBeNull();
   });
 
-  it('normalizes an ABSENT scope to an empty set, still fully bound', async () => {
-    const { clientId } = await client();
+  it('keeps a trusted absent scope empty in the request, resolving fallback at consent time', async () => {
+    const { clientId } = await client({ type: 'first_party' });
     const sessionToken = token();
 
     const res = await post('/auth/session/create', {

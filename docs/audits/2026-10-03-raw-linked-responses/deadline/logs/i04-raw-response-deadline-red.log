@@ -1,0 +1,56 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/__tests__/rawResponse.test.ts
+FAIL src/__tests__/rawResponse.test.ts
+  ● ends the caller deadline while a shared preflight refresh remains pending
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 3
+    + Received  + 1
+
+      Object {
+    -   "error": Object {
+    -     "code": "CANCELLED",
+    -   },
+    +   "pending": true,
+      }
+
+      543 |         new Promise<{ pending: true }>((resolve) => { timer = setTimeout(() => resolve({ pending: true }), 100); }),
+      544 |       ]);
+    > 545 |       expect(bounded).toMatchObject({ error: { code: 'CANCELLED' } });
+          |                       ^
+      546 |       expect(seen).toHaveLength(before + (phase === 'preflight' ? 0 : 1));
+      547 |       release();
+      548 |       // Shared refresh may still complete for another caller, but this request
+
+      at src/__tests__/rawResponse.test.ts:545:23
+
+  ● ends the caller deadline while a shared response-401 refresh remains pending
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 3
+    + Received  + 1
+
+      Object {
+    -   "error": Object {
+    -     "code": "CANCELLED",
+    -   },
+    +   "pending": true,
+      }
+
+      543 |         new Promise<{ pending: true }>((resolve) => { timer = setTimeout(() => resolve({ pending: true }), 100); }),
+      544 |       ]);
+    > 545 |       expect(bounded).toMatchObject({ error: { code: 'CANCELLED' } });
+          |                       ^
+      546 |       expect(seen).toHaveLength(before + (phase === 'preflight' ? 0 : 1));
+      547 |       release();
+      548 |       // Shared refresh may still complete for another caller, but this request
+
+      at src/__tests__/rawResponse.test.ts:545:23
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 23 passed, 25 total
+Snapshots:   0 total
+Time:        0.601 s, estimated 1 s
+Ran all test suites within paths "src/__tests__/rawResponse.test.ts".
+error: script "test" exited with code 1

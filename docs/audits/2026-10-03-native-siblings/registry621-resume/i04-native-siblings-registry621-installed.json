@@ -1,0 +1,36 @@
+{
+  "tarball": "/home/nate/Oxy/.agent-evidence/i04-bloom621-registry.tgz",
+  "sha256": "edf4cfe3d8597e4bf86f997bceacf332f7fce4a8f92c541b3cd375decbce3a0a",
+  "sha1": "663e4d688e9d35ff71b3cd49a1704341177a69c4",
+  "integrity": "sha512-oVNfAkQFNjdQWH3U4Wx/R2oF7JE3wBBJBC8dbjWHqvQaxUUA/DsFWX99Ld58Dl6mYvS7Jt7NU4OWPfZLuzuOpg==",
+  "installations": [
+    {
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "installedPath": "node_modules/@oxy.so/bloom",
+      "version": "6.2.1",
+      "fileCount": 20940,
+      "allFilesByteEqual": true
+    },
+    {
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "installedPath": "packages/test-app-expo/node_modules/@oxy.so/bloom",
+      "version": "6.2.1",
+      "fileCount": 20940,
+      "allFilesByteEqual": true
+    },
+    {
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "installedPath": "node_modules/@oxy.so/bloom",
+      "version": "6.2.1",
+      "fileCount": 20940,
+      "allFilesByteEqual": true
+    },
+    {
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "installedPath": "packages/test-app-expo/node_modules/@oxy.so/bloom",
+      "version": "6.2.1",
+      "fileCount": 20940,
+      "allFilesByteEqual": true
+    }
+  ]
+}

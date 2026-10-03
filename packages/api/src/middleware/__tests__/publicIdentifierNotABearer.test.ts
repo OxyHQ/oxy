@@ -180,6 +180,7 @@ async function signIn(userId: string): Promise<string> {
 
 /** A REAL service JWT, signed exactly as `POST /auth/service-token` signs one. */
 function serviceToken(): string {
+  const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
       type: 'service',
       appId: randomUUID(),
@@ -193,7 +194,8 @@ function serviceToken(): string {
       scopes: ['user:read'],
       iss: 'oxy-auth',
       aud: 'oxy-api',
-      exp: Math.floor(Date.now() / 1_000) + 3_600,
+      iat: issuedAt,
+      exp: issuedAt + 300,
     });
 }
 

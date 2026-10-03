@@ -1,0 +1,40 @@
+$ jest --passWithNoTests --runInBand src/session/__tests__/refresh.contextCas.test.ts
+FAIL src/session/__tests__/refresh.contextCas.test.ts
+  ● device refresh uses full native context CAS after a normal SDK switch › late A cannot overwrite persisted B for the same holder or publish shared bytes
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Object {
+    -   "accessToken": "e30.eyJ1c2VySWQiOiJvcmctYiIsInNlc3Npb25JZCI6InNlc3Npb24tYiIsImV4cCI6MTc5MTA1MTEyN30.s",
+    +   "accessToken": "e30.eyJ1c2VySWQiOiJwZXJzb24tYSIsInNlc3Npb25JZCI6InNlc3Npb24tYSIsImV4cCI6MTc5MTA1MTEyN30.s",
+        "deviceId": "same-device",
+    -   "deviceSecret": "same-holder",
+    +   "deviceSecret": "rotated-holder-a",
+        "expiresAt": "2026-10-03T18:12:07.720Z",
+    -   "sessionId": "session-b",
+    -   "userId": "org-b",
+    +   "sessionId": "session-a",
+    +   "userId": "person-a",
+      }
+
+      57 |     expect(await pending).toEqual({status: 'session-ended'});
+      58 |     expect(oxy.session.accessToken).toBe(tokenB);
+    > 59 |     expect(await native.load()).toEqual(selectedB);
+         |                                 ^
+      60 |     expect(await createNativeAuthStateStore(storage).load()).toEqual(selectedB);
+      61 |     expect(sharedPublish).not.toHaveBeenCalled();
+      62 |   });
+
+      at Object.<anonymous> (src/session/__tests__/refresh.contextCas.test.ts:59:33)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 3 passed, 4 total
+Snapshots:   0 total
+Time:        0.351 s, estimated 2 s
+Ran all test suites matching src/session/__tests__/refresh.contextCas.test.ts.
+Jest did not exit one second after the test run has completed.
+
+'This usually means that there are asynchronous operations that weren't stopped in your tests. Consider running Jest with `--detectOpenHandles` to troubleshoot this issue.

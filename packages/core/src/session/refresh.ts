@@ -24,7 +24,8 @@
 import type { DeviceSessionState, DeviceTokenMintResponse } from '@oxy.so/contracts';
 import type { OxyServices } from '../OxyServices';
 import type { AuthRefreshHandler, AuthRefreshReason } from '../HttpService';
-import type { AuthStateStore, PersistedAuthState } from './authStateStore';
+import { matchesAuthState, type AuthStateStore, type PersistedAuthState } from './authStateStore';
+import type { SharedDeviceCredentialStore } from './sharedDeviceCredential';
 import type { IdentityPin } from './identityPin';
 import { establishIdentitySession, resolveIdentityPin, type IdentityBinding } from './identitySession';
 import { isNative } from '../utils/platform';
@@ -99,6 +100,10 @@ export interface RefreshDeps {
    * Commons-identity one.
    */
   identity?: IdentityBinding;
+  /** Native ACCOUNT join point. A live local holder always wins. */
+  sharedDeviceCredential?: SharedDeviceCredentialStore;
+  /** A replaced/unmounted provider cannot commit a pending refresh. */
+  isCurrent?: () => boolean;
 }
 
 /**
@@ -148,9 +153,13 @@ export type DeviceSecretMintOutcome =
  *
  * On success it persists `nextDeviceSecret` (read-back-verified) BEFORE planting
  * the access token; a failed durable persist yields `persist-failed` WITHOUT
- * planting. This function performs NO store mutation on failure — the caller
+ * planting. Apart from the account-mode logout marker below, failure mutations
+ * belong to the caller, which
  * applies the drop/clear policy (which differs web vs native) from the returned
- * status.
+ * status. A native account store with a suppression marker records a current
+ * `no_active_session`, or an invalid secret with prior authenticated session
+ * history, records durable ACCOUNT logout intent; it never deletes that holder.
+ * Error classification uses the existing 401 message markers.
  *
  * `pin` makes the mint IDENTITY-BOUND: the request carries the pinned
  * `accountId` (so the server mints that account's token without touching
@@ -163,10 +172,13 @@ export async function refreshDeviceSecretArm(deps: {
   store: AuthStateStore;
   /** The identity pin, when this client is identity-bound. */
   pin?: IdentityPin | null;
+  isCurrent?: () => boolean;
 }): Promise<DeviceSecretMintOutcome> {
   const { oxy, store } = deps;
   const pin = deps.pin ?? null;
+  const isCurrent = deps.isCurrent ?? (() => true);
   return oxy.http.runSingleFlightDeviceSecretMint(async () => {
+    if (!isCurrent()) return {status: 'session-ended'};
     const epoch = oxy.http.getSessionEpoch();
     const persisted = await store.load();
     if (!persisted?.deviceId || !persisted?.deviceSecret) {
@@ -208,8 +220,29 @@ export async function refreshDeviceSecretArm(deps: {
         // transient and KEEP the credential so a later attempt self-heals. Wiping the
         // credential on an ambiguous 401 is what logged users out on every deploy,
         // ecosystem-wide.
-        if (body.includes('invalid_device_secret')) return { status: 'invalid-secret' };
-        if (body.includes('no_active_session')) return { status: 'no-session' };
+        const invalidSecret = body.includes('invalid_device_secret');
+        const noSession = body.includes('no_active_session');
+        if (invalidSecret || noSession) {
+          // A stopped ACCOUNT sibling cannot receive the other app's logout
+          // push. Its exact live holder's authoritative empty-device rejection
+          // must suppress automatic key recovery on this and future boots.
+          // A late rejection for a replaced session/local epoch is not current.
+          if (pin === null && store.setAutomaticIdentitySignInSuppressed && (!invalidSecret || (persisted.sessionId && persisted.userId))) {
+            const current = await store.load();
+            if (
+              !isCurrent() || oxy.http.getSessionEpoch() !== epoch ||
+              current?.deviceId !== persisted.deviceId ||
+              current.deviceSecret !== persisted.deviceSecret ||
+              current.sessionId !== persisted.sessionId ||
+              current.userId !== persisted.userId ||
+              current.accessToken !== persisted.accessToken
+            ) return { status: 'session-ended' };
+            if (!(await store.setAutomaticIdentitySignInSuppressed(true, {
+              expectedState: persisted, isCurrent: () => isCurrent() && oxy.http.getSessionEpoch() === epoch,
+            }))) return { status: 'session-ended' };
+          }
+          return { status: invalidSecret ? 'invalid-secret' : 'no-session' };
+        }
         // A pinned mint whose account left the device set. The secret is intact —
         // never classify this as a bad secret, or the caller would drop a healthy
         // credential over a stale identity binding.
@@ -231,24 +264,32 @@ export async function refreshDeviceSecretArm(deps: {
       expiresAt: mint.expiresAt,
       ...(bound ? { sessionId: bound.sessionId, userId: bound.accountId } : {}),
     };
+    if (!isCurrent()) return {status: 'session-ended'};
     if (oxy.http.getSessionEpoch() !== epoch) {
-      // Signed out while minting. A store that still holds the presented
-      // secret takes the server's `nextDeviceSecret` (the token-null lane keeps
-      // the store so a reload can restore); a store the sign-out cleared must
-      // NOT be refilled. Either way, plant nothing.
+      // A logout or account/session switch invalidated this mint. Preserve
+      // only credential rotation for an otherwise unchanged retained context;
+      // never transplant the old mint's account, session or bearer. Compare
+      // the entire snapshot inside the store queue: same holder bytes alone
+      // cannot distinguish an account switch, nor a queued save of that switch.
+      const retainedEpoch = oxy.http.getSessionEpoch();
       const current = await store.load();
-      if (current?.deviceId === persisted.deviceId && current.deviceSecret === persisted.deviceSecret) {
-        await store.save(next);
+      if (store.saveIfCurrent && current && matchesAuthState(current, persisted)) {
+        await store.saveIfCurrent({...current, deviceSecret: mint.nextDeviceSecret}, {
+          expectedState: current,
+          isCurrent: () => isCurrent() && oxy.http.getSessionEpoch() === retainedEpoch,
+        });
       }
       return { status: 'session-ended' };
     }
     // Persist nextDeviceSecret (read-back-verified) BEFORE planting the token.
     // A failed durable persist must NOT plant.
-    const persistedOk = await store.save(next);
+    const persistedOk = store.saveIfCurrent
+      ? await store.saveIfCurrent(next, {expectedState: persisted, isCurrent: () => isCurrent() && oxy.http.getSessionEpoch() === epoch})
+      : await store.save(next);
     if (!persistedOk) {
       return { status: 'persist-failed' };
     }
-    if (oxy.http.getSessionEpoch() !== epoch) {
+    if (!isCurrent() || oxy.http.getSessionEpoch() !== epoch) {
       return { status: 'session-ended' };
     }
     oxy.session.setAccessToken(mint.accessToken);
@@ -263,14 +304,71 @@ export async function refreshDeviceSecretArm(deps: {
 }
 
 /**
+ * Prove a shared native ACCOUNT holder before replacing local bytes. Callers
+ * may replace a local credential only after its explicit mint rejection. The
+ * optional guarded storage seam makes custom stores fail closed on adoption.
+ * This lane never clears explicit sign-out intent or uses an identity key.
+ */
+export async function refreshSharedDeviceArm(deps: {
+  oxy: OxyServices;
+  store: AuthStateStore;
+  shared: SharedDeviceCredentialStore;
+  rejectedLocalHolder?: boolean;
+  isCurrent?: () => boolean;
+}): Promise<DeviceSecretMintOutcome> {
+  const { oxy, store, shared } = deps;
+  const isCurrent = deps.isCurrent ?? (() => true);
+  return oxy.http.runSingleFlightDeviceSecretMint(async () => {
+    const epoch = oxy.http.getSessionEpoch();
+    if (!isCurrent()) return {status: 'session-ended'};
+    const before = await store.load();
+    if (before?.deviceId && before.deviceSecret && !deps.rejectedLocalHolder) return { status: 'no-secret' };
+    const read = await shared.read();
+    if (read.state !== 'present' || !store.saveIfCurrent) return { status: 'no-secret' };
+    const credential = read.credential;
+    if (credential.deviceId === before?.deviceId && credential.deviceSecret === before.deviceSecret) return { status: 'no-secret' };
+    let mint: DeviceTokenMintResponse;
+    try {
+      mint = await oxy.devices.mintToken(credential.deviceId, credential.deviceSecret);
+    } catch (error) {
+      if (extractErrorStatus(error) === 429) oxy.http.noteRefreshRateLimited();
+      if (extractErrorStatus(error) === 401) {
+        const message = (error as {message?: unknown})?.message;
+        if (typeof message === 'string' && message.includes('invalid_device_secret')) {
+          // There is no cross-app CAS clear in the bridge contract. An old
+          // rejection cannot delete a slot another app has since published.
+          return {status: 'invalid-secret'};
+        }
+        if (typeof message === 'string' && message.includes('no_active_session')) return {status: 'no-session'};
+      }
+      return {status: 'transient'};
+    }
+    const bound = mint.state.accounts.find(account => account.accountId === mint.state.activeAccountId);
+    if (!bound || mint.state.deviceId !== credential.deviceId || !mint.accessToken || !mint.nextDeviceSecret) return {status: 'transient'};
+    if (!isCurrent() || oxy.http.getSessionEpoch() !== epoch || !matchesAuthState(await store.load(), before)) return {status: 'session-ended'};
+    const next: PersistedAuthState = {
+      deviceId: mint.state.deviceId, deviceSecret: mint.nextDeviceSecret,
+      sessionId: bound.sessionId, userId: bound.accountId,
+      accessToken: mint.accessToken, expiresAt: mint.expiresAt,
+    };
+    if (!(await store.saveIfCurrent(next, {expectedState: before, isCurrent: () => isCurrent() && oxy.http.getSessionEpoch() === epoch}))) return {status: 'persist-failed'};
+    if (!isCurrent() || oxy.http.getSessionEpoch() !== epoch) return {status: 'session-ended'};
+    oxy.session.setAccessToken(mint.accessToken);
+    return {status: 'ok', token: mint.accessToken, sessionId: bound.sessionId, userId: bound.accountId, state: mint.state};
+  });
+}
+
+/**
  * Re-mint the persisted session and return the fresh access token, or `null`
  * when no arm could produce one.
  *
  * Arm 1 (`POST /session/device/token`, via {@link refreshDeviceSecretArm}): mint
- * from the persisted `deviceId` + `deviceSecret`. On a 401 the secret is diverged
- * or the device has no live session: drop the secret so the mint lane stops (or
- * clear the store on web, where there is no fallback), then fall to arm 2 on
- * native. A transient error — or a durable-persist failure — leaves the store and
+ * from the persisted `deviceId` + `deviceSecret`. An authenticated native
+ * holder's invalid-secret or `no_active_session` verdict suppresses key recovery
+ * while permitting a separately proved new shared holder. The latter verdict
+ * retains that holder and ends ACCOUNT recovery without a new key challenge.
+ * Classification still uses the existing 401 message markers, not a new parser.
+ * A transient error — or a durable-persist failure — leaves the store and
  * returns `null` WITHOUT falling to arm 2 (those are not bad-secret signals).
  *
  * Arm 2 (native Commons identity): when the secret is absent or was just
@@ -287,9 +385,10 @@ export async function refreshDeviceSecretArm(deps: {
  */
 export async function refreshPersistedSession(deps: RefreshDeps): Promise<string | null> {
   const { oxy, store } = deps;
+  if (deps.isCurrent && !deps.isCurrent()) return null;
   const identity = deps.identity ?? null;
   // The shared identity is never an identity-bound client's recovery path.
-  const allowCommonsIdentityFallback = identity ? false : (deps.allowCommonsIdentityFallback ?? isNative());
+  const allowCommonsIdentityFallback = identity ? false : (deps.allowCommonsIdentityFallback ?? isNative()) && !(await store.isAutomaticIdentitySignInSuppressed?.());
   const epoch = oxy.http.getSessionEpoch();
   // Resolved per call: a re-established identity session can move the pin, and a
   // replaced/removed local key clears it (in which case arm 1 must NOT mint —
@@ -299,7 +398,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
     return recoverIdentitySession(oxy, store, identity);
   }
 
-  const arm1 = await refreshDeviceSecretArm({ oxy, store, pin });
+  const arm1 = await refreshDeviceSecretArm({ oxy, store, pin, isCurrent: deps.isCurrent });
   switch (arm1.status) {
     case 'ok':
       return arm1.token;
@@ -324,6 +423,24 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
       return null;
     case 'invalid-secret':
     case 'no-session': {
+      if (!identity && deps.sharedDeviceCredential) {
+        const joined = await refreshSharedDeviceArm({oxy, store, shared: deps.sharedDeviceCredential, rejectedLocalHolder: true, isCurrent: deps.isCurrent});
+        if (joined.status === 'ok') return joined.token;
+        if (joined.status === 'session-ended' || joined.status === 'persist-failed') return null;
+      }
+      if (!identity && arm1.status === 'invalid-secret' && await store.isAutomaticIdentitySignInSuppressed?.()) return null;
+      if (arm1.status === 'no-session' && !identity) {
+        if (store.setAutomaticIdentitySignInSuppressed) return null;
+        // The holder is still valid, but its account session ended. Retain only
+        // the holder for a later deliberate/shared sign-in; never use the key
+        // to turn this signed-out verdict into a new account session.
+        const persisted = await store.load();
+        if (persisted?.deviceId && persisted.deviceSecret) {
+          await store.save({ sessionId: '', userId: '', deviceId: persisted.deviceId, deviceSecret: persisted.deviceSecret });
+        }
+        return null;
+      }
+      // Identity mode retains its separate pinned-key recovery contract.
       // 401: secret diverged or no live session. When a key-based arm 2 can still
       // recover (the native Commons identity, or an identity-bound client's own
       // primary key) drop ONLY the secret and keep the deviceId; otherwise (web) the
@@ -333,12 +450,6 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
         if (persisted) {
           await store.save({ ...persisted, deviceSecret: undefined });
         }
-      } else if (arm1.status === 'no-session' && persisted?.deviceId && persisted.deviceSecret) {
-        // Web, a credential the server still recognises: this origin stays a
-        // holder of the browser's device (ADR 0029 D2) — the next sign-in in any
-        // app lands on it, and this app follows without opening the bridge
-        // again. Only the session fields go.
-        await store.save({ sessionId: '', userId: '', deviceId: persisted.deviceId, deviceSecret: persisted.deviceSecret });
       } else {
         await store.clear();
       }
@@ -353,6 +464,11 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
       );
       break;
     case 'no-secret':
+      if (!identity && deps.sharedDeviceCredential) {
+        const joined = await refreshSharedDeviceArm({oxy, store, shared: deps.sharedDeviceCredential, isCurrent: deps.isCurrent});
+        if (joined.status === 'ok') return joined.token;
+        if (joined.status === 'session-ended' || joined.status === 'persist-failed' || joined.status === 'transient') return null;
+      }
       break;
   }
 
@@ -362,14 +478,14 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
 
   // Never after a sign-out: the shared identity is a KEY, not a session, and
   // proving it here would sign the user straight back in.
-  if (allowCommonsIdentityFallback && !oxy.http.hasSessionEnded()) {
+  if (allowCommonsIdentityFallback && (deps.isCurrent?.() ?? true) && !oxy.http.hasSessionEnded() && !(await store.isAutomaticIdentitySignInSuppressed?.())) {
     try {
       // Planted here, not by the sign-in: a sign-out that lands while the
       // challenge round-trips must win, or the identity proof signs the user
       // straight back in.
       const session = await oxy.auth.signInWithCommonsIdentity({ plantTokens: false });
       if (session?.accessToken) {
-        if (oxy.http.getSessionEpoch() !== epoch) {
+        if (!(deps.isCurrent?.() ?? true) || oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) {
           return null;
         }
         // Repopulate the fast device-secret lane from the identity re-mint.
@@ -383,7 +499,7 @@ export async function refreshPersistedSession(deps: RefreshDeps): Promise<string
             expiresAt: session.expiresAt,
           });
         }
-        if (oxy.http.getSessionEpoch() !== epoch) {
+        if (!(deps.isCurrent?.() ?? true) || oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) {
           return null;
         }
         oxy.session.setAccessToken(session.accessToken);

@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand
+
+Test Suites: 113 passed, 113 total
+Tests:       1038 passed, 1038 total
+Snapshots:   0 total
+Time:        27.892 s
+Ran all test suites.

@@ -51,27 +51,16 @@
  * `services/applicationCredentialAudit.service.ts` bounds that to one row per
  * credential, reason and minute per API instance.
  *
- * ## Every actor here is a CUSTOMER, and there is no column saying so
+ * ## Customer and bounded operational actors
  *
- * #972 workstream 12 requires staff actions and customer actions to be
- * distinguishable. On this table they are, without a discriminator, because only
- * one kind can reach it: credential create, rotate and revoke are gated by
- * `requireAppPermission`, which resolves access solely through
- * `accountService.resolveEffectiveAccess` over `Application.ownerAccountId`.
- * `isStaff` is never consulted there and grants nothing, so every
- * `actor_user_id` below is an account member acting as a customer — an Oxy
- * employee included, since the authority they used was their membership.
- * Staff-authorised decisions are recorded on staff-only surfaces instead
- * (`inference_deployments.permission_state_changed_by_user_id` and
- * `legal_reviewed_by_user_id`), so the two are told apart by WHERE the record
- * is. A constant column here would carry no information.
- *
- * **If a staff support route is ever given a write into this table, that stops
- * being true silently** — the row would say "this member did it" about an action
- * no membership authorised. `routes/__tests__/machineCredentials.test.ts` ("the
- * staff flag opens no door into a customer's credential trail") fails on the
- * change that introduces one, so the actor question is decided then rather than
- * discovered later. `docs/inference/observability.md` has the full reading.
+ * Public create/rotate/revoke routes require application membership; staff flags
+ * grant no authority. Those events record actor_user_id. The reviewed Alia I03
+ * canary helper records actor_user_id=NULL and closed operational metadata with
+ * its AWS operator ARN, session-authorization digest and nonce. That metadata
+ * identifies an operator action, never a customer session or invented consent.
+ * The helper can issue/retire only its new expiring canary credential; it adds
+ * no public route and changes no user grants. Validation failures also have no
+ * customer actor. Public audit DTOs still omit internal metadata.
  *
  * ## Retention
  *

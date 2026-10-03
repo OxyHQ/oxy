@@ -1,0 +1,83 @@
+{
+  "capturedAt": "2026-10-03T01:32:11.136087+00:00",
+  "run": 37085474521,
+  "head": "62c205f7aefdb4ce13e8365ddca03b70f5eedef2",
+  "services": [
+    {
+      "name": "kaana",
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:84",
+      "desiredCount": 1,
+      "runningCount": 1,
+      "pendingCount": 0,
+      "deployments": [
+        {
+          "id": "ecs-svc/1889241210871668560",
+          "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:84",
+          "status": "PRIMARY",
+          "rolloutState": "COMPLETED"
+        }
+      ],
+      "tasks": [
+        {
+          "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/cf728e9f44944163bed7199209f65315",
+          "lastStatus": "RUNNING",
+          "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana:84",
+          "containers": [
+            {
+              "name": "kaana",
+              "image": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/kaana@sha256:2ab33cfeba7c760dddc24761c7e60e1425b326153ce6c4d130465e316b0fa59b",
+              "imageDigest": "sha256:2ab33cfeba7c760dddc24761c7e60e1425b326153ce6c4d130465e316b0fa59b",
+              "lastStatus": "RUNNING"
+            },
+            {
+              "name": "inventory-sync",
+              "image": "public.ecr.aws/aws-cli/aws-cli@sha256:881ef2da6bd411629d8667e06ff0b8c84a20ab96a8194d5c3b85652aa3fc8de2",
+              "imageDigest": "sha256:881ef2da6bd411629d8667e06ff0b8c84a20ab96a8194d5c3b85652aa3fc8de2",
+              "lastStatus": "RUNNING"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "kaana-publisher",
+      "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:88",
+      "desiredCount": 1,
+      "runningCount": 1,
+      "pendingCount": 0,
+      "deployments": [
+        {
+          "id": "ecs-svc/3893103298999720876",
+          "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:88",
+          "status": "PRIMARY",
+          "rolloutState": "COMPLETED"
+        }
+      ],
+      "tasks": [
+        {
+          "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/6ea4b162011049c69397362659d66302",
+          "lastStatus": "RUNNING",
+          "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-publisher:88",
+          "containers": [
+            {
+              "name": "kaana-publisher",
+              "image": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/kaana@sha256:2ab33cfeba7c760dddc24761c7e60e1425b326153ce6c4d130465e316b0fa59b",
+              "imageDigest": "sha256:2ab33cfeba7c760dddc24761c7e60e1425b326153ce6c4d130465e316b0fa59b",
+              "lastStatus": "RUNNING"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "failures": [
+    {
+      "arn": "arn:aws:ecs:us-west-2:237343248947:service/oxy-cluster/kaana-credential-control",
+      "reason": "MISSING"
+    },
+    {
+      "arn": "arn:aws:ecs:us-west-2:237343248947:service/oxy-cluster/kaana-platform-credential-control",
+      "reason": "MISSING"
+    }
+  ]
+}

@@ -22,9 +22,12 @@ import storeRoutes from './routes/store';
 import stickerRoutes from './routes/stickers';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
+import agentAuthRoutes from './routes/agentAuth';
+import agentKeysRoutes from './routes/agentKeys';
 import accountSecurityRoutes from './routes/accountSecurity';
 import resourceIntrospectionRoutes from './routes/resourceIntrospection';
 import productCatalogueRoutes from './routes/productCatalogue';
+import productAccessRoutes from './routes/productAccess';
 import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
 import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
@@ -66,6 +69,8 @@ import inferenceEdgeRoutes, { configuredKaanaClient } from './routes/inferenceEd
 import { attachRealtimeEdge } from './routes/inferenceRealtime';
 import { createKaanaRealtimeClient } from './services/kaanaRealtimeClient';
 import { startKaanaCatalogueSyncSchedule } from './services/kaanaCatalogueSync.service';
+import { startProviderCostFeedSchedule } from './services/kaanaProviderCostFeed.service';
+import { startMeteredReceiptReconciliationSchedule } from './services/inferenceMeteredUsage.service';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
 import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
@@ -182,6 +187,8 @@ import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import { createInboxMcpHttpService } from './capabilities/inbox-mcp-http';
+import { handleOxyProfileInternalMcp } from './capabilities/oxy-profile.transport';
+import foregroundProfilesRouter from './routes/foregroundProfiles';
 import { serviceTokenPublicJwks, serviceTokenSigningConfig } from './config/serviceTokenSigning';
 
 // Load environment variables
@@ -219,6 +226,9 @@ app.all(
 app.all(inboxMcpHttpService.mcpPath, (request, response) => {
   void inboxMcpHttpService.handleMcp(request, response);
 });
+
+// The internal Capability transport owns its body, never the external OAuth lane.
+app.all('/_oxy/mcp', rateLimiter, (request, response) => { void handleOxyProfileInternalMcp(request, response); });
 
 // Compress responses (gzip/brotli)
 app.use(compression());
@@ -699,7 +709,10 @@ app.use(bruteForceProtection);
 app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
+app.use('/auth/agent', authRateLimiter, agentAuthRoutes);
+app.use('/_oxy/capabilities', foregroundProfilesRouter);
 app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
+app.use('/v1/products', productAccessRoutes);
 app.use('/v1/products', productCatalogueRoutes);
 app.use("/auth", userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
 app.use("/assets", assetRoutes);
@@ -778,6 +791,7 @@ app.use('/internal', internalRoutes);
 app.use('/account-events', accountEventRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
+app.use('/accounts', agentKeysRoutes);
 app.use('/accounts', accountRoutes);
 // Oxy Family membership (organizer + member personal accounts). Per-route
 // rate limiters (rl:families:*) live inside the router, same as `/accounts`.
@@ -1339,6 +1353,10 @@ export async function bootstrap(
   // fleet-wide advisory lock lets one run at a time. A task without the Kaana
   // binding registers nothing. Failures are logged, never thrown.
   startKaanaCatalogueSyncSchedule();
+  // Kaana's per-attempt upstream cost, read over its signed operator feed into
+  // `inference_provider_cost_attempts` (#1526). Read-only; same edge key.
+  startProviderCostFeedSchedule();
+  startMeteredReceiptReconciliationSchedule();
 
   // Outbound relay readiness. Say it at boot: without a relay every send is
   // refused, and the failure is otherwise only discoverable by a user trying to

@@ -41,6 +41,24 @@ function makeHost(over: Partial<SessionClientHost> = {}): SessionClientHost {
 beforeEach(() => { fakeSocket = new FakeSocket(); ioMock.mockClear(); });
 
 describe('SessionClient socket', () => {
+  it('ignores a previously registered socket callback after local isolation and a later device', async () => {
+    const host = makeHost();
+    const client = new SessionClient(host);
+    await client.start();
+    const oldCallback = fakeSocket.handlers.get('session_state')?.[0];
+    if (!oldCallback) throw new Error('Expected a registered session_state callback');
+    client.resetLocalState();
+    client.adoptState(STATE(2));
+    (host.setTokens as jest.Mock).mockClear();
+    (host.makeRequest as jest.Mock).mockClear();
+    oldCallback(STATE(99));
+    await Promise.resolve();
+    expect(client.getState()?.revision).toBe(2);
+    expect(host.setTokens).not.toHaveBeenCalled();
+    expect(host.makeRequest).not.toHaveBeenCalled();
+    client.stop();
+  });
+
   it('start() bootstraps then opens ONE socket to the base URL with a token-in-handshake auth callback', async () => {
     const host = makeHost();
     const c = new SessionClient(host);
