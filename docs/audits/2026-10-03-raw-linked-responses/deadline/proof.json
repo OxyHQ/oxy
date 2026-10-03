@@ -1,0 +1,67 @@
+{
+  "sourceCommit": "04f73b2a791d24f7318721c13204bd7b2a0964d8",
+  "sources": [
+    {
+      "path": "packages/core/src/HttpService.ts",
+      "sha256": "5395288173a19d024a676ebda7a073286c600ed2d1167b97646a6724a7d856d6",
+      "bytes": 80394
+    },
+    {
+      "path": "packages/core/src/__tests__/rawResponse.test.ts",
+      "sha256": "de6dc3b7d85056a0d425217117b767e3cc0024f4143707350b5b2142519a38af",
+      "bytes": 16876
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/deadline/logs/i04-raw-response-deadline-red.log",
+      "sha256": "0b6f9eef6e413a3a8a7f5efdbb195a56c46fe63d79f97f256a44afd2ea5112a7",
+      "bytes": 2001
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/deadline/logs/i04-raw-response-deadline-green.log",
+      "sha256": "1368ebc9d52c4b80f6ef80435226ddcf1896eed6b848b8fd2d940d971e15a1a4",
+      "bytes": 432
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/deadline/logs/i04-raw-response-deadline-types.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/deadline/logs/i04-raw-response-deadline-lint.log",
+      "sha256": "1f8ddb0ba5a73127294d9f048e678d11d3286d5343343031df3f88b9ced2b7b0",
+      "bytes": 42
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/deadline/logs/i04-raw-response-deadline-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+      "bytes": 570
+    },
+    {
+      "path": "docs/audits/2026-10-03-raw-linked-responses/deadline/logs/i04-raw-response-deadline-pack.log",
+      "sha256": "7fa2495c4cd0938c690e97ae09b10c4aa81e11059e4b3bc8153bc2641248af73",
+      "bytes": 26098
+    }
+  ],
+  "pack": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-raw-response-deadline-pack/oxy.so-core-4.2.0.tgz",
+    "sha256": "7065f27e42dc59eb02dd18a37f0944967f5b8e4fb3addd7ab5779bb95edb6506",
+    "bytes": 1603061
+  },
+  "red": {
+    "failed": 2,
+    "passed": 23
+  },
+  "green": {
+    "suites": 3,
+    "passed": 51,
+    "failed": 0
+  },
+  "published": false,
+  "limits": [
+    "Real loopback HTTP; synthetic auth refresh barrier.",
+    "Abort bounds only this request wait; shared mint finishes and installs its valid token for other callers.",
+    "No production latency bound or Expo runtime claim."
+  ]
+}
