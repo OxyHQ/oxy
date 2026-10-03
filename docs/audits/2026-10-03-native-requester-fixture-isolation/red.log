@@ -1,0 +1,222 @@
+$ jest --runInBand --testSequencer "/tmp/oxy1519-i09-f5dur4c0/ordered-sequencer.cjs" --runTestsByPath src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts
+FAIL src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts
+  ● present-requester assertion routes › mints for a signed-in person with no grant, and Alia consumes it exactly once
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › mints for an ATTESTED Homiio backend, and Alia consumes it under the handle
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses an attested caller from another role, even on the Homiio application
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses an attested caller whose binding was revoked
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses an attested assertion presented under the credential id
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses a request with no service token
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses a person's own bearer in place of a service token
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses a non-official application at the router gate
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses an official application that is not a pinned entry point, with one opaque answer
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses a forged bearer, a service token as subject and the wrong agent with the same answer
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › refuses to mint for, and to honour an assertion of, a person who has signed out
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › lets only Alia consume, and a refused consumer does not spend the assertion
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+  ● present-requester assertion routes › rejects unexpected body members
+
+    Failed query: insert into "applications" ("id", "name", "description", "website_url", "privacy_policy_url", "terms_url", "icon", "type", "status", "is_official", "is_internal", "capabilities", "redirect_uris", "scopes", "chain_namespaces", "webhook_url", "webhook_secret", "dev_webhook_url", "owner_account_id", "created_by_user_id", "last_used_at", "created_at", "updated_at") values ($1, $2, default, default, default, default, default, $3, $4, $5, default, default, default, $6, default, default, default, default, $7, default, default, default, default) returning "id"
+    params: 6a2f851751b784a86fd0e934,App 3037c2cb-c2d3-4efa-a742-b0322c6c2989,internal,active,false,{"user:read"},01a0ff62-ba69-7018-a23b-73e63f1bcf45
+
+      at PostgresJsPreparedQuery.queryWithCache (../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/pg-core/session.ts:73:11)
+      at ../../node_modules/.bun/drizzle-orm@0.45.2/node_modules/src/postgres-js/session.ts:58:17
+
+    Cause:
+        PostgresError: duplicate key value violates unique constraint "applications_pkey"
+
+          at ErrorResponse (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+          at handle (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+          at Socket.data (../../node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+
+
+  ● Test suite failed to run
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+      220 |
+      221 | afterAll(async () => {
+    > 222 |   await new Promise<void>((resolve) => server.close(() => resolve()));
+          |                                               ^
+      223 |   await closePostgres();
+      224 | });
+      225 |
+
+      at src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts:222:47
+      at src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts:222:9
+      at src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts:19:71
+      at __awaiter (src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts:15:12)
+      at Object.<anonymous> (src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts:221:21)
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       13 failed, 30 passed, 43 total
+Snapshots:   0 total
+Time:        4.314 s
+Ran all test suites within paths "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/routes/__tests__/nativeRequesterAssertion.collision-red.test.ts".
+error: script "test" exited with code 1
