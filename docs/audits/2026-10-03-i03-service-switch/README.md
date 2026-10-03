@@ -1,0 +1,9 @@
+# I03 service-switch live credential authority
+
+Source `3a16f47e34d416f730eef52849a42129d038f723`, based on `19676aa5d6069a117e0ab5fcd8f1e925fc6106f9`, fixes [review5965024182](https://github.com/OxyHQ/oxy/issues/1522#issuecomment-5965024182). The route now passes the verified middleware credential/owner/environment tuple into the existing authority snapshot before delegated session creation or reuse. No new decision rule, schema or token family is introduced.
+
+The unchanged real HTTP/JWT/PostgreSQL harness reproduces four HTTP200 responses where403 is required: credential revoked after a successful mint, offline permission removed from its live ceiling, signed owner mismatch, and signed environment mismatch. RED has4 failures/23 passes; final GREEN has27 passes, including existing consent/membership and successful actor/subject binding tests. A denial returns no session DTO and leaves existing session identities unchanged, or creates none.
+
+Run `python3 scripts/rehearsal/test-service-switch-live-1519.py` from the repository. It accepts no overrides, initializes PostgreSQL17 in its own worktree namespace, validates PID/UID/executable/data/socket ownership, migrates fresh140 and repeats, then invokes the package test with minimal environment and Bun env loading disabled. All three local PostgreSQL processes stopped. Initial launcher environment inheritance is retained in the first records and corrected for the final GREEN run. API types and exact ESLint paths exit0; the first package-wide lint exited0 with82 warnings and is retained without claiming a warning-free package.
+
+The [proof](proof.json) binds source Git bytes, frozen RED test and full terminal records. This acceptance is local source evidence; production freshness, receiver adoption and strict rollout remain I03/I11 gates. No real credentials, grants or production sessions were changed.

@@ -1,0 +1,134 @@
+{
+  "sourceHead": "3a16f47e34d416f730eef52849a42129d038f723",
+  "baseHead": "19676aa5d6069a117e0ab5fcd8f1e925fc6106f9",
+  "reviewComment": "https://github.com/OxyHQ/oxy/issues/1522#issuecomment-5965024182",
+  "recordedAt": "2026-10-03T07:57:44.583470+00:00",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/routes/internal.ts",
+      "sha256": "855956d305dde12d027d572ff7d4c427e920e3557c5e58dcde0c1174e8ae958c"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/internalServiceAccountSwitch.test.ts",
+      "sha256": "e59ad849e4e2e9554228b9834f27bc38e5fdf41f9c160c665367674a3e885c91"
+    },
+    {
+      "path": "scripts/rehearsal/test-service-switch-live-1519.py",
+      "sha256": "5c4930766a45ee5ac6918573cf57c25dcdbfd3ffa52096d4240ad0d12520c1af"
+    },
+    {
+      "path": "docs/SERVICE_TOKENS.md",
+      "sha256": "02abbfc596008c983465a92f9f37e4a1aca8bbe7397ee638bb12674aa9f32c42"
+    },
+    {
+      "path": "packages/api/src/middleware/serviceToken.ts",
+      "sha256": "8f4e87386636fd901326b7a7d56d6e5f485263f4d92676443bdb19b8501e8e5d"
+    },
+    {
+      "path": "packages/api/src/services/serviceActingAs.service.ts",
+      "sha256": "968e6ac0662b093bf2a141578d816e50ec926b2d217f30434f8c8b413498c624"
+    },
+    {
+      "path": "packages/api/src/db/schema/applicationCredentials.ts",
+      "sha256": "323bf51bbc4d0cc8b007872018e00af4bb6ed2ec27f85f258cf9bfd0d6d36b0c"
+    },
+    {
+      "path": "packages/api/src/utils/credentialUsability.ts",
+      "sha256": "e9128bfa1c8218da52bd8f538007914c68a776851ce001bb6f9e78bdf54538cf"
+    }
+  ],
+  "records": [
+    {
+      "file": "red-focused.log",
+      "sha256": "876c2fec9b7a1b700a9a8a634f77cf30c8fc89f1226b61145bfd97072aa315bf"
+    },
+    {
+      "file": "red-launch.log",
+      "sha256": "0024e6cbe7bde951752d97f81a085df2c860804cf39e182de7273597e735c71a"
+    },
+    {
+      "file": "green-initial-focused.log",
+      "sha256": "ef892a0d1e7638b7ce14ee92a1b67654cecb705acbc8c594abb3e32149d05d48"
+    },
+    {
+      "file": "green-initial-launch.log",
+      "sha256": "3f2e1e63899db7df5c05bee5ba88f831170facf173b299caf05c40735e0cbe8b"
+    },
+    {
+      "file": "green-final-focused.log",
+      "sha256": "6d38fd0e3f11b7b4f9b12080472ece7f5bfd8fb30a46f2c5da93c8ebe242ead4"
+    },
+    {
+      "file": "green-final-launch.log",
+      "sha256": "94524b4f5a2240df1a44e2532a96aece2bca552addcf35ea99963b179019da7c"
+    },
+    {
+      "file": "migration-fresh.log",
+      "sha256": "619d721ec1f0778a083c898c958c867088302c4c83d5f9eab87c3aaf04c6c50e"
+    },
+    {
+      "file": "migration-repeat.log",
+      "sha256": "d5a98f0788b9955310a7dfa4336459fe2554263e376a1ec2bf34f50c8f291144"
+    },
+    {
+      "file": "api-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "scoped-eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "initial-package-eslint.log",
+      "sha256": "9e598b8d6e6bb196b5bf3a70aaa783a73b9cd7f09b935079ccd17603f1776898"
+    },
+    {
+      "file": "frozen-red-harness.ts",
+      "sha256": "e59ad849e4e2e9554228b9834f27bc38e5fdf41f9c160c665367674a3e885c91"
+    }
+  ],
+  "results": {
+    "RED": {
+      "newFailures": 4,
+      "existingPass": 23,
+      "observed": "HTTP200 instead of403"
+    },
+    "GREEN": {
+      "suites": 1,
+      "tests": 27,
+      "exitCode": 0
+    },
+    "apiTypes": {
+      "command": "node ../../node_modules/typescript/bin/tsc --noEmit",
+      "exitCode": 0
+    },
+    "scopedESLint": {
+      "command": "node node_modules/.bin/eslint src/routes/internal.ts src/routes/__tests__/internalServiceAccountSwitch.test.ts",
+      "exitCode": 0
+    },
+    "firstESLintInvocation": {
+      "command": "bun run lint -- src/routes/internal.ts src/routes/__tests__/internalServiceAccountSwitch.test.ts",
+      "exitCode": 0,
+      "scope": "package-wide because package script includes dot",
+      "warnings": 82
+    }
+  },
+  "postgres": {
+    "version": "17",
+    "port": 5587,
+    "finalPid": 3633690,
+    "finalDataDirectory": "/home/nate/Oxy/oxy/.worktrees/1519-approved-integration-20261003/.integration-evidence/pg1519-ptw6yquj/data",
+    "newDatabase": "oxy_rehearsal_1519_580f2a38d8b4625b",
+    "normalMigrationFresh": 140,
+    "normalMigrationRepeat": "PASS",
+    "finalServerStopped": true,
+    "initialServersStopped": true
+  },
+  "reproduce": "python3 scripts/rehearsal/test-service-switch-live-1519.py",
+  "limits": [
+    "Actual HTTP, signed JWT, middleware, authority snapshot, membership and session SQL; rate limiter/logger/socket mocked only.",
+    "RED and GREEN test file bytes identical. Initial launcher inherited environment during migrations; final GREEN launcher uses minimal environment and disables Bun env files for all phases.",
+    "No production request, credential/grant mutation, SDK publication, or production revocation-latency acceptance.",
+    "Normal migration140 exercised on a freshly initialized owned local server, separate databases for RED and GREEN."
+  ]
+}
