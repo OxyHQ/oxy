@@ -19,3 +19,8 @@ be replaced; root verified the Allo slot absent. Existing host, foreign caller,
 and isolated app remain intact. No ADB action was run by this agent. Device
 observations and final published SDK repeat remain pending. This preparation is
 not an AND02/03 pass or evidence of production deployment.
+
+Callback correction db3deb613 removes the sibling scheme and authRedirectUri.
+The rebuilt manifests contain no astro handler, leaving the isolated third-party
+app as its only fixture owner. New APKs/bundles are pinned in no-callback-proof.json;
+prior variants remain historical and must not be installed. No allowlist changed.

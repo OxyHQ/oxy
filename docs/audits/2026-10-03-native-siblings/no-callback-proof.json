@@ -1,0 +1,72 @@
+{
+  "sourceCommit": "db3deb613",
+  "alloEquivalentCommit": "7e9828e76",
+  "sources": [
+    {
+      "path": "packages/test-app-expo/app.config.js",
+      "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99",
+      "bytes": 931
+    },
+    {
+      "path": "packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "a490512b3e4804386041eb47a79b2a1faf7ea0dd8e85ab326991a702d8cc816a",
+      "bytes": 3888
+    },
+    {
+      "path": "packages/test-app-expo/acceptance/README.md",
+      "sha256": "a36e6a0d8f75ed7a1464adc95fed6b32136386fea6cabab2e49940cea6a110d7",
+      "bytes": 2664
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/i04-native-mention-nocallback-prebuild-20261003.log",
+      "sha256": "bbcd4e3c899124688db88b2fdda3f9012e31d95a0d082fe04eac96f6adb2ac62",
+      "bytes": 402
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/i04-native-mention-nocallback-gradle-20261003.log",
+      "sha256": "fdaafcb5c5a6026bfd2261ed688fc48080af76283b344f939abb27e52f87c5eb",
+      "bytes": 95580
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/i04-native-allo-nocallback-prebuild-20261003.log",
+      "sha256": "bbcd4e3c899124688db88b2fdda3f9012e31d95a0d082fe04eac96f6adb2ac62",
+      "bytes": 402
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/logs/i04-native-allo-nocallback-gradle-20261003.log",
+      "sha256": "647533f5caf111848ffab86ce1bc200852fd98ec924ce19570c69b3cff7d5900",
+      "bytes": 94365
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-mention-nocallback-20261003.apk",
+      "sha256": "9d949aad1e370bf36f36153f616e74c3879d4ded6155be135bb5e3e001d67a39",
+      "bytes": 88342738
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-mention-nocallback-bundle-20261003.js",
+      "sha256": "a481c66eff2751af47e2e51a954c2df85e84f5198a531e9417527242e2f6e9bd",
+      "bytes": 21493078
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-allo-nocallback-20261003.apk",
+      "sha256": "89bf0219a60987edbbd91b33613f3e03a26d343469fc2e9b909b097908afe0f1",
+      "bytes": 88342738
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-allo-nocallback-bundle-20261003.js",
+      "sha256": "b936048027962510d3246a064698cabbf775aacbf48eb7cff3b6573374f165f7",
+      "bytes": 21493047
+    }
+  ],
+  "manifestChecks": {
+    "astroSchemeAbsent": true,
+    "sharedUserIdAbsent": true,
+    "certificateMatchesOwnedFixture": true
+  },
+  "runtimeChoice": "Registered trusted clients -> canonical in-app dialog; no oauthRedirectUri or nativeOAuthCompletion supplied",
+  "deviceExecutedByThisAgent": false
+}
