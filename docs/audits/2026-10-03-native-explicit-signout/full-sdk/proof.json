@@ -1,0 +1,48 @@
+{
+  "sourceHead": "c013230c26d31649aa3b1db799e3c80549532d4b",
+  "recordedAt": "2026-10-03T13:29:36.809527+00:00",
+  "packageInputTrees": {
+    "packages/core": "1b1adc54c7db81e2d7b4c0a38285c1a038f29c34",
+    "packages/services": "1a2a90f844a94d246c5c04accfeb4ac803eaa0b3",
+    "packages/contracts": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+    "packages/protocol": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+    "package.json": "81684a59a64778423aa390dcd748b771d581c96e",
+    "bun.lock": "595ca4349beb16bf70aed9da95d5d4777d3f074d"
+  },
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/full-sdk/final-core-full.log",
+      "sha256": "b67d6f24507587d774be3305e569601120ebcdefae046f572f97b921aa9c466e"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/full-sdk/final-services-full.log",
+      "sha256": "024d7f82c4fc95c5f249660321bfb51a0c36d6300ce5e87e598e35a283bf5c00"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-explicit-signout/full-sdk/final-forge-expo14.log",
+      "sha256": "15cf1c1ad7ac7c4a79f07ec586ef981a243e19e2888b3b143e3ad51f54e8151c"
+    }
+  ],
+  "results": {
+    "core": {
+      "suites": 177,
+      "tests": 2170,
+      "exit": 0,
+      "command": "cd packages/core && bun run test --runInBand"
+    },
+    "services": {
+      "suites": 113,
+      "tests": 1038,
+      "exit": 0,
+      "command": "cd packages/services && bun run test --runInBand"
+    },
+    "expoIndependent": {
+      "tests": 14,
+      "exit": 0,
+      "command": "node scripts/forge-independent-expo-compat.cjs packages/api"
+    }
+  },
+  "limits": [
+    "Candidate workspace suites only; no registry release or actual Android repetition claim. API changes pending operational CAS are not included in this source head."
+  ]
+}
