@@ -1,0 +1,336 @@
+{
+  "createdAt": "2026-10-03T13:32:27.445277+00:00",
+  "reviewedSdkSource": "945c8adf04ce93b0a4a487c26c6c78f09efe26ff",
+  "status": "candidate preparation; device rerun pending",
+  "bloomRegistryVersion": "6.2.1",
+  "sources": [
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "package.json",
+      "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "bun.lock",
+      "sha256": "8b0e9eac5e0565a73430a1ef1340ce47243001322c546fd9f17f1c5f12c2ee87"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/test-app-expo/package.json",
+      "sha256": "857608e3e19311b7997ab59cbee6dc132b3a778f28c28f1232b2a45ba5b3a985"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/test-app-expo/app.config.js",
+      "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/test-app-expo/metro.config.js",
+      "sha256": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "a490512b3e4804386041eb47a79b2a1faf7ea0dd8e85ab326991a702d8cc816a"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/core/src/boot/sessionColdBoot.ts",
+      "sha256": "bb5894e79042bfc3a9d05a758918a922421691e04ce107fe95d9f4abdb52183e"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/core/src/session/authStateStore.ts",
+      "sha256": "2a97f3f1f70cfd6aee71560b5ca9189d7832509b0bfb9af0ffb1b9319dea2120"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/core/src/session/SessionClient.ts",
+      "sha256": "77fc00702f547eba48e63c6dc7be161cb335115425b39604f0d2fcf446bc172d"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/core/src/session/refresh.ts",
+      "sha256": "2e0083f5aec5038e99c84f459b11cf0714610071748ffc100b3ad975bf44aefc"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "07ee0d114e82fbd07a5ae8996a40d375e38451f908cf892597799828e8d92b21"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/services/src/ui/context/hooks/useAuthOperations.ts",
+      "sha256": "04c6fb7cbb518c58c0e7521d0b3a6af2978ae50d51bf8b7486a7c2d669b5ab68"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/services/package.json",
+      "sha256": "0eb688398de503ac5a6e9e1aa27b19d6109eb34e47dc7b00b9fa444b97280dfe"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "package.json",
+      "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "bun.lock",
+      "sha256": "8b0e9eac5e0565a73430a1ef1340ce47243001322c546fd9f17f1c5f12c2ee87"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/test-app-expo/package.json",
+      "sha256": "857608e3e19311b7997ab59cbee6dc132b3a778f28c28f1232b2a45ba5b3a985"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/test-app-expo/app.config.js",
+      "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/test-app-expo/metro.config.js",
+      "sha256": "28975f8508ea17c4935bd0ac9d5e2304dba801623d58a67d77b514c36be86a27"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/test-app-expo/acceptance/entry.tsx",
+      "sha256": "a490512b3e4804386041eb47a79b2a1faf7ea0dd8e85ab326991a702d8cc816a"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/core/src/boot/sessionColdBoot.ts",
+      "sha256": "bb5894e79042bfc3a9d05a758918a922421691e04ce107fe95d9f4abdb52183e"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/core/src/session/authStateStore.ts",
+      "sha256": "2a97f3f1f70cfd6aee71560b5ca9189d7832509b0bfb9af0ffb1b9319dea2120"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/core/src/session/SessionClient.ts",
+      "sha256": "77fc00702f547eba48e63c6dc7be161cb335115425b39604f0d2fcf446bc172d"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/core/src/session/refresh.ts",
+      "sha256": "2e0083f5aec5038e99c84f459b11cf0714610071748ffc100b3ad975bf44aefc"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/services/src/ui/context/OxyContext.tsx",
+      "sha256": "07ee0d114e82fbd07a5ae8996a40d375e38451f908cf892597799828e8d92b21"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/services/src/ui/context/hooks/useAuthOperations.ts",
+      "sha256": "04c6fb7cbb518c58c0e7521d0b3a6af2978ae50d51bf8b7486a7c2d669b5ab68"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/services/package.json",
+      "sha256": "0eb688398de503ac5a6e9e1aa27b19d6109eb34e47dc7b00b9fa444b97280dfe"
+    }
+  ],
+  "trees": [
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/contracts",
+      "tree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+      "reviewedTree": "6ff8352ea7920065590dceda3fff3ca420b94b69"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/core",
+      "tree": "1b1adc54c7db81e2d7b4c0a38285c1a038f29c34",
+      "reviewedTree": "1b1adc54c7db81e2d7b4c0a38285c1a038f29c34"
+    },
+    {
+      "variant": "mention",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003",
+      "commit": "34a78f63ce1d4f06ff1d052ec8df9f88594f233c",
+      "path": "packages/services",
+      "tree": "1a2a90f844a94d246c5c04accfeb4ac803eaa0b3",
+      "reviewedTree": "1a2a90f844a94d246c5c04accfeb4ac803eaa0b3"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/contracts",
+      "tree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+      "reviewedTree": "6ff8352ea7920065590dceda3fff3ca420b94b69"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/core",
+      "tree": "1b1adc54c7db81e2d7b4c0a38285c1a038f29c34",
+      "reviewedTree": "1b1adc54c7db81e2d7b4c0a38285c1a038f29c34"
+    },
+    {
+      "variant": "allo",
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003",
+      "commit": "c319031f860a837380b35b023e132b3a2636fb0c",
+      "path": "packages/services",
+      "tree": "1a2a90f844a94d246c5c04accfeb4ac803eaa0b3",
+      "reviewedTree": "1a2a90f844a94d246c5c04accfeb4ac803eaa0b3"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-marker-registry.json",
+      "sha256": "e9902a2397a2b3b380b153e4e9201a609191ac646ea1b889d47cf836a594c804"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-mention-marker-manifest.json",
+      "sha256": "fd3f75516851536c1c933b748012298b43bd0f184120e9b30526b1ba7cd49fe6"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-allo-marker-manifest.json",
+      "sha256": "3ce4cfda76e76e0920bf9d005c982c9f74b79f75128a2dd1d39c83b2d6408f94"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-mention-marker-install.log",
+      "sha256": "db5809408e3d7f88534d6043a597280037ebd4770f9ee7702fa36cd5bdfb6b4a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-allo-marker-install.log",
+      "sha256": "e19b1a7211f9c701d557b8f86a8b44e670e7e82bdbc39ccd8202c0da246ddfe4"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-mention-marker-deps.log",
+      "sha256": "619f3b9438b0e196b9dc4c06aa93064e2c783528eeac48b0752b8e85659d9825"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-allo-marker-deps.log",
+      "sha256": "619f3b9438b0e196b9dc4c06aa93064e2c783528eeac48b0752b8e85659d9825"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-mention-marker-services-build.log",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-allo-marker-services-build.log",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-marker-core-focal.log",
+      "sha256": "32d0c275e30e503401c04c55c49a6e01a13c65d019abd283559b05c262e86493"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/i04-native-marker-services-focal.log",
+      "sha256": "870ea9787066cd41e93ea717487b47846ab4849c0db371048da64c8f2777227c"
+    },
+    {
+      "path": "docs/audits/2026-10-03-native-siblings/explicit-signout-marker/built-files.json",
+      "sha256": "b852c5f8b59a4246a6218d6ebdfb5d25ed96d4409de17d8ae342a1d1a92f3d9a"
+    }
+  ],
+  "bundles": [
+    {
+      "variant": "mention",
+      "port": 17967,
+      "url": "http://127.0.0.1:17967/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-mention-marker.bundle.js",
+      "sha256": "7fbf0d57ef1f06c0dc2987f2958c6166983645fd2851bb70812c076748f07db9",
+      "bytes": 18435445,
+      "manifest": "/home/nate/Oxy/.agent-evidence/i04-native-mention-marker-manifest.json",
+      "manifestSha256": "fd3f75516851536c1c933b748012298b43bd0f184120e9b30526b1ba7cd49fe6"
+    },
+    {
+      "variant": "allo",
+      "port": 17968,
+      "url": "http://127.0.0.1:17968/packages/test-app-expo/index.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&transform.reactCompiler=true&unstable_transformProfile=hermes-stable",
+      "path": "/home/nate/Oxy/.agent-evidence/i04-native-allo-marker.bundle.js",
+      "sha256": "dc7b9f5062b7b61121d19e0fb8f3bcca3b600c8d471d9d87822264eb15c7e4e3",
+      "bytes": 18430026,
+      "manifest": "/home/nate/Oxy/.agent-evidence/i04-native-allo-marker-manifest.json",
+      "manifestSha256": "3ce4cfda76e76e0920bf9d005c982c9f74b79f75128a2dd1d39c83b2d6408f94"
+    }
+  ],
+  "runtimeLimits": [
+    "Oxy packages are reviewed workspace candidate source, not a published final SDK.",
+    "Bloom 6.2.1 is registry verified.",
+    "No ADB, identity-store writes, backend changes or new device observations by preparer.",
+    "Existing installed APKs unchanged; root owns device operations."
+  ],
+  "validation": {
+    "core": {
+      "suites": 5,
+      "tests": 68,
+      "failed": 0
+    },
+    "services": {
+      "suites": 2,
+      "tests": 54,
+      "failed": 0
+    },
+    "dependencyBuilds": 2,
+    "servicesBuilds": 2,
+    "builtFiles": 5426,
+    "sourceTreesExact": 6,
+    "bloomResolutions": 4,
+    "filesPerBloomResolution": 20940
+  }
+}

@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/boot/__tests__/nativeExplicitSignOut.test.ts src/boot/__tests__/sessionColdBoot.test.ts src/boot/__tests__/sessionColdBoot.identity.test.ts src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts src/session/__tests__/SessionClient.rest.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       68 passed, 68 total
+Snapshots:   0 total
+Time:        1.418 s
+Ran all test suites within paths "src/boot/__tests__/nativeExplicitSignOut.test.ts", "src/boot/__tests__/sessionColdBoot.test.ts", "src/boot/__tests__/sessionColdBoot.identity.test.ts", "src/boot/__tests__/sessionColdBoot.sharedDevice.test.ts", "src/session/__tests__/SessionClient.rest.test.ts".

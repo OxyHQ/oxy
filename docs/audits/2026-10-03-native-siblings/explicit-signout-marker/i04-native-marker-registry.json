@@ -1,0 +1,36 @@
+{
+  "tarball": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-bloom621-registry.tgz",
+    "sha256": "edf4cfe3d8597e4bf86f997bceacf332f7fce4a8f92c541b3cd375decbce3a0a"
+  },
+  "resolutions": [
+    {
+      "variant": "mention",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/@oxy.so/bloom",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "files": 20940,
+      "allBytesEqual": true
+    },
+    {
+      "variant": "mention",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/node_modules/@oxy.so/bloom",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "files": 20940,
+      "allBytesEqual": true
+    },
+    {
+      "variant": "allo",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/node_modules/@oxy.so/bloom",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "files": 20940,
+      "allBytesEqual": true
+    },
+    {
+      "variant": "allo",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/packages/test-app-expo/node_modules/@oxy.so/bloom",
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1519-native-allo-20261003/node_modules/.bun/@oxy.so+bloom@6.2.1/node_modules/@oxy.so/bloom",
+      "files": 20940,
+      "allBytesEqual": true
+    }
+  ]
+}

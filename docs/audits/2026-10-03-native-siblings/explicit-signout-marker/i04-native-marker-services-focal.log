@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath __tests__/context/coldBoot.test.tsx __tests__/context/useAuthOperations.test.tsx
+
+Test Suites: 2 passed, 2 total
+Tests:       54 passed, 54 total
+Snapshots:   0 total
+Time:        2.637 s
+Ran all test suites within paths "__tests__/context/coldBoot.test.tsx", "__tests__/context/useAuthOperations.test.tsx".
