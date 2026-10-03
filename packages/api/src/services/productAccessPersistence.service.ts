@@ -1,17 +1,28 @@
-/** Generic internal writer. No HTTP grant lane, checkout or provider call. */
-import { z } from 'zod';
 import { createHash } from 'node:crypto';
+import {
+	type ProductBenefit,
+	type ProductDefinition,
+	type ProductOffer,
+	type ProductOfferSegment,
+	type ProductSubscriptionSource,
+	productAccessGrantSchema,
+	productDefinitionSchema,
+	productOfferSchema,
+	productOfferSegmentSchema,
+	productSubscriptionSourceSchema,
+} from "@oxy.so/contracts";
 import { and, eq, inArray, isNull } from 'drizzle-orm';
+/** Generic internal writer. No HTTP grant lane, checkout or provider call. */
+import { z } from "zod";
 import {
-  productDefinitionSchema, productOfferSchema, productSubscriptionSourceSchema, productOfferSegmentSchema,
-  productAccessGrantSchema, type ProductDefinition, type ProductOffer, type ProductSubscriptionSource,
-  type ProductOfferSegment, type ProductBenefit,
-} from '@oxy.so/contracts';
-import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
+  type DatabaseOrTransaction, type Transaction ,
+	getDb,
+} from '../config/postgres';
 import {
-  accessProducts, accessOffers, accessOfferBenefits, accessSubscriptionSources, accessOfferSegments, accessGrants,
-  applications, users, accountClosureFences,
-} from '../db/schema';
+  accessGrants,
+	accessOfferBenefits,
+	accessOfferSegments, accessOffers, accessProducts, accessSubscriptionSources, accountClosureFences,
+  applications, users, } from '../db/schema';
 import { ApiError, ConflictError } from '../utils/error';
 import { composeSubjectProductAccess } from './productAccess';
 
@@ -131,7 +142,10 @@ export async function recordProductAccessPeriod(input: {
   source: ProductSubscriptionSource; segment: ProductOfferSegment; providerObservedAt: Date; providerBinding: ProductProviderBinding;
   /** Internal provider adapter only; account/app union is locked before source transition. */
   advanceSourceSnapshot?: boolean;
-}, transaction?: Transaction): Promise<{ status: 'recorded' | 'replayed'; grantIds: string[] }> {
+/** Only the internal verified paid-evidence adapter may retain a past segment. */
+		allowHistoricalPaidSegment?: boolean;
+	}, transaction?: Transaction,
+): Promise<{ status: 'recorded' | 'replayed'; grantIds: string[] }> {
   const binding = productProviderBindingSchema.parse(input.providerBinding);
   const source = productSubscriptionSourceSchema.parse(input.source);
   const segment = productOfferSegmentSchema.parse(input.segment);
@@ -139,7 +153,8 @@ export async function recordProductAccessPeriod(input: {
   if (segment.subscriptionId !== source.id || segment.beneficiaryAccountId !== source.beneficiaryAccountId) {
     throw new ConflictError('Offer segment does not match its subscription source');
   }
-  const write = async (tx: Transaction): Promise<{ status: 'recorded' | 'replayed'; grantIds: string[] }> => {
+  const write = async (tx: Transaction,
+	): Promise<{ status: 'recorded' | 'replayed'; grantIds: string[] }> => {
     const offer = await configuredOffer(tx, segment.offerId, segment.offerVersion);
     const definitions = await Promise.all([...new Set(offer.benefits.map(benefit => benefit.productId))].map(id => readRegisteredProduct(tx, id)));
     await lockOpenAccounts(tx, [source.beneficiaryAccountId, source.payerAccountId, ...definitions.map(product => product.ownerAccountId)]);
@@ -163,9 +178,16 @@ export async function recordProductAccessPeriod(input: {
     if (!historic) {
       // Current state does not authorize a NEW grant for an old/canceled period.
       // An immutable existing segment can be acknowledged without rewinding it.
-      if (Date.parse(segment.period.start) < Date.parse(source.period.start)
-        || Date.parse(segment.period.end) > Date.parse(source.period.end)) throw new ConflictError('New offer segment is outside current source period');
-      if (!['active', 'trialing'].includes(source.status)) throw new ConflictError('Inactive source cannot issue an access period');
+      const withinCurrentPeriod =
+				Date.parse(segment.period.start) >= Date.parse(source.period.start) &&
+				Date.parse(segment.period.end) <= Date.parse(source.period.end);
+			const active = ["active", "trialing"].includes(source.status);
+			const retainedPaidHistory =
+				input.allowHistoricalPaidSegment &&
+				(Date.parse(segment.period.end) <= Date.parse(source.period.start)
+        || (!active && withinCurrentPeriod) );
+			if (!withinCurrentPeriod && !retainedPaidHistory) throw new ConflictError('New offer segment is outside current source period');
+      if (!active && !retainedPaidHistory) throw new ConflictError('Inactive source cannot issue an access period');
     }
     if (!historic && input.advanceSourceSnapshot) {
       // Union of every new bundle product owner/application was locked above,
@@ -187,19 +209,19 @@ export async function recordProductAccessPeriod(input: {
     const [storedSegment] = await tx.select().from(accessOfferSegments).where(eq(accessOfferSegments.id, segment.id));
     same(segmentDto(storedSegment), segment);
     const grantIds = offer.benefits.map((_, index) => `grant_${createHash('sha256').update(JSON.stringify([segment.id, index])).digest('hex')}`);
-    if (inserted.length && grantIds.length) {
+		if (inserted.length && grantIds.length) {
       await tx.insert(accessGrants).values(offer.benefits.map((benefit, benefitIndex) => ({
         id: grantIds[benefitIndex], sourceSegmentId: segment.id, beneficiaryAccountId: segment.beneficiaryAccountId,
         offerId: segment.offerId, offerVersion: segment.offerVersion, origin: segment.origin,
         benefitIndex, productId: benefit.productId, periodStart: new Date(segment.period.start), periodEnd: new Date(segment.period.end),
       })));
     }
-    const persisted = await tx.select({ id: accessGrants.id }).from(accessGrants)
+		const persisted = await tx.select({ id: accessGrants.id }).from(accessGrants)
       .where(eq(accessGrants.sourceSegmentId, segment.id)).orderBy(accessGrants.benefitIndex);
-    if (persisted.length !== grantIds.length || persisted.some((grant, index) => grant.id !== grantIds[index])) throw productAccessNotConfigured();
-    return { status: inserted.length ? 'recorded' : 'replayed', grantIds: persisted.map(grant => grant.id) };
-  };
-  return transaction ? write(transaction) : getDb().transaction(write);
+		if (persisted.length !== grantIds.length || persisted.some((grant, index) => grant.id !== grantIds[index])) throw productAccessNotConfigured();
+		return { status: inserted.length ? 'recorded' : 'replayed', grantIds: persisted.map(grant => grant.id) };
+	};
+	return transaction ? write(transaction) : getDb().transaction(write);
 }
 
 /** Named source update only, checked against a product it actually supplies. */

@@ -1510,3 +1510,6 @@ export { meteredGenerationSchema, type MeteredGeneration } from "./inference/eco
 export { canonicalCapabilityJson, inputSatisfiesCapabilityLimits, isLoopbackOrigin } from './capabilityBindings';
 
 export * from './agentKeys';
+export { productSubscriptionSummarySchema, productSubscriptionsResponseSchema,
+    subscriptionCreditGrantSchema, subscriptionCreditGrantsResponseSchema, cancelProductSubscriptionSchema,
+    type ProductSubscriptionSummary, type SubscriptionCreditGrant } from './products/billing';

@@ -43,6 +43,7 @@ const failures = [];
  * Other API routes are unnecessary for these focused controls.
  */
 const FIXTURE_ROUTES = {
+  'billing.ts': [['get', '/product-subscriptions'], ['get', '/credit-grants'], ['get', '/subscriptions'], ['post', '/product-subscriptions/cancel'], ['post', '/subscriptions/cancel']],
   'productAccess.ts': [['get', '/{productId}/access/{subjectAccountId}']],
   'inferenceEdge.ts': [
     ['post', '/responses'],
@@ -67,6 +68,7 @@ const FIXTURE_ROUTES = {
 };
 
 const FIXTURE_MAP = {
+  'billing.ts': ['/billing'],
   'productAccess.ts': ['/v1/products'],
   'inferenceEdge.ts': ['/v1'],
   'inferenceCatalogue.ts': ['/v1/models', '/models'],
@@ -282,6 +284,18 @@ expectVerdict(
   1,
   'GET /v1/products/{productId}/access/{subjectAccountId} declares no 2xx response with a constrained schema',
 );
+
+// Private billing projections and named cancellation must retain constrained contracts.
+for (const path of ['/billing/product-subscriptions', '/billing/credit-grants', '/billing/subscriptions']) {
+  expectVerdict(`billing-response-dropped-${path}`, createFixture({ payloadOverrides: {
+    [`${path} get`]: { responses: { 200: { description: 'ok' } } },
+  } }), 1, `GET ${path} declares no 2xx response with a constrained schema`);
+}
+for (const path of ['/billing/product-subscriptions/cancel', '/billing/subscriptions/cancel']) {
+  expectVerdict(`billing-selector-dropped-${path}`, createFixture({ payloadOverrides: {
+    [`${path} post`]: { requestBody: null },
+  } }), 1, `POST ${path} publishes no constrained \`application/json\` request body`);
+}
 
 // The catalogue is mounted TWICE. A map that keeps only one prefix leaves a
 // document that looks complete unless both are named.
@@ -548,7 +562,7 @@ withMutatedGate(
   'payload-list-shrunk',
   "  { method: 'post', path: '/v1/responses', requestBody: true },\n",
   '',
-  'below the floor of 12',
+  'below the floor of 17',
 );
 
 // The empty-schema walk going INERT, which is the one failure its own findings

@@ -135,7 +135,7 @@ const PUBLIC_BY_DESIGN = ['/models', '/v1/models'];
 const PUBLIC_EMAIL_OPERATIONS = new Set(['POST /email/inbound', 'GET /email/proxy']);
 
 /**
- * The `/v1` operations whose PAYLOADS a published contract must describe, and
+ * The inference/product-access and self-service billing operations whose PAYLOADS a published contract must describe, and
  * whether each takes a request body.
  *
  * Named individually and not derived, for the same reason `EXPECTED_PATHS` is: a
@@ -148,6 +148,11 @@ const PUBLIC_EMAIL_OPERATIONS = new Set(['POST /email/inbound', 'GET /email/prox
  * voice clients address the Alia product directly; generic inference uses Oxy.
  */
 const EXPECTED_PAYLOAD_OPERATIONS = [
+  { method: 'get', path: '/billing/product-subscriptions', requestBody: false },
+  { method: 'get', path: '/billing/credit-grants', requestBody: false },
+  { method: 'get', path: '/billing/subscriptions', requestBody: false },
+  { method: 'post', path: '/billing/product-subscriptions/cancel', requestBody: true },
+  { method: 'post', path: '/billing/subscriptions/cancel', requestBody: true },
   { method: 'get', path: '/v1/products/{productId}/access/{subjectAccountId}', requestBody: false },
   { method: 'post', path: '/v1/responses', requestBody: true },
   { method: 'post', path: '/v1/decisions', requestBody: true },
@@ -180,7 +185,7 @@ const FORBIDDEN_30_KEYWORDS = {
 /** Vacuity floors. A layer that examines nothing must fail, not pass. */
 const MINIMUM_EXPECTED_PATHS = 12;
 const MINIMUM_EXPECTED_PREFIXES = 4;
-const MINIMUM_PAYLOAD_OPERATIONS = 12;
+const MINIMUM_PAYLOAD_OPERATIONS = 17;
 /**
  * The floor on schema nodes the empty-schema walk must actually visit.
  *
