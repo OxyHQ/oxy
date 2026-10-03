@@ -1,0 +1,42 @@
+packages/api/src/services/session.service.ts:42:20 lint/style/useNodejsImportProtocol  FIXABLE  ━━━━━━━━━━
+
+  × A Node.js builtin module should be imported with the node: protocol.
+  
+    40 │ import type { Request } from 'express';
+    41 │ import jwt from 'jsonwebtoken';
+  > 42 │ import crypto from 'crypto';
+       │                    ^^^^^^^^
+    43 │ import type {
+    44 │   SessionValidationResult,
+  
+  i Using the node: protocol is more explicit and signals that the imported module belongs to Node.js.
+  
+  i Unsafe fix: Add the node: protocol.
+  
+      40   40 │   import type { Request } from 'express';
+      41   41 │   import jwt from 'jsonwebtoken';
+      42      │ - import·crypto·from·'crypto';
+           42 │ + import·crypto·from·'node:crypto';
+      43   43 │   import type {
+      44   44 │     SessionValidationResult,
+  
+
+packages/api/src/services/session.service.ts:1317:57 lint/style/noNonNullAssertion ━━━━━━━━━━━━━━━━━
+
+  × Forbidden non-null assertion.
+  
+    1315 │       // Check if access token is expired
+    1316 │       try {
+  > 1317 │         const decoded = jwt.verify(session.accessToken, process.env.ACCESS_TOKEN_SECRET!) as jwt.JwtPayload;
+         │                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    1318 │         const currentTime = Math.floor(Date.now() / 1000);
+    1319 │ 
+  
+
+Checked 1 file in 7ms. No fixes applied.
+Found 2 errors.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

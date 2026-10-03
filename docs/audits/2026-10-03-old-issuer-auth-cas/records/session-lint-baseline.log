@@ -1,0 +1,7 @@
+/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/biome.json internalError/fs ━━━━━━━━━━
+
+  × Cannot read file
+  
+  × Biome can't read the following file, maybe for permissions reasons or it doesn't exist: /home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/biome.json
+  
+

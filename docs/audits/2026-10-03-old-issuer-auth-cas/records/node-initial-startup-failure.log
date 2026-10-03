@@ -1,0 +1,9 @@
+/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/dist/config/postgres.js:156
+        throw new env_1.ConfigurationError('PostgreSQL is not connected. Call connectPostgres() during startup ' +
+              ^
+
+ConfigurationError: PostgreSQL is not connected. Call connectPostgres() during startup before issuing queries.
+    at getDb (/home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/packages/api/dist/config/postgres.js:156:15)
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-i05-foreground-capability-20261003/scripts/auth/tests/old-issuer-auth-compiled.mjs:29:9
+
+Node.js v24.21.0

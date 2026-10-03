@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "b20df22a82d930525c2e29c3a18ee2215d5bb00b",
+  "sourceSha256": {
+    "packages/api/src/services/session.service.ts": "20d542fa74f1b69e41b530fd9140db4c5709c6f097955a26582b433ea1781dac",
+    "packages/api/src/scripts/oldIssuerAuthRetirement.ts": "2e3d0e7b991d44ec8403d0a499fa9f81d2c5376b3839a997170d0aa771c0214a",
+    "packages/api/src/scripts/__tests__/oldIssuerAuthRetirement.db.test.ts": "ba6a9f55e99537d7784db05e30675e1adc472b5b8fbead76509c5c1fa8a41a6b",
+    "scripts/rehearsal/test-old-issuer-auth-retirement.py": "bfc5e42b2f2d86a592184b82d654bf3533ab9c92f5b28fd3ce5276a670d89b45",
+    "scripts/auth/tests/old-issuer-auth-compiled.mjs": "cf6e6bb648733276b5eebc342686d4f2bedd94d417427e3f1f77ee8e73dfc302",
+    "docs/architecture/rollback/old-issuer-auth-cas.md": "607453d5cedaf099dda711db6cce30caa85b5eca11d38568f27aec5d076b5fb1",
+    "packages/api/src/config/postgres.ts": "cde261995eb5c66710a977b164bb0b72208d41528c6bfc9520b48d866e15793f",
+    "packages/api/src/utils/sessionCache.ts": "ba43b925ed7afee76cac6a1876a199023d01ba7e6692e1c449646ec29114f9fc",
+    "packages/api/src/db/schema/authCodes.ts": "c3a4eece4cc79619f856a8da6c0a6ae7c79e97ba3c895e5d99b2742c3bedc944",
+    "packages/api/src/db/schema/authSessions.ts": "5b26f6ebed669619af9604d914a6972ed418500f0bf9c944db09245feb5733d3",
+    "packages/api/src/db/schema/sessions.ts": "06400f9679bff72e4bb955d19fc6dbc1eb29d9464ae4251536350e4811a929cc",
+    "packages/api/src/db/schema/userAuthMethods.ts": "6a96d63a6942f96e61813409a47f639c0edb60720e1a2a6de5cffa05b8753f9e"
+  },
+  "records": {
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/final-owned-run.log": {
+      "sha256": "cd70c06132e1f985e36db0d056747709d4065f0aa7b55d7fe0c71a4ec42b7172",
+      "bytes": 1946
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/api-build.log": {
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/api-compile.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/scripts-compile.log": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/scoped-biome.log": {
+      "sha256": "1f8ddb0ba5a73127294d9f048e678d11d3286d5343343031df3f88b9ced2b7b0",
+      "bytes": 42
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/session-lint-current.log": {
+      "sha256": "4c2b3ab70b77748e070c179d2fcff90c92e1f4557a3837b6f9f3b062192ec976",
+      "bytes": 1872
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/session-lint-baseline.log": {
+      "sha256": "6fa5dbc2de6281bc6d89f3b34fee2b2d68dfb5872b2d5271618346b1eb140560",
+      "bytes": 333
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/xmin-mutant-run.log": {
+      "sha256": "6e60c4232b6cf5fe4a7e282a6d7b970c57d593ce4f63b43957e9ef7e4796611b",
+      "bytes": 2772
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/initial-completed-review-failure.log": {
+      "sha256": "70a83bba4fa87057ab34f44394a5f7028fdde0bd6973c0371ba0c1dffeb21a0a",
+      "bytes": 7165
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/node-initial-startup-failure.log": {
+      "sha256": "764ce9751fecb034503b31331f25ba8025a46e8af3bd6151bd97a2fd97c564c5",
+      "bytes": 638
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/final-migrate-fresh.log": {
+      "sha256": "66bfa7321ea116d9db69e8fe0c7152f21f99b15d70425d3795bf1f3d4ac136c6",
+      "bytes": 8875
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/final-migrate-repeat.log": {
+      "sha256": "fab55a98d0a315a7dcc6048c18ba56b59d106252cde0a6d2d64ccb981ef37afa",
+      "bytes": 173
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/final-api-tests.log": {
+      "sha256": "f2a19caa68b12e20f335c400d05f22cf8ed7330a1c8f34b849c02563b7b1dc31",
+      "bytes": 4664
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/final-compiled-node.log": {
+      "sha256": "40a6bcfc7f0600859c7ab0409612248fc347a75a2bebea68840c6a5c36553b4b",
+      "bytes": 518
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/mutant-migrate-fresh.log": {
+      "sha256": "655cd26b7dd430933eb35ed72d5a8a73543daa99fbc1575ef8b3425a7d3a8626",
+      "bytes": 8875
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/mutant-migrate-repeat.log": {
+      "sha256": "da2b82d984ffd7acc8e35e26c62f5023ea86ccc523dc8d429edb253b8ff76749",
+      "bytes": 173
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/records/mutant-api-tests.log": {
+      "sha256": "b0f994f773512e68eee8b5d53fb85e3c769668684ee3eff6e4a12333fb9b8b3e",
+      "bytes": 4974
+    },
+    "docs/audits/2026-10-03-old-issuer-auth-cas/compiled-inputs.json": {
+      "sha256": "d2306666e4caf8ad030fad203e48a66e582386be5d88f729e96654adbafd6fcd",
+      "bytes": 782
+    }
+  },
+  "ownedPostgresPidsAbsent": [
+    3894875,
+    3896220,
+    3897271,
+    3899259,
+    3902629,
+    3903684,
+    3907032,
+    3908415,
+    3909185
+  ],
+  "results": {
+    "finalSqlSuites": 1,
+    "finalSqlTests": 17,
+    "freshMigrations": 142,
+    "repeatMigrations": 142,
+    "canonicalXminMutant": "predicate removed; 2 tests fail, exact service bytes restored",
+    "compiledNode": "24.21.0 real emitted CLI+executor, two checks",
+    "compiledEnvironmentKeys": [
+      "DATABASE_URL",
+      "NODE_ENV",
+      "OXY_API_URL"
+    ],
+    "apiBuildExit": 0,
+    "apiStrictCompileExit": 0,
+    "scriptsStrictCompileExit": 0,
+    "scopedBiomeFiles": 2,
+    "scopedBiomeExit": 0,
+    "sessionServiceBaselineDiagnostics": 2
+  },
+  "limitations": {
+    "liveQuiescenceObserved": false,
+    "awsOperations": false,
+    "productionWriterInvoked": false,
+    "rollbackProductionReady": false,
+    "canonicalCachesInOtherProcessesInvalidated": false,
+    "oldColdRestartStillRequired": true,
+    "quiescenceAndRecorder": "synthetic callbacks only in tests; live GET/probe observer and fsync transport must be provided and reviewed",
+    "compiledFixtureNetworkTracing": false,
+    "compiledFooterProviderCount": "declared fixture operation scope, not an instrumented network census",
+    "nodeSqlDefaultFailure": "fixture omitted Drizzle color default; replaced with canonical compiled schema insert",
+    "oldVariant": "design only, separate worktree, no implementation/inspection yet"
+  }
+}
