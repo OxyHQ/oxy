@@ -1,0 +1,12 @@
+{"receipt": "/home/nate/Oxy/.agent-evidence/integration-old-auth-only-20261003/rollback-gneirj6r/receipt.json", "probePassed": false, "databaseAbsent": true, "postgresStopped": true}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/scripts/rehearsal/old-auth-only/run.py", line 161, in <module>
+    if __name__=='__main__': main()
+                             ~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/scripts/rehearsal/old-auth-only/run.py", line 122, in main
+    logged([node,ROOT/'scripts/rehearsal/old-auth-only/probe.mjs',manifest],'http-sql-probe.log',ROOT,runtime,timeout=180)
+    ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/scripts/rehearsal/old-auth-only/run.py", line 57, in logged
+    if task.returncode: raise RuntimeError(f'{name} failed; inspect owned private log')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: http-sql-probe.log failed; inspect owned private log

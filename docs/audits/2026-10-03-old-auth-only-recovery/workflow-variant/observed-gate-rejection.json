@@ -1,0 +1,14 @@
+{
+  "preactivationOnly": true,
+  "authorized": false,
+  "committedPolicy": "INACTIVE",
+  "target": "cb31cbf66f57ca243545a338a0ff2a675fc88af0",
+  "head": "dfff06fa32653def249ff1c4e1cd9f568cf7bad5",
+  "originalSha256": "721aaaa3701f3944a901aa3a16a0a19cb903babfcd30dadb08537a20a0229890",
+  "authenticatedProvenance": true,
+  "machineChecksPassed": false,
+  "errors": [
+    "Job steps differ from the trusted workflow (mount-target check or whole-image root discovery missing, or a step did not succeed)"
+  ],
+  "historicalArtifactOnly": true
+}

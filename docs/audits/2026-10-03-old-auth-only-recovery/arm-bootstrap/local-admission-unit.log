@@ -1,0 +1,13 @@
+$ jest --runInBand --runTestsByPath src/middleware/__tests__/rollbackAuthAdmission.test.ts src/__tests__/bootGate.test.ts
+{"level":40,"time":1791045568725,"pid":4041981,"hostname":"SuperPC","attempts":1,"msRemaining":287,"error":"database \"oxy_boot_gate_absent\" does not exist","msg":"PostgreSQL not ready yet, retrying"}
+{"level":50,"time":1791045570542,"pid":4041981,"hostname":"SuperPC","msg":"Outbound email is DISABLED: SMTP_RELAY_HOST is unset. Every send will be refused with 503. Configure SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS."}
+{"level":40,"time":1791045570544,"pid":4041981,"hostname":"SuperPC","msg":"BullMQ queues disabled (REDIS_URL unset) — using in-process cron fallback for email maintenance"}
+{"level":50,"time":1791045570560,"pid":4041981,"hostname":"SuperPC","component":"transparencyCheckpoint","msg":"Transparency log cannot publish: OXY_PRIVATE_KEY is not configured and no checkpoint exists yet"}
+PASS src/__tests__/bootGate.test.ts (11.441 s)
+PASS src/middleware/__tests__/rollbackAuthAdmission.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       43 passed, 43 total
+Snapshots:   0 total
+Time:        11.521 s
+Ran all test suites within paths "src/middleware/__tests__/rollbackAuthAdmission.test.ts", "src/__tests__/bootGate.test.ts".

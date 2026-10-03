@@ -1,3 +1,5 @@
+import { isRollbackAuthOnly } from '../config/runtimeMode';
+import { rollbackAuthAccountAllowed, rollbackAuthSessionAllowed } from './rollbackAuthBoundary';
 import { and, desc, asc, eq, gt, gte, ne } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
@@ -13,6 +15,7 @@ import { sessions } from '../db/schema/sessions';
  */
 import { userService, type AccountDocument } from './user.service';
 import { logger } from '../utils/logger';
+import { ServiceUnavailableError } from '../utils/error';
 import sessionCache, { type CachedSession } from '../utils/sessionCache';
 import userCache from '../utils/userCache';
 import securityActivityService from './securityActivityService';
@@ -224,7 +227,7 @@ class SessionService {
     }
 
     const sessionId = session.sessionId;
-    if (!opts.force) {
+    if (!opts.force && !isRollbackAuthOnly) {
       const last = managedSessionRecheckAt.get(sessionId);
       if (last && Date.now() - last < MANAGED_SESSION_RECHECK_MS) {
         return true; // re-verified recently on the validate path
@@ -290,9 +293,10 @@ class SessionService {
    * @returns Session object or null if not found or expired
    */
   async getSession(sessionId: string, useCache = true): Promise<CachedSession | null> {
+    const cacheAllowed = !isRollbackAuthOnly && useCache;
     try {
       // Try cache first
-      if (useCache) {
+      if (cacheAllowed) {
         const cached = sessionCache.get(sessionId);
         if (cached) {
           return cached;
@@ -314,12 +318,12 @@ class SessionService {
         )
         .limit(1);
 
-      if (!session) {
+      if (!session || (isRollbackAuthOnly && !(await rollbackAuthSessionAllowed(session.userId, session.operatedByUserId)))) {
         return null;
       }
 
       // Cache the session
-      if (useCache) {
+      if (cacheAllowed) {
         sessionCache.set(sessionId, session);
       }
 
@@ -352,7 +356,7 @@ class SessionService {
     options: { useCache?: boolean } = {}
   ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
     try {
-      const { useCache = true } = options;
+      const useCache = isRollbackAuthOnly ? false : options.useCache ?? true;
       // Mongoose projection strings do not travel to Postgres, and the only
       // caller ever passed the default, so the `select` option is dropped
       // rather than translated. `readAccountDocument` reads through
@@ -398,7 +402,7 @@ class SessionService {
         )
         .limit(1);
 
-      if (!sessionRow?.userId) {
+      if (!sessionRow?.userId || (isRollbackAuthOnly && !(await rollbackAuthSessionAllowed(sessionRow.userId, sessionRow.operatedByUserId)))) {
         return null;
       }
 
@@ -407,7 +411,7 @@ class SessionService {
       }
 
       const userId = sessionRow.userId;
-      let user = userCache.get(userId);
+      let user = isRollbackAuthOnly ? null : userCache.get(userId);
 
       if (!user) {
         const userDoc = await userService.readAccountDocument(userId);
@@ -557,6 +561,10 @@ class SessionService {
     options: SessionCreateOptions = {}
   ): Promise<CachedSession> {
     try {
+      if (isRollbackAuthOnly && (!(await rollbackAuthAccountAllowed(userId)) ||
+          (options.operatedByUserId && !(await rollbackAuthAccountAllowed(options.operatedByUserId))))) {
+        throw new ServiceUnavailableError('This identity requires the repaired issuer');
+      }
       const {
         deviceName,
         deviceFingerprint,

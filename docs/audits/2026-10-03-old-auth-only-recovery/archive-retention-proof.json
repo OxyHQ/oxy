@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "57b2bf28fbce667c45924ba07ac98e7d82c5e4a0",
+  "sources": [
+    {
+      "sourceHead": "57b2bf28fbce667c45924ba07ac98e7d82c5e4a0",
+      "path": ".github/workflows/forge-candidate-image-proof.yml",
+      "sha256": "f9e05862b73907762de0535b94e77f901c6b14c7181dfb04c8e3f9b4361346d5"
+    },
+    {
+      "sourceHead": "57b2bf28fbce667c45924ba07ac98e7d82c5e4a0",
+      "path": "scripts/rehearsal/old-auth-only/archive-proof.py",
+      "sha256": "68a2d57ffd817b6aff394ef21cb83a58028573fed3f45949bd6a231d58160373"
+    },
+    {
+      "sourceHead": "57b2bf28fbce667c45924ba07ac98e7d82c5e4a0",
+      "path": "scripts/rehearsal/old-auth-only/test-archive-proof.py",
+      "sha256": "8d7b32a54a10b78866e74529bbba494fa43f297e4c17d652803c90729021b759"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/archive-fixtures-9.log",
+      "sha256": "203e8d11dc9529763cb172c4d4acdffe3b67db7d123ed6f2223ef9c377a8923b",
+      "bytes": 107
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/archive-yaml.log",
+      "sha256": "e70e3b20084e6a079a7491b934722259756f67a46daf033ace825c93ff0b85d9",
+      "bytes": 84
+    }
+  ],
+  "tests": 9,
+  "yamlValid": true,
+  "permissions": {
+    "contents": "read"
+  },
+  "remoteImageBuilt": false,
+  "imageBootstrapVerified": false,
+  "productionReady": false,
+  "format": "docker-save-tar",
+  "publisherImplemented": false
+}

@@ -1,3 +1,4 @@
+import { isRollbackAuthOnly } from '../config/runtimeMode';
 interface CachedBlock {
   isBlocked: boolean;
   timestamp: number;
@@ -121,6 +122,7 @@ class BlockCache {
   }
 
   private startCleanupTimer(): void {
+    if (isRollbackAuthOnly) return;
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
     }

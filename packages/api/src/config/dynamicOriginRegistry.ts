@@ -1,3 +1,4 @@
+import { isRollbackAuthOnly } from './runtimeMode';
 /**
  * Dynamic Origin Registry — CORS allowlist derived from the Application registry.
  *
@@ -134,6 +135,7 @@ class DynamicOriginRegistry {
   }
 
   startBackgroundRefresh(): void {
+    if (isRollbackAuthOnly) return;
     if (this.timer) return;
     this.timer = setInterval(() => void this.refresh(), REFRESH_INTERVAL_MS);
     this.timer.unref();

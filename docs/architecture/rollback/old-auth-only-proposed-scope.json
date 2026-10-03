@@ -1,0 +1,112 @@
+{
+  "source": "67c09e853db308d102624a2ffd40db19959344f4",
+  "defaultMode": "normal",
+  "newExplicitMode": "rollback-auth-only",
+  "configuration": "OXY_RUNTIME_MODE; no automatic inference from image/database/NODE_ENV",
+  "admissionBeforeParsersAndInbox": true,
+  "allowed": {
+    "GET": [
+      "/health",
+      "/.well-known/jwks.json",
+      "/users/me",
+      "/auth/validate",
+      "/session/device/state",
+      "/session/device/directory",
+      "/session/validate/:sessionId",
+      "/session/validate-header/:sessionId",
+      "/session/user/:sessionId",
+      "/session/sessions/:sessionId",
+      "/session/device/sessions/:sessionId"
+    ],
+    "POST": [
+      "/auth/signin/password",
+      "/auth/signin/second-factor",
+      "/auth/signin/email/start",
+      "/auth/signin/email/confirm",
+      "/auth/signin/email/link",
+      "/auth/signin/email/collect",
+      "/auth/challenge",
+      "/auth/verify",
+      "/auth/service-token",
+      "/auth/service-token/workload/challenge",
+      "/auth/service-token/workload",
+      "/session/device/token",
+      "/session/device/register",
+      "/session/device/join-code",
+      "/session/device/join",
+      "/session/device/add",
+      "/session/device/activate",
+      "/session/device/switch",
+      "/session/device/signout",
+      "/session/logout/:sessionId",
+      "/session/logout/:sessionId/:targetSessionId",
+      "/session/logout-all/:sessionId",
+      "/session/device/logout-all/:sessionId",
+      "/accounts/:accountId/switch"
+    ]
+  },
+  "excluded": [
+    "new OAuth authorizations/code exchanges",
+    "background-device credentials/mint",
+    "account enrollment/governance/change",
+    "profile/product mutations",
+    "capabilities/requester/MCP",
+    "financial/refund/webhook",
+    "inference/realtime",
+    "socket.io public/domain channels"
+  ],
+  "transport": "One optional /api prefix is canonicalized for admission; OPTIONS needs exact path and approved requested method; deny encoded separators, dot segments, duplicate prefixes; all other HTTP503 no-store/Retry-After",
+  "moduleLoadDisable": [
+    "real-time websocket attachment",
+    "SocketIO server attachment",
+    "platform activity interval",
+    "platform infrastructure interval/AWS refresh",
+    "SocketIO Redis adapter/subscriber",
+    "OpenTelemetry periodic exporters",
+    "email-proxy memory cleanup (not an authority writer)"
+  ],
+  "bootstrapDisable": [
+    "official redirect repair writes",
+    "conduct seed writes",
+    "all 10 server business interval registrations",
+    "Kaana catalogue sync",
+    "SMTP inbound",
+    "all four outbox/deletion workers",
+    "background BullMQ/email cron",
+    "node ingest",
+    "transparency checkpoint",
+    "asset producer",
+    "conduct expiry",
+    "subscription expiry",
+    "avatar retry"
+  ],
+  "bootstrapPreserve": [
+    "database startup gate",
+    "required origin snapshot read",
+    "same existing server.listen and graceful shutdown"
+  ],
+  "memoryOnlyTimersStillRequiringReview": [
+    "sessionCache cleanup",
+    "userCache cleanup",
+    "login lockout cleanup",
+    "HTTP express-rate-limit MemoryStore cleanup",
+    "Redis authentication connection keepalive"
+  ],
+  "authSideEffectsDeliberatelyAllowed": [
+    "ordinary authentication/session/device SQL and security audit",
+    "bounded authentication email send from explicit sign-in request",
+    "rate-limit/replay Redis keys",
+    "service/workload token mint without widening ceilings"
+  ],
+  "untested": [
+    "compiled ARM container bootstrap",
+    "independent new-tree security policy and final image provenance",
+    "production quiescence and rollback transport"
+  ],
+  "productionReady": false,
+  "authorityBoundary": [
+    "Reject any X-Oxy-User-Id before body parsers, including service-token callers",
+    "Live SQL requires active non-bot subject and active non-bot operator for each existing session read/mint",
+    "Ordinary managed context remains subject to current act_as membership"
+  ]
+}

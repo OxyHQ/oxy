@@ -9,7 +9,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   checkForgePolicyStructure, inspectForgeAuditPolicy, DECISION_PATH, DECLARATIVE_PATHS, EVIDENCE_PATH, INDEPENDENT_INPUT_PATHS, readCommittedPolicyStatus,
 } from './forge-audit-policy.mjs';
-import { TRUSTED_BASELINE, TRUSTED_WORKFLOW, sha256 } from './forge-remediation-proof-proposal.mjs';
+import { TRUSTED_BASELINE, TRUSTED_WORKFLOW, AUTH_ONLY_CANDIDATE_BRANCH, AUTH_ONLY_TRUSTED_WORKFLOW, sha256 } from './forge-remediation-proof-proposal.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const proofBytes = readFileSync(join(root, EVIDENCE_PATH));
@@ -90,6 +90,22 @@ for (const [name, mutate] of cases) {
   const result = checkForgePolicyStructure(x);
   assert.equal(result.structurallyEligible, false, name); assertions++;
   assert.equal(result.authorized, false, name); assertions++;
+}
+// The own AUTH-only branch pins every executed bootstrap/archive helper as well.
+function authOnlyFixture() {
+  const x = fixture(); x.facts.pins.headBranch = AUTH_ONLY_CANDIDATE_BRANCH;
+  for (const path of AUTH_ONLY_TRUSTED_WORKFLOW.executedPaths) x.blobs.source[path] = x.blobs.current[path] = 'd'.repeat(40);
+  return x;
+}
+assert.equal(checkForgePolicyStructure(authOnlyFixture()).structurallyEligible, true); assertions++;
+for (const path of AUTH_ONLY_TRUSTED_WORKFLOW.executedPaths.filter(path => !TRUSTED_WORKFLOW.executedPaths.includes(path))) {
+  for (const kind of ['missing', 'changed']) {
+    const x = authOnlyFixture();
+    if (kind === 'missing') delete x.blobs.current[path]; else x.blobs.current[path] = 'f'.repeat(40);
+    const result = checkForgePolicyStructure(x);
+    assert.equal(result.structurallyEligible, false, `${kind} AUTH-only helper ${path}`); assertions++;
+    assert(result.errors.includes(`Executed code changed: ${path}`)); assertions++;
+  }
 }
 // Real Git mechanics only: fixture executable bytes/proposal stay SYNTHETIC.
 const mergeRoot = mkdtempSync(join(tmpdir(), 'forge-policy-merge-fixture-'));

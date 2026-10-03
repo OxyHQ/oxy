@@ -1,0 +1,9 @@
+# AUTH-only independent input revalidation
+
+This evidence is specific to the old-derived AUTH-only candidate, not to the issuer or final strict product tree. `proof.json` binds its source Git input objects. Oxy update suites 3/34, independent Expo public API checks 14 and installed known-key controls 321 were rerun on this consumer tree. A fresh owned PostgreSQL 17 process applied all 130 normal migrations and an unchanged repeat; PID 4083575 stopped. Its minimal environment and explicit no-env-file arguments prevent inherited connection/runtime overrides.
+
+The exact Forge patch, toolchain lock and all five source/bundle hashes match the prior independent review. Stock/candidate upstream 828 passing / 4 pending, build2/build3 parity and stock321 records are explicitly reused with their original timestamps. Root manifests/lock are also byte identical, so install/dependency-build logs remain historical, rather than pretending to be a new runtime build. No no-key forgery or upstream patched release is demonstrated.
+
+The separate local production AUTH-only control preserves 14 nonempty financial tables and 14 checkpoints; the ARM attempt 37138539283 failed during migration before image execution. Its private stderr was not retained by Actions, so missing PostGIS is a concrete workflow prerequisite omission, not a retrospectively observed error. The workflow now installs PostGIS and the owned server reports both required extensions before migrating. Public failure diagnostics are fixed enums; private raw logs do not escape.
+
+Policy is explicitly INACTIVE. Actual ARM image bootstrap, authenticated artifacts, scoped decision and live audit must be checked before activation or promotion. Only pins/decision may change after the final target freezes. No ECR publication, rollout or production SQL was performed here.

@@ -1,0 +1,28 @@
+150 inert proof assertions passed; recorded/mock facts stay structural (never authenticated); approval remains false.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
++ [
++   'Job steps differ from the trusted workflow (mount-target check or whole-image root discovery missing, or a step did not succeed)'
++ ]
+- []
+
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/scripts/test-forge-remediation-proof-proposal.mjs:409:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [
+    'Job steps differ from the trusted workflow (mount-target check or whole-image root discovery missing, or a step did not succeed)'
+  ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

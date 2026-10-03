@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "72e7a097700f34cb9a0eac70fc8edc546c63e9dd",
+  "baselineHead": "dfff06fa32653def249ff1c4e1cd9f568cf7bad5",
+  "sourceSha256": {
+    "scripts/forge-remediation-proof-proposal.mjs": "89dfe1c3e0064f72346ecb2a9125ed6e4a1383a40b8d055dc0cd771fdf0529f2",
+    "scripts/forge-audit-policy.mjs": "0bff993095032d9ab6a286992677e8e2c444362bf3fff80c4a0a2c52e82281f2",
+    "scripts/test-forge-remediation-proof-proposal.mjs": "c8bfb476f8a5994b8adb7fe4fa85f819a008fdbd9d7a72d928e8ad5d9ebab03c",
+    "scripts/test-forge-audit-policy.mjs": "e8013b97c051efac036a31df80016893ec8f52142b87b3077c195b876c25bb7c",
+    ".github/workflows/forge-candidate-image-proof.yml": "61a097006426f2d2c4c48dee489b4ffef8f4e5e89b01150ea12ad46d8062cd83",
+    "scripts/rehearsal/old-auth-only/archive-proof.py": "b4fd005baff4e0aa582877706f44747d6272e4e34461831b31d52c6e28c2b91c",
+    "scripts/rehearsal/old-auth-only/diagnostics.py": "749f8f10571084c638b9f2b5a7339a6c7f45ff072611bc6ee558f5542ae4f9db",
+    "scripts/rehearsal/old-auth-only/host.mjs": "6156eeb972d3fe3c83be46a53357b8ca632dc01019348cdae15e017e7e63d4c9",
+    "scripts/rehearsal/old-auth-only/image-bootstrap.py": "22236499d90f0f17c84820c974c2610a850b8ea443af090df7b21eb0e946d853",
+    "scripts/rehearsal/old-auth-only/io-guard.mjs": "9d10edfb35c98df77fcfb99437fe8739678b4726b77f8bee9248e348fc910cc3",
+    "scripts/rehearsal/old-auth-only/probe.mjs": "8cc07db5650ecd4e327185c150c79c7b1b5bab923c9fa8b94027792375835468",
+    "scripts/rehearsal/old-auth-only/run.py": "0e0c327bc3b77199956beaece175cf87486ffeb7357828d5a83cd55f0e6a9182",
+    "scripts/rehearsal/old-auth-only/seed-preserved.mjs": "44e00ecd17933520ab009548f2d7fed885aad17742958d0a3f5c56a140d6a891",
+    "scripts/rehearsal/old-auth-only/seed.mjs": "d3b38dbeed664453db24ee6f91707a09ee61ff94b5ac06ac44386578b42e94e0",
+    "scripts/rehearsal/old-auth-only/test-archive-proof.py": "3e6d14098732ac871b87377a86d8f4c7d54b41423e7ed34fe203390b71bb6c37",
+    "scripts/rehearsal/old-auth-only/test-diagnostics.py": "35cc2a474fc02c2eef75d33c757c1298d608a1e493db8384936ae878e0f9dc78",
+    "scripts/rehearsal/old-auth-only/test-image-bootstrap.py": "e6089b7a6dbd1e9e7c3f4981658f3006b8c03dbeaeb2a690ec42eaed4be7f7b6"
+  },
+  "records": [
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/workflow-variant/auth-only-variant-policy-fixtures.log",
+      "sha256": "8b5ac10eaa08ad88daef4493365e481d525d5d8951959895127d47d0daa4db09",
+      "bytes": 1106
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/workflow-variant/auth-only-variant-proposal-fixtures.log",
+      "sha256": "1aa17c866639081b31fd2b0c52476738254bdae7d66fd909301d0bc0d19a5785",
+      "bytes": 227
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/workflow-variant/auth-only-variant-stale-list-mutant.log",
+      "sha256": "f3c2a8410c850880848022204a9811fced54dacd0a215941428e8f672d3376f0",
+      "bytes": 1056
+    },
+    {
+      "path": "docs/audits/2026-10-03-old-auth-only-recovery/workflow-variant/observed-gate-rejection.json",
+      "sha256": "d44d7edae2d64f03da81eb7318fa74cc4f19ed9956712282b23a2a3465e57b50",
+      "bytes": 541
+    }
+  ],
+  "results": {
+    "proposalAssertions": 183,
+    "policyAssertions": 193,
+    "staleGenericWorkflowMutationExit": 1,
+    "restoredSource": true
+  },
+  "scope": "Exact AUTH-only branch variant, closed successful step sequence and every executed bootstrap/archive helper. Default workflow unchanged. All fixture provenance is synthetic. Observed authenticated gate rejection retained separately.",
+  "newArmRequired": true,
+  "policyStatus": "INACTIVE",
+  "productionReady": false,
+  "unchangedIndependentInputPaths": [
+    "packages",
+    "bun.lock",
+    "package.json",
+    "bunfig.toml",
+    "tsconfig.json",
+    "turbo.json",
+    "patches/node-forge@1.4.0.patch",
+    "docs/security/forge-candidate/toolchain.bun.lock",
+    "scripts/rehearsal/test-forge-final-input-1519.py",
+    "scripts/forge-independent-expo-compat.cjs"
+  ]
+}

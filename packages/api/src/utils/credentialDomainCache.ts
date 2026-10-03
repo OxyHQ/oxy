@@ -1,3 +1,4 @@
+import { isRollbackAuthOnly } from '../config/runtimeMode';
 import { logger } from './logger';
 
 /**
@@ -36,9 +37,10 @@ interface CacheEntry {
 
 class CredentialDomainCache {
   private local = new Map<string, CacheEntry>();
-  private cleanupTimer: NodeJS.Timeout;
+  private cleanupTimer: NodeJS.Timeout | undefined;
 
   constructor() {
+    if (isRollbackAuthOnly) return;
     this.cleanupTimer = setInterval(() => this.cleanup(), DEFAULT_TTL);
     // Don't keep the event loop alive solely for cache cleanup.
     if (typeof this.cleanupTimer.unref === 'function') {
@@ -83,7 +85,7 @@ class CredentialDomainCache {
   }
 
   stop(): void {
-    clearInterval(this.cleanupTimer);
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
   }
 
   private getLocal(appId: string): Set<string> | null {

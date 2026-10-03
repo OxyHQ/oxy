@@ -1,0 +1,7 @@
+{"case":"actual bootstrap health and JWKS","passed":true}
+{"case":"non-auth admission precedes malformed parsers and polling","passed":true}
+{"case":"real scrypt password ordinary bearer and session validation","passed":true}
+{"case":"real PKCE bridge joins two distinct holders and rejects replay","passed":true}
+{"case":"canonical person to organization switch and no act_as rejection","passed":true}
+{"case":"two holders converge through switch and organization signout fallback","passed":true}
+{"failed":true,"errorName":"AssertionError","assertion":"ERR_ASSERTION","observedStatus":200,"expectedStatus":401,"location":"    at file:///home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/scripts/rehearsal/old-auth-only/probe.mjs:71:9"}

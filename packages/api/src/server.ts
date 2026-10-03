@@ -1,3 +1,5 @@
+import { assertRuntimeModeUnchanged, isRollbackAuthOnly } from './config/runtimeMode';
+import { rollbackAuthAdmission } from './middleware/rollbackAuthAdmission';
 import { initializePlatformInfrastructure, refreshInfrastructure, stopPlatformInfrastructure } from './services/platformInfrastructure.service';
 import { shutdownTelemetry } from './telemetry';
 import express from "express";
@@ -186,6 +188,7 @@ import { serviceTokenPublicJwks, serviceTokenSigningConfig } from './config/serv
 
 // Load environment variables
 dotenv.config();
+assertRuntimeModeUnchanged();
 
 // Validate configuration early - fail fast with clear errors
 try {
@@ -205,6 +208,7 @@ app.set('trust proxy', 1);
 
 // Security headers middleware (first, before any other middleware)
 app.use(securityHeaders);
+app.use(rollbackAuthAdmission);
 
 // The external Inbox MCP endpoint owns its raw JSON body, exact resource host,
 // OAuth challenge, and origin policy. Mount it before compression and global
@@ -310,7 +314,7 @@ app.use((req, res, next) => {
 });
 
 // Performance monitoring middleware (before routes)
-app.use(performanceMiddleware);
+if (!isRollbackAuthOnly) app.use(performanceMiddleware);
 
 // CORS middleware - reflects request origin with credentials
 app.use(createCorsMiddleware());
@@ -322,38 +326,36 @@ const server = http.createServer(app);
 // A WebSocket upgrade on its own path, beside Socket.IO's: each listener handles
 // only its own path. Configured from the same Kaana binding as the `/v1` router,
 // and refusing with a typed `service_unavailable` when there is none.
-const realtimeKaanaClient = createKaanaRealtimeClient();
-attachRealtimeEdge(server, {
-  ...(configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }),
-  ...(realtimeKaanaClient === undefined ? {} : { kaanaRealtimeClient: realtimeKaanaClient }),
-});
-
-// Setup Socket.IO with centralized CORS config
-const io = new SocketIOServer(server, {
-  cors: SOCKET_IO_CORS_CONFIG,
-});
-initializeIO(io);
-
-// Public, aggregate-only activity stream for oxy.so/dashboard. It carries the
-// processing region, a bounded route group and a k-anonymous bucket count —
-// never an IP, user, raw path or other request-level value. The Redis adapter
-// fans buckets out across API tasks.
-const platformActivityNamespace = io.of('/platform-activity');
-initializePlatformActivity(platformActivityNamespace);
-initializePlatformInfrastructure(platformActivityNamespace, () => server.listening);
-
-// Attach Redis adapter for multi-instance broadcast (if Redis available)
-const redis = getRedisClient();
-let userCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
-if (redis) {
-  const pubClient = redis.duplicate();
-  const subClient = redis.duplicate();
-  io.adapter(createAdapter(pubClient, subClient));
-  logger.info('Socket.IO Redis adapter enabled');
-  userCacheInvalidationSubscriber = startUserCacheInvalidationSubscriber(redis);
+if (!isRollbackAuthOnly) {
+  const realtimeKaanaClient = createKaanaRealtimeClient();
+  attachRealtimeEdge(server, {
+    ...(configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }),
+    ...(realtimeKaanaClient === undefined ? {} : { kaanaRealtimeClient: realtimeKaanaClient }),
+  });
 }
-
-// Store io instance in app for use in controllers
+// The restricted image exposes no upgrade/polling channel around HTTP admission.
+const io = isRollbackAuthOnly
+  ? new SocketIOServer({ cors: SOCKET_IO_CORS_CONFIG })
+  : new SocketIOServer(server, { cors: SOCKET_IO_CORS_CONFIG });
+let userCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
+if (!isRollbackAuthOnly) {
+  initializeIO(io);
+  const platformActivityNamespace = io.of('/platform-activity');
+  initializePlatformActivity(platformActivityNamespace);
+  initializePlatformInfrastructure(platformActivityNamespace, () => server.listening);
+  const redis = getRedisClient();
+  if (redis) {
+    const pubClient = redis.duplicate();
+    const subClient = redis.duplicate();
+    io.adapter(createAdapter(pubClient, subClient));
+    logger.info('Socket.IO Redis adapter enabled');
+    userCacheInvalidationSubscriber = startUserCacheInvalidationSubscriber(redis);
+  }
+} else {
+  server.on('upgrade', (_request, socket) => {
+    socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n');
+  });
+}
 app.set('io', io);
 
 // Custom socket interface to include user property
@@ -373,7 +375,7 @@ interface AuthenticatedSocket extends Socket {
 
 // Socket.IO rate limiting (applied before auth to protect against unauthenticated floods)
 import { createSocketRateLimiter } from './middleware/socketRateLimit';
-io.use(createSocketRateLimiter(100, 10_000)); // 100 events per 10s
+if (!isRollbackAuthOnly) io.use(createSocketRateLimiter(100, 10_000)); // 100 events per 10s
 
 // Socket.IO authentication middleware — bearer OR device credential.
 io.use((socket: AuthenticatedSocket, next) => {
@@ -432,7 +434,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 import { initAuthSessionNamespace } from './utils/authSessionSocket';
 
 const authSessionNamespace = io.of('/auth-session');
-authSessionNamespace.use(createSocketRateLimiter(20, 10_000)); // Stricter: 20 events per 10s
+if (!isRollbackAuthOnly) authSessionNamespace.use(createSocketRateLimiter(20, 10_000)); // Stricter: 20 events per 10s
 initAuthSessionNamespace(authSessionNamespace);
 
 // No authentication required for this namespace
@@ -516,7 +518,7 @@ async function gracefulShutdown(signal: string) {
   stopNormalizedEventOutboxWorker();
   stopAccountEventWebhookWorker();
   stopStorageDeletionWorker();
-  await flushCdnInvalidations();
+  if (!isRollbackAuthOnly) await flushCdnInvalidations();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
   await stopTransparencyCheckpointJobs();
@@ -665,7 +667,7 @@ app.use((req, _res, next) => {
 
 // Count completed platform requests into short anonymous buckets. Mount after
 // the /api normaliser so the exclusion set sees canonical paths.
-app.use(platformActivityMiddleware);
+if (!isRollbackAuthOnly) app.use(platformActivityMiddleware);
 
 // Public signing metadata is cacheable and must remain reachable by every Oxy
 // service verifier. It carries public keys only and sits outside the shared-IP
@@ -1125,9 +1127,10 @@ export async function bootstrap(
 
   // Repair legacy empty allowlists first, then publish one complete registry
   // snapshot. Startup fails closed if that authoritative read is unavailable.
-  await reconcileOfficialRedirectUris();
+  if (!isRollbackAuthOnly) await reconcileOfficialRedirectUris();
   await refreshOriginRegistry({ required: true });
 
+  if (!isRollbackAuthOnly) {
   // Seed the baseline Oxy Conduct Policy (idempotent, and NOT an upsert of
   // the values — a published policy version is immutable, so an existing
   // document is left untouched). Without it the bridge rejects every event
@@ -1413,6 +1416,8 @@ export async function bootstrap(
   // without a picture (`users.federation_avatar_retry_at`). Without it a failed
   // mirror is a permanent default avatar. Never throws.
   await startFederatedAvatarRetryJobs();
+
+  }
 
   await new Promise<void>((resolve) => {
     server.listen(PORT, '0.0.0.0', () => {

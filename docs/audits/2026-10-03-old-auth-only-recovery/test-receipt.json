@@ -1,0 +1,266 @@
+{
+  "schemaSource": "38d5ce28c",
+  "variantSource": "9baef42aec0e9e501f1908ae69e2a839b8ce9c15",
+  "derivedFrom": "67c09e853db308d102624a2ffd40db19959344f4",
+  "directory": "/home/nate/Oxy/.agent-evidence/integration-old-auth-only-20261003/rollback-ioinswi7",
+  "productionAccess": false,
+  "postgresPid": 3997324,
+  "postgresData": "/home/nate/Oxy/.agent-evidence/integration-old-auth-only-20261003/rollback-ioinswi7/pg",
+  "database": "oxy_rollback_ec844fc97d49232d",
+  "port": 5602,
+  "redis": {
+    "pid": 3997335,
+    "port": 5603,
+    "persistence": false
+  },
+  "migrate-fresh.log": {
+    "exitCode": 0,
+    "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+  },
+  "migrate-repeat.log": {
+    "exitCode": 0,
+    "sha256": "63e9639929e1a0dd6487efff1c0fbf6706f4cd56be511c10e0c074f76fcf08d2"
+  },
+  "seed.log": {
+    "exitCode": 0,
+    "sha256": "89f5e0cb2507ad54f621a507caa5ce7a8eb8b3f6443ced0ac7fcaa63015fe625"
+  },
+  "preservedBefore": {
+    "billing_credit_invoices": {
+      "rows": 1,
+      "sha256": "6ca5d4228d39284e57958844f2be1d944d6fff19f383d3eb55b6058617b969f4"
+    },
+    "billing_credit_grants": {
+      "rows": 1,
+      "sha256": "d90a4a3d0a9074ec2980225710627e0e92a30c1be0a35f29bcd3441cfa3ac3b7"
+    },
+    "billing_credit_spends": {
+      "rows": 1,
+      "sha256": "38dc58e776917ab6566bc59aad40ed0150f53b558ec5ae9c3b51b74c8ad8dc4b"
+    },
+    "billing_credit_consumptions": {
+      "rows": 1,
+      "sha256": "61a7b55a23af33a5ec4aab9430ef6cdf2df8034fb4ed78b0dd5a7d94c126b3c4"
+    },
+    "billing_credit_refund_observations": {
+      "rows": 1,
+      "sha256": "98976214ad36363d954713ce468e94c3b7ad75cc366f87cfeb321dafc0f0a2f9"
+    },
+    "billing_transactions": {
+      "rows": 1,
+      "sha256": "7c1c05b73172860170d9d5f39c2495ba2cb4ea988bfa3a7275045a943e892b20"
+    },
+    "user_credits": {
+      "rows": 1,
+      "sha256": "432b5e36d248aa463bd2d97a6b953d5d604497590605edbfc47362b9f6c09241"
+    },
+    "access_provider_periods": {
+      "rows": 1,
+      "sha256": "78f0679446b2f4902cfe897765bf816a7d5aceffac28ca94134ee41f2fd1cbb5"
+    },
+    "access_provider_events": {
+      "rows": 1,
+      "sha256": "dd0daa52c8c5194f3866ca61b9b302fdb03a0008f7e94ff32b3c61d0159c9437"
+    },
+    "access_subscription_sources": {
+      "rows": 1,
+      "sha256": "5103e9bf3dbcc4f6aee41743a3aa49b2bb0527957e99392f60152a12f3f47cae"
+    },
+    "access_offer_segments": {
+      "rows": 1,
+      "sha256": "3f525443f3a98329ac0ce84b62f52fa32294b865444677be5400db6b747796b2"
+    },
+    "access_grants": {
+      "rows": 2,
+      "sha256": "f55baff1a6c33e940ff75259bb8bb27073a5d95c5348a91ba9cce885a8e2f510"
+    },
+    "inference_provider_cost_attempts": {
+      "rows": 1,
+      "sha256": "86703c91de75d44ce64aaaec6a7b73ddc319f041a664d6e2c39f1ecce96a65d4"
+    },
+    "inference_provider_cost_feed_cursors": {
+      "rows": 1,
+      "sha256": "e5e1ac509185ff9ed05f6429adf4bb2a28bf6515e72293a5e3a8c4ef7b620621"
+    }
+  },
+  "admission-unit.log": {
+    "exitCode": 0,
+    "sha256": "5b8e2d7641028f3f461d891373dca27fb9c8b2cc46debe8ce289c58bdbe52cf7"
+  },
+  "variantHost": {
+    "pid": 3997743,
+    "port": 18002,
+    "compiledBootstrap": true,
+    "intervals": [
+      {
+        "delay": 60000,
+        "stack": [
+          "at new UserCache (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/utils/userCache.js:30:29)",
+          "at Object.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/utils/userCache.js:196:19)",
+          "at Module._compile (node:internal/modules/cjs/loader:1929:14)",
+          "at Object..js (node:internal/modules/cjs/loader:2060:10)",
+          "at Module.load (node:internal/modules/cjs/loader:1651:32)",
+          "at Module._load (node:internal/modules/cjs/loader:1443:12)",
+          "at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)",
+          "at Module.require (node:internal/modules/cjs/loader:1674:12)",
+          "at require (node:internal/modules/helpers:157:16)"
+        ]
+      },
+      {
+        "delay": 60000,
+        "stack": [
+          "at new SessionCache (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/utils/sessionCache.js:51:29)",
+          "at Object.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/utils/sessionCache.js:209:22)",
+          "at Module._compile (node:internal/modules/cjs/loader:1929:14)",
+          "at Object..js (node:internal/modules/cjs/loader:2060:10)",
+          "at Module.load (node:internal/modules/cjs/loader:1651:32)",
+          "at Module._load (node:internal/modules/cjs/loader:1443:12)",
+          "at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)",
+          "at Module.require (node:internal/modules/cjs/loader:1674:12)",
+          "at require (node:internal/modules/helpers:157:16)"
+        ]
+      },
+      {
+        "delay": 60000,
+        "stack": [
+          "at Object.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/services/loginLockout.service.js:39:1)",
+          "at Module._compile (node:internal/modules/cjs/loader:1929:14)",
+          "at Object..js (node:internal/modules/cjs/loader:2060:10)",
+          "at Module.load (node:internal/modules/cjs/loader:1651:32)",
+          "at Module._load (node:internal/modules/cjs/loader:1443:12)",
+          "at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)",
+          "at Module.require (node:internal/modules/cjs/loader:1674:12)",
+          "at require (node:internal/modules/helpers:157:16)",
+          "at Object.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/services/totp.service.js:57:32)"
+        ]
+      },
+      {
+        "delay": 900000,
+        "stack": [
+          "at MemoryStore.init (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/node_modules/.bun/express-rate-limit@7.5.1/node_modules/express-rate-limit/dist/index.cjs:439:21)",
+          "at rateLimit (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/node_modules/.bun/express-rate-limit@7.5.1/node_modules/express-rate-limit/dist/index.cjs:701:61)",
+          "at slowDown (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/node_modules/.bun/express-slow-down@2.1.0/node_modules/express-slow-down/dist/index.cjs:124:50)",
+          "at Object.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/middleware/security.js:357:62)",
+          "at Module._compile (node:internal/modules/cjs/loader:1929:14)",
+          "at Object..js (node:internal/modules/cjs/loader:2060:10)",
+          "at Module.load (node:internal/modules/cjs/loader:1651:32)",
+          "at Module._load (node:internal/modules/cjs/loader:1443:12)",
+          "at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)"
+        ]
+      },
+      {
+        "delay": 60000,
+        "stack": [
+          "at startPingInterval (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/config/redis.js:93:19)",
+          "at EventEmitter.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1519-old-auth-only-20261003/packages/api/dist/config/redis.js:60:13)",
+          "at EventEmitter.emit (node:events:526:24)",
+          "at process.processTicksAndRejections (node:internal/process/task_queues:85:11)"
+        ]
+      }
+    ]
+  },
+  "http-sql-probe.log": {
+    "exitCode": 0,
+    "sha256": "4317777577c1e11ee3cb9cd12b11313cbe35419925e39f70ef86a34fadeb25c3"
+  },
+  "preservedAfter": {
+    "billing_credit_invoices": {
+      "rows": 1,
+      "sha256": "6ca5d4228d39284e57958844f2be1d944d6fff19f383d3eb55b6058617b969f4"
+    },
+    "billing_credit_grants": {
+      "rows": 1,
+      "sha256": "d90a4a3d0a9074ec2980225710627e0e92a30c1be0a35f29bcd3441cfa3ac3b7"
+    },
+    "billing_credit_spends": {
+      "rows": 1,
+      "sha256": "38dc58e776917ab6566bc59aad40ed0150f53b558ec5ae9c3b51b74c8ad8dc4b"
+    },
+    "billing_credit_consumptions": {
+      "rows": 1,
+      "sha256": "61a7b55a23af33a5ec4aab9430ef6cdf2df8034fb4ed78b0dd5a7d94c126b3c4"
+    },
+    "billing_credit_refund_observations": {
+      "rows": 1,
+      "sha256": "98976214ad36363d954713ce468e94c3b7ad75cc366f87cfeb321dafc0f0a2f9"
+    },
+    "billing_transactions": {
+      "rows": 1,
+      "sha256": "7c1c05b73172860170d9d5f39c2495ba2cb4ea988bfa3a7275045a943e892b20"
+    },
+    "user_credits": {
+      "rows": 1,
+      "sha256": "432b5e36d248aa463bd2d97a6b953d5d604497590605edbfc47362b9f6c09241"
+    },
+    "access_provider_periods": {
+      "rows": 1,
+      "sha256": "78f0679446b2f4902cfe897765bf816a7d5aceffac28ca94134ee41f2fd1cbb5"
+    },
+    "access_provider_events": {
+      "rows": 1,
+      "sha256": "dd0daa52c8c5194f3866ca61b9b302fdb03a0008f7e94ff32b3c61d0159c9437"
+    },
+    "access_subscription_sources": {
+      "rows": 1,
+      "sha256": "5103e9bf3dbcc4f6aee41743a3aa49b2bb0527957e99392f60152a12f3f47cae"
+    },
+    "access_offer_segments": {
+      "rows": 1,
+      "sha256": "3f525443f3a98329ac0ce84b62f52fa32294b865444677be5400db6b747796b2"
+    },
+    "access_grants": {
+      "rows": 2,
+      "sha256": "f55baff1a6c33e940ff75259bb8bb27073a5d95c5348a91ba9cce885a8e2f510"
+    },
+    "inference_provider_cost_attempts": {
+      "rows": 1,
+      "sha256": "86703c91de75d44ce64aaaec6a7b73ddc319f041a664d6e2c39f1ecce96a65d4"
+    },
+    "inference_provider_cost_feed_cursors": {
+      "rows": 1,
+      "sha256": "e5e1ac509185ff9ed05f6429adf4bb2a28bf6515e72293a5e3a8c4ef7b620621"
+    }
+  },
+  "externalAttempts": 0,
+  "probePassed": true,
+  "processCleanup": [
+    {
+      "pid": 3997761,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3997743,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3997531,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3997462,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3997434,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3997360,
+      "exitCode": 0,
+      "stopped": true
+    },
+    {
+      "pid": 3997335,
+      "exitCode": 0,
+      "stopped": true
+    }
+  ],
+  "databaseAbsent": true,
+  "postgresStopped": true,
+  "cleanupErrors": []
+}

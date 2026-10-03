@@ -5,7 +5,7 @@ import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { crc32 } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { ADVISORY, FILES, SUITES, ARM_PRUNED_LINKS, ARM_PRUNING_RECEIPT, TRUSTED_BASELINE, TRUSTED_WORKFLOW, PROVENANCE_DIR, sha256, canonicalAudit, inventory, inventoryHash, evaluate, readZip, expectedRegressionRows, collect } from './forge-remediation-proof-proposal.mjs';
+import { ADVISORY, FILES, SUITES, ARM_PRUNED_LINKS, ARM_PRUNING_RECEIPT, TRUSTED_BASELINE, TRUSTED_WORKFLOW, AUTH_ONLY_CANDIDATE_BRANCH, AUTH_ONLY_TRUSTED_WORKFLOW, PROVENANCE_DIR, sha256, canonicalAudit, inventory, inventoryHash, evaluate, readZip, expectedRegressionRows, collect } from './forge-remediation-proof-proposal.mjs';
 import { scanRoots } from './forge-candidate-image-roots.mjs';
 let checks = 0;
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -395,3 +395,28 @@ try {
   assert.equal(inventory(root).length, 2); checks++;
 } finally { rmSync(root,{recursive:true,force:true}); }
 console.log(`${checks} inert proof assertions passed; recorded/mock facts stay structural (never authenticated); approval remains false.`);
+
+// AUTH-only is a separately reviewed exact branch/job variant. Facts stay SYNTHETIC.
+function authOnlyComplete() {
+  const x = complete(); x.pins.headBranch = AUTH_ONLY_CANDIDATE_BRANCH;
+  x.github.run.head_branch = AUTH_ONLY_CANDIDATE_BRANCH;
+  x.github.job.steps = AUTH_ONLY_TRUSTED_WORKFLOW.steps.map(name => ({ name, conclusion: 'success' }));
+  for (const path of AUTH_ONLY_TRUSTED_WORKFLOW.executedPaths) {
+    x.github.blobsAtMerge[path] = x.git.blobsAtSource[path] = sha256(`synthetic-auth-only:${path}`).slice(0, 40);
+  }
+  return x;
+}
+assert.deepEqual(run(authOnlyComplete()).errors, []); checks++;
+for (const name of ['Prepare isolated schema fixture dependencies', 'Run production AUTH-only bootstrap and probe in the exact ARM image', 'Retain the exact scanned auth-only ARM image without rebuilding']) {
+  const missing = authOnlyComplete(); missing.github.job.steps = missing.github.job.steps.filter(step => step.name !== name);
+  refuse(missing, /Job steps differ/, `AUTH-only missing ${name}`);
+  const failed = authOnlyComplete(); failed.github.job.steps.find(step => step.name === name).conclusion = 'failure';
+  refuse(failed, /Job steps differ/, `AUTH-only failed ${name}`);
+}
+{ const x = authOnlyComplete(); x.github.job.steps.push({ name: 'Unreviewed extra command', conclusion: 'success' }); refuse(x, /Job steps differ/, 'AUTH-only extra step'); }
+{ const x = authOnlyComplete(); x.pins.headBranch = x.github.run.head_branch = 'review/unexpected-auth-only'; refuse(x, /Job steps differ/, 'AUTH-only steps on unexpected branch'); }
+for (const path of AUTH_ONLY_TRUSTED_WORKFLOW.executedPaths.filter(path => !TRUSTED_WORKFLOW.executedPaths.includes(path))) {
+  const missing = authOnlyComplete(); delete missing.github.blobsAtMerge[path]; refuse(missing, /Executed .* differs/, `AUTH-only helper absent ${path}`);
+  const changed = authOnlyComplete(); changed.github.blobsAtMerge[path] = '0'.repeat(40); refuse(changed, /Executed .* differs/, `AUTH-only helper changed ${path}`);
+}
+console.log(`AUTH-only exact branch workflow variant validated; total ${checks} proposal assertions, synthetic provenance only.`);

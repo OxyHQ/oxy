@@ -1,3 +1,4 @@
+import { isRollbackAuthOnly } from '../config/runtimeMode';
 import type { FileRecord } from '../types/file.types';
 
 interface CachedFile {
@@ -108,6 +109,7 @@ class FileCache {
   }
 
   private startCleanupTimer(): void {
+    if (isRollbackAuthOnly) return;
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
     }

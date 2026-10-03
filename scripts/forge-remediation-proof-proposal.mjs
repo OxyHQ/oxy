@@ -207,6 +207,58 @@ export const TRUSTED_WORKFLOW = freeze({
 // recording the reviewed pins/fixtures for that source. Any code, workflow or image input change fails.
 export const PROVENANCE_DIR = 'docs/security/forge-candidate/provenance/';
 export const PINS_PATH = `${PROVENANCE_DIR}pins.json`;
+export const AUTH_ONLY_CANDIDATE_BRANCH = 'review/1519-old-auth-only-20261003';
+export const AUTH_ONLY_TRUSTED_WORKFLOW = freeze({
+  ...TRUSTED_WORKFLOW,
+  steps: [
+    'Set up job',
+    'Run actions/checkout@v7',
+    'Verify the exact candidate source',
+    'Run docker/setup-buildx-action@v4',
+    'Run crazy-max/ghaction-github-runtime@v4',
+    'Build the final production Dockerfile locally on ARM',
+    'Verify proof mount targets are absent from the unmounted image',
+    'Verify additional auth-only proof mounts cannot shadow the image',
+    'Record actual final-image dangling links without exemptions',
+    'Discover every installed root in the whole image filesystem',
+    'Verify all materialized copies and run own-key controls without network',
+    'Validate the auth-only archive binding fixtures',
+    'Validate private bootstrap diagnostic categories',
+    'Validate exact-image bootstrap and cleanup fixtures',
+    'Run actions/checkout@v7',
+    'Run oven-sh/setup-bun@v2',
+    'Prepare isolated schema fixture dependencies',
+    'Run production AUTH-only bootstrap and probe in the exact ARM image',
+    'Retain the exact scanned auth-only ARM image without rebuilding',
+    'Run actions/upload-artifact@v7',
+    'Run actions/upload-artifact@v7',
+    'Run actions/upload-artifact@v7',
+    'Post Run oven-sh/setup-bun@v2',
+    'Post Run actions/checkout@v7',
+    'Post Run docker/setup-buildx-action@v4',
+    'Post Run actions/checkout@v7',
+    'Complete job'
+  ],
+  executedPaths: [...TRUSTED_WORKFLOW.executedPaths, ...[
+    'scripts/rehearsal/old-auth-only/archive-proof.py',
+    'scripts/rehearsal/old-auth-only/diagnostics.py',
+    'scripts/rehearsal/old-auth-only/host.mjs',
+    'scripts/rehearsal/old-auth-only/image-bootstrap.py',
+    'scripts/rehearsal/old-auth-only/io-guard.mjs',
+    'scripts/rehearsal/old-auth-only/probe.mjs',
+    'scripts/rehearsal/old-auth-only/run.py',
+    'scripts/rehearsal/old-auth-only/seed-preserved.mjs',
+    'scripts/rehearsal/old-auth-only/seed.mjs',
+    'scripts/rehearsal/old-auth-only/test-archive-proof.py',
+    'scripts/rehearsal/old-auth-only/test-diagnostics.py',
+    'scripts/rehearsal/old-auth-only/test-image-bootstrap.py'
+  ]],
+});
+/** Exact committed branch variant, never a caller-provided step list. */
+export function trustedImageWorkflow(headBranch) {
+  return headBranch === AUTH_ONLY_CANDIDATE_BRANCH ? AUTH_ONLY_TRUSTED_WORKFLOW : TRUSTED_WORKFLOW;
+}
+
 const PIN_KEYS = ['sourceSha', 'pullRequest', 'headBranch', 'runId', 'runAttempt', 'jobId', 'workflowMergeSha', 'artifactId', 'artifactDigest', 'artifactFiles', 'image'];
 // Machine-checked from the artifact; the rest are caller-run and stay with the parent.
 export const MACHINE_SUITES = ['rsa-regressions', 'browser-bundles', 'production-image'];
@@ -309,7 +361,7 @@ function candidatePullRequestBound(github, pins) {
 function checkGithub(github, git, pins, zip, now, fail) {
   if (!isObject(github)) return fail('Authenticated GitHub provenance unavailable');
   const { run, job, artifact, mergeCommit, blobsAtMerge, advisory } = github;
-  const W = TRUSTED_WORKFLOW;
+  const W = trustedImageWorkflow(pins.headBranch);
   if (run?.id !== pins.runId || run?.path !== W.path || run?.name !== W.name || run?.workflow_id !== W.workflowId || run?.event !== W.event
     || run?.head_sha !== pins.sourceSha || run?.head_branch !== pins.headBranch || run?.status !== 'completed' || run?.conclusion !== 'success'
     || run?.run_attempt !== pins.runAttempt || run?.repository?.full_name !== W.repository || run?.repository?.id !== W.repositoryId
@@ -524,6 +576,7 @@ export function collect(options = {}) {
   const head = text('rev-parse', 'HEAD');
   const pins = JSON.parse(git('show', `HEAD:${PINS_PATH}`));
   const source = pins.sourceSha;
+  const imageWorkflow = trustedImageWorkflow(pins.headBranch);
   if (!/^[0-9a-f]{40}$/.test(source ?? '')) throw new Error('Pinned source is not a commit id');
   let sourceIsAncestor = true;
   try { git('merge-base', '--is-ancestor', source, head); } catch { sourceIsAncestor = false; }
@@ -532,7 +585,7 @@ export function collect(options = {}) {
     head, clean: text('status', '--porcelain', '--untracked-files=all') === '', sourceIsAncestor,
     changedPaths: text('diff', '--name-only', source, head).split('\n').filter(Boolean),
     headParents: text('show', '-s', '--format=%P', head).split(' ').filter(Boolean), headTree: text('rev-parse', 'HEAD^{tree}'),
-    blobsAtSource: Object.fromEntries(TRUSTED_WORKFLOW.executedPaths.map(path => [path, blob(source, path)])),
+    blobsAtSource: Object.fromEntries(imageWorkflow.executedPaths.map(path => [path, blob(source, path)])),
     sourceCommitTime: text('show', '-s', '--format=%cI', source),
     patchBytes: git('show', `${source}:patches/node-forge@1.4.0.patch`),
     lockText: git('show', `${source}:bun.lock`).toString('utf8'),
@@ -577,7 +630,7 @@ export function collect(options = {}) {
   const github = {
     run: api(`${R}/actions/runs/${pins.runId}`), job: api(`${R}/actions/jobs/${pins.jobId}`), artifact: api(`${R}/actions/artifacts/${pins.artifactId}`),
     mergeCommit: { sha: mergeCommit.sha, parents: mergeCommit.parents.map(parent => parent.sha) },
-    blobsAtMerge: Object.fromEntries(TRUSTED_WORKFLOW.executedPaths.map(path => [path, contents(path)])),
+    blobsAtMerge: Object.fromEntries(imageWorkflow.executedPaths.map(path => [path, contents(path)])),
     advisory: api(`/advisories/${ADVISORY}`),
   };
   if (Array.isArray(github.run.pull_requests) && github.run.pull_requests.length === 0) {

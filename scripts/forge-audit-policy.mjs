@@ -8,12 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { userInfo } from 'node:os';
 import {
   ADVISORY, TRUSTED_BASELINE, TRUSTED_WORKFLOW, PINS_PATH,
-  canonicalAudit, collect, evaluate, inventory, sha256, collectIndependentInputObjects, INDEPENDENT_INPUT_PATHS,
+  canonicalAudit, collect, evaluate, inventory, sha256, collectIndependentInputObjects, INDEPENDENT_INPUT_PATHS, trustedImageWorkflow,
 } from './forge-remediation-proof-proposal.mjs';
 
 export const DECISION_PATH = 'docs/security/forge-candidate/provenance/audit-policy-decision.json';
 export const DECLARATIVE_PATHS = Object.freeze([PINS_PATH, DECISION_PATH]);
-export const EVIDENCE_PATH = 'docs/security/forge-independent/2026-10-03-final-input/proof.json';
+export const EVIDENCE_PATH = 'docs/security/forge-independent/2026-10-03-auth-only-input/proof.json';
 export { INDEPENDENT_INPUT_PATHS } from './forge-remediation-proof-proposal.mjs';
 const RECORD_NAMES = Object.freeze(['expo-14.log', 'oxy-db-build.log', 'stock-install-pinned.log', 'candidate-install.log', 'oxy-install.log', 'stock-build.log', 'candidate-build-1.log', 'candidate-build-2.log', 'candidate-build-3.log', 'stock-upstream.log', 'candidate-upstream.log', 'expo-14-final.log', 'oxy-34.log', 'stock-controls.json', 'candidate-controls.json', 'hashes-after-build-2.json', 'candidate-build-repeat.json']);
 const EXECUTED_PATHS = Object.freeze([
@@ -69,7 +69,7 @@ export function checkForgePolicyStructure(input) {
       || finalImageProof.artifactExpiries.some(expiry => !(Date.parse(now) < Date.parse(expiry)))) fail('Own authenticated execution image proof required; PR image cannot authorize queue/main publication');
   }
   if (!Array.isArray(facts?.git?.changedPaths) || facts.git.changedPaths.some(path => !DECLARATIVE_PATHS.includes(path))) fail('Only the two exact declarative paths may differ from target');
-  for (const path of EXECUTED_PATHS) if (!blobs?.source?.[path] || blobs.source[path] !== blobs?.current?.[path]) fail(`Executed code changed: ${path}`);
+  for (const path of new Set([...EXECUTED_PATHS, ...trustedImageWorkflow(facts?.pins?.headBranch).executedPaths])) if (!blobs?.source?.[path] || blobs.source[path] !== blobs?.current?.[path]) fail(`Executed code changed: ${path}`);
   if (!Array.isArray(copies) || copies.length === 0) fail('Installed Forge inventory is missing');
   else for (const copy of copies) if (copy.version !== '1.4.0' || !same(copy.files, TRUSTED_BASELINE.files)) fail('An installed Forge copy differs from pinned bytes');
   const evidence = decision?.independentEvidence;
@@ -147,7 +147,7 @@ export function inspectForgeAuditPolicy(audit, options = {}) {
     if (!same(facts.audit, audit)) throw new Error('Audit changed between checks');
     const target = decision.targetSourceHead;
     const blobs = { source: {}, current: {} };
-    for (const path of EXECUTED_PATHS) {
+    for (const path of new Set([...EXECUTED_PATHS, ...trustedImageWorkflow(facts.pins.headBranch).executedPaths])) {
       blobs.source[path] = git('rev-parse', `${target}:${path}`).toString().trim();
       blobs.current[path] = git('rev-parse', `HEAD:${path}`).toString().trim();
     }
