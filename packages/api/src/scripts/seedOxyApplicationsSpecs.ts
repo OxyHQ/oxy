@@ -69,6 +69,8 @@ export interface SeedAppSpec {
    * requests can target its installs without a separate register-commons run.
    */
   capabilities?: ApplicationCapability[];
+  /** Machine-only registrars do not create an OAuth public client. Default preserves existing seeds. */
+  publicClient?: boolean;
   /**
    * Username of the account this application is owned by, when it is NOT the
    * platform owner itself.
@@ -328,7 +330,21 @@ export const OXY_MOVE_APPLICATION_ID = '4bac8f1baed68fd02d65d592';
  * URI, so web apps register their apex origin as the redirect surface; native
  * apps register their deep-link schemes.
  */
+export const OXY_PROFILE_REGISTRAR_APPLICATION_ID = 'dce95bde-49ef-4f05-83b3-c4d390b322ea';
+export const OXY_PROFILE_REGISTRAR_SPEC: SeedAppSpec = {
+  id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
+  name: 'Oxy Profile Catalogue Registrar',
+  description: 'Internal canonical profile catalogue registrar; no user sign-in or workload binding.',
+  type: 'internal', redirectUris: [], scopes: ['catalogs:write'],
+  capabilities: [catalogApplicationCapability('oxy')], publicClient: false,
+};
+
+export function requiresPublicSeedCredential(spec: SeedAppSpec): boolean {
+  return spec.publicClient !== false;
+}
+
 export const SEED_APPS: SeedAppSpec[] = [
+  OXY_PROFILE_REGISTRAR_SPEC,
   {
     id: KAANA_APPLICATION_ID,
     name: 'Kaana',
@@ -423,8 +439,10 @@ export const SEED_APPS: SeedAppSpec[] = [
       // job ingest is refused with `The listing host is not a verified Clarity
       // site owned by this account`.
       'clarity:sites:manage',
+      // I05 foreground only: requester session and read-only tools remain independently checked.
+      'capability-tickets:issue',
     ],
-    capabilities: [catalogApplicationCapability('mention')],
+    capabilities: [catalogApplicationCapability('mention'), AGENCY_COORDINATE_CAPABILITY],
   },
   {
     id: HOMIIO_APPLICATION_ID,
