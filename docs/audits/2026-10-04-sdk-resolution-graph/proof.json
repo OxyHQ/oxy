@@ -1,0 +1,146 @@
+{
+  "kind": "sdk-resolution-graph-correction-v1",
+  "source": "23ff84737673482ce4845cf016798be032a601a9",
+  "review": "https://github.com/OxyHQ/oxy/pull/1567#issuecomment-5973425909",
+  "at": "2026-10-04T13:02:43.728356+00:00",
+  "baseline": "d11a99ae5aa7f2eca9abb5aaef5079b90ff30698",
+  "fixtures": {
+    "sameFinalFixture": true,
+    "tests": 22,
+    "baselineFailures": 12,
+    "baselineExit": 1,
+    "fixedExit": 0
+  },
+  "actualConsumerGraphs": {
+    "count": 18,
+    "edges": 221,
+    "allAccepted": true,
+    "scope": "Retained adopted worktrees; registry fresh5packages; no runtime writes"
+  },
+  "files": [
+    {
+      "path": "scripts/adoption/final-registry-consumers.py",
+      "sha256": "95cb5bf75063288d545e3a22219995661bfbcbe27bcbd97d94b00de590e97414"
+    },
+    {
+      "path": "scripts/adoption/test-final-registry-consumers.py",
+      "sha256": "946f37e918b9132d349535230762e95be7c0ab2b73fcc0915d5764afdb666e26"
+    },
+    {
+      "path": "docs/audits/2026-10-04-sdk-resolution-graph/README.md",
+      "sha256": "d1e2049ab63d7616de646a16d6b2c7aa76394fe67fb3e15d7d99b2d7e8895e57"
+    },
+    {
+      "path": "docs/audits/2026-10-04-sdk-resolution-graph/consumer-graphs.json",
+      "sha256": "0637e440078d7863f16e69ab6c6c2ec143893771d61c122b2da04299ff541dbd"
+    }
+  ],
+  "privateEvidence": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/sdk-graph-red-complete.log",
+      "sha256": "df3be1214b6d1b5e2ede5a1fb1e222d9c40de72e7fd7908e44242043e50d7fbf"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/sdk-graph-red-complete-exit.json",
+      "sha256": "f468f8bf84d59a390a40e5d5ac0291111e0e6eeb79821864810ae628cbd3507e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/sdk-graph-green-complete.log",
+      "sha256": "7714faf972b92c74a5e51eceb82c3472ab1a8fff92bf3ab4cb8e4350443d5eb9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/sdk-graph-green-complete-exit.json",
+      "sha256": "47b8b6b49d4695fe6e036bd916538aff4f46773e212ca0d429db80f3963e2cfe"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/verify-adopted-graphs.py",
+      "sha256": "ee402491ae6291cb31382a4e141e35eb43dcf4199c9dc63769d7c51a651aa69d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/registry.json",
+      "sha256": "c639e7889283ca0726c4f81af411417db96df5942609b991058789a52c85c75e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/summary.json",
+      "sha256": "21d473d55935791e75bae9177964ff41b639a7890f1a513f355f5ab47d4791dd"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Alia.json",
+      "sha256": "1d9aa0913379b1d0e559515cd7989d5e2fdb2ec7bb45c023226149dd156e9489"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Allo.json",
+      "sha256": "b320247c257ce35bd4ec12ea79a61d96f1e9f1224be05c40299467a69c83c30d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Atlas.json",
+      "sha256": "ec8bbed2d9795d41fc7be1dc27a2ee1d14b074298808b066b0159a06912ae1f8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Clarity.json",
+      "sha256": "fb7bc2fce50f89a2ede9aac22aac3037d3eaa753c13d1b99f738dc77d3cdbb29"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/CrowdSource.json",
+      "sha256": "514770bc62b4e0f46ebc6fc0f161819efd808feecc7356240d15bf78b6e82328"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/GoWay.json",
+      "sha256": "b78a9abfb6bf2e85bdb0b75c09fa93e448aec318df5b93914a41f1a3bf74527e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Homiio.json",
+      "sha256": "8feb307ecc12aa835055a98d95e0e1320f43d683e0b1bf9da426746844e0e89e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Mention.json",
+      "sha256": "23067ff55f663cebd64e00ad871d197023f198126901d870b8ba7b02387eddee"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Mercaria.json",
+      "sha256": "948719d108b2476b1e36117ea596b100fcaedb1ce4305a6292478506ff057858"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Moovo.json",
+      "sha256": "911772f3f2e6a04870e1bcb2d0b01b82c94bee315b9fe67678bc3236e0cc66a4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Move.json",
+      "sha256": "d95986d4f12be72b6e63366db652580bedf973f56cddc2196933903d167b224b"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Nilo.json",
+      "sha256": "bb2cbdbc4d83c333ffa046448bd05c6e0421553f187a96ed8a54f79a2c8088fc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Noted.json",
+      "sha256": "2aa2f80fface8a8c3292ddfb2e96174c2111bddb27d29cd5480c092bf5d0344a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Peable.json",
+      "sha256": "63d086e81f6eff0c21663f7d63594ecce32096dfa27913e256d5c11a7bfa9b0a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Syra.json",
+      "sha256": "9322f99ec7ec2bae0e869b307cc4adc15b6939d0f8a5b384ce172f53df6f87fd"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/Willo.json",
+      "sha256": "72bca6ca1d19cd9bcfd9c3fa91934ad145f0ba4c1c4fb976db7fdac8cedf382e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/tnp.json",
+      "sha256": "d809c8f33c9d9c6be1bc8f83b7c19231271dc4c03f9b08e722db60198d155881"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/installed-sdk-graphs/website.json",
+      "sha256": "3828d3920135ce859cb1be80b9a79b51e7d6e5991fd915f60873c356d5724f24"
+    }
+  ],
+  "baselineFixture": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/sdk-baseline/test-final-registry-consumers.py",
+    "sha256": "946f37e918b9132d349535230762e95be7c0ab2b73fcc0915d5764afdb666e26"
+  },
+  "noRuntimeChange": true,
+  "independentReview": "pending"
+}
