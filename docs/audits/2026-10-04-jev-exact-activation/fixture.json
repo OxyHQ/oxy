@@ -1,0 +1,33 @@
+{
+  "format": "decisions",
+  "decisions": {
+    "state": "Synthetic fixture: a red square is on a table. No user data.",
+    "questions": [
+      {
+        "id": "red",
+        "kind": "noul",
+        "question": "Is the square red?"
+      },
+      {
+        "id": "shape",
+        "kind": "choice",
+        "question": "Which shape is described?",
+        "options": [
+          "square",
+          "circle"
+        ]
+      },
+      {
+        "id": "color-match",
+        "kind": "score",
+        "question": "How well does the description support the statement that the square is red?",
+        "levels": [
+          "not supported",
+          "partly supported",
+          "fully supported"
+        ]
+      }
+    ],
+    "effort": "instant"
+  }
+}

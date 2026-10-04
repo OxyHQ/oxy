@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import time
 
-ROOT = Path('/home/nate/Oxy/oxy/.worktrees/1572-mention-wire-integration-20261004')
+ROOT = Path('/home/nate/Oxy/oxy/.worktrees/1572-jev-exact-activation-20261004')
 PG = Path('/usr/lib/postgresql/17/bin')
 PORT = 5627
 
@@ -61,7 +61,7 @@ def main():
             files=archive.getmembers()
             assert len(files)==585 and len({m.name for m in files})==585 and all(m.isfile() and m.name.startswith('package/') and '..' not in Path(m.name).parts for m in files)
             archive.extractall(sdk,filter='data')
-        env |= {'KAANA_WIRE_DATABASE_URL':f'postgresql://oxy@127.0.0.1:{PORT}/kaana_wire?sslmode=verify-full&sslrootcert={own}/server.crt', 'MENTION_SOURCE_WORKTREE':'/home/nate/Oxy/Mention/.worktrees/1572-bounded-shadow-20261004', 'KAANA_SOURCE_WORKTREE':'/home/nate/Oxy/Kaana/.worktrees/1572-mention-wire-integration-20261004','MENTION_BUILDER_SHA256':'060543df2f3ddb756a274c2680d73d02da4fbc5b949c41c258345916e6eb301d','MENTION_WIRE_SDK_MODULE':str(sdk / 'package/dist/cjs/inference/index.js')}
+        env |= {'KAANA_WIRE_DATABASE_URL':f'postgresql://oxy@127.0.0.1:{PORT}/kaana_wire?sslmode=verify-full&sslrootcert={own}/server.crt', 'MENTION_SOURCE_WORKTREE':'/home/nate/Oxy/Mention/.worktrees/1572-bounded-shadow-20261004', 'KAANA_SOURCE_WORKTREE':'/home/nate/Oxy/Kaana/.worktrees/1572-jev-exact-activation-20261004','MENTION_BUILDER_SHA256':'060543df2f3ddb756a274c2680d73d02da4fbc5b949c41c258345916e6eb301d','MENTION_WIRE_SDK_MODULE':str(sdk / 'package/dist/cjs/inference/index.js')}
         run(['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__fixtures__/mentionWire.fixture.ts', '--testMatch', '**/mentionWire.fixture.ts'], cwd=ROOT / 'packages/api',timeout=170)
     finally:
         if active:

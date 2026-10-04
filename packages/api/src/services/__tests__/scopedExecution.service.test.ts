@@ -19,7 +19,7 @@ const context = {
 } as EdgeExecutionContext;
 
 describe('source-bound scoped execution', () => {
-  it('has no production source authorization', () => {
+  it('does not authorize an unrelated synthetic context', () => {
     expect(scopedPermitForContext(context)).toBeUndefined();
   });
   it('binds a synthetic permit only to the existing exact principal/input', () => {

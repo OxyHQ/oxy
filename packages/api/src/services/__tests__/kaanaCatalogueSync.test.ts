@@ -749,6 +749,7 @@ describe('source-reviewed scoped price bootstrap', () => {
 
   it('does not let authenticated remote metadata authorize a local price identity', async () => {
     const f = await fixture();
+    jest.spyOn(scopedSource, "sourceReviewedScopedAudience").mockReturnValue(undefined);
     expect(scopedSource.sourceReviewedScopedAudience()).toBeUndefined();
     const result = await runKaanaCatalogueSync({ reader: f.scopedReader });
     expect(result.deployments.skipped.unattested_route).toBe(1);
