@@ -1,0 +1,61 @@
+34 |         return {
+35 |             success: false,
+36 |             get error() {
+37 |                 if (this._error)
+38 |                     return this._error;
+39 |                 const error = new ZodError(ctx.common.issues);
+                                   ^
+ZodError: [
+  {
+    "code": "invalid_string",
+    "validation": {
+      "startsWith": "wl_"
+    },
+    "message": "Invalid input: must start with \"wl_\"",
+    "path": [
+      "id"
+    ]
+  },
+  {
+    "received": "public",
+    "code": "invalid_literal",
+    "expected": "workload",
+    "path": [
+      "type"
+    ],
+    "message": "Invalid literal value, expected \"workload\""
+  },
+  {
+    "code": "too_big",
+    "maximum": 0,
+    "type": "array",
+    "inclusive": true,
+    "exact": true,
+    "message": "Array must contain exactly 0 element(s)",
+    "path": [
+      "scopes"
+    ]
+  },
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "null",
+    "path": [
+      "workload_identity_id"
+    ],
+    "message": "Expected string, received null"
+  }
+]
+    issues: [
+  [Object ...], [Object ...], [Object ...], [Object ...]
+],
+  addIssue: [Function],
+ addIssues: [Function],
+
+      at error (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/node_modules/.bun/zod@3.25.76/node_modules/zod/v3/types.js:39:31)
+      at parse (/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/node_modules/.bun/zod@3.25.76/node_modules/zod/v3/types.js:114:15)
+      at map (1:11)
+      at prepareForegroundPilotPlan (/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/scripts/foregroundPilotConfiguration.ts:202:4)
+      at /home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/test-planner.ts:5:9
+
+Bun v1.4.2 (Linux x64)

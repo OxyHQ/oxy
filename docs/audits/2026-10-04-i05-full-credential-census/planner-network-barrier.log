@@ -1,0 +1,3 @@
+fullfive exact preserved PASS
+four foreign/census/workload negatives PASS
+{"kind":"i05-planner-network-barrier-v1","networkAttempts":0}

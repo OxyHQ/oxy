@@ -1,0 +1,7 @@
+# I05: complete credential census
+
+The Mention preflight omitted three existing public/service credentials. The configuration CAS already reads all five rows, so the two-row plan could not pass. The reader now projects the full bounded census. The planner retains public/service metadata as immutable snapshots and still requires exactly the two known workload identities. No retained credential gains scopes or changes lifecycle.
+
+Frozen real metadata reproduces planner rejection; the fixed planner preserves all five snapshots and rejects foreign, duplicate or invalid linkage/workload authority. The prior fixed SQL projection returns two; the corrected projection returns five. Owned PostgreSQL configuration tests preserve all columns of the three retained credentials, and existing drift/fence/transaction rollback tests pass. Full four suites: 78 SQL tests; compiled Node: 3 controls; canonical fresh/repeat migration: 142. Operator13 and one-shot overlay7 controls pass.
+
+[Proof](proof.json) binds sources, compiled bytes, private metadata hashes and logs. Deployed API693/imageb8d remains unchanged: this delta affects operational scripts only. The one-shot executor uses an explicitly reviewed in-memory module overlay; the pure planner uses the same compiled module. PR1569 provides the durable source change separately. Production CAS/configuration and lane activation remain pending until fresh readers, exact planning, execution and readback succeed.

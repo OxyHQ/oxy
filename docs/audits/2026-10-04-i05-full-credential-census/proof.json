@@ -1,0 +1,353 @@
+{
+  "kind": "i05-complete-credential-census-proof-v1",
+  "sourceHead": "091cb952a3fe14adae48397e373e2e1461969dc0",
+  "baseHead": "94440e0a1",
+  "sourceInputs": {
+    "packages/api/src/scripts/foregroundPilotConfiguration.ts": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/scripts/foregroundPilotConfiguration.ts",
+      "sha256": "d54565c08575b93286baa811dc08108b629c02b85dffeb8911dde4d6c4bdd08a",
+      "bytes": 33590
+    },
+    "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts",
+      "sha256": "5ff33f8ea4eb05daaa2275692752e4afc65efe98422e80c3209ba3de6013cf2b",
+      "bytes": 23730
+    },
+    "packages/api/src/scripts/foregroundPilotExecutor.ts": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/scripts/foregroundPilotExecutor.ts",
+      "sha256": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+      "bytes": 5895
+    },
+    "packages/api/src/scripts/foregroundPilotHttps.ts": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/scripts/foregroundPilotHttps.ts",
+      "sha256": "5d7478f43752e5026d028f74394c180d4e17c7113b08ad50b5db0d739c74fcbb",
+      "bytes": 3286
+    },
+    "packages/api/src/config/postgres.ts": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/config/postgres.ts",
+      "sha256": "cde261995eb5c66710a977b164bb0b72208d41528c6bfc9520b48d866e15793f",
+      "bytes": 6813
+    },
+    "packages/api/src/services/applicationCredentialAudit.service.ts": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/services/applicationCredentialAudit.service.ts",
+      "sha256": "880db9dc51caba7cbc3fcf4c04429c7474d31f92c2df3cacf1c159e9d253cc32",
+      "bytes": 13871
+    },
+    "packages/api/src/services/workloadIdentityBinding.service.ts": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/services/workloadIdentityBinding.service.ts",
+      "sha256": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb",
+      "bytes": 37108
+    },
+    "scripts/rehearsal/test-i05-foreground-configuration.py": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/scripts/rehearsal/test-i05-foreground-configuration.py",
+      "sha256": "b8de4f86f0d3fa87b14046e5c903bc2320737ed0c323dbf8cc97933230031595",
+      "bytes": 6231
+    },
+    "scripts/agency/tests/foreground-pilot-compiled.mjs": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/scripts/agency/tests/foreground-pilot-compiled.mjs",
+      "sha256": "c7cfeaf8a192675ba66c7ce9d344b850070b6e160f0e40d9e4915832f53aae17",
+      "bytes": 7437
+    }
+  },
+  "compiledInputs": {
+    "packages/api/dist/scripts/foregroundPilotConfiguration.js": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/dist/scripts/foregroundPilotConfiguration.js",
+      "sha256": "d972ff9c77761024f31f18640842cfa7a7fa15dbf6abc4d71d69cb17923b2644",
+      "bytes": 47072
+    },
+    "packages/api/dist/scripts/foregroundPilotExecutor.js": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/dist/scripts/foregroundPilotExecutor.js",
+      "sha256": "c0fcbf7d875cc5e61311ffc43f08d92fea5b1646fd65731f482df777019e686e",
+      "bytes": 8662
+    },
+    "packages/api/dist/scripts/foregroundPilotHttps.js": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/dist/scripts/foregroundPilotHttps.js",
+      "sha256": "1d35c4f60130ee04585e55501ad9279b392b706d89d409faf801e88d18da4830",
+      "bytes": 5014
+    }
+  },
+  "operatorInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/mention-foreground-preflight-ecs.py",
+      "sha256": "bac16d11a880f8a00ad4bbc8072e1427356e12230525b85bd8642a66200f727c",
+      "bytes": 24291
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/read-mention-foreground-preflight.mjs",
+      "sha256": "2270326c66e8c2d4326b4fbcfcbc63e326d6ddba7648212c839deb7a805162a4",
+      "bytes": 8176
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/test-mention-foreground-preflight.py",
+      "sha256": "937c47a6f9382b18e0bbee424502d0388ae117b12fb8c326a4d9236e10dc6469",
+      "bytes": 9066
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/test-reader.mjs",
+      "sha256": "98b43a18b41720da0462946c6ed819b7d9237a9ba1efa44c08e29e78978c348b",
+      "bytes": 1835
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/test-planner.ts",
+      "sha256": "801f235139cea48c6a469cc0385b6b5df276185d0621f1fbe2ad1d0057d1fce1",
+      "bytes": 1262
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/prepare-configuration.ts",
+      "sha256": "17e7ef0203fa7846b5fecfd5e68613229eca72654d0074c590e43b2ef387b66d",
+      "bytes": 1820
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/fresh-readers.py",
+      "sha256": "61260e16a1b0b6ad24d36ef34732efbe9c9dd65d69679ed9d02ca6ffb86c8d51",
+      "bytes": 874
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/overlay/bootstrap.cjs",
+      "sha256": "f283432f7a4b9ef95e27d80e198b099450cecb986bd5373797ba178b874713ef",
+      "bytes": 12532
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/overlay/foreground-pilot-staged.py",
+      "sha256": "4ed375071360f09b381cee1d10bbb37ea0b8ae0b3218327b7764e76b81d0211c",
+      "bytes": 3909
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/overlay/bootstrap.cjs.template",
+      "sha256": "e4704e3aa814c614fdcf6c65d75ef5824a7eea3422ce3931e845c803b9805d3f",
+      "bytes": 1687
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/overlay/foregroundPilotConfiguration.js",
+      "sha256": "d972ff9c77761024f31f18640842cfa7a7fa15dbf6abc4d71d69cb17923b2644",
+      "bytes": 47072
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/overlay/test.py",
+      "sha256": "f3059d086ba227389ea06a37c5a2e2ce1648502472dd4d5f2420c93f7c9a084e",
+      "bytes": 3916
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/overlay/reviewed-module.json",
+      "sha256": "4ec2fbdd056468ca3fd4362f256c811497b5d463fd156fcd8e334ac05bca1d34",
+      "bytes": 10827
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/overlay/tests.log",
+      "sha256": "9a711de0c0ca34728856fcbf974e22f88f9e8d1cc32eef51dee1c66fab3c9d35",
+      "bytes": 105
+    }
+  ],
+  "privateMetadataInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/mention-five-TESTONLY.json",
+      "sha256": "20c0289af557138bcaac373f0582964dd70972189ea3032efd3e612accc02e7c",
+      "bytes": 5414
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/registrar-TESTONLY.json",
+      "sha256": "3cc9924e7d9c92b9c51605fb42cf72743a70fd930f10be344a4d81f47257d5c0",
+      "bytes": 1278
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i05-activity-reconciliation-v2/independent/result.private.json",
+      "sha256": "8619d0500bbd017585c75c1fa61cd5df9ee0c2846d8dd28e4bca87d2c85de4b5",
+      "bytes": 5751
+    }
+  ],
+  "records": {
+    "docs/audits/2026-10-04-i05-full-credential-census/planner-frozen-red.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/planner-frozen-red.log",
+      "sha256": "d713a4e4fa006d94658b7edd03cdd188a3748d994938b353c4eec4c87093a78b",
+      "bytes": 1771,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/frozen-RED.log",
+        "sha256": "d713a4e4fa006d94658b7edd03cdd188a3748d994938b353c4eec4c87093a78b",
+        "bytes": 1771
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/planner-green.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/planner-green.log",
+      "sha256": "8bd68908076a376e695b74c0c6718b4fbae713093ee5a16d316457ad0cda4852",
+      "bytes": 74,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/planner-GREEN.log",
+        "sha256": "8bd68908076a376e695b74c0c6718b4fbae713093ee5a16d316457ad0cda4852",
+        "bytes": 74
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/reader-frozen-red.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/reader-frozen-red.log",
+      "sha256": "3adfce52d9162320db228fd008070c69a70cafe61faafec44231a84369391955",
+      "bytes": 409,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/reader-frozen-RED.log",
+        "sha256": "3adfce52d9162320db228fd008070c69a70cafe61faafec44231a84369391955",
+        "bytes": 409
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/reader-green.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/reader-green.log",
+      "sha256": "1161aa11f4d9072ccd0b9a020a735d7ab01f40b6924607c1d97c0b8fb8b6f346",
+      "bytes": 94,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/reader-GREEN.log",
+        "sha256": "1161aa11f4d9072ccd0b9a020a735d7ab01f40b6924607c1d97c0b8fb8b6f346",
+        "bytes": 94
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/SQL-green.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/SQL-green.log",
+      "sha256": "843f27d6ff0d145460150340848c129c22036009cea95d5c9d7f0ab93f6c5c92",
+      "bytes": 1029,
+      "original": {
+        "path": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-6xpf019l/pg1519-p3axso7_/foreground-api.txt",
+        "sha256": "843f27d6ff0d145460150340848c129c22036009cea95d5c9d7f0ab93f6c5c92",
+        "bytes": 1029
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/Node-green.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/Node-green.log",
+      "sha256": "b502b5877455afd21260857b90a81b54ce3428256edbd3aa6d0ba2b4e40debae",
+      "bytes": 394,
+      "original": {
+        "path": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-6xpf019l/pg1519-p3axso7_/compiled-node.txt",
+        "sha256": "b502b5877455afd21260857b90a81b54ce3428256edbd3aa6d0ba2b4e40debae",
+        "bytes": 394
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/migration-fresh.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/migration-fresh.log",
+      "sha256": "3c0decbb4a4e31d32c5430b6f8967bf2e3866def3d7f00d86fd6806d0b3e6456",
+      "bytes": 8873,
+      "original": {
+        "path": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-6xpf019l/pg1519-p3axso7_/migration-fresh.txt",
+        "sha256": "3c0decbb4a4e31d32c5430b6f8967bf2e3866def3d7f00d86fd6806d0b3e6456",
+        "bytes": 8873
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/migration-repeat.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/migration-repeat.log",
+      "sha256": "2b698e8dd27dd4e062d517f8bdcd1863f185dda7c957104e81e33cb34a2f91c2",
+      "bytes": 172,
+      "original": {
+        "path": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-6xpf019l/pg1519-p3axso7_/migration-repeat.txt",
+        "sha256": "2b698e8dd27dd4e062d517f8bdcd1863f185dda7c957104e81e33cb34a2f91c2",
+        "bytes": 172
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/operator-tests.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/operator-tests.log",
+      "sha256": "dd7d573ac303c61e704425afc797cae731b8fa0b7e8ca17e0de1ad3a35fcf045",
+      "bytes": 1489,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/operator-GREEN.log",
+        "sha256": "dd7d573ac303c61e704425afc797cae731b8fa0b7e8ca17e0de1ad3a35fcf045",
+        "bytes": 1489
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/overlay-tests.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/overlay-tests.log",
+      "sha256": "9a711de0c0ca34728856fcbf974e22f88f9e8d1cc32eef51dee1c66fab3c9d35",
+      "bytes": 105,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/overlay/tests.log",
+        "sha256": "9a711de0c0ca34728856fcbf974e22f88f9e8d1cc32eef51dee1c66fab3c9d35",
+        "bytes": 105
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/planner-network-barrier.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/planner-network-barrier.log",
+      "sha256": "ebf03f5f83786b73e9fb5f987464b24aea0ddf81c6094c745fd7357ab1c1f057",
+      "bytes": 136,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/planner-explicit-network-barrier.log",
+        "sha256": "ebf03f5f83786b73e9fb5f987464b24aea0ddf81c6094c745fd7357ab1c1f057",
+        "bytes": 136
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/build.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/build-final.log",
+        "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+        "bytes": 4358
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/scripts-types.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/scripts-types.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/scripts-types.log",
+        "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+        "bytes": 31
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/lint.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/biome.log": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/biome.log",
+      "sha256": "75cc3c6c6d4fa1f6186261507bea9b8d80c2803234a902d5a111b92a8fe59cb1",
+      "bytes": 39,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/biome-final2.log",
+        "sha256": "75cc3c6c6d4fa1f6186261507bea9b8d80c2803234a902d5a111b92a8fe59cb1",
+        "bytes": 39
+      }
+    },
+    "docs/audits/2026-10-04-i05-full-credential-census/read-mention-foreground-preflight.mjs": {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/docs/audits/2026-10-04-i05-full-credential-census/read-mention-foreground-preflight.mjs",
+      "sha256": "2270326c66e8c2d4326b4fbcfcbc63e326d6ddba7648212c839deb7a805162a4",
+      "bytes": 8176,
+      "original": {
+        "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full-credential-census-20261004/read-mention-foreground-preflight.mjs",
+        "sha256": "2270326c66e8c2d4326b4fbcfcbc63e326d6ddba7648212c839deb7a805162a4",
+        "bytes": 8176
+      }
+    }
+  },
+  "checks": {
+    "actualFiveMetadataFrozenRejectedThenAccepted": true,
+    "fixedSQLProjectionFrozenCensus2ThenFull5": true,
+    "purePlannerForeignDuplicateLinkedInertAndScopedWorkloadNegatives": 4,
+    "ownPGSQL": 78,
+    "ownCompiledNode": 3,
+    "ownPGFreshAndRepeat": 142,
+    "offlineOperator": 13,
+    "overlayControls": 7,
+    "plannerNetworkAttempts": 0,
+    "apiBuildExit": 0,
+    "scriptsTypesExit": 0,
+    "lintExit": 0,
+    "biomeExit": 0,
+    "productionWrites": 0
+  },
+  "cleanup": {
+    "pids": [
+      905534,
+      903654
+    ],
+    "allAbsent": true,
+    "postmastersAbsent": [
+      true,
+      true
+    ]
+  },
+  "limits": [
+    "Reader and planner require complete bounded credential census; exact two known workload identities remain required. Public/service rows participate only as strict immutable CAS snapshots. Their lifecycle, scopes, secret metadata and all columns remain unchanged in SQL regression.",
+    "Observed real metadata contains five identities, whereas former preflight/plan admitted only two workloads; the original rejected execution and readonly reconciliation are preserved. No credential-xmin race is asserted.",
+    "Only operational configuration script and tests changed. Deployed API/server image b8d and TD693 stay intact. Reviewed one-shot Module overlay supplies d972 bytes to the unchanged executor; pure planner imports the same compiled bytes. Durable PR1569 source must merge separately; no served route changes or new API image are required for this script-only operation.",
+    "SQL and Node tests use freshly initialized owned PostgreSQL; actual preflight regression uses recorded real metadata and a mocked SQL boundary. No production configuration has been reexecuted by this agent."
+  ]
+}
