@@ -102,10 +102,10 @@ release owner; the implementation changes no package version.
   independent settlement and deterministic fallback semantics.
 - Legacy 3.5/v2, one-fixture 3.6/v3 and ordinary public denial remain qualified.
 
-The first implementation block supplies the schema, inactive getter, pure
-binding/recovery identity checks and atomic parent/child metering barrier. The
-end-to-end adapter/envelope/catalogue/Kaana wiring is a remaining implementation
-step, not an activation or completed production claim.
+The first frozen implementation block supplied the schema, inactive getter,
+pure binding/recovery identity checks and atomic parent/child metering barrier.
+The later slices below compose its catalogue, adapter and envelope. Their local
+qualification is not an activation or completed production claim.
 
 ## Inactive transport integration
 
@@ -118,9 +118,8 @@ both private metadata classes. Schema 4 uses the canonical actual input bytes
 and verifies their hash before signing one decisions request; it has no stream
 path. The original absolute deadline covers serialization, send and response.
 
-Catalogue persistence, private route selection and the parent/child classifier
-adapter remain subsequent integration steps; the transport slice alone does
-not make this a completed or activated Auto feature.
+The transport slice alone supplied no catalogue persistence or private selector.
+Those are supplied by the subsequent slices below, without activating the getter.
 
 The private catalogue lane stores only the closed source approval. Migration 0144
 keeps the ordinary revision/provider/scope uniqueness for all existing NULL-metadata
@@ -129,5 +128,30 @@ Imports require the fresh matching source getter and signed 3.7 descriptor; they
 remain `pending_review` / `disabled` / `platform_internal`, without commissioning
 metadata or an automatic legal review. The public and ordinary internal catalogue
 exclude the lane. Exact metadata changes invalidate an existing private legal
-review; identical reimports preserve it. Catalogue admission and the Edge adapter
-are separate followups and this storage/import step does not execute a classifier.
+review; identical reimports preserve it. This frozen storage/import step alone
+does not execute a classifier; its selector and Edge composition follow below.
+
+Private selection now requires the exact current source approval and own service
+principal, a separate legal review with its exact evidence pointer, unchanged
+model rights, deployment privacy, current price, capability, capacity and the
+parent policy controls. Its `private_auto_classifier` evidence is separate from
+`private_commissioning`; commercial-use `false` stays false and a policy requiring
+commercial rights still denies it. The reviewed score for the actual optimisation
+dimension and funding evidence remain mandatory; no synthetic quality score is
+created by the private lane. The internal default therefore needs real reviewed
+balanced evidence before activation.
+
+`dist/scripts/recordPrivateAutoLegalReview.js <plan.json>` is dry-run by default;
+`--apply <plan-sha256>` additionally requires an existing active local staff
+reviewer with catalogue publication authority, no closure fence, the exact locked
+private row/source and expected old review. Review and audit commit together.
+Neither permission nor disabled status changes.
+
+The Edge constructs private children only after parent admission. It retains the
+original one-second deadline and stable operation ID, claims the child's own
+quota under the parent lock, then rechecks both admissions and source before
+sending one schema-4 request. Ordinary/public decisions keep their existing gate.
+The signed client receives the independent 3.7 negotiation only for an admitted
+private child; ordinary and commissioning requests do not inherit that option.
+Known-child recovery is SELECT-only lineage/outcome metadata even after settlement
+or source expiry; it never reconstructs a deleted answer or reopens a POST.

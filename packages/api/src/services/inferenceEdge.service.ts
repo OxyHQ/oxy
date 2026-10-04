@@ -104,6 +104,8 @@
  */
 
 import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, exactDecimalSchema, type DecisionAnswer } from '@oxy.so/contracts';
+import { privateAutoCatalogueApproval, privateAutoHash, readPrivateAutoParent, privateAutoParentOwned, bindPrivateAutoExecution } from './privateAutoExecution.service';
+import { validatePrivateAutoAttestation } from './privateAutoAttestation.service';
 import { decisionAvailability } from '../config/decisionAvailability';
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -131,7 +133,7 @@ import {
   createAutoPowerLevelResolver,
   type AutoClassificationChild,
 } from './inferenceAutoPowerLevel.service';
-import { createJevAutoClassifier } from './inferenceAutoClassifierChild.service';
+import { createJevAutoClassifier, createPrivateJevAutoClassifier } from './inferenceAutoClassifierChild.service';
 import { approvedAutoClassifier, autoClassifierApproval, sameAutoClassifierApproval, type AutoClassifierApproval } from '../config/autoClassification';
 import {
   effectiveSameModelDeployment,
@@ -160,7 +162,7 @@ import {
   type UsageUnit,
 } from '@oxy.so/contracts';
 import { scopedPermitForContext, attestScopedPermit, scopedFundingIntegrationAvailable, scopedFundingRestriction } from './scopedExecution.service';
-import { scopedInferenceRequestSchema, type ScopedExecution, type ScopedInferenceRequest } from '@oxy.so/contracts';
+import { privateAutoInferenceRequestSchema, privateAutoInputSchema, type PrivateAutoInferenceRequest, type PrivateAutoSourceApproval, type PrivateAutoExecution, scopedInferenceRequestSchema, type ScopedExecution, type ScopedInferenceRequest } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import {
@@ -536,6 +538,15 @@ export function viewerForPrincipal(principal: EdgePrincipal): CatalogueViewer {
 /* -------------------------------------------------------------------------- */
 
 export interface EdgeExecutionContext {
+  /** Constructed only after this exact durable parent has claimed its own quota. */
+  readonly privateAutoChild?: {
+    readonly approval: PrivateAutoSourceApproval;
+    readonly parentMeteredUsageId: string;
+    readonly parentRequestId: string;
+    readonly deadlineAt: number;
+    readonly policy: EffectiveRoutingPolicyResolution;
+    readonly maxPricePerRequest: AutoClassificationChild['maxPricePerRequest'];
+  };
   /** Internal only, constructed by the Auto adapter; never read from a public body. */
   readonly autoClassificationChild?: {
     readonly approval: AutoClassifierApproval;
@@ -676,6 +687,7 @@ export interface EdgeStreamHead {
 
 /** Everything admission resolved, and the hold it took. */
 export interface AdmittedRequest {
+  readonly privateAutoExecution?: PrivateAutoExecution;
   readonly scopedExecution?: ScopedExecution;
   readonly route: EdgeRoute;
   /** The caller's concrete target or routing profile, preserved for the envelope. */
@@ -934,6 +946,22 @@ async function admitWithAutoDecision(
     error: refuseRequest(context, code, message, options),
   });
 
+  const privateChild = context.privateAutoChild;
+  const privateApproval = privateChild === undefined || principal.environment !== 'production' || principal.lane !== 'service_token' ? undefined :
+    privateAutoCatalogueApproval({ approval: privateChild.approval, principal: { accountId: principal.ownerAccountId,
+      applicationId: principal.applicationId, credentialId: principal.credentialId, environment: principal.environment, lane: principal.lane } });
+  if (privateChild !== undefined && (privateApproval === undefined || context.autoClassificationChild !== undefined || scopedPermit !== undefined ||
+    economics.treatment !== 'internal_metered' || economics.policyVersion !== privateApproval.economicPolicyVersion ||
+    economics.relationship.relationshipId !== privateApproval.economicRelationshipId || context.delegatedUserId !== undefined ||
+    context.endpoint !== '/internal/auto-classification' || context.idempotencyKey !== requestId ||
+    request.target?.kind !== 'model' || request.target.modelReference !== privateApproval.modelReference ||
+    request.operation.kind !== 'decisions' || request.stream || request.tools.length !== 0 ||
+    Object.keys(request.sampling).length !== 0 || request.maxOutputTokens !== undefined ||
+    request.toolChoice !== undefined || request.responseFormat !== undefined || request.reasoning !== undefined ||
+    request.audioOutput !== undefined || request.speech !== undefined || !privateAutoInputSchema.safeParse(request.input).success ||
+    !Number.isFinite(privateChild.deadlineAt) || privateChild.deadlineAt <= Date.now())) {
+    return refuse('policy_violation', 'Private Auto requires exact active source and own metered parent authority.');
+  }
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
   if (context.autoClassificationChild !== undefined && (
     (!charging && economics.treatment === 'commercial') || request.operation.kind !== 'decisions' || request.target?.kind !== 'model'
@@ -956,7 +984,7 @@ async function admitWithAutoDecision(
   // like the charging flag, so admission and settlement cannot disagree.
   if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
     const gate = decisionAvailability();
-    if (!gate.available && scopedPermit === undefined) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
+    if (!gate.available && scopedPermit === undefined && privateApproval === undefined) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
     if (request.operation.kind !== 'decisions' || request.input.format !== 'decisions' || context.apiFormat !== 'decisions' || request.stream) {
       return refuse('invalid_request', 'Decisions require the typed nonstreaming decisions endpoint.');
     }
@@ -975,7 +1003,8 @@ async function admitWithAutoDecision(
   }
 
   const pilot = economics.treatment === 'internal_metered' ? economics.relationship.pilot : undefined;
-  const pilotInputBudget = pilot === undefined ? undefined : controlledInputBudget(request, scopedPermit);
+  const pilotInputBudget = pilot === undefined ? undefined : privateApproval === undefined ? controlledInputBudget(request, scopedPermit) :
+    Buffer.byteLength(JSON.stringify({ input: request.input, tools: request.tools }), 'utf8') + 256;
   if (pilot !== undefined) {
     if (pilotInputBudget === undefined) return refuse('unsupported_modality',
       'The input is outside the controlled internal pilot.', { param: 'input' });
@@ -986,12 +1015,13 @@ async function admitWithAutoDecision(
       'The controlled input exceeds the internal pilot budget.', { param: 'input' });
   }
   const acceptsPilotDeployment = (route: EdgeRoute): boolean =>
-    pilot === undefined || pilotAllowsDeployment(pilot, route, scopedPermit);
+    pilot === undefined || (privateApproval === undefined ? pilotAllowsDeployment(pilot, route, scopedPermit) :
+      route.deploymentId === privateApproval.deploymentId && route.modelReference === privateApproval.modelReference && route.provider === privateApproval.provider);
 
   // 5a. Resolve the policy this request is admitted under, and PIN its version.
   //     The application's own policy wins, then the owner account's; `none`
   //     means the platform default, which is a real answer rather than a gap.
-  const policy = resolvedAuto?.policy ?? context.autoClassificationChild?.policy
+  const policy = resolvedAuto?.policy ?? privateChild?.policy ?? context.autoClassificationChild?.policy
     ?? await resolveEffectiveRoutingPolicy(principal.applicationId);
   const viewer = viewerForPrincipal(principal);
   // An official application with no policy of its own is served under the
@@ -1010,6 +1040,8 @@ async function admitWithAutoDecision(
   const routingPolicyVersionId =
     policy.status === 'resolved' ? policy.stored.versionId : undefined;
 
+  if (privateApproval !== undefined && (privateApproval.policy.routingPolicyId !== routingPolicy.routingPolicyId ||
+    privateApproval.policy.policyVersion !== routingPolicy.policyVersion)) return refuse('policy_violation', 'Private Auto policy changed.');
   const childApproval = context.autoClassificationChild?.approval;
   if (context.autoClassificationChild !== undefined) {
     const currentApproval = approvedAutoClassifier(autoClassifierApproval(), routingPolicy);
@@ -1076,13 +1108,14 @@ async function admitWithAutoDecision(
   }
   const authenticatedRoutingContext = {
     ...(scopedPermit === undefined ? {} : { scopedExecution: scopedPermit }),
+    ...(privateApproval === undefined ? {} : { privateAuto: { approval: privateApproval, principal: privateApproval.principal } }),
     applicationId: principal.applicationId,
     environment: principal.environment,
   };
   const fallbackEnabled =
     request.operation.kind !== 'decisions' && policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
   const authorizesSameModelFailover =
-    context.autoClassificationChild !== undefined
+    context.autoClassificationChild !== undefined || privateChild !== undefined
       ? false
       : target.kind !== 'model'
       ? true
@@ -1199,7 +1232,8 @@ async function admitWithAutoDecision(
       maxPricePerRequest = { amount: pilotPriceLimit, currency: 'USD' };
     }
   }
-  const childPriceLimit = context.autoClassificationChild?.maxPricePerRequest;
+  const childPriceLimit = privateApproval === undefined ? context.autoClassificationChild?.maxPricePerRequest :
+    { currency: 'USD' as const, amount: exactDecimalSchema.parse(privateApproval.maxCostUsd) };
   if (childPriceLimit !== undefined) {
     if (maxPricePerRequest !== undefined && maxPricePerRequest.currency !== childPriceLimit.currency) {
       return refuse('policy_violation', 'The classifier budget and application currency must match.');
@@ -1512,7 +1546,7 @@ async function admitWithAutoDecision(
   // availability fact like capacity: it is dropped here, before the authorized
   // set is built, rather than signed and then refused wholesale by the exact
   // attestation below. See `kaanaDeploymentPublication.service.ts`.
-  const liveness = routeGroups.length === 0 || scopedPermit !== undefined ? undefined : await currentDeploymentLiveness();
+  const liveness = routeGroups.length === 0 || scopedPermit !== undefined || privateApproval !== undefined ? undefined : await currentDeploymentLiveness();
   if (liveness?.status === 'unavailable') {
     return kaanaEvidenceRefusal(
       requestedModelReference || requestedTargetReference,
@@ -1784,7 +1818,8 @@ async function admitWithAutoDecision(
   try {
     attestation = await context.kaanaClient.attestDeployments(
       authorizedRoutes.map((authorized) => authorized.deploymentId),
-      { signal: context.signal, ...(scopedPermit === undefined ? {} : { scopedExecutionContractVersion: '3.6.0' as const }) }
+      { signal: context.signal, ...(scopedPermit === undefined ? {} : { scopedExecutionContractVersion: '3.6.0' as const }),
+        ...(privateApproval === undefined ? {} : { privateAutoExecutionContractVersion: '3.7.0' as const }) }
     );
   } catch (error) {
     logger.error(
@@ -1811,6 +1846,23 @@ async function admitWithAutoDecision(
     }
     scopedExecution = attestScopedPermit(scopedPermit, attestation, requestId, { ...route.scopedCatalogueEvidence, policy: routingPolicy });
     if (scopedExecution === undefined) return refuse('service_unavailable', 'Scoped deployment evidence did not match.');
+  }
+
+  let privateAutoExecution: PrivateAutoExecution | undefined;
+  if (privateApproval !== undefined && privateChild !== undefined) {
+    try { validatePrivateAutoAttestation(attestation, '3.7.0'); } catch {
+      return refuse('service_unavailable', 'Private Auto signed negotiation or descriptor is unavailable.');
+    }
+    const descriptor = attestation.deployments[0];
+    const evidence = route.privateAutoCatalogueEvidence;
+    if (authorizedRoutes.length !== 1 || attestation.deployments.length !== 1 || descriptor?.privateAutoSourceApproval === undefined ||
+      evidence === undefined || evidence.sourceApprovalSha256 !== privateAutoHash(privateApproval)) return refuse('service_unavailable', 'Private Auto catalogue evidence is unavailable.');
+    privateAutoExecution = bindPrivateAutoExecution(privateApproval, await readPrivateAutoParent(privateChild.parentMeteredUsageId), {
+      parentMeteredUsageId: privateChild.parentMeteredUsageId, parentRequestId: privateChild.parentRequestId,
+      requestId, principal, policy: routingPolicy, input: request.input, deadlineAt: privateChild.deadlineAt, signal: context.signal,
+    }, { contractVersion: attestation.privateAutoExecutionContractVersion ?? '', snapshotId: attestation.snapshotId,
+      approval: descriptor.privateAutoSourceApproval, catalogueEvidenceHash: privateAutoHash({ ...evidence, policy: routingPolicy }) });
+    if (privateAutoExecution === undefined) return refuse('policy_violation', 'Private Auto parent or source authority is unavailable.');
   }
 
   // 6c. Size the hold at the exact maximum of every partition the request can
@@ -1884,6 +1936,9 @@ async function admitWithAutoDecision(
   if (scopedPermit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, scopedPermit.maxCostUsd))) {
     return refuse('policy_violation', 'Scoped quote exceeds the authorized USD cost.');
   }
+  if (privateApproval !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, privateApproval.maxCostUsd))) {
+    return refuse('policy_violation', 'Private Auto quote exceeds the exact source USD ceiling.');
+  }
   const ledgerKey = ledgerIdempotencyKey(context);
 
   // Idempotency is a CHARGE guarantee, not response replay: prompts and
@@ -1940,6 +1995,9 @@ async function admitWithAutoDecision(
     return { status: 'refused', error };
   };
   if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
+  if (privateChild !== undefined && (privateApproval === undefined || privateAutoCatalogueApproval({ approval: privateApproval, principal: privateApproval.principal }) === undefined || privateChild.deadlineAt <= Date.now())) {
+    return refuse('policy_violation', 'Private Auto source or original deadline expired before admission.');
+  }
   if (scopedPermit !== undefined && Date.parse(scopedPermit.expiresAt) <= Date.now()) return refuse('policy_violation', 'Scoped authorization expired before reservation.');
   const holdTtlSeconds =
     request.operation.kind === 'realtime_session'
@@ -1951,7 +2009,9 @@ async function admitWithAutoDecision(
   //      Nothing is reserved or forwarded unless this succeeds.
   const meteredInput = {
     requestId,
-    ...(context.autoClassificationChild === undefined ? {} : { parentRequestId: context.autoClassificationChild.parentRequestId }),
+    ...(privateChild !== undefined ? { parentRequestId: privateChild.parentRequestId,
+      privateAutoParent: { meteredUsageId: privateChild.parentMeteredUsageId, requestId: privateChild.parentRequestId, deadlineAt: privateChild.deadlineAt } } :
+      context.autoClassificationChild === undefined ? {} : { parentRequestId: context.autoClassificationChild.parentRequestId }),
     idempotencyKey: ledgerKey,
     economics,
     accountId: principal.ownerAccountId,
@@ -2025,7 +2085,8 @@ async function admitWithAutoDecision(
     const viable = new Set(capacityCompatible.map((candidate) =>
       rank(ladder[candidate.priority] ?? floorDecision.level)));
     const classifier = Math.max(...viable) > floor
-      ? createJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy)
+      ? createPrivateJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy, claim.meteredUsageId)
+        ?? createJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy)
       : undefined;
     // Internal parents and children keep separate durable capacity claims.
     // Commercial parents additionally preview the financial reservation before
@@ -2109,6 +2170,7 @@ async function admitWithAutoDecision(
     status: 'admitted',
     admitted: {
       ...(scopedExecution === undefined ? {} : { scopedExecution }),
+      ...(privateAutoExecution === undefined ? {} : { privateAutoExecution }),
       route,
       routingTarget: admittedRoutingTarget,
       authorizedRoutes,
@@ -2155,10 +2217,9 @@ export async function executeInferenceRequest(
   const { route, hold } = admitted;
 
   // 7. Build and forward the versioned internal envelope.
-  const envelope = buildEnvelope(context, admitted, false);
-
   let completion: KaanaCompletion;
   try {
+    const envelope = buildEnvelope(context, admitted, false);
     if (context.kaanaClient === undefined) {
       throw new DataPlaneNotConfiguredError();
     }
@@ -2170,7 +2231,27 @@ export async function executeInferenceRequest(
         throw new Error('Scoped dispatch requires its retained unexpired economic admission and permit.');
       }
     }
-    completion = await context.kaanaClient.execute(envelope, { signal: context.signal });
+    if (admitted.privateAutoExecution !== undefined && context.privateAutoChild !== undefined) {
+      const source = privateAutoCatalogueApproval({ approval: context.privateAutoChild.approval,
+        principal: context.privateAutoChild.approval.principal });
+      const parent = await readPrivateAutoParent(context.privateAutoChild.parentMeteredUsageId);
+      const binding = { parentMeteredUsageId: context.privateAutoChild.parentMeteredUsageId,
+        parentRequestId: context.privateAutoChild.parentRequestId, requestId, principal, policy: admitted.routingPolicy,
+        input: context.request.input, deadlineAt: context.privateAutoChild.deadlineAt, signal: context.signal };
+      if (source === undefined || !privateAutoParentOwned(parent, binding) || parent?.status !== 'admitted' ||
+        parent.finalAuthorizedDeploymentId !== null || parent.expiresAt.getTime() <= Date.now() ||
+        !await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId) ||
+        Date.parse(admitted.privateAutoExecution.runtimeExpiresAt) <= Date.now() ||
+        parent.economicPolicyVersion !== source.economicPolicyVersion || parent.economicRelationshipId !== source.economicRelationshipId || context.signal.aborted) {
+        throw new Error('Private Auto dispatch requires its retained parent, child and original deadline.');
+      }
+    }
+    completion = await context.kaanaClient.execute(envelope, {
+      signal: context.signal,
+      ...(admitted.privateAutoExecution === undefined ? {} : {
+        privateAutoExecutionContractVersion: '3.7.0' as const,
+      }),
+    });
   } catch (error) {
     const failure = classifyForwardFailure(error, context.signal);
     // Whatever the data plane DID measure before it stopped — `KaanaIncompleteError`
@@ -2864,6 +2945,7 @@ async function recordEdgeRouteSwitch(
  * double-charges even without a customer key.
  */
 function ledgerIdempotencyKey(context: EdgeExecutionContext): string {
+  if (context.privateAutoChild !== undefined) return context.requestId;
   if (context.autoClassificationChild !== undefined) {
     const parentKey = context.idempotencyKey ?? context.autoClassificationChild.parentRequestId;
     return `oxy-edge:auto:${context.principal.credentialId}:${createHash('sha256').update(parentKey).digest('hex')}`;
@@ -3543,7 +3625,7 @@ export function buildEnvelope(
   context: EdgeExecutionContext,
   admitted: AdmittedRequest,
   stream: boolean
-): InferenceRequest | ScopedInferenceRequest {
+): InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest {
   const { request } = context;
   const { route, routingTarget, authorizedRoutes, maxOutputTokens, routingPolicy } = admitted;
   const apiFormat = context.apiFormat;
@@ -3556,8 +3638,9 @@ export function buildEnvelope(
     (authorized) => modelLineOf(authorized.modelReference) !== modelLineOf(route.modelReference)
   );
 
-  return (admitted.scopedExecution === undefined ? inferenceRequestSchema : scopedInferenceRequestSchema).parse({
-    schemaVersion: admitted.scopedExecution === undefined ? 2 : 3,
+  return (admitted.privateAutoExecution !== undefined ? privateAutoInferenceRequestSchema : admitted.scopedExecution === undefined ? inferenceRequestSchema : scopedInferenceRequestSchema).parse({
+    schemaVersion: admitted.privateAutoExecution !== undefined ? 4 : admitted.scopedExecution === undefined ? 2 : 3,
+    ...(admitted.privateAutoExecution === undefined ? {} : { privateAutoExecution: admitted.privateAutoExecution }),
     ...(admitted.scopedExecution === undefined ? {} : { scopedExecution: admitted.scopedExecution }),
     attribution: attributionFor(context),
     // The signed route list pins every executable destination. Preserve a

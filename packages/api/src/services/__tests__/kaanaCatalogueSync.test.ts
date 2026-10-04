@@ -11,6 +11,8 @@ import { randomUUID } from 'node:crypto';
 import { privateAutoSourceApprovalSchema, type ScopedExecutionAudience } from '@oxy.so/contracts';
 import { privateAutoApprovalFixture } from '../../../../contracts/src/__tests__/privateAutoExecution.fixture';
 import * as privateAutoSource from '../../config/privateAutoClassification';
+import { executePrivateAutoLegalReview } from '../privateAutoLegalReviewOperation.service';
+import { privateAutoHash } from '../privateAutoExecution.service';
 import * as scopedSource from '../scopedExecution.service';
 
 jest.mock('../../utils/logger', () => ({
@@ -20,6 +22,7 @@ jest.mock('../../utils/logger', () => ({
 import { and, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
+  users, securityActivities, accountClosureFences,
   KAANA_SYNC_AUTO_APPROVAL_POLICY_ID,
   inferenceDeploymentRoutingScoreEvents,
   inferenceDeploymentRoutingScores,
@@ -761,6 +764,73 @@ describe('independent private Auto catalogue import', () => {
       .from(inferenceDeployments).where(inArray(inferenceDeployments.internalRouteId, descriptors.map(row => row.deploymentId)));
     return { world, approval, route, ordinary, privateReader, rows, prices, payload };
   }
+  async function legalFixture() {
+    const f = await fixture();
+    jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(f.approval);
+    await runKaanaCatalogueSync({ reader: f.privateReader });
+    const [row] = await f.rows();
+    if (!row) throw new Error('Synthetic private row absent');
+    const reviewerUserId = randomUUID();
+    await getDb().insert(users).values({ id: reviewerUserId, username: `reviewer${suffix()}`,
+      isStaff: true, staffCapabilities: ['inference:catalogue:publish'] });
+    const plan = { kind: 'private-auto-legal-review-v1' as const, reviewerUserId, deploymentRowId: row.id,
+      approval: f.approval, expectedLegalStatus: 'not_started' as const, expectedEvidenceRef: null as string | null,
+      evidenceRef: f.approval.review.legalReviewEvidenceRef, reason: 'Synthetic private internal-use review',
+      operator: 'synthetic-root-operator', sessionApprovalRef: 'synthetic-review-session' };
+    const context = { applicationId: f.approval.principal.applicationId, environment: f.approval.principal.environment,
+      privateAuto: { approval: f.approval, principal: f.approval.principal } };
+    const resolve = (constraints = UNCONSTRAINED_ROUTING, actualContext = context) => resolveEdgeRoute(INTERNAL_VIEWER,
+      f.approval.modelReference, constraints, TEXT_COMPLETION_MODALITY, 'price', UNCONSTRAINED_EDGE_CAPACITY, actualContext);
+    return { ...f, row, plan, resolve, context };
+  }
+  it('reviews only internal use, then selects exact source/price without claiming commercial rights or public permission', async () => {
+    const f = await legalFixture();
+    expect(await f.resolve()).toMatchObject({ status: 'unknown-model' });
+    const before = await f.rows();
+    const dry = await executePrivateAutoLegalReview(f.plan);
+    expect(dry).toMatchObject({ applied: false, publicServingApproved: false, inferenceAuthorized: false });
+    expect(await f.rows()).toEqual(before);
+    await executePrivateAutoLegalReview(f.plan, { apply: true, expectedPlanSha256: dry.planSha256 });
+    expect(await f.resolve()).toMatchObject({ status: 'resolved', route: { deploymentId: f.approval.deploymentId,
+      privateAutoCatalogueEvidence: { admission: 'private_auto_classifier', permissionState: 'pending_review',
+        deploymentStatus: 'disabled', sourceApprovalSha256: privateAutoHash(f.approval),
+        eligibility: { commercialUseAllowed: false, policyAdmitted: true, privacyAdmitted: true, capabilityAdmitted: true } } } });
+    expect(await resolveEdgeRoute(INTERNAL_VIEWER, f.approval.modelReference, UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY, 'price', UNCONSTRAINED_EDGE_CAPACITY, undefined)).toMatchObject({ status: 'unknown-model' });
+    expect(await f.resolve({ ...UNCONSTRAINED_ROUTING, requireCommercialUseRights: true })).toMatchObject({ status: 'policy-excluded', constraints: ['requireCommercialUseRights'] });
+    expect(await f.rows()).toEqual([expect.objectContaining({ permissionState: 'pending_review', status: 'disabled', legalReviewStatus: 'approved' })]);
+    expect(await getDb().select({ metadata: securityActivities.metadata }).from(securityActivities).where(eq(securityActivities.userId, f.plan.reviewerUserId)))
+      .toEqual([{ metadata: expect.objectContaining({ operation: 'private_auto_internal_use_legal_review', publicServingApproved: false }) }]);
+    await expect(executePrivateAutoLegalReview(f.plan, { apply: true, expectedPlanSha256: dry.planSha256 })).rejects.toThrow('precondition');
+  });
+  it.each(['not-staff', 'fenced', 'wrong-hash', 'wrong-evidence', 'source-withdrawn', 'rights-drift'])
+    ('legal review rejects %s with no review/audit mutation', async (failure) => {
+      const f = await legalFixture();
+      if (failure === 'not-staff') await getDb().update(users).set({ isStaff: false }).where(eq(users.id, f.plan.reviewerUserId));
+      if (failure === 'fenced') await getDb().insert(accountClosureFences).values({ accountId: f.plan.reviewerUserId });
+      if (failure === 'wrong-evidence') f.plan.evidenceRef = 'other-review';
+      if (failure === 'source-withdrawn') jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(undefined);
+      if (failure === 'rights-drift') await getDb().update(inferenceModels).set({ commercialUseAllowed: true }).where(eq(inferenceModels.modelId, f.world.line('privateauto')));
+      const before = await f.rows();
+      await expect(executePrivateAutoLegalReview(f.plan, { apply: true,
+        expectedPlanSha256: failure === 'wrong-hash' ? 'wrong' : privateAutoHash(f.plan) })).rejects.toThrow();
+      expect(await f.rows()).toEqual(before);
+      expect(await getDb().select({ id: securityActivities.id }).from(securityActivities).where(eq(securityActivities.userId, f.plan.reviewerUserId))).toEqual([]);
+    });
+  it.each(['expired', 'foreign-principal', 'changed-approval', 'wrong-price', 'privacy-drift', 'source-after-lookup'])
+    ('private selection rejects %s and never widens the ordinary catalogue', async (failure) => {
+      const f = await legalFixture();
+      await executePrivateAutoLegalReview(f.plan, { apply: true, expectedPlanSha256: privateAutoHash(f.plan) });
+      if (failure === 'expired') jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue({ ...f.approval, expiresAt: new Date(Date.now() - 1).toISOString() });
+      if (failure === 'foreign-principal') f.context.privateAuto.principal = { ...f.approval.principal, credentialId: 'foreign' };
+      if (failure === 'changed-approval') f.context.privateAuto.approval = { ...f.approval, approvalVersion: 2 };
+      if (failure === 'wrong-price') await getDb().update(priceVersions).set({ status: 'superseded', effectiveUntil: new Date() }).where(eq(priceVersions.id, f.approval.priceVersionId));
+      if (failure === 'privacy-drift') await getDb().update(inferenceDeployments).set({ retainsPayloads: true, retentionDays: 1, zeroDataRetentionAvailable: false }).where(eq(inferenceDeployments.id, f.row.id));
+      if (failure === 'source-after-lookup') jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval')
+        .mockReturnValueOnce(f.approval).mockReturnValueOnce(f.approval).mockReturnValue(undefined);
+      expect((await f.resolve()).status).not.toBe('resolved');
+      expect((await listCatalogueForViewer(INTERNAL_VIEWER, CATALOGUED)).some(model => model.modelId === f.world.line('privateauto'))).toBe(false);
+    });
   it('does not authorize import or allocate price from signed metadata without local source approval', async () => {
     const f = await fixture();
     expect(privateAutoSource.privateAutoClassifierSourceApproval()).toBeUndefined();

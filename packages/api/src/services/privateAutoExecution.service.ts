@@ -1,3 +1,6 @@
+import { eq } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { inferenceMeteredUsage } from '../db/schema';
 import { createHash } from 'node:crypto';
 import {
   canonicalScopedExecutionJson, privateAutoInputSchema, privateAutoOperationId,
@@ -5,7 +8,7 @@ import {
   privateAutoExecutionSchema, type PrivateAutoSourceApproval, type PrivateAutoExecution,
   type RoutingPolicyReference,
 } from '@oxy.so/contracts';
-import { reviewedPrivateAutoApproval } from '../config/privateAutoClassification';
+import { reviewedPrivateAutoApproval, privateAutoClassifierSourceApproval } from '../config/privateAutoClassification';
 import type { EdgePrincipal } from './inferenceEdge.service';
 
 export interface PrivateAutoParentAdmission {
@@ -116,4 +119,66 @@ export function privateAutoRecoveryIdentity(
 /** Pin all private source identities before another admission/dispatch stage. */
 export function samePrivateAutoApproval(left: PrivateAutoSourceApproval, right: PrivateAutoSourceApproval): boolean {
   return privateAutoHash(left) === privateAutoHash(right);
+}
+
+/** Source-only selection context; authenticated identity is mandatory, never inferred from an owner. */
+export interface PrivateAutoCatalogueContext {
+  readonly approval: PrivateAutoSourceApproval;
+  readonly principal: PrivateAutoSourceApproval['principal'];
+}
+export function privateAutoCatalogueApproval(context: PrivateAutoCatalogueContext | undefined, now = Date.now()): PrivateAutoSourceApproval | undefined {
+  const source = reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), now);
+  if (source === undefined || context === undefined || !samePrivateAutoApproval(source, context.approval) ||
+    privateAutoHash(source.principal) !== privateAutoHash(context.principal)) return undefined;
+  return source;
+}
+/** Independent from commissioning/public approval. Actual model rights remain unchanged. */
+export interface PrivateAutoCatalogueRouteEvidence {
+  readonly admission: 'private_auto_classifier';
+  readonly permissionState: 'pending_review';
+  readonly deploymentStatus: 'disabled';
+  readonly sourceApprovalSha256: string;
+  readonly modelRevisionId: string;
+  readonly deploymentId: string;
+  readonly priceVersionId: string;
+  readonly commercialPermission: string;
+  readonly legalReviewStatus: 'approved';
+  readonly legalReviewEvidenceRef: string;
+  readonly eligibility: import('./scopedExecution.service').ScopedCatalogueRouteEvidence['eligibility'];
+}
+
+/** Minimal authority projection, never a payload or a derived user principal. */
+export async function readPrivateAutoParent(id: string): Promise<PrivateAutoParentAdmission | undefined> {
+  const [row] = await getDb().select({ id: inferenceMeteredUsage.id, requestId: inferenceMeteredUsage.requestId,
+    parentRequestId: inferenceMeteredUsage.parentRequestId, accountId: inferenceMeteredUsage.accountId,
+    applicationId: inferenceMeteredUsage.applicationId, applicationCredentialId: inferenceMeteredUsage.applicationCredentialId,
+    delegatedUserId: inferenceMeteredUsage.delegatedUserId, environment: inferenceMeteredUsage.environment,
+    economicTreatment: inferenceMeteredUsage.economicTreatment, economicPolicyVersion: inferenceMeteredUsage.economicPolicyVersion,
+    economicRelationshipId: inferenceMeteredUsage.economicRelationshipId, status: inferenceMeteredUsage.status,
+    expiresAt: inferenceMeteredUsage.expiresAt, finalAuthorizedDeploymentId: inferenceMeteredUsage.finalAuthorizedDeploymentId,
+  }).from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.id, id));
+  return row;
+}
+
+/** Known-child recovery after settlement/expiry is SELECT-only and never reopens admission. */
+export async function readPrivateAutoChildRecovery(binding: PrivateAutoChildBinding) {
+  const parent = await readPrivateAutoParent(binding.parentMeteredUsageId);
+  const identity = privateAutoRecoveryIdentity(parent, binding);
+  if (identity === undefined || parent === undefined) return undefined;
+  const [child] = await getDb().select({ id: inferenceMeteredUsage.id, requestId: inferenceMeteredUsage.requestId,
+    parentRequestId: inferenceMeteredUsage.parentRequestId, accountId: inferenceMeteredUsage.accountId,
+    applicationId: inferenceMeteredUsage.applicationId, credentialId: inferenceMeteredUsage.applicationCredentialId,
+    delegatedUserId: inferenceMeteredUsage.delegatedUserId, environment: inferenceMeteredUsage.environment,
+    treatment: inferenceMeteredUsage.economicTreatment, policy: inferenceMeteredUsage.economicPolicyVersion,
+    relationship: inferenceMeteredUsage.economicRelationshipId, endpoint: inferenceMeteredUsage.endpoint,
+    status: inferenceMeteredUsage.status, outcome: inferenceMeteredUsage.outcome,
+  }).from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.requestId, identity.requestId));
+  if (!child || child.parentRequestId !== identity.parentRequestId || child.accountId !== parent.accountId ||
+    child.applicationId !== parent.applicationId || child.credentialId !== parent.applicationCredentialId ||
+    child.delegatedUserId !== null || child.environment !== parent.environment || child.treatment !== parent.economicTreatment ||
+    child.policy !== parent.economicPolicyVersion || child.relationship !== parent.economicRelationshipId ||
+    child.endpoint !== '/internal/auto-classification') return undefined;
+  // Generation payloads are never retained; this is a lineage/outcome recovery, not an answer cache.
+  return { kind: 'private-auto-child-recovery-v1' as const, meteredUsageId: child.id, requestId: child.requestId,
+    parentRequestId: child.parentRequestId, status: child.status, outcome: child.outcome, newAdmissionAuthorized: false };
 }
