@@ -1,0 +1,17 @@
+node:fs:977
+  handleErrorFromBinding(ctx);
+  ^
+
+Error: ENOSPC: no space left on device, write
+    at Object.writeSync (node:fs:977:3)
+    at writeFileSync (node:fs:2502:26)
+    at recordAttemptTasks (file:///home/nate/Oxy/oxy/.worktrees/1519-quiesced-final-guards-20261004/.github/scripts/guard-quiesced-deploy.mjs:378:2)
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-quiesced-final-guards-20261004/scripts/test-quiesced-deploy.mjs:313:4
+    at ok (file:///home/nate/Oxy/oxy/.worktrees/1519-quiesced-final-guards-20261004/scripts/test-quiesced-deploy.mjs:111:2)
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-quiesced-final-guards-20261004/scripts/test-quiesced-deploy.mjs:311:2 {
+  errno: -28,
+  syscall: 'write',
+  code: 'ENOSPC'
+}
+
+Node.js v24.21.0

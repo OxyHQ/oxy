@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "kind": "quiesced-final-guards-proof-v1",
+  "sourceCommit": "21e7ab092ee587527fab278de68f27e7bf5aebd8",
+  "frozenBase": "82bca73efa870b013d7817aac7b7f9d63799963b",
+  "reviewComment": "https://github.com/OxyHQ/oxy/pull/1569#issuecomment-5978232601",
+  "sourceInputs": [
+    {
+      "path": ".github/scripts/deploy-ecs-image.sh",
+      "sha256": "4e860dcab2a36ddcd0b7e1ce63563085be6ffb627a59eac3fdeb1155bfe61987"
+    },
+    {
+      "path": ".github/scripts/guard-quiesced-deploy.mjs",
+      "sha256": "c0ad21ba991ba32c006a7f7048662dd2b9f999ce60ae379cf47e5f6618ecf3b4"
+    },
+    {
+      "path": "scripts/test-quiesced-deploy-shell.mjs",
+      "sha256": "f99e77cb43580b7e3b543171302524b52d1741cd0d9c81e0f43be608356ac806"
+    },
+    {
+      "path": "scripts/test-quiesced-retirement.mjs",
+      "sha256": "663745790091874b7b5d369ee0ef45fb0726eb27fcb7442b8fdb9e93ac955e58"
+    },
+    {
+      "path": "scripts/test-quiesced-deploy.mjs",
+      "sha256": "2f9556bdfbeceaf5806dfd3c4953fbb59bafcd9e4b3847b1a6ffd8251a2ea996"
+    },
+    {
+      "path": "scripts/test-quiesced-cold-scheduler.mjs",
+      "sha256": "a863b4058aeb84513367e502467eab3ed364e8646dfb2cb98e426f7b6f801f80"
+    },
+    {
+      "path": ".github/scripts/test-deploy-ecs-image.sh",
+      "sha256": "d1b043b9b901af7be746b7d36fb990887850133cdafd5fa6e0b7bc3995bc4a4b"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/frozen-red-formatted.log",
+      "sha256": "a0dd35cde9e4b287044ddd4da4c26d9bf2a06b169d02bd84a060fe5f2ccdd083"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/green-guard-final.log",
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/green-retirement.log",
+      "sha256": "184ebfadfe9514b2ae99146cf9c9cb813d50ce2e4284bd38968b48ecb89df934"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/green-shell-exact-final.log",
+      "sha256": "2af26075aec015531a4229e22768cc6605872c5837f5440017f782bac253a947"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/green-cold-scheduler.log",
+      "sha256": "d67cb132fe8b071bc44cfb2aed3b55ed46d8703d0f4d29fc244a83d7a985c914"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/green-normal-shell.log",
+      "sha256": "64f253746ae541d5b54d717c9cbd30eaaffc9eca048dec0cbcfcff0ce8a1ccef"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/biome-final.log",
+      "sha256": "01c58a5d8fec2c03b2e4fa4977859d0608c9c6fa837410f3830c5446dc228724"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/green-guard.log",
+      "sha256": "0461db83cd90bf458d9b074b45c6a5ec9626a07b0ad8d04ea80f588ea00dbdad"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/frozen-fixture.mjs",
+      "sha256": "f99e77cb43580b7e3b543171302524b52d1741cd0d9c81e0f43be608356ac806"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/frozen-deploy-ecs-image.sh",
+      "sha256": "e57032dcd6247ac58c3ab2b587e6924d0dcefb0a3d750d9408c5579d2197106c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/frozen-guard-quiesced-deploy.mjs",
+      "sha256": "8777f96f9e015f0d3e3bacce627b22ec67e90e83c330c3f0d66af5a3f8520bc5"
+    }
+  ],
+  "checks": {
+    "sameFrozenFixtureBytes": true,
+    "frozenInterleavingsFailed": 5,
+    "finalInterleavingsPassed": 5,
+    "canonicalShellChecks": 16,
+    "preflightRecoveryChecks": 61,
+    "retirementAdmissionChecks": 45,
+    "pendingVsFatalChecks": 10,
+    "latestObservationChecks": 12,
+    "coldSchedulerPassed": true,
+    "ordinaryTransactionShellPassed": true,
+    "biomeVersion": "1.9.4",
+    "biomeExitCode": 0,
+    "shellSyntaxExitCode": 0,
+    "diffCheckExitCode": 0,
+    "awsCalls": 0
+  },
+  "limits": [
+    "Canonical shell runs against a mocked AWS CLI; guard controls use synthetic responses. No live worker or AWS mutation is exercised.",
+    "Initial guard run failed with local /tmp ENOSPC; its log is preserved and the same final source passed with owned TMPDIR.",
+    "The fixed guard emits only a closed kind/deploymentId/steady object, using its latest validated service observation. Ordinary rolling deploy acceptance remains unchanged.",
+    "Shutdown is bounded and a failed STOPPED readback remains an error requiring ROOT reconciliation; no old TD or positive count is restored in guard-failure tests.",
+    "Frozen fixture executes source82 shell/guard bytes extracted from Git, not a reimplementation; final fixture is byte-identical.",
+    "This is source/regression evidence pending ROOT independent review and combined Forge freeze; no production replay or automatic activation is claimed."
+  ]
+}

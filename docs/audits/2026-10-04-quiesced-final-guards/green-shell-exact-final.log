@@ -1,0 +1,6 @@
+Final interleaving final-main-rejection: PASS
+Final interleaving final-retired-drift: PASS
+Final interleaving shutdown-unconfirmed: PASS
+Final interleaving stale-steady: PASS
+Final interleaving eventual-steady: PASS
+Quiesced canonical shell: 16 checks PASS (mock AWS CLI; real shell, migration/worker/update ordering, failure stopped).
