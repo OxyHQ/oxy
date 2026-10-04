@@ -1,0 +1,17 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1930962, "dataDirectory": "/home/nate/Oxy/.agent-evidence/machine-private-pg-rr1dt8xw/data", "port": 5626, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/aliaMachineCredential.test.ts src/services/__tests__/aliaMachineCredential.test.ts src/utils/__tests__/applicationScopes.test.ts
+PASS src/routes/__tests__/aliaMachineCredential.test.ts (5.914 s)
+PASS src/routes/__tests__/inferenceEdgeInternalMetered.test.ts (7.311 s)
+PASS src/services/__tests__/aliaMachineCredential.test.ts
+PASS src/utils/__tests__/applicationScopes.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       117 passed, 117 total
+Snapshots:   0 total
+Time:        13.395 s
+Ran all test suites within paths "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/routes/__tests__/aliaMachineCredential.test.ts", "src/services/__tests__/aliaMachineCredential.test.ts", "src/utils/__tests__/applicationScopes.test.ts".
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/machine-private-pg-rr1dt8xw"}
