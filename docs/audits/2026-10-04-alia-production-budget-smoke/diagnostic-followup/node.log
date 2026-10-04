@@ -1,0 +1,41 @@
+✔ published SDK sends exactly one synthetic POST then original-key GET, no credential/answer logged (21.856172ms)
+✔ unknown never repeats POST; settled record does not restore missing answer (2.277826ms)
+✔ refused never repeats POST; settled record does not restore missing answer (2.292807ms)
+✔ 404 remains unknown, not zero cost and not retry permission (2.282939ms)
+✔ separate reconcile mode makes only original-key GET (1.466357ms)
+✔ wrong owner refuses before any request (0.800465ms)
+✔ wrong app refuses before any request (0.771821ms)
+✔ wrong credential refuses before any request (0.704181ms)
+✔ wrong environment refuses before any request (1.050652ms)
+✔ missing usage scope refuses before any request (0.752724ms)
+✔ insufficient TTL refuses before any request (0.631761ms)
+✔ stale inventory blocks POST (0.343032ms)
+✔ partial inventory blocks POST (0.261942ms)
+✔ foreign deployment inventory blocks POST (0.360376ms)
+✔ unreviewed inventory blocks POST (0.290887ms)
+✔ Cerebras retention changed inventory blocks POST (0.256271ms)
+✔ Groq retention days changed inventory blocks POST (0.323011ms)
+✔ Groq privacy snapshot changed inventory blocks POST (0.341615ms)
+✔ OpenRouter retention days changed inventory blocks POST (0.290129ms)
+✔ expired price inventory blocks POST (0.264637ms)
+✔ expensive inventory blocks POST (0.279414ms)
+✔ duplicate unit inventory blocks POST (0.271706ms)
+✔ JWT wait crossing inventory deadline prevents late POST (0.684752ms)
+✔ foreign receipt is rejected even after a successful response (1.539655ms)
+✔ payload is deterministic and request intent format is closed (0.449689ms)
+✔ actual compiled accepted policy preserves exact three-route execution set for auto (0.574899ms)
+✔ actual Oxy normalization confirms canonical Hello exceeds old cap and fits preflight ceiling (41.389887ms)
+✔ reviewed Groq30-day retention is reported separately from ZDR availability (0.403443ms)
+✔ diagnostic verifies signed exact authority, reports missing usage, no SDK construction or API request (0.609476ms)
+✔ diagnostic permits stale price observation only because no response or generation read can occur (0.370541ms)
+✔ diagnostic still refuses foreign or expired signed identity {"ownerAccountId":"foreign"} (0.350981ms)
+✔ diagnostic still refuses foreign or expired signed identity {"credentialId":"foreign"} (0.367229ms)
+✔ diagnostic still refuses foreign or expired signed identity {"exp":1791139999} (0.300238ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 173.918626

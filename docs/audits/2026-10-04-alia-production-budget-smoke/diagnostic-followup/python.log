@@ -1,0 +1,21 @@
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 0.076s
+
+OK
+{"prepared": true, "plan": "/tmp/tmpimfgfgfv/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722118-870a9c9f0dfbb571"}
+{"prepared": true, "plan": "/tmp/tmpialkvo33/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722122-8aafdd717c3c637b"}
+{"prepared": true, "plan": "/tmp/tmpnylvvsg8/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722125-29210a7582255c05"}
+{"prepared": true, "plan": "/tmp/tmpzf9txapn/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722128-48231451743cb8ad"}
+{"prepared": true, "plan": "/tmp/tmpkudsaujn/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722131-687827a16d2377ae"}
+{"prepared": true, "plan": "/tmp/tmpkudsaujn/diagnostic/plan.json", "bytes": 32358, "intent": "oxy1579-alia-1791135722134-8a30ca4db1c473a1"}
+{"prepared": true, "plan": "/tmp/tmpjgkfq53u/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722162-d139f98d8e18d077"}
+{"prepared": true, "plan": "/tmp/tmptlu6y393/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722166-e2705d9103ad196c"}
+{"prepared": true, "plan": "/tmp/tmp4gve9ug8/prepared/plan.json", "bytes": 32358, "intent": "oxy1579-alia-1791135722169-373cf86c3be1a8cd"}
+{"prepared": true, "plan": "/tmp/tmp63lq6_ys/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722173-8aeb648f04320446"}
+{"prepared": true, "plan": "/tmp/tmp63lq6_ys/reader/plan.json", "bytes": 17171, "intent": "oxy1579-alia-1791135722176-ce1ac0bbf25c86de"}
+{"prepared": true, "plan": "/tmp/tmpdkqrkaws/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722179-0ec9fc00c365bbeb"}
+{"prepared": true, "plan": "/tmp/tmpnzydr7qm/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722182-363fb423188b2f84"}
+{"prepared": true, "plan": "/tmp/tmpnzydr7qm/reconcile/plan.json", "bytes": 32358, "intent": "oxy1579-alia-1791135722182-363fb423188b2f84"}
+{"prepared": true, "plan": "/tmp/tmpnigjbw_f/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722188-5845cbe34bbd21a2"}
+{"prepared": true, "plan": "/tmp/tmpkpj1cdn9/prepared/plan.json", "bytes": 32354, "intent": "oxy1579-alia-1791135722191-8dc2a2ead89ecfeb"}

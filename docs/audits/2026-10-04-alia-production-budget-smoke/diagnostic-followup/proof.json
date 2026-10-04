@@ -1,0 +1,53 @@
+{
+  "sourceHead": "10dffa50ec027a3eba67c11e0d689813efe4e456",
+  "sources": [
+    {
+      "path": "scripts/operations/alia-budget-smoke/README.md",
+      "sha256": "c403e86c09dabc0f12ed48f2976e527b8fa72b8d7a3f5dffe64d91451513ef41"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/dispatch.py",
+      "sha256": "6439464550bf499e8683024f0fad5eb207de7d924c150ad7311651d184e8e7df"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/prepare.py",
+      "sha256": "379ca3392ed51a152bd3213fe57ea8e410f9e3d395f84f41170d0b72e22ff3b7"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.mjs",
+      "sha256": "b93a2749bbd79a977f396ac2738eda95cf48bb4fba531394b43af720229fde92"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.test.mjs",
+      "sha256": "c8546e8b601c18bb0600c03124640beb998abbe9fe186a9a8a62eef8e987ea35"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/test-transport.py",
+      "sha256": "accb7ff18d4ab6506ee66f520e865a53fd2078e3c25d443624e30fb3c48a2b5a"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/verify-credential.mjs",
+      "sha256": "136e5ca222260fa98b2ec7cd17288c752052a7fd796eac1de00846b76fc4b79c"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/diagnostic-followup/node.log",
+      "sha256": "5658efc7aad1da3f186bdd3bedbada359942c1cf090c673a102a4257a930aadf"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/diagnostic-followup/python.log",
+      "sha256": "ca3ba2d55ec20d31ccfa1600560a3bd170dca9ff4569fb14fa41fe3947549ef7"
+    }
+  ],
+  "validation": {
+    "nodeTests": 33,
+    "transportTests": 13
+  },
+  "limits": [
+    "No AWS or actual credential mint executed by agent",
+    "Synthetic signed-JWT tests, not proof of original caller cause",
+    "Diagnostic performs no inference or generation receipt GET",
+    "Original unknown outcome requires exact SQL observation"
+  ]
+}
