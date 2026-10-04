@@ -117,5 +117,21 @@ test('policy exact four tuples and version are required',()=>{const f=highFixtur
 test('exact quote boundary includes all 2048 reasoning/output tokens without double charging',()=>{const f=highFixture();const units=f.inventory.tables.price_version_unit_prices.rows.filter(x=>x.price_version_id===f.high.priceVersionId);for(const u of units){u.amount='0';u.per='1';}units.find(x=>x.unit==='requests').amount='0.02';assert.equal(inspectInventory(f.inventory,now,f.review).quotes.at(-1).quotePicos,'20000000000');units.find(x=>x.unit==='reasoning_tokens').amount='0.000000000001';assert.throws(()=>inspectInventory(f.inventory,now,f.review));f.review.maxQuotePicos='50000000000';assert.equal(inspectInventory(f.inventory,now,f.review).quotes.at(-1).quotePicos,'20000002048');});
 for(const responseKind of ['empty','length','tool_calls'])test('high '+responseKind+' remains failed despite completed receipt',async()=>{const f=highFixture();const fetch=f.args.fetchImpl;f.args.fetchImpl=async(url,options)=>{const r=await fetch(url,options);if(options?.method!=='POST')return r;const body=await r.json();if(responseKind==='empty')body.output=[];else body.finishReason=responseKind;return response(body);};const r=await runSmoke(f.args);assert.equal(r.ok,false);assert.equal(r.retryAttempted,false);assert.equal(f.calls.length,2);});
 
+test('high text with stop and a tool call is incomplete despite a completed matching receipt',async()=>{
+ const f=highFixture();const fetch=f.args.fetchImpl;
+ f.args.fetchImpl=async(url,options)=>{
+  const r=await fetch(url,options);if(options?.method!=='POST')return r;
+  const body=await r.json();
+  body.output[0].toolCalls=[{id:'synthetic-call',name:'synthetic_tool',arguments:'{}'}];
+  return response(body);
+ };
+ const r=await runSmoke(f.args);
+ assert.equal(r.hasText,true);assert.equal(r.finishReason,'stop');assert.equal(r.hasToolCalls,true);
+ assert.equal(r.record.outcome,'completed');assert.equal(r.ok,false);
+ assert.equal(r.outcome,'usage_reconciled_result_missing');assert.equal(r.toolsExecuted,0);
+ assert.equal(r.retryAttempted,false);assert.match(r.answerSha256,/^[a-f0-9]{64}$/);
+ assert.equal(f.sent.length,1);assert.deepEqual(f.calls.map(c=>c.options.method),['POST','GET']);
+});
+
 test('reviewed high scope drift blocks before POST and old routes remain exact internal_alia',async()=>{const f=highFixture();f.inventory.tables.inference_deployments.rows.at(-1).availability_scope='internal_alia';await assert.rejects(runSmoke(f.args));assert.equal(f.calls.length,0);const g=highFixture();g.inventory.tables.inference_deployments.rows[0].availability_scope='platform_internal';await assert.rejects(runSmoke(g.args));assert.equal(g.calls.length,0);});
 test('pilot USD .05 cap is explicit, independently of compiled module hash',()=>{const f=highFixture();const old=require('/home/nate/Oxy/oxy/.worktrees/alia-production-input-budget-20261004/packages/api/dist/config/inferenceEconomicPolicy.js');const policy={...old,INFERENCE_ECONOMIC_POLICY_VERSION:f.review.policyVersion,INTERNAL_METERED_RELATIONSHIPS:structuredClone(old.INTERNAL_METERED_RELATIONSHIPS)};const pilot=policy.INTERNAL_METERED_RELATIONSHIPS[0].pilot;pilot.deployments.push({deploymentId:f.high.deploymentId,provider:f.high.provider,modelReference:f.high.modelReference});for(const cap of [undefined,'0.5','0.050','0.02']){pilot.maxPricePerRequestUsd=cap;assert.throws(()=>validatePilot(policy,f.review));}pilot.maxPricePerRequestUsd='0.05';validatePilot(policy,f.review);});

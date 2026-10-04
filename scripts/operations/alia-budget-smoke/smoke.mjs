@@ -162,7 +162,7 @@ export async function runSmoke({ credential, OxyInferenceClient, inventory, inte
     const record=safeRecord(raw,completion,quote,review);
     const hasText=completion!==null && Array.isArray(completion.output) && completion.output.some(m=>Array.isArray(m.content) && m.content.some(c=>c.type==='text' && typeof c.text==='string' && c.text.trim().length>0));
     const hasToolCalls=completion!==null && Array.isArray(completion.output) && completion.output.some(m=>Array.isArray(m.toolCalls) && m.toolCalls.length>0);
-    const realResponse=hasText && completion.finishReason==='stop';
+    const realResponse=hasText && !hasToolCalls && completion.finishReason==='stop';
     return {...base,getCount,ok:realResponse&&record.outcome==='completed',record,
       outcome:realResponse?'response_and_usage_observed':'usage_reconciled_result_missing',
       finishReason:completion?.finishReason??null,hasText,hasToolCalls,toolsExecuted:0,
