@@ -1,0 +1,44 @@
+scripts/test-quiesced-retirement.mjs:456:3 lint/performance/noDelete  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━
+
+  × Avoid the delete operator which can impact performance.
+  
+    454 │ 	},
+    455 │ 	(s) => {
+  > 456 │ 		delete s.runningCount;
+        │ 		^^^^^^^^^^^^^^^^^^^^^
+    457 │ 	},
+    458 │ ]) {
+  
+  i Unsafe fix: Use an undefined assignment instead.
+  
+    454 454 │   	},
+    455 455 │   	(s) => {
+    456     │ - → → delete·s.runningCount;
+        456 │ + → → s.runningCount·=·undefined;
+    457 457 │   	},
+    458 458 │   ]) {
+  
+
+.github/scripts/guard-quiesced-deploy.mjs format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    537 537 │   	assert.equal(latest.services.length, 1);
+    538 538 │   	const current = latest.services[0];
+    539     │ - → assertBaselineInfrastructure(plan,·{·...snapshot,·service:·latest·},·!admitted);
+        539 │ + → assertBaselineInfrastructure(
+        540 │ + → → plan,
+        541 │ + → → {·...snapshot,·service:·latest·},
+        542 │ + → → !admitted,
+        543 │ + → );
+    540 544 │   	assert.equal(current.serviceName, plan.service);
+    541 545 │   	assert.equal(current.status, "ACTIVE");
+  
+
+Checked 3 files in 10ms. No fixes applied.
+Found 2 errors.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
