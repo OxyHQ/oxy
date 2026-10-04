@@ -1,0 +1,27 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/kaanaCatalogueSync.test.ts src/services/__tests__/scopedCataloguePublication.test.ts src/services/__tests__/privateAutoTransport.test.ts src/services/__tests__/privateAutoAdmission.integration.test.ts src/services/__tests__/scopedAdmission.test.ts src/db/schema/__tests__/protectedColumns.test.ts src/db/schema/__tests__/inferenceCatalogue.test.ts
+PASS src/services/__tests__/scopedCataloguePublication.test.ts
+PASS src/services/__tests__/kaanaCatalogueSync.test.ts
+PASS src/services/__tests__/privateAutoAdmission.integration.test.ts
+{"level":30,"time":1791153439385,"pid":2108972,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/db/schema/__tests__/inferenceCatalogue.test.ts
+PASS src/db/schema/__tests__/protectedColumns.test.ts
+PASS src/services/__tests__/scopedAdmission.test.ts
+PASS src/services/__tests__/privateAutoTransport.test.ts
+
+Test Suites: 7 passed, 7 total
+Tests:       195 passed, 195 total
+Snapshots:   0 total
+Time:        6.975 s, estimated 7 s
+Ran all test suites within paths "src/services/__tests__/kaanaCatalogueSync.test.ts", "src/services/__tests__/scopedCataloguePublication.test.ts", "src/services/__tests__/privateAutoTransport.test.ts", "src/services/__tests__/privateAutoAdmission.integration.test.ts", "src/services/__tests__/scopedAdmission.test.ts", "src/db/schema/__tests__/protectedColumns.test.ts", "src/db/schema/__tests__/inferenceCatalogue.test.ts".
+{"level":30,"time":1791153440686,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440690,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440691,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440692,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440692,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440693,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440694,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440695,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440696,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440697,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440699,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791153440702,"pid":2108972,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}

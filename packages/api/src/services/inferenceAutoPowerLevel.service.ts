@@ -38,11 +38,20 @@ export interface AutoClassificationChild {
   readonly levels: typeof AUTO_POWER_LEVELS;
   readonly maxPricePerRequest: typeof AUTO_CLASSIFIER_LIMITS.maxPricePerRequest;
   readonly signal: AbortSignal;
+  /** Absolute wall-clock deadline fixed when this classifier operation starts. */
+  readonly deadlineAt: number;
 }
 
 export interface JevAutoClassifier {
   readonly modelReference: string;
-  readonly review: AutoClassifierReview;
+  readonly review: AutoClassifierReview | {
+    readonly purpose: 'private_auto_classifier';
+    readonly sourceApprovalSha256: string;
+    readonly internalUseAllowed: true;
+    readonly commercialUseAllowed: boolean;
+    readonly privacy: true;
+    readonly zdr: true;
+  };
   /** Return a normalized { level, confidence }, never provider reasoning or error text. */
   readonly admitAndExecute: (child: AutoClassificationChild) => Promise<unknown>;
 }
@@ -65,8 +74,10 @@ export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): Au
   const modelReference = classifier?.modelReference;
   const execute = classifier?.admitAndExecute;
   const review = classifier?.review;
-  const reviewed = review?.commercial === true && review.internalEligibility === true
-    && review.privacy === true && review.zdr === true;
+  const reviewed = review !== undefined && ('purpose' in review
+    ? review.purpose === 'private_auto_classifier' && /^[a-f0-9]{64}$/.test(review.sourceApprovalSha256) &&
+      review.internalUseAllowed === true && review.privacy === true && review.zdr === true
+    : review.commercial === true && review.internalEligibility === true && review.privacy === true && review.zdr === true);
   const pinned = modelReferenceSchema.safeParse(modelReference).success
     && modelReference?.includes('@') === true;
 
@@ -93,6 +104,7 @@ export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): Au
 
     const controller = new AbortController();
     const deadline = performance.now() + AUTO_CLASSIFIER_LIMITS.timeoutMs;
+    const deadlineAt = Date.now() + AUTO_CLASSIFIER_LIMITS.timeoutMs;
     type Outcome = { kind: 'result'; value: unknown } | { kind: FallbackReason };
     let finish!: (outcome: Outcome) => void;
     const stopped = new Promise<Outcome>((resolve) => { finish = resolve; });
@@ -114,6 +126,7 @@ export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): Au
         levels: AUTO_POWER_LEVELS,
         maxPricePerRequest: AUTO_CLASSIFIER_LIMITS.maxPricePerRequest,
         signal: controller.signal,
+        deadlineAt,
       });
       // The microtask also catches a synchronous adapter throw. Both completion
       // handlers stay attached after timeout; late failures cannot be unhandled.

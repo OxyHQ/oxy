@@ -199,6 +199,7 @@ export const MESSAGES_PROTECTED_COLUMNS = [
  */
 export const INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS = [
   'scopedExecution',
+  'privateAutoSourceApproval',
   'internalRouteId',
   'legalReviewEvidenceRef',
   'upstreamWholesaleCostAmount',

@@ -32,7 +32,7 @@ const permit: ScopedExecutionAudience = {
 const route: catalogue.EdgeRoute = {
   deploymentId: permit.deploymentId, routingScore: 1, fundingPriority: 3, modelReference: permit.modelReference,
   provider: permit.provider, regions: [], availabilityScope: 'public', priceVersionId: permit.priceVersionId,
-  maxContextTokens: 32768, maxOutputTokens: 8192, inputModalities: ['text'], outputModalities: ['text'], reasoning: false,
+  maxContextTokens: 32768, maxOutputTokens: 8192, inputModalities: ['text'], outputModalities: ['decisions'], reasoning: false,
   reasoningEfforts: [], acceptedParameters: null, apiFormats: ['decisions'],
   scopedCatalogueEvidence: { modelRevisionId: 'actual-synthetic-revision', deploymentId: permit.deploymentId, priceVersionId: permit.priceVersionId,
     commercialPermission: 'standard_application_use', permissionState: 'approved', legalReviewStatus: 'approved', legalReviewEvidenceRef: 'synthetic-reviewed',

@@ -918,6 +918,7 @@ export type { PriceVersionStatus, PriceVersion, PriceSnapshot } from './inferenc
 export {
     // The six distinct catalogue objects + the customer-safe projection.
     inferenceModalitySchema,
+    inferenceOutputModalitySchema,
     reasoningEffortSchema,
     powerLevelSchema,
     modelPowerClassSchema,
@@ -948,6 +949,7 @@ export {
 
 export type {
     InferenceModality,
+    InferenceOutputModality,
     ReasoningEffort,
     PowerLevel,
     ModelPowerClass,
@@ -1488,6 +1490,16 @@ export { SCOPED_EXECUTION_CONTRACT_VERSION, SCOPED_REQUEST_ENVELOPE_VERSION, sco
 export type { ScopedExecutionAudience, ScopedExecution } from './inference/scopedExecution';
 export { scopedInferenceRequestSchema } from './inference/request';
 export type { ScopedInferenceRequest } from './inference/request';
+
+export {
+    PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION, PRIVATE_AUTO_REQUEST_ENVELOPE_VERSION,
+    PRIVATE_AUTO_LIMITS, PRIVATE_AUTO_INSTRUCTIONS, PRIVATE_AUTO_QUESTION,
+    privateAutoPrincipalSchema, privateAutoSourceApprovalSchema, privateAutoExecutionSchema,
+    privateAutoInputSchema, privateAutoOperationId,
+} from './inference/privateAutoExecution';
+export type { PrivateAutoPrincipal, PrivateAutoSourceApproval, PrivateAutoExecution } from './inference/privateAutoExecution';
+export { privateAutoInferenceRequestSchema } from './inference/request';
+export type { PrivateAutoInferenceRequest } from './inference/request';
 
 export {
     productDefinitionSchema,

@@ -5,6 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { Cancel01Icon, CheckmarkCircle01Icon } from '@hugeicons/core-free-icons';
 import type {
   InferenceModality,
+  InferenceOutputModality,
   ModelCatalogueEntry,
   RoutingProfile,
 } from '@oxy.so/contracts';
@@ -262,7 +263,7 @@ function CatalogueFilterBar({
               onValueChange={(value) =>
                 onChange({
                   ...filters,
-                  outputModality: value === ANY ? null : (value as InferenceModality),
+                  outputModality: value === ANY ? null : (value as InferenceOutputModality),
                 })
               }
             >

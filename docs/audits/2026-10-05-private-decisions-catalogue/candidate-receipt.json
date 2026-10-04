@@ -1,0 +1,1110 @@
+{
+  "kind": "contracts-candidate-v1",
+  "status": "provisional-not-published",
+  "sourceCommit": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+  "contractsTree": "fa8fae260bad3b25b5a935d9f68cf116aa605e57",
+  "archivePath": "/home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005/oxy.so-contracts-4.10.0.tgz",
+  "archiveSha256": "1c727c5e4d3cc31f5ac5988483506256b7635da6e59bc2fb0925046d06e50b53",
+  "packageVersion": "4.10.0",
+  "buildAndPackSameCommand": "bun --no-env-file run build && bun pm pack --destination /home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005",
+  "members": [
+    {
+      "path": "package.json",
+      "sha256": "ff06121aa0172a753271b39d9148ef7bebb79d6012db833f951d547c3c5d3661",
+      "size": 2383
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "8e4a5088d618b479996f6449128718c0f5961e0b3d85b59c551f1b9f266eca54",
+      "size": 31493
+    },
+    {
+      "path": "NOTICE",
+      "sha256": "9233d8a42ac29dffed627c86e0c96c1b106cad8d636ebc992da8bec07a31a8e7",
+      "size": 948
+    },
+    {
+      "path": "dist/cjs/.tsbuildinfo",
+      "sha256": "0edffb5d7f09c6a546f1d5b45e7b7a6e89abbbf0f8146f99c114c61b4a73438d",
+      "size": 99620
+    },
+    {
+      "path": "dist/cjs/accountEmail.js",
+      "sha256": "592900e06ab10f39258c6132a493cbbc33e88ff473702dd2ebf1f2f5f150ada4",
+      "size": 3918
+    },
+    {
+      "path": "dist/cjs/accountGraph.js",
+      "sha256": "240ce7fbccebf6760b3e83fc7d431038802843eb9ee96f47754b7a2f1a694025",
+      "size": 24114
+    },
+    {
+      "path": "dist/cjs/accountSubject.js",
+      "sha256": "14f33b5bf901ab0c57183decd6821460cca8f2d173cfe9aaea01dc47a8d3644a",
+      "size": 9287
+    },
+    {
+      "path": "dist/cjs/agency.js",
+      "sha256": "0c5f7ea8d9fa7e27dcbd9192f011eee34a2dc0f9af3c1f7c6a7b4a1dc6d8be82",
+      "size": 24742
+    },
+    {
+      "path": "dist/cjs/agentKeys.js",
+      "sha256": "3d329bb68af7998a2d20dc98ccca45ede7a6a505b3e35ba39d3369601a079c21",
+      "size": 4476
+    },
+    {
+      "path": "dist/cjs/capabilityBindings.js",
+      "sha256": "0b73abd012d96535c11eee028fd71ff2600a102b3143e0e1797bf821e8905299",
+      "size": 2670
+    },
+    {
+      "path": "dist/cjs/capabilityInvocation.js",
+      "sha256": "e708f858adb53c85e9b212a3c8377d1e0026144032e2c117d5ee6a64914897c3",
+      "size": 7953
+    },
+    {
+      "path": "dist/cjs/civic.js",
+      "sha256": "df8ae38cb4c89a9506c68b97e5c5b2038b077dbe2744ebe37711192ccb901dc6",
+      "size": 7444
+    },
+    {
+      "path": "dist/cjs/commonsSignIn.js",
+      "sha256": "66dd897c59bfc42d853fcef865013b16845530945ab7a8e4194907f1117d2e11",
+      "size": 3022
+    },
+    {
+      "path": "dist/cjs/deviceBoot.js",
+      "sha256": "0a0114257d07dd3618845d09fd89e0af642296e41552af28e99967b2b7d4f12e",
+      "size": 2169
+    },
+    {
+      "path": "dist/cjs/deviceDirectory.js",
+      "sha256": "7a5e2256a51ec3f49d4ea29402683b7289d3676ebc6fc327c660ec277cf70932",
+      "size": 9624
+    },
+    {
+      "path": "dist/cjs/deviceSession.js",
+      "sha256": "583e110703e5f1841767595e680884086e6e7bf2804540238b39c7b05cefc3ae",
+      "size": 11434
+    },
+    {
+      "path": "dist/cjs/email/messages.js",
+      "sha256": "61e1e2b631a13e70cb94051b24f69cf0d0f5ff128cc55a55887d0053081825e8",
+      "size": 12019
+    },
+    {
+      "path": "dist/cjs/emailAgentContext.js",
+      "sha256": "3a7890740d9beef6aa2bdd453102ec55b9bbb171896f417bdf5e43292ae7c80f",
+      "size": 1418
+    },
+    {
+      "path": "dist/cjs/externalIdentity.js",
+      "sha256": "cd7389ae84f2e51efcff3c5289f5344f01aff37bd2b6f1891031e500fedce7f7",
+      "size": 3581
+    },
+    {
+      "path": "dist/cjs/federationInstanceFetch.js",
+      "sha256": "0200cff82d15d9db30d0cd48f302b4e1a9ce018c1e31a854bc698eff2d13de6c",
+      "size": 1836
+    },
+    {
+      "path": "dist/cjs/followGraph.js",
+      "sha256": "0e19fb83de7c35ad13b8ffd4f7219f129a3ba43da1c0a37731a29c4dcdddfc5b",
+      "size": 1400
+    },
+    {
+      "path": "dist/cjs/identity.js",
+      "sha256": "4b557de79e64143ec4314a7deaf3a6c537a19203392290537299c4c7c2515be2",
+      "size": 12356
+    },
+    {
+      "path": "dist/cjs/identityLink.js",
+      "sha256": "93e23af30dbdc1dd74605057364fba6b294e13e6d8ec4b222d1d86d0c18659ac",
+      "size": 4691
+    },
+    {
+      "path": "dist/cjs/identityProof.js",
+      "sha256": "346df97163fcdd3f18764e0634d87428a1b8b10c4b8b56bbed494550f2d97dd5",
+      "size": 6732
+    },
+    {
+      "path": "dist/cjs/inboxPush.js",
+      "sha256": "3bd4a733354c71ffdde5ae46bab1ab629b025f4341713ff08d6ef006012a2e5c",
+      "size": 1127
+    },
+    {
+      "path": "dist/cjs/index.js",
+      "sha256": "65181e39de49e5ef5debc0b5cbe18b80000302909eaf5aa6dd1a03d64caaa867",
+      "size": 139852
+    },
+    {
+      "path": "dist/cjs/inference/accountBilling.js",
+      "sha256": "05b6b766b3831895d11d12e1f8567a5e1b96e929333510b0ab1123d1b35aab54",
+      "size": 17033
+    },
+    {
+      "path": "dist/cjs/inference/aliaModelRelease.js",
+      "sha256": "2d87b3f6ad5bc984864e55e48b383d91b09f28d5f4077160dcc985bbc1373eb5",
+      "size": 13174
+    },
+    {
+      "path": "dist/cjs/inference/attribution.js",
+      "sha256": "ca586114546facc271af8acd3c084827cfb3fd8274fed16e38bf81eda4017f92",
+      "size": 5185
+    },
+    {
+      "path": "dist/cjs/inference/catalogue.js",
+      "sha256": "379dafc61613a8f52e2ce06ddf57cdc45108f62a9da48cf8c0037e5f3bc0f2e4",
+      "size": 32916
+    },
+    {
+      "path": "dist/cjs/inference/decisions.js",
+      "sha256": "7147ca397ee5792035b6557704c6c8310ddea45118a6b5a251bf4204d1785faf",
+      "size": 12208
+    },
+    {
+      "path": "dist/cjs/inference/economics.js",
+      "sha256": "7325600d1a369823f488cad2a183ce2675050027be33e66b0f618815fdf8abd0",
+      "size": 7352
+    },
+    {
+      "path": "dist/cjs/inference/embeddings.js",
+      "sha256": "f3a908547a909fee4e6a15bc4c7a8e9227a71277a4ffc1a5be03c56af1bf996a",
+      "size": 2024
+    },
+    {
+      "path": "dist/cjs/inference/entitlement.js",
+      "sha256": "99cebcaeaceae61484c254bb030049fc5b52f185b2774f5bc7e146447c2db31b",
+      "size": 10091
+    },
+    {
+      "path": "dist/cjs/inference/errors.js",
+      "sha256": "31f158b78fc06dd77b00fbe02a09d1b5796ca8125cd5e1909818c4b2f63fda94",
+      "size": 15459
+    },
+    {
+      "path": "dist/cjs/inference/identifiers.js",
+      "sha256": "b0d523e4d767c7a414b37555b0a45b0800a920baf23ca85bb72fc0f31a8ab6ca",
+      "size": 12152
+    },
+    {
+      "path": "dist/cjs/inference/inbox.js",
+      "sha256": "0ce75b942ebaf763fb40d953e9fc36cea3b2ab7a641132faa08c458710171257",
+      "size": 5211
+    },
+    {
+      "path": "dist/cjs/inference/modelDocumentation.js",
+      "sha256": "5f985739d086202a7f20befe3866df4bf06f2761e8fd5fb1a5eb017bcbdade7c",
+      "size": 22881
+    },
+    {
+      "path": "dist/cjs/inference/money.js",
+      "sha256": "a5112d207f965d79bba4899f7dd8b5fd7d9ac1c15166ab128ccd074202c9110e",
+      "size": 11384
+    },
+    {
+      "path": "dist/cjs/inference/priceVersion.js",
+      "sha256": "e9975d5619c344281de3f872a127fbf8af225c66285ab0a4f07cd1b7038ace4d",
+      "size": 5074
+    },
+    {
+      "path": "dist/cjs/inference/privateAutoExecution.js",
+      "sha256": "502c3feaff47453ef689b7bb8941fb792850bad33a419400e493d0bd59a44e14",
+      "size": 8358
+    },
+    {
+      "path": "dist/cjs/inference/providerConnection.js",
+      "sha256": "a35f7b7964705625ce9fa7e22eab3a009c31500baf0d1cf6053f3d46d2cf4b4e",
+      "size": 21129
+    },
+    {
+      "path": "dist/cjs/inference/realtime.js",
+      "sha256": "66599303a7d9b3cdbee4001914f749c624bf03a575136c9373d1f291ee619cea",
+      "size": 39913
+    },
+    {
+      "path": "dist/cjs/inference/request.js",
+      "sha256": "b6fe29c3684d42544a8ffcd128fe80ecd933715c4af65040ff146a2cbaf54fa9",
+      "size": 32554
+    },
+    {
+      "path": "dist/cjs/inference/routingPolicy.js",
+      "sha256": "05f05b5b89a655c315fb1e0dc36e7a832e529f21f2a69b6b9bbf35b7c15984e5",
+      "size": 17350
+    },
+    {
+      "path": "dist/cjs/inference/scopedExecution.js",
+      "sha256": "75ef9f4b89e702ad6b7b31d7222aecfcb9d8d88cfc17b297b3429bb14f3ff61a",
+      "size": 3760
+    },
+    {
+      "path": "dist/cjs/inference/streamEvents.js",
+      "sha256": "0a3799102415b1de20e226b3a3ca0a505fcc40bb022c08fb3bfdb8a3f3b5358e",
+      "size": 13634
+    },
+    {
+      "path": "dist/cjs/inference/usage.js",
+      "sha256": "672d44c3220c0095c88b0309f679f330ad54fe0e6f3a204684b6ebd89fe7bc84",
+      "size": 15909
+    },
+    {
+      "path": "dist/cjs/inference/version.js",
+      "sha256": "788cef6aa101ee9083ca7662e53daf20663a541c14ab2b7b03a0f5bc929138c3",
+      "size": 6230
+    },
+    {
+      "path": "dist/cjs/keyRecovery.js",
+      "sha256": "8acffc42d64b42b8850ed8a4a5b5925665ff0f3bd4f44ec25c2d1284ac5dabfa",
+      "size": 4716
+    },
+    {
+      "path": "dist/cjs/keyRotation.js",
+      "sha256": "90b45c07b3e1b4a12786511ff1a97ecb291d3fa422aca3d353f9bcd7bc28e9e3",
+      "size": 3503
+    },
+    {
+      "path": "dist/cjs/linkedAccounts.js",
+      "sha256": "77f44a114b9731acba374d007dc2957a6f49539fc00cf50f5399dd8a5f827d96",
+      "size": 6120
+    },
+    {
+      "path": "dist/cjs/moderationReputation.js",
+      "sha256": "80b9a4ef9ac3d043c8d6b6e9a7979d80a4f24fa2a3b6caf3bdf96068337ece7f",
+      "size": 15415
+    },
+    {
+      "path": "dist/cjs/notifications.js",
+      "sha256": "ea64aff499e19a30f751d0db1a59a8195fe8438989bb5fdcd3aeeae8464417c0",
+      "size": 5157
+    },
+    {
+      "path": "dist/cjs/oauth.js",
+      "sha256": "c95bc67f3e7820b5c1a53216a9c467ae3f9f4d5b87dac549a0fbdc6320151f11",
+      "size": 5565
+    },
+    {
+      "path": "dist/cjs/oxyRecordTypes.js",
+      "sha256": "1c6bdf75f7537cbfb30778739c5610cf1c58a350d351a3f2a30a7009b66b763c",
+      "size": 3516
+    },
+    {
+      "path": "dist/cjs/products/access.js",
+      "sha256": "6029dd975014cdb8d2d829d946955f290c13656d899dc8de36962e56d47da469",
+      "size": 4594
+    },
+    {
+      "path": "dist/cjs/products/billing.js",
+      "sha256": "8d31a7ce89645921d14e8de45790cad4c0c2f2fbcdb64bae8146047a5db0f1c2",
+      "size": 2814
+    },
+    {
+      "path": "dist/cjs/protocol.js",
+      "sha256": "6593abf4a3e591f45763094b577c028c1ac3553be8d96b3292a80a9fadcca1c3",
+      "size": 2747
+    },
+    {
+      "path": "dist/cjs/recommendations.js",
+      "sha256": "1d28b50459b3ca838c8f45280a782cbd8e0529698605d063d407035e6e138a06",
+      "size": 8177
+    },
+    {
+      "path": "dist/cjs/reputation.js",
+      "sha256": "a477a530e26091f8e5f4a2bba62da2a67144bd3ef76747c859bf59fb622b798b",
+      "size": 11624
+    },
+    {
+      "path": "dist/cjs/sessionStatus.js",
+      "sha256": "a07744530895fb23eb50bd0ffcb5f9913a983b92eab4e14110d0f71c915facdd",
+      "size": 6192
+    },
+    {
+      "path": "dist/cjs/signIn.js",
+      "sha256": "609d96735c357e9be94e73808560dae360153f56e1f5a97b1d35d75775720b6e",
+      "size": 14781
+    },
+    {
+      "path": "dist/cjs/stickers.js",
+      "sha256": "b2a16ea5ab8735d2ef46e111a0dae44631900eb99545174229361a8dab81c553",
+      "size": 8012
+    },
+    {
+      "path": "dist/cjs/transparency.js",
+      "sha256": "63759bfba47aeed64fb5cbab18314e639b4a3c5c94f97bdbb9c9e2b61d8f97d7",
+      "size": 4548
+    },
+    {
+      "path": "dist/cjs/updates.js",
+      "sha256": "4f5b25af7e5e4443f1bc3e28c4ab1eb4408691d5f527651feb448350b11307e0",
+      "size": 13009
+    },
+    {
+      "path": "dist/cjs/userInvalidation.js",
+      "sha256": "f9964b7b2a226c0ec8b6a9f3a0a8c3389e9dbd72257863fdb89c4cb656255995",
+      "size": 4935
+    },
+    {
+      "path": "dist/cjs/userResponse.js",
+      "sha256": "7787ca5aa355e9a7a644c61988590fd1c2a2d01901163db540da898143509855",
+      "size": 15618
+    },
+    {
+      "path": "dist/cjs/username.js",
+      "sha256": "eb286465275a8577c474fa670c41fa2f5cfbe71c06750722bafb9238bfab71e7",
+      "size": 19116
+    },
+    {
+      "path": "dist/esm/.tsbuildinfo",
+      "sha256": "a6fcf21198f737fd11e88e825bde7124650f41b7f289ab962953b592141f4c92",
+      "size": 100005
+    },
+    {
+      "path": "dist/esm/accountEmail.js",
+      "sha256": "9543b3f22f68dbda97ecfb582f14192e20e6ee5b74a8b7ed12f855069d527d20",
+      "size": 3338
+    },
+    {
+      "path": "dist/esm/accountGraph.js",
+      "sha256": "41e995025818cd65cea13697339289992ece3ae998fbf0a8978e3565db6ec2d3",
+      "size": 23167
+    },
+    {
+      "path": "dist/esm/accountSubject.js",
+      "sha256": "3291243b967aec414965451ac17618a77e1d41eb37e1cdf5d67f384e3eba5bed",
+      "size": 8594
+    },
+    {
+      "path": "dist/esm/agency.js",
+      "sha256": "d206f8540cc9a68e95c83aded6443bb6d6883cc75563315c61836e4992dc076d",
+      "size": 22550
+    },
+    {
+      "path": "dist/esm/agentKeys.js",
+      "sha256": "b5bec9285390a36a79cd5954ee4e757fb4b37fbe4b7919c834f199889bcd6c8d",
+      "size": 3515
+    },
+    {
+      "path": "dist/esm/capabilityBindings.js",
+      "sha256": "cc5ef635062529f18bbc0071e0f89054ca746a875f5d77b8f20ac43e50a1f12b",
+      "size": 2437
+    },
+    {
+      "path": "dist/esm/capabilityInvocation.js",
+      "sha256": "cdb2dbe7251118ae2c2dc7d6b4ff70f3bacaaf9c9238d2a96154d871ab7dbeef",
+      "size": 7498
+    },
+    {
+      "path": "dist/esm/civic.js",
+      "sha256": "d92c9482c2d7b12bc5418d064e7b8e538c3ace013d078119efe2934835e319dc",
+      "size": 6060
+    },
+    {
+      "path": "dist/esm/commonsSignIn.js",
+      "sha256": "21d8b0be1297baa6303ba93a7382eafcef32c7ee038cfdf69cd253ca97a7b718",
+      "size": 2827
+    },
+    {
+      "path": "dist/esm/deviceBoot.js",
+      "sha256": "7804157142a4f5e0a1fa1761ab3dc0d8d5a80709cb2a7c00f51c4e9b16242761",
+      "size": 1954
+    },
+    {
+      "path": "dist/esm/deviceDirectory.js",
+      "sha256": "0276a6c1099cbc067dc73a70fb1dca1b40aa485c3b7236ddef301e35d474b120",
+      "size": 9014
+    },
+    {
+      "path": "dist/esm/deviceSession.js",
+      "sha256": "34ae7083b593a07d665e37a194afa5b3fb0b449f005e7c7460e160ed302c9e27",
+      "size": 10344
+    },
+    {
+      "path": "dist/esm/email/messages.js",
+      "sha256": "fc6ea9738f1378c1cefad6e2f0b4f194eeb466c4b8bff20424c32212d534dc6e",
+      "size": 10221
+    },
+    {
+      "path": "dist/esm/emailAgentContext.js",
+      "sha256": "8825d0a61cfd63b7d78722c91a92c995f52663bfd6ad90b1ee67749c489f877e",
+      "size": 1036
+    },
+    {
+      "path": "dist/esm/externalIdentity.js",
+      "sha256": "b211071734fa2fc6905419491a8beee0f05d140cf35668032b5ffd5881ebcd85",
+      "size": 2973
+    },
+    {
+      "path": "dist/esm/federationInstanceFetch.js",
+      "sha256": "ed477b9b5667b83dff513d79a7b1ab22e7fc51523888a0e529b034bba553802e",
+      "size": 1582
+    },
+    {
+      "path": "dist/esm/followGraph.js",
+      "sha256": "2adc6060ae6474e40282d41815744336514e03b5f28025ba57b33b651115671c",
+      "size": 1334
+    },
+    {
+      "path": "dist/esm/identity.js",
+      "sha256": "3a1cd50957a3897b101c8ee39047f94cab0857f25f4acef1c6529a6180afac3c",
+      "size": 10781
+    },
+    {
+      "path": "dist/esm/identityLink.js",
+      "sha256": "a81203f29cb3a2b349fbd37aaffddff550d9233768e19d8ab5c427d9bab4aa0e",
+      "size": 4119
+    },
+    {
+      "path": "dist/esm/identityProof.js",
+      "sha256": "94140b99c0161ed658e750f481f8a3375bcd3aeef0f9e247b770f7d46edc785a",
+      "size": 6075
+    },
+    {
+      "path": "dist/esm/inboxPush.js",
+      "sha256": "b26e4b4f8d467b4c2bf57913b7e9b0e274f8cf86dc87e7c522984e4aa1f6074d",
+      "size": 918
+    },
+    {
+      "path": "dist/esm/index.js",
+      "sha256": "263dc8bb52686d58e0c7501a68d4f11ea86825f629a1de0df777738ecaf38a56",
+      "size": 25753
+    },
+    {
+      "path": "dist/esm/inference/accountBilling.js",
+      "sha256": "c0235812718b883740c9e3f2a740af8ab94165afdd7a12f44cb5adedfa93f3d7",
+      "size": 15451
+    },
+    {
+      "path": "dist/esm/inference/aliaModelRelease.js",
+      "sha256": "6e23eee5c04cc7cd5c485e46be5eefeff6aa8f952db1ac9d0aecda86a7d1b79d",
+      "size": 12832
+    },
+    {
+      "path": "dist/esm/inference/attribution.js",
+      "sha256": "fa656c83193230173a4d31aae0005c0cd3b29edeeb7a70b03f4b92f00cef6124",
+      "size": 4936
+    },
+    {
+      "path": "dist/esm/inference/catalogue.js",
+      "sha256": "573a178a449b0c2a1ea185e7c76ac50e7ec3f1a1095da6369169879a697b2f2f",
+      "size": 30643
+    },
+    {
+      "path": "dist/esm/inference/decisions.js",
+      "sha256": "c0075e7d2b93e61fa1900bd955fb1c97ddb6c0746b8c6425a6b9d024c7513c9e",
+      "size": 11516
+    },
+    {
+      "path": "dist/esm/inference/economics.js",
+      "sha256": "19dd8d159e36ff269264a8aa6d9586cb9218a59110ad91e66738a1e390af081f",
+      "size": 6859
+    },
+    {
+      "path": "dist/esm/inference/embeddings.js",
+      "sha256": "40a2994194388d2a4d357d4ca03d32537b28a4d04ca5894dba052b12503b1fca",
+      "size": 1655
+    },
+    {
+      "path": "dist/esm/inference/entitlement.js",
+      "sha256": "1550aa323e0b47e8f5bfe2eb2c34642dfbd425485c190db5d1e65af2f9eb84ff",
+      "size": 9369
+    },
+    {
+      "path": "dist/esm/inference/errors.js",
+      "sha256": "1c690f7ff2895d81d85cd8c20f32ff488934399823c4ccb72293c56067dae5b7",
+      "size": 15022
+    },
+    {
+      "path": "dist/esm/inference/identifiers.js",
+      "sha256": "b31d42efbb622f3101e9b3380830819bcb252c408cca431dd3c4957d62d3d1c6",
+      "size": 11294
+    },
+    {
+      "path": "dist/esm/inference/inbox.js",
+      "sha256": "1a2655af8b383bd5c62fe8df8d0c4f2db13eea1c05774846d16844be0e3542ef",
+      "size": 4407
+    },
+    {
+      "path": "dist/esm/inference/modelDocumentation.js",
+      "sha256": "cd71cbb928c90f6129e554901205bbf4aeb18f5665e17ac75e8da65121c3b492",
+      "size": 22145
+    },
+    {
+      "path": "dist/esm/inference/money.js",
+      "sha256": "866ff4773ea4dd61cd4b26b141e0cf32c20978deaf239803aaaf24b64059de00",
+      "size": 10958
+    },
+    {
+      "path": "dist/esm/inference/priceVersion.js",
+      "sha256": "2f035cabdd7e02ac7898799bfb222e40b08c5724ae6f1a86365fe6866c9745bc",
+      "size": 4812
+    },
+    {
+      "path": "dist/esm/inference/privateAutoExecution.js",
+      "sha256": "f3436790003b8f11f22917acafe5bc5b8a08b07912a0c97e37ba977c9be05770",
+      "size": 7519
+    },
+    {
+      "path": "dist/esm/inference/providerConnection.js",
+      "sha256": "dfc67e8a109cd9bcb7e2fc1c1e8437ad05d15d4eb11d6cf11335bf63ab9e8452",
+      "size": 19052
+    },
+    {
+      "path": "dist/esm/inference/realtime.js",
+      "sha256": "f672cf51ffeae5af5304352a7311559407403107d02bcbcc7c31391acc1d7973",
+      "size": 35717
+    },
+    {
+      "path": "dist/esm/inference/request.js",
+      "sha256": "cb705c1092debab660cba8a8327c42eba5cb50abae6a5cc955ac268dca4d8c61",
+      "size": 31081
+    },
+    {
+      "path": "dist/esm/inference/routingPolicy.js",
+      "sha256": "15fdad9232f995f847a601b83a0b224fec3f8dcd2aee2a6524d4af0bd2233ba5",
+      "size": 16605
+    },
+    {
+      "path": "dist/esm/inference/scopedExecution.js",
+      "sha256": "7882c12f83abbab4a04178a98eb70d1105dbb1f0a035f144aa4fe2a887c49279",
+      "size": 3453
+    },
+    {
+      "path": "dist/esm/inference/streamEvents.js",
+      "sha256": "cae5b45c1773813dd0352e49d9bed65a72ee4cb050df1436db757e4d508302f4",
+      "size": 12465
+    },
+    {
+      "path": "dist/esm/inference/usage.js",
+      "sha256": "14215e405dc13c57bb6bbb5222062af47f896ac7c6fe4840d1ce1ec4d7832e66",
+      "size": 15057
+    },
+    {
+      "path": "dist/esm/inference/version.js",
+      "sha256": "4a3732f3d75b323f44f6538b55ca88435e8349eff4afdae298e4b9142539962d",
+      "size": 6113
+    },
+    {
+      "path": "dist/esm/keyRecovery.js",
+      "sha256": "baeabab6b34c2b1ba37bd2ddef8e8eb1a570e4f44acb611929f831a234d62740",
+      "size": 4408
+    },
+    {
+      "path": "dist/esm/keyRotation.js",
+      "sha256": "0439a9b69ad722f217727e424bc51ddc62d3da270d17e1d4bfe9eb3bd64df8cc",
+      "size": 3218
+    },
+    {
+      "path": "dist/esm/linkedAccounts.js",
+      "sha256": "e663448858a6959f309185026e7961f70dd3bacf15bd0e9e85f01947757f7d4c",
+      "size": 5278
+    },
+    {
+      "path": "dist/esm/moderationReputation.js",
+      "sha256": "4738454b02f6414f760dc02ffdebf12b297e74799fec661023b2aef9655b4b99",
+      "size": 12916
+    },
+    {
+      "path": "dist/esm/notifications.js",
+      "sha256": "ad8951a389e2b35fa47ccd4a6390a41fe58e1e3019d2d9e9cf89ce1b17526c0c",
+      "size": 4576
+    },
+    {
+      "path": "dist/esm/oauth.js",
+      "sha256": "76226471ea048cb0743a248771febed153eb5cf3259fffd84340e6fbcfd9854d",
+      "size": 4998
+    },
+    {
+      "path": "dist/esm/oxyRecordTypes.js",
+      "sha256": "7e6e78c6b0f1c5798d9032333168a0d84cdcf14f79384532ca3ad0ff2ecf4480",
+      "size": 3389
+    },
+    {
+      "path": "dist/esm/products/access.js",
+      "sha256": "75b41edfbf1921b72365fbf2511234f4f714629eee98dc2ce9a0d65638935b83",
+      "size": 3873
+    },
+    {
+      "path": "dist/esm/products/billing.js",
+      "sha256": "3949e9382b8978fd6fa7443fe6930c0bbc21928eb1e9df6e9fe0d8f119b39142",
+      "size": 2278
+    },
+    {
+      "path": "dist/esm/protocol.js",
+      "sha256": "8dac1512408f68a0f8e14d997b02edfadb9c92bc99b80f50fcc25f5eb2af852b",
+      "size": 2566
+    },
+    {
+      "path": "dist/esm/recommendations.js",
+      "sha256": "ec188c1067f9ba41aac2e1431756e9f2bd171e28c22d9fe6cee9bb373ceb9c8c",
+      "size": 7204
+    },
+    {
+      "path": "dist/esm/reputation.js",
+      "sha256": "6b088753a050f124d4254c007e2d41609064ab9ae3855c82d40f880d7c0d05aa",
+      "size": 10146
+    },
+    {
+      "path": "dist/esm/sessionStatus.js",
+      "sha256": "d786c0d115830ba6a09864760efd834361eee29ecc5895654f51c5c033c8980a",
+      "size": 5855
+    },
+    {
+      "path": "dist/esm/signIn.js",
+      "sha256": "74b9911efc8765527999571337d6a71179b3c27c9f760d6053a2dc61ced3fca1",
+      "size": 12860
+    },
+    {
+      "path": "dist/esm/stickers.js",
+      "sha256": "bea0febf256789d592e4b972f22e1df0b101dbbb21f08634a31f8353b93ff517",
+      "size": 6822
+    },
+    {
+      "path": "dist/esm/transparency.js",
+      "sha256": "7d615b8ce4a3fff71bca1c3cc911278e2f18e173601d7e473306af92b82b6651",
+      "size": 4105
+    },
+    {
+      "path": "dist/esm/updates.js",
+      "sha256": "ef6af53e808331050cfba6220bfb8251d09104e98d602e43f1e44fe5ea02e0eb",
+      "size": 11429
+    },
+    {
+      "path": "dist/esm/userInvalidation.js",
+      "sha256": "90984ee6a3318224e31902f2ac0618ed8600e5f8bed8d0ce6c647a3753edf348",
+      "size": 4600
+    },
+    {
+      "path": "dist/esm/userResponse.js",
+      "sha256": "c80713cf1d5f04dc886b1310418b3b2354647414a10d49739f7644038fd17c59",
+      "size": 14724
+    },
+    {
+      "path": "dist/esm/username.js",
+      "sha256": "06e79cd31ee61292c454e088176fd1de25f27a3605ddf4a089af6e165fdff335",
+      "size": 18328
+    },
+    {
+      "path": "dist/types/.tsbuildinfo",
+      "sha256": "6e8fb91ce8680b5e93422c3e44e6c4707aabf471ce12971e341ec634cf302f5a",
+      "size": 105855
+    },
+    {
+      "path": "dist/types/accountEmail.d.ts",
+      "sha256": "899354685d864a78e3e9eb109d54c4f327ed67076b9f0f95a88051a683137538",
+      "size": 4116
+    },
+    {
+      "path": "dist/types/accountGraph.d.ts",
+      "sha256": "892e3b13b09d6281bf474924fdc40f7c04b06cfe6bff04f0d007770d07c95ed9",
+      "size": 26677
+    },
+    {
+      "path": "dist/types/accountSubject.d.ts",
+      "sha256": "f46ccf8ebaddcfb7654377f4fb328eda3801f38eb94b038546f11f3c7f407728",
+      "size": 9711
+    },
+    {
+      "path": "dist/types/agency.d.ts",
+      "sha256": "bd7931c2004bfa71668b09314b3d9b9ad8071028ac29fa1a11256e60233fab9a",
+      "size": 92838
+    },
+    {
+      "path": "dist/types/agentKeys.d.ts",
+      "sha256": "70a0153eb249c0eb42db6985c89db66482ea5f3ed2ee347ec04afb0c9f11a264",
+      "size": 16495
+    },
+    {
+      "path": "dist/types/capabilityBindings.d.ts",
+      "sha256": "c4d96758c959128aef62a0d64e6bccb7e28d4182d423c09c57b5ad2187c00d42",
+      "size": 484
+    },
+    {
+      "path": "dist/types/capabilityInvocation.d.ts",
+      "sha256": "1d836ba05f9a11dfc9a7474c6b8cdf79c6b6ea53f02b7088c2183f9a0be9cad4",
+      "size": 4329
+    },
+    {
+      "path": "dist/types/civic.d.ts",
+      "sha256": "583f04b65740145a8d6220d92c1183a331b11039e47242d4ca1d652a054d8330",
+      "size": 15081
+    },
+    {
+      "path": "dist/types/commonsSignIn.d.ts",
+      "sha256": "02b3a30e558436fb03434887fd99437e31c85e1d9708b3ce2510e95a79f89c3e",
+      "size": 2997
+    },
+    {
+      "path": "dist/types/deviceBoot.d.ts",
+      "sha256": "93832fd7910a99b818984db7965a5e782ae1d27b77d7ddf19f8f61af0b98a3b3",
+      "size": 3191
+    },
+    {
+      "path": "dist/types/deviceDirectory.d.ts",
+      "sha256": "12649655884285279023d849897bf0090911c04339abf9faf6af053fda73bffd",
+      "size": 52604
+    },
+    {
+      "path": "dist/types/deviceSession.d.ts",
+      "sha256": "1565e1b7eefd90119979ee58de5e92bd5578a419157c30da063c6dea4db30272",
+      "size": 18548
+    },
+    {
+      "path": "dist/types/email/messages.d.ts",
+      "sha256": "e60591c598f60238424f4711f5d5f8a1612a40323e6c8d165bf76e2d3a9332b7",
+      "size": 65027
+    },
+    {
+      "path": "dist/types/emailAgentContext.d.ts",
+      "sha256": "1d4433a20701be2096a88da6793476008f0149a8fe094538d43dcae8143f774e",
+      "size": 6567
+    },
+    {
+      "path": "dist/types/externalIdentity.d.ts",
+      "sha256": "250d39101037f0dd77bf72134fad4fd88bf3525adb9687ad42f872470bcce247",
+      "size": 30022
+    },
+    {
+      "path": "dist/types/federationInstanceFetch.d.ts",
+      "sha256": "d48e2148452ccec7a184efa5f08322dfa962caa883edcb568925c3d800474fcc",
+      "size": 2163
+    },
+    {
+      "path": "dist/types/followGraph.d.ts",
+      "sha256": "2e47eb8f6baccffdeaac924ff64212ab0f0f7a6f7d096a9398cfc829a4b62fc6",
+      "size": 6273
+    },
+    {
+      "path": "dist/types/identity.d.ts",
+      "sha256": "b5ee7d433b9106f4f67e39eaf1b2989698ba86b204c390e85ae1ace5305d6e16",
+      "size": 17736
+    },
+    {
+      "path": "dist/types/identityLink.d.ts",
+      "sha256": "3cd6ae39265f6be790d6903a95fac1bb5ff8e8688ac8498df3137f86706bc53a",
+      "size": 5310
+    },
+    {
+      "path": "dist/types/identityProof.d.ts",
+      "sha256": "32fcf5581ebf5e814e95eb7e043b6b0c44b92f19c8f3621efc1450256239f3ec",
+      "size": 5796
+    },
+    {
+      "path": "dist/types/inboxPush.d.ts",
+      "sha256": "d7107d88df6a27124973d6d45960ebcfcba772e6365f2614ea948dd20594d1af",
+      "size": 1207
+    },
+    {
+      "path": "dist/types/index.d.ts",
+      "sha256": "56acc9f14b15c249b91c736cda7821453489565c73dcd6b8bba421e439331f29",
+      "size": 35210
+    },
+    {
+      "path": "dist/types/inference/accountBilling.d.ts",
+      "sha256": "9e8852eaa81143f27ca6bbad8f9c04a8588acf7c2eaf4ff5009b97e31267fb65",
+      "size": 30767
+    },
+    {
+      "path": "dist/types/inference/aliaModelRelease.d.ts",
+      "sha256": "d5b1bab41ae235a077e46b476b87d55f9b83d616454554872353f5ab06fc041d",
+      "size": 23862
+    },
+    {
+      "path": "dist/types/inference/attribution.d.ts",
+      "sha256": "ca70636d4802a7305f69dfb3aab432ae86d7e07fb6f8545e15aa89ddf5434fd4",
+      "size": 9143
+    },
+    {
+      "path": "dist/types/inference/catalogue.d.ts",
+      "sha256": "ddb2b618aee856542f4805d831830f5eee3b587c9bdcbb523afdcd023d51467d",
+      "size": 94892
+    },
+    {
+      "path": "dist/types/inference/decisions.d.ts",
+      "sha256": "1e7c9440b21184c7315e1cd9a204958748acc17db2d40a62e2e77367731252ff",
+      "size": 77473
+    },
+    {
+      "path": "dist/types/inference/economics.d.ts",
+      "sha256": "39043ed78ef4576482c8e452f2360ed5d1b2e8aca362f9df5d44b6abd0505992",
+      "size": 15875
+    },
+    {
+      "path": "dist/types/inference/embeddings.d.ts",
+      "sha256": "07342f50c8b829e9ebfac5103c3a6b1fed6c521b2ad5c70d71445ac7bef7e515",
+      "size": 23949
+    },
+    {
+      "path": "dist/types/inference/entitlement.d.ts",
+      "sha256": "b3a9f61d58b87092d1913dac4a2a164a484c54310b50b442f0bb9ed4f084a8b9",
+      "size": 19538
+    },
+    {
+      "path": "dist/types/inference/errors.d.ts",
+      "sha256": "416f2602c7154e26ac5ed2c3b85aa8a34f0c90ec657e888c38e80531688422de",
+      "size": 16810
+    },
+    {
+      "path": "dist/types/inference/identifiers.d.ts",
+      "sha256": "7b875a71855017d4935fa0aaf787105c752d572d2e9f15bd1f1afa43eb602f69",
+      "size": 9420
+    },
+    {
+      "path": "dist/types/inference/inbox.d.ts",
+      "sha256": "b44eb82fae559aa5787d89737fc99473780e09a49d97105989764afe3b97718d",
+      "size": 17723
+    },
+    {
+      "path": "dist/types/inference/modelDocumentation.d.ts",
+      "sha256": "05c494e3ba2d124ea1fe1106c8e646250382aa4e2d27f52a5b5524415d331d14",
+      "size": 78573
+    },
+    {
+      "path": "dist/types/inference/money.d.ts",
+      "sha256": "43a58b36d02698bd6d97b873d68a802effc9132c62c32ad44ad58db050d7ac58",
+      "size": 13303
+    },
+    {
+      "path": "dist/types/inference/priceVersion.d.ts",
+      "sha256": "8ba338f8c07fb9d35fe4de5adb8a2cd1886a1958a289a82d73e82d59ac8e176c",
+      "size": 9730
+    },
+    {
+      "path": "dist/types/inference/privateAutoExecution.d.ts",
+      "sha256": "8005e07c186fe0f17dc4d4b3be3f06dbcc6d057bfb0cf183b671f9f71048bb3f",
+      "size": 22054
+    },
+    {
+      "path": "dist/types/inference/providerConnection.d.ts",
+      "sha256": "429c7dbd4eaf2d795a7662b9339fb91724c41ede241dfefd7149948179882f99",
+      "size": 35698
+    },
+    {
+      "path": "dist/types/inference/realtime.d.ts",
+      "sha256": "73caa350249cde3baaae6bf20a04fa7f6ace70b2f08267d47bcb6fa334de0725",
+      "size": 296956
+    },
+    {
+      "path": "dist/types/inference/request.d.ts",
+      "sha256": "a9312674fd79fb0e6c44e28c588f3bcf5147cc69a5484004ff6aa61a448fbc24",
+      "size": 265566
+    },
+    {
+      "path": "dist/types/inference/routingPolicy.d.ts",
+      "sha256": "755de103c30103f89157cff59f116e3b8e29ce46492fdd47efe8aca6afc04fca",
+      "size": 26219
+    },
+    {
+      "path": "dist/types/inference/scopedExecution.d.ts",
+      "sha256": "832047ae747081bd02e727c24daa78bfae2430d87cd1038e9e17449a7125e7a9",
+      "size": 6553
+    },
+    {
+      "path": "dist/types/inference/streamEvents.d.ts",
+      "sha256": "0f26de92a3968e04b169a86d3bca0c83a8f6b4cf59f3e4d4cbc804def37e0183",
+      "size": 51413
+    },
+    {
+      "path": "dist/types/inference/usage.d.ts",
+      "sha256": "bb3541021c3809b4e02c5ccf36b286bd062fbbfe81717802e3dd3aee4fa67976",
+      "size": 57629
+    },
+    {
+      "path": "dist/types/inference/version.d.ts",
+      "sha256": "5fdde675f2a8e030bad55f87b8b1cc33bf0b636526b2ca5ce6784a27a8d3d1d5",
+      "size": 6121
+    },
+    {
+      "path": "dist/types/keyRecovery.d.ts",
+      "sha256": "5375336b2ff88c4e22b42fe7e6b5666ca74da3056d9537e0473d7ffc7ca649f5",
+      "size": 5745
+    },
+    {
+      "path": "dist/types/keyRotation.d.ts",
+      "sha256": "1ac86052a9aae547b476924a3b43357f3e1a832d87a5bdd45284ea5be34846f6",
+      "size": 4127
+    },
+    {
+      "path": "dist/types/linkedAccounts.d.ts",
+      "sha256": "2792f7adbe16bdf4952a88ba4b1834806e1a989baeff98221488456e98d7cb3c",
+      "size": 13470
+    },
+    {
+      "path": "dist/types/moderationReputation.d.ts",
+      "sha256": "e73e7ecf75d44e1e53503c170c5d37f650903506a578a90dafd1d1f7e7170eda",
+      "size": 24257
+    },
+    {
+      "path": "dist/types/notifications.d.ts",
+      "sha256": "7f288105ded26d103036e6b842752d784f49edb28ddfb35b4fa0a1fcea6ea0b8",
+      "size": 5528
+    },
+    {
+      "path": "dist/types/oauth.d.ts",
+      "sha256": "a43105c6b79a8cb85881747ae3ac092f1aff84dc184b849518afad98a3d21184",
+      "size": 37303
+    },
+    {
+      "path": "dist/types/oxyRecordTypes.d.ts",
+      "sha256": "66bb387841c6326db27803f6bd07299933050d1480a95ab1c6cb691b3489ada7",
+      "size": 3503
+    },
+    {
+      "path": "dist/types/products/access.d.ts",
+      "sha256": "af038b33fbe9e3d6fd2a97cd3fcdee97a2293c300518e262f72ff352c9b83196",
+      "size": 14282
+    },
+    {
+      "path": "dist/types/products/billing.d.ts",
+      "sha256": "d8c8f72e16ac5c1c25e81f04100c3a1f54cf1ca20c5fe0ef82d732c3d37e0b06",
+      "size": 16467
+    },
+    {
+      "path": "dist/types/protocol.d.ts",
+      "sha256": "8c3f7ebc5b370bfb28317949b848f0be9d3c63c8206e31fa244f7b5d940d96f1",
+      "size": 4065
+    },
+    {
+      "path": "dist/types/recommendations.d.ts",
+      "sha256": "b1da5918c538a347d8f5c94f9b0b93d296453f222a89741afc31df9c1b262dd4",
+      "size": 21937
+    },
+    {
+      "path": "dist/types/reputation.d.ts",
+      "sha256": "c4dd8dceb8320c83d857292b3f0ea8d6fb8040b6c018f456233e96c304745fb6",
+      "size": 17973
+    },
+    {
+      "path": "dist/types/sessionStatus.d.ts",
+      "sha256": "20cb7f91eba97ad30904255ee29f83f47b9e53f0e123c35d2b4099848e10f4c5",
+      "size": 10383
+    },
+    {
+      "path": "dist/types/signIn.d.ts",
+      "sha256": "4fe08373fbd0f4640b758a354a97906d2fb4e6b889a2ae969f71d0268836a2d7",
+      "size": 25809
+    },
+    {
+      "path": "dist/types/stickers.d.ts",
+      "sha256": "4f452c2f8fa582f0a756e1a6d7427adb658a6cf71bed4df99ea83d3b0eb0d66f",
+      "size": 28956
+    },
+    {
+      "path": "dist/types/transparency.d.ts",
+      "sha256": "60efa77641365a1fd801ca8248047299a7b221b6ef58a7ea9e9ee9357775c01f",
+      "size": 12380
+    },
+    {
+      "path": "dist/types/updates.d.ts",
+      "sha256": "56dc97373e1f7d90098a6d01626733a3bd67fac35284de13aaa4027f6dd1fb00",
+      "size": 20204
+    },
+    {
+      "path": "dist/types/userInvalidation.d.ts",
+      "sha256": "68de97c1e4f8f752e110d7b7778e2f2694c448a641fb62157bf6bdb404231450",
+      "size": 5018
+    },
+    {
+      "path": "dist/types/userResponse.d.ts",
+      "sha256": "b667164c3195aee1304ce4da9a31fd089d47d31afe8fb2f0bc4b85398cdbf82f",
+      "size": 139669
+    },
+    {
+      "path": "dist/types/username.d.ts",
+      "sha256": "1a6188d64e065752673bbc01571ad4fa99b10a9f7b55a02efaa64367b3297b31",
+      "size": 16082
+    }
+  ],
+  "byteComparison": {
+    "identicalFiles": 200,
+    "normalizedManifest": "package.json",
+    "semanticExpectedMatch": true,
+    "normalization": "Bun pack resolves devDependencies catalog: against root workspaces.catalog and serializes Unicode; all other manifest values match source"
+  },
+  "expectedPackedManifest": {
+    "name": "@oxy.so/contracts",
+    "version": "4.10.0",
+    "description": "OxyHQ API contracts \u2014 single source of truth for request/response Zod schemas and inferred types, shared by the backend and the client SDKs",
+    "main": "dist/cjs/index.js",
+    "module": "dist/esm/index.js",
+    "types": "dist/types/index.d.ts",
+    "source": "src/index.ts",
+    "sideEffects": false,
+    "publishConfig": {
+      "access": "public"
+    },
+    "exports": {
+      ".": {
+        "react-native": "./dist/esm/index.js",
+        "import": {
+          "types": "./dist/types/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/types/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        },
+        "default": "./dist/esm/index.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "files": [
+      "NOTICE",
+      "dist"
+    ],
+    "keywords": [
+      "oxyhq",
+      "sdk",
+      "contracts",
+      "zod",
+      "schemas",
+      "api"
+    ],
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/oxyhq/sdk",
+      "directory": "packages/contracts"
+    },
+    "author": "OxyHQ",
+    "license": "SEE LICENSE IN LICENSE",
+    "homepage": "https://oxy.so",
+    "engines": {
+      "node": ">=18.0.0"
+    },
+    "scripts": {
+      "build": "bun run build:cjs && bun run build:esm && bun run build:types",
+      "build:cjs": "tsc -p tsconfig.cjs.json",
+      "build:esm": "tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs",
+      "build:types": "tsc -p tsconfig.types.json",
+      "clean": "rm -rf dist",
+      "typescript": "tsc --noEmit",
+      "test": "jest --passWithNoTests",
+      "lint": "biome lint --error-on-warnings ./src",
+      "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
+      "release": "rm -rf dist && bun run build && release-it"
+    },
+    "release-it": {
+      "git": {
+        "tagName": "@oxy.so/contracts@${version}",
+        "tagAnnotation": "Release @oxy.so/contracts@${version}",
+        "commitMessage": "chore(contracts): release @oxy.so/contracts@${version}"
+      },
+      "github": {
+        "release": true,
+        "releaseName": "@oxy.so/contracts@${version}"
+      },
+      "npm": {
+        "publish": true
+      }
+    },
+    "dependencies": {
+      "zod": "^3.25.64"
+    },
+    "devDependencies": {
+      "@biomejs/biome": "^1.9.4",
+      "@types/node": "^20.19.43",
+      "jest": "^30.5.1",
+      "release-it": "^19.0.6",
+      "typescript": "^5.9.2"
+    }
+  }
+}

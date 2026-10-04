@@ -1,0 +1,45 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/scopedCataloguePublication.test.ts
+FAIL src/services/__tests__/scopedCataloguePublication.test.ts
+  ✓ keeps two private audiences and an ordinary route separate on one pinned model (6 ms)
+  ✓ refuses a private descriptor rebound to another deployment audience (1 ms)
+  ✓ rejects a negotiated catalogue missing deployment restrictions (9 ms)
+  ✓ does not attach a scope from a different model revision (1 ms)
+  ✓ does not publish any private deployment in the ordinary liveness view (2 ms)
+  ✕ preserves provider-reported decisions and derives capability only from the exact private contract (4 ms)
+
+  ● preserves provider-reported decisions and derives capability only from the exact private contract
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 9
+    + Received  + 1
+
+      Object {
+    -   "model": Object {
+    -     "apiFormats": Array [
+    -       "decisions",
+    -     ],
+    -     "outputModalities": Array [
+    -       "decisions",
+    -     ],
+    -   },
+    -   "status": "planned",
+    +   "status": "skipped",
+      }
+
+      71 |     const parsed = parseKaanaCatalogue(body).models[0];
+      72 |     const plan = planKaanaModel(parsed, planning([deployments[1]]));
+    > 73 |     expect(plan).toMatchObject({ status: 'planned', model: { outputModalities: ['decisions'], apiFormats: ['decisions'] } });
+         |                  ^
+      74 |     spy.mockReturnValue(undefined);
+      75 |     expect(planKaanaModel(parsed, planning([deployments[1]])).status).toBe('skipped');
+      76 |     spy.mockReturnValue({ ...first, expiresAt: '2000-01-01T00:00:00.000Z' });
+
+      at Object.<anonymous> (src/services/__tests__/scopedCataloguePublication.test.ts:73:18)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 5 passed, 6 total
+Snapshots:   0 total
+Time:        0.328 s, estimated 1 s
+Ran all test suites within paths "src/services/__tests__/scopedCataloguePublication.test.ts".
+error: script "test" exited with code 1

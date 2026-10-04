@@ -1,0 +1,7 @@
+$ jest --passWithNoTests --runInBand --runTestsByPath src/__tests__/decisionsOutput.test.ts src/__tests__/privateAutoExecution.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       19 passed, 19 total
+Snapshots:   0 total
+Time:        0.247 s, estimated 1 s
+Ran all test suites within paths "src/__tests__/decisionsOutput.test.ts", "src/__tests__/privateAutoExecution.test.ts".

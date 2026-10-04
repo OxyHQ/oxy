@@ -52,13 +52,19 @@ import { priceSnapshotSchema } from './priceVersion';
 /*  Shared catalogue vocabulary                                               */
 /* -------------------------------------------------------------------------- */
 
-/** The modalities a model can consume or produce. */
+/** Input/request modalities; structured decisions are an output, never an input. */
 export const inferenceModalitySchema = z.enum([
   'text',
   'image',
   'audio',
   'video',
   'embedding',
+]);
+
+/** Declared model outputs, separate from request/input modalities. */
+export const inferenceOutputModalitySchema = z.enum([
+  ...inferenceModalitySchema.options,
+  'decisions',
 ]);
 
 /**
@@ -170,7 +176,7 @@ export const modelRealtimeCapabilitiesSchema = z
 export const modelCapabilitiesSchema = z
   .object({
     inputModalities: z.array(inferenceModalitySchema).min(1),
-    outputModalities: z.array(inferenceModalitySchema).min(1),
+    outputModalities: z.array(inferenceOutputModalitySchema).min(1),
     tools: z.boolean(),
     parallelToolCalls: z.boolean(),
     structuredOutput: z.boolean(),
@@ -728,6 +734,7 @@ export const modelCatalogueEntrySchema = z.object({
   powerClass: modelPowerClassSchema.optional(),
 });
 
+export type InferenceOutputModality = z.infer<typeof inferenceOutputModalitySchema>;
 export type InferenceModality = z.infer<typeof inferenceModalitySchema>;
 export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
 export type PowerLevel = z.infer<typeof powerLevelSchema>;

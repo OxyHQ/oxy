@@ -158,6 +158,7 @@ const BANNED_NAME_PATTERNS = [
  * completions Oxy would be storing on its own initiative.
  */
 const DECLARED_FREE_SHAPED_COLUMNS = [
+  { table: 'inference_deployments', column: 'privateAutoSourceApproval', holds: 'closed privateAutoSourceApprovalSchema source-review metadata: approval, principal, policy, economic and exact route/price identifiers, evidence references, expiry and fixed limits; no variable text, child input hash, state, question, prompt, completion, bearer token or provider credential secret' },
   { table: 'inference_deployments', column: 'scopedExecution', holds: 'closed scopedExecutionAudienceSchema authority metadata: permit and idempotency identifiers, fixture SHA-256, principal and exact route/policy bindings, expiry and grant-only cost limits; no fixture state, question, prompt, completion, tool arguments, provider credential or bearer token' },
   // ---- external account identity evidence ------------------------------------
   { table: 'external_identities', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response' },
@@ -306,10 +307,7 @@ try {
   schema = await import(pathToFileURL(schemaModulePath).href);
 } catch (error) {
   console.error(
-    `The schema module ${schemaModulePath} could not be imported, so no column was inspected:\n`
-    + `${error.message}\n\n`
-    + 'It imports @oxy.so/db and @oxy.so/contracts, which resolve into their built `dist/`. Run\n'
-    + '`bun run --filter @oxy.so/contracts build` and `bun run --filter @oxy.so/db build` first.',
+    `The schema module ${schemaModulePath} could not be imported, so no column was inspected:\n${error.message}\n\nIt imports @oxy.so/db and @oxy.so/contracts, which resolve into their built \`dist/\`. Run\n\`bun run --filter @oxy.so/contracts build\` and \`bun run --filter @oxy.so/db build\` first.`,
   );
   process.exit(1);
 }
@@ -369,32 +367,25 @@ for (const entry of DECLARED_FREE_SHAPED_COLUMNS) {
   const key = `${entry.table}.${entry.column}`;
   if (seenColumns.has(key)) continue;
   problems.push(
-    `DECLARED_FREE_SHAPED_COLUMNS names ${key}, which this census did not find as an open-shaped `
-    + 'or payload-named column. The column was dropped, renamed, or narrowed to a closed type — '
-    + 'delete the entry, so the list keeps describing the schema.',
+    `DECLARED_FREE_SHAPED_COLUMNS names ${key}, which this census did not find as an open-shaped or payload-named column. The column was dropped, renamed, or narrowed to a closed type — delete the entry, so the list keeps describing the schema.`,
   );
 }
 
 // ── Vacuity floors and the positive control ───────────────────────────────
 if (seenTables.size < MINIMUM_TABLES) {
   problems.push(
-    `${seenTables.size} table(s) inspected is below the ${MINIMUM_TABLES} floor. The barrel or the `
-    + 'traversal is broken, and a census that inspected nothing reports exactly what a clean '
-    + 'schema reports.',
+    `${seenTables.size} table(s) inspected is below the ${MINIMUM_TABLES} floor. The barrel or the traversal is broken, and a census that inspected nothing reports exactly what a clean schema reports.`,
   );
 }
 if (columnsInspected < MINIMUM_COLUMNS) {
   problems.push(
-    `${columnsInspected} column(s) inspected is below the ${MINIMUM_COLUMNS} floor. Tables were `
-    + 'found but their columns were not being read.',
+    `${columnsInspected} column(s) inspected is below the ${MINIMUM_COLUMNS} floor. Tables were found but their columns were not being read.`,
   );
 }
 for (const table of REQUIRED_TABLES) {
   if (seenTables.has(table)) continue;
   problems.push(
-    `${table} was not among the tables inspected. It is one of the tables this policy is ABOUT, `
-    + 'so a census that misses it can report a clean result while never looking at the place a '
-    + 'payload would go.',
+    `${table} was not among the tables inspected. It is one of the tables this policy is ABOUT, so a census that misses it can report a clean result while never looking at the place a payload would go.`,
   );
 }
 

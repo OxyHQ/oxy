@@ -62,7 +62,8 @@ const FOREIGN_KEY_VIOLATION = '23503';
 const GENERATED_ALWAYS = '428C9';
 
 /** The migration that installs the provenance triggers, read back as text. */
-const PROVENANCE_MIGRATION = '0050_inference_model_provenance_marking.sql';
+const PROVENANCE_MIGRATION = '0145_private_decisions_output.sql';
+const PROVENANCE_TRIGGER_MIGRATION = '0050_inference_model_provenance_marking.sql';
 
 beforeAll(async () => {
   await connectPostgres();
@@ -722,6 +723,19 @@ describe('a non-text model must declare its content-provenance marking', () => {
     }
   );
 
+  it('admits decisions revision and text-to-decisions transition without invented safety metadata', async () => {
+    const publisher = await insertPublisher();
+    const modelId = await insertModelWithOutputs(publisher, ['decisions']);
+    await getDb().insert(inferenceModelRevisions).values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true });
+    const textModelId = await insertModelWithOutputs(publisher, ['text']);
+    await getDb().insert(inferenceModelRevisions).values({ modelId: textModelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true });
+    await getDb().update(inferenceModels).set({ outputModalities: ['text', 'decisions'] }).where(eq(inferenceModels.id, textModelId));
+    expect((await getDb().select().from(inferenceModels).where(eq(inferenceModels.id, textModelId)))[0].outputModalities).toEqual(['text', 'decisions']);
+    for (const modality of ['image', 'audio', 'video', 'embedding']) {
+      expect(pgErrorCode(await rejection(getDb().update(inferenceModels).set({ outputModalities: ['decisions', modality] }).where(eq(inferenceModels.id, textModelId))))).toBe(CHECK_VIOLATION);
+    }
+  });
+
   it('admits a TEXT-only model’s revision with no marking', async () => {
     /*
      * The control for every refusal above. A constraint that refused every
@@ -854,9 +868,10 @@ describe('the provenance migration and the schema agree on the DDL', () => {
     expect(migration).toContain(INFERENCE_MODEL_PROVENANCE_DDL);
   });
 
+  const triggerMigration = readFileSync(join(__dirname, '..', '..', '..', '..', 'drizzle', PROVENANCE_TRIGGER_MIGRATION), 'utf8');
   it('carries both trigger texts the schema declares authoritative', () => {
-    expect(migration).toContain(INFERENCE_REVISION_PROVENANCE_TRIGGER_DDL);
-    expect(migration).toContain(INFERENCE_MODEL_PROVENANCE_TRIGGER_DDL);
+    expect(triggerMigration).toContain(INFERENCE_REVISION_PROVENANCE_TRIGGER_DDL);
+    expect(triggerMigration).toContain(INFERENCE_MODEL_PROVENANCE_TRIGGER_DDL);
   });
 
   it('declares a deploy phase, so the deploy knows which side it belongs on', () => {
@@ -867,8 +882,8 @@ describe('the provenance migration and the schema agree on the DDL', () => {
     // Stated against the migration text because the two arms answer different
     // attacks (a row that never declared, and a row that stopped declaring), and
     // dropping either would leave the other's test green.
-    expect(migration).toContain('BEFORE INSERT OR UPDATE ON inference_model_revisions');
-    expect(migration).toContain('BEFORE UPDATE ON inference_models');
+    expect(triggerMigration).toContain('BEFORE INSERT OR UPDATE ON inference_model_revisions');
+    expect(triggerMigration).toContain('BEFORE UPDATE ON inference_models');
   });
 });
 

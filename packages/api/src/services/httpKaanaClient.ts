@@ -55,7 +55,7 @@
  * edge's own test asserts a prompt marker appears in no log call.
  */
 
-import { inferenceRequestSchema, scopedInferenceRequestSchema, canonicalScopedExecutionJson, scopedExecutionAudienceSchema, SCOPED_EXECUTION_CONTRACT_VERSION, type ScopedInferenceRequest, decisionResultSchema, decisionFailureSchema, decisionAnswersMatch, inferenceErrorSchema } from '@oxy.so/contracts';
+import { privateAutoInferenceRequestSchema, privateAutoSourceApprovalSchema, PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION, type PrivateAutoInferenceRequest, inferenceRequestSchema, scopedInferenceRequestSchema, canonicalScopedExecutionJson, scopedExecutionAudienceSchema, SCOPED_EXECUTION_CONTRACT_VERSION, type ScopedInferenceRequest, decisionResultSchema, decisionFailureSchema, decisionAnswersMatch, inferenceErrorSchema } from '@oxy.so/contracts';
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
@@ -84,6 +84,8 @@ import {
   type KaanaDataPlaneConfig,
 } from '../config/kaanaDataPlane';
 import { logger } from '../utils/logger';
+import { privateAutoClassifierSourceApproval, reviewedPrivateAutoApproval } from '../config/privateAutoClassification';
+import { validatePrivateAutoAttestation } from './privateAutoAttestation.service';
 import {
   KaanaEnvelopeRejectedError,
   KaanaIncompleteError,
@@ -160,6 +162,7 @@ const kaanaDeploymentAttestationSchema = z
   .object({
     snapshotId: z.string().min(1).max(256),
     scopedExecutionContractVersion: z.literal(SCOPED_EXECUTION_CONTRACT_VERSION).optional(),
+    privateAutoExecutionContractVersion: z.literal(PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION).optional(),
     deployments: z
       .array(
         z
@@ -176,6 +179,7 @@ const kaanaDeploymentAttestationSchema = z
              */
             acceptedParameters: z.array(z.string().max(64)).max(64).optional(),
             scopedExecution: scopedExecutionAudienceSchema.optional(),
+            privateAutoSourceApproval: privateAutoSourceApprovalSchema.optional(),
             keyId: z.string().min(1).max(256).optional(),
             upstreamModelId: z.string().min(1).max(256).optional(),
             providerRateCardVersionId: z.string().min(1).max(256).optional(),
@@ -328,6 +332,13 @@ export interface KaanaCatalogueReader {
   listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation>;
 }
 
+/** A nil source getter keeps 3.7 negotiation off until both ends and review are ready. */
+function catalogueNegotiation(): Pick<KaanaExecuteOptions, 'scopedExecutionContractVersion' | 'privateAutoExecutionContractVersion'> {
+  return { scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION,
+    ...(reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval()) === undefined ? {} :
+      { privateAutoExecutionContractVersion: PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION }) };
+}
+
 /** `undefined` whenever the data plane is not fully configured. */
 export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefined {
   const resolution = resolveKaanaDataPlane();
@@ -340,7 +351,7 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
     async listModels(signal: AbortSignal): Promise<unknown> {
       // A GET signs the empty body, exactly as Kaana's readSignedBody verifies
       // it for the health and catalogue surfaces.
-      const body = Buffer.from(JSON.stringify({ scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION }), 'utf8');
+      const body = Buffer.from(JSON.stringify(catalogueNegotiation()), 'utf8');
       const timestamp = Date.now();
       const response = await fetch(`${config.baseUrl}/internal/v1/models/query`, {
         method: 'POST',
@@ -364,7 +375,9 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
       }
       const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
       try {
-        const parsed = JSON.parse(raw) as { scopedExecutionContractVersion?: unknown };
+        const parsed = JSON.parse(raw) as { scopedExecutionContractVersion?: unknown; privateAutoExecutionContractVersion?: unknown };
+        const requested = JSON.parse(body.toString()) as KaanaExecuteOptions;
+        if (parsed.privateAutoExecutionContractVersion !== requested.privateAutoExecutionContractVersion) throw new KaanaProtocolError('Missing private Auto catalogue acknowledgement.');
         if (parsed.scopedExecutionContractVersion !== SCOPED_EXECUTION_CONTRACT_VERSION) throw new KaanaProtocolError('Missing full catalogue scoped execution acknowledgement.');
         return parsed;
       } catch {
@@ -395,7 +408,7 @@ class HttpKaanaClient implements KaanaClient {
       );
     }
 
-    const body = Buffer.from(JSON.stringify({ deploymentIds: [...deploymentIds], ...(options.scopedExecutionContractVersion === undefined ? {} : { scopedExecutionContractVersion: options.scopedExecutionContractVersion }) }), 'utf8');
+    const body = Buffer.from(JSON.stringify({ deploymentIds: [...deploymentIds], ...(options.scopedExecutionContractVersion === undefined ? {} : { scopedExecutionContractVersion: options.scopedExecutionContractVersion }), ...(options.privateAutoExecutionContractVersion === undefined ? {} : { privateAutoExecutionContractVersion: options.privateAutoExecutionContractVersion }) }), 'utf8');
     const timestamp = Date.now();
     const response = await fetch(
       `${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`,
@@ -453,12 +466,13 @@ class HttpKaanaClient implements KaanaClient {
     if (options.scopedExecutionContractVersion === undefined && parsed.data.deployments.some((row) => row.scopedExecution !== undefined)) {
       throw new KaanaProtocolError('A legacy query returned restricted deployments.');
     }
+    validatePrivateAutoAttestation(parsed.data, options.privateAutoExecutionContractVersion);
     return parsed.data;
   }
 
   /** The whole serving snapshot: the signed empty query `{}`. */
   async listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation> {
-    const body = Buffer.from(JSON.stringify({ scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION }), 'utf8');
+    const body = Buffer.from(JSON.stringify(catalogueNegotiation()), 'utf8');
     const timestamp = Date.now();
     const response = await fetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
       method: 'POST',
@@ -498,6 +512,7 @@ class HttpKaanaClient implements KaanaClient {
     if (parsed.data.scopedExecutionContractVersion !== SCOPED_EXECUTION_CONTRACT_VERSION) {
       throw new KaanaProtocolError('The data plane did not acknowledge publication scope restrictions.');
     }
+    validatePrivateAutoAttestation(parsed.data, (JSON.parse(body.toString()) as KaanaExecuteOptions).privateAutoExecutionContractVersion);
     return parsed.data;
   }
 
@@ -512,9 +527,10 @@ class HttpKaanaClient implements KaanaClient {
    * remember to say so.
    */
   async *stream(
-    envelope: InferenceRequest | ScopedInferenceRequest,
+    envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
     options: KaanaExecuteOptions
   ): AsyncGenerator<KaanaStreamFrame> {
+    if (envelope.schemaVersion === 4) throw new KaanaProtocolError('Private Auto has no streaming inference path.');
     const body = kaanaEnvelopeBytes(envelope);
     const timestamp = Date.now();
     const hop = new AbortController();
@@ -569,9 +585,23 @@ class HttpKaanaClient implements KaanaClient {
    * request shape — it is the same bytes, accumulated.
    */
   async execute(
-    envelope: InferenceRequest | ScopedInferenceRequest,
+    envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
     options: KaanaExecuteOptions
   ): Promise<KaanaCompletion> {
+    if (envelope.schemaVersion === 4) {
+      if (options.privateAutoExecutionContractVersion !== PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION || options.scopedExecutionContractVersion !== undefined) {
+        throw new KaanaProtocolError('Private Auto requires its independent negotiated contract.');
+      }
+      // The original parent-owned deadline covers serialization, send and response; no renewal.
+      const remaining = Date.parse(envelope.privateAutoExecution.runtimeExpiresAt) - Date.now();
+      if (remaining <= 0 || remaining > 1000 || options.signal.aborted) throw new KaanaProtocolError('Private Auto deadline unavailable.');
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      options.signal.addEventListener('abort', cancel, { once: true });
+      const timeout = setTimeout(cancel, remaining);
+      try { return await executeDecisions(this.config, envelope, { ...options, signal: controller.signal }); }
+      finally { clearTimeout(timeout); options.signal.removeEventListener('abort', cancel); controller.abort(); }
+    }
     if (envelope.input.format === 'decisions') {
       return executeDecisions(this.config, envelope, options);
     }
@@ -592,7 +622,7 @@ class HttpKaanaClient implements KaanaClient {
  */
 async function executeDecisions(
   config: KaanaDataPlaneConfig,
-  envelope: InferenceRequest | ScopedInferenceRequest,
+  envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
   options: KaanaExecuteOptions
 ): Promise<KaanaCompletion> {
   const requestId = envelope.attribution.requestId;
@@ -1191,7 +1221,13 @@ async function readBounded(response: Response): Promise<string> {
 }
 
 /** Validate without changing legacy bytes; scoped input hashes cover the actual JSON wire. */
-export function kaanaEnvelopeBytes(envelope: InferenceRequest | ScopedInferenceRequest): Buffer<ArrayBuffer> {
+export function kaanaEnvelopeBytes(envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest): Buffer<ArrayBuffer> {
+  if (envelope.schemaVersion === 4) {
+    const validated = privateAutoInferenceRequestSchema.parse(envelope);
+    const inputSha256 = createHash('sha256').update(canonicalScopedExecutionJson(validated.input), 'utf8').digest('hex');
+    if (inputSha256 !== validated.privateAutoExecution.inputSha256) throw new KaanaProtocolError('Private Auto input hash mismatch.');
+    return Buffer.from(canonicalScopedExecutionJson(JSON.parse(JSON.stringify(validated)) as unknown), 'utf8');
+  }
   if (envelope.schemaVersion === 3) {
     const validated = scopedInferenceRequestSchema.parse(envelope);
     const wire = JSON.parse(JSON.stringify(validated)) as unknown;

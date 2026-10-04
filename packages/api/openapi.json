@@ -22195,7 +22195,8 @@
                                 "image",
                                 "audio",
                                 "video",
-                                "embedding"
+                                "embedding",
+                                "decisions"
                               ]
                             },
                             "minItems": 1
@@ -29414,7 +29415,8 @@
                                     "image",
                                     "audio",
                                     "video",
-                                    "embedding"
+                                    "embedding",
+                                    "decisions"
                                   ]
                                 },
                                 "minItems": 1
@@ -30246,7 +30248,8 @@
                                     "image",
                                     "audio",
                                     "video",
-                                    "embedding"
+                                    "embedding",
+                                    "decisions"
                                   ]
                                 },
                                 "minItems": 1
@@ -30944,7 +30947,8 @@
                                   "image",
                                   "audio",
                                   "video",
-                                  "embedding"
+                                  "embedding",
+                                  "decisions"
                                 ]
                               },
                               "minItems": 1
@@ -40347,7 +40351,8 @@
                                     "image",
                                     "audio",
                                     "video",
-                                    "embedding"
+                                    "embedding",
+                                    "decisions"
                                   ]
                                 },
                                 "minItems": 1
@@ -41179,7 +41184,8 @@
                                     "image",
                                     "audio",
                                     "video",
-                                    "embedding"
+                                    "embedding",
+                                    "decisions"
                                   ]
                                 },
                                 "minItems": 1
@@ -41877,7 +41883,8 @@
                                   "image",
                                   "audio",
                                   "video",
-                                  "embedding"
+                                  "embedding",
+                                  "decisions"
                                 ]
                               },
                               "minItems": 1
