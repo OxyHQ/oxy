@@ -64,7 +64,7 @@ own fresh log stream containing:
 Any `Merchant billing registration failed` or mismatched positive line rejects
 acceptance. Initial/unhealthy targets and missing positive logs can wait within
 the same bounded monitor; only known previous task targets may drain, and they
-must disappear before acceptance. Public /health and /ready must return200 with
+must disappear before acceptance. Public /health and /health/ready must return200 with
 no redirects/cookies. No HTTP200 alone is registration proof. Startup readiness
 cannot prove asynchronous provider installation.
 
@@ -83,3 +83,10 @@ unknown ACK and confirmed failure without count/rollback writes. AWS/HTTP are
 mocked in these operational tests; separate Mercaria SQL/SDK fixtures and CI
 remain the product proof. The initial test fake wrongly put tags inside the TD
 object; that local setup failure is preserved and excluded from PASS.
+
+The initial actual TD61 rollout emitted the exact cohort attestation and reached
+steady1/1 COMPLETED, then the external helper failed on the nonexistent /ready
+URL. ROOT reconciles the same deployment using canonical /health/ready; no
+registration/update replay is needed. A real loopback HTTP routing fixture
+reproduces that 404 with the old helper and passes with the corrected path.
+The fixture models canonical route topology; it does not boot the product server.

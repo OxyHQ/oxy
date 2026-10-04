@@ -1,4 +1,4 @@
-import copy, importlib.util, json, tempfile, unittest
+import copy, http.server, importlib.util, json, tempfile, threading, unittest, urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 PATH=Path(__file__).resolve().parents[1]/'mercaria-cohort-promotion.py'
@@ -105,6 +105,28 @@ class Tests(unittest.TestCase):
         for field,value in [('minimumHealthyPercent',0),('maximumPercent',100)]:
             other=copy.deepcopy(s);other['deploymentConfiguration'][field]=value;self.assertRaises(ValueError,c.steady,other)
         other=copy.deepcopy(s);other['deploymentConfiguration']['deploymentCircuitBreaker']['rollback']=True;self.assertRaises(ValueError,c.steady,other)
+    def test_public_smoke_reaches_actual_canonical_health_ready_path_over_http(self):
+        observed=[]
+        class CanonicalRoutes(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                observed.append(self.path)
+                self.send_response(200 if self.path in ['/health','/health/ready'] else 404)
+                self.end_headers();self.wfile.write(b'{"status":"ok"}')
+            def log_message(self,*args):pass
+        server=http.server.ThreadingHTTPServer(('127.0.0.1',0),CanonicalRoutes)
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        request=c.urllib.request.Request
+        def local_request(url,*args,**kwargs):
+            parsed=urllib.parse.urlsplit(url)
+            self.assertEqual((parsed.scheme,parsed.netloc),('https','api.mercaria.co'))
+            return request('http://127.0.0.1:'+str(server.server_port)+parsed.path,*args,**kwargs)
+        try:
+            with patch.object(c.urllib.request,'Request',side_effect=local_request):result=c.public_smoke()
+            self.assertEqual(observed,['/health','/health/ready'])
+            self.assertEqual([x['path'] for x in result],observed)
+            self.assertTrue(all(x['status']==200 for x in result))
+        finally:server.shutdown();server.server_close();thread.join(timeout=5)
+
     def test_aws_generated_tags_excluded_and_custom_tags_retained(self):
         self.assertEqual(c.tags({'tags':[{'key':'aws:reserved','value':'x'},{'key':'keep','value':'yes'}]}),[{'key':'keep','value':'yes'}])
 

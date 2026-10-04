@@ -148,7 +148,7 @@ def public_smoke():
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*_):raise ValueError('public_redirect')
     evidence=[]
-    for path in ['/health','/ready']:
+    for path in ['/health','/health/ready']:
         req=urllib.request.Request('https://api.mercaria.co'+path,headers={'User-Agent':'OxyHQ-Mercaria1519ReadonlyVerifier/1.0'})
         with urllib.request.build_opener(NoRedirect).open(req,timeout=30) as r:
             raw=r.read(100001);need(r.status==200 and len(raw)<=100000 and not r.headers.get_all('Set-Cookie'),'public_smoke');evidence.append({'path':path,'status':r.status,'bodySha256':hashlib.sha256(raw).hexdigest()})

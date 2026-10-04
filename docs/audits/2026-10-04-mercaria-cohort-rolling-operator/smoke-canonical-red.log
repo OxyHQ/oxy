@@ -1,0 +1,32 @@
+........E../usr/lib/python3.13/json/encoder.py:263: ResourceWarning: unclosed <socket.socket [closed] fd=4, family=2, type=1, proto=6>
+  def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+....
+======================================================================
+ERROR: test_public_smoke_reaches_actual_canonical_health_ready_path_over_http (__main__.Tests.test_public_smoke_reaches_actual_canonical_health_ready_path_over_http)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-cohort-promotion-20261004/scripts/operations/__tests__/mercaria-cohort-promotion.test.py", line 124, in test_public_smoke_reaches_actual_canonical_health_ready_path_over_http
+    with patch.object(c.urllib.request,'Request',side_effect=local_request):result=c.public_smoke()
+                                                                                   ~~~~~~~~~~~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-mercaria-cohort-promotion-20261004/scripts/operations/mercaria-cohort-promotion.py", line 153, in public_smoke
+    with urllib.request.build_opener(NoRedirect).open(req,timeout=30) as r:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/urllib/request.py", line 495, in open
+    response = meth(req, response)
+  File "/usr/lib/python3.13/urllib/request.py", line 604, in http_response
+    response = self.parent.error(
+        'http', request, response, code, msg, hdrs)
+  File "/usr/lib/python3.13/urllib/request.py", line 533, in error
+    return self._call_chain(*args)
+           ~~~~~~~~~~~~~~~~^^^^^^^
+  File "/usr/lib/python3.13/urllib/request.py", line 466, in _call_chain
+    result = func(*args)
+  File "/usr/lib/python3.13/urllib/request.py", line 613, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 404: Not Found
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.592s
+
+FAILED (errors=1)
