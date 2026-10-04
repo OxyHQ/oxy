@@ -1,0 +1,6 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts -t "qualifies the exact pilot quote"
+Test Suites: 1 passed, 1 total
+Tests:       43 skipped, 3 passed, 46 total
+Snapshots:   0 total
+Time:        1.07 s, estimated 2 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts with tests matching "qualifies the exact pilot quote".

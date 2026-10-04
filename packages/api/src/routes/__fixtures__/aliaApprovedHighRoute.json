@@ -1,0 +1,108 @@
+{
+  "deployment_id": "dep_openrouter_deepseek_deepseek_v4_flash_0731_observed_2026_09_01",
+  "deployment_row_id": "01a0d808-5ab5-755e-a679-1717e4881981",
+  "model_id": "deepseek/deepseek-v4-flash-0731",
+  "revision": "observed-2026-09-01",
+  "model_reference": "deepseek/deepseek-v4-flash-0731@observed-2026-09-01",
+  "is_current": true,
+  "released_at": "2026-09-25 10:06:59.737+00",
+  "power_class": "high",
+  "class_evidence_source": "artificial-analysis-intelligence-index/v4.3.2",
+  "class_evidence_url": "https://artificialanalysis.ai/models/deepseek-v4-flash",
+  "class_evidence_summary": "AA Intelligence Index 34 (max effort); #10 of 117 open-weight (read 2026-09-30).",
+  "class_reviewed_at": "2026-09-30 00:00:00+00",
+  "provider": "openrouter",
+  "status": "active",
+  "availability_scope": "platform_internal",
+  "permission_state": "approved",
+  "commercial_permission": "standard_application_use",
+  "legal_review_status": "approved",
+  "legal_review_evidence_ref": "auto-approval-policy:kaana-sync",
+  "legal_reviewed_at": "2026-09-25 10:06:59.737+00",
+  "regions": [],
+  "retains_payloads": false,
+  "retention_days": 0,
+  "trains_on_customer_data": false,
+  "zero_data_retention_available": true,
+  "subprocessors": null,
+  "policy_url": "https://openrouter.ai/docs/guides/privacy/provider-logging",
+  "license_id": "LicenseRef-Oxy-Serving-Provider-Terms",
+  "commercial_use_allowed": false,
+  "requires_attribution": true,
+  "input_modalities": [
+    "text"
+  ],
+  "output_modalities": [
+    "text"
+  ],
+  "max_context_tokens": 1048576,
+  "max_output_tokens": 943718,
+  "supports_tools": true,
+  "supports_parallel_tool_calls": false,
+  "supports_structured_output": false,
+  "supports_json_mode": false,
+  "supports_reasoning": true,
+  "supports_streaming": true,
+  "supports_prompt_caching": false,
+  "reasoning_efforts": [
+    "low",
+    "medium",
+    "high"
+  ],
+  "accepted_parameters": [
+    "maxOutputTokens",
+    "reasoning.effort",
+    "responseFormat",
+    "sampling.frequencyPenalty",
+    "sampling.presencePenalty",
+    "sampling.seed",
+    "sampling.stopSequences",
+    "sampling.temperature",
+    "sampling.topP",
+    "toolChoice",
+    "tools"
+  ],
+  "price_version_id": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+  "price_provider": "openrouter",
+  "price_model_reference": "deepseek/deepseek-v4-flash-0731@observed-2026-09-01",
+  "price_status": "active",
+  "currency": "USD",
+  "price_effective_from": "2026-10-03 22:18:04.647+00",
+  "price_effective_until": null,
+  "unit_prices": [
+    {
+      "per": "1000000",
+      "unit": "cached_input_tokens",
+      "amount": "0.015200000000"
+    },
+    {
+      "per": "1000000",
+      "unit": "input_tokens",
+      "amount": "0.015200000000"
+    },
+    {
+      "per": "1000000",
+      "unit": "output_tokens",
+      "amount": "1.280000000000"
+    },
+    {
+      "per": "1000000",
+      "unit": "reasoning_tokens",
+      "amount": "1.280000000000"
+    },
+    {
+      "per": "1",
+      "unit": "requests",
+      "amount": "0.000000000000"
+    }
+  ],
+  "price_score": -130,
+  "price_source": "cost_model",
+  "price_evidence_ref": "kaana-list-price:snap_8801d0c4e843149f",
+  "score_price_version_id": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+  "funding_class": "standard_payg",
+  "funding_state": "available",
+  "funding_valid_until": null,
+  "pilot_member": false,
+  "matching_row_count": 33
+}

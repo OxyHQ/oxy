@@ -103,7 +103,7 @@
  * prompt with a positive control proving the logger was called at all.
  */
 
-import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, type DecisionAnswer } from '@oxy.so/contracts';
+import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, exactDecimalSchema, type DecisionAnswer } from '@oxy.so/contracts';
 import { decisionAvailability } from '../config/decisionAvailability';
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -1185,6 +1185,20 @@ async function admitWithAutoDecision(
     { readonly status: 'resolved' }
   > | undefined;
   let maxPricePerRequest = routingConstraints.maxPricePerRequest;
+  const parsedPilotPrice = pilot?.maxPricePerRequestUsd === undefined
+    ? undefined : exactDecimalSchema.safeParse(pilot.maxPricePerRequestUsd);
+  if (parsedPilotPrice !== undefined && !parsedPilotPrice.success) {
+    return refuse('policy_violation', 'The internal pilot quote ceiling is invalid.');
+  }
+  const pilotPriceLimit = parsedPilotPrice?.success ? parsedPilotPrice.data : undefined;
+  if (pilotPriceLimit !== undefined) {
+    if (maxPricePerRequest !== undefined && maxPricePerRequest.currency !== 'USD') {
+      return refuse('policy_violation', 'The internal pilot quote ceiling requires USD.');
+    }
+    if (maxPricePerRequest === undefined || exceedsAmount(maxPricePerRequest.amount, pilotPriceLimit)) {
+      maxPricePerRequest = { amount: pilotPriceLimit, currency: 'USD' };
+    }
+  }
   const childPriceLimit = context.autoClassificationChild?.maxPricePerRequest;
   if (childPriceLimit !== undefined) {
     if (maxPricePerRequest !== undefined && maxPricePerRequest.currency !== childPriceLimit.currency) {
@@ -1864,6 +1878,9 @@ async function admitWithAutoDecision(
     }
   }
 
+  if (pilotPriceLimit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, pilotPriceLimit))) {
+    return refuse('policy_violation', 'The internal pilot quote exceeds its authorized USD ceiling.');
+  }
   if (scopedPermit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, scopedPermit.maxCostUsd))) {
     return refuse('policy_violation', 'Scoped quote exceeds the authorized USD cost.');
   }
