@@ -1,5 +1,17 @@
 # Changelog — `@oxy.so/core`
 
+## 4.4.0
+
+### Added
+
+- `OxyServer.apps.introspectAliaMachineCredential` performs an uncached,
+  receiver-bound lookup for explicitly scoped app-only Alia chat credentials.
+- The server-only `createOxyAliaMachineCredentialAuth` middleware validates
+  audience/environment and keeps the forwarding bearer request-scoped without
+  turning the caller into a user or internal service. Alia forwards this caller
+  to Oxy inference so the caller application remains the payer.
+
+
 ## Unreleased (MINOR — additive; needs the next `@oxy.so/contracts` MINOR)
 
 ### Added
