@@ -159,6 +159,8 @@ import {
   type UsageSource,
   type UsageUnit,
 } from '@oxy.so/contracts';
+import { mentionClassifierApproval, type MentionClassifierApproval } from '../config/mentionClassifierEconomics';
+import { isMentionClassifierRequest, mentionClassifierAuthorityActive, mentionClassifierEconomicDecision } from './mentionClassifierEconomics.service';
 import { scopedPermitForContext, attestScopedPermit, scopedFundingIntegrationAvailable, scopedFundingRestriction } from './scopedExecution.service';
 import { scopedInferenceRequestSchema, type ScopedExecution, type ScopedInferenceRequest } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
@@ -677,6 +679,7 @@ export interface EdgeStreamHead {
 /** Everything admission resolved, and the hold it took. */
 export interface AdmittedRequest {
   readonly scopedExecution?: ScopedExecution;
+  readonly mentionClassifier?: MentionClassifierApproval;
   readonly route: EdgeRoute;
   /** The caller's concrete target or routing profile, preserved for the envelope. */
   readonly routingTarget: RoutingTarget;
@@ -923,7 +926,10 @@ async function admitWithAutoDecision(
   const { requestId, principal, request } = context;
   const charging = isChargingAuthorized();
   const scopedPermit = scopedPermitForContext(context);
-  const economics = resolveEconomicTreatment(principal);
+  let economics = resolveEconomicTreatment(principal);
+  const classifierApproval = mentionClassifierApproval();
+  const mentionClassifier = classifierApproval !== undefined
+    && isMentionClassifierRequest(principal, request, classifierApproval) ? { ...classifierApproval } : undefined;
 
   const refuse = (
     code: InferenceErrorCode,
@@ -1864,6 +1870,14 @@ async function admitWithAutoDecision(
   if (scopedPermit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, scopedPermit.maxCostUsd))) {
     return refuse('policy_violation', 'Scoped quote exceeds the authorized USD cost.');
   }
+  if (mentionClassifier !== undefined) {
+    const decision = mentionClassifierEconomicDecision({ principal, request, approval: mentionClassifier,
+      routes: authorizedRoutes, policy: routingPolicy, quote: { amount: maxAmount, currency: quote.currency },
+      authorityActive: await mentionClassifierAuthorityActive(principal), delegatedUserId: context.delegatedUserId,
+      now: Date.now() });
+    if (decision === undefined) return refuse('policy_violation', 'Mention classifier relationship is not eligible.');
+    economics = decision;
+  }
   const ledgerKey = ledgerIdempotencyKey(context);
 
   // Idempotency is a CHARGE guarantee, not response replay: prompts and
@@ -2086,6 +2100,7 @@ async function admitWithAutoDecision(
     status: 'admitted',
     admitted: {
       ...(scopedExecution === undefined ? {} : { scopedExecution }),
+      ...(mentionClassifier === undefined ? {} : { mentionClassifier }),
       route,
       routingTarget: admittedRoutingTarget,
       authorizedRoutes,
@@ -2145,6 +2160,17 @@ export async function executeInferenceRequest(
         : hold !== undefined && hold.expiresAt.getTime() > Date.now();
       if (!economicAdmissionActive || Date.parse(admitted.scopedExecution.expiresAt) <= Date.now()) {
         throw new Error('Scoped dispatch requires its retained unexpired economic admission and permit.');
+      }
+    }
+    if (admitted.mentionClassifier !== undefined) {
+      const authorityActive = await mentionClassifierAuthorityActive(context.principal);
+      const admissionActive = await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId);
+      // Re-read source approval and time AFTER both asynchronous database reads.
+      const current = mentionClassifierApproval();
+      if (!authorityActive || !admissionActive
+        || JSON.stringify(current) !== JSON.stringify(admitted.mentionClassifier)
+        || Date.parse(admitted.mentionClassifier.expiresAt) <= Date.now()) {
+        throw new Error('Mention classifier relationship is no longer active.');
       }
     }
     completion = await context.kaanaClient.execute(envelope, { signal: context.signal });
