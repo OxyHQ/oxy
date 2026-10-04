@@ -1,0 +1,30 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/privateCommissioning.test.ts --testNamePattern "^compiled Node CLI"
+{"level":30,"time":1791136879551,"pid":1857348,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/privateCommissioning.test.ts (46.924 s)
+  ✓ compiled Node CLI performs dry-run and explicit hash-bound apply on the same owned SQL fixture (46552 ms)
+  ○ skipped wire audience alone cannot commission a pending disabled deployment
+  ○ skipped private source authority admits real price only, preserving public permission and missing scores
+  ○ skipped refuses no-legal instead of widening private commissioning
+  ○ skipped refuses no-evidence instead of widening private commissioning
+  ○ skipped refuses foreign-audience instead of widening private commissioning
+  ○ skipped refuses expired instead of widening private commissioning
+  ○ skipped refuses restricted instead of widening private commissioning
+  ○ skipped refuses public-scope instead of widening private commissioning
+  ○ skipped legal CLI is dry-run by default and atomically records the exact review without public approval
+  ○ skipped legal operation denies hash without review or audit writes
+  ○ skipped legal operation denies not-staff without review or audit writes
+  ○ skipped legal operation denies scope without review or audit writes
+  ○ skipped legal operation denies bot without review or audit writes
+  ○ skipped legal operation denies archived without review or audit writes
+  ○ skipped legal operation denies fence without review or audit writes
+  ○ skipped legal operation denies foreign-route without review or audit writes
+  ○ skipped legal operation denies changed-evidence without review or audit writes
+  ○ skipped legal review rolls back when its durable audit cannot commit
+  ○ skipped serializes two competing legal applies to one audit and refuses stale authority
+  ○ skipped rechecks source withdrawal after the final asynchronous catalogue lookup
+
+Test Suites: 1 passed, 1 total
+Tests:       20 skipped, 1 passed, 21 total
+Snapshots:   0 total
+Time:        46.963 s
+Ran all test suites within paths "src/services/__tests__/privateCommissioning.test.ts".
