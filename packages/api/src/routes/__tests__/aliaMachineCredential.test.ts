@@ -108,6 +108,23 @@ describe('Alia machine introspection over real HTTP and SQL', () => {
     await getDb().update(applicationCredentials).set({ status: 'revoked' }).where(eq(applicationCredentials.id, key.credentialId));
     expect(await oxy.apps.introspectAliaMachineCredential(key.token)).toEqual({ active: false });
   });
+  it('refuses an expired credential without caching earlier admission', async () => {
+    const key = await machine();
+    const oxy = resourceClient();
+    expect((await oxy.apps.introspectAliaMachineCredential(key.token)).active).toBe(true);
+    await getDb().update(applicationCredentials).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(applicationCredentials.id, key.credentialId));
+    expect(await oxy.apps.introspectAliaMachineCredential(key.token)).toEqual({ active: false });
+  });
+  it('refuses a suspended application', async () => {
+    const key = await machine();
+    await getDb().update(applications).set({ status: 'suspended' }).where(eq(applications.id, key.applicationId));
+    expect(await resourceClient().apps.introspectAliaMachineCredential(key.token)).toEqual({ active: false });
+  });
+  it('does not accept the token prefix with a different secret', async () => {
+    const key = await machine();
+    const altered = key.token.slice(0, -1) + (key.token.endsWith('a') ? 'b' : 'a');
+    expect(await resourceClient().apps.introspectAliaMachineCredential(altered)).toEqual({ active: false });
+  });
   it('refuses another environment without disclosing credential state', async () => {
     const key = await machine();
     await getDb().update(applicationCredentials).set({ environment: 'production' }).where(eq(applicationCredentials.id, key.credentialId));

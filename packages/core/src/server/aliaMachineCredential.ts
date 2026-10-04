@@ -42,7 +42,7 @@ export function isOxyAliaMachinePrincipal(value: unknown): value is OxyAliaMachi
   return Object.keys(p).length === keys.length && keys.every(key => Object.prototype.hasOwnProperty.call(p, key))
     && p.kind === 'machine' && p.audience === OXY_ALIA_RESOURCE_APPLICATION_ID
     && id(p.applicationId) && id(p.credentialId) && id(p.ownerAccountId)
-    && ['production', 'staging', 'development'].includes(String(p.environment))
+    && typeof p.environment === 'string' && ['production', 'staging', 'development'].includes(p.environment)
     && Array.isArray(p.scopes) && p.scopes.length === 2
     && OXY_ALIA_MACHINE_SCOPES.every(scope => (p.scopes as unknown[]).includes(scope));
 }

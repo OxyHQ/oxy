@@ -1,5 +1,5 @@
 import express from 'express';
-import http from 'node:http';
+import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
   createOxyAliaMachineCredentialAuth, getOxyAliaMachineCredentialBearer,
@@ -73,6 +73,7 @@ describe('Alia-only machine credential contract', () => {
     { ...principal, scopes: [...principal.scopes, 'acting-as:offline'] },
     { ...principal, userId: 'owner-as-user' },
     { ...principal, tier: 'internal' },
+    { ...principal, environment: ['production'] },
   ])('rejects audience/scope/authority drift in the receipt', changed => {
     expect(isOxyAliaMachinePrincipal(changed)).toBe(false);
   });

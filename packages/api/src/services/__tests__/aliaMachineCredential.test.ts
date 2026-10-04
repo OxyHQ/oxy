@@ -27,8 +27,8 @@ describe('canonical Alia resource introspection', () => {
     resolve.mockResolvedValueOnce({ ok: true, principal: { ...principal, scopes: [...scopes] } });
     expect(await introspectAliaMachineCredential(OXY_ALIA_RESOURCE_APPLICATION_ID, 'secret', resolve)).toEqual({ active: false });
   });
-  it.each(['unknown_credential', 'revoked', 'expired', 'environment_mismatch'] as const)('does not disclose credential refusal %s', async reason => {
-    resolve.mockResolvedValueOnce({ ok: false, reason } as MachineCredentialResolution);
+  it.each(['unknown_credential', 'not_usable', 'secret_mismatch', 'environment_mismatch'] as const)('does not disclose credential refusal %s', async reason => {
+    resolve.mockResolvedValueOnce({ ok: false, reason });
     expect(await introspectAliaMachineCredential(OXY_ALIA_RESOURCE_APPLICATION_ID, 'secret', resolve)).toEqual({ active: false });
   });
 });
