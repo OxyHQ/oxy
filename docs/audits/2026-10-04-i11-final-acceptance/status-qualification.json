@@ -1,10 +1,10 @@
 {
   "kind": "i11-final-accepted-qualification",
   "historicalTenClosedSnapshotPreserved": "child-states.json",
-  "currentClosedDaughters": 9,
+  "currentClosedDaughters": 11,
   "I08": {
     "url": "https://github.com/OxyHQ/Peable/issues/87",
-    "state": "accepted-awaiting-issue-close",
+    "state": "CLOSED",
     "reopenCheckpointAt": "2026-10-04T08:48:19Z",
     "reopenCheckpointUnchecked": 4,
     "reopenCheckpointBodySha256": "37393f46327f3ed7618f62f7f27864aeac6ef3ba8f3fce415e860fa5655ef9f6",
@@ -91,5 +91,10 @@
     },
     "externalReviewLimits": "external-review-limits.json"
   },
-  "closureSequence": "Root-authorized completion follows final acceptance; exact issue readbacks recorded separately."
+  "closureSequence": [
+    "OxyHQ/Peable#87",
+    "OxyHQ/oxy#1527",
+    "OxyHQ/oxy#1519"
+  ],
+  "finalReadback": "final-issue-readback.json"
 }

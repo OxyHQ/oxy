@@ -118,7 +118,7 @@
   "records": [
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
-      "sha256": "0615868048b127eeebc3d65c76c47c828430187d1eebcbdf4fd1a741ed3a5c3b"
+      "sha256": "73dbd802c349b42fccc2117282038a3b2c1f651232f4a7f651a3e647ce24920c"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
@@ -131,6 +131,10 @@
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/external-review-limits.json",
       "sha256": "d434837996114d20e869563c28256233a2f57f8cbdf32efb5c2745894589cfa6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/final-issue-readback.json",
+      "sha256": "9678cc23fb6aeec732036486a21b0c92146f792f64cb9e519c3b54364e5598bd"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/final-ops-root-accepted.json",
@@ -150,11 +154,11 @@
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/runtime-summary.json",
-      "sha256": "d267b8a68a92d727af4ac3432bea949f34e3d32289bdcf56c2c0919cdb243890"
+      "sha256": "3273899f33648b8a73e918b24d1b05d97ab9c830e6f2c63a608843928b2bcad5"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/status-qualification.json",
-      "sha256": "e2422ff8671e5fb0b3b92c69a3ed39ca938e7f5c9041c30d1baedf918f98b97d"
+      "sha256": "01c2174917492984cd563280d82c4d98f700a65c12eac0a782a79a562193b097"
     }
   ],
   "pending": [],

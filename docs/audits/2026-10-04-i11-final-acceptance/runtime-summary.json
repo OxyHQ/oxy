@@ -71,5 +71,7 @@
       "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-four-frontends-accepted/accepted.json",
       "sha256": "349d461415c4e3b7f62f895d573ba60e769fb3248c3177ecfc0157d9298253b8"
     }
-  ]
+  ],
+  "snapshotClassification": "Historical 08:23 checkpoint; not current. Final Mercaria TD62 and restoration census are in final-restoration-accepted.json.",
+  "currentAcceptance": "final-restoration-accepted.json"
 }

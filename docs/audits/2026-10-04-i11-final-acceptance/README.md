@@ -1,6 +1,6 @@
 # I11 final acceptance index
 
-All original I11 criteria are accepted. Root confirmed the final runtime/restoration census at **2026-10-04 10:58:55 UTC**:31 services steady, no suspended scalers,52 original workflows ACTIVE and four hold variables absent. Mercaria now serves TD62/image e749 from main62aa; Oxy operational main eab1 is accepted without a new SDK/runtime rollout. [Final receipt](final-restoration-accepted.json). This audit adds no runtime test or acceptance requirement. The earlier ten-closed checkpoint and I08 reopen remain historical; final issue closure follows this acceptance.
+All original I11 criteria are accepted. Root confirmed the final runtime/restoration census at **2026-10-04 10:58:55 UTC**:31 services steady, no suspended scalers,52 original workflows ACTIVE and four hold variables absent. Mercaria now serves TD62/image e749 from main62aa; Oxy operational main eab1 is accepted without a new SDK/runtime rollout. [Final receipt](final-restoration-accepted.json). This audit adds no runtime test or acceptance requirement. The earlier ten-closed checkpoint and I08 reopen remain historical; [Final authenticated readback](final-issue-readback.json) confirms the parent and all11 children CLOSED/completed, with zero unchecked boxes.
 
 | Original criterion | Accepted evidence and remaining boundary |
 |---|---|
