@@ -1,0 +1,13 @@
+✔ actual native files and two identities are required (2.807242ms)
+✔ cached unreachable Forge path is rejected (1.807591ms)
+✔ renamed Forge package identity is rejected (2.07694ms)
+✔ tampered native code fails byte integrity (0.94982ms)
+✔ missing native package fails even when Forge is absent (0.898848ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 53.537275

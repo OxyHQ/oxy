@@ -1,0 +1,26 @@
+bun install v1.4.2 (744846f84)
+
++ @expo/metro-runtime@57.0.15
++ is-arrayish@0.3.4
++ react-native-worklets@0.10.0
+
+1086 packages installed [394.00ms]
+Required database peers load from the frozen production graph without connecting.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Production graph must exercise materialized Forge bytes
+    at file:///home/nate/Oxy/oxy/.worktrees/1571-forge-permanent-removal-20261004/scripts/test-api-runtime-dependencies.mjs:57:10
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
