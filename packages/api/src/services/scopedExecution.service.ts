@@ -15,6 +15,13 @@ export const scopedFundingRestriction: NonNullable<ReserveInput['fundingRestrict
 /** Source-reviewed authorization only. No environment switch or public setter. */
 const preapprovedManifest: ScopedExecutionAudience | undefined = undefined;
 
+/** Used by catalogue import; signed provider metadata cannot authorize itself. */
+export function sourceReviewedScopedAudience(now = Date.now()): ScopedExecutionAudience | undefined {
+  const parsed = scopedExecutionAudienceSchema.safeParse(preapprovedManifest);
+  return parsed.success && Number.isFinite(now) && Date.parse(parsed.data.expiresAt) > now
+    ? parsed.data : undefined;
+}
+
 export function scopedPermitForContext(context: EdgeExecutionContext): ScopedExecutionAudience | undefined {
   return bindScopedPermit(preapprovedManifest, context);
 }

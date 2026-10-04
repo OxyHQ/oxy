@@ -8,6 +8,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { ScopedExecutionAudience } from '@oxy.so/contracts';
+import * as scopedSource from '../scopedExecution.service';
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -48,6 +50,7 @@ import {
   planKaanaModel,
   runKaanaCatalogueSync,
   syncedPriceScore,
+  syncedUnitPrices,
   unblockCatalogueModel,
 } from '../kaanaCatalogueSync.service';
 
@@ -713,5 +716,104 @@ describe('syncing into the catalogue', () => {
     for (const name of ['nomax', 'image', 'unpriced']) {
       expect(await deploymentsOf(world.line(name))).toHaveLength(0);
     }
+  });
+});
+
+
+describe('source-reviewed scoped price bootstrap', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  async function fixture() {
+    const world = await makeWorld();
+    const route = world.route('private');
+    const scope: ScopedExecutionAudience = {
+      permitId: `permit-${world.tag}`, idempotencyKey: `request-${world.tag}`, fixtureSha256: 'a'.repeat(64),
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      principal: { accountId: 'fixture', applicationId: 'fixture', credentialId: 'fixture', environment: 'production' },
+      policy: { routingPolicyId: 'fixture', policyVersion: 1 },
+      deploymentId: route.deploymentId, provider: route.provider, modelReference: route.modelReference,
+      keyId: 'fixture-key', upstreamModelId: 'fixture-dated-model', priceVersionId: randomUUID(),
+      providerRateCardVersionId: 'fixture-card', providerSourceVersion: 'fixture-source', maxCostUsd: '0.01',
+    };
+    const descriptor = { ...route, regions: route.regions ?? [], scopedExecution: scope,
+      keyId: scope.keyId, upstreamModelId: scope.upstreamModelId,
+      providerRateCardVersionId: scope.providerRateCardVersionId, providerSourceVersion: scope.providerSourceVersion };
+    const base = reader([world.entry('private')], [route]);
+    const scopedReader: KaanaCatalogueReader = { ...base,
+      listModels: async () => ({ ...await base.listModels(), scopedExecutionContractVersion: '3.6.0', deployments: [descriptor] }),
+      attestDeployments: async () => ({ snapshotId: 'snap_test', scopedExecutionContractVersion: '3.6.0', deployments: [descriptor] }),
+    };
+    const prices = () => getDb().select().from(priceVersions).where(eq(priceVersions.modelReference, route.modelReference));
+    return { world, route, scope, scopedReader, prices };
+  }
+
+  it('does not let authenticated remote metadata authorize a local price identity', async () => {
+    const f = await fixture();
+    expect(scopedSource.sourceReviewedScopedAudience()).toBeUndefined();
+    const result = await runKaanaCatalogueSync({ reader: f.scopedReader });
+    expect(result.deployments.skipped.unattested_route).toBe(1);
+    expect(await f.prices()).toEqual([]);
+    expect(await deploymentsOf(f.world.line('private'))).toEqual([]);
+  });
+
+  it('creates the exact reviewed price from the signed list price but leaves execution disabled', async () => {
+    const f = await fixture();
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockReturnValue(f.scope);
+    const result = await runKaanaCatalogueSync({ reader: f.scopedReader });
+    expect(result.priceVersionsCreated).toBe(1);
+    expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, currency: 'USD', status: 'active' })]);
+    const units = await getDb().select().from(priceVersionUnitPrices).where(eq(priceVersionUnitPrices.priceVersionId, f.scope.priceVersionId));
+    expect(units.map(row => ({ ...row, amount: normalizeDecimal(row.amount) }))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ unit: 'input_tokens', amount: '0.072', per: 1000000 }),
+      expect.objectContaining({ unit: 'output_tokens', amount: '0.28', per: 1000000 }),
+    ]));
+    expect(await deploymentsOf(f.world.line('private'))).toEqual([expect.objectContaining({
+      status: 'disabled', permissionState: 'pending_review', autoApprovalPolicyId: null, priceVersionId: f.scope.priceVersionId,
+    })]);
+  });
+
+  it('rejects an audience different from the source review without creating a price', async () => {
+    const f = await fixture();
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockReturnValue({ ...f.scope, keyId: 'other' });
+    expect((await runKaanaCatalogueSync({ reader: f.scopedReader })).deployments.skipped.unattested_route).toBe(1);
+    expect(await f.prices()).toEqual([]);
+  });
+
+  it.each(['other-id', 'other-price'])('preserves an existing active version on %s mismatch', async (mismatch) => {
+    const f = await fixture();
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockReturnValue(f.scope);
+    const id = mismatch === 'other-id' ? randomUUID() : f.scope.priceVersionId;
+    await getDb().insert(priceVersions).values({ id, modelReference: f.route.modelReference, provider: f.route.provider,
+      currency: 'USD', status: 'active', effectiveFrom: new Date('2020-01-01') });
+    await getDb().insert(priceVersionUnitPrices).values(syncedUnitPrices({ input: mismatch === 'other-price' ? '0.099' : '0.072', output: '0.28' }).map(unit => ({ priceVersionId: id, ...unit })));
+    const before = await f.prices();
+    expect((await runKaanaCatalogueSync({ reader: f.scopedReader })).deployments.skipped.unattested_route).toBe(1);
+    expect(await f.prices()).toEqual(before);
+    expect(await deploymentsOf(f.world.line('private'))).toEqual([]);
+  });
+
+  it('reuses an exactly matching pre-existing version without replacing it', async () => {
+    const f = await fixture();
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockReturnValue(f.scope);
+    await getDb().insert(priceVersions).values({ id: f.scope.priceVersionId, modelReference: f.route.modelReference, provider: f.route.provider,
+      currency: 'USD', status: 'active', effectiveFrom: new Date('2020-01-01') });
+    await getDb().insert(priceVersionUnitPrices).values(syncedUnitPrices({ input: '0.072', output: '0.28' }).map(unit => ({ priceVersionId: f.scope.priceVersionId, ...unit })));
+    const before = await f.prices();
+    const result = await runKaanaCatalogueSync({ reader: f.scopedReader });
+    expect(result.priceVersionsCreated).toBe(0);
+    expect(await f.prices()).toEqual(before);
+    expect(await deploymentsOf(f.world.line('private'))).toEqual([expect.objectContaining({ priceVersionId: f.scope.priceVersionId, status: 'disabled' })]);
+  });
+
+  it('refuses a price ID belonging to a foreign route without modifying that route', async () => {
+    const f = await fixture();
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockReturnValue(f.scope);
+    await getDb().insert(priceVersions).values({ id: f.scope.priceVersionId, modelReference: 'fixture/foreign@v1', provider: f.route.provider,
+      currency: 'USD', status: 'active', effectiveFrom: new Date('2020-01-01') });
+    const foreign = () => getDb().select().from(priceVersions).where(eq(priceVersions.id, f.scope.priceVersionId));
+    const before = await foreign();
+    expect((await runKaanaCatalogueSync({ reader: f.scopedReader })).deployments.skipped.unattested_route).toBe(1);
+    expect(await f.prices()).toEqual([]);
+    expect(await foreign()).toEqual(before);
   });
 });
