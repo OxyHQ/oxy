@@ -27,6 +27,25 @@
       "path": "docs/audits/2026-10-03-old-issuer-rollback/proof.json",
       "sha256": "aeb1bf006bb47b04b82d9bed1c7dd56d25a4c72c9040ea3fb34bc9fd9d2fc16c",
       "gitCurrentEqual": true
+    },
+    {
+      "head": "2924eb3d56b61d6b4771d1fa4bd6f9e4677616b2",
+      "path": ".github/dependabot.yml",
+      "sha256": "9744b8331ea6ed3a0efab4c5379f3f9958019353b0c03a303e39dc7df4cc1b9c",
+      "gitCurrentEqual": true
+    },
+    {
+      "repository": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "head": "d11a99ae5aa7f2eca9abb5aaef5079b90ff30698",
+      "path": "scripts/adoption/final-registry-consumers.py",
+      "sha256": "798ddad760c33d1fc84969ff5fddcdb0d9532cbf2b78282917435368b51dec00",
+      "gitCurrentEqual": true
+    },
+    {
+      "head": "911b96be6827ae5e57688aef1efe911148aabbe5",
+      "path": "docs/audits/2026-10-04-i08-final-acceptance/proof.json",
+      "sha256": "7f1394773323647e47b2a63ff8530014cbeccfebc42cc0e880ba3f69a727c23a",
+      "gitObjectRead": true
     }
   ],
   "rootReceipts": [
@@ -53,16 +72,20 @@
     {
       "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-four-frontends-accepted/accepted.json",
       "sha256": "349d461415c4e3b7f62f895d573ba60e769fb3248c3177ecfc0157d9298253b8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/ten-children-state-readback.json",
+      "sha256": "de9ea1d87a24f07b006195cddd95f499a2c3d9e367236cfc1a3e18c07a42b5cd"
     }
   ],
   "records": [
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
-      "sha256": "ba77b63b404621a44a28cedd1d4e78c2967f5de79618886ad5ccbb211f500f09"
+      "sha256": "ee96c89fe2455a8202e367987a9e2f6f7ccd65a04a07af116c737ba4e05e7ce2"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
-      "sha256": "1868f53b50ea8595dfd11e3f1edd674ad63706c128a4f79d92e667d6e6652dda"
+      "sha256": "de9ea1d87a24f07b006195cddd95f499a2c3d9e367236cfc1a3e18c07a42b5cd"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/runtime-summary.json",
@@ -70,7 +93,6 @@
     }
   ],
   "pending": [
-    "I08 final original-criteria closure receipt",
     "PR1569/quiescence and bounded Forge gate",
     "Final consolidated workflow original-state reconciliation"
   ]

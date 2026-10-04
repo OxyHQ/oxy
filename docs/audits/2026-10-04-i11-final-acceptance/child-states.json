@@ -1,86 +1,116 @@
 {
-  "observedAt": "2026-10-04T08:25:20.058295+00:00",
-  "children": [
+  "at": "2026-10-04T08:31:07.441073+00:00",
+  "issues": [
     {
-      "id": "I01",
-      "url": "https://github.com/OxyHQ/oxy/issues/1520",
+      "label": "I01",
+      "repository": "OxyHQ/oxy",
+      "number": 1520,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-03T05:49:25Z",
-      "updatedAt": "2026-10-03T06:03:44Z"
+      "url": "https://github.com/OxyHQ/oxy/issues/1520",
+      "unchecked": 0
     },
     {
-      "id": "I02",
-      "url": "https://github.com/OxyHQ/oxy/issues/1521",
+      "label": "I02",
+      "repository": "OxyHQ/oxy",
+      "number": 1521,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-03T00:49:07Z",
-      "updatedAt": "2026-10-03T00:49:07Z"
+      "url": "https://github.com/OxyHQ/oxy/issues/1521",
+      "unchecked": 0
     },
     {
-      "id": "I03",
-      "url": "https://github.com/OxyHQ/oxy/issues/1522",
+      "label": "I03",
+      "repository": "OxyHQ/oxy",
+      "number": 1522,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-04T06:08:05Z",
-      "updatedAt": "2026-10-04T06:15:36Z"
+      "url": "https://github.com/OxyHQ/oxy/issues/1522",
+      "unchecked": 0
     },
     {
-      "id": "I04",
-      "url": "https://github.com/OxyHQ/oxy/issues/1523",
+      "label": "I04",
+      "repository": "OxyHQ/oxy",
+      "number": 1523,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-04T06:29:42Z",
-      "updatedAt": "2026-10-04T06:29:42Z"
+      "url": "https://github.com/OxyHQ/oxy/issues/1523",
+      "unchecked": 0
     },
     {
-      "id": "I05",
-      "url": "https://github.com/OxyHQ/Alia/issues/659",
+      "label": "I05",
+      "repository": "OxyHQ/Alia",
+      "number": 659,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-04T08:21:35Z",
-      "updatedAt": "2026-10-04T08:21:35Z"
+      "url": "https://github.com/OxyHQ/Alia/issues/659",
+      "unchecked": 0
     },
     {
-      "id": "I06",
-      "url": "https://github.com/OxyHQ/oxy/issues/1524",
+      "label": "I06",
+      "repository": "OxyHQ/oxy",
+      "number": 1524,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-03T08:46:41Z",
-      "updatedAt": "2026-10-03T08:46:41Z"
+      "url": "https://github.com/OxyHQ/oxy/issues/1524",
+      "unchecked": 0
     },
     {
-      "id": "I07",
-      "url": "https://github.com/OxyHQ/oxy/issues/1525",
+      "label": "I07",
+      "repository": "OxyHQ/oxy",
+      "number": 1525,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-04T06:24:20Z",
-      "updatedAt": "2026-10-04T06:24:20Z"
+      "url": "https://github.com/OxyHQ/oxy/issues/1525",
+      "unchecked": 0
     },
     {
-      "id": "I08",
+      "label": "I08",
+      "repository": "OxyHQ/Peable",
+      "number": 87,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-04T08:28:01Z",
       "url": "https://github.com/OxyHQ/Peable/issues/87",
-      "state": "open",
-      "stateReason": null,
-      "closedAt": null,
-      "updatedAt": "2026-10-04T06:53:24Z"
+      "unchecked": 0
     },
     {
-      "id": "I09",
-      "url": "https://github.com/OxyHQ/oxy/issues/1526",
+      "label": "I09",
+      "repository": "OxyHQ/oxy",
+      "number": 1526,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-04T08:07:28Z",
-      "updatedAt": "2026-10-04T08:07:28Z"
+      "url": "https://github.com/OxyHQ/oxy/issues/1526",
+      "unchecked": 0
     },
     {
-      "id": "I10",
-      "url": "https://github.com/OxyHQ/Alia/issues/660",
+      "label": "I10",
+      "repository": "OxyHQ/Alia",
+      "number": 660,
       "state": "closed",
       "stateReason": "completed",
       "closedAt": "2026-10-02T17:17:12Z",
-      "updatedAt": "2026-10-02T17:26:59Z"
+      "url": "https://github.com/OxyHQ/Alia/issues/660",
+      "unchecked": 0
+    },
+    {
+      "label": "I11",
+      "repository": "OxyHQ/oxy",
+      "number": 1527,
+      "state": "open",
+      "stateReason": null,
+      "closedAt": null,
+      "url": "https://github.com/OxyHQ/oxy/issues/1527",
+      "unchecked": 8
     }
   ],
-  "scope": "Authenticated issue states, not substitute for each proof."
+  "closed": 10
 }

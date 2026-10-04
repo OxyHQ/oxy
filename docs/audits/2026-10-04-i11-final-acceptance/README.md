@@ -1,28 +1,26 @@
 # I11 final acceptance index
 
 This compact index assembles accepted evidence against the original criteria.
-It adds no runtime test or new acceptance requirement. I11 remains open until
-I08's owner records its commercial acceptance and the outstanding operational
-helper/Forge review is accepted. Coverage alone updates the parent and I11 body.
+It adds no runtime test or new acceptance requirement. All ten implementation daughters are closed with completed-state readbacks.
+I11 remains open until the outstanding operational helper/Forge review and
+final workflow reconciliation are accepted. Coverage alone updates the parent and I11 body.
 
 | Original criterion | Accepted evidence and remaining boundary |
 |---|---|
+| Tested update proposals | Existing `.github/dependabot.yml` proposes weekly Bun updates (minor/patch grouped), without automerge. The reviewed adoption runner performs closed preflight, explicit manifest patches, registry installation/member verification and enumerates required checks. It performs no commits, pushes, merges, package publication or deployment; reviewed PRs/CI and root promotion are separate. |
 | Versions published, resolved and deployed | [I04 matrix](https://github.com/OxyHQ/oxy/blob/d11a99ae5/docs/audits/2026-10-04-i04-acceptance/proof.json): 18 product consumers with manifests/locks, registry members, checks and deployment evidence separately pinned. [Examples](https://github.com/OxyHQ/examples/blob/ba29314/docs/audits/2026-10-04-final-registry/proof.json): Next/Vite/Expo, merged main2bfc9197. Publication alone is never treated as adoption. |
 | HTTP/MCP, identity, permissions and bot/human separation | [Original-criteria index](../2026-10-04-i11-original-criteria-index/README.md) maps Noted/Mercaria/Inbox/website to their actual adapters and SQL/HTTP tests. I01/I02 and I10 are closed under their own proofs. [I03](https://github.com/OxyHQ/oxy/blob/747bc8da9/docs/audits/2026-10-04-i03-result-reconciliation/root-accepted.json) measured independent receiver revocation, excluding expiry. [I05](../2026-10-04-i05-final-acceptance/README.md) adds complementary consumer/receiver/external contract coverage and accepted Alia450/Mention486 bindings. No single cross-repository SQL harness or production human action is invented. |
-| Product/bundle, payments and internal metering | I06/I07 closed with their ledger/provider/product proofs; Clarity selection/ownership tests are composed into final adoption. [I09](../2026-10-04-i09-final-acceptance/README.md) verifies one real metered call, same-intent409, signed feed and duplicate-only replay, preserving unknown cost. Mercaria SDK parity is accepted; I08 owns final commercial-cycle acceptance separately from its accepted TD61/readiness. |
+| Product/bundle, payments and internal metering | I06/I07 closed with their ledger/provider/product proofs; Clarity selection/ownership tests are composed into final adoption. [I09](../2026-10-04-i09-final-acceptance/README.md) verifies one real metered call, same-intent409, signed feed and duplicate-only replay, preserving unknown cost. [I08 final acceptance](https://github.com/OxyHQ/oxy/blob/911b96be6/docs/audits/2026-10-04-i08-final-acceptance/README.md) combines actual provider test-mode Checkout/TestClock methods, SDK/SQL parity and accepted Peable9/Mercaria61 cohort configuration. No new live charge, product, price or human purchase is claimed or required. |
 | Remove duplication only after equivalent adoption | Noted/Homiio use canonical linked transport with lifecycle/deadline/raw-body boundaries. Mercaria uses published Peable0.2.2 for equivalent HTTP and webhook surfaces. Non-equivalent marketplace/payout semantics remain classified. Alia's legacy capability lane is intentionally retained for legitimate callers; no blanket endpoint deletion. Legacy Relay→Kaana retirement is recorded in [infra acceptance](https://github.com/OxyHQ/oxy-infra/blob/a7fe10661daab6a5f7721b1277bf202bcd5f6f75/docs/audits/2026-10-04-kaana-final-acceptance/proof.json). |
 | Integrated SSO and consumer adversarial checks | Root accepted published-registry browser and emulator replays, including subject mismatch, account switch, logout/cold/warm behavior and fresh profile observations. The summary preserves RP static-routing and shared native capture limits; no native HTTP-status or production human-session claim. |
 | Regression, rollback and operational documentation | Prior regression/source/package/CI proofs remain linked rather than rerun for this audit. [Rollback rehearsal](../2026-10-03-old-issuer-rollback/README.md) preserves quiescence, session/code provenance and offline/background lane limits. Infra254 main409be1f persists accepted I05/I08 configuration; source persistence does not claim Terraform applied those runtime changes. Latest root fleet census at08:23 records31 nonlegacy services steady, no suspended scaler and only tnp-relay's baseline zero. Mercaria workflow299667145 is active. |
 
 ## Remaining closure inputs
 
-1. **I08:** append the daughter's final commercial proof and closed-state readback
-   when its owner completes the original criteria. TD61 acceptance is already
-   hashed here; it is not used as a financial-effect substitute.
-2. **Operational helper/Forge:** append root's reviewed PR1569 conditional-input
+1. **Operational helper/Forge:** append root's reviewed PR1569 conditional-input
    fixes, quiescence handling, exact final source/CI and bounded Forge gate receipt.
    Existing expiry remains 2026-10-09T22:00Z; this index grants no extension.
-3. **Final workflow ledger:** append the root/coverage consolidated original-state
+2. **Final workflow ledger:** append the root/coverage consolidated original-state
    reconciliation. The accepted Mercaria final restoration is already included;
    no global current-state claim is inferred from that one workflow.
 
