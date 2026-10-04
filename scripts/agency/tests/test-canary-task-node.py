@@ -55,6 +55,8 @@ def main():
         import hashlib
         runtime={p:hashlib.sha256((api/p).read_bytes()).hexdigest() for p in m.COMPILED_PATHS}
         actor=seed['canaryPlan']['operator'];results=[]
+        staged_path=api/'dist/services/alia-canary-operational-2977ad4b30cd33bbce2a0a8b2faa3c3f16838d7dc06f72d8cc324a8ea64343d6.cjs'
+        assert not staged_path.exists()
         for operation in ('prepare','recover'):
             payload={'nonce':'e'*32,'operation':operation,'operator':actor,'principalId':seed['principalId'] if operation=='prepare' else None,
                 'canaryPlan':seed['canaryPlan'] if operation=='recover' else None,'runtimeSha256':runtime}
@@ -62,18 +64,29 @@ def main():
             output=command(['node','--input-type=module','-e',code],operation+'.log')
             record=json.loads(next(line[len(m.PREFIX):] for line in output.splitlines() if line.startswith(m.PREFIX)))
             assert record['operation']==operation and record['nonce']==payload['nonce'];results.append(record)
+            assert not staged_path.exists(), 'Owned operational module was not cleaned'
+            assert {p:hashlib.sha256((api/p).read_bytes()).hexdigest() for p in m.COMPILED_PATHS}==runtime
         bad = dict(payload); bad['runtimeSha256'] = {**runtime, m.COMPILED_PATHS[0]:'0'*64}
         rejected=subprocess.run(['node','--input-type=module','-e',m.invocation(bad)],cwd=api,env=node_env,
             text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         (owned/'runtime-pin-rejected.log').write_text(rejected.stdout)
         assert rejected.returncode==1 and m.PREFIX not in rejected.stdout
         assert 'ALIA_CANARY_TASK_FAILED_RECONCILE_DURABLE_INTENT' in rejected.stdout
+        assert not staged_path.exists()
+        with staged_path.open('xb') as sentinel: sentinel.write(b'existing-owned-fixture')
+        try:
+            collision=subprocess.run(['node','--input-type=module','-e',m.invocation(payload)],cwd=api,env=node_env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+            (owned/'staging-collision-rejected.log').write_text(collision.stdout)
+            assert collision.returncode==1 and m.PREFIX not in collision.stdout
+            assert staged_path.read_bytes()==b'existing-owned-fixture'
+        finally:
+            assert staged_path.read_bytes()==b'existing-owned-fixture';staged_path.unlink()
         assert results[1]['result']['cleanupConfirmed'] and results[1]['result']['authorityUnchanged']
         status=sql(f"SELECT status FROM application_credentials WHERE id='{seed['canaryPlan']['credentialId']}'",database);assert status=='revoked'
         assert sql(f"SELECT count(*) FROM application_credential_audit_events WHERE credential_id='{seed['canaryPlan']['credentialId']}'",database)=='2'
         sql(f'DROP DATABASE "{database}"')
         print(json.dumps({'kind':'generated-node-canary-entrypoint','pid':pid,'ownedDirectory':str(owned),'compiledImageLayoutRelocatedOnlyByCwd':True,
-            'nodeEnv':'production','phases':['prepare','recover'],'checks':6,'runtimePinRejectedBeforeOperation':True,'databaseDropped':True,'awsRequests':0,'providerRequests':0}))
+            'nodeEnv':'production','phases':['prepare','recover'],'checks':8,'runtimePinRejectedBeforeOperation':True,'databaseDropped':True,'awsRequests':0,'providerRequests':0}))
     finally:
         if running:
             print(run([PG/'pg_ctl','-D',data,'-m','fast','-w','stop']));assert not Path(f'/proc/{pid}').exists()

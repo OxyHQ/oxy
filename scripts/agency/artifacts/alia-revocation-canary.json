@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "205565de1",
+  "sourcePath": "packages/api/src/services/aliaRevocationCanary.service.ts",
+  "sourceSha256": "dabc54aaeeeddd29fc2fec1f7ff482b491043d1cdb5aca47f06538ef149f3c35",
+  "compiledPath": "scripts/agency/artifacts/alia-revocation-canary.cjs",
+  "compiledSha256": "2977ad4b30cd33bbce2a0a8b2faa3c3f16838d7dc06f72d8cc324a8ea64343d6",
+  "compiler": "typescript@5.9.3",
+  "build": "bun run build in packages/api; exact dist/services/aliaRevocationCanary.service.js copied without modification",
+  "tsconfigSha256": "9d081671d3910679ab2abd9a4e87c9002a4beaad4cfce749ce55f6260de63299",
+  "originalImageDigest": "sha256:b8d0d2f2325bf6d2a5a0df0f414185dfb940c48dc528cff794fa3820a3a2c534",
+  "originalImageModuleSha256": "363cba14df14761139aea3f21ffd7a60eb1394f386380e9de24eeee0f150e098",
+  "staging": "One-shot filesystem only; O_EXCL new filename, original image module and require.cache unchanged."
+}

@@ -30,8 +30,9 @@ require, private_json, digest = base.require, base.private_json, base.digest
 ROLE = 'arn:aws:iam::237343248947:role/oxy-alia-task'
 APP = '6a2f851751b784a86fd0e934'
 OWNER = '01a0369b-1222-712f-8df6-f8ffeb78ccc2'
-HELPERS = ['scripts/agency/alia-revocation-canary.mjs', 'scripts/agency/alia-revocation-canary-receiver.mjs']
-SOURCE_PATHS = HELPERS + ['scripts/agency/alia-revocation-canary-ecs.py',
+HELPERS = ['scripts/agency/alia-revocation-canary.mjs', 'scripts/agency/alia-revocation-canary-receiver.mjs',
+    'scripts/agency/stage-alia-canary-module.mjs', 'scripts/agency/artifacts/alia-revocation-canary.cjs']
+SOURCE_PATHS = HELPERS + ['scripts/agency/artifacts/alia-revocation-canary.json', 'scripts/agency/alia-revocation-canary-ecs.py',
     'scripts/agency/foreground-pilot-ecs.py', 'scripts/agency/oxy-profile-registrar-preflight-ecs.py',
     'packages/api/src/services/aliaRevocationCanary.service.ts',
     'packages/api/src/services/applicationCredentialRevocation.service.ts',
@@ -207,7 +208,7 @@ def invocation(plan):
 import {tmpdir} from 'node:os'; import {join} from 'node:path';
 import {createHash} from 'node:crypto'; import {pathToFileURL} from 'node:url';
 const input=JSON.parse(Buffer.from(''' + json.dumps(encoded) + r''','base64').toString('utf8'));
-const {payload,sources}=input;let scratch;
+const {payload,sources}=input;let scratch,staged;
 const api=process.cwd();const controller=new AbortController();
 for(const sig of ['SIGTERM','SIGINT'])process.on(sig,()=>controller.abort());
 const bound=setTimeout(()=>process.exit(2),110000);bound.unref();
@@ -217,9 +218,11 @@ try {
   }
   scratch=mkdtempSync(join(tmpdir(),'alia-canary-'));
   for(const [name,source] of Object.entries(sources))writeFileSync(join(scratch,name),source,{mode:0o400,flag:'wx'});
+  const staging=await import(pathToFileURL(join(scratch,'stage-alia-canary-module.mjs')).href);
+  staged=staging.stageAliaCanaryModule({apiPackage:join(api,'package.json'),source:Buffer.from(sources['alia-revocation-canary.cjs'],'utf8')});
   const helper=await import(pathToFileURL(join(scratch,'alia-revocation-canary.mjs')).href);
   if(controller.signal.aborted)throw new Error('interrupted_before_operation');
-  const options={apiPackage:join(api,'package.json'),operator:payload.operator,plan:payload.canaryPlan,signal:controller.signal};
+  const options={apiPackage:join(api,'package.json'),operator:payload.operator,plan:payload.canaryPlan,signal:controller.signal,canaryModulePath:staged.canaryModulePath};
   let result;
   if(payload.operation==='prepare')result=await helper.prepareCanary({...options,principalId:payload.principalId});
   else if(payload.operation==='execute')result=await helper.executeCanary(options);
@@ -229,7 +232,12 @@ try {
   if(payload.operation==='execute'&&!result.success)process.exitCode=1;
   if(payload.operation==='recover'&&!result.cleanupConfirmed)process.exitCode=1;
 } catch {console.error('ALIA_CANARY_TASK_FAILED_RECONCILE_DURABLE_INTENT');process.exitCode=1;}
-finally {clearTimeout(bound);if(scratch)rmSync(scratch,{recursive:true,force:true});}
+finally {
+  clearTimeout(bound);
+  try {if(staged)staged.cleanup();}
+  catch {console.error('ALIA_CANARY_MODULE_CLEANUP_UNCONFIRMED');process.exitCode=1;}
+  finally {if(scratch)rmSync(scratch,{recursive:true,force:true});}
+}
 '''
 
 
