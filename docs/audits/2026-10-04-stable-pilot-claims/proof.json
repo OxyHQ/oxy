@@ -1,16 +1,16 @@
 {
-  "source": "cab35978cf11cf645829464405311432bbc8835d",
+  "source": "723839290d1828074e7911fe0dd6bc5ab9e03819",
   "base": "1789185c84678887bec84b8f0b7bb8b6e76d55eb",
   "sourceInputs": [
     {
       "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
       "sha256": "81db6470a9d9e2ae0254ac08ea589b4b00a49d46933aff3b7d4c0dafee9d30e2",
-      "source": "cab35978cf11cf645829464405311432bbc8835d"
+      "source": "723839290d1828074e7911fe0dd6bc5ab9e03819"
     },
     {
       "path": "packages/api/src/config/__tests__/inferenceEconomicPolicy.test.ts",
       "sha256": "e3807cf331568dddb632b3616f72066a0703b2e557805ff0f08bd3d1f29c4ec6",
-      "source": "cab35978cf11cf645829464405311432bbc8835d"
+      "source": "723839290d1828074e7911fe0dd6bc5ab9e03819"
     }
   ],
   "records": [
@@ -50,5 +50,7 @@
     "Real own Postgres/canonical migrations and loopback HTTP; data plane is the existing fake Kaana fixture. No production or provider calls.",
     "Existing CI failure is the RED evidence; no artificial production failure or new sorting-only test.",
     "Dependencies linked read-only from machine-principal WT; Jest canonical workspace source mappings apply. No install, version or shipping-source edits."
-  ]
+  ],
+  "testedSource": "cab35978cf11cf645829464405311432bbc8835d",
+  "integration": "Root cherry-pick has byte-identical full source tree to testedSource; source refs below use reachable PR lineage."
 }
