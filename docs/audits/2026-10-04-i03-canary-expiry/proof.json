@@ -1,11 +1,11 @@
 {
   "kind": "external-revocation-canary-expiry-proof-v1",
-  "sourceCommit": "7595381df55693a1bc92ca76528e19638bb701fb",
+  "sourceCommit": "8aff5ae2093281a943c8db24b2784171af80a19a",
   "baselineCommit": "2237ee282bddfde0c27a6c6ba5e9fc88b5d1d11b",
   "sourceInputs": [
     {
       "path": "scripts/agency/alia-revocation-canary.mjs",
-      "sha256": "3fb76dc48f539f3a62d44371efb300d133a15f7466ca7b39e7c0e6c7603b7e41"
+      "sha256": "d0e1b4299c6568e8909b5adee82a6b6616a77d03a715d6234f5041c13505c598"
     },
     {
       "path": "scripts/agency/alia-revocation-canary-receiver.mjs",
@@ -21,7 +21,7 @@
     },
     {
       "path": "scripts/agency/tests/test-canary-expiry.mjs",
-      "sha256": "159eb955638a161ddcde7944ec9ba7e458d39d4a58d6d271f1e7e276f56069be"
+      "sha256": "4a445ba7300f9aab99e2c65e43a0dadf44a8608bba47a36214db44716e054935"
     },
     {
       "path": "scripts/agency/tests/test-canary-expiry.py",
@@ -29,7 +29,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-i03-canary-expiry/README.md",
-      "sha256": "451f634c289dfc1dd6ee1d7c6f7af99d61da5ae906759f6ec4b1fe58c875fb18"
+      "sha256": "9862cefc8e1c00f20f721b93635c44009481cecea837a3b204c6e561c81aa2eb"
     }
   ],
   "records": [
@@ -62,6 +62,11 @@
       "path": "docs/audits/2026-10-04-i03-canary-expiry/records/receivers-exact-759.txt",
       "bytes": 252,
       "sha256": "f88bbc7b4b3ccb9e842ad5ae634e34aca2f4f26c04ffa617655a0a4fe8b6f04e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/green-abort-final.txt",
+      "bytes": 1625,
+      "sha256": "e7f3e28022635bb9a66af6ba707dea0da648e07b26d9a99b638eeb98bcfedc4a"
     }
   ],
   "privateAuthorityReadback": [
@@ -87,17 +92,18 @@
   },
   "validation": {
     "sameExpiryRequirementBaseline": "FAIL actual measured=true vs expectedfalse",
-    "finalControlledSQLClockCases": 9,
+    "finalControlledSQLClockCases": 10,
     "mockedAWSProtocolMethods": 16,
     "realForkAndSDKControls": 12,
     "postgresAbsentPids": [
       493873,
       495224,
       497603,
-      499936
+      499936,
+      523792
     ],
     "productionEffects": 0,
-    "exactFinalSourceProtocolAndReceiverRecheck": "16 protocol +12 real SDK fork controls rechecked after optional hash-bound module path addition on7595381df"
+    "exactFinalSourceProtocolAndReceiverRecheck": "16/12 exact759 checkpoint; subsequent source adds only stopIfAborted afterclock;10case full parentGREEN traverses added await; published/API image inputs unchanged"
   },
   "limits": [
     "Controlled SQL clock/state fixture executes actual parent but VM-isolates API credential/mint/fork boundaries.",
