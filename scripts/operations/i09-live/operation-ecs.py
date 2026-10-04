@@ -99,8 +99,8 @@ def describe(profile):
     else:
         require(td.get('taskRoleArn')=='arn:aws:iam::237343248947:role/oxy-alia-task','Alia task role changed')
         require(not any(r['name'] in ['OXY_SERVICE_API_KEY','OXY_SERVICE_API_SECRET'] for r in container.get('secrets',[])) and not any(n in ['OXY_SERVICE_API_KEY','OXY_SERVICE_API_SECRET']for n in container['environmentNames']),'Alia service pair unexpectedly configured')
-        public=aws('ecs','describe-task-definition','--task-definition',arn,'--query',"taskDefinition.containerDefinitions[?name==`alia`].environment[?name==`OXY_API_URL`]")
-        require(public==[[{'name':'OXY_API_URL','value':'https://api.oxy.so'}]],'Alia public API binding differs')
+        public=aws('ecs','describe-task-definition','--task-definition',arn,'--query',"taskDefinition.containerDefinitions[?name==`alia`].{api:environment[?name==`OXY_API_URL`]}")
+        require(public==[{'api':[{'name':'OXY_API_URL','value':'https://api.oxy.so'}]}],'Alia public API binding differs')
     return {'taskDefinition': td['arn'], 'image': container['image'], 'executionRoleArn': td['executionRoleArn'], 'cpu': td['cpu'], 'memory': td['memory'], 'runtimePlatform': td['runtimePlatform'], 'network': network, 'logGroup': '/oxy/ecs', 'logStreamPrefix': log['options']['awslogs-stream-prefix'], 'databaseSecret': secret, 'stripeBindingPresent': any(row['name'] == 'STRIPE_SECRET_KEY' for row in container.get('secrets') or []) or 'STRIPE_SECRET_KEY' in container['environmentNames']}
 
 
