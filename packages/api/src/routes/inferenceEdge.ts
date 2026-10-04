@@ -47,6 +47,12 @@
 
 import { decisionRequestSchema, decisionSuccessSchema } from '@oxy.so/contracts';
 
+// Schema-only bindings consumed by generate-openapi's route-owned annotations.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { inferenceErrorSchema } from '@oxy.so/contracts';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { originalGenerationReceiptHeadersSchema } from '../schemas/inferenceEdge.schemas';
+
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { z } from 'zod';
 import { USAGE_UNITS } from '@oxy.so/contracts';
@@ -1414,7 +1420,10 @@ export function createInferenceEdgeRouter(
    * 404 is unknown or pending, never permission to resend or evidence of no cost.
    * No decision answers are retained. This static path precedes /:id; public
    * request IDs are UUIDs and cannot collide with its reserved literal.
+   * @requestHeaders originalGenerationReceiptHeadersSchema
    * @response 200 generationReceiptResponseSchema Existing financial or technical record.
+   * @response 400 inferenceErrorSchema Missing or malformed original Idempotency-Key.
+   * @response 404 inferenceErrorSchema Unknown, pending, or outside the original receipt authority; not permission to repeat inference.
    */
   router.get(
     '/generations/by-idempotency-key',

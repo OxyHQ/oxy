@@ -605,6 +605,8 @@ interface RouteEntry {
   responseTags: ResponseTag[];
   /** `@requestBody` declaration from the leading JSDoc, for routes that validate inline. */
   requestBodyTag?: string;
+  /** Header object schema for a route that validates header values inline. */
+  requestHeadersTag?: string;
   /** Identifier → module specifier, from the route file's own imports. */
   imports: Record<string, string>;
   /** Top-level `const` names the route file declares itself. */
@@ -1055,6 +1057,15 @@ export function parseRequestBodyTag(jsdoc: string): string | undefined {
   return undefined;
 }
 
+/** Header names and requiredness come from the route-owned Zod object. */
+export function parseRequestHeadersTag(jsdoc: string): string | undefined {
+  for (const line of jsdoc.split(/\r?\n/)) {
+    const match = /^\s*@requestHeaders\s+(\S+)\s*$/.exec(line);
+    if (match?.[1] !== undefined) return match[1];
+  }
+  return undefined;
+}
+
 /**
  * The TOP-LEVEL entries of the first object literal in `source`, as raw text.
  *
@@ -1281,6 +1292,7 @@ export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mou
       validate,
       responseTags: jsdoc === undefined ? [] : parseResponseTags(jsdoc),
       requestBodyTag: jsdoc === undefined ? undefined : parseRequestBodyTag(jsdoc),
+      requestHeadersTag: jsdoc === undefined ? undefined : parseRequestHeadersTag(jsdoc),
       imports,
       localConsts,
       middlewares,
@@ -1530,6 +1542,23 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
     }
   }
 
+  if (route.requestHeadersTag !== undefined) {
+    const headerSchema = resolveRouteSchema(route, route.requestHeadersTag);
+    if (headerSchema) {
+      const headerObject = zodToOpenApi(headerSchema);
+      const properties = headerObject.properties as Record<string, Record<string, unknown>> | undefined;
+      if (headerObject.type !== 'object' || !properties || Object.keys(properties).length === 0) {
+        unresolvedSchemaReferences.push({ filename: route.filename, identifier: route.requestHeadersTag,
+          reason: '@requestHeaders must resolve to a non-empty object schema.' });
+      } else {
+        const required = new Set((headerObject.required ?? []) as string[]);
+        for (const [name, schema] of Object.entries(properties)) {
+          parameters.push({ name, in: 'header', required: required.has(name), schema });
+        }
+      }
+    }
+  }
+
   // Body Zod schema, from the `validate({ body })` middleware or from an
   // `@requestBody` tag on a route that validates inside its handler instead.
   let requestBody: Record<string, unknown> | undefined;
@@ -1752,6 +1781,7 @@ async function main(): Promise<void> {
       route.validate?.params,
       route.validate?.query,
       route.requestBodyTag,
+      route.requestHeadersTag,
       ...route.responseTags.map((tag) => tag.schemaRef),
     ];
     for (const identifier of identifiers) {

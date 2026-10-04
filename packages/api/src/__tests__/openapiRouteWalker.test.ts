@@ -267,3 +267,25 @@ describe('explicit non-success responses', () => {
     });
   });
 });
+
+
+describe('published original-key receipt contract', () => {
+  const spec = JSON.parse(readFileSync(path.resolve(__dirname, '../../openapi.json'), 'utf8'));
+  const operation = spec.paths['/v1/generations/by-idempotency-key'].get;
+  it('requires the original key in a header only and declares optional delegation attribution', () => {
+    expect(operation.parameters).toContainEqual(expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true,
+      schema: expect.objectContaining({ type: 'string', minLength: 1, maxLength: 128 }) }));
+    expect(operation.parameters).toContainEqual(expect.objectContaining({ name: 'X-Oxy-User-Id', in: 'header', required: false,
+      schema: expect.objectContaining({ type: 'string', maxLength: 64 }) }));
+    expect(operation.parameters.every((p: { in: string }) => p.in === 'header')).toBe(true);
+    expect(operation.requestBody).toBeUndefined();
+    expect(operation.security).toEqual([{ machineCredentialAuth: [] }, { serviceTokenAuth: [] }]);
+  });
+  it('declares malformed-key and unknown/pending receipt errors using the real inference envelope', () => {
+    for (const status of ['400', '404']) {
+      expect(operation.responses[status]).toMatchObject({ content: { 'application/json': { schema: {
+        type: 'object', required: expect.arrayContaining(['code', 'message', 'requestId', 'retryable']),
+      } } } });
+    }
+  });
+});
