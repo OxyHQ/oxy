@@ -117,3 +117,15 @@ wrong one is not.
   reports with a price and complete limits, and by which providers Oxy holds a
   data-policy row for. Adding a provider row is the one manual step left.
 - The contract set is 3.1.0 (`reasoning`, `reasoningEfforts`, `releasedAt`).
+
+## Private commissioning before public approval
+
+A separately source-reviewed, exact scoped execution may measure one private
+route while its permission remains `pending_review` and status remains
+`disabled`. This does not add it to any ordinary catalogue or routing profile,
+does not use automatic approval, and still requires recorded legal review and
+all exact policy, privacy, capability, price and provider-attestation checks.
+Missing performance measurements remain missing: only a price-based policy can
+run without those dimensions. The source getter is absent by default and wire
+metadata cannot activate it. The operator and audit sequence is
+[private inference commissioning](../runbooks/private-inference-commissioning.md).
