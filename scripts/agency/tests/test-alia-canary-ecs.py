@@ -117,6 +117,15 @@ class Protocol(unittest.TestCase):
         m.canary_plan(p, ACTOR, False)
         with self.assertRaises(RuntimeError): m.canary_plan(p, ACTOR, True)
 
+    def test_near_expiry_rejected_before_dispatch_recovery_preserved(self):
+        p = prior(); now = datetime.now(timezone.utc)
+        p['issuedAt'] = (now-timedelta(minutes=10)).isoformat()
+        p['expiresAt'] = (now+timedelta(seconds=30)).isoformat()
+        with self.assertRaises(RuntimeError): m.canary_plan(p, ACTOR, True)
+        m.canary_plan(p, ACTOR, False)
+        p['expiresAt'] = (now+timedelta(minutes=3)).isoformat()
+        m.canary_plan(p, ACTOR, True)
+
     def test_wrong_canary_actor_and_namespace(self):
         for field, value in [('applicationId', 'wrong'), ('ownerAccountId', 'wrong'), ('operator', {**ACTOR, 'authorizationSha256': 'e'*64})]:
             p = prior(); p[field] = value
