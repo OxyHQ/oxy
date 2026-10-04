@@ -121,6 +121,10 @@ it('admits exact scoped decisions through the actual Alia internal pilot without
   const audience = { ...permit, principal: { ...permit.principal, applicationId: principal.applicationId } };
   jest.mocked(scope.scopedPermitForContext).mockReturnValue(audience);
   jest.mocked(flags.isChargingAuthorized).mockReturnValue(false);
+  jest.mocked(catalogue.resolveEdgeRoute).mockResolvedValue({ status: 'resolved', alternates: [], route: {
+    ...route, scopedCatalogueEvidence: { ...route.scopedCatalogueEvidence!, permissionState: 'pending_review',
+      admission: 'private_commissioning', deploymentStatus: 'disabled' },
+  } });
   const kaanaClient = client();
   kaanaClient.attestDeployments.mockResolvedValue({ ...attestation, deployments: [{ ...audience, scopedExecution: audience, regions: [] }] });
   const result = await admitRequest({ ...context, principal, kaanaClient });

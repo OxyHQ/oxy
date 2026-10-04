@@ -51,3 +51,20 @@ describe('source-bound scoped execution', () => {
     expect(attestScopedPermit(permit, attestation, 'actual-request', { ...evidence, priceVersionId: 'another-price' })).toBeUndefined();
   });
 });
+
+it('attests the explicit private discriminator without inventing public approval and refuses expired evidence', () => {
+  const evidence = { modelRevisionId: 'synthetic-revision', deploymentId: permit.deploymentId,
+    priceVersionId: permit.priceVersionId, commercialPermission: 'standard_application_use',
+    admission: 'private_commissioning' as const, permissionState: 'pending_review' as const,
+    deploymentStatus: 'disabled' as const, legalReviewStatus: 'approved' as const,
+    legalReviewEvidenceRef: 'synthetic-specific-review', policy: permit.policy,
+    eligibility: { availabilityScope: 'platform_internal', licenseId: 'synthetic-reviewed', commercialUseAllowed: true,
+      retainsPayloads: false, retentionDays: 0, trainsOnCustomerData: false, zeroDataRetentionAvailable: true,
+      policyAdmitted: true as const, capabilityAdmitted: true as const, privacyAdmitted: true as const } };
+  const descriptor = { ...permit, regions: [], scopedExecution: permit };
+  const attestation = { snapshotId: 'synthetic-private-snapshot', scopedExecutionContractVersion: '3.6.0' as const, deployments: [descriptor] };
+  expect(attestScopedPermit(permit, attestation, 'synthetic-private-request', evidence)?.catalogueEvidenceHash).toBe(hashScopedInput(evidence));
+  expect(attestScopedPermit(permit, attestation, 'synthetic-private-request', { ...evidence,
+    eligibility: { ...evidence.eligibility, availabilityScope: 'public_payg' } })).toBeUndefined();
+  expect(attestScopedPermit({ ...permit, expiresAt: new Date(0).toISOString() }, attestation, 'synthetic-private-request', evidence)).toBeUndefined();
+});

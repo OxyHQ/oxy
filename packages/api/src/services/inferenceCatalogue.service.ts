@@ -15,8 +15,8 @@
  *  2. **The one selectability predicate.** {@link selectableDeploymentWhere} is
  *     the ONLY place a route is decided to be offerable. There is deliberately
  *     no "internal routes are exempt" branch: an internal route needs the same
- *     approved permission state as a public one, because an exemption is where
- *     a gate silently widens.
+ *     approved permission state as a public one. A separate source-bound private
+ *     commissioning admission never changes or publishes that permission.
  *  3. **The customer's own routing policy, applied to the candidates.**
  *     {@link violatedConstraints} is the ONLY place a policy control meets a
  *     route. Selectability answers "may Oxy offer this at all"; a policy answers
@@ -61,6 +61,7 @@ import {
 } from '@oxy.so/contracts';
 import type { SelectedRow } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
+import { privateCommissioningAudience } from './scopedExecution.service';
 import {
   DEPLOYMENT_REQUEST_PARAMETERS,
   type DeploymentRequestParameter,
@@ -213,7 +214,7 @@ export function resolveCatalogueViewer(
  *
  * `degraded` is included: it means "offer it with a warning", not "it is timing
  * out" — which is Kaana's signal, and not stored here. `disabled` and `retired`
- * are never offered.
+ * are never ordinarily offered. Private commissioning is scoped separately.
  */
 const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
 
@@ -225,8 +226,9 @@ const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
  *
  * All three conditions are required, and the permission one has no exemption:
  * a `platform_internal` route with `permission_state = 'pending_review'` is
- * invisible to every official product too. That costs one staff approval per
- * platform route and buys a gate with no branch in it.
+ * invisible to every ordinary official-product request too. A private commissioning
+ * request may measure one exact source-reviewed route after real legal review;
+ * it does not change the public permission or assert unmeasured scorecards.
  */
 function selectableDeploymentWhere(viewer: CatalogueViewer, scopedExecution?: import('@oxy.so/contracts').ScopedExecutionAudience) {
   const availability = viewer.scopes.includes('platform_internal')
@@ -236,14 +238,25 @@ function selectableDeploymentWhere(viewer: CatalogueViewer, scopedExecution?: im
       )
     : inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]);
 
+  const commissioning = privateCommissioningAudience(scopedExecution);
   return and(
     availability,
     scopedExecution === undefined ? sql`${inferenceDeployments.scopedExecution} IS NULL` : and(
       eq(inferenceDeployments.internalRouteId, scopedExecution.deploymentId),
       sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(scopedExecution)}::jsonb`
     ),
-    eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
-    inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES])
+    or(
+      and(eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
+        inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES])),
+      commissioning === undefined ? sql`false` : and(
+        eq(inferenceDeployments.permissionState, 'pending_review'),
+        eq(inferenceDeployments.status, 'disabled'),
+        eq(inferenceDeployments.availabilityScope, 'platform_internal'),
+        eq(inferenceDeployments.legalReviewStatus, 'approved'),
+        sql`length(trim(${inferenceDeployments.legalReviewEvidenceRef})) > 0`,
+        sql`${inferenceDeployments.autoApprovalPolicyId} IS NULL`
+      )
+    )
   );
 }
 
@@ -1774,10 +1787,11 @@ export async function selectRouteForViewer(
  * Kaana's opaque key and regions are policy evidence, not a display choice.
  *
  * It goes through {@link selectableDeploymentWhere} like every other read, so an
- * admission can never reach a route the catalogue would not offer.
+ * ordinary admission cannot reach a route the catalogue would not offer; private
+ * commissioning additionally requires its exact reviewed source audience.
  */
 export interface EdgeRoute {
-  readonly scopedCatalogueEvidence?: Omit<import('./scopedExecution.service').ScopedCatalogueEvidence, 'policy'>;
+  readonly scopedCatalogueEvidence?: import('./scopedExecution.service').ScopedCatalogueRouteEvidence;
   /**
    * `inference_deployments.internal_route_id` — Kaana's exact endpoint identity.
    * Opaque to customers and never in a customer projection; it crosses only to
@@ -2197,6 +2211,7 @@ export async function resolveEdgeRoute(
       modelRevisionId: inferenceModelRevisions.id,
       commercialPermission: inferenceDeployments.commercialPermission,
       permissionState: inferenceDeployments.permissionState,
+      deploymentStatus: inferenceDeployments.status,
       legalReviewStatus: inferenceDeployments.legalReviewStatus,
       legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef,
       autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
@@ -2395,17 +2410,23 @@ export async function resolveEdgeRoute(
     exactDeploymentIds.push(candidate.internalRouteId);
   }
 
-  const approvedMappings = await db
+  const commissioningAudience = privateCommissioningAudience(requestContext?.scopedExecution);
+  const admittedMappings = await db
     .select({ deploymentId: inferenceDeployments.internalRouteId })
     .from(inferenceDeployments)
     .where(
       and(
-        eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
+        or(eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
+          commissioningAudience === undefined ? sql`false` : and(
+            eq(inferenceDeployments.permissionState, 'pending_review'),
+            eq(inferenceDeployments.internalRouteId, commissioningAudience.deploymentId),
+            sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(commissioningAudience)}::jsonb`
+          )),
         inArray(inferenceDeployments.internalRouteId, exactDeploymentIds)
       )
     );
   const mappingCounts = new Map<string, number>();
-  for (const mapping of approvedMappings) {
+  for (const mapping of admittedMappings) {
     if (mapping.deploymentId === null) continue;
     mappingCounts.set(mapping.deploymentId, (mappingCounts.get(mapping.deploymentId) ?? 0) + 1);
   }
@@ -2420,6 +2441,10 @@ export async function resolveEdgeRoute(
     };
   }
 
+  if (capacityCompatible.some((candidate) => candidate.permissionState === 'pending_review') &&
+    privateCommissioningAudience(requestContext?.scopedExecution) === undefined) {
+    return { status: 'unknown-model', modelReference };
+  }
   const now = Date.now();
   const ranked: {
     readonly candidate: (typeof capacityCompatible)[number];
@@ -2511,11 +2536,16 @@ export async function resolveEdgeRoute(
     fundingPriority: InferenceFundingPriority
   ): EdgeRoute => ({
     deploymentId: internalRouteId,
-    ...(requestContext?.scopedExecution === undefined || row.permissionState !== 'approved' ||
+    ...(requestContext?.scopedExecution === undefined ||
+      (row.permissionState !== 'approved' && !(row.permissionState === 'pending_review' &&
+        row.deploymentStatus === 'disabled' && privateCommissioningAudience(requestContext.scopedExecution) !== undefined)) ||
       row.legalReviewStatus !== 'approved' || row.legalReviewEvidenceRef === null || row.autoApprovalPolicyId !== null ? {} : {
       scopedCatalogueEvidence: {
         modelRevisionId: row.modelRevisionId, deploymentId: internalRouteId, priceVersionId,
-        commercialPermission: row.commercialPermission, permissionState: 'approved' as const,
+        commercialPermission: row.commercialPermission,
+        ...(row.permissionState === 'pending_review' ? { permissionState: 'pending_review' as const,
+          admission: 'private_commissioning' as const, deploymentStatus: 'disabled' as const } :
+          { permissionState: 'approved' as const }),
         legalReviewStatus: 'approved' as const, legalReviewEvidenceRef: row.legalReviewEvidenceRef,
         eligibility: { availabilityScope: row.availabilityScope, licenseId: row.licenseId,
           commercialUseAllowed: row.commercialUseAllowed, retainsPayloads: row.retainsPayloads,
