@@ -25,7 +25,7 @@ spec=importlib.util.spec_from_file_location('fleet',ROOT/'scripts/operations/fle
 f=importlib.util.module_from_spec(spec);spec.loader.exec_module(f)
 SOURCE='scripts/operations/consumer-promotion.py'
 ALLOWED={'alia','alia-integrations','mention','mention-mcp','mercaria','clarity-api','clarity-worker','allo',
- 'noted','homiio','homiio-worker','website-api','peable','tnp-api','willo','goway','moovo','nilo','crowdsource','syra'}
+ 'noted','homiio','homiio-worker','website-api','peable','tnp-api','willo','goway','moovo','nilo','crowdsource','syra','move'}
 TD_WRITABLE={'family','taskRoleArn','executionRoleArn','networkMode','containerDefinitions','volumes','placementConstraints',
  'requiresCompatibilities','cpu','memory','pidMode','ipcMode','proxyConfiguration','inferenceAccelerators','ephemeralStorage',
  'runtimePlatform','enableFaultInjection'}
@@ -120,7 +120,7 @@ def recipe_for(lots,service):
     for consumer in lots.get('consumers',[]):
         for recipe in consumer.get('imageRecipes',[]):
             if recipe.get('service')==service:matches.append({**recipe,'repository':consumer['repository']})
-    f.require(service in ALLOWED and len(matches)==1,'Service not one of 20 affected image recipes')
+    f.require(service in ALLOWED and len(matches)==1,'Service not one of 21 affected image recipes')
     return matches[0]
 
 

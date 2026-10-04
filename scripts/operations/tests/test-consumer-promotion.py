@@ -222,7 +222,18 @@ class ConsumerTests(unittest.TestCase):
 
     def test_dns_build_recipe_not_promotable(self):
         lots={'consumers':[{'repository':'OxyHQ/tnp','imageRecipes':[{'service':'tnp-dns'}]}]}
-        with self.assertRaisesRegex(RuntimeError,'20 affected'):c.recipe_for(lots,'tnp-dns')
+        with self.assertRaisesRegex(RuntimeError,'21 affected'):c.recipe_for(lots,'tnp-dns')
+
+    def test_move_requires_one_explicit_recipe_without_admitting_legacy_aliases(self):
+        recipe={'service':'move','ecrRepository':'oxy/move'}
+        lots={'consumers':[{'repository':'OxyHQ/Move','imageRecipes':[recipe]}]}
+        self.assertEqual(c.recipe_for(lots,'move'),{**recipe,'repository':'OxyHQ/Move'})
+        for invalid in ('move-worker','relay','relay-publisher','tnp-dns'):
+            other={'consumers':[{'repository':'OxyHQ/Move','imageRecipes':[{'service':invalid}]}]}
+            with self.subTest(invalid=invalid),self.assertRaises(RuntimeError):c.recipe_for(other,invalid)
+        for recipes in ([],[recipe,recipe]):
+            with self.subTest(recipes=recipes),self.assertRaises(RuntimeError):
+                c.recipe_for({'consumers':[{'repository':'OxyHQ/Move','imageRecipes':recipes}]},'move')
 
     def test_duplicate_recipe_rejected(self):
         lots={'consumers':[{'repository':'OxyHQ/Homiio','imageRecipes':[{'service':'homiio'}]*2}]}
