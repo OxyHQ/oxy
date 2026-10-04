@@ -1,0 +1,16 @@
+[
+  {
+    "scope": "core4.4 candidate tree and root manifests",
+    "files": 359,
+    "equal": true
+  },
+  {
+    "scope": "economic .2, .05, four routes and capacity",
+    "equalExcept": "reviewed optional relationship budget type",
+    "sha256": "9f1f381f7119dc48adb496e06aca9baeebee862dfdff0b552e518f9dc1b7956c"
+  },
+  {
+    "scope": "sorted claims fixture",
+    "equal": true
+  }
+]

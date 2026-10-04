@@ -1,0 +1,329 @@
+{
+  "kind": "source-only-machine-private-composition",
+  "sourceHead": "51ee2bce0c30e2a389f151079c8053716e7c84d5",
+  "sourceTree": "4b11a27159d68dca0e8d3522e7d6c833c1bbf3f0",
+  "base1577": "bf26ba75db499aa84cade937a9ab7ca4e111eea5",
+  "merge1580": "7740c7115ad62c0321e628bf21be2c738627525f",
+  "compositionMerge": "735ef3618",
+  "mentionMinimalReplay": [
+    "31ac37824a5624ec1617be9cd9b4e8ac58a42bdd",
+    "f8afaf8c19d950e5ac24271563907627f72aac91",
+    "fe2ec3af2f5353eaacdb0563d056c94439be89da",
+    "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+    "0b4d9b55741a2b944e13eb4ed99977cbf2cab694"
+  ],
+  "standaloneFixtureFix": "51ee2bce0c30e2a389f151079c8053716e7c84d5",
+  "inputs": [
+    {
+      "path": "bun.lock",
+      "sha256": "2bfe6c3a0e5c6d4628720b98cdf2f35d4d57c571284ab46f3b3d7dab14a7030a",
+      "gitObject": "1239958f245a54a555977fbf10baa6d1e4355c4a"
+    },
+    {
+      "path": "package.json",
+      "sha256": "7401600099341b29b8153aad6bde80294d17774a5e500cd11bbc3fd44944a741",
+      "gitObject": "a31bcd8ceac14037e77008b5a846e05aad78097d"
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510",
+      "gitObject": "1f970523a4b1e7654a18613a016cce6350324218"
+    },
+    {
+      "path": "packages/api/scripts/record-scoped-legal-review.ts",
+      "sha256": "4f2172709a777232b97e21df5dfbeb7155b110c63bc09a9d6d5f5aaf9260347d",
+      "gitObject": "f707fb39436abfd803067492fb1802f9b136f191"
+    },
+    {
+      "path": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sha256": "9f1f381f7119dc48adb496e06aca9baeebee862dfdff0b552e518f9dc1b7956c",
+      "gitObject": "8222d4990d675d97a3b5c3923e7f402489dee736"
+    },
+    {
+      "path": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "sha256": "c87839d53177eaeebd3d7c9fa3c20afc2a1ebcd967ef1eb6ab5b29229c33126c",
+      "gitObject": "832613b4a473143b9fc2dbd650dc964989eefe2a"
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/routingScoreEconomicsCallsites.test.ts",
+      "sha256": "2b54fccb7e4d8ef9c251b7661b69584404a773dc729b997683f94fb0c927ddcd",
+      "gitObject": "b37f68c6e38e61166eb3af6afd55c14139d61242"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/aliaMachineCredential.test.ts",
+      "sha256": "5bb522dcbdb8eebda0b3b7634cd094c0f8fc48f2ef9da9c652f8622a63f23886",
+      "gitObject": "e2d5cd98675e68ba0d392552941e630d52636be7"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdge.test.ts",
+      "sha256": "a08208f02c6927179dee6d5ee1bfb221546e878ab34f2687bd0948c61b918f62",
+      "gitObject": "46a565930a2186c93f27effb1030d7c35e14c159"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "81db6470a9d9e2ae0254ac08ea589b4b00a49d46933aff3b7d4c0dafee9d30e2",
+      "gitObject": "9b4b6578d605bf94a9ce031a0ec480e504014ecb"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts",
+      "sha256": "5cbea8ffe78a649719a1f2c4e1b115a1e8968b1b94382c46d5d23bb4f8a664a6",
+      "gitObject": "bab580d142369119a723fa0117156fdd60afd6e0"
+    },
+    {
+      "path": "packages/api/src/routes/internal.ts",
+      "sha256": "b0db498c92ac1d8f37036a5084d867e28f7fad9a85d3df619f76f6d904228fc2",
+      "gitObject": "9c61488048f1fee2fb84c1352a37f5371323f5b3"
+    },
+    {
+      "path": "packages/api/src/scripts/recordScopedLegalReview.ts",
+      "sha256": "ba36589a2183bc359e96cb2fde1a56c5e993d19d122f13569ddf8eed19948d55",
+      "gitObject": "642753994f1fdd3001e4de1e51ecc7fbd40948bd"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/aliaMachineCredential.test.ts",
+      "sha256": "6245ab7fcfe2f9d1ac8de5d46cbb0855a3313f7621e0fd8114b42988422a2882",
+      "gitObject": "565e2543bbfee711bc71d3e5fb27f816620d12b3"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/inferenceMeteredUsage.service.test.ts",
+      "sha256": "2f05318c4e97ad3334f7d65d04d797a84af1077c1f5b5636258c556077fa496c",
+      "gitObject": "74f975890c3a1e2788112aaff0878f26650d9558"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "sha256": "9309917f84038af66968d7db468e3e038580919137379d8578e43ede497afa14",
+      "gitObject": "884b381cd1ab803e4b6d43fa39df0e9924f1fff2"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierAdmission.test.ts",
+      "sha256": "125fb90f4b2d237a268b929b73fcc6e0e943f316facc89c87e3aa90de34943f8",
+      "gitObject": "0a0c9e701754f6d01d1c09ea019b153e72222dbe"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierAuthority.db.test.ts",
+      "sha256": "fee0b7e4c8975917d92f898f91c11519810d1b851ca91ebdaa579320c9e0ba1a",
+      "gitObject": "38481d1e2746647cece931226e6787125cb5f90c"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "sha256": "04d08bffbdfcc49d14694bb6c441ab0485396ba6e064c9d7596c25cec84e7399",
+      "gitObject": "5bda0289ea2b66ba51d3e43510851490a680ea04"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/privateCommissioning.test.ts",
+      "sha256": "124182ae41741290183be54772f996f4c1a8f78b9548981223ce2198358a4af5",
+      "gitObject": "40e561c18e0a6bb190d7f63ffa8694630b0d4398"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "sha256": "7d84d40e2eba247dcc2377ee6d43ed57b7ead69b171d179580ce8e509b09f7d1",
+      "gitObject": "cb939399be16d6e3ea9321883bf528767b874bd2"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedExecution.service.test.ts",
+      "sha256": "a33a5c3ac95f4ad047953d1bce270d83e6e13366d14b0dee79c5fc4096b2081a",
+      "gitObject": "53e72f99fec1c56b9c8a2ff18f8867fc29000b61"
+    },
+    {
+      "path": "packages/api/src/services/aliaMachineCredential.service.ts",
+      "sha256": "680d171d8f5adaf9ef2cd98b2fd0f1bd909ebb1130cb4b3c4fcfe42d6cad294f",
+      "gitObject": "357ccacc3aea8cba39a9d2bca0d8391f4ccccaa2"
+    },
+    {
+      "path": "packages/api/src/services/inferenceCatalogue.service.ts",
+      "sha256": "e77fb374b24867137d9b51958697c545fa9adf7553e65ed779d6e9e68cdf42b5",
+      "gitObject": "e9043aac094a06109caf8d374e737ae595e0aadd"
+    },
+    {
+      "path": "packages/api/src/services/inferenceCatalogueAdmin.service.ts",
+      "sha256": "9f7d16d8b7c02e3fcf8190a549a0346381d3862d47d6405eb9d1da3bfa6ddf7c",
+      "gitObject": "dda7d42bf2cb98d6419e3531154c8fc233a55052"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "f346ba8e89fc30d3c97e6498abf263d77b8ef7c50955819772e5731b17c73cde",
+      "gitObject": "996493a8424535c41f1044d40ae804ebe4df1594"
+    },
+    {
+      "path": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "sha256": "c1445369fa3f0e378f08e3142c857881793de25ec4d420a420832b41f93badfd",
+      "gitObject": "c12c096989bb8fc7742f485b94eab9c2458ad4c2"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "bc2debbbc4a75e10dc29935cd5ded5d2656f8dfcc37957a0d9230075d8f72b80",
+      "gitObject": "ca65af608ceddaf2f5f73a27e803554bbdd30c4a"
+    },
+    {
+      "path": "packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "sha256": "578f8dd845090824db36172c7ae9564cc6b8b3fe8233e81975c80d3ff7ce3998",
+      "gitObject": "7efea691b64821d0ea1804fe27b8ac63d3f6db20"
+    },
+    {
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "7c160b71ba6ae9d841f43ba46f9f0291c5c8b65b949bd258d8db0e27d42cb0bd",
+      "gitObject": "18f5ad237a47faa0b0c13b3e1abc5c4e0f63e77c"
+    },
+    {
+      "path": "packages/api/src/services/scopedLegalReviewOperation.service.ts",
+      "sha256": "85d6769c94e6674f155740b8335fff95fb7df5e4419d82758c2bdfc8e654b8fd",
+      "gitObject": "e81632a95f54928db165bff307d46882e7612e90"
+    },
+    {
+      "path": "packages/api/src/utils/__tests__/applicationScopes.test.ts",
+      "sha256": "dc0f9f1619c6136ab0298b9f60c1d635e656ff22af80950819aa4bd475b4f590",
+      "gitObject": "dcb678401c546468a897838946d00309664a46c7"
+    },
+    {
+      "path": "packages/api/src/utils/applicationScopes.ts",
+      "sha256": "c277afc6ff5564ee3e41102bd1cfa9efd43023ca487ec0458aef2ebdd92dfdd5",
+      "gitObject": "b1ec51ece54cd03fb46561c77edc2afa063e8933"
+    },
+    {
+      "path": "packages/core/package.json",
+      "sha256": "891584d9cdc87d15e29c8f5f54dce92a65cbd72c450d3e61b04fb14e1078ff85",
+      "gitObject": "d54f91d174c5733188d3f4447b1da314244e44ae"
+    },
+    {
+      "path": "packages/core/src/server/OxyServer.ts",
+      "sha256": "246fa030e77df87480327cbc857fdfb69c32595afdece9353b1a11df208b02cf",
+      "gitObject": "781bbe86d268ca41f752ec24763e8186b1fca3bc"
+    },
+    {
+      "path": "packages/core/src/server/aliaMachineCredential.ts",
+      "sha256": "ab2df2356f25c7862694e05764c7881c61b5eeb2eb222e2848bc362ed25cd27c",
+      "gitObject": "28777b22c36059f83064a8349c60dd9da4512a91"
+    },
+    {
+      "path": "packages/core/src/server/index.ts",
+      "sha256": "1d31559b1a9da5658028169e21603404ac2cafb9f34448a861cf5063d2565a1b",
+      "gitObject": "9977d52a16bafd39a197e8a952a57b38b23fc61e"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-machine-private-composition/records/canonical-build.txt",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-machine-private-composition/records/combined-red-fixture-collision.txt",
+      "sha256": "88b0a333d191cea75ac6e2a74c70d19fedcb219bf331a892b6a865772a6b8d9e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-machine-private-composition/records/fixture-lint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-machine-private-composition/records/install.txt",
+      "sha256": "521d26d0ca94e1e5318c51bf08bcc7cea044b7b2f1e2e299061256156dd09bc3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-machine-private-composition/records/isolated-collision-green.txt",
+      "sha256": "38484fd8335430658be57dbe6d2994d7edeb49f795259cd1e67582d8c81eed57"
+    },
+    {
+      "path": "docs/audits/2026-10-04-machine-private-composition/records/owned-collision-regression-pg.py",
+      "sha256": "72d790d80269d8ec44e1037bccb6e77c5b2ab67e273d78a80f293da544ff7e7f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-machine-private-composition/records/owned-combined-pg.py",
+      "sha256": "b146d16f80ed7c3cf716d2d9160c66b45bf6c811d829280fa3bac241003c4685"
+    },
+    {
+      "path": "docs/audits/2026-10-04-machine-private-composition/records/preservation.json",
+      "sha256": "912a6b16d9ad4cde7b0e9da6e0b2914a06edb31160ff32f0c0f8ffda9b75d054"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/api/dist/services/inferenceEdge.service.js",
+      "sha256": "9f2da90fd5ead684c143c687ad159dc54f09fa6e3c054a3fdf1eb45046c246c4",
+      "buildAtSource": "8cb0acb90571eb1cf9efc3d28d02365f29e6df08"
+    },
+    {
+      "path": "packages/api/dist/services/scopedExecution.service.js",
+      "sha256": "fe6d09e6a7ab21e6a610a641a6fe9d548cac1e715295daf98d97d93dbc24f78b",
+      "buildAtSource": "8cb0acb90571eb1cf9efc3d28d02365f29e6df08"
+    },
+    {
+      "path": "packages/api/dist/services/mentionClassifierEconomics.service.js",
+      "sha256": "ce304f2392aaab1c584683ad09d632677aeae5839e2372378383bd8c316969da",
+      "buildAtSource": "8cb0acb90571eb1cf9efc3d28d02365f29e6df08"
+    },
+    {
+      "path": "packages/api/dist/services/aliaMachineCredential.service.js",
+      "sha256": "d39065e313fe8e1f1bbddb9bb5f157fb092b7ab158cac2e2ecd01f3c4d95a164",
+      "buildAtSource": "8cb0acb90571eb1cf9efc3d28d02365f29e6df08"
+    },
+    {
+      "path": "packages/api/dist/config/inferenceEconomicPolicy.js",
+      "sha256": "a94e861c7fd742ab0362203b3cf9129c2f223caf3ad78dbbf14be1a0b5aea084",
+      "buildAtSource": "8cb0acb90571eb1cf9efc3d28d02365f29e6df08"
+    },
+    {
+      "path": "packages/api/dist/config/mentionClassifierEconomics.js",
+      "sha256": "da5acf878dd42070030cc5dd1fb20d2e2ca7ab841165126b882ad059f1044cce",
+      "buildAtSource": "8cb0acb90571eb1cf9efc3d28d02365f29e6df08"
+    },
+    {
+      "path": "packages/api/dist/routes/internal.js",
+      "sha256": "b4d8e7b59c560523b5e90649087310e3fdef5992c41c71c89169c3866f81bd75",
+      "buildAtSource": "8cb0acb90571eb1cf9efc3d28d02365f29e6df08"
+    }
+  ],
+  "preservation": [
+    {
+      "scope": "core4.4 candidate tree and root manifests",
+      "files": 359,
+      "equal": true
+    },
+    {
+      "scope": "economic .2, .05, four routes and capacity",
+      "equalExcept": "reviewed optional relationship budget type",
+      "sha256": "9f1f381f7119dc48adb496e06aca9baeebee862dfdff0b552e518f9dc1b7956c"
+    },
+    {
+      "scope": "sorted claims fixture",
+      "equal": true
+    }
+  ],
+  "validation": {
+    "install": "frozen-lockfile/minimum-release-age=0",
+    "canonicalApiBuild": "exit0, all eight direct dependency packages",
+    "initialCombined": {
+      "suitesPassed": 9,
+      "suitesFailed": 1,
+      "testsPassed": 174,
+      "testsFailed": 11,
+      "failure": "fixed Alia fixture ID already belongs to another suite in worker database; no auth/runtime failure"
+    },
+    "afterFixtureIsolation": {
+      "suitesPassed": 4,
+      "testsPassed": 117,
+      "paths": [
+        "inferenceEdgeInternalMetered.test.ts",
+        "aliaMachineCredential.test.ts (routes)",
+        "aliaMachineCredential.test.ts (services)",
+        "applicationScopes.test.ts"
+      ]
+    },
+    "otherCombinedSuites": "All six scoped/Mention/pilot runtime suites plus the routing-score census passed in the initial run. Only the colliding fixture lifecycle changed afterward; repeat scoped to the two colliding suites and machine/scopes focals.",
+    "fixtureEslint": "exit0",
+    "ownedPostgresPids": [
+      1929674,
+      1930962
+    ],
+    "ownedPostgresPidsAbsent": true
+  },
+  "limits": {
+    "getters": "Mention approval and scoped execution source audience remain undefined",
+    "shippingRuntimeDeltaBeyondReviewedInputs": false,
+    "newDDL": false,
+    "awsCalls": false,
+    "providerCalls": false,
+    "push": false,
+    "originalBranchesModified": false,
+    "coreFullRetest": false,
+    "coreSourceUnchangedFrom1577": true
+  }
+}
