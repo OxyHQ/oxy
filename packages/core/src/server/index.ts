@@ -20,12 +20,26 @@
 export { OxyServer, ServiceCredentialMismatchError, ANONYMOUS_SERVICE_TOKEN_RETRY_MS } from './OxyServer';
 export type { OxyServerConfig, ServiceTokenResponse } from './OxyServer';
 export {
+  ServerAppsApi,
   ServerAgencyApi,
   ServerAssetsApi,
   ServerLinkedAccountsApi,
   ServerNotificationsApi,
   ServerReputationApi,
 } from './namespaces';
+export {
+  createOxyAliaMachineCredentialAuth,
+  getOxyAliaMachineCredentialBearer,
+  isOxyAliaMachinePrincipal,
+  OXY_ALIA_RESOURCE_APPLICATION_ID,
+  OXY_ALIA_MACHINE_SCOPES,
+} from './aliaMachineCredential';
+export type {
+  AliaMachineCredentialIntrospection,
+  OxyAliaMachinePrincipal,
+  OxyAliaMachineRequest,
+  OxyAliaMachineCredentialHost,
+} from './aliaMachineCredential';
 export type {
   CapabilityTicketGrant,
   CapabilityTicketIntrospection,

@@ -1,0 +1,6 @@
+$ jest src/routes/__tests__/applicationPermissionOverrides.test.ts --runInBand
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        1.116 s
+Ran all test suites matching src/routes/__tests__/applicationPermissionOverrides.test.ts.

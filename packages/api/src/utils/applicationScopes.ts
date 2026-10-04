@@ -172,6 +172,9 @@ export const APPLICATION_SCOPES = [
   'user:read',
   'webhooks:receive',
   'inference:invoke',
+  // App-only Alia assistant chat. Requires inference:invoke independently;
+  // never grants a user's memory, agents, tools or a delegated session.
+  'alia:chat',
   'inference:models:read',
   'inference:usage:read',
   'inference:routing:read',

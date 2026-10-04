@@ -1,0 +1,7 @@
+$ jest src/services/__tests__/aliaMachineCredential.test.ts src/routes/__tests__/aliaMachineCredential.test.ts src/utils/__tests__/applicationScopes.test.ts --runInBand
+
+Test Suites: 3 passed, 3 total
+Tests:       60 passed, 60 total
+Snapshots:   0 total
+Time:        1.067 s
+Ran all test suites matching src/services/__tests__/aliaMachineCredential.test.ts|src/routes/__tests__/aliaMachineCredential.test.ts|src/utils/__tests__/applicationScopes.test.ts.

@@ -55,6 +55,7 @@ import { OXY_SERVICE_ENVIRONMENTS } from '@oxy.so/core/server';
  */
 
 import express from 'express';
+import { introspectAliaMachineCredential } from '../services/aliaMachineCredential.service';
 import { observeInfrastructure } from '../services/platformInfrastructure.service';
 import { platformActivityBatchSchema, infrastructureHeartbeatSchema } from '../services/platformActivity.schema';
 import { publishPlatformActivity } from '../services/platformActivity.service';
@@ -159,6 +160,27 @@ const requireTrustedServiceApp = asyncHandler(
 
 router.use(serviceAuthMiddleware);
 router.use(requireTrustedServiceApp);
+
+const aliaMachineIntrospectionLimiter = rateLimit({
+  prefix: 'rl:internal:alia-machine-introspection:',
+  windowMs: 60_000,
+  max: 300,
+  keyGenerator: req => (req as ServiceAuthRequest).serviceApp?.appId || 'unknown',
+});
+const aliaMachineIntrospectionBody = z.object({ token: z.string().min(1).max(2048) }).strict();
+
+/** Only Alia's own authenticated resource server may resolve this audience. */
+router.post('/alia/machine-credentials/introspect', aliaMachineIntrospectionLimiter,
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const parsed = aliaMachineIntrospectionBody.safeParse(req.body);
+    if (!parsed.success) throw new BadRequestError('Invalid machine credential introspection');
+    if (req.headers['x-oxy-user-id'] !== undefined) {
+      sendSuccess(res, { active: false });
+      return;
+    }
+    sendSuccess(res, await introspectAliaMachineCredential(req.serviceApp?.appId || '', parsed.data.token));
+  }),
+);
 
 // Aggregate-only collection from the whole first-party ecosystem. The router's
 // shared service authentication and trust gates also protect this endpoint.

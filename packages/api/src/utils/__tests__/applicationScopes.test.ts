@@ -91,6 +91,13 @@ describe('unionValidScopes (additive canonical rebuild)', () => {
 });
 
 describe('scope classification helpers', () => {
+  it('keeps Alia chat explicit and app-only, independently from inference', () => {
+    expect(isValidApplicationScope('alia:chat')).toBe(true);
+    expect(isPrivilegedScope('alia:chat')).toBe(false);
+    expect(isUserConsentRequiredScope('alia:chat')).toBe(false);
+    expect(intersectScopes(['alia:chat', 'inference:invoke'], ['inference:invoke'])).toEqual(['inference:invoke']);
+    expect(intersectScopes([], ['alia:chat', 'inference:invoke'])).toEqual([]);
+  });
   it('recognises signals:write as a valid privileged scope', () => {
     expect(isValidApplicationScope('signals:write')).toBe(true);
     expect(isPrivilegedScope('signals:write')).toBe(true);
