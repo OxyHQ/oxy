@@ -1,0 +1,101 @@
+$ bun run build:cjs && bun run build:esm && bun run build:types
+$ tsc -p tsconfig.cjs.json
+$ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+ESM imports fixed
+$ tsc -p tsconfig.types.json
+bun pack v1.4.2 (744846f84)
+
+packed 4.16KB package.json
+packed 31.48KB LICENSE
+packed 1.18KB NOTICE
+packed 168.67KB dist/cjs/.tsbuildinfo
+packed 2.47KB dist/cjs/assert/expiryIndexes.js
+packed 5.67KB dist/cjs/assert/idColumns.js
+packed 1.23KB dist/cjs/assert/index.js
+packed 11.26KB dist/cjs/assert/protectedColumns.js
+packed 5.64KB dist/cjs/assert/schemaInvariants.js
+packed 2.86KB dist/cjs/casing.js
+packed 10.90KB dist/cjs/columns.js
+packed 2.33KB dist/cjs/database.js
+packed 6.26KB dist/cjs/expiry.js
+packed 2.13KB dist/cjs/ids.js
+packed 4.77KB dist/cjs/index.js
+packed 5.98KB dist/cjs/migrate/extensions.js
+packed 5.30KB dist/cjs/migrate/index.js
+packed 18.35KB dist/cjs/migrate/ledger.js
+packed 10.21KB dist/cjs/migrate/phases.js
+packed 12.59KB dist/cjs/migrate/runner.js
+packed 4.95KB dist/cjs/migrate/targetDatabase.js
+packed 10.56KB dist/cjs/migrate/verify.js
+packed 6.31KB dist/cjs/pgErrors.js
+packed 7.1KB dist/cjs/testing.js
+packed 169.1KB dist/esm/.tsbuildinfo
+packed 2.27KB dist/esm/assert/expiryIndexes.js
+packed 5.47KB dist/esm/assert/idColumns.js
+packed 279B dist/esm/assert/index.js
+packed 11.0KB dist/esm/assert/protectedColumns.js
+packed 5.28KB dist/esm/assert/schemaInvariants.js
+packed 2.62KB dist/esm/casing.js
+packed 10.35KB dist/esm/columns.js
+packed 1.99KB dist/esm/database.js
+packed 5.99KB dist/esm/expiry.js
+packed 2.0KB dist/esm/ids.js
+packed 0.61KB dist/esm/index.js
+packed 5.69KB dist/esm/migrate/extensions.js
+packed 0.81KB dist/esm/migrate/index.js
+packed 17.57KB dist/esm/migrate/ledger.js
+packed 9.89KB dist/esm/migrate/phases.js
+packed 12.1KB dist/esm/migrate/runner.js
+packed 4.59KB dist/esm/migrate/targetDatabase.js
+packed 10.15KB dist/esm/migrate/verify.js
+packed 5.80KB dist/esm/pgErrors.js
+packed 6.72KB dist/esm/testing.js
+packed 170.90KB dist/types/.tsbuildinfo
+packed 1.12KB dist/types/assert/expiryIndexes.d.ts
+packed 3.31KB dist/types/assert/idColumns.d.ts
+packed 448B dist/types/assert/index.d.ts
+packed 6.34KB dist/types/assert/protectedColumns.d.ts
+packed 1.65KB dist/types/assert/schemaInvariants.d.ts
+packed 2.38KB dist/types/casing.d.ts
+packed 11.22KB dist/types/columns.d.ts
+packed 6.15KB dist/types/database.d.ts
+packed 5.19KB dist/types/expiry.d.ts
+packed 1.40KB dist/types/ids.d.ts
+packed 0.68KB dist/types/index.d.ts
+packed 4.1KB dist/types/migrate/extensions.d.ts
+packed 1.1KB dist/types/migrate/index.d.ts
+packed 11.97KB dist/types/migrate/ledger.d.ts
+packed 6.71KB dist/types/migrate/phases.d.ts
+packed 7.89KB dist/types/migrate/runner.d.ts
+packed 3.1KB dist/types/migrate/targetDatabase.d.ts
+packed 8.60KB dist/types/migrate/verify.d.ts
+packed 4.30KB dist/types/pgErrors.d.ts
+packed 4.25KB dist/types/testing.d.ts
+packed 2.92KB src/assert/expiryIndexes.ts
+packed 6.33KB src/assert/idColumns.ts
+packed 464B src/assert/index.ts
+packed 12.14KB src/assert/protectedColumns.ts
+packed 6.58KB src/assert/schemaInvariants.ts
+packed 2.73KB src/casing.ts
+packed 11.43KB src/columns.ts
+packed 6.40KB src/database.ts
+packed 7.11KB src/expiry.ts
+packed 2.0KB src/ids.ts
+packed 0.74KB src/index.ts
+packed 5.88KB src/migrate/extensions.ts
+packed 1.13KB src/migrate/index.ts
+packed 18.52KB src/migrate/ledger.ts
+packed 11.0KB src/migrate/phases.ts
+packed 14.30KB src/migrate/runner.ts
+packed 4.64KB src/migrate/targetDatabase.ts
+packed 12.45KB src/migrate/verify.ts
+packed 6.00KB src/pgErrors.ts
+packed 8.11KB src/testing.ts
+
+/home/nate/Oxy/.agent-evidence/coverage-forge-permanent-20261004/shipping-packs-final/oxy.so-db-1.0.0.tgz
+
+Total files: 86
+Shasum: 914f5908705f611ec8cf32f483e57c04f7ffb436
+Integrity: sha512-0A3svMnMp51Wy[...]NRAGfb7R++XpA==
+Unpacked size: 1.0MB
+Packed size: 0.30MB

@@ -1,0 +1,45 @@
+$ node --test test/*.cjs
+✔ RSA pair has the default 2048-bit modulus and matching public exponent (0.730795ms)
+✔ key-pair PEM round trip preserves both moduli (0.633874ms)
+✔ public-key PEM round trip preserves exponent and modulus (0.848945ms)
+✔ private-key PEM round trip preserves private exponent (0.217362ms)
+✔ certificate PEM round trip verifies its self-signature (0.290202ms)
+✔ valid certificate and corresponding pair satisfy Expo validation (0.989376ms)
+✔ Expo manifest signature verifies with independent Node/OpenSSL SHA256 (0.178845ms)
+✔ altered manifest bytes fail independent Node/OpenSSL verification (0.189777ms)
+✔ private key from another pair is rejected by Expo signing verification (0.836677ms)
+✔ reversed certificate validity interval is rejected (0.512895ms)
+✔ expired certificate is rejected by Expo validation (3.382553ms)
+✔ CSR PEM round trip verifies its signature and requested identity (2.35978ms)
+✔ development certificate verifies its issuer and contains requested project scope (4.054636ms)
+✔ tampered CSR signature is rejected before development certificate issuance (1.506701ms)
+✔ native CSR verifies using system OpenSSL independently (6.494373ms)
+✔ system OpenSSL CSR retains CN/O/OU and verifies using native implementation (9.49692ms)
+✔ system OpenSSL reads native certificate code-signing critical extensions (10.802998ms)
+✔ native certificate is accepted as its exact self-signed OpenSSL trust anchor (5.16371ms)
+✔ trailing CSR ASN1 value is refused before signature validation (1.163874ms)
+✔ nested extra CSR signature algorithm field is refused (1.029782ms)
+✔ nonempty NULL CSR algorithm parameter is refused on actual DER bytes (1.06001ms)
+✔ unknown CSR algorithm is refused even with unchanged signature (0.830113ms)
+✔ CSR signature bit mutation stays denied before issuance (2.312319ms)
+✔ PEM with a second object is refused (0.16269ms)
+✔ invalid base64 padding is refused (0.111638ms)
+✔ wrong public/private key pair is refused by validation (21.508111ms)
+✔ OpenSSL RSA verifier accepts known-key canonical DigestInfo (1.131362ms)
+✔ OpenSSL RSA verifier rejects known-key extra-nested DigestInfo (0.727768ms)
+✔ OpenSSL RSA verifier rejects known-key nonempty-null DigestInfo (0.770141ms)
+✔ OpenSSL RSA verifier rejects known-key trailing DigestInfo (0.661661ms)
+✔ certificate trailing DER cannot influence its parsed subject (1.537629ms)
+✔ mutated certificate signature cannot pass self-signed validation (2.22091ms)
+✔ unpaired UTF16 common name is refused before certificate issuance (0.231261ms)
+✔ actual forked Expo Security.js reads an OpenSSL EC certificate DN (36.557697ms)
+✔ oversized or non-string PEM is refused before DER parsing (0.318031ms)
+✔ EC PEM cannot be presented as an RSA code-signing key (0.775657ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 223.585828

@@ -1,0 +1,16 @@
+$ bun ./scripts/check-agents-md-size.mjs && bun ./scripts/test-check-agents-md-size.mjs
+AGENTS.md budget check passed (2 file(s): AGENTS.md, packages/create-oxy-app/templates/base/AGENTS.md).
+check-agents-md-size self-test
+
+  ok   floor: a tree with no AGENTS.md is a FAILURE, not a clean scan
+  ok   floor: a tree whose ROOT AGENTS.md is missing is a FAILURE
+  ok   a small root AGENTS.md passes
+  ok   an over-budget root AGENTS.md fails, naming the budget
+  ok   a nested AGENTS.md is held to the SMALLER budget
+  ok   control: the same 10 KB passes at the ROOT path
+  ok   a per-issue HEADING fails and says where it goes
+  ok   an issue number in BODY prose passes
+  ok   a one-digit '#1' in a heading does not fire; '#57' does
+  ok   the real repository is within budget
+
+All self-test cases passed.
