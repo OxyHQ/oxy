@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "cliUpstream": "57.0.23",
+  "cliFork": "@oxy.so/expo-cli-native",
+  "changedUpstreamFiles": [
+    "build/src/run/ios/codeSigning/Security.js",
+    "build/src/run/ios/codeSigning/Security.js.map",
+    "package.json"
+  ],
+  "unchangedUpstreamFiles": 795,
+  "adapterFiles": 5,
+  "forgeInLock": false,
+  "installedValidation": {
+    "comparedFiles": {
+      "cli": 797,
+      "adapter": 5,
+      "cliAdapter": 5
+    },
+    "forgeResolvableFromAPIOrCLI": false
+  },
+  "publishedManifestLocalReferences": false,
+  "archives": {
+    "oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz": "2a33f912050a067fbdf627b217a048bb8e19de7b8239e195eac2e5a064bde53c",
+    "expo-cli-57.0.23-upstream.tgz": "a767f4d0abe78ba7a5f12d873d5e7e05872a24531a9601cebcdbe52e901eec8c",
+    "oxy.so-expo-code-signing-native-0.1.1.tgz": "051e4b5266378caff00bc4ce369686ead6f1c4961b13579bcd5aa25131f4fb51"
+  }
+}

@@ -3,11 +3,12 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const path = require('node:path');
 const test = require('node:test');
-const expoEntry = require.resolve('@expo/code-signing-certificates', {
+// An image proof may supply the exact physical native entry after byte inventory.
+// Default host checks retain the ordinary API package-resolution context.
+const expoEntry = process.argv[3] ? require.resolve(path.resolve(process.argv[3])) : require.resolve('@expo/code-signing-certificates', {
   paths: [path.resolve(process.argv[2] || 'packages/api')],
 });
 const expo = require(expoEntry);
-const forge = require(require.resolve('node-forge', { paths: [path.dirname(expoEntry)] }));
 const pair = expo.generateKeyPair();
 const other = expo.generateKeyPair();
 const pem = expo.convertKeyPairToPEM(pair);

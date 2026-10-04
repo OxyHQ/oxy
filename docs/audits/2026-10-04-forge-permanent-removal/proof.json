@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "kind": "permanent-forge-removal-source-proof-v1",
+  "sourceCommit": "bef6d5c48db57a4e34927a13dc614b9ec3751f18",
+  "baseCommit": "844b4bdc3dd72c5ddd432b390456ffdce7584b8e",
+  "inputs": {
+    ".github/workflows/ci.yml": {
+      "sha256": "1c624a98c57fb80d6ea88fa0595f2beb517c65a80a82fee0cd5aab4eb0ba01a9",
+      "gitBlob": "e00daf4d2df4e7f718496e2f89d6508f3852dfed"
+    },
+    ".github/workflows/native-expo-image-proof.yml": {
+      "sha256": "eb5f53d4c0b3477c8831ee781b82452859e3a13b22b9ddb7576c2714459b5d95",
+      "gitBlob": "725f4560f80d7a96192fc1c01f6d74762d3ea9ef"
+    },
+    "Dockerfile": {
+      "sha256": "3c0db7c5d8f6e6823d910180ab9c5485217fdde7cdf6d3e6755e05bb084153eb",
+      "gitBlob": "7446eb8f02cc4119713d34bf52ce8f98f1125e3d"
+    },
+    "bun.lock": {
+      "sha256": "1139fc5ad097e2f256d700e47fb02b7c1751f7d3e77ca357cb5b1f56688e4ad1",
+      "gitBlob": "5e7b4af53e59f7e0db79a30fa35747ae8d916e70"
+    },
+    "docs/security/forge-candidate/provenance/audit-policy-decision.json": {
+      "sha256": "1f6548d819af8f247cf599b3c6cbbab98f5fcaad3a911a28d9fa13e6562a518e",
+      "gitBlob": "84a8c9afe0ccfe84e8cc0a7489bfbd341c105f43"
+    },
+    "package.json": {
+      "sha256": "7401600099341b29b8153aad6bde80294d17774a5e500cd11bbc3fd44944a741",
+      "gitBlob": "a31bcd8ceac14037e77008b5a846e05aad78097d"
+    },
+    "packages/node/Dockerfile": {
+      "sha256": "73a95831bc688a08555ce0c8ddba9ffaacbb40e07eae127a51b4cf9d1513dfbf",
+      "gitBlob": "e7ae6a2bde041492773566ff1a07f3c22edc4a21"
+    },
+    "scripts/build-native-expo-forks.mjs": {
+      "sha256": "ca91eb1b9ececce1cb0295d44ca77b4ce1da6b7e8561cbb8eb7543bf38bdac0f",
+      "gitBlob": "3f895c0c0b0ca900074dfa29e62652a897ec2d23"
+    },
+    "scripts/forge-independent-expo-compat.cjs": {
+      "sha256": "2582f5fb37b491cc4079ef828c01c898432d65ace80adfaa46ff7cbcae9759a9",
+      "gitBlob": "4b6c5fc2e36984e7965d01476511a628218fd4e2"
+    },
+    "scripts/native-expo-image-inventory.mjs": {
+      "sha256": "640f5852e60186cf5456ca10bc7ff77497f241bc5108ee9719aec457b2c19f12",
+      "gitBlob": "7966b7b85771492ce157182c3121fc9b0247a0fe"
+    },
+    "scripts/test-native-expo-image-inventory.mjs": {
+      "sha256": "c998b784840775427e030fcd567e673df6c4555128dee4907964d7d88395cdf2",
+      "gitBlob": "5a1b1820782a8b8a9e9e5c93ea9b53e74ce69d4b"
+    },
+    "scripts/test-verify-native-expo-forks.py": {
+      "sha256": "a3f787b106fe24a84cd91b481d82d674ecd3363265fb325c4ab0beccdc94151f",
+      "gitBlob": "50f2fb0ddff5c3a027ae41982dcaf81f566c47f9"
+    },
+    "scripts/verify-native-expo-forks.py": {
+      "sha256": "72d548e14eba381ac722ca9c7b65148649971489e275a924671edf4b6eed96cd",
+      "gitBlob": "e44ff43a18ea07f3db690b43b391ae45740464f7"
+    },
+    "tooling/expo-code-signing-native/LICENSE": {
+      "sha256": "1a4cdb441fc7674e4bdf1f203becde794ecbbbf18f633a01f7d8c3a5be10eca4",
+      "gitBlob": "cb0f832869f11bf15a213b5ad85f5116b7419f9d"
+    },
+    "tooling/expo-code-signing-native/README.md": {
+      "sha256": "9cf69dd9a4cab0177ae85e8ac1b0196c95e341ab98ee7d2bce5f277c8700400b",
+      "gitBlob": "1bc0ff2772f46ca837bef3949894b1adeedcdd74"
+    },
+    "tooling/expo-code-signing-native/bun.lock": {
+      "sha256": "c5022afc89cf257dad70b05adce4b5cf2f9c8b29694f1d56a0fa1e1ab42c9694",
+      "gitBlob": "7e5edeabca783e46e656ccb2c54380bc778df8c9"
+    },
+    "tooling/expo-code-signing-native/index.cjs": {
+      "sha256": "a29d0cc3b76320e1d70518a8c85230031984a3744c4a073896f6514469b2393c",
+      "gitBlob": "f97bd4ba8de00adfbc8068357916a6c985dea3ca"
+    },
+    "tooling/expo-code-signing-native/index.d.ts": {
+      "sha256": "361e944ba3803afa6439ae0e008d2640bcec7fd02e0de52c6fe62b03c5ffa50d",
+      "gitBlob": "fa2ff070fcc1f552ffa8ae70ea1093a392eae979"
+    },
+    "tooling/expo-code-signing-native/package.json": {
+      "sha256": "e5f46723ad0cb091c36ed408defa49dfd0fea22de9c00acfbc26bbb4279cd233",
+      "gitBlob": "7ce5354f7337cbbca0773191548eff956814e09f"
+    },
+    "tooling/expo-code-signing-native/test/expo-compat.cjs": {
+      "sha256": "519b311ebce6303c30ba5b4763d05f89487e0d4d42b1d2f4aeaba6e6f62ec356",
+      "gitBlob": "a16458048720cc4a42a2bc4e7e19ea3a33ce8ca2"
+    },
+    "tooling/expo-code-signing-native/test/native-standards.cjs": {
+      "sha256": "60a3b021cf807f9f944f70bb770a5a14efc741ece2b6a6e6dd4cafab91939d4b",
+      "gitBlob": "e9e5852587f1dd5b48b629165ae37a26aca1efe4"
+    },
+    "vendor/expo-native/expo-cli-57.0.23-upstream.tgz": {
+      "sha256": "a767f4d0abe78ba7a5f12d873d5e7e05872a24531a9601cebcdbe52e901eec8c",
+      "gitBlob": "954b75234a572606c624f2eb4665f88cf619f54d"
+    },
+    "vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz": {
+      "sha256": "2a33f912050a067fbdf627b217a048bb8e19de7b8239e195eac2e5a064bde53c",
+      "gitBlob": "30a6197333cd40fa819c518234a42b4796e82571"
+    },
+    "vendor/expo-native/oxy.so-expo-code-signing-native-0.1.1.tgz": {
+      "sha256": "051e4b5266378caff00bc4ce369686ead6f1c4961b13579bcd5aa25131f4fb51",
+      "gitBlob": "d8e884f00d7de7ea1a9124604f36247b55c18a7f"
+    },
+    "vendor/expo-native/upstream-integrity.json": {
+      "sha256": "a8d72ef8ae6d3cfa4022c7f6a1df0dec68f9e577ff457c8f937623be07d6e6b8",
+      "gitBlob": "cb682821c5822ca20aa0f959b7c5bbc148eddd5d"
+    }
+  },
+  "records": {
+    "native-canonical-audit-final-bun.log": {
+      "sha256": "4c8dbba146daf98de2bd7c25acf2889b7cb86dcbd2306657727e1acf086ba5a9",
+      "bytes": 172
+    },
+    "final-build-pack-services.log": {
+      "sha256": "c3485751da196432c791ddea931c79321d3b505222d6cdd0449cb20d4b4399a7",
+      "bytes": 159018
+    },
+    "installed-expo14-final.log": {
+      "sha256": "21f3106bf2e6ab75dcecf0bb7c021fa5a97556a4c21de16c70ba7f59f5cc47d9",
+      "bytes": 1232
+    },
+    "installed-cli-version.log": {
+      "sha256": "ffc30ef5f310d206abb0badd537b39e35ba940fc96285df33d96a9c90a67d2d9",
+      "bytes": 8
+    },
+    "native-policy-fixtures.log": {
+      "sha256": "ca1638ee7fe363cc7be56608a2b7bfac6c49a1f6da013be77615cd728a6da234",
+      "bytes": 1106
+    },
+    "final-build-pack-contracts.log": {
+      "sha256": "0550f5cb0a21411fea20f89c1c6cdf43cd155e6dd975e13d98ecbf23cb54b920",
+      "bytes": 9083
+    },
+    "oxy-34.log": {
+      "sha256": "de0ae9d189a3ffff2dd4b85ba9178cf51932328a188955e5b8ca4dcc7fb6025c",
+      "bytes": 982
+    },
+    "native-seal-controls-final3.log": {
+      "sha256": "4b588a5bfbb9eaa724786f0bf289aada460e51972cc60b8e5e9327348418b45f",
+      "bytes": 105
+    },
+    "native-fork-source-verification-bef6.json": {
+      "sha256": "1b1f946ef94641e9fa1df74ac899f5b6daa619ef6a772ae9c7bdd1365492b996",
+      "bytes": 898
+    },
+    "final-build-pack-db.log": {
+      "sha256": "33f3b660f66188592579788a59e853b113797ed4db680d0948796578aa2f9efa",
+      "bytes": 3838
+    },
+    "final-build-pack-protocol.log": {
+      "sha256": "ea7c599d4325d54aff0eaa1c26cd8d45d881964ef85d16d958f0ac8735739418",
+      "bytes": 6658
+    },
+    "native-agents-validation.log": {
+      "sha256": "fb6a97cff758cd5cda4c0a20d31e4ddeee3f1fb57a4caea7e2fb0b0c1f5b094d",
+      "bytes": 806
+    },
+    "image-inventory-controls-final.log": {
+      "sha256": "a0715bc1b6aa793a7eeba90bfec2a99d5a4805b7e85a04e6d97131f0834d31bb",
+      "bytes": 431
+    },
+    "shipping-pack-reference-check-final.json": {
+      "sha256": "d6af01fe1ae7fd1156a74d5d3d55f9beb1eafa9f96e91cb860685cad51adab8e",
+      "bytes": 1500
+    },
+    "build-api.log": {
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    "final-build-pack-core.log": {
+      "sha256": "00e449cf354072b53fcf2835d74a74b83e388eefc09e7e3bc5bddfe0e4b8563d",
+      "bytes": 26693
+    },
+    "native-frozen-final-bef6.log": {
+      "sha256": "38c39e47658448cc41de399c87565d30042af16870368ca5b4a135e2298648d7",
+      "bytes": 98
+    },
+    "native-lock-sync-final.log": {
+      "sha256": "85f847337376fd9af3e61eea3ad9f14a7427cbfe33c83667cfbd8855cf7a47e5",
+      "bytes": 45
+    },
+    "native-owned-36-final3.log": {
+      "sha256": "a8f3c9e8ab990f07a0fa8188df70390e427f6c81a3ad1a82f4d859230b301fbb",
+      "bytes": 2956
+    },
+    "final-build-pack-mcp.log": {
+      "sha256": "640ff369989ef1b3a551f848cc8f9be664b535bf2078a7486762d8ab693dcf01",
+      "bytes": 2074
+    },
+    "native-biome-complete.log": {
+      "sha256": "f6488776278839ea08b486e6aecf52dd30575414e869057e11367eafe39ae1bf",
+      "bytes": 42
+    },
+    "migrate-fresh.txt": {
+      "sha256": "86c94dfabb44d398979c96941778718fe7704e2f23781035bb289788fb71cb42",
+      "bytes": 8875
+    },
+    "native-ci-scope.log": {
+      "sha256": "6319566864eeb67678ec006c29ff58a798dba5d168da26b377536e25b0048eed",
+      "bytes": 225
+    },
+    "native-types-api-context.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "migrate-repeat.txt": {
+      "sha256": "880a1a134e11b7a18f21c01b844b07e6ca0651fe1e95c09ad58911fc92c6487f",
+      "bytes": 173
+    }
+  },
+  "shippingSourceTrees": {
+    "contracts": "bae815ea31fa7745a376d3985f3e5eac3ea91dcc",
+    "core": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+    "services": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+    "protocol": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+    "db": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+    "mcp": "828269746b7b3ce63a80d6df0881fa4f8e2c7520"
+  },
+  "checks": {
+    "native36": "PASS",
+    "installedExpo14": "PASS",
+    "sealedArchive7": "PASS",
+    "imageInventory5": "PASS",
+    "strictTypes": "PASS",
+    "canonicalAudit": "PASS",
+    "lockSync": "PASS",
+    "sixBuiltShippingManifests": "PASS",
+    "hostOwnedOxy34": "PASS",
+    "actualARMImage": "PENDING_AUTHENTICATED_WORKFLOW_AND_INDEPENDENT_REVIEW",
+    "normal142FreshRepeat": "PASS"
+  },
+  "claims": {
+    "forgeActualLockRemoved": true,
+    "temporaryExceptionActive": false,
+    "prior321ForgeChecksReused": false,
+    "SDKPublished": false,
+    "productionMutated": false,
+    "allAdvisoriesAbsent": false
+  },
+  "ownedPostgresCleanup": {
+    "pid": 1507934,
+    "processAbsent": true,
+    "postmasterFileAbsent": true,
+    "productionAccess": false
+  },
+  "externalBuiltSDKArchives": {
+    "path": "/home/nate/Oxy/.agent-evidence/coverage-forge-permanent-20261004/shipping-packs-final",
+    "records": "records/shipping-pack-reference-check-final.json",
+    "allSixPackageTreesEqualSourceCommit": true
+  }
+}

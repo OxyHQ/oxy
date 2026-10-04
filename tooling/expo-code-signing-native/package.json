@@ -1,0 +1,22 @@
+{
+	"name": "@oxy.so/expo-code-signing-native",
+	"version": "0.1.1",
+	"private": true,
+	"description": "Expo tooling certificate API implemented with Node/OpenSSL and strict ASN.1 schemas",
+	"main": "index.cjs",
+	"types": "index.d.ts",
+	"files": ["index.cjs", "index.d.ts", "README.md", "LICENSE"],
+	"scripts": {
+		"build": "node --check index.cjs",
+		"test": "node --test test/*.cjs"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"@peculiar/asn1-schema": "2.10.0",
+		"@peculiar/asn1-x509": "2.10.0",
+		"@peculiar/asn1-csr": "2.10.0"
+	},
+	"license": "MIT"
+}
