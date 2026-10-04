@@ -458,6 +458,17 @@ function knownModalities(values: readonly string[] | undefined): InferenceModali
   return [...new Set((values ?? []).filter((value) => KNOWN_MODALITIES.has(value)))].sort() as InferenceModalityValue[];
 }
 
+/** A private contract capability requires current local source authority, not the sync timestamp. */
+function currentPrivateDecisionAuthority(route: Pick<KaanaDeploymentDescriptor, 'scopedExecution' | 'privateAutoSourceApproval'>): boolean {
+  const restriction = route.privateAutoSourceApproval ?? route.scopedExecution;
+  const at = Date.now();
+  const reviewed = route.privateAutoSourceApproval !== undefined
+    ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), at)
+    : sourceReviewedScopedAudience(at);
+  return restriction !== undefined && reviewed !== undefined && Date.parse(restriction.expiresAt) > Date.now() &&
+    canonicalScopedExecutionJson(restriction) === canonicalScopedExecutionJson(reviewed);
+}
+
 /**
  * Decide what one Kaana model line becomes, without touching the database.
  * `knownProviders` is the set of provider slugs Oxy holds a reviewed
@@ -553,12 +564,7 @@ export function planKaanaModel(
       // 3.6/v3 and 3.7/v4 accept decisions exclusively. Only an exact local,
       // unexpired approval plus its signed descriptor can establish this
       // capability; output modality alone never authorizes an ordinary route.
-      const restriction = deployment.privateAutoSourceApproval ?? deployment.scopedExecution;
-      const reviewed = deployment.privateAutoSourceApproval !== undefined
-        ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now())
-        : sourceReviewedScopedAudience(Date.now());
-      if (restriction === undefined || reviewed === undefined ||
-        canonicalScopedExecutionJson(restriction) !== canonicalScopedExecutionJson(reviewed)) {
+      if (!currentPrivateDecisionAuthority(deployment)) {
         routeSkips.push('unattested_route'); continue;
       }
     }
@@ -724,7 +730,7 @@ async function ensureSyncedPrice(
   scopedExecution?: ScopedExecutionAudience | PrivateAutoSourceApproval,
 ): Promise<string | undefined> {
   if (scopedExecution !== undefined) {
-    const reviewed = 'purpose' in scopedExecution ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), now.getTime()) : sourceReviewedScopedAudience(now.getTime());
+    const reviewed = 'purpose' in scopedExecution ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now()) : sourceReviewedScopedAudience(Date.now());
     if (reviewed === undefined || canonicalScopedExecutionJson(reviewed) !== canonicalScopedExecutionJson(scopedExecution)) return undefined;
   }
   const expected = syncedUnitPrices(price);
@@ -937,6 +943,10 @@ async function applyPlannedModel(
     .where(and(eq(inferenceModels.publisherSlug, planned.publisher), eq(inferenceModels.slug, planned.slug)))
     .for('update');
 
+  if (planned.apiFormats !== null && !planned.routes.every(currentPrivateDecisionAuthority)) {
+    throw new Error('Private decisions source authority changed after model lock.');
+  }
+
   if (existing !== undefined && existing.catalogueSource !== 'kaana_sync') {
     // A reviewed line keeps every reviewed fact and every reviewed route; Kaana
     // may only keep its serving capabilities current.
@@ -1062,7 +1072,7 @@ async function applyPlannedModel(
       .where(eq(inferenceDeployments.internalRouteId, route.deploymentId))
       .for('update');
     const restriction = route.privateAutoSourceApproval ?? route.scopedExecution;
-    const reviewedAudience = route.privateAutoSourceApproval !== undefined ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), now.getTime()) : route.scopedExecution === undefined ? undefined : sourceReviewedScopedAudience(now.getTime());
+    const reviewedAudience = route.privateAutoSourceApproval !== undefined ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now()) : route.scopedExecution === undefined ? undefined : sourceReviewedScopedAudience(Date.now());
     const reviewedPrivateImport = reviewedAudience !== undefined &&
       canonicalScopedExecutionJson(reviewedAudience) === canonicalScopedExecutionJson(restriction);
     const managedPrivate = (row: DeploymentFacts) => reviewedPrivateImport &&
@@ -1192,6 +1202,9 @@ async function applyPlannedModel(
     await ensureSyncedScorecard(tx, route.deploymentId, priceVersionId, route.price, evidenceRef, now, counts);
     counts.deploymentsUpserted += 1;
     held.push(route.deploymentId);
+  }
+  if (planned.apiFormats !== null && !planned.routes.every(currentPrivateDecisionAuthority)) {
+    throw new Error('Private decisions source authority changed before import commit.');
   }
   counts.modelsSynced += 1;
   return held;

@@ -1,3 +1,4 @@
+import { executeScopedLegalReview } from '../scopedLegalReviewOperation.service';
 /**
  * The Kaana → Oxy catalogue sync, against a REAL Postgres.
  *
@@ -966,7 +967,13 @@ describe('source-reviewed scoped price bootstrap', () => {
       { applicationId: f.scope.principal.applicationId, environment: 'production', scopedExecution: f.scope });
     expect((await resolve()).status).not.toBe('resolved');
     jest.spyOn(scopedSource, 'privateCommissioningAudience').mockReturnValue(f.scope);
-    await getDb().update(inferenceDeployments).set({ legalReviewStatus: 'approved', legalReviewEvidenceRef: 'synthetic-specific-review' }).where(eq(inferenceDeployments.id, row.id));
+    const reviewerUserId = randomUUID();
+    await getDb().insert(users).values({ id: reviewerUserId, username: `reviewer${suffix()}`, isStaff: true, staffCapabilities: ['inference:catalogue:publish'] });
+    const legalPlan = { kind: 'scoped-legal-review-v1', reviewerUserId, deploymentRowId: row.id, audience: f.scope,
+      expectedLegalStatus: 'not_started', expectedEvidenceRef: null, evidenceRef: 'synthetic-specific-review',
+      reason: 'Synthetic private decisions fixture', operator: 'synthetic-root-operator', sessionApprovalRef: 'synthetic-reviewed-session' };
+    const dry = await executeScopedLegalReview(legalPlan);
+    await executeScopedLegalReview(legalPlan, { apply: true, expectedPlanSha256: dry.planSha256 });
     expect(await resolve()).toMatchObject({ status: 'resolved', route: { outputModalities: ['decisions'], apiFormats: ['decisions'] } });
     expect((await resolveEdgeRoute(INTERNAL_VIEWER, f.route.modelReference, UNCONSTRAINED_ROUTING, required)).status).not.toBe('resolved');
     expect((await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).some(entry => entry.modelId === f.world.line('private'))).toBe(false);
@@ -977,11 +984,31 @@ describe('source-reviewed scoped price bootstrap', () => {
     await getDb().update(inferenceModels).set({ apiFormats: ['responses'] }).where(eq(inferenceModels.id, model.id));
     await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => ({ ...body, models: body.models.map(entry => ({ ...entry, outputModalities: ['text'] })) }) } });
     expect((await getDb().select().from(inferenceModels).where(eq(inferenceModels.id, model.id)))[0].apiFormats).toEqual(['responses']);
+    expect(await resolve()).toMatchObject({ status: 'unknown-model' });
+    const rereview = await executeScopedLegalReview(legalPlan);
+    await executeScopedLegalReview(legalPlan, { apply: true, expectedPlanSha256: rereview.planSha256 });
     expect(await resolve()).toMatchObject({ status: 'modality-unsupported' });
     await expect(getDb().update(inferenceModels).set({ inputModalities: ['decisions'] }).where(eq(inferenceModels.id, model.id))).rejects.toThrow();
     await expect(getDb().update(inferenceModels).set({ outputModalities: ['image'] }).where(eq(inferenceModels.id, model.id))).rejects.toThrow();
     await expect(getDb().update(inferenceModels).set({ outputModalities: ['unknown'] }).where(eq(inferenceModels.id, model.id))).rejects.toThrow();
     await expect(getDb().update(inferenceModels).set({ outputModalities: [] }).where(eq(inferenceModels.id, model.id))).rejects.toThrow();
+  });
+
+  it('withdraws expired source after model-lock acquisition without importing a capability or price', async () => {
+    const f = await fixture();
+    const valid = Date.now();
+    // First source read plans the exact route; the post-lock clock is past expiry.
+    f.scope.expiresAt = new Date(valid + 1000).toISOString();
+    const now = jest.spyOn(Date, 'now').mockReturnValue(valid);
+    let calls = 0;
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockImplementation(() => {
+      if (++calls === 2) now.mockReturnValue(valid + 2000);
+      return f.scope;
+    });
+    await expect(runKaanaCatalogueSync({ reader: f.scopedReader, now: new Date(valid) })).rejects.toThrow('source authority changed');
+    expect(await f.prices()).toEqual([]);
+    expect(await getDb().select().from(inferenceModels).where(eq(inferenceModels.modelId, f.world.line('private')))).toEqual([]);
+    expect(await deploymentsOf(f.world.line('private'))).toEqual([]);
   });
 
   it('rejects an audience different from the source review without creating a price', async () => {
