@@ -1,0 +1,173 @@
+{
+  "kind": "scoped-private-reimport-proof-v1",
+  "sourceCommit": "c0c3156123d910b138a4e2a5a663f565f2c44110",
+  "baselineCommit": "9a7d8f569dd953e2ba8412a8ca3e2177be88a4a1",
+  "sources": [
+    {
+      "path": "docs/runbooks/private-inference-commissioning.md",
+      "sha256": "165e0fe2e2aaa02796f5d0a67d6d30ab76a6214ac00dca353d5477f5914b20bc"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "sha256": "9309917f84038af66968d7db468e3e038580919137379d8578e43ede497afa14"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "d9d267ef83d16794e4c395d0220ef038d3d5d94f294ac991da87a0fc93c01d87"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/baseline-controlled.log",
+      "sha256": "e087e804404fff6c41b85b51c40a561fdf341928069290db392ac4c1872155c9",
+      "bytes": 2881
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/baseline-controlled.py",
+      "sha256": "12a35253e1869a9664b47a8e16d8032f6ceee9e4541bd11fd66a3f1e102c8f20",
+      "bytes": 894
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/baseline-final-red.log",
+      "sha256": "49ae73c15fe08430f3cd701da2721c5776e90527788639b86747f7535243eb0a",
+      "bytes": 2881
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/baseline-focused.txt",
+      "sha256": "f5f83059f831cda7f9996708448164fa318365e62fffa5229dea42045cbc5c79",
+      "bytes": 36693
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/baseline-migrate-fresh.txt",
+      "sha256": "36d6ed40edf89c9597ab5e47ff9a2db495d29f0318bd6be0ae14c07b06861fe9",
+      "bytes": 8875
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/baseline-migrate-repeat.txt",
+      "sha256": "8db6d822648a04ff1552cc42a639e2f94b9611a6fbbe9120183a41c77625fb92",
+      "bytes": 173
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/baseline-red.log",
+      "sha256": "d9de46bf8d0ed46382d3061f3b5d1c9085c45d699f4a5d0b4f3c7f551a706959",
+      "bytes": 2881
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/baseline-restored.json",
+      "sha256": "e8e501feeec14cc967d1c551ace7eab30db237f496fcd4b84cb964ea84222764",
+      "bytes": 281
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/biome.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/final-focused.txt",
+      "sha256": "b84f85416c96c33692aa5cdc732e8046b90763ca4937fdeeaccc53c37d3fda5a",
+      "bytes": 4024
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/final-migrate-fresh.txt",
+      "sha256": "b1d4a8e3c48960024baad706bf561a6daea4e293c42a27cecf3fbf6ca6a2b3f8",
+      "bytes": 8875
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/final-migrate-repeat.txt",
+      "sha256": "2ce0ea9839a8c58f87f73b945653cf72197a404202555c43191c0fe72092c7eb",
+      "bytes": 173
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/final-owned.log",
+      "sha256": "b584e0299f819d137bdc827f8755598023c0dcc6463adff3e1c35ca7c5909e4f",
+      "bytes": 1945
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/green-attempt1.log",
+      "sha256": "d4c0b8c0643821b3e373376f0bdb289bd253d68bfaa08ad576c8edd2d25758df",
+      "bytes": 2881
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/owned-pg-final.py",
+      "sha256": "6b6afc5c540a43e3acc45ed5c300ad29308e2bd9bc292544f44e038e844b06e9",
+      "bytes": 5289
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/owned-pg.py",
+      "sha256": "1e129684d44bbe6836b265906a488e4e0bbe912d74e715527564af9a38b46b92",
+      "bytes": 5391
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/types.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/api/dist/services/kaanaCatalogueSync.service.js",
+      "retainedPath": "docs/audits/2026-10-04-private-inference-commissioning/reimport/records/kaanaCatalogueSync.service.js",
+      "sha256": "f270aa3f2fbe8223af2a7b47396437d8071a8322b793ded85dae1743a2624042",
+      "bytes": 62824
+    }
+  ],
+  "results": {
+    "baseline": {
+      "testsFailed": 9,
+      "setupFailure": false,
+      "restoredByteExact": true,
+      "record": "baseline-final-red.log"
+    },
+    "final": {
+      "testsPassed": 43,
+      "suitesPassed": 1,
+      "freshMigration": 0,
+      "repeatMigration": 0,
+      "journal": 142,
+      "build": 0,
+      "scriptsTypes": 0,
+      "biome": 0
+    }
+  },
+  "cleanup": [
+    {
+      "pid": 1822235,
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1824895,
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1820755,
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1820018,
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1821515,
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    }
+  ],
+  "scope": [
+    "Only managed source-authorized scoped pending/disabled/internal rows can be reevaluated; normal manually reviewed rows remain protected.",
+    "Identical model, namespace, price and privacy preserve legal status/evidence/reviewer/time. Only publication updatedAt may advance.",
+    "Changed scope/price/route/revision/model facts/privacy/regions/parameters invalidate before immutable price refusal. Price history is not overwritten.",
+    "Original assumption of reachable repeated legal reset is corrected: baseline NULL-autoPolicy guard skips before that code and keeps stale review. SQL baseline demonstrates skip/stale facts, not reset.",
+    "Initial baseline-red.log was not a controlled source snapshot; baseline-final-red.log is the attributed frozen-source comparison.",
+    "First GREEN attempt had a fixture retention constraint and descriptor inconsistency plus comparison of operational updatedAt; retained historically, fixed without weakening authority assertions.",
+    "Getter remains inactive. No production writes, provider calls, new reviewer or permission created."
+  ]
+}

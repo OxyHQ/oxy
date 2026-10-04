@@ -1,0 +1,139 @@
+{
+  "source": "86fb393aacf0656e0fa1aa4b90272e9ab63d5524",
+  "base": "0c6dec1331e9ea237b73c02e8e4c679a338d70bb",
+  "commissioningPriorHead": "7740c7115ad62c0321e628bf21be2c738627525f",
+  "fixtureTestedSource": "51ee2bce0c30e2a389f151079c8053716e7c84d5",
+  "mappedInputs": [
+    {
+      "path": "packages/api/scripts/record-scoped-legal-review.ts",
+      "sha256": "4f2172709a777232b97e21df5dfbeb7155b110c63bc09a9d6d5f5aaf9260347d",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/routingScoreEconomicsCallsites.test.ts",
+      "sha256": "72215e6c4ea0825761e935224703df647c4d71624745fbe9f4dbcc0d652d2c14",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f"
+      ]
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/aliaMachineCredential.test.ts",
+      "sha256": "5bb522dcbdb8eebda0b3b7634cd094c0f8fc48f2ef9da9c652f8622a63f23886",
+      "sameAsReviewedSources": [
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdge.test.ts",
+      "sha256": "a08208f02c6927179dee6d5ee1bfb221546e878ab34f2687bd0948c61b918f62",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/scripts/recordScopedLegalReview.ts",
+      "sha256": "ba36589a2183bc359e96cb2fde1a56c5e993d19d122f13569ddf8eed19948d55",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "sha256": "9309917f84038af66968d7db468e3e038580919137379d8578e43ede497afa14",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/__tests__/privateCommissioning.test.ts",
+      "sha256": "124182ae41741290183be54772f996f4c1a8f78b9548981223ce2198358a4af5",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "sha256": "7d84d40e2eba247dcc2377ee6d43ed57b7ead69b171d179580ce8e509b09f7d1",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedExecution.service.test.ts",
+      "sha256": "a33a5c3ac95f4ad047953d1bce270d83e6e13366d14b0dee79c5fc4096b2081a",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/inferenceCatalogue.service.ts",
+      "sha256": "e77fb374b24867137d9b51958697c545fa9adf7553e65ed779d6e9e68cdf42b5",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/inferenceCatalogueAdmin.service.ts",
+      "sha256": "9f7d16d8b7c02e3fcf8190a549a0346381d3862d47d6405eb9d1da3bfa6ddf7c",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "bc2debbbc4a75e10dc29935cd5ded5d2656f8dfcc37957a0d9230075d8f72b80",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "7c160b71ba6ae9d841f43ba46f9f0291c5c8b65b949bd258d8db0e27d42cb0bd",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    },
+    {
+      "path": "packages/api/src/services/scopedLegalReviewOperation.service.ts",
+      "sha256": "85d6769c94e6674f155740b8335fff95fb7df5e4419d82758c2bdfc8e654b8fd",
+      "sameAsReviewedSources": [
+        "7740c7115ad62c0321e628bf21be2c738627525f",
+        "51ee2bce0c30e2a389f151079c8053716e7c84d5"
+      ]
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-commissioning-machine-composition/combined-red-fixture-collision.txt",
+      "sha256": "88b0a333d191cea75ac6e2a74c70d19fedcb219bf331a892b6a865772a6b8d9e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-commissioning-machine-composition/isolated-collision-green.txt",
+      "sha256": "38484fd8335430658be57dbe6d2994d7edeb49f795259cd1e67582d8c81eed57"
+    },
+    {
+      "path": "docs/audits/2026-10-04-commissioning-machine-composition/fixture-lint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "fixtureRegression": "4 suites117PASS on reviewed equivalent fixture, shipping core/scopes/High paths unchanged; initial fixture collision preserved",
+  "limits": [
+    "no new local production calls",
+    "Mention-specific delta deliberately deferred to1578",
+    "full PR and merge CI required",
+    "historical commissioning proof remains unchanged"
+  ]
+}

@@ -1,0 +1,3 @@
+The historical CI failed two privacy projection guards, the reviewed economic callsite census, and a Node CLI test that assumed API dist existed. The runtime reads now name only the fields used, the census includes the explicitly funded synthetic commissioning fixture, and the CLI test compiles production sources using the canonical tsconfig into a fresh temporary tree before invoking the real Node executable on owned SQL. No auth or economic assertion was weakened.
+
+Four affected suites passed 83 tests with fresh and repeat normal migrations; API build and Biome passed. The temporary compiled tree is removed in finally. The previous CI failure logs remain indexed. New remote CI is required for the pushed source.

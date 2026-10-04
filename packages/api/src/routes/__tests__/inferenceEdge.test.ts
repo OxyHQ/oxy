@@ -197,6 +197,7 @@ interface Fixture {
 const suffix = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
 
 interface FixtureOptions {
+  readonly inputPricePerMillion?: string;
   readonly apiFormats?: string[];
   /** Primary route's published output-token price; `null` publishes none. */
   readonly outputPricePerMillion?: string | null;
@@ -330,8 +331,8 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
 
   await db.insert(priceVersionUnitPrices).values([
     { priceVersionId: priceVersion.id, unit: 'requests', amount: '0.000000000000', per: 1 },
-    { priceVersionId: priceVersion.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'cached_input_tokens', amount: '3.000000000000', per: 1_000_000 },
+    { priceVersionId: priceVersion.id, unit: 'input_tokens', amount: options.inputPricePerMillion ?? '3.000000000000', per: 1_000_000 },
+    { priceVersionId: priceVersion.id, unit: 'cached_input_tokens', amount: options.inputPricePerMillion ?? '3.000000000000', per: 1_000_000 },
     ...(options.outputPricePerMillion === null
       ? []
       : [{ priceVersionId: priceVersion.id, unit: 'output_tokens' as const, amount: options.outputPricePerMillion ?? '15.000000000000', per: 1_000_000 }]),
@@ -4733,4 +4734,77 @@ describe('decisions signed execution and ledger', () => {
     expect(await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, fixture.accountId))).toHaveLength(0);
     expect(await balanceOf(fixture.accountId)).toEqual(before);
   });
+});
+
+import * as commissioningScope from '../../services/scopedExecution.service';
+import type { ScopedExecutionAudience } from '@oxy.so/contracts';
+
+describe('private commissioning HTTP', () => {
+  beforeEach(() => jest.spyOn(decisionGate, 'decisionAvailability').mockReturnValue({ available: true, reason: 'synthetic private commissioning fixture' }));
+  afterEach(() => jest.restoreAllMocks());
+  async function commissionedFixture() {
+    const f = await makeFixture({ officialApplication: true, routingPolicy: { optimiseFor: 'price' },
+      apiFormats: ['decisions'], inputPricePerMillion: '0.042000000000', outputPricePerMillion: '0.000000000000', maxContextTokens: 32000 });
+    await ledger.recordPromotionalGrant({ accountId: f.accountId, currency: 'USD', amount: '0.01',
+      idempotencyKey: `synthetic-commissioning-grant-${f.accountId}`, actor: { kind: 'machine' } });
+    const policy = await resolveEffectiveRoutingPolicy(f.applicationId);
+    if (policy.status !== 'resolved') throw new Error('Fixture policy missing');
+    const body = { model: `${f.modelReference}@2026-01-01`, state: 'SYNTHETIC COMMISSIONING; NO USER DATA',
+      questions: [{ id: 'fixture', kind: 'noul', question: 'Synthetic?' }] };
+    const { model, ...decisions } = body;
+    const permit: ScopedExecutionAudience = { permitId: `private-${f.accountId}`, idempotencyKey: `commissioning-${f.accountId}`,
+      fixtureSha256: commissioningScope.hashScopedInput({ format: 'decisions', decisions }),
+      expiresAt: new Date(Date.now() + 3600000).toISOString(), principal: { accountId: f.accountId,
+        applicationId: f.applicationId, credentialId: f.credentialId, environment: 'development' },
+      policy: { routingPolicyId: policy.stored.routingPolicyId, policyVersion: policy.stored.policy.policyVersion },
+      deploymentId: f.deploymentId, provider: f.provider, keyId: 'synthetic-provider-key', modelReference: model,
+      upstreamModelId: 'synthetic-upstream', priceVersionId: f.priceVersionId,
+      providerRateCardVersionId: 'synthetic-card', providerSourceVersion: 'synthetic-source', maxCostUsd: '0.01' };
+    await getDb().update(inferenceDeployments).set({ availabilityScope: 'platform_internal', commercialPermission: 'standard_application_use',
+      permissionState: 'pending_review', status: 'disabled', scopedExecution: permit }).where(eq(inferenceDeployments.internalRouteId, f.deploymentId));
+    await getDb().update(inferenceDeploymentRoutingScores).set({ latencyScore: null, throughputScore: null, balancedScore: null })
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, f.deploymentId));
+    // Explicit synthetic source review, never HTTP-supplied authorization or a production flag.
+    jest.spyOn(commissioningScope, 'privateCommissioningAudience').mockImplementation((audience) =>
+      audience !== undefined && commissioningScope.hashScopedInput(audience) === commissioningScope.hashScopedInput(permit) && Date.parse(permit.expiresAt) > Date.now() ? permit : undefined);
+    jest.spyOn(commissioningScope, 'scopedPermitForContext').mockImplementation((context) => commissioningScope.bindScopedPermit(permit, context));
+    const seen: InferenceRequest[] = [];
+    const client = fakeKaana((envelope) => ({ ...completionFor(envelope, { input: 12, output: 0, provider: f.provider }),
+      output: [], decisions: [{ id: 'fixture', kind: 'noul', probability: 1 }] }), seen, async () => ({
+      snapshotId: 'synthetic-private-snapshot', scopedExecutionContractVersion: '3.6.0',
+      deployments: [{ ...permit, scopedExecution: permit, regions: ['us-west-2'] }] }));
+    return { f, body, permit, seen, client };
+  }
+  it('reserves once and sends once for the legally reviewed private route; public status stays disabled', async () => {
+    const c = await commissionedFixture();
+    const reserve = jest.spyOn(ledger, 'reserve');
+    await withServer(c.client, async (request) => {
+      const response = await request('POST', '/v1/decisions', c.body, { ...bearer(c.f.token), 'Idempotency-Key': c.permit.idempotencyKey });
+      if (response.status !== 200) throw new Error(JSON.stringify({ status: response.status, body: json(response) }));
+      expect(response.status).toBe(200);
+      expect(json(response)).toMatchObject({ data: [{ id: 'fixture', kind: 'noul', probability: 1 }] });
+      const replay = await request('POST', '/v1/decisions', c.body, { ...bearer(c.f.token), 'Idempotency-Key': c.permit.idempotencyKey });
+      expect(replay.status).toBe(409);
+    });
+    expect(reserve).toHaveBeenCalledTimes(1); expect(c.seen).toHaveLength(1);
+    expect(c.seen[0].scopedExecution).toMatchObject({ permitId: c.permit.permitId });
+    expect(await getDb().select().from(usageReservations).where(eq(usageReservations.accountId, c.f.accountId))).toHaveLength(1);
+    const [deployment] = await getDb().select().from(inferenceDeployments).where(eq(inferenceDeployments.internalRouteId, c.f.deploymentId));
+    expect(deployment).toMatchObject({ status: 'disabled', permissionState: 'pending_review' });
+  });
+  it.each(['no-legal', 'foreign-input', 'foreign-key', 'expired', 'missing-source'] as const)
+    ('refuses %s with zero reservation, claim and send', async (failure) => {
+      const c = await commissionedFixture();
+      if (failure === 'no-legal') await getDb().update(inferenceDeployments).set({ legalReviewStatus: 'not_started' }).where(eq(inferenceDeployments.internalRouteId, c.f.deploymentId));
+      if (failure === 'expired') Object.assign(c.permit, { expiresAt: new Date(0).toISOString() });
+      if (failure === 'missing-source') jest.mocked(commissioningScope.privateCommissioningAudience).mockReturnValue(undefined);
+      const reserve = jest.spyOn(ledger, 'reserve'); const claim = jest.spyOn(metered, 'claimMeteredAdmission');
+      await withServer(c.client, async (request) => {
+        const response = await request('POST', '/v1/decisions', failure === 'foreign-input' ? { ...c.body, state: 'FOREIGN' } : c.body,
+          { ...bearer(c.f.token), 'Idempotency-Key': failure === 'foreign-key' ? 'foreign' : c.permit.idempotencyKey });
+        expect(response.status).toBeGreaterThanOrEqual(400);
+      });
+      expect(reserve).not.toHaveBeenCalled(); expect(claim).not.toHaveBeenCalled(); expect(c.seen).toEqual([]);
+      expect(await getDb().select().from(usageReservations).where(eq(usageReservations.accountId, c.f.accountId))).toEqual([]);
+    });
 });

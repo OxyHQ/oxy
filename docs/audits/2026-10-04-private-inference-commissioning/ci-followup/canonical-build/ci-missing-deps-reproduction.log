@@ -1,0 +1,9 @@
+packages/api/src/queue/assetVariants.queue.ts(39,47): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+packages/api/src/services/locationQueryService.ts(53,30): error TS2307: Cannot find module '@oxy.so/utils/sql' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(4,38): error TS2307: Cannot find module '@oxy.so/telemetry/socket' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(9,8): error TS2307: Cannot find module '@oxy.so/telemetry/server' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(11,133): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+packages/api/src/services/platformActivity.service.ts(69,46): error TS7006: Parameter 'events' implicitly has an 'any' type.
+packages/api/src/services/platformActivity.service.ts(123,44): error TS7006: Parameter 'events' implicitly has an 'any' type.
+packages/api/src/services/platformInfrastructure.service.ts(1,40): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.
+packages/api/src/services/workerActivity.service.ts(2,47): error TS2307: Cannot find module '@oxy.so/telemetry/collector' or its corresponding type declarations.

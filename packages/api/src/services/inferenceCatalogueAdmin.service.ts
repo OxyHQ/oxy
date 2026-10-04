@@ -27,7 +27,7 @@
 
 import { and, eq, ne } from 'drizzle-orm';
 import type { AvailabilityScope } from '@oxy.so/contracts';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { routingScoreValidityThreshold } from '../config/inferenceRoutingScoreValidity';
 import {
   type DeploymentLegalReviewStatus,
@@ -415,7 +415,8 @@ export interface RecordLegalReviewInput {
  * way to satisfy it.
  */
 export async function recordLegalReview(
-  input: RecordLegalReviewInput
+  input: RecordLegalReviewInput,
+  executor?: DatabaseOrTransaction,
 ): Promise<DeploymentPermissionResult> {
   const evidenceRef = input.evidenceRef?.trim();
 
@@ -426,7 +427,7 @@ export async function recordLegalReview(
   }
 
   const reviewedAt = new Date();
-  const [row] = await getDb()
+  const [row] = await (executor ?? getDb())
     .update(inferenceDeployments)
     .set({
       legalReviewStatus: input.status,

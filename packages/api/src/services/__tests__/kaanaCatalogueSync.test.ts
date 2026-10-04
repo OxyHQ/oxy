@@ -744,7 +744,7 @@ describe('source-reviewed scoped price bootstrap', () => {
       attestDeployments: async () => ({ snapshotId: 'snap_test', scopedExecutionContractVersion: '3.6.0', deployments: [descriptor] }),
     };
     const prices = () => getDb().select().from(priceVersions).where(eq(priceVersions.modelReference, route.modelReference));
-    return { world, route, scope, scopedReader, prices };
+    return { world, route, scope, scopedReader, prices, descriptor };
   }
 
   it('does not let authenticated remote metadata authorize a local price identity', async () => {
@@ -804,6 +804,59 @@ describe('source-reviewed scoped price bootstrap', () => {
     expect(await f.prices()).toEqual(before);
     expect(await deploymentsOf(f.world.line('private'))).toEqual([expect.objectContaining({ priceVersionId: f.scope.priceVersionId, status: 'disabled' })]);
   });
+
+  async function reviewedFixture() {
+    const f = await fixture();
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockImplementation(() => f.scope);
+    await runKaanaCatalogueSync({ reader: f.scopedReader });
+    const [deployment] = await getDb().select().from(inferenceDeployments)
+      .where(eq(inferenceDeployments.internalRouteId, f.scope.deploymentId));
+    const reviewedAt = new Date('2026-10-04T10:00:00Z');
+    await getDb().update(inferenceDeployments).set({ legalReviewStatus: 'approved',
+      legalReviewEvidenceRef: 'synthetic-specific-private-review', legalReviewedAt: reviewedAt })
+      .where(eq(inferenceDeployments.id, deployment.id));
+    const row = () => getDb().select().from(inferenceDeployments).where(eq(inferenceDeployments.id, deployment.id));
+    return { ...f, row, reviewedAt };
+  }
+
+  it('preserves the exact private legal review across identical canonical reimport', async () => {
+    const f = await reviewedFixture();
+    const before = await f.row();
+    const result = await runKaanaCatalogueSync({ reader: f.scopedReader });
+    expect(result.deployments.upserted).toBe(1);
+    expect(result.priceVersionsCreated).toBe(0);
+    const facts = (rows: typeof before) => rows.map(({ updatedAt: _importTimestamp, ...row }) => row);
+    expect(facts(await f.row())).toEqual(facts(before));
+  });
+
+  it.each(['privacy', 'regions', 'model', 'audience', 'price', 'parameters', 'route', 'revision'] as const)
+    ('invalidates the prior private review before reimport with changed %s', async (change) => {
+      const f = await reviewedFixture();
+      const body = await f.scopedReader.listModels();
+      const payload = body as { models: Record<string, unknown>[] };
+      const model = payload.models[0];
+      if (change === 'privacy') await getDb().update(inferenceProviders).set({ retainsPayloads: false, retentionDays: 0 })
+        .where(eq(inferenceProviders.slug, f.world.provider));
+      if (change === 'regions') f.descriptor.regions = [];
+      if (change === 'model') model.contextTokens = 65536;
+      if (change === 'parameters') model.acceptedParameters = ['max_tokens'];
+      if (change === 'audience') { f.scope.keyId = 'different-reviewed-key'; f.descriptor.keyId = f.scope.keyId; }
+      if (change === 'price') (model.listPrices as { input: string }[])[0].input = '0.073';
+      if (change === 'route') {
+        f.scope.deploymentId += '-new';
+        f.descriptor.deploymentId = f.scope.deploymentId;
+        (model.listPrices as { deploymentId: string }[])[0].deploymentId = f.scope.deploymentId;
+      }
+      if (change === 'revision') {
+        f.scope.modelReference = f.world.line('private') + '@new-reviewed-revision';
+        f.descriptor.modelReference = f.scope.modelReference;
+        model.modelReference = f.scope.modelReference;
+      }
+      await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+      expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+        legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+    });
 
   it('refuses a price ID belonging to a foreign route without modifying that route', async () => {
     const f = await fixture();
