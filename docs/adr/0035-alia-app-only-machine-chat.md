@@ -1,6 +1,6 @@
 # ADR 0035 — Alia app-only machine chat from Oxy Console
 
-Status: proposed; implemented candidate, pending review and coordinated release.
+Status: accepted after source review; coordinated backend, SDK and Alia release required.
 Date: 2026-10-04. Related: #1571, #972; the broader #873/#874 service-access model remains separate.
 
 Console is the sole issuer of product API credentials. A machine credential is an application principal, not its owner's user session and not an internal service. Alia must not pay for a third-party application's inference or expose its owner's product context.
