@@ -1,0 +1,31 @@
+{
+  "accepted": true,
+  "credentialCensus": 5,
+  "authorityPreserved": true,
+  "ephemeralRevoked": true,
+  "binding": {
+    "registrationId": "01a105de-c710-782f-b3fa-cc5e143a57c0",
+    "version": "1.0.0",
+    "digest": "af83fce15c1caeb2467bba72ed9741e8de39080da7e05299611a94fc157696be"
+  },
+  "noHumanPilotClaim": true,
+  "kind": "root-i05-full-census-catalog-readback-accepted-v1",
+  "refs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i05-full5-readback/result.json",
+      "sha256": "02bc19072b8d63cb9f58039f42d1cc27a062c258cddee64af8422bbc49691159"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i05-full5-readback/complete.json",
+      "sha256": "a53e928f5b7cc32702135ac621edac3c1a88bac4b09a93b8cc32fe43ffbcb6e9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i05-full5-execution/independent/accepted.json",
+      "sha256": "e1b38db36f23ff0c4fa7e1d425624357c7cde4f83d2dca3faef60eac6283fade"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-i05-full5-readback-20261004/validate-after.cjs",
+      "sha256": "91778ec4987817f406053b8280da747b842522b983bb3328f7c5f36314da3ed6"
+    }
+  ]
+}

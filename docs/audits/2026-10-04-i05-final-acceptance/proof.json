@@ -1,0 +1,180 @@
+{
+  "kind": "i05-original-criteria-final-acceptance",
+  "criteriaScope": "Approved Mention pilot and deliberate retention of compatibility HTTP",
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i05-final-acceptance/README.md",
+      "sha256": "bcf6b9462cfd9b3fb127145d5c91298039c11143b157a46ebea7967d1c183241"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i05-final-acceptance/alia-runtime.json",
+      "sha256": "4c824608345e092204b79a6f1d665b7c1e53044fb6d029d1fc99f68f9e4d19e5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i05-final-acceptance/mention-runtime.json",
+      "sha256": "5ad2f81f9a15f821e330289e6d7da7c9e3d0a1ac5561b5550840314e66de637a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i05-final-acceptance/catalog-authority.json",
+      "sha256": "9b9f7421845e0f280baeedd3250ccdf37c65008cceac805c4ad593988d3ea0ab"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i05-final-acceptance/infra-merge.json",
+      "sha256": "c22a0414391215103b666e039a27091bd5573a404deb895e211d5cf94d1980e1"
+    }
+  ],
+  "sourceAndTestInputs": [
+    {
+      "repo": "1519-final-sdk-pins-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "head": "34760e37bed353321e568bc4cbbb45db26d00dd2",
+      "path": "packages/api/src/lib/tools/oxy-services.ts",
+      "sha256": "8f4c23d39513eccedbc7341fad9c8b5649fe7239655f828fa22f7247ffed4274",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-final-sdk-pins-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "head": "34760e37bed353321e568bc4cbbb45db26d00dd2",
+      "path": "packages/api/src/lib/__tests__/oxy-services-internal-mcp.http.test.ts",
+      "sha256": "6d385dfa281bb7eed7d68dcf7f5ad07cdd13168dc70d45d7acaad87c15399107",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-final-sdk-pins-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "head": "34760e37bed353321e568bc4cbbb45db26d00dd2",
+      "path": "docs/audits/2026-10-03-i05-retirement-outcomes/proof.json",
+      "sha256": "556d4819f72c7cd98eff13fce5e4d1c36e41f2053d59a1adee44728d2e6f1f37",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-final-sdk-pins-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "head": "34760e37bed353321e568bc4cbbb45db26d00dd2",
+      "path": "docs/audits/2026-10-03-i05-mention-internal-mcp/proof.json",
+      "sha256": "c5beb822a8e2fd12a8279442b885911fffd142b3224ae1a76954d42be432789c",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-final-sdk-pins-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003",
+      "head": "34760e37bed353321e568bc4cbbb45db26d00dd2",
+      "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+      "sha256": "7f45c7bf9ce657c0d6b83fe6e2e1d7123c0857981b27eee6e66a1e6a4188cbe8",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-i05-internal-mcp-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Mention/.worktrees/1519-i05-internal-mcp-20261003",
+      "head": "f7c6eb7a4f0e92ad9420df12d31d448c1fb60f93",
+      "path": "packages/backend/src/__tests__/mcp/internalCatalogMcp.db.test.ts",
+      "sha256": "62bb581f8c68b0054cc5c9c2baf2093d45a536340d69a58a90e676189d555fe7",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-i05-internal-mcp-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Mention/.worktrees/1519-i05-internal-mcp-20261003",
+      "head": "f7c6eb7a4f0e92ad9420df12d31d448c1fb60f93",
+      "path": "packages/mcp/__tests__/capability-http.test.ts",
+      "sha256": "92f1fe3c6e6663062a4191d990cbb75fb2fea0c773b466c6c1b9bb6d4ab59209",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-i05-internal-mcp-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Mention/.worktrees/1519-i05-internal-mcp-20261003",
+      "head": "f7c6eb7a4f0e92ad9420df12d31d448c1fb60f93",
+      "path": "packages/mcp/__tests__/parity-tools.test.ts",
+      "sha256": "f3c20d745d1de7179b4585a6d947c8de9d245dcd608b09ffe178edcbb484ded3",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-i05-internal-mcp-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Mention/.worktrees/1519-i05-internal-mcp-20261003",
+      "head": "f7c6eb7a4f0e92ad9420df12d31d448c1fb60f93",
+      "path": "packages/mcp/lib/tool-registry.ts",
+      "sha256": "2a212c57248cf838c00d7fecf741619073ea7bfc87d0fff9529952f05cb3e292",
+      "gitCurrentEqual": true
+    },
+    {
+      "repo": "1519-i05-internal-mcp-20261003",
+      "repositoryRoot": "/home/nate/Oxy/Mention/.worktrees/1519-i05-internal-mcp-20261003",
+      "head": "f7c6eb7a4f0e92ad9420df12d31d448c1fb60f93",
+      "path": "docs/audits/2026-10-03-i05-internal-mcp-receiver/proof.json",
+      "sha256": "f0893d0c8f5c09273eda756f9399583437cdc9e8bf207de2deac5f9a086c5c7c",
+      "gitCurrentEqual": true
+    }
+  ],
+  "finalConsumerAdoption": [
+    {
+      "repository": "OxyHQ/Alia",
+      "acceptedAdoptionBranchHead": "34760e37bed353321e568bc4cbbb45db26d00dd2",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "7f45c7bf9ce657c0d6b83fe6e2e1d7123c0857981b27eee6e66a1e6a4188cbe8",
+        "url": "https://github.com/OxyHQ/Alia/blob/34760e37bed353321e568bc4cbbb45db26d00dd2/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "011be0c23e8eaea15b384a78e629bed11aeb5bed8df8a17dbd27f1c99641bfb0"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "348799a2503bb752f097e86ce383d2cf99d38eb5a6caaa40929880c44fa4faef"
+        }
+      ],
+      "recordedValidation": {
+        "apiSuitesPassed": 191,
+        "apiTestsPassed": 2022,
+        "apiTestsSkipped": 1,
+        "apiTypesBuild": "PASS",
+        "allConsumerTypes": "PASS",
+        "appAndCanvasBuilds": "PASS",
+        "registryInstalledMemberChecks": 12920
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "acceptedAdoptionBranchHead": "298052e58203ef321c4b63d543a6f023e7c75197",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "c34ea8d7fb3ede9792dc478a2e566771d8b6a14abe342b09f80b36ad29abd0f1",
+        "url": "https://github.com/OxyHQ/Mention/blob/298052e58203ef321c4b63d543a6f023e7c75197/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "6efb9a305136fa99ba67c7430791858c4e934b7a8a466045bbc9a6675483930f"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "95516a3b545f81e8d7d9c1779ca075212fdfb92d4c7205541700956f6ab79e5a"
+        }
+      ],
+      "recordedValidation": {
+        "backendSqlHttpTests": 16,
+        "mcpTests": 119,
+        "frontendCompatibilityTests": 3,
+        "backendMcpBuildTypes": "PASS",
+        "frontendTypesExport": "PASS",
+        "doctor": "PASS",
+        "sdkMemberComparisons": 5180,
+        "bloomImporters": 2,
+        "bloomFilesPerImporter": 21941
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    }
+  ],
+  "matrixReference": {
+    "path": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/audits/2026-10-04-i04-acceptance/proof.json",
+    "sha256": "735cdc8ba5d1154ebc6c0f5a968642a5bdca313a8c9fc7911bd5f79bf117e986"
+  },
+  "singleCrossRepositoryAliaToMentionSqlHarnessClaimed": false,
+  "productionHumanEffectClaimed": false,
+  "newTestsExecutedForAudit": false,
+  "remainingSeparateWork": [
+    "PR1569 conditional helper corrections and Forge reactivation remain separately tracked in I11."
+  ]
+}

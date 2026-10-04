@@ -1,0 +1,20 @@
+{
+  "accepted": true,
+  "kind": "root-i05-lane-config-reconciled-v1",
+  "service": "alia",
+  "newDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia:450",
+  "baseline": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia:449",
+  "desired": 2,
+  "sameImagesRolesSecrets": true,
+  "exactOneEnvironmentDelta": true,
+  "configuration": {
+    "ALIA_INTERNAL_MCP_PILOT": "mention"
+  },
+  "exactTaskTargetsHealthy": true,
+  "publicReadiness": 200,
+  "noCookies": true,
+  "noRedirects": true,
+  "noMutationsRepeated": true,
+  "originalFailurePreserved": true,
+  "at": "2026-10-04T08:12:42.416310+00:00"
+}

@@ -1,0 +1,20 @@
+{
+  "accepted": true,
+  "kind": "root-i05-lane-config-reconciled-v1",
+  "service": "mention",
+  "newDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mention:486",
+  "baseline": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mention:485",
+  "desired": 2,
+  "sameImagesRolesSecrets": true,
+  "exactOneEnvironmentDelta": true,
+  "configuration": {
+    "MENTION_OXY_FOREGROUND_CATALOG_BINDING": "{\"registrationId\":\"01a105de-c710-782f-b3fa-cc5e143a57c0\",\"version\":\"1.0.0\",\"digest\":\"af83fce15c1caeb2467bba72ed9741e8de39080da7e05299611a94fc157696be\"}"
+  },
+  "exactTaskTargetsHealthy": true,
+  "publicReadiness": 200,
+  "noCookies": true,
+  "noRedirects": true,
+  "noMutationsRepeated": true,
+  "originalFailurePreserved": true,
+  "at": "2026-10-04T07:59:11.208562+00:00"
+}
