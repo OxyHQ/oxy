@@ -14,5 +14,24 @@
     "https://github.com/OxyHQ/oxy/issues/1527#issuecomment-5978157590"
   ],
   "authority": "Root instructed reopen after Git80291 confirmation; integration owns narrow fix; i04 owns independent review and issue synchronization.",
-  "limits": "Accepted SDK/sandbox/registered cohort observations preserved. No new live financial transaction, general Stripe enable or manufactured authority requested."
+  "limits": "Accepted SDK/sandbox/registered cohort observations preserved. No new live financial transaction, general Stripe enable or manufactured authority requested.",
+  "operationalTail": {
+    "sourceCheckpoint": "82bca73efa870b013d7817aac7b7f9d63799963b",
+    "merged": true,
+    "ciRun": 37190161524,
+    "ciStatus": "success",
+    "subsequentOpenReview": "https://github.com/OxyHQ/oxy/pull/1569#issuecomment-5978232601",
+    "findings": [
+      "Final current-main/retirement guard failures must invoke bounded hold0 recovery.",
+      "Steady acceptance must use the newest validated complete observation."
+    ],
+    "liveIncidentObserved": false,
+    "artifactPublicationAccepted": false,
+    "historicalPublicationFailures": [
+      "Source841 unreachable after squash, before copy.",
+      "Attempt2 transport retained attempt1 nonce."
+    ],
+    "sourceFixOwner": "coverage",
+    "runtimeRolloutFromOpsMerge": false
+  }
 }

@@ -102,7 +102,7 @@
   "records": [
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
-      "sha256": "4c03540aaad869020d8f7c9fe636c421d0861e6f114d3e448af42a2062760b93"
+      "sha256": "a6a43abb715e0ce502c4904fab7fb039ac09026f857be169799ad7d81feda245"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
@@ -114,7 +114,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/status-qualification.json",
-      "sha256": "9f5b5a56d6684759cf0033ba0210673a12a21e04cc94048286ce7d912ccd45e8"
+      "sha256": "49a9ef699e5432dc74cc506613f9f67679c767df4b0ba5e01ed91d6b2f3d696a"
     }
   ],
   "pending": [

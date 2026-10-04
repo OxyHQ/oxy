@@ -5,7 +5,7 @@ It adds no runtime test or new acceptance requirement. Root confirmed ten closed
 I08 was reopened at08:48:19 after source confirmed the Stripe-off consumer P2.
 Nine daughters remain closed, and I08/I11 are open.
 I11 remains open until the outstanding operational helper/Forge review,
-final workflow reconciliation and the qualified Mercaria consumer path are accepted. Coverage alone updates the parent and I11 body.
+final workflow reconciliation and the qualified Mercaria consumer path are accepted. The i04 handoff agent owns the parent and I11 body during final review; root accepts closure.
 
 | Original criterion | Accepted evidence and remaining boundary |
 |---|---|
@@ -20,9 +20,7 @@ final workflow reconciliation and the qualified Mercaria consumer path are accep
 ## Remaining closure inputs
 
 1. **Mercaria Stripe-off integration:** [review5978157590](https://github.com/OxyHQ/oxy/issues/1527#issuecomment-5978157590) identifies that accepted source80291 still gates actions/webhook mounting/settlement reads through general Stripe. Source inspection confirms these seams. Preserve I08's accepted contract/sandbox/publication/cohort observations while its affected functional cutover is reopened; verify the real config/createApp and owned SQL ingress/lifecycle with synthetic transport, action flag off/on, stable retry key and denial of outsiders/legacy/Connect. Integration owns the narrow fix; no general Stripe enable, new live purchase or fabricated authority.
-2. **Operational helper/Forge:** append root's reviewed PR1569 conditional-input
-   fixes, quiescence handling, exact final source/CI and bounded Forge gate receipt.
-   Existing expiry remains 2026-10-09T22:00Z; this index grants no extension.
+2. **Operational helper/Forge:** PR1569 merged as main82 with successful CI and ACTIVE policy. The [subsequent two P2 source findings](https://github.com/OxyHQ/oxy/pull/1569#issuecomment-5978232601) remain open: final guards must invoke bounded hold0 recovery on failure, and steady state must use the latest validated observation. Coverage owns their narrow source/shell regression fix. There is no observed live incident. OCI publication also preserves two historical failures (unreachable source after squash, then mismatched attempt nonce); root is reconciling the full same82 rerun. No final artifact acceptance is claimed. Existing expiry remains 2026-10-09T22:00Z; this index grants no extension.
 3. **Final workflow ledger:** append the root/coverage consolidated original-state
    reconciliation. The accepted Mercaria final restoration is already included;
    no global current-state claim is inferred from that one workflow.
