@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "30523543f70bc58e5fac37e292b8e90a08a245c8",
+  "baseHead": "85dad68e5685413740a4a3fd52afee5bd724bed1",
+  "sourceSha256": {
+    "packages/api/src/scripts/foregroundPilotConfiguration.ts": "73bf8afb0bb736f68e78597c606444d2f01c923da3f0c36b9a977af34c26c97e",
+    "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts": "7eb134ab683bdd46e1158933593961e5be1cb18c067ad6e842cd1415b9695d27",
+    "packages/api/src/scripts/foregroundPilotExecutor.ts": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+    "packages/api/src/scripts/foregroundPilotHttps.ts": "5d7478f43752e5026d028f74394c180d4e17c7113b08ad50b5db0d739c74fcbb",
+    "packages/api/src/config/postgres.ts": "cde261995eb5c66710a977b164bb0b72208d41528c6bfc9520b48d866e15793f",
+    "packages/api/src/services/applicationCredentialAudit.service.ts": "880db9dc51caba7cbc3fcf4c04429c7474d31f92c2df3cacf1c159e9d253cc32",
+    "packages/api/src/services/workloadIdentityBinding.service.ts": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb",
+    "scripts/rehearsal/test-i05-foreground-configuration.py": "b8de4f86f0d3fa87b14046e5c903bc2320737ed0c323dbf8cc97933230031595",
+    "scripts/agency/tests/foreground-pilot-compiled.mjs": "c7cfeaf8a192675ba66c7ce9d344b850070b6e160f0e40d9e4915832f53aae17"
+  },
+  "unchangedBaseInputs": {
+    "packages/api/src/scripts/foregroundPilotExecutor.ts": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+    "packages/api/src/scripts/foregroundPilotHttps.ts": "5d7478f43752e5026d028f74394c180d4e17c7113b08ad50b5db0d739c74fcbb",
+    "packages/api/src/config/postgres.ts": "cde261995eb5c66710a977b164bb0b72208d41528c6bfc9520b48d866e15793f",
+    "packages/api/src/services/applicationCredentialAudit.service.ts": "880db9dc51caba7cbc3fcf4c04429c7474d31f92c2df3cacf1c159e9d253cc32",
+    "packages/api/src/services/workloadIdentityBinding.service.ts": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb",
+    "scripts/rehearsal/test-i05-foreground-configuration.py": "b8de4f86f0d3fa87b14046e5c903bc2320737ed0c323dbf8cc97933230031595",
+    "scripts/agency/tests/foreground-pilot-compiled.mjs": "c7cfeaf8a192675ba66c7ce9d344b850070b6e160f0e40d9e4915832f53aae17"
+  },
+  "compiledSha256": {
+    "packages/api/dist/scripts/foregroundPilotConfiguration.js": "6a22d37456207d0009cba3b3840bac79e0fd65c20a50f9d06097f5ffc781a327",
+    "packages/api/dist/scripts/foregroundPilotExecutor.js": "c0fcbf7d875cc5e61311ffc43f08d92fea5b1646fd65731f482df777019e686e",
+    "packages/api/dist/scripts/foregroundPilotHttps.js": "1d35c4f60130ee04585e55501ad9279b392b706d89d409faf801e88d18da4830"
+  },
+  "records": {
+    "docs/audits/2026-10-04-i05-activity-cas/red-frozen-test.ts": {
+      "sha256": "7eb134ab683bdd46e1158933593961e5be1cb18c067ad6e842cd1415b9695d27",
+      "bytes": 22451,
+      "originalPath": "/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/red.log": {
+      "sha256": "4dda2226a1c47420e062d3c10d187b7ac428e801cdb94edab4fb5e106614ad87",
+      "bytes": 1839,
+      "originalPath": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-wcwntykn/pg1519-nml0ioxd/foreground-api.txt"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/green.log": {
+      "sha256": "27ffb0c28accf057fc85966e71d02fad94d9cc94513e1d91135c160ff9799199",
+      "bytes": 1029,
+      "originalPath": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-e2me3p9b/pg1519-6c1bj_ej/foreground-api.txt"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/node.log": {
+      "sha256": "55e6ffb6c1daf557c4ee21461c430836548335bf3b0c8d0fd0b10c0e75bb512c",
+      "bytes": 394,
+      "originalPath": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-e2me3p9b/pg1519-6c1bj_ej/compiled-node.txt"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/migration-fresh.log": {
+      "sha256": "88a9418e6a6588925c0da31fdbe51b98405fae24f6dec95b02c2629816628fe5",
+      "bytes": 8873,
+      "originalPath": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-e2me3p9b/pg1519-6c1bj_ej/migration-fresh.txt"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/migration-repeat.log": {
+      "sha256": "772cba915ec7c864fc4d46041388e947b1d02483145b1631fe7e5170ee19e298",
+      "bytes": 172,
+      "originalPath": "/home/nate/Oxy/.tmp/cas/oxy-i05-configuration-e2me3p9b/pg1519-6c1bj_ej/migration-repeat.txt"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/owned-run.log": {
+      "sha256": "c05a1f1f31f3b0251f7b821654f4c0e52b600f358371dfd2e71c981d0bd7c378",
+      "bytes": 2233,
+      "originalPath": "/home/nate/Oxy/.agent-evidence/coverage-i05-reconciliation-20261004/activity-cas-release-green.log"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/red-owned-run.log": {
+      "sha256": "6b2b56e281f1f6c3386b96b1e82cd27885615003ce48b54e17228af2e962b499",
+      "bytes": 3020,
+      "originalPath": "/home/nate/Oxy/.agent-evidence/coverage-i05-reconciliation-20261004/activity-cas-exact-red.log"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/build.log": {
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358,
+      "originalPath": "/home/nate/Oxy/.agent-evidence/coverage-i05-reconciliation-20261004/activity-cas-build-final.log"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/lint.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "originalPath": "/home/nate/Oxy/.agent-evidence/coverage-i05-reconciliation-20261004/activity-cas-eslint.log"
+    },
+    "docs/audits/2026-10-04-i05-activity-cas/biome.log": {
+      "sha256": "37e9a0b17e21f0cf5bd897669179695eb240c02f66bf4c6b1df8fc6b1913c0b5",
+      "bytes": 40,
+      "originalPath": "/home/nate/Oxy/.agent-evidence/coverage-i05-reconciliation-20261004/activity-cas-biome.log"
+    }
+  },
+  "checks": {
+    "frozenRed": "1 failed/77 passed with released configuration source; only activity-xmin positive fails",
+    "green": {
+      "suites": 4,
+      "sqlTests": 78,
+      "compiledNodeChecks": 3,
+      "freshMigrations": 142,
+      "repeatMigrations": 142,
+      "apiBuildExitCode": 0,
+      "eslintExitCode": 0,
+      "biomeExitCode": 0
+    },
+    "authority": "All approved semantic app fields remain exact under lock; only activity revision refreshed. CAS uses locked revision. Existing owner/credential/binding/fence/retirement guards unchanged.",
+    "localPostgresPidStopped": 689982,
+    "postmasterAbsent": true,
+    "productionWrites": false,
+    "http": "controlled Fetch fixtures; no live pilot or provider effect"
+  },
+  "limits": [
+    "Readonly live reconciliation proves authority unchanged and revision drift now; does not prove the historical failure cause.",
+    "Released runtime/image remains85dad. Source fix and source-bound operational staging require independent review before root execution.",
+    "No human session or consent invented."
+  ]
+}
