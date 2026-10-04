@@ -10,6 +10,8 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import express from 'express';
+import { normalizeResponsesRequest, responsesRequestSchema } from '../../schemas/inferenceEdge.schemas';
+import { controlledInputBudget } from '../../services/inferenceInternalPilot';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
@@ -863,8 +865,8 @@ describe('approved production pilot admission', () => {
   });
 
   it.each([
-    ['ASCII', 'a'.repeat(9_000)],
-    ['Unicode UTF-8', '\u0800'.repeat(2_800)],
+    ['ASCII', 'a'.repeat(126_977)],
+    ['Unicode UTF-8', '\u0800'.repeat(42_326)],
   ])('refuses oversized controlled input (%s) before execution or durable claim', async (_label, input) => {
     const caller = await alia();
     const before = await getDb().select().from(inferenceMeteredUsage)
@@ -875,6 +877,50 @@ describe('approved production pilot admission', () => {
     expect(await getDb().select().from(inferenceMeteredUsage)
       .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId))).toEqual(before);
     expect(await moneyRowsFor(caller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+  });
+
+  it('serves a complete assistant context above the retired 8KiB pilot cap without replay or money holds', async () => {
+    const input = 'Synthetic assistant context and conversation. '.repeat(1500);
+    expect(Buffer.byteLength(input)).toBeGreaterThan(8192);
+    const headers = { ...bearer(serviceToken(approvedCaller)), 'Idempotency-Key': `production-context-${tag()}` };
+    const payload = { model: approvedCaller.modelReference, input, maxOutputTokens: 4096 };
+    expect((await post(payload, headers)).status).toBe(200);
+    expect(pilotEnvelopes).toHaveLength(1);
+    expect(pilotEnvelopes[0].maxOutputTokens).toBe(2048);
+    expect(JSON.stringify(pilotEnvelopes[0].input)).toContain(input);
+    expect((await post(payload, headers)).status).toBe(409);
+    expect(executions).toBe(1);
+    expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+  });
+
+  it('admits the exact complete UTF-8 budget and refuses one additional byte before metering', async () => {
+    const payload = { model: approvedCaller.modelReference, input: 'x', maxOutputTokens: 2048 };
+    const overhead = controlledInputBudget(normalizeResponsesRequest(responsesRequestSchema.parse(payload)));
+    if (overhead === undefined) throw new Error('Missing completion budget');
+    const input = 'x'.repeat(126_976 - overhead + 1);
+    expect(controlledInputBudget(normalizeResponsesRequest(responsesRequestSchema.parse({ ...payload, input })))).toBe(126_976);
+    expect((await post({ ...payload, input }, bearer(serviceToken(approvedCaller)))).status).toBe(200);
+    const before = await getDb().select().from(inferenceMeteredUsage)
+      .where(eq(inferenceMeteredUsage.applicationId, approvedCaller.applicationId));
+    expect((await post({ ...payload, input: input + 'x' }, bearer(serviceToken(approvedCaller)))).status).toBe(400);
+    expect(executions).toBe(1);
+    expect(await getDb().select().from(inferenceMeteredUsage)
+      .where(eq(inferenceMeteredUsage.applicationId, approvedCaller.applicationId))).toEqual(before);
+  });
+
+  it('keeps the selected model context bound below the product completion ceiling', async () => {
+    const [model] = await getDb().select().from(inferenceModels)
+      .where(and(eq(inferenceModels.publisherSlug, 'openai'), eq(inferenceModels.slug, 'gpt-oss-120b')));
+    await getDb().update(inferenceModels).set({ maxContextTokens: 16_384 }).where(eq(inferenceModels.id, model.id));
+    try {
+      const response = await post({ model: approvedCaller.modelReference, input: 'x'.repeat(32_000), maxOutputTokens: 2048 },
+        bearer(serviceToken(approvedCaller)));
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(executions).toBe(0);
+      expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+    } finally {
+      await getDb().update(inferenceModels).set({ maxContextTokens: model.maxContextTokens }).where(eq(inferenceModels.id, model.id));
+    }
   });
 
   it('refuses a catalogue deployment outside the exact approved pilot tuples', async () => {
@@ -905,7 +951,7 @@ describe('approved production pilot admission', () => {
   });
 
   it.each(['tool', 'response schema'])('refuses an oversized %s before the provider', async (kind) => {
-    const schema = { type: 'object', description: 'x'.repeat(9000) };
+    const schema = { type: 'object', description: 'x'.repeat(126_977) };
     const response = await post({ model: approvedCaller.modelReference, input: 'Hello',
       ...(kind === 'tool' ? { tools: [{ type: 'function', name: 'lookup', parameters: schema }] }
         : { responseFormat: { type: 'json_schema', name: 'result', schema, strict: true } }) },

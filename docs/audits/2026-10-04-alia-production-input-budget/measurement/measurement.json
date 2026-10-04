@@ -1,0 +1,53 @@
+{
+  "kind": "alia-controlled-input-measurement-v1",
+  "source": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+  "limit": 8192,
+  "units": "UTF-8 serialized bytes plus framing",
+  "records": [
+    {
+      "surface": "chat",
+      "systemBytes": 4807,
+      "toolCount": 21,
+      "toolSchemaBytes": 22944,
+      "messageCount": 2,
+      "payloadBytes": 28035,
+      "framingBytes": 992,
+      "controlledInputBudget": 29027,
+      "history": "one synthetic Hello user message",
+      "connectedSources": 0,
+      "privateContext": false
+    },
+    {
+      "surface": "codea",
+      "systemBytes": 6060,
+      "toolCount": 21,
+      "toolSchemaBytes": 22944,
+      "messageCount": 2,
+      "payloadBytes": 29336,
+      "framingBytes": 992,
+      "controlledInputBudget": 30328,
+      "history": "one synthetic Hello user message",
+      "connectedSources": 0,
+      "privateContext": false
+    },
+    {
+      "surface": "cowork",
+      "systemBytes": 5997,
+      "toolCount": 21,
+      "toolSchemaBytes": 22944,
+      "messageCount": 2,
+      "payloadBytes": 29280,
+      "framingBytes": 992,
+      "controlledInputBudget": 30272,
+      "history": "one synthetic Hello user message",
+      "connectedSources": 0,
+      "privateContext": false
+    }
+  ],
+  "limits": [
+    "synthetic fixtures, not original incident payload",
+    "external connector sources explicitly absent",
+    "no provider HTTP or database calls",
+    "real Oxy normalizeResponsesRequest and controlledInputBudget used without modification"
+  ]
+}

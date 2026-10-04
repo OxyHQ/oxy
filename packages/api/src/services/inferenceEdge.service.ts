@@ -979,7 +979,10 @@ async function admitWithAutoDecision(
   if (pilot !== undefined) {
     if (pilotInputBudget === undefined) return refuse('unsupported_modality',
       'The input is outside the controlled internal pilot.', { param: 'input' });
-    if (pilotInputBudget > pilot.maxControlledInputBudget) return refuse('context_length_exceeded',
+    const inputCeiling = request.operation.kind === 'completion'
+      ? pilot.maxControlledCompletionInputBudget ?? pilot.maxControlledInputBudget
+      : pilot.maxControlledInputBudget;
+    if (pilotInputBudget > inputCeiling) return refuse('context_length_exceeded',
       'The controlled input exceeds the internal pilot budget.', { param: 'input' });
   }
   const acceptsPilotDeployment = (route: EdgeRoute): boolean =>
