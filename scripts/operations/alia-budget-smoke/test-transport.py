@@ -9,6 +9,8 @@ class Transport(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.p=Path(self.temp.name)
   self.binding={'kind':'alia-budget-smoke-accepted-runtime-v1','oxyDefinition':'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:999','aliaDefinition':'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia:452','image':'237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:'+'1'*64,'taskRoleArn':prep.ROLE,'budgetSource':'27ebf33872c4e3c6e72e97a728f157d42a8ffaf2','executionRoleArn':'arn:aws:iam::237343248947:role/oxy-api-execution','runtimePlatform':{'cpuArchitecture':'ARM64','operatingSystemFamily':'LINUX'},'network':{'awsvpcConfiguration':{'assignPublicIp':'DISABLED','subnets':['synthetic'],'securityGroups':['synthetic']}},'coreVersion':'4.3.0','contractsVersion':'4.9.1','sdkInferenceModuleSha256':'8'*64,'logGroup':'/oxy/ecs','logStreamPrefix':'oxy-api','cpu':'256','memory':'512'}
+  self.binding['policyModuleSha256']='9'*64
+  self.binding['routeReview']={'policyVersion':'synthetic-high-v1','maxQuotePicos':'20000000000','routes':[{'deploymentId':'synthetic_'+str(i),'priceVersionId':'synthetic_price_'+str(i)}for i in range(4)]}
   self.inventory={'kind':'inference-pilot-readiness','profile':'oxy','readOnly':True,'isolation':'repeatable read','observedAt':'2026-10-04T17:00:00Z','tables':{k:{'status':'complete','count':0,'rows':[]}for k in ['inference_deployments','price_versions','price_version_unit_prices']}}
   (self.p/'binding.json').write_text(json.dumps(self.binding));(self.p/'inventory.json').write_text(json.dumps(self.inventory))
   prep.prepare(self.p/'binding.json',self.p/'inventory.json',self.p/'prepared')

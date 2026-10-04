@@ -162,7 +162,22 @@ PROJECTIONS.oxy_related = {
 function hash(value) {
 	return createHash("sha256").update(value).digest("hex");
 }
-export async function readInventory(profile, databaseUrl) {
+export async function readInventory(profile, databaseUrl, reviewedRoutes) {
+  const projections=structuredClone(PROJECTIONS);
+  if (reviewedRoutes!==undefined) {
+    if(profile!=='oxy' || !Array.isArray(reviewedRoutes) || reviewedRoutes.length!==4
+      || new Set(reviewedRoutes.map(r=>r.deploymentId)).size!==4
+      || reviewedRoutes.some(r=>!/^[-a-zA-Z0-9_]+$/.test(r.deploymentId))) throw new Error('reviewed_routes_invalid');
+    // Closed reviewed identifiers only, never provider credentials or caller SQL.
+    const selected=`internal_route_id IN (${reviewedRoutes.map(r=>`'${r.deploymentId}'`).join(',')})`;
+    const revisions=`SELECT model_revision_id FROM public.inference_deployments WHERE ${selected}`;
+    const prices=`id IN (SELECT price_version_id FROM public.inference_deployments WHERE ${selected}) OR id IN (SELECT platform_fee_price_version_id FROM public.inference_deployments WHERE ${selected})`;
+    projections.oxy.inference_deployments.where=selected;
+    projections.oxy.inference_model_revisions.where=`id IN (${revisions})`;
+    projections.oxy.inference_models.where=`id IN (SELECT model_id FROM public.inference_model_revisions WHERE id IN (${revisions}))`;
+    projections.oxy.price_versions.where=prices;
+    projections.oxy.price_version_unit_prices.where=`price_version_id IN (SELECT id FROM public.price_versions WHERE ${prices})`;
+  }
 	if (!Object.hasOwn(PROJECTIONS, profile) || !databaseUrl)
 		throw new Error("Invalid fixed inventory profile");
 	const client = postgres(databaseUrl, {
@@ -183,7 +198,7 @@ export async function readInventory(profile, databaseUrl) {
 				if (safety.read_only !== "on" || safety.isolation !== "repeatable read")
 					throw new Error("Required SQL read-only snapshot absent");
 				const tables = {};
-				for (const [table, spec] of Object.entries(PROJECTIONS[profile])) {
+				for (const [table, spec] of Object.entries(projections[profile])) {
 					const descriptor = Array.isArray(spec) ? { columns: spec } : spec;
 					const [presence] =
 						await tx`SELECT to_regclass(${`public.${table}`})::text AS name`;

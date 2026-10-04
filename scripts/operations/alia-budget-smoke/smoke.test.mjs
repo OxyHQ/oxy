@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {generateKeyPairSync,sign} from 'node:crypto';
-import {runSmoke,inspectInventory,requestFor,MODEL,DEPLOYMENTS,hash} from './smoke.mjs';
+import {runSmoke,inspectInventory,requestFor,MODEL,DEPLOYMENTS,hash,HISTORICAL_REVIEW,validatePilot} from './smoke.mjs';
 const require=createRequire('/home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/packages/backend/package.json');
 const {OxyInferenceClient}=require('@oxy.so/core/inference');
 const now=()=>1791140000000;
@@ -27,10 +27,10 @@ function fixture({claims={},post='success',receipt='success'}={}) {
   if(url.endsWith('jwks.json'))return response({keys:[key]});
   calls.push({url,options});assert.equal(options.redirect,'error');assert.equal(options.headers['X-Oxy-User-Id'],undefined);
   if(options.method==='POST') {
-   assert.equal(JSON.parse(options.body).input.length,2);assert.equal(JSON.parse(options.body).tools.length,21);assert.equal(JSON.parse(options.body).maxOutputTokens,128);assert.equal(JSON.parse(options.body).routingProfile,'auto');
+   assert.equal(JSON.parse(options.body).input.length,2);assert.equal(JSON.parse(options.body).tools.length,21);assert.equal(JSON.parse(options.body).maxOutputTokens,2048);assert.equal(JSON.parse(options.body).routingProfile,'auto');
    if(post==='unknown')throw new Error('transport-lost-secret-'+token);
    if(post==='refused')return response({code:'context_length_exceeded',message:'context',retryable:false,requestId:'original-request'},400);
-   return response({schemaVersion:1,requestId:'original-request',model:MODEL,servingProvider:'groq',finishReason:'stop',output:[{role:'assistant',content:[{type:'text',text:'OK'}]}]});
+   return response({schemaVersion:1,requestId:'original-request',model:record.resolvedModelReference,servingProvider:record.servingProvider,finishReason:'stop',output:[{role:'assistant',content:[{type:'text',text:'OK'}]}]});
   }
   if(receipt==='missing')return response({code:'not_found',message:'missing',retryable:false,requestId:'lookup'},404);
   return response({data:record});
@@ -77,7 +77,7 @@ test('actual Oxy normalization confirms canonical Hello exceeds old cap and fits
  const {normalizeResponsesRequest,responsesRequestSchema}=require(api+'schemas/inferenceEdge.schemas.js');
  const {controlledInputBudget}=require(api+'services/inferenceInternalPilot.js');
  const request=requestFor(intent);const budget=controlledInputBudget(normalizeResponsesRequest(responsesRequestSchema.parse(request)));
- assert.equal(budget,29027);assert.ok(budget<32768);assert.equal(request.routingProfile,'auto');assert.equal(request.maxOutputTokens,128);
+ assert.equal(budget,29027);assert.ok(budget<32768);assert.equal(request.routingProfile,'auto');assert.equal(request.maxOutputTokens,2048);
 });
 
 test('reviewed Groq30-day retention is reported separately from ZDR availability',()=>{const result=inspectInventory(fixture().inventory,now);assert.deepEqual(result.quotes.find(q=>q.provider==='groq').privacy,{retainsPayloads:true,retentionDays:30,trainsOnCustomerData:false,zeroDataRetentionAvailable:true});});
@@ -91,3 +91,28 @@ test('diagnostic permits stale price observation only because no response or gen
  const f=fixture();f.inventory.observedAt=new Date(now()-600000).toISOString();const r=await runSmoke({...f.args,mode:'diagnostic'});assert.equal(r.priceSnapshotFresh,false);assert.equal(r.priceValidated,false);assert.equal(f.calls.length,0);assert.equal(f.sent.length,0);
 });
 for(const claims of [{ownerAccountId:'foreign'},{credentialId:'foreign'},{exp:now()/1000-1}])test('diagnostic still refuses foreign or expired signed identity '+JSON.stringify(claims),async()=>{const f=fixture({claims});await assert.rejects(runSmoke({...f.args,mode:'diagnostic'}));assert.equal(f.calls.length,0);});
+
+// This fourth deployment is synthetic fixture data, never a production candidate.
+function highFixture() {
+ const f=fixture(); const review=structuredClone(HISTORICAL_REVIEW);
+ review.policyVersion='synthetic-reviewed-high-v1';
+ const high={deploymentId:'synthetic_high_deployment',provider:'synthetic-provider',modelReference:'synthetic/high@v1',priceVersionId:'synthetic-high-price',privacy:{retainsPayloads:false,retentionDays:0,trainsOnCustomerData:false,zeroDataRetentionAvailable:true}};
+ review.routes.push(high); const t=f.inventory.tables;
+ t.inference_deployments.rows.push({...t.inference_deployments.rows[0],internal_route_id_digest:hash(high.deploymentId),provider_slug:high.provider,price_version_id:high.priceVersionId});t.inference_deployments.count++;
+ t.price_versions.rows.push({...t.price_versions.rows[0],id:high.priceVersionId,provider:high.provider,model_reference:high.modelReference});t.price_versions.count++;
+ t.price_version_unit_prices.rows.push(...structuredClone(t.price_version_unit_prices.rows.slice(0,5)).map(x=>({...x,price_version_id:high.priceVersionId})));t.price_version_unit_prices.count+=5;
+ Object.assign(f.record,{economicPolicyVersion:review.policyVersion,resolvedModelReference:high.modelReference,servingProvider:high.provider});f.record.tariff.priceVersionId=high.priceVersionId;
+ f.args.review=review;return {...f,review,high};
+}
+test('synthetic fourth high route works through published SDK without replacing Auto or tools',async()=>{const f=highFixture();const r=await runSmoke(f.args);assert.equal(r.ok,true);assert.equal(r.outputLimit,2048);assert.equal(r.record.model,f.high.modelReference);assert.equal(r.quote.quotes.length,4);assert.deepEqual(f.calls.map(c=>c.options.method),['POST','GET']);const request=JSON.parse(f.calls[0].options.body);assert.equal(request.routingProfile,'auto');assert.equal(request.model,undefined);assert.equal(request.tools.length,21);});
+for(const [name,mutate]of [
+ ['foreign model',f=>f.inventory.tables.price_versions.rows.at(-1).model_reference='foreign@v1'],
+ ['price revision',f=>f.review.routes.at(-1).priceVersionId='different'],
+ ['retention drift',f=>f.inventory.tables.inference_deployments.rows.at(-1).retention_days=1],
+ ['training drift',f=>f.inventory.tables.inference_deployments.rows.at(-1).trains_on_customer_data=true],
+ ['foreign route',f=>f.inventory.tables.inference_deployments.rows.at(-1).internal_route_id_digest=hash('foreign')],
+ ['extra route',f=>f.review.routes.push({...f.high,deploymentId:'extra'})],
+])test('high review rejects '+name+' before POST',async()=>{const f=highFixture();mutate(f);await assert.rejects(runSmoke(f.args));assert.equal(f.calls.length,0);});
+test('policy exact four tuples and version are required',()=>{const f=highFixture();const original=require('/home/nate/Oxy/oxy/.worktrees/alia-production-input-budget-20261004/packages/api/dist/config/inferenceEconomicPolicy.js');const policy={...original,INFERENCE_ECONOMIC_POLICY_VERSION:f.review.policyVersion,INTERNAL_METERED_RELATIONSHIPS:structuredClone(original.INTERNAL_METERED_RELATIONSHIPS)};policy.INTERNAL_METERED_RELATIONSHIPS[0].pilot.deployments.push({deploymentId:f.high.deploymentId,provider:f.high.provider,modelReference:f.high.modelReference});validatePilot(policy,f.review);policy.INTERNAL_METERED_RELATIONSHIPS[0].pilot.deployments.at(-1).modelReference='foreign@v1';assert.throws(()=>validatePilot(policy,f.review));});
+test('exact quote boundary includes all 2048 reasoning/output tokens without double charging',()=>{const f=highFixture();const units=f.inventory.tables.price_version_unit_prices.rows.filter(x=>x.price_version_id===f.high.priceVersionId);for(const u of units){u.amount='0';u.per='1';}units.find(x=>x.unit==='requests').amount='0.02';assert.equal(inspectInventory(f.inventory,now,f.review).quotes.at(-1).quotePicos,'20000000000');units.find(x=>x.unit==='reasoning_tokens').amount='0.000000000001';assert.throws(()=>inspectInventory(f.inventory,now,f.review));f.review.maxQuotePicos='50000000000';assert.equal(inspectInventory(f.inventory,now,f.review).quotes.at(-1).quotePicos,'20000002048');});
+for(const responseKind of ['empty','length','tool_calls'])test('high '+responseKind+' remains failed despite completed receipt',async()=>{const f=highFixture();const fetch=f.args.fetchImpl;f.args.fetchImpl=async(url,options)=>{const r=await fetch(url,options);if(options?.method!=='POST')return r;const body=await r.json();if(responseKind==='empty')body.output=[];else body.finishReason=responseKind;return response(body);};const r=await runSmoke(f.args);assert.equal(r.ok,false);assert.equal(r.retryAttempted,false);assert.equal(f.calls.length,2);});
