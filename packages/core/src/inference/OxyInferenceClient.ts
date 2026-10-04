@@ -712,6 +712,22 @@ export class OxyInferenceClient {
         return body.data;
     }
 
+    /**
+     * Recover the existing record using the original credential and key. This
+     * performs only GET; 404 is unknown/pending, never proof of zero cost and
+     * never an instruction to repeat decide(). Lost answers are not retained.
+     */
+    async getGenerationRecordByIdempotencyKey(
+        key: string,
+        options: { signal?: AbortSignal; delegatedUserId?: string } = {},
+    ): Promise<OxyGenerationRecord> {
+        if (key.length === 0 || key.length > 128) throw new Error('Invalid original idempotency key.');
+        const body = await this.#request<{ data: OxyGenerationRecord }>(
+            'GET', '/v1/generations/by-idempotency-key', { ...options, idempotencyKey: key },
+        );
+        return body.data;
+    }
+
     /** The bearer for this request, from whichever lane was configured. */
     async #bearer(): Promise<string> {
         const value =

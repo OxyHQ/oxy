@@ -46,7 +46,7 @@ import * as catalogue from '../../services/inferenceCatalogue.service';
 import * as powerLevels from '../../services/inferencePowerLevels.service';
 import * as scoped from '../../services/scopedExecution.service';
 import * as rollout from '../../config/rolloutFlags';
-import { executeInferenceRequest, readGenerationReceipt, type EdgeExecutionContext } from '../../services/inferenceEdge.service';
+import { executeInferenceRequest, readGenerationReceipt, readGenerationReceiptByIdempotencyKey, type EdgeExecutionContext } from '../../services/inferenceEdge.service';
 import { resolveEffectiveRoutingPolicy } from '../../services/inferenceRoutingPolicy.service';
 import {
   attestFixtureDeployments,
@@ -947,4 +947,90 @@ describe('approved production pilot admission', () => {
     expect(executions).toBe(0);
   });
 
+});
+
+
+describe('original-key receipt recovery', () => {
+  async function recoveryCaller() {
+    const caller = await customer('1.000000000000');
+    const scopes = ['inference:invoke', 'inference:usage:read'];
+    await getDb().update(applications).set({ scopes }).where(eq(applications.id, caller.applicationId));
+    await getDb().update(applicationCredentials).set({ scopes }).where(eq(applicationCredentials.id, caller.credentialId));
+    return caller;
+  }
+  const readOriginal = (caller: Caller, key: string, extra: Record<string, string> = {}) =>
+    getGeneration('by-idempotency-key', { ...bearer(caller.machineToken), 'Idempotency-Key': key, ...extra });
+
+  it('recovers settled usage with GET only and leaves money and execution count unchanged', async () => {
+    const caller = await recoveryCaller(); const key = `lost-${tag()}`;
+    const first = await post(body(caller), { ...bearer(caller.machineToken), 'Idempotency-Key': key });
+    expect(first.status).toBe(200);
+    const before = await moneyRowsFor(caller.accountId);
+    const recovered = await readOriginal(caller, key);
+    expect(recovered).toMatchObject({ status: 200, body: { data: { requestId: first.body.requestId, schemaVersion: 1 } } });
+    expect(await readOriginal(caller, key)).toEqual(recovered);
+    expect(await moneyRowsFor(caller.accountId)).toEqual(before);
+    expect(executions).toBe(1);
+    expect(await readOriginal(caller, `unknown-${tag()}`)).toMatchObject({ status: 404 });
+    expect(await readOriginal(caller, '')).toMatchObject({ status: 400 });
+  });
+  it('separates identical keys across apps, credentials and delegation', async () => {
+    const caller = await recoveryCaller(); const foreign = await recoveryCaller(); const key = `collision-${tag()}`;
+    const first = await post(body(caller), { ...bearer(caller.machineToken), 'Idempotency-Key': key });
+    expect(first.status).toBe(200);
+    expect(await readOriginal(foreign, key)).toMatchObject({ status: 404 });
+    const second = await post(body(foreign), { ...bearer(foreign.machineToken), 'Idempotency-Key': key });
+    expect(second.status).toBe(200);
+    expect(second.body.requestId).not.toBe(first.body.requestId);
+    expect(await readOriginal(foreign, key)).toMatchObject({ status: 200, body: { data: { requestId: second.body.requestId } } });
+    const rotated = await makeCredential(caller.applicationId, caller.accountId, 'development', ['inference:invoke', 'inference:usage:read']);
+    expect(await readOriginal({ ...caller, credentialId: rotated.credentialId, machineToken: rotated.token }, key)).toMatchObject({ status: 404 });
+    expect(await readOriginal(caller, key, { 'X-Oxy-User-Id': `foreign-${tag()}` })).toMatchObject({ status: 404 });
+    expect(executions).toBe(2);
+  });
+  it('keeps pending and unknown usage unresolved even when an unrelated receipt exists', async () => {
+    const caller = await recoveryCaller(); const key = `pending-${tag()}`;
+    const first = await post(body(caller), { ...bearer(caller.machineToken), 'Idempotency-Key': key });
+    expect(first.status).toBe(200);
+    const row = await meteredFor(first.body.requestId);
+    await getDb().update(inferenceMeteredUsage).set({ status: 'admitted', outcome: null, usageSource: null, settledAt: null })
+      .where(eq(inferenceMeteredUsage.id, row.id));
+    const pending = await meteredFor(first.body.requestId);
+    const money = await moneyRowsFor(caller.accountId);
+    expect(await readOriginal(caller, key)).toMatchObject({ status: 404 });
+    expect(await meteredFor(first.body.requestId)).toEqual(pending);
+    expect(await moneyRowsFor(caller.accountId)).toEqual(money);
+    expect(executions).toBe(1);
+  });
+  it('recovers internal technical usage without inventing a financial receipt and fences exact principal fields', async () => {
+    useMechanismRelationship();
+    const caller = await alia(); const scopes = ['inference:invoke', 'inference:usage:read'];
+    await getDb().update(applications).set({ scopes }).where(eq(applications.id, caller.applicationId));
+    await getDb().update(applicationCredentials).set({ scopes }).where(eq(applicationCredentials.id, caller.credentialId));
+    const token = serviceToken(caller, scopes); const key = `internal-${tag()}`;
+    const first = await post(body(caller), { ...bearer(token), 'Idempotency-Key': key });
+    expect(first.status).toBe(200);
+    const record = await getGeneration('by-idempotency-key', { ...bearer(token), 'Idempotency-Key': key });
+    expect(record).toMatchObject({ status: 200, body: { data: { schemaVersion: 2, requestId: first.body.requestId,
+      economicTreatment: 'internal_metered', customerCharge: { status: 'not_charged' } } } });
+    expect(JSON.stringify(record)).not.toContain('receiptId');
+    expect(await moneyRowsFor(caller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+    const principal = { lane: 'service_token' as const, ownerAccountId: caller.accountId, applicationId: caller.applicationId,
+      credentialId: caller.credentialId, environment: 'production' as const, scopes: ['inference:invoke', 'inference:usage:read'] as const,
+      applicationIsInternal: true, applicationType: 'internal' as const };
+    for (const changed of [{ environment: 'development' as const }, { ownerAccountId: 'foreign' },
+      { applicationId: 'foreign' }, { credentialId: 'foreign' }, { scopes: ['inference:invoke'] as const }]) {
+      expect(await readGenerationReceiptByIdempotencyKey({ ...principal, ...changed }, key)).toEqual({ status: 'not-found' });
+    }
+    expect(executions).toBe(1);
+  });
+  it.each(['revoked', 'expired'] as const)('denies %s credentials at the real authentication boundary', async state => {
+    const caller = await recoveryCaller(); const key = `retired-${tag()}`;
+    expect((await post(body(caller), { ...bearer(caller.machineToken), 'Idempotency-Key': key })).status).toBe(200);
+    expect((await readOriginal(caller, key)).status).toBe(200);
+    await getDb().update(applicationCredentials).set(state === 'revoked' ? { status: 'revoked' } : { expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(applicationCredentials.id, caller.credentialId));
+    expect((await readOriginal(caller, key)).status).toBe(401);
+    expect(executions).toBe(1);
+  });
 });

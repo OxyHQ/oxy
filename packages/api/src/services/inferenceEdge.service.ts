@@ -108,7 +108,7 @@ import { decisionAvailability } from '../config/decisionAvailability';
 
 import { createHash, randomUUID } from 'node:crypto';
 import type { Request } from 'express';
-import { and, asc, desc, eq, or } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
 import type { z } from 'zod';
 import {
   currentDeploymentLiveness,
@@ -4290,6 +4290,35 @@ export function allocateRequestId(): string {
 export type GenerationReceiptLookup =
   | { readonly status: 'found'; readonly receipt: GenerationReceipt }
   | { readonly status: 'not-found' };
+
+/**
+ * Recover a settled record after a lost response, without invoking inference.
+ * The original key is credential-bound, exactly as admission stored it. A
+ * rotated credential cannot guess another credential's keys. Unknown/pending
+ * records remain not-found, never evidence of zero cost or permission to retry.
+ * Authentication and current credential validity are enforced by edgeGate.
+ */
+export async function readGenerationReceiptByIdempotencyKey(
+  principal: EdgePrincipal,
+  key: string,
+  delegatedUserId?: string
+): Promise<GenerationReceiptLookup> {
+  if (!principal.scopes.includes('inference:usage:read') || key.length === 0
+    || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) return { status: 'not-found' };
+  const [original] = await getDb().select({ requestId: inferenceMeteredUsage.requestId })
+    .from(inferenceMeteredUsage).where(and(
+      eq(inferenceMeteredUsage.idempotencyKey, `oxy-edge:idem:${principal.credentialId}:${key}`),
+      eq(inferenceMeteredUsage.applicationCredentialId, principal.credentialId),
+      eq(inferenceMeteredUsage.applicationId, principal.applicationId),
+      eq(inferenceMeteredUsage.accountId, principal.ownerAccountId),
+      eq(inferenceMeteredUsage.environment, principal.environment),
+      delegatedUserId === undefined ? isNull(inferenceMeteredUsage.delegatedUserId)
+        : eq(inferenceMeteredUsage.delegatedUserId, delegatedUserId),
+      eq(inferenceMeteredUsage.status, 'settled'),
+    )).limit(1);
+  if (!original) return { status: 'not-found' };
+  return readGenerationReceipt(principal, original.requestId, delegatedUserId);
+}
 
 /**
  * Read back the settled receipt for one request.

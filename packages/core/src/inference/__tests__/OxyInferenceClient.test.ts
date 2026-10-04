@@ -960,6 +960,28 @@ describe('financial and internal generation records', () => {
     expect(headerOf(calls[0].init, 'X-Oxy-User-Id')).toBe('user-1');
     if (record.schemaVersion === 2) expect(record.customerCharge.status).toBe('not_charged');
   });
+  it('recovers by original key with GET only, attribution and abort', async () => {
+    const { impl, calls } = stubFetch([{ status: 200, body: { data: internal } }]);
+    const client = new OxyInferenceClient({ credential: 'synthetic', baseURL: 'http://test.invalid', fetch: impl });
+    const signal = new AbortController().signal;
+    expect(await client.getGenerationRecordByIdempotencyKey('original-key', { delegatedUserId: 'user-1', signal })).toEqual(internal);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('http://test.invalid/v1/generations/by-idempotency-key');
+    expect(calls[0].init?.method).toBe('GET');
+    expect(calls[0].init?.signal).toBe(signal);
+    expect(headerOf(calls[0].init, 'Idempotency-Key')).toBe('original-key');
+    expect(headerOf(calls[0].init, 'X-Oxy-User-Id')).toBe('user-1');
+  });
+  it('leaves missing receipts unknown without any replay and rejects invalid keys before transport', async () => {
+    const { impl, calls } = stubFetch([{ status: 404, body: { code: 'model_not_found', message: 'Unavailable',
+      requestId: 'lookup-only', retryable: false } }]);
+    const client = new OxyInferenceClient({ credential: 'synthetic', fetch: impl });
+    await expect(client.getGenerationRecordByIdempotencyKey('original-key')).rejects.toMatchObject({ status: 404, code: 'model_not_found' });
+    await expect(client.getGenerationRecordByIdempotencyKey('')).rejects.toThrow('Invalid original');
+    await expect(client.getGenerationRecordByIdempotencyKey('x'.repeat(129))).rejects.toThrow('Invalid original');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].init?.method).toBe('GET');
+  });
   it('preserves the financial method signature and rejects technical records without exposing response or bearer', async () => {
     const { impl } = stubFetch([{ status: 200, body: { data: { ...internal, secretBody: 'private-body' } } }]);
     const client = new OxyInferenceClient({ credential: 'private-bearer', baseURL: 'http://test.invalid', fetch: impl });

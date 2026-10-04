@@ -125,6 +125,7 @@ const EXPECTED_ROUTES = [
   'POST /audio/speech',
   'POST /images/generations',
   'GET /generations/:id',
+  'GET /generations/by-idempotency-key',
 ] as const;
 
 /** A concrete value for every `:param`, so the path is requestable. */

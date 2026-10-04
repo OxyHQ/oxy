@@ -6,6 +6,7 @@
  * POST /v1/responses            the preferred modern endpoint
  * POST /v1/chat/completions     OpenAI-compatible
  * GET  /v1/generations/:id      the usage/cost receipt
+ * GET  /v1/generations/by-idempotency-key  original-key receipt recovery
  * ```
  *
  * `GET /v1/models` and `GET /v1/models/:publisher/:model` are served by
@@ -72,6 +73,7 @@ import {
   MAX_IDEMPOTENCY_KEY_LENGTH,
   MAX_REQUEST_BYTES,
   readGenerationReceipt,
+  readGenerationReceiptByIdempotencyKey,
   streamInferenceRequest,
   type EdgeCompletion,
   type EdgeExecutionContext,
@@ -1402,6 +1404,49 @@ export function createInferenceEdgeRouter(
         ),
       };
       res.status(200).json(body);
+    }
+  );
+
+  /**
+   * `GET /v1/generations/by-idempotency-key` — recover an existing settled record.
+   * Requires the original Idempotency-Key header and an active, usage-authorized
+   * original credential. Exact app/account/environment/delegation are retained.
+   * 404 is unknown or pending, never permission to resend or evidence of no cost.
+   * No decision answers are retained. This static path precedes /:id; public
+   * request IDs are UUIDs and cannot collide with its reserved literal.
+   * @response 200 generationReceiptResponseSchema Existing financial or technical record.
+   */
+  router.get(
+    '/generations/by-idempotency-key',
+    edgeGate(sendInferenceError),
+    machineCredentialLimiter,
+    machineApplicationLimiter,
+    inferenceEdgeLimiter,
+    async (req: EdgeRequest, res: Response) => {
+      const edge = req.edge;
+      if (edge === undefined) return;
+      const key = idempotencyKey(req);
+      if (!key.ok || key.key === undefined) {
+        sendInferenceError(res, buildInferenceError({ code: 'invalid_request',
+          message: 'A valid original Idempotency-Key is required.',
+          param: 'Idempotency-Key', requestId: edge.requestId }));
+        return;
+      }
+      try {
+        const lookup = await readGenerationReceiptByIdempotencyKey(edge.principal, key.key, delegatedUserId(req));
+        if (lookup.status === 'not-found') {
+          sendInferenceError(res, buildInferenceError({ code: 'model_not_found',
+            message: 'No settled generation record is available for that original key.', requestId: edge.requestId }));
+          return;
+        }
+        applyInferenceHeaders(res, edge.requestId);
+        res.status(200).json({ data: lookup.receipt });
+      } catch {
+        // Do not emit the query/opaque idempotency key through a database error.
+        logger.error('inference.edge.original_receipt_failed', { requestId: edge.requestId });
+        sendInferenceError(res, buildInferenceError({ code: 'internal_error',
+          message: 'The receipt could not be read.', requestId: edge.requestId }));
+      }
     }
   );
 
