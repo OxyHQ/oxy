@@ -17,6 +17,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -210,20 +211,26 @@ def validate(plan,write=False,image_reads=True):
 
 
 def aws_register(body):
-    # JSON crosses stdin, never argv or a persisted environment-value dump.
-    child=subprocess.Popen(['aws','ecs','register-task-definition','--cli-input-json','file:///dev/stdin',
-        '--region',f.REGION,'--output','json','--no-cli-pager'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-        text=True,start_new_session=True)
-    try:
-        stdout,_=child.communicate(json.dumps(body),timeout=40)
-        f.require(child.returncode==0 and len(stdout.encode())<=8*1024*1024,'TD registration failed; raw error withheld')
-        return json.loads(stdout)
-    except BaseException:
-        if child.poll()is None:
-            os.killpg(child.pid,signal.SIGTERM)
-            try:child.wait(timeout=5)
-            except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=5)
-        raise
+    # AWS CLI 2.36 rejects this /dev/stdin transport during local JSON parsing. Keep
+    # exact JSON in a private RAM-backed file; no TD values enter argv/logs.
+    with tempfile.TemporaryDirectory(prefix='oxy-consumer-registration-',dir='/dev/shm') as temporary:
+        request=Path(temporary)/'request.json'
+        fd=os.open(request,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+        with os.fdopen(fd,'w') as output:
+            json.dump(body,output);output.flush();os.fsync(output.fileno())
+        child=subprocess.Popen(['aws','ecs','register-task-definition','--cli-input-json','file://'+str(request),
+            '--region',f.REGION,'--output','json','--no-cli-pager'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            text=True,start_new_session=True)
+        try:
+            stdout,_=child.communicate(timeout=40)
+            f.require(child.returncode==0 and len(stdout.encode())<=8*1024*1024,'TD registration failed; raw error withheld')
+            return json.loads(stdout)
+        except BaseException:
+            if child.poll()is None:
+                os.killpg(child.pid,signal.SIGTERM)
+                try:child.wait(timeout=5)
+                except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=5)
+            raise
 
 
 def register(plan,directory):

@@ -228,7 +228,7 @@ class ConsumerTests(unittest.TestCase):
         lots={'consumers':[{'repository':'OxyHQ/Homiio','imageRecipes':[{'service':'homiio'}]*2}]}
         with self.assertRaises(RuntimeError):c.recipe_for(lots,'homiio')
 
-    def test_registration_intent_precedes_stdin_write_and_readback(self):
+    def test_registration_intent_precedes_request_write_and_readback(self):
         p=plan();calls=[]
         with tempfile.TemporaryDirectory()as base:
             d=Path(base)
@@ -374,12 +374,31 @@ class ConsumerTests(unittest.TestCase):
             reference=c.ref(path);path.write_text('{"fixture":false}')
             with self.assertRaisesRegex(RuntimeError,'bytes changed'):c.read_ref(reference)
 
-    def test_aws_registration_transports_json_stdin_not_argv(self):
+    def test_aws_registration_private_file_same_body_and_cleanup_success_and_failure(self):
         import os,sys
-        with tempfile.TemporaryDirectory()as base:
-            script=Path(base)/'aws';script.write_text('#!'+sys.executable+'\nimport sys,json\na=json.load(sys.stdin)\nassert sys.argv[sys.argv.index("--cli-input-json")+1]=="file:///dev/stdin"\nassert not any("fixture-only" in x for x in sys.argv)\nprint(json.dumps({"taskDefinition":{"taskDefinitionArn":"'+NEW+'"}}))\n')
-            script.chmod(0o700)
-            with patch.dict(os.environ,{'PATH':base}):self.assertEqual(c.aws_register(c.render(raw(),[],'actual-backend',IMAGE+'c'*64))['taskDefinition']['taskDefinitionArn'],NEW)
+        body=c.render(raw(),[],'actual-backend',IMAGE+'c'*64)
+        for exit_code in (0,1):
+            with self.subTest(exit_code=exit_code),tempfile.TemporaryDirectory()as base:
+                record=Path(base)/'readback.json'
+                script=Path(base)/'aws'
+                script.write_text('#!'+sys.executable+'\nimport sys,json,os,stat\nfrom pathlib import Path\n'
+                    'arg=sys.argv[sys.argv.index("--cli-input-json")+1]\n'
+                    'assert arg.startswith("file://") and arg!="file:///dev/stdin"\n'
+                    'p=Path(arg[7:]);assert p.parent.parent==Path("/dev/shm")\n'
+                    'assert stat.S_IMODE(p.stat().st_mode)==0o600\n'
+                    'assert stat.S_IMODE(p.parent.stat().st_mode)==0o700\n'
+                    'assert not any("fixture-only" in x for x in sys.argv)\n'
+                    'data=json.loads(p.read_text())\n'
+                    'Path(os.environ["TEST_RECORD"]).write_text(json.dumps({"path":str(p),"body":data}))\n'
+                    'print(json.dumps({"taskDefinition":{"taskDefinitionArn":"'+NEW+'"}}))\n'
+                    'sys.exit(int(os.environ["TEST_EXIT"]))\n')
+                script.chmod(0o700)
+                with patch.dict(os.environ,{'PATH':base,'TEST_RECORD':str(record),'TEST_EXIT':str(exit_code)}):
+                    if exit_code:
+                        with self.assertRaisesRegex(RuntimeError,'TD registration failed'):c.aws_register(body)
+                    else:self.assertEqual(c.aws_register(body)['taskDefinition']['taskDefinitionArn'],NEW)
+                observed=json.loads(record.read_text());self.assertEqual(observed['body'],body)
+                request=Path(observed['path']);self.assertFalse(request.exists());self.assertFalse(request.parent.exists())
 
     def test_explicit_hold_revalidates_registered_td_without_fresh_github(self):
         p=plan();body=c.render(raw(),[],'actual-backend',IMAGE+'c'*64);new={**body,'taskDefinitionArn':NEW}
