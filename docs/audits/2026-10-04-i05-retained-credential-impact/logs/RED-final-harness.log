@@ -1,0 +1,15 @@
+waiting for server to start.... done
+server started
+waiting for server to shut down.... done
+server stopped
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/coverage-i05-credential-impact-fix-20261004/run-sql.py", line 8, in <module>
+    run(['bun','run','test','--runInBand','src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts'],cwd='/home/nate/Oxy/oxy/.worktrees/1519-i05-activity-cas-20261004/packages/api',env=env,stdout=open(P/'SQL-frozen-RED.log','w'),stderr=subprocess.STDOUT)
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/coverage-i05-credential-impact-fix-20261004/run-sql.py", line 3, in run
+    def run(args,**kw):return subprocess.run(args,check=True,**kw)
+                              ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', 'src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts']' returned non-zero exit status 1.
