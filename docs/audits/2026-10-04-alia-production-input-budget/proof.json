@@ -1,0 +1,70 @@
+{
+  "sourceHead": "27ebf33872c4e3c6e72e97a728f157d42a8ffaf2",
+  "baseMain": "28d90e4f2c9143253843725aa361975ec951c6cd",
+  "sources": [
+    {
+      "path": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sha256": "e09a2d3d62b7593ce285b31bb6a0af0b7ca78a37c0de4ff58f5d17c1172f94b0"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "c31e77583439fd5093ea3b5c9578ac725f9cb07738540190ae6f6e158ae8d020"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "277e3fe984c8d9df31a6d4f3151832c3b0fe302e3baf6f464836eaafef265fd5"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/pg-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/regression-final.log",
+      "sha256": "135eee6fc2dfbfaf367c722b3f26ec5abbfb93b45efb7bb0e489e373e3bcaec5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/lint-scoped.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/README.md",
+      "sha256": "93c370211ce80c4277ce2c13ac7a15c80a49c3da1e0beb10f8c5bc1c56ade79f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/regression-red.log",
+      "sha256": "c2e0331c77f01334e0996ff2baeda925cbe229433cd580d7835e91d11bf8573a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/build-final.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/measurement/measurement.json",
+      "sha256": "bd874ff4149cab597f22408034b648b2e117f94a692ae45fc059a53cb6a2e98f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/measurement/measurement.log",
+      "sha256": "a4879d736637725d14a2430ece94390fa10179af7e43100be08750fdb3961b86"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/measurement/measurement.test.ts",
+      "sha256": "8f4864bb9315cf71e97140ce022667a73a671df9656bb754ac50c8241172418e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-input-budget/measurement/proof.json",
+      "sha256": "b0b7f37de194a9a7bccab697c91d4377844490a70b64c75d868c966703ece5e2"
+    }
+  ],
+  "tests": {
+    "suites": 4,
+    "passed": 73,
+    "oldSourceRegressionFailed": 1
+  },
+  "limits": [
+    "No actual provider call or user prompt replay",
+    "Full-package lint recorded83 preexisting warnings; scoped modified-source lint0",
+    "Initial setup failure missing built workspace db and initial empty-string boundary fixture failure retained locally, not counted as product regressions"
+  ]
+}

@@ -1,0 +1,44 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts -t "qualifies the exact pilot quote"
+FAIL src/routes/__tests__/inferenceEdgeInternalMetered.test.ts
+  ● approved production pilot admission › qualifies the exact pilot quote USD 0.050000000001 before any claim (403)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 200
+
+      889 |       const response = await post({ model: approvedCaller.modelReference, input: 'Hello', maxOutputTokens: 2048 },
+      890 |         bearer(serviceToken(approvedCaller)));
+    > 891 |       expect(response.status).toBe(status);
+          |                               ^
+      892 |       expect(executions).toBe(status === 200 ? 1 : 0);
+      893 |       if (status !== 200) {
+      894 |         expect(response.body.code).toBe('policy_violation');
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:891:31
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● approved production pilot admission › qualifies the exact pilot quote EUR 0.010000000000 before any claim (403)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 403
+    Received: 200
+
+      889 |       const response = await post({ model: approvedCaller.modelReference, input: 'Hello', maxOutputTokens: 2048 },
+      890 |         bearer(serviceToken(approvedCaller)));
+    > 891 |       expect(response.status).toBe(status);
+          |                               ^
+      892 |       expect(executions).toBe(status === 200 ? 1 : 0);
+      893 |       if (status !== 200) {
+      894 |         expect(response.body.code).toBe('policy_violation');
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:891:31
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 43 skipped, 1 passed, 46 total
+Snapshots:   0 total
+Time:        2.41 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts with tests matching "qualifies the exact pilot quote".
+error: script "test" exited with code 1

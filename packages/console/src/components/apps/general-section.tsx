@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getErrorMessage } from '@/lib/api-error';
-import { availablePaymentsScopes, mergePaymentsScopes } from '@/lib/application-scopes';
+import { availablePaymentsScopes, hasAliaMachineScopes, mergeAliaMachineScopes, mergePaymentsScopes } from '@/lib/application-scopes';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
 import {
   useDeleteApplication,
@@ -70,12 +70,13 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   const [paymentsWrite, setPaymentsWrite] = useState(
     grantedPaymentsScopes.includes('payments:write')
   );
+  const [aliaMachineAccess, setAliaMachineAccess] = useState<boolean | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const nextScopes = mergePaymentsScopes(application.scopes, {
+  const nextScopes = mergeAliaMachineScopes(mergePaymentsScopes(application.scopes, {
     read: paymentsRead,
     write: paymentsWrite,
-  });
+  }), aliaMachineAccess);
 
   const isDirty =
     name !== application.name ||
@@ -332,6 +333,27 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
               disabled={!canEdit}
             />
           </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Alia chat and inference</h2>
+          <p className="text-sm text-muted-foreground">
+            App-only Alia chat, billed to this application. Select both capabilities when creating an API key.
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">alia:chat + inference:invoke</p>
+            <p className="text-xs text-muted-foreground">Grant or remove both application capabilities</p>
+          </div>
+          <Switch
+            aria-label="Alia chat and inference"
+            checked={aliaMachineAccess ?? hasAliaMachineScopes(application.scopes)}
+            onCheckedChange={setAliaMachineAccess}
+            disabled={!canEdit}
+          />
         </div>
       </section>
 

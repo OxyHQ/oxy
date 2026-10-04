@@ -1,0 +1,11 @@
+$ vitest run src/middleware/__tests__/console-machine-key-entry.test.ts src/lib/chat/__tests__/request-context-model-selection.test.ts src/lib/__tests__/machine-tool-pipeline.test.ts src/lib/inference/__tests__/oxy-inference.test.ts src/middleware/__tests__/auth-middleware.test.ts src/middleware/__tests__/auth-assertion-order.test.ts src/middleware/__tests__/requester-assertion.test.ts src/lib/__tests__/one-assembler.test.ts
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api
+
+[16:25:14] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+
+ Test Files  8 passed (8)
+      Tests  112 passed (112)
+   Start at  19:25:10
+   Duration  4.08s (transform 3.20s, setup 0ms, import 9.31s, tests 920ms, environment 1ms)
+

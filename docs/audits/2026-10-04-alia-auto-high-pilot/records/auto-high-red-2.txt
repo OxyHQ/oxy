@@ -1,0 +1,26 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts -t "serves the intact real Hello"
+FAIL src/routes/__tests__/inferenceEdgeInternalMetered.test.ts
+  ● approved production pilot admission › serves the intact real Hello plus 21 tools through Auto High without a lower fallback
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 503
+
+      928 |     expect(normalized.tools).toHaveLength(21);
+      929 |     const response = await post(aliaHello, bearer(serviceToken(approvedCaller)));
+    > 930 |     expect(response.status).toBe(200);
+          |                             ^
+      931 |     expect(executions).toBe(1);
+      932 |     const envelope = pilotEnvelopes[0];
+      933 |     expect(envelope.tools).toEqual(normalized.tools);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:930:29
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 46 skipped, 47 total
+Snapshots:   0 total
+Time:        0.819 s, estimated 1 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts with tests matching "serves the intact real Hello".
+error: script "test" exited with code 1

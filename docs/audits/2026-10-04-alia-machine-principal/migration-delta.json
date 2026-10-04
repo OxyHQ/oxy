@@ -1,0 +1,22 @@
+{
+  "changes": [
+    {
+      "table": "public.application_credentials",
+      "constraint": "application_credentials_scopes_check",
+      "change": "adds alia:chat to allowed vocabulary only"
+    },
+    {
+      "table": "public.application_workload_identities",
+      "constraint": "application_workload_identities_scopes_check",
+      "change": "adds alia:chat to allowed vocabulary only"
+    },
+    {
+      "table": "public.applications",
+      "constraint": "applications_scopes_check",
+      "change": "adds alia:chat to allowed vocabulary only"
+    }
+  ],
+  "remainingSnapshotEqual": true,
+  "previousSnapshotIdLinked": true,
+  "rowMutationStatements": false
+}

@@ -18,6 +18,8 @@ import { NotificationsApi } from '../api/notifications';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
 import { AgencyApi, type CapabilityExecutionAuthorization, type RequesterAssertionGrant, type RequesterAssertionIntrospection } from '../api/agency';
 import { ReputationApi } from '../api/reputation';
+import { AppsApi } from '../api/apps';
+import { isOxyAliaMachinePrincipal, type AliaMachineCredentialIntrospection } from './aliaMachineCredential';
 import { ServiceAssetMetadataError, ServiceLinkedDownloadUrlError } from '../OxyServices.errors';
 import { extractErrorStatus } from '../utils/errorUtils';
 import { logger } from '../logger';
@@ -37,6 +39,25 @@ function lane(ctx: OxyContext): ServiceLane {
     throw new Error('This call needs a service credential (OxyServer from @oxy.so/core/server)');
   }
   return ctx.service;
+}
+
+export class ServerAppsApi extends AppsApi {
+  constructor(private readonly serverCtx: OxyContext) { super(serverCtx); }
+  /** Live receiver-bound lookup using THIS resource server's own service token. */
+  async introspectAliaMachineCredential(token: string): Promise<AliaMachineCredentialIntrospection> {
+    if (!token.startsWith('oxy_sk_') || token.length > 2048) return { active: false };
+    const answer = await lane(this.serverCtx).request<unknown>(
+      'POST', '/internal/alia/machine-credentials/introspect', { token },
+      { cache: false, retry: false },
+    );
+    if (!answer || typeof answer !== 'object' || Array.isArray(answer)) throw new Error('Invalid machine credential verdict');
+    const record = answer as Record<string, unknown>;
+    if (record.active === false && Object.keys(record).length === 1) return { active: false };
+    if (record.active !== true || Object.keys(record).length !== 2 || !isOxyAliaMachinePrincipal(record.principal)) {
+      throw new Error('Invalid machine credential verdict');
+    }
+    return { active: true, principal: record.principal };
+  }
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
