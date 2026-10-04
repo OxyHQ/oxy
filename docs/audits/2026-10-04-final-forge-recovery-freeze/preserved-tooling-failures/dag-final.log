@@ -1,0 +1,34 @@
+error: copy-fd: write returned: No space left on device
+fatal: cannot copy '/usr/share/git-core/templates/hooks/pre-commit.sample' to '/tmp/forge-unapplied-dag-fixture-060TTI/.git/hooks/pre-commit.sample': No space left on device
+node:internal/errors:986
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /usr/bin/git -C /tmp/forge-unapplied-dag-fixture-060TTI -c user.name=Synthetic Fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null init -q
+error: copy-fd: write returned: No space left on device
+fatal: cannot copy '/usr/share/git-core/templates/hooks/pre-commit.sample' to '/tmp/forge-unapplied-dag-fixture-060TTI/.git/hooks/pre-commit.sample': No space left on device
+
+    at genericNodeError (node:internal/errors:986:15)
+    at wrappedFn (node:internal/errors:540:14)
+    at checkExecSyncError (node:child_process:942:11)
+    at execFileSync (node:child_process:978:15)
+    at git (file:///home/nate/Oxy/oxy/.worktrees/1519-forge-recovery-contract-20261004/scripts/test-forge-future-dag.mjs:16:28)
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-forge-recovery-contract-20261004/scripts/test-forge-future-dag.mjs:17:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: 128,
+  signal: null,
+  output: [
+    null,
+    '',
+    'error: copy-fd: write returned: No space left on device\n' +
+      "fatal: cannot copy '/usr/share/git-core/templates/hooks/pre-commit.sample' to '/tmp/forge-unapplied-dag-fixture-060TTI/.git/hooks/pre-commit.sample': No space left on device\n"
+  ],
+  pid: 1107356,
+  stdout: '',
+  stderr: 'error: copy-fd: write returned: No space left on device\n' +
+    "fatal: cannot copy '/usr/share/git-core/templates/hooks/pre-commit.sample' to '/tmp/forge-unapplied-dag-fixture-060TTI/.git/hooks/pre-commit.sample': No space left on device\n"
+}
+
+Node.js v24.21.0

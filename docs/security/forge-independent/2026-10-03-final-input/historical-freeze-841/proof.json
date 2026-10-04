@@ -1,7 +1,7 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-04T09:46:43.459468+00:00",
-  "candidateCommit": "96752299604be3e57772369fe0212d4d017b1e68",
+  "recordedAtUTC": "2026-10-04T08:33:13.749776+00:00",
+  "candidateCommit": "1d56952ded22a0b804f7f9ed3b4c38f23b80c98a",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
   "toolchain": {
@@ -86,11 +86,11 @@
   "oxyTests": {
     "suitesPassing": 3,
     "testsPassing": 34,
-    "ownedPostgresPid": 1109686,
+    "ownedPostgresPid": 976673,
     "ownedPostgresMajor": 17,
     "ownedPostgresPort": 5578,
-    "ownedPostgresDataDirectory": "/home/nate/Oxy/.tmp/forge-recovery-refreeze/oxy-forge-final-pg-3m9uvu4y/data",
-    "database": "oxy_rehearsal_1519_d2613fb15f8e2bc6",
+    "ownedPostgresDataDirectory": "/home/nate/Oxy/.tmp/i05-forge-refreeze/oxy-forge-final-pg-lzg43skh/data",
+    "database": "oxy_rehearsal_1519_36aaf2ce68e07a93",
     "databaseLifecycle": "Fresh owned PG17/5578 PID/executable/data/socket verified; canonical142 fresh/repeat and Oxy34 PASS; fast stop and PID/postmaster absent. External fixed harness only binds ROOT/TMPDIR to task-owned home scratch."
   },
   "knownKeyControls": {
@@ -166,24 +166,24 @@
     },
     {
       "file": "expo-14-final.log",
-      "sha256": "e6f9d593cf45b2a233db16093730e5c5bdae3c6baac3a780b160932fa1f7cd05",
-      "completedFileMtimeUTC": "2026-10-04T09:46:43.459468+00:00",
+      "sha256": "570605b99dc9dadd24ca02e77ff1976b42ec14e0f85c97112d17aa5da74b9a5b",
+      "completedFileMtimeUTC": "2026-10-04T08:33:13.749776+00:00",
       "command": "node scripts/forge-independent-expo-compat.cjs packages/api",
       "exitCode": 0,
       "reusedHistorical": false
     },
     {
       "file": "oxy-34.log",
-      "sha256": "08049fdec3d744850a628f7874021f7b591d139cf6e52627ad8f55c053cb9172",
-      "completedFileMtimeUTC": "2026-10-04T09:46:43.459468+00:00",
-      "command": "External owned-PG harness: canonical142 fresh/repeat and Oxy34; PG1109686 stopped",
+      "sha256": "95dab61912cd218de5e6ed005877b0e10148f78ee41eebb2fe998e57770e907c",
+      "completedFileMtimeUTC": "2026-10-04T08:33:13.749776+00:00",
+      "command": "External owned-PG harness preserving canonical commands: normal142 fresh/repeat and Oxy34; PG976673 stopped",
       "exitCode": 0,
       "reusedHistorical": false
     },
     {
       "file": "oxy-db-build.log",
       "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
-      "completedFileMtimeUTC": "2026-10-04T09:46:43.459468+00:00",
+      "completedFileMtimeUTC": "2026-10-04T08:33:13.749776+00:00",
       "command": "bun run build (packages/api; workspace dependency order then API tsc)",
       "exitCode": 0,
       "reusedHistorical": false
@@ -246,17 +246,11 @@
     }
   ],
   "retainedPaths": {
-    "historicalCryptoPaths": {
-      "evidenceRoot": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002",
-      "stockClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock",
-      "candidateClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate",
-      "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003",
-      "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge"
-    },
-    "currentOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-forge-recovery-contract-20261004",
-    "currentInstalledForge": "/home/nate/Oxy/oxy/.worktrees/1519-forge-recovery-contract-20261004/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge",
-    "currentHarness": "/home/nate/Oxy/.agent-evidence/coverage-final-forge-recovery-freeze-20261004/owned-oxy34-final.py",
-    "currentEvidenceRoot": "/home/nate/Oxy/.agent-evidence/coverage-final-forge-recovery-freeze-20261004"
+    "evidenceRoot": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002",
+    "stockClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/stock",
+    "candidateClone": "/home/nate/Oxy/.agent-evidence/forge-independent-b09309b-20261002/candidate",
+    "exactOxyWorktree": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003",
+    "installedForge": "/home/nate/Oxy/oxy/.worktrees/1519-final-integration-20261003/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge"
   },
   "historicalCryptoEvidence": {
     "sourceHead": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
@@ -271,18 +265,26 @@
       "expo-14.log",
       "stock-install-pinned.log",
       "candidate-install.log",
-      "oxy-install.log",
       "stock-controls.json",
-      "candidate-controls.json",
       "hashes-after-build-2.json",
       "candidate-build-repeat.json"
     ],
-    "scope": "Exact Forge patch, upstream source and pinned toolchain remain unchanged. Fourteen historical raw crypto/install/control records remain byte-identical; Oxy34, canonical142 fresh/repeat, API build and Expo14 ran on this source. Six SDK shipping Git trees equal runtime main85; no SDK publication or runtime deployment is claimed. Authenticated ARM and policy gates require this freeze independently. All six shipping packages were compiled in this tree; Services build/pack verification passed with task-owned TMPDIR after preserving the initial /tmp pack crash."
+    "scope": "Exact Forge patch, upstream source and pinned toolchain remain unchanged. Fourteen independent raw crypto/install/control records are retained byte-identically; fresh Oxy34, API build and Expo14 records replace their prior copies. SDK shipping trees are byte-identical to main85. This proof does not reuse authenticated ARM or policy gate of another checkout."
   },
   "supplementalRecords": [
     {
       "file": "consumer-runner-final.log",
       "sha256": "1af7f2e6ae70efbee630a1a30416e38038433d2da9007c3de843850e5d957e41",
+      "reusedHistorical": true
+    },
+    {
+      "file": "migrate-fresh.txt",
+      "sha256": "eb04eedbc6290ca12475ffd5058fdc5151268bd5c0be93ab7d776e3ebf6e0ef6",
+      "reusedHistorical": true
+    },
+    {
+      "file": "migrate-repeat.txt",
+      "sha256": "30fbb36a141fcff679ee4b8dc4b99d62a918e75a2fd804542cf2a00653185a51",
       "reusedHistorical": true
     },
     {
@@ -309,6 +311,11 @@
       "file": "raw-audit.json",
       "sha256": "496b6b4085635ba813c61d01452b72fe1099f5b79493cbaef5b05b6db8bc4f07",
       "reusedHistorical": true
+    },
+    {
+      "file": "framework-inputs.json",
+      "sha256": "9b9d1966a7130c8879d091a74a653bb6d519d504fb5edcfc8f0381a0f79a8bf5",
+      "reusedHistorical": false
     },
     {
       "file": "quiesced-census61.log",
@@ -358,122 +365,32 @@
     {
       "file": "i05-quiesced-topology-final.log",
       "sha256": "d1596d9050309b129557027be3e17789e0615f1db0f719683e67759f15bc9365",
-      "exitCode": 0,
-      "reusedHistorical": true
+      "exitCode": 0
     },
     {
       "file": "i05-quiesced-policy-final.log",
       "sha256": "12af797a7ebe9c581eea6df49f1a44d8de214d4db48fa2143c500b0cff729802",
-      "exitCode": 0,
-      "reusedHistorical": true
+      "exitCode": 0
     },
     {
       "file": "i05-quiesced-binding-final.log",
       "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4",
-      "exitCode": 0,
-      "reusedHistorical": true
+      "exitCode": 0
     },
     {
       "file": "i05-quiesced-collector-final.log",
       "sha256": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95",
-      "exitCode": 0,
-      "reusedHistorical": true
+      "exitCode": 0
     },
     {
       "file": "i05-quiesced-dag-final.log",
       "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9",
-      "exitCode": 0,
-      "reusedHistorical": true
+      "exitCode": 0
     },
     {
       "file": "i05-quiesced-oxy34-composed-harness.log",
       "sha256": "6701ebfe35b75b30ababfad069552e1923e0abbc4b28803d52cec9c8943dff01",
-      "exitCode": 0,
-      "reusedHistorical": true
-    },
-    {
-      "file": "framework-inputs.json",
-      "sha256": "27ab127a6c213d6b6dcbaaf1024ba8353260d3c1ff08218735345dd330d4784c",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "migrate-fresh.txt",
-      "sha256": "61cab37026f22e0d51bb4a7b9304e30d92815104293ded9293fa8074311c6bb2",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "migrate-repeat.txt",
-      "sha256": "f6e50d11fb61684706b741760799ac0dd58256e7ed8aa71aa4b49d67fdff4598",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-topology-exact-GREEN.log",
-      "sha256": "d1596d9050309b129557027be3e17789e0615f1db0f719683e67759f15bc9365",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-topology-lint-final.log",
-      "sha256": "c943f80d97ee27c0306b6fa62ad39ec0e2f32d37d6e2c4c94958bb9b75b08254",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-binding.log",
-      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-collector.log",
-      "sha256": "ceed52adf70e0dbba8ad5068f2c55eea0e9e5fd808141159199201bd78e6a869",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-proposal.log",
-      "sha256": "b46f4bc183bf111c7ed20a81bb3596bb7676d63f53bece4dbe4c567a7f8d1a52",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-policy.log",
-      "sha256": "ca1638ee7fe363cc7be56608a2b7bfac6c49a1f6da013be77615cd728a6da234",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-dag-exact-green.log",
-      "sha256": "ef705c1e862555abea13704d22d8f060b4fe024d2c6dac3c0c8b3b438214ff7c",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-oxy34-harness.log",
-      "sha256": "368e8036869c73ea91e563460cbfca273084c6dd333c7a2f5566ac3824625467",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-install-current.log",
-      "sha256": "8a3de7560c19a89b7a1b3b168927f2442778e6cc28704ca7812f50059ed061bf",
-      "exitCode": 0,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-topology-exact-RED.log",
-      "sha256": "eebaefe72bec8a1c8c2f72f967b79bebb9b7f7aa68a7270f9e6fe99991995d1a",
-      "exitCode": 1,
-      "reusedHistorical": false
-    },
-    {
-      "file": "recovery-services-build-final.log",
-      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a",
-      "exitCode": 0,
-      "reusedHistorical": false
+      "exitCode": 0
     }
   ],
   "inputTrees": {
@@ -488,7 +405,7 @@
     "scripts/rehearsal/test-forge-final-input-1519.py": "f16e16d751bcf074d979e6dc9552182da9150204",
     "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
   },
-  "stage": "final-forge-recovery-and-quiesced-final-guards",
+  "stage": "final-I05-retained-credential-impact-and-quiesced-two-stage",
   "historicalSupplementalRecords": [
     {
       "file": "consumer-runner-final.log",
@@ -615,11 +532,6 @@
           "sha256": "b2714c824f3891185275307d5cc1e0e15f57d19b46d911f3915bc444b13d85e3"
         }
       ]
-    },
-    {
-      "sourceHead": "1d56952ded22a0b804f7f9ed3b4c38f23b80c98a",
-      "proof": "docs/security/forge-independent/2026-10-03-final-input/historical-freeze-841/proof.json",
-      "proofSha256": "ffb421e70560e3434016cfee8f13fe62b7adb753a1bfb334c30e5e975864c03d"
     }
   ]
 }

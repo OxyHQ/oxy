@@ -1,0 +1,60 @@
+$ bun run check:icon-fonts && bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view
+$ node scripts/check-icon-font-subsets.mjs
+Services icon subsets match source usage, package version and recorded hashes.
+ℹ [commonjs] Cleaning up previous build at lib/commonjs
+ℹ [commonjs] Compiling 277 files in src with babel
+✔ [commonjs] Wrote files to lib/commonjs
+ℹ [module] Cleaning up previous build at lib/module
+ℹ [module] Compiling 277 files in src with babel
+✔ [module] Wrote files to lib/module
+ℹ [typescript] Cleaning up previous build at lib/typescript
+ℹ [typescript] Generating type definitions with tsc
+✔ [typescript] Wrote definition files to lib/typescript
+$ copyfiles -u 1 "src/assets/**/*" lib/commonjs/assets && copyfiles -u 1 "src/assets/**/*" lib/module/assets
+$ copyfiles -u 1 "src/**/*.d.ts" lib/typescript
+$ find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete
+$ rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true
+$ node scripts/verify-package.mjs
+============================================================
+Bun v1.4.2 (744846f84) Linux x64
+WSL Kernel v6.18.33 | glibc v2.41
+CPU: sse42 popcnt avx avx2
+Args: "bun" "pm" "pack" "--ignore-scripts" "--destination" "/tmp/oxy-services-verify-PRPxvM"
+Features: bunfig text_lockfile tsconfig(2) 
+
+Elapsed: 18ms | User: 14ms | Sys: 3ms
+RSS: 22.43 MB | Peak: 22.1 MB | Commit: 51.84 MB | Faults: 0
+
+panic: int cast: TryFromIntError(NegOverflow)
+oh no: Bun has crashed. This indicates a bug in Bun, not your code.
+
+To send a redacted crash report to Bun's team,
+please file a GitHub issue using the link below:
+
+ https://bun.report/1.4.2/lP1744846fgCgkgggC41//xD6q0/xD2x0/xD0l4hyDwr3hyDwozqoC820zmCgl27mC+psivB0+9hvB2y4hvBA0eNrLzCtRSE4sLrFSCCmqdCvKz/XMK3EtKsov0vBLTfcvSy1Ky8kv1wQAErwOOA
+
+node:internal/errors:986
+  const err = new Error(message);
+              ^
+
+Error: Command failed: bun pm pack --ignore-scripts --destination /tmp/oxy-services-verify-PRPxvM
+    at genericNodeError (node:internal/errors:986:15)
+    at wrappedFn (node:internal/errors:540:14)
+    at checkExecSyncError (node:child_process:942:11)
+    at execFileSync (node:child_process:978:15)
+    at packTarball (file:///home/nate/Oxy/oxy/.worktrees/1519-forge-recovery-contract-20261004/packages/services/scripts/verify-package.mjs:147:5)
+    at main (file:///home/nate/Oxy/oxy/.worktrees/1519-forge-recovery-contract-20261004/packages/services/scripts/verify-package.mjs:345:31)
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-forge-recovery-contract-20261004/packages/services/scripts/verify-package.mjs:380:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: null,
+  signal: 'SIGABRT',
+  output: [ null, null, null ],
+  pid: 1113998,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v24.21.0
+error: script "postbuild" exited with code 1

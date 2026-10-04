@@ -1,0 +1,43 @@
+{
+  "sourceHead": "96752299604be3e57772369fe0212d4d017b1e68",
+  "runtimeSource": "85dad68e5685413740a4a3fd52afee5bd724bed1",
+  "trees": [
+    {
+      "path": "packages/contracts",
+      "currentGitTree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+      "runtimeMain85GitTree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+      "equal": true
+    },
+    {
+      "path": "packages/core",
+      "currentGitTree": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+      "runtimeMain85GitTree": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+      "equal": true
+    },
+    {
+      "path": "packages/services",
+      "currentGitTree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+      "runtimeMain85GitTree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+      "equal": true
+    },
+    {
+      "path": "packages/protocol",
+      "currentGitTree": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "runtimeMain85GitTree": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "equal": true
+    },
+    {
+      "path": "packages/mcp",
+      "currentGitTree": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+      "runtimeMain85GitTree": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+      "equal": true
+    },
+    {
+      "path": "packages/db",
+      "currentGitTree": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+      "runtimeMain85GitTree": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+      "equal": true
+    }
+  ],
+  "publicationOrDeployment": false
+}
