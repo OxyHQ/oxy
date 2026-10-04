@@ -1,0 +1,30 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+PostgresError: new row for relation "inference_metered_usage" violates check constraint "inference_metered_usage_environment_check"
+    at ErrorResponse (/home/nate/Oxy/oxy/.worktrees/alia-production-input-budget-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+    at handle (/home/nate/Oxy/oxy/.worktrees/alia-production-input-budget-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+    at Socket.data (/home/nate/Oxy/oxy/.worktrees/alia-production-input-budget-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+    at Socket.emit (node:events:514:28)
+    at addChunk (node:internal/streams/readable:568:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:519:3)
+    at Readable.push (node:internal/streams/readable:399:5)
+    at TCP.onStreamRead (node:internal/stream_base_commons:189:23)
+    at cachedError (/home/nate/Oxy/oxy/.worktrees/alia-production-input-budget-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:170:23)
+    at new Query (/home/nate/Oxy/oxy/.worktrees/alia-production-input-budget-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:36:24)
+    at sql (/home/nate/Oxy/oxy/.worktrees/alia-production-input-budget-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/index.js:112:11)
+    at file:///home/nate/Oxy/oxy/.worktrees/alia-smoke-cost-observation-20261004/scripts/operations/alia-budget-smoke/cost-observation.test.mjs:24:10 {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '23514',
+  detail: 'Failing row contains (3a3d9a9e-2539-43d4-907a-a81145b06038, child-request, synthetic:child, internal_metered, oxy-inference-economics/2026-10-04.1, alia-kaana, 01a0369b-1222-712f-8df6-f8ffeb78ccc2, 6a2f851751b784a86fd0e934, wl_d50a0056191d0448024900b4, null, test, null, responses, auto, openai/gpt-oss-120b@observed-2026-09-01, groq, dep_groq_openai_gpt_oss_120b_observed_2026_09_01, null, null, null, admitted, 2026-10-04 20:39:35.368334+03, null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, null, null, null, null, 2026-10-04 20:34:35.368+03, null, root-request, null, null, null, null, null).',
+  schema_name: 'public',
+  table_name: 'inference_metered_usage',
+  constraint_name: 'inference_metered_usage_environment_check',
+  file: 'execMain.c',
+  line: '2074',
+  routine: 'ExecConstraints'
+}
+
+Node.js v24.21.0

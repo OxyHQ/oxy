@@ -1,0 +1,7 @@
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.005s
+
+OK
+{"prepared": true, "plan": "/tmp/tmp3d2oddp6/cost/plan.json", "bytes": 17173, "intent": "oxy1579-alia-1791135871772-8368f612915908a3"}
+{"preparedCostObservation": true, "intent": "oxy1579-alia-1791135155128-3917a238857545b7", "plan": "/tmp/tmp3d2oddp6/cost/plan.json", "definitionSha256": "54020a81d38d02a6dea71f4098c21264aac6ebe63e1b5304c60c9ac2cd1a72a6", "originalCallerPlanSha256": "a2f7dc8b2ead1735c96e8efe81aaadfddf57dec2fb326d61673b592ebeeb5b6f"}

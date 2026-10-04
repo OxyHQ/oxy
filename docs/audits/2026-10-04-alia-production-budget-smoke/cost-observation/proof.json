@@ -1,0 +1,75 @@
+{
+  "sourceHead": "724da473ddb200ac0626b53bbd7ee10fa08dffb5",
+  "sources": [
+    {
+      "path": "scripts/operations/alia-budget-smoke/README.md",
+      "sha256": "033ffe5d760e9efb35041588c1495422462a162c83a711806ea5cdce2e5c8c2c"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/cost-observation.test.mjs",
+      "sha256": "6ff8dd9552eb38d5fefe80f3b1a9464120e44f716d500e97e44fc37c8be1ca50"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/dispatch.py",
+      "sha256": "008e6efeff8b455e958e25b9ceaa6b1cb6fe7675004c111128d455322809cdbe"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/prepare-cost.py",
+      "sha256": "bf8321311d25b0bc3b4e6967ecf77515f143dd4d341ed22116e098737754aac5"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/read-cost-observation.mjs",
+      "sha256": "b015fca807ab173bbb657377eb66a7617f88c7a5d56d1e1f83d1f06ed82185b3"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/test-cost-transport.py",
+      "sha256": "60982e5c48fef05c26b7a101df3a0db9f3169d09ba13a48dcb68c6fb97b8b800"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/cost-observation/cleanup-initial-fixture.json",
+      "sha256": "f9aba73ee629810b8ab1f257074369fd8f05cb766065c2a121b76485a8837aa0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/cost-observation/cleanup-initial-invalid-environment.json",
+      "sha256": "774a5efb358bc6866a352b68a01a9940dc80040c8e4207cbcb503cd1f2b665fd"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/cost-observation/cleanup.json",
+      "sha256": "f67473f2f19fe0b6324d0dfd70d9fcdbc051a74d81354b5db9f9e3f244735441"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/cost-observation/migration.log",
+      "sha256": "ccbe3fd8110f0f124c5b69e6798439b6e37265689e874739d138761a7c9a06cb"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/cost-observation/sql-initial-fixture-missing-id.log",
+      "sha256": "684e35c390f15a51da2a0a4aecebedbd3359e1b42fd07a6a3c6e7ba089ee65d6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/cost-observation/sql-initial-invalid-environment.log",
+      "sha256": "dfa5f188496dff9e08e91fab91306cfbf631b861cce779d13df31e4a6bd5ff8b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/cost-observation/sql.log",
+      "sha256": "7abefcfa36cd2472e8ca0517a661bb908b34119e4d3a80cffce5400b1c7f528e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/cost-observation/transport.log",
+      "sha256": "78e90525379b29f3dfd8937933de388bf40c7c2a954c5eb1605cfdf7f1c5bcc7"
+    }
+  ],
+  "validation": {
+    "sqlControls": 8,
+    "transportControls": 3,
+    "ownedPgStopped": 1837007
+  },
+  "limits": [
+    "No AWS or provider request",
+    "Historical empty database snapshot does not prove never issued",
+    "SQL mirror does not establish feed completeness",
+    "Unknown cost remains NULL, no invoice claim",
+    "Two retained failures were SQL fixture setup errors, not product RED"
+  ]
+}
