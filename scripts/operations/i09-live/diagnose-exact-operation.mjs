@@ -1,0 +1,22 @@
+import {createHash} from 'node:crypto';
+import {requireSettledOperation,readExactFeedEvents} from './canary-reconciliation.mjs';
+const codes=new Set(['invalid_exact_intent','readonly_required','caller_context_changed','ambiguous_or_foreign_operation','attempt_bound_exceeded','ambiguous_feed_cursor','observation_binding_differs','observation_not_readonly','intent_previously_present','admission_not_confirmed','metered_authority_differs','metered_economics_differs','final_route_differs','metered_usage_differs','owner_money_changed_requires_reconciliation','exact_attempts_missing_or_foreign','invalid_feed_context','feed_page_bound','duplicate_feed_position','exact_request_not_in_bounded_feed','feed_cursor_not_advancing','feed_not_caught_up_within_bound']);
+const safeCode=e=>codes.has(e?.message)?e.message:'unclassified_error';
+const pick=(row,keys)=>Object.fromEntries(keys.map(k=>[k,row[k]??null]));
+const unitNames=['input_tokens','cached_input_tokens','output_tokens','reasoning_tokens','requests'];
+export async function diagnoseExactOperation({baseline,canary,read,feedModule}){
+ const result={kind:'i09-exact-readonly-diagnostic-v1',intent:baseline.intent,requestId:canary.requestId,readOnly:true,writerCalls:0,inferenceCalls:0,chronology:[],baselineCounts:{metered:baseline.observation.metered.length,attempts:baseline.observation.attempts.length},sql:null,settledGuard:null,feed:null};
+ let observation;
+ try{observation=await read();result.chronology.push({stage:'sql_observation',passed:true});}
+ catch(error){result.chronology.push({stage:'sql_observation',passed:false,code:safeCode(error)});return result;}
+ result.sql={observedAt:observation.observedAt,readOnly:observation.readOnly,isolation:observation.isolation,meteredCount:observation.metered.length,attemptCount:observation.attempts.length,metered:observation.metered.map(row=>pick(row,['request_id','account_id','application_id','application_credential_id','delegated_user_id','environment','economic_treatment','economic_relationship_id','economic_policy_version','status','outcome','usage_receipt_id','requested_model_reference','admitted_model_reference','admitted_provider','admitted_deployment_id','final_authorized_model_reference','final_authorized_provider','final_authorized_deployment_id','resolved_model_reference','serving_provider','tariff_status',...unitNames])),attempts:observation.attempts.map(row=>({...pick(row,['request_id','attempt_index','provider','deployment_id','model_reference','cost_source','cost_complete','units_measured','outcome','facts_digest',...unitNames]),costAmountIsNull:row.cost_amount===null,costCurrencyIsNull:row.cost_currency===null})),money:Object.fromEntries(Object.keys(baseline.observation.money).map(table=>[table,{before:baseline.observation.money[table],after:observation.money[table],unchanged:JSON.stringify(baseline.observation.money[table])===JSON.stringify(observation.money[table])}]))};
+ try{requireSettledOperation(baseline.observation,observation,canary);result.settledGuard={passed:true};}
+ catch(error){result.settledGuard={passed:false,code:safeCode(error)};}
+ result.chronology.push({stage:'settled_guard',...result.settledGuard});
+ try{
+  const feed=await readExactFeedEvents(feedModule.createHttpKaanaProviderCostFeedReader(),canary.requestId,baseline.observation.cursor?.cursor??null);
+  result.feed={passed:true,pages:feed.pages,caughtUp:feed.caughtUp,eventCount:feed.events.length,sqlAttemptCount:observation.attempts.length,countsMatch:feed.events.length===observation.attempts.length,events:feed.events.map(event=>{const row=observation.attempts.find(x=>x.request_id===event.requestId&&x.attempt_index===event.attemptIndex);return{requestId:event.requestId,attemptIndex:event.attemptIndex,provider:event.provider,deploymentId:event.deploymentId,modelReference:event.modelReference,costSource:event.costSource,costIsNull:event.cost===null,unitsAreNull:event.units===null,sqlRowExists:!!row,digestMatches:!!row&&row.facts_digest===feedModule.attemptFactsDigest(event)};}),eventsSha256:createHash('sha256').update(JSON.stringify(feed.events)).digest('hex')};
+  result.chronology.push({stage:'signed_feed_read',passed:true},{stage:'feed_sql_facts',passed:result.feed.countsMatch&&result.feed.events.every(x=>x.digestMatches)});
+ }catch(error){result.feed={passed:false,code:safeCode(error)};result.chronology.push({stage:'signed_feed_read',...result.feed});}
+ return result;
+}
