@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import{randomUUID}from'node:crypto';
+import {createRequire}from'node:module';
+import{readCanaryObservation}from'./read-cost-observation.mjs';
+const require=createRequire(`${process.cwd()}/package.json`),postgres=require('postgres');
+const url=new URL(process.env.DATABASE_URL);assert.equal(url.hostname,'127.0.0.1');assert.equal(url.port,process.env.OWNED_TEST_PG_PORT);
+const db=postgres(url.href,{max:1}),owner='01a0369b-1222-712f-8df6-f8ffeb78ccc2',app='6a2f851751b784a86fd0e934',cred='wl_d50a0056191d0448024900b4',intent='oxy1579-alia-1791140000000-0011223344556677';let passed=0;
+try{
+ await assert.rejects(readCanaryObservation('never-connect','foreign'),/invalid_exact_intent/);passed++;
+ await db`INSERT INTO users(id,color)VALUES(${owner},'blue')`;
+ await db`INSERT INTO applications(id,name,owner_account_id,type,status,is_official,is_internal,scopes)VALUES(${app},'Synthetic SQL smoke',${owner},'internal','active',true,true,ARRAY['inference:invoke'])`;
+ await db`INSERT INTO application_credentials(id,application_id,name,type,environment,scopes)VALUES(${cred},${app},'Synthetic workload','workload','production',ARRAY[]::text[])`;
+ const empty=await readCanaryObservation(url.href,intent);assert.equal(empty.metered.length,0);assert.equal(empty.attempts.length,0);assert.equal(empty.attemptObservation.feedCompleteness,'not_proven_by_database_snapshot');passed++;
+ const insert=async(request,key,parent=null)=>db`INSERT INTO inference_metered_usage(id,request_id,parent_request_id,idempotency_key,economic_treatment,economic_policy_version,economic_relationship_id,account_id,application_id,application_credential_id,environment,endpoint,requested_model_reference,admitted_model_reference,admitted_provider,admitted_deployment_id,expires_at)VALUES(${randomUUID()},${request},${parent},${key},'internal_metered','oxy-inference-economics/2026-10-04.1','alia-kaana',${owner},${app},${cred},'production','responses','auto','openai/gpt-oss-120b@observed-2026-09-01','groq','dep_groq_openai_gpt_oss_120b_observed_2026_09_01',now()+interval '5 minutes')`;
+ await insert('root-request','synthetic:'+intent);
+ await db`INSERT INTO inference_provider_cost_attempts(request_id,attempt_index,provider,key_id,key_class,deployment_id,model_reference,cost_source,cost_amount,cost_currency,cost_complete,served,occurred_at,units_measured,outcome,feed_position,facts_digest)VALUES('root-request',0,'groq','opaque-not-projected','platform','dep_groq_openai_gpt_oss_120b_observed_2026_09_01','openai/gpt-oss-120b@observed-2026-09-01','unknown',NULL,NULL,false,false,now(),false,'failed','position0','digest0')`;
+ await db`INSERT INTO inference_provider_cost_attempts(request_id,attempt_index,provider,key_id,key_class,deployment_id,model_reference,cost_source,cost_amount,cost_currency,cost_complete,served,occurred_at,units_measured,outcome,feed_position,facts_digest)VALUES('root-request',1,'openrouter','opaque-not-projected','platform','dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01','openai/gpt-oss-120b@observed-2026-09-01','rate_card','0.01','USD',true,true,now(),true,'succeeded','position1','digest1')`;
+ const two=await readCanaryObservation(url.href,intent);assert.equal(two.attemptObservation.directRequestAttempts,2);assert.equal(two.attemptObservation.unknownCostAttempts,1);assert.equal(two.attempts[0].cost_amount,null);assert.equal(two.attempts[0].cost_currency,null);assert.equal(two.attempts[1].cost_amount,'0.010000000000');assert.equal(two.attempts[0].units_measured,false);assert.ok(!JSON.stringify(two).includes('opaque-not-projected'));passed++;
+ await insert('child-request','synthetic:child','root-request');
+ await db`INSERT INTO inference_provider_cost_attempts(request_id,attempt_index,provider,key_id,key_class,deployment_id,model_reference,cost_source,cost_complete,served,occurred_at,units_measured,feed_position,facts_digest)VALUES('child-request',0,'openrouter','opaque-child','platform','scoped-child','typesafe/jev-1.13@2026-09-17','unknown',false,false,now(),false,'position2','digest2')`;
+ const child=await readCanaryObservation(url.href,intent);assert.equal(child.children.length,1);assert.equal(child.attemptObservation.childRequestAttempts,1);assert.equal(child.attempts.length,3);assert.equal(child.attemptObservation.unknownCostAttempts,2);passed++;
+ const again=await readCanaryObservation(url.href,intent);assert.deepEqual(again.metered,child.metered);assert.deepEqual(again.attempts,child.attempts);assert.deepEqual(again.money,child.money);passed++;
+ await db`UPDATE inference_metered_usage SET delegated_user_id='foreign'WHERE request_id='root-request'`;await assert.rejects(readCanaryObservation(url.href,intent),/ambiguous_or_foreign_operation/);await db`UPDATE inference_metered_usage SET delegated_user_id=NULL WHERE request_id='root-request'`;passed++;
+ await db`UPDATE inference_metered_usage SET environment='staging'WHERE request_id='child-request'`;await assert.rejects(readCanaryObservation(url.href,intent),/child_operation_binding_differs/);await db`UPDATE inference_metered_usage SET environment='production'WHERE request_id='child-request'`;passed++;
+ await db`UPDATE applications SET status='suspended'WHERE id=${app}`;await assert.rejects(readCanaryObservation(url.href,intent),/caller_context_changed/);passed++;
+ console.log(`Exact cost observation ${passed} SQL controls PASS; no provider/API/AWS calls.`);
+}finally{await db.end({timeout:5});}

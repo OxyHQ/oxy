@@ -44,7 +44,7 @@ def decode(events,plan):
   if not m.startswith('OXY_ALIA_BUDGET '):continue
   p=json.loads(m.split(' ',1)[1]);need(p['nonce']==plan['nonce']and p['intent']==plan['intent'],'packet_binding')
   raw=base64.b64decode(p['data'],validate=True);need(len(raw)<50000 and sha(raw)==p['sha256'],'packet_hash')
-  r=json.loads(raw);need(r['kind']in ['alia-budget-smoke-send','alia-budget-smoke-result-v1','alia-budget-smoke-failure','alia-budget-smoke-inventory'],'packet_kind')
+  r=json.loads(raw);need(r['kind']in ['alia-budget-smoke-send','alia-budget-smoke-result-v1','alia-budget-smoke-failure','alia-budget-smoke-inventory','alia-budget-smoke-cost-observation'],'packet_kind')
   results.append(r)
  final=[r for r in results if r['kind']!='alia-budget-smoke-send'];need(len(final)==1,'final_result_missing_or_duplicate')
  sends=[r for r in results if r['kind']=='alia-budget-smoke-send'];need(len(sends)<=(1 if plan['mode']=='invoke'else 0),'send_count')
