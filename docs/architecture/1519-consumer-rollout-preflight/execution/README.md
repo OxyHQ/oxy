@@ -20,7 +20,7 @@ Root's image/config-only promotion for each service is:
 - Re-read the current service/TD/scalers against the quiescence receipt: count0, old tasks STOPPED/targets drained and no external configuration drift. The restoration count comes from that fresh receipt, not from this planning snapshot.
 - Copy the current task-definition registration payload, preserving all settings, roles, secret references, env, commands, sidecars and tags. Change only the selected container's image to the verified runtime digest. Omit empty tags (the already-reviewed Peable AWS constraint). Register and read back normalized configuration equality apart from that image. Existing reviewed config operations are separate steps, never hidden in image promotion.
 - Run the repository's normal required migration phases with its exact final image/target DB and the existing reviewed migration helper. No backfill or metadata edits are inferred from a package bump. Record STOPPED/exit/readback and cleanup. Do not run an old `latest` task-definition migrator assuming it picked the new image.
-- In **one** `aws ecs update-service` for `oxy-cluster`, set the new TD, the captured desired count and `deploymentCircuitBreaker={enable:true,rollback:false}` within the captured deployment configuration. Preserve all other deployment configuration fields. Never first raise the count on an old TD. This plan intentionally has no automatic old-image rollback after strict authority cutover.
+- Use the current reviewed **two-stage** root operator (cb36 lineage). Stage1 binds the exact new TD while keeping desiredCount0 and `deploymentCircuitBreaker={enable:true,rollback:false}`. Preserve other deployment fields. Require a sole COMPLETED zero deployment, old tasks STOPPED and unchanged service/scaler configuration. Stage2 is a separately guarded count-only restore to the captured count. Never combine TD+count and never raise count against an old receiver. Failure holds0; no automatic old-image rollback.
 - Verify every running task's exact new digest, expected count, task/target health and the row's authority/protocol smoke. A failure means hold0, reconcile all owned/new tasks to STOPPED, preserve queues/data and leave scalers suspended. It does not restore an old receiver. Restore only that service's captured scaling state after its own smoke passes.
 
 Root supplies exact live ARNs/counts/new TD IDs at execution, from authenticated receipts. Prepared commands do not invent future values or bypass compare-before-write. Backend/application images may be built concurrently, but these service mutations remain serially coordinated by root.
@@ -116,9 +116,4 @@ check; the receipt is not a perpetual main pin.
 The tracked-manifest census found64 importers using SDK/Bloom. Every Oxy SDK
 importer is covered. Discovery now follows the root workspace patterns,
 including explicit nested workspaces, instead of assuming one directory level.
-Codea's Alia webview is the sole nested Bloom-only exception: it imports the
-theme provider/CSS, uses no OxyServices or auth dialog, and currently resolves
-its own Bloom6.3.0. Its existing manifest is preserved. Its own build passed
-with that actual resolution; no claim is made that it tested621 or712. Recheck
-its resolution/build after final lock regeneration. No speculative downgrade or
-new release is introduced for this standalone theme consumer.
+Codea's Alia webview imports theme/CSS without Services, but final CI required a single locked Bloom. It now pins6.2.1; all five Alia Bloom importers match20,940published files each. Its actual621 TypeScript/Vite build passes. The original630 checks and initial stale nested materialization remain historical, not621 evidence. Source9ec6d3a09/proof34760e37b record the correction.

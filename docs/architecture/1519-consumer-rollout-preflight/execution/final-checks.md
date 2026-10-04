@@ -44,8 +44,6 @@ for missing new SDK exports remain historical failures.
 Package installation/verification, publishing an image, and restoring a live
 service are separate steps. Root alone dispatches/publishes/promotes runtime
 artifacts and verifies exact digest/config/count. The frontend manual templates
-require current-main CI. ECS restoration uses rollback=false and exact new TD
-plus captured count; a failure returns to hold0, not an old strict-incompatible
-receiver. Worker process readiness does not establish delegated authorization.
+require current-main CI. ECS restoration uses rollback=false and two separate guarded stages: exact new TD at count0, then only after sole COMPLETED-zero/old-STOPPED verification a count-only restore. Failure returns to hold0, never an old strict-incompatible receiver. Worker process readiness does not establish delegated authorization.
 
 Move adds its owned-PG receiver/pipeline harness, frontend tests and typechecks, backend build, frontend export and workflow gates. Its frontend export is a remaining final-registry check; the candidate amendment only passed tests/types.
