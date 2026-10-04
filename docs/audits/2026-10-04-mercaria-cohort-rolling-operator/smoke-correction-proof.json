@@ -1,0 +1,70 @@
+{
+  "kind": "mercaria-canonical-ready-smoke-correction-v1",
+  "sourceCommit": "d72d3800a4e45e594fa385537305796efdd6fa11",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/mercaria-cohort-promotion.py",
+      "sha256": "6a66730db1e1b02678988ef7d2048e4f7b5a00cca392a0f257efa05f4bb16ce6",
+      "bytes": 17789
+    },
+    {
+      "path": "scripts/operations/__tests__/mercaria-cohort-promotion.test.py",
+      "sha256": "999ccecc8d687006a2e5e27c248bc5bf356d13757f68b82b008792893787ef50",
+      "bytes": 12519
+    },
+    {
+      "path": "docs/audits/2026-10-04-mercaria-cohort-rolling-operator/README.md",
+      "sha256": "2ac227304df456923f8e13f60d68eef9d47b82f9e8bdd27ab138062c957f84a9",
+      "bytes": 5850
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-mercaria-cohort-rolling-operator/smoke-canonical-red.log",
+      "sha256": "41447f2ec5f09a9948207d9d3f293e24b01243c9de4af730bd0027c94c02ee59",
+      "bytes": 2153
+    },
+    {
+      "path": "docs/audits/2026-10-04-mercaria-cohort-rolling-operator/smoke-canonical-green.log",
+      "sha256": "d2a90688cb0ff186454c9def6422877cdeeb245bcbe1c58d6ffdcd34646fb5bb",
+      "bytes": 114
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-mercaria-cohort-promotion/execution/failure.json",
+      "sha256": "ed3ee4fea5dc1c50856d0cf6daffa22ab83d660c227b2e4a5e691025fd34ecfa",
+      "bytes": 779
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-mercaria-cohort-promotion/independent-readback/accepted-reconciled.json",
+      "sha256": "92a3cfad2edeb26bb00a8fc94f2ea344f2075f8f8642813885683b5b7dc751d9",
+      "bytes": 31516
+    }
+  ],
+  "canonicalRouteSource": [
+    {
+      "repository": "OxyHQ/Mercaria",
+      "sourceSha": "80291a89328f999aa1c3ed4241ba0f6f84b0c687",
+      "path": "packages/backend/src/app.ts",
+      "sha256": "dfb97ca57a1533d7f067c1e90ecab3212e98274d60329f9f4e36dd194a3c733f"
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "sourceSha": "80291a89328f999aa1c3ed4241ba0f6f84b0c687",
+      "path": "packages/backend/src/routes/health.ts",
+      "sha256": "bf0940354333af9eb31207f6ea7d110bc29b36fc285015e917da396a97678250"
+    }
+  ],
+  "tests": {
+    "redPass": 14,
+    "redError": 1,
+    "greenPass": 15,
+    "sameFixture": true,
+    "realLoopbackHttp": true,
+    "productBootedByFixture": false,
+    "awsMockedInOther14": true
+  },
+  "failurePreserved": true,
+  "writesRetried": false,
+  "actualReadbackPerformedBy": "ROOT",
+  "localCorrectionNoRemoteCalls": true
+}
