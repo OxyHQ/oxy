@@ -1,0 +1,133 @@
+{
+  "kind": "i05-retained-credential-impact-proof-v1",
+  "sourceCommit": "117f3cb17117bba1e5feaa4ba5c9d4971a32e296",
+  "frozenBase": "d9f4098e415593a0ac54e4a26b1707ae615f73da",
+  "reviewComment": "https://github.com/OxyHQ/oxy/pull/1569#issuecomment-5977856835",
+  "sourceInputs": {
+    "packages/api/src/scripts/foregroundPilotConfiguration.ts": {
+      "sha256": "e6abcfe12000f20a38bc940ec9fa7c09e6f9f8fb73019c634814c34bb03a8a57",
+      "bytes": 34505
+    },
+    "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts": {
+      "sha256": "0f520f250d3009d49fcbabe04b28e91a8827e17e4d7fb6b786665e3eb83d2d3c",
+      "bytes": 28904
+    },
+    "packages/api/src/scripts/foregroundPilotExecutor.ts": {
+      "sha256": "0910786552e9930bbca87512448d5ca91a45a2a8de6b796a53820d7f3a78b327",
+      "bytes": 5895
+    },
+    "packages/api/src/utils/applicationScopes.ts": {
+      "sha256": "979a688c172494371ca9be3f73a74113a919f86b60e00bf47510ce321529d9d8",
+      "bytes": 37195
+    },
+    "packages/api/src/utils/credentialUsability.ts": {
+      "sha256": "e9128bfa1c8218da52bd8f538007914c68a776851ce001bb6f9e78bdf54538cf",
+      "bytes": 1345
+    },
+    "scripts/rehearsal/test-i05-foreground-configuration.py": {
+      "sha256": "b8de4f86f0d3fa87b14046e5c903bc2320737ed0c323dbf8cc97933230031595",
+      "bytes": 6231
+    },
+    "scripts/agency/tests/foreground-pilot-compiled.mjs": {
+      "sha256": "c7cfeaf8a192675ba66c7ce9d344b850070b6e160f0e40d9e4915832f53aae17",
+      "bytes": 7437
+    }
+  },
+  "compiledInputs": {
+    "packages/api/dist/scripts/foregroundPilotConfiguration.js": {
+      "sha256": "2cf9a18a4a308c42b0da08362bdef1017c85fba9244c0bb08895f3b393557353",
+      "bytes": 48396
+    },
+    "packages/api/dist/scripts/foregroundPilotExecutor.js": {
+      "sha256": "c0fcbf7d875cc5e61311ffc43f08d92fea5b1646fd65731f482df777019e686e",
+      "bytes": 8662
+    },
+    "packages/api/dist/utils/applicationScopes.js": {
+      "sha256": "2d6b3e2821e0a05993d4c19b4496e9403a3be61385f30b33fddd34dba73d0d2d",
+      "bytes": 37201
+    },
+    "packages/api/dist/utils/credentialUsability.js": {
+      "sha256": "7a5fa8e8057799dbd2271c5c895aebc4e2729bd1284f6e21ae8d437586115da9",
+      "bytes": 1322
+    }
+  },
+  "records": {
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/SQL-frozen-RED.log": {
+      "sha256": "37ab76d77bc4ad05836831b963e13a4dbb23eeb6c002a637fcea8dc4da7864a9",
+      "bytes": 4147
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/RED-final-harness.log": {
+      "sha256": "a8ace167cae6a9a90aabaff96e33c23f2b450bfebe246f65a5fbdf3a23647481",
+      "bytes": 1375
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/red-final-cleanup.json": {
+      "sha256": "a653816dc37cbd31da4446e8ac82c93d71375955bdd4abb94b975d4cb552bd4b",
+      "bytes": 108
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/frozen-final-test.ts": {
+      "sha256": "0f520f250d3009d49fcbabe04b28e91a8827e17e4d7fb6b786665e3eb83d2d3c",
+      "bytes": 28904
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/foreground-api.txt": {
+      "sha256": "fc59c4e846df1c0d61cdeed933cf1b1e52ae1bdcdcb5f9fe5bb28081f08ef832",
+      "bytes": 1015
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/compiled-node.txt": {
+      "sha256": "2147bfdf21785e712e8a73179b456981054ca8f4f3547703b45976d88a37b5f0",
+      "bytes": 394
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/migration-fresh.txt": {
+      "sha256": "339c8d6f54b09adaa1cfe54c6b40709da460be7add6eaea7bbeb4baaf08e93b0",
+      "bytes": 8873
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/migration-repeat.txt": {
+      "sha256": "c6a4048223985b7df04ec5713b914707c18200baae4299f655be5411e0186103",
+      "bytes": 172
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/full-harness.log": {
+      "sha256": "03e99dd16c9a162bbca16dd58c97cc5ccc7616ea3f6fd775e5ca57acce068d56",
+      "bytes": 2233
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/full-pg-cleanup.json": {
+      "sha256": "88b0a891baa227515af0209d25a09a35750ef0504cc0f05290b6ec96a2cd597b",
+      "bytes": 151
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/build-final.log": {
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/scripts-types-final.log": {
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31
+    },
+    "docs/audits/2026-10-04-i05-retained-credential-impact/logs/biome.log": {
+      "sha256": "319dbaedd0af9c834b7120c5347f1744f2d974128fde6b002d66e34ddb745b1d",
+      "bytes": 40
+    }
+  },
+  "checks": {
+    "frozenRed": {
+      "failed": 5,
+      "passed": 9,
+      "total": 14,
+      "fixtureByteEqual": true
+    },
+    "greenCombinedSQL": {
+      "suites": 4,
+      "passed": 87
+    },
+    "compiledNodeMinimalProductionEnv": 3,
+    "canonicalMigrationFresh": 142,
+    "canonicalMigrationRepeat": 142,
+    "buildExit": 0,
+    "scriptsTypesExit": 0,
+    "biomeVersion": "1.9.4",
+    "biomeExit": 0
+  },
+  "limits": [
+    "No live operation, no new authority, no served API/SDK/DDL change.",
+    "Canonical credential usability/effective scope helpers are reused; active and deprecated usable explicit widening rejects, empty/revoked/expired and already effective retained credentials preserve complete five-row authority.",
+    "Nullable administrative expiry is normalized from Date to ISO only for comparison; actual expiry drift rejects in apply and rollback.",
+    "Historical full-five live acceptance remains bound to its original reviewed overlay; this fix is upstream operational hardening, not a claim of a new production image."
+  ]
+}
