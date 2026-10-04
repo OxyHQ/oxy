@@ -76,7 +76,7 @@ jobs:
             > "$RUNNER_TEMP/native-expo/image-expo-compat.log"
           printf '%s\n' "$SOURCE_SHA" > "$RUNNER_TEMP/native-expo/source-sha.txt"
           (cd "$RUNNER_TEMP/native-expo" && sha256sum build-metadata.json image.oci.tar manifest.json config.json expected-files.json image-inventory.json image-expo-compat.log manifest-digest.txt source-sha.txt > SHA256SUMS)
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
           name: native-expo-image-proof-${{ github.run_id }}-attempt-${{ github.run_attempt }}
