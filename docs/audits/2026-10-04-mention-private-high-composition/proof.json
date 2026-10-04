@@ -1,0 +1,344 @@
+{
+  "kind": "mention-private-high-composition-proof-v1",
+  "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+  "sourceTree": "fe818311e7a189ef11fbaea5c01eb73ae7853a84",
+  "baseSha": "f716a52734faa6e683f872802c67e9b7e419780f",
+  "highInput": "f6962b1a12bac48e4e4b92667df183840e43d6f2",
+  "mentionInput": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+  "mergeCommit": "2d5690c41",
+  "newDelta": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+  "sourceInputs": [
+    {
+      "path": "packages/api/scripts/record-scoped-legal-review.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "4f2172709a777232b97e21df5dfbeb7155b110c63bc09a9d6d5f5aaf9260347d"
+    },
+    {
+      "path": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "9f1f381f7119dc48adb496e06aca9baeebee862dfdff0b552e518f9dc1b7956c"
+    },
+    {
+      "path": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "c87839d53177eaeebd3d7c9fa3c20afc2a1ebcd967ef1eb6ab5b29229c33126c"
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/routingScoreEconomicsCallsites.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "2b54fccb7e4d8ef9c251b7661b69584404a773dc729b997683f94fb0c927ddcd"
+    },
+    {
+      "path": "packages/api/src/routes/__fixtures__/aliaApprovedHighRoute.json",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "9171181814a354cc600e3a5c7e2e3522ee9632c87985be9f45816de5133696b9"
+    },
+    {
+      "path": "packages/api/src/routes/__fixtures__/aliaHello21Tools.json",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "fd9ef8fc783425e5285b100111bfe69fb0b27dd4346e81479bd57725c2003d77"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdge.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "a08208f02c6927179dee6d5ee1bfb221546e878ab34f2687bd0948c61b918f62"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "8cdf37da96f46e14fb72ea20bd3af11e5a15dc8d95d9aee00d2c1c705735b0c7"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "5cbea8ffe78a649719a1f2c4e1b115a1e8968b1b94382c46d5d23bb4f8a664a6"
+    },
+    {
+      "path": "packages/api/src/scripts/recordScopedLegalReview.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "ba36589a2183bc359e96cb2fde1a56c5e993d19d122f13569ddf8eed19948d55"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/inferenceMeteredUsage.service.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "2f05318c4e97ad3334f7d65d04d797a84af1077c1f5b5636258c556077fa496c"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "9309917f84038af66968d7db468e3e038580919137379d8578e43ede497afa14"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierAdmission.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "125fb90f4b2d237a268b929b73fcc6e0e943f316facc89c87e3aa90de34943f8"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierAuthority.db.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "fee0b7e4c8975917d92f898f91c11519810d1b851ca91ebdaa579320c9e0ba1a"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "04d08bffbdfcc49d14694bb6c441ab0485396ba6e064c9d7596c25cec84e7399"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/privateCommissioning.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "124182ae41741290183be54772f996f4c1a8f78b9548981223ce2198358a4af5"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "7d84d40e2eba247dcc2377ee6d43ed57b7ead69b171d179580ce8e509b09f7d1"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedExecution.service.test.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "a33a5c3ac95f4ad047953d1bce270d83e6e13366d14b0dee79c5fc4096b2081a"
+    },
+    {
+      "path": "packages/api/src/services/inferenceCatalogue.service.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "e77fb374b24867137d9b51958697c545fa9adf7553e65ed779d6e9e68cdf42b5"
+    },
+    {
+      "path": "packages/api/src/services/inferenceCatalogueAdmin.service.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "9f7d16d8b7c02e3fcf8190a549a0346381d3862d47d6405eb9d1da3bfa6ddf7c"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "f346ba8e89fc30d3c97e6498abf263d77b8ef7c50955819772e5731b17c73cde"
+    },
+    {
+      "path": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "c1445369fa3f0e378f08e3142c857881793de25ec4d420a420832b41f93badfd"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "bc2debbbc4a75e10dc29935cd5ded5d2656f8dfcc37957a0d9230075d8f72b80"
+    },
+    {
+      "path": "packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "578f8dd845090824db36172c7ae9564cc6b8b3fe8233e81975c80d3ff7ce3998"
+    },
+    {
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "7c160b71ba6ae9d841f43ba46f9f0291c5c8b65b949bd258d8db0e27d42cb0bd"
+    },
+    {
+      "path": "packages/api/src/services/scopedLegalReviewOperation.service.ts",
+      "sourceSha": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "sha256": "85d6769c94e6674f155740b8335fff95fb7df5e4419d82758c2bdfc8e654b8fd"
+    }
+  ],
+  "preservedSourceInputs": [
+    {
+      "input": "f6962b1a12bac48e4e4b92667df183840e43d6f2",
+      "path": "packages/api/src/routes/__fixtures__/aliaApprovedHighRoute.json",
+      "sha256": "9171181814a354cc600e3a5c7e2e3522ee9632c87985be9f45816de5133696b9"
+    },
+    {
+      "input": "f6962b1a12bac48e4e4b92667df183840e43d6f2",
+      "path": "packages/api/src/routes/__fixtures__/aliaHello21Tools.json",
+      "sha256": "fd9ef8fc783425e5285b100111bfe69fb0b27dd4346e81479bd57725c2003d77"
+    },
+    {
+      "input": "f6962b1a12bac48e4e4b92667df183840e43d6f2",
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "8cdf37da96f46e14fb72ea20bd3af11e5a15dc8d95d9aee00d2c1c705735b0c7"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/scripts/record-scoped-legal-review.ts",
+      "sha256": "4f2172709a777232b97e21df5dfbeb7155b110c63bc09a9d6d5f5aaf9260347d"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "sha256": "c87839d53177eaeebd3d7c9fa3c20afc2a1ebcd967ef1eb6ab5b29229c33126c"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/routes/__tests__/inferenceEdge.test.ts",
+      "sha256": "a08208f02c6927179dee6d5ee1bfb221546e878ab34f2687bd0948c61b918f62"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts",
+      "sha256": "5cbea8ffe78a649719a1f2c4e1b115a1e8968b1b94382c46d5d23bb4f8a664a6"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/scripts/recordScopedLegalReview.ts",
+      "sha256": "ba36589a2183bc359e96cb2fde1a56c5e993d19d122f13569ddf8eed19948d55"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/__tests__/inferenceMeteredUsage.service.test.ts",
+      "sha256": "2f05318c4e97ad3334f7d65d04d797a84af1077c1f5b5636258c556077fa496c"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "sha256": "9309917f84038af66968d7db468e3e038580919137379d8578e43ede497afa14"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/__tests__/mentionClassifierAdmission.test.ts",
+      "sha256": "125fb90f4b2d237a268b929b73fcc6e0e943f316facc89c87e3aa90de34943f8"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/__tests__/mentionClassifierAuthority.db.test.ts",
+      "sha256": "fee0b7e4c8975917d92f898f91c11519810d1b851ca91ebdaa579320c9e0ba1a"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "sha256": "04d08bffbdfcc49d14694bb6c441ab0485396ba6e064c9d7596c25cec84e7399"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/__tests__/privateCommissioning.test.ts",
+      "sha256": "124182ae41741290183be54772f996f4c1a8f78b9548981223ce2198358a4af5"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "sha256": "7d84d40e2eba247dcc2377ee6d43ed57b7ead69b171d179580ce8e509b09f7d1"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/__tests__/scopedExecution.service.test.ts",
+      "sha256": "a33a5c3ac95f4ad047953d1bce270d83e6e13366d14b0dee79c5fc4096b2081a"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/inferenceCatalogue.service.ts",
+      "sha256": "e77fb374b24867137d9b51958697c545fa9adf7553e65ed779d6e9e68cdf42b5"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/inferenceCatalogueAdmin.service.ts",
+      "sha256": "9f7d16d8b7c02e3fcf8190a549a0346381d3862d47d6405eb9d1da3bfa6ddf7c"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "sha256": "c1445369fa3f0e378f08e3142c857881793de25ec4d420a420832b41f93badfd"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "bc2debbbc4a75e10dc29935cd5ded5d2656f8dfcc37957a0d9230075d8f72b80"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "sha256": "578f8dd845090824db36172c7ae9564cc6b8b3fe8233e81975c80d3ff7ce3998"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "7c160b71ba6ae9d841f43ba46f9f0291c5c8b65b949bd258d8db0e27d42cb0bd"
+    },
+    {
+      "input": "1de766c384fc4c43f9a2e7f586f36e4fd99b2ae2",
+      "path": "packages/api/src/services/scopedLegalReviewOperation.service.ts",
+      "sha256": "85d6769c94e6674f155740b8335fff95fb7df5e4419d82758c2bdfc8e654b8fd"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-mention-private-high-composition/records/api-build.txt",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-high-composition/records/census-guard-green.txt",
+      "sha256": "1c5cf5fb960e5b78f91ec6c543271da7da2e6432c6fa23c5186cae545cacaa5b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-high-composition/records/combined-http-sql.txt",
+      "sha256": "97ead8b21c62611f2877177086c50ea60d824e5ea2d26aaf3fe2a013216ffe37"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-high-composition/records/install.txt",
+      "sha256": "a3e3c7748100e394a08fae31f1783f0b3fd082bbb401535f823615c55b05e9ec"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-high-composition/records/owned-combined-pg.py",
+      "sha256": "f38ca9c0b979e6a3df813ad450634404c12787ea218cd864dd57ef9f6670be83"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-high-composition/records/owned-guard-pg.py",
+      "sha256": "4c367738042ca24757e1275f50a9213260179212d56b51ef8055fd41c25e478a"
+    }
+  ],
+  "compiledModules": [
+    {
+      "path": "packages/api/dist/config/inferenceEconomicPolicy.js",
+      "sha256": "a94e861c7fd742ab0362203b3cf9129c2f223caf3ad78dbbf14be1a0b5aea084"
+    },
+    {
+      "path": "packages/api/dist/config/mentionClassifierEconomics.js",
+      "sha256": "da5acf878dd42070030cc5dd1fb20d2e2ca7ab841165126b882ad059f1044cce"
+    },
+    {
+      "path": "packages/api/dist/services/inferenceEdge.service.js",
+      "sha256": "9f2da90fd5ead684c143c687ad159dc54f09fa6e3c054a3fdf1eb45046c246c4"
+    },
+    {
+      "path": "packages/api/dist/services/mentionClassifierEconomics.service.js",
+      "sha256": "ce304f2392aaab1c584683ad09d632677aeae5839e2372378383bd8c316969da"
+    },
+    {
+      "path": "packages/api/dist/services/scopedExecution.service.js",
+      "sha256": "fe6d09e6a7ab21e6a610a641a6fe9d548cac1e715295daf98d97d93dbc24f78b"
+    },
+    {
+      "path": "packages/api/dist/services/kaanaCatalogueSync.service.js",
+      "sha256": "05defd629d16e1c573ed463e711591c3729b5179d15d35d5d49a4b330ddbc246"
+    }
+  ],
+  "validation": {
+    "canonicalApiBuildExit": 0,
+    "combinedRun": {
+      "source": "2d5690c41",
+      "passed": 124,
+      "failed": 1,
+      "suitesPassed": 6,
+      "suitesFailed": 1,
+      "failure": "Static economic-callsite census expected18 actual19; no HTTP/SQL/runtime failure"
+    },
+    "finalGuard": {
+      "source": "0b4d9b55741a2b944e13eb4ed99977cbf2cab694",
+      "passed": 1,
+      "failed": 0,
+      "registeredNewCallsite": "src/routes/__tests__/mentionPrivateCommissioning.test.ts:418"
+    },
+    "repeatUnchangedRuntimeTests": false,
+    "postmasterPidsAbsent": [
+      1893652,
+      1894934
+    ],
+    "newSchemaOrRuntimeFix": false,
+    "productionWrites": 0,
+    "AWSCalls": 0,
+    "providerRequests": 0
+  },
+  "authority": "Source preapprovedManifest and Mention approval getter remain undefined; tests use explicit synthetic approvals/loopback Kaana only. No activation authority added.",
+  "composition": "Automatic merge without conflicts; High economic version.2, exact4tuples and USD.05 cap preserved. Mention candidate deferred guard plus mandatory late live authorization/quote and dispatcher recheck preserved. Optional capacity relationship seam preserved.",
+  "limits": [
+    "Source activation remains separate from this composition.",
+    "No new PR, branch push, merge to main, SDK publication or deployment performed.",
+    "Final count guard only was rerun after its fixture census correction; all runtime files/compiled inputs are identical to the 124-pass combined run."
+  ]
+}

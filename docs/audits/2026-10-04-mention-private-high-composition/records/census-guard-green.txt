@@ -1,0 +1,15 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1894934, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-high-pg-2pxa_9v_/data", "port": 5624, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/db/schema/__tests__/routingScoreEconomicsCallsites.test.ts
+PASS src/db/schema/__tests__/routingScoreEconomicsCallsites.test.ts
+  ✓ every application and script routing-score insert states reviewed economics (1548 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        1.755 s, estimated 2 s
+Ran all test suites within paths "src/db/schema/__tests__/routingScoreEconomicsCallsites.test.ts".
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-high-pg-2pxa_9v_"}
