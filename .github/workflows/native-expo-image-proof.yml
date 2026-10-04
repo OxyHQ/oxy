@@ -67,9 +67,11 @@ jobs:
             --mount "type=bind,src=$RUNNER_TEMP/native-expo/expected-files.json,dst=/native-expo-proof/expected-files.json,readonly" \
             --entrypoint node "$IMAGE_ID" /native-expo-proof/scripts/native-expo-image-inventory.mjs \
             /native-expo-proof/expected-files.json "$SOURCE_SHA" "$IMAGE_ID" > "$RUNNER_TEMP/native-expo/image-inventory.json"
+          jq -e 'all(.installedNativePackages[]; (.root | startswith("/app/")))' "$RUNNER_TEMP/native-expo/image-inventory.json" >/dev/null
+          NATIVE_ENTRY=$(jq -er '.installedNativePackages | map(select(.name == "@oxy.so/expo-code-signing-native")) | first | .root + "/index.cjs"' "$RUNNER_TEMP/native-expo/image-inventory.json")
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --mount "type=bind,src=$PWD/scripts,dst=/native-expo-proof/scripts,readonly" \
-            --entrypoint node "$IMAGE_ID" /native-expo-proof/scripts/forge-independent-expo-compat.cjs /app/packages/api \
+            --entrypoint node "$IMAGE_ID" /native-expo-proof/scripts/forge-independent-expo-compat.cjs /app/packages/api "$NATIVE_ENTRY" \
             > "$RUNNER_TEMP/native-expo/image-expo-compat.log"
           printf '%s\n' "$SOURCE_SHA" > "$RUNNER_TEMP/native-expo/source-sha.txt"
           (cd "$RUNNER_TEMP/native-expo" && sha256sum build-metadata.json image.oci.tar manifest.json config.json expected-files.json image-inventory.json image-expo-compat.log manifest-digest.txt source-sha.txt > SHA256SUMS)

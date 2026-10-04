@@ -66,3 +66,12 @@ test("missing native package fails even when Forge is absent", () =>
 		fs.rmSync(path.join(root, "@oxy.so/expo-cli-native"), { recursive: true });
 		assert.throws(() => inspectImage(root, expected), /missing/);
 	}));
+
+test("native file symlink cannot substitute mounted proof bytes", () =>
+	fixture((root, expected) => {
+		const file = path.join(root, "@oxy.so/expo-cli-native/index.cjs");
+		const replacement = path.join(root, "replacement.cjs");
+		fs.renameSync(file, replacement);
+		fs.symlinkSync(replacement, file);
+		assert.throws(() => inspectImage(root, expected), /physical/);
+	}));

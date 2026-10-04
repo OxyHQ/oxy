@@ -27,7 +27,12 @@ export function inspectImage(root, expected) {
 					assert.equal(pkg.version, identity.version);
 					const root = path.dirname(file);
 					for (const [name, wanted] of Object.entries(identity.files)) {
-						const bytes = fs.readFileSync(path.join(root, name));
+						const installedFile = path.join(root, name);
+						assert(
+							fs.lstatSync(installedFile).isFile(),
+							"Native package file must be physical, not a symlink",
+						);
+						const bytes = fs.readFileSync(installedFile);
 						assert.equal(
 							sha256(bytes),
 							wanted,
