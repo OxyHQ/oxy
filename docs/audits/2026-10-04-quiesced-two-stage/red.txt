@@ -1,0 +1,30 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: ECS launched old deployment from cold atomic newTD+positive count
++ actual - expected
+
++ [
++   {
++     op: 'old-scheduler-launch',
++     td: 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:692'
++   }
++ ]
+- []
+
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-quiesced-two-stage-20261004/scripts/test-quiesced-cold-scheduler.mjs:175:9 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: [
+    {
+      op: 'old-scheduler-launch',
+      td: 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:692'
+    }
+  ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
