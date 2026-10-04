@@ -1,0 +1,48 @@
+OLD source c266a0530: route_not_reviewed (real retained Groq=true/30 snapshot)
+{
+  "snapshotSha256": "c672871046479814f8e6886a5902548eaf4e643fc66ffe58516fc34f9fa8da23",
+  "observedAt": "2026-10-04 17:25:03.040554+00",
+  "clock": "frozen at historical observation; not current freshness claim",
+  "current": "PASS",
+  "quotes": [
+    {
+      "deploymentId": "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+      "provider": "cerebras",
+      "priceVersionId": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+      "quotePicos": "11564800000",
+      "currency": "USD",
+      "privacy": {
+        "retainsPayloads": false,
+        "retentionDays": 0,
+        "trainsOnCustomerData": false,
+        "zeroDataRetentionAvailable": true
+      }
+    },
+    {
+      "deploymentId": "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+      "provider": "groq",
+      "priceVersionId": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+      "quotePicos": "4992000000",
+      "currency": "USD",
+      "privacy": {
+        "retainsPayloads": true,
+        "retentionDays": 30,
+        "trainsOnCustomerData": false,
+        "zeroDataRetentionAvailable": true
+      }
+    },
+    {
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "provider": "openrouter",
+      "priceVersionId": "01a096a6-6f15-74b2-aaf3-931763417c04",
+      "quotePicos": "1004800000",
+      "currency": "USD",
+      "privacy": {
+        "retainsPayloads": false,
+        "retentionDays": 0,
+        "trainsOnCustomerData": false,
+        "zeroDataRetentionAvailable": true
+      }
+    }
+  ]
+}

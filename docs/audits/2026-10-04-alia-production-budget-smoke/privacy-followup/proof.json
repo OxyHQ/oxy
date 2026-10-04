@@ -1,0 +1,50 @@
+{
+  "sourceHead": "02f7fd992cf83c120433c45ba950f725e39cdf21",
+  "sources": [
+    {
+      "path": "scripts/operations/alia-budget-smoke/README.md",
+      "sha256": "29f864c695e08232fa81e4b900e5961a3fae77fea069429d9170735b86c2f453"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/dispatch.py",
+      "sha256": "c0f3a456cbd8fdc0750d305a134b94b4a8cd42085abd64a2665760d8c685dfa2"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.mjs",
+      "sha256": "c5585e683b782ea5e3e3b396124b496c3ba14c2467f6608d1ad0cfd9a1efd8a7"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.test.mjs",
+      "sha256": "1b3892e40243850006967c29b997bd34b7187eaf206396f2e47518432c8be189"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/test-transport.py",
+      "sha256": "c826325d7e6cb642637ae160829e52a356d7618c62bfbf517ce7ef83a5ac35a3"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/privacy-followup/actual-snapshot-red-green.log",
+      "sha256": "3e0bef436ecb4352ca501742e119687eb09b7915a60d1bb648de63b3b1921171"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/privacy-followup/transport-tests.log",
+      "sha256": "1b024fab61076bbe6e5ee5024fc96e8affd6dd6809cd751d736743d6087a8545"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/privacy-followup/smoke-tests.log",
+      "sha256": "27889093925019e6ce0791916be7a821be08df3df22980edd10c4115a3ad63b5"
+    }
+  ],
+  "validation": {
+    "sdkTests": 28,
+    "transportTests": 12,
+    "actualReadOnlySnapshot": "old guard refuses route_not_reviewed; same snapshot newguard PASS using historical fixed clock"
+  },
+  "limits": [
+    "No AWS or inference executed by this agent",
+    "Source corrects a preflight assumption, not production provider privacy",
+    "Groq retains30 days; zeroDataRetentionAvailable is capability only",
+    "Fresh snapshot required before caller; original plans/evidence unchanged"
+  ]
+}
