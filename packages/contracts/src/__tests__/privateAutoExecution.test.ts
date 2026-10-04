@@ -84,6 +84,7 @@ describe("independent private Auto contract", () => {
 			{ ...envelope, authorizedRoutes: [{ ...envelope.authorizedRoutes[0], regions: ['us-west-2'] }] },
 			{ ...envelope, client: { ...envelope.client, endpoint: '/v1/decisions' } },
 			{ ...envelope, privateAutoExecution: { ...permit, runtimeExpiresAt: '2026-10-04T00:00:01.001Z' } },
+			{ ...envelope, attribution: { ...envelope.attribution, userId: 'synthetic-foreign-user' } },
 		]) expect(privateAutoInferenceRequestSchema.safeParse(changed).success).toBe(false);
 	});
 });

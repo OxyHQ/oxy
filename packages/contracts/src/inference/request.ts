@@ -639,7 +639,7 @@ export const privateAutoInferenceRequestSchema = inferenceRequestSchema.innerTyp
     if (!input.success) for (const issue of input.error.issues) ctx.addIssue({ ...issue, path: ['input', ...issue.path] });
     const principal = request.attribution.principal;
     const route = request.authorizedRoutes?.[0];
-    if (request.client.apiFormat !== 'decisions' || permit.requestId !== request.attribution.requestId ||
+    if (request.attribution.userId !== undefined || request.client.apiFormat !== 'decisions' || permit.requestId !== request.attribution.requestId ||
       permit.operationId !== request.idempotencyKey ||
       permit.principal.accountId !== principal.billing.accountId ||
       permit.principal.applicationId !== principal.applicationId ||
