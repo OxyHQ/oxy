@@ -1,0 +1,6 @@
+$ jest --passWithNoTests src/inference/__tests__/OxyInferenceClient.test.ts
+Test Suites: 1 passed, 1 total
+Tests:       53 passed, 53 total
+Snapshots:   0 total
+Time:        0.465 s, estimated 1 s
+Ran all test suites matching src/inference/__tests__/OxyInferenceClient.test.ts.

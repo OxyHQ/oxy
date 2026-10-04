@@ -1,0 +1,110 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts -t "original-key receipt recovery"
+FAIL src/routes/__tests__/inferenceEdgeInternalMetered.test.ts (5.2 s)
+  ● original-key receipt recovery › recovers settled usage with GET only and leaves money and execution count unchanged
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 4
+    + Received  + 5
+
+      Object {
+        "body": Object {
+    -     "data": Object {
+    -       "requestId": "31a896f9-7804-428a-bc70-585a00a7013f",
+    +     "code": "model_not_found",
+    +     "message": "No generation receipt with that id is available to you.",
+    +     "requestId": "5ab5192b-74cf-49be-b524-a7ad18067b5e",
+    +     "retryable": false,
+          "schemaVersion": 1,
+        },
+    -   },
+    -   "status": 200,
+    +   "status": 404,
+      }
+
+      968 |     const before = await moneyRowsFor(caller.accountId);
+      969 |     const recovered = await readOriginal(caller, key);
+    > 970 |     expect(recovered).toMatchObject({ status: 200, body: { data: { requestId: first.body.requestId, schemaVersion: 1 } } });
+          |                       ^
+      971 |     expect(await readOriginal(caller, key)).toEqual(recovered);
+      972 |     expect(await moneyRowsFor(caller.accountId)).toEqual(before);
+      973 |     expect(executions).toBe(1);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:970:23
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● original-key receipt recovery › separates identical keys across apps, credentials and delegation
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 4
+    + Received  + 6
+
+      Object {
+        "body": Object {
+    -     "data": Object {
+    -       "requestId": "089b6016-ba43-4823-a0ea-442ee255d7a4",
+    -     },
+    +     "code": "model_not_found",
+    +     "message": "No generation receipt with that id is available to you.",
+    +     "requestId": "5ae75f63-10d3-4054-a564-d75f2df63e08",
+    +     "retryable": false,
+    +     "schemaVersion": 1,
+        },
+    -   "status": 200,
+    +   "status": 404,
+      }
+
+      983 |     expect(second.status).toBe(200);
+      984 |     expect(second.body.requestId).not.toBe(first.body.requestId);
+    > 985 |     expect(await readOriginal(foreign, key)).toMatchObject({ status: 200, body: { data: { requestId: second.body.requestId } } });
+          |                                              ^
+      986 |     const rotated = await makeCredential(caller.applicationId, caller.accountId, 'development', ['inference:invoke', 'inference:usage:read']);
+      987 |     expect(await readOriginal({ ...caller, credentialId: rotated.credentialId, machineToken: rotated.token }, key)).toMatchObject({ status: 404 });
+      988 |     expect(await readOriginal(caller, key, { 'X-Oxy-User-Id': `foreign-${tag()}` })).toMatchObject({ status: 404 });
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:985:46
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● original-key receipt recovery › denies revoked credentials at the real authentication boundary
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      992 |     const caller = await recoveryCaller(); const key = `retired-${tag()}`;
+      993 |     expect((await post(body(caller), { ...bearer(caller.machineToken), 'Idempotency-Key': key })).status).toBe(200);
+    > 994 |     expect((await readOriginal(caller, key)).status).toBe(200);
+          |                                                      ^
+      995 |     await getDb().update(applicationCredentials).set(state === 'revoked' ? { status: 'revoked' } : { expiresAt: new Date(Date.now() - 1000) })
+      996 |       .where(eq(applicationCredentials.id, caller.credentialId));
+      997 |     expect((await readOriginal(caller, key)).status).toBe(401);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:994:54
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● original-key receipt recovery › denies expired credentials at the real authentication boundary
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+      992 |     const caller = await recoveryCaller(); const key = `retired-${tag()}`;
+      993 |     expect((await post(body(caller), { ...bearer(caller.machineToken), 'Idempotency-Key': key })).status).toBe(200);
+    > 994 |     expect((await readOriginal(caller, key)).status).toBe(200);
+          |                                                      ^
+      995 |     await getDb().update(applicationCredentials).set(state === 'revoked' ? { status: 'revoked' } : { expiresAt: new Date(Date.now() - 1000) })
+      996 |       .where(eq(applicationCredentials.id, caller.credentialId));
+      997 |     expect((await readOriginal(caller, key)).status).toBe(401);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:994:54
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 30 skipped, 34 total
+Snapshots:   0 total
+Time:        5.234 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts with tests matching "original-key receipt recovery".
+error: script "test" exited with code 1

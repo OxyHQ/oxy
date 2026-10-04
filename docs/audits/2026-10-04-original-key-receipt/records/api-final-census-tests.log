@@ -1,0 +1,7 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/inferenceEdgeGateCoverage.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       40 passed, 40 total
+Snapshots:   0 total
+Time:        7.003 s, estimated 9 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts|src/routes/__tests__/inferenceEdgeGateCoverage.test.ts.
