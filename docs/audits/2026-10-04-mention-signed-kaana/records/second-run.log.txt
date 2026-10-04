@@ -1,0 +1,77 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1964665, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-wire-pg-9jf0dil9/data", "port": 5627, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/routes/__fixtures__/mentionWire.fixture.ts --testMatch "**/mentionWire.fixture.ts"
+  console.log
+    === RUN   TestMentionOxySignedWireFixture
+        mention_wire_integration_test.go:111: credential store: applying migration 0002: ERROR: required database role kaana_runtime does not exist (SQLSTATE P0001)
+    --- FAIL: TestMentionOxySignedWireFixture (0.02s)
+    FAIL
+    FAIL	github.com/OxyHQ/Kaana/internal/kaana	0.030s
+    FAIL
+
+      at src/routes/__fixtures__/mentionWire.fixture.ts:136:13
+
+FAIL src/routes/__fixtures__/mentionWire.fixture.ts (6.451 s)
+  ● actual Mention builder + packaged SDK + Oxy SQL + signed Go executor isolates audience and permanently denies replay
+
+    Real Go fixture failed to start: === RUN   TestMentionOxySignedWireFixture
+        mention_wire_integration_test.go:111: credential store: applying migration 0002: ERROR: required database role kaana_runtime does not exist (SQLSTATE P0001)
+    --- FAIL: TestMentionOxySignedWireFixture (0.02s)
+    FAIL
+    FAIL	github.com/OxyHQ/Kaana/internal/kaana	0.030s
+    FAIL
+
+      115 |   const deadline = Date.now()+65000;
+      116 |   while (!existsSync(configuration+".ready")) {
+    > 117 |     if (child.exitCode !== null || Date.now()>deadline) throw new Error("Real Go fixture failed to start: "+readFileSync(join(own,"go.log"),"utf8"));
+          |                                                               ^
+      118 |     await wait(50);
+      119 |   }
+      120 |   const {url} = JSON.parse(readFileSync(configuration+".ready","utf8"));
+
+      at src/routes/__fixtures__/mentionWire.fixture.ts:117:63
+      at fulfilled (src/routes/__fixtures__/mentionWire.fixture.ts:38:58)
+
+
+  ● Test suite failed to run
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "0"
+    Received: "1"
+
+      141 |   if(oldUrl===undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL=oldUrl;
+      142 |   for(const[k,v]of Object.entries(previous)) if(v===undefined) delete process.env[k];else process.env[k]=v;
+    > 143 |   if (child) expect(process.env.MENTION_WIRE_GO_EXIT).toBe("0");
+          |                                                       ^
+      144 | });
+      145 | it("actual Mention builder + packaged SDK + Oxy SQL + signed Go executor isolates audience and permanently denies replay",async()=>{
+      146 |   const bind=jest.spyOn(scoped,"scopedPermitForContext");
+
+      at src/routes/__fixtures__/mentionWire.fixture.ts:143:55
+      at fulfilled (src/routes/__fixtures__/mentionWire.fixture.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        6.478 s, estimated 7 s
+Ran all test suites within paths "src/routes/__fixtures__/mentionWire.fixture.ts".
+error: script "test" exited with code 1
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-wire-pg-9jf0dil9"}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-wire-20261004/owned-pg.py", line 73, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-wire-20261004/owned-pg.py", line 64, in main
+    run(['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__fixtures__/mentionWire.fixture.ts', '--testMatch', '**/mentionWire.fixture.ts'], cwd=ROOT / 'packages/api',timeout=170)
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-wire-20261004/owned-pg.py", line 23, in run
+    return subprocess.run([str(x) for x in argv], env=env, text=True, check=True, **kw)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__fixtures__/mentionWire.fixture.ts', '--testMatch', '**/mentionWire.fixture.ts']' returned non-zero exit status 1.

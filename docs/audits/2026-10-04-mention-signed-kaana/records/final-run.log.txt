@@ -1,0 +1,26 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1971083, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-wire-pg-6vy5goax/data", "port": 5627, "liveAccess": false}
+CREATE ROLE
+CREATE ROLE
+CREATE ROLE
+CREATE ROLE
+CREATE ROLE
+$ jest --runInBand --runTestsByPath src/routes/__fixtures__/mentionWire.fixture.ts --testMatch "**/mentionWire.fixture.ts"
+{"mentionBuilderSha256":"060543df2f3ddb756a274c2680d73d02da4fbc5b949c41c258345916e6eb301d","realSignedKaana":true,"realSQLClaims":true,"questionCount":5,"providerOnlyFake":true,"ordinaryGettersUnchanged":true,"fixtureDirectory":"/tmp/mention-wire-2zifmN"}
+=== RUN   TestMentionOxySignedWireFixture
+    mention_wire_integration_test.go:242: real signed HTTP executor: one provider send, one permanent SQL claim, replay and foreign principal denied
+--- PASS: TestMentionOxySignedWireFixture (0.38s)
+PASS
+ok  	github.com/OxyHQ/Kaana/internal/kaana	1.393s
+PASS src/routes/__fixtures__/mentionWire.fixture.ts (7.853 s)
+  ✓ actual Mention builder + packaged SDK + Oxy SQL + signed Go executor isolates audience and permanently denies replay (194 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        7.881 s, estimated 9 s
+Ran all test suites within paths "src/routes/__fixtures__/mentionWire.fixture.ts".
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-wire-pg-6vy5goax"}

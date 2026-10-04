@@ -1,0 +1,119 @@
+{
+  "kind": "local-mention-oxy-signed-kaana-integration-v1",
+  "shippingRuntimeChanges": false,
+  "sourceInputs": [
+    {
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1572-mention-wire-integration-20261004",
+      "path": "packages/api/src/routes/__fixtures__/mentionWire.fixture.ts",
+      "sha256": "cac4abfaa591db52ac6f8929d11f49ecc19db416f487804ef5466eafe3e8d1ef",
+      "head": "5ef76601481fb82e5f8b500eacf75cd8a36577b0"
+    },
+    {
+      "worktree": "/home/nate/Oxy/oxy/.worktrees/1572-mention-wire-integration-20261004",
+      "path": "scripts/rehearsal/test-mention-signed-kaana.py",
+      "sha256": "92182c2de2f805eee2090c719c0acea85410f9c72887631b46edf945772a3eed",
+      "head": "5ef76601481fb82e5f8b500eacf75cd8a36577b0"
+    },
+    {
+      "worktree": "/home/nate/Oxy/Kaana/.worktrees/1572-mention-wire-integration-20261004",
+      "path": "internal/kaana/mention_wire_export_test.go",
+      "sha256": "52b220b95e9b82862ea9f53e62747a2fcb0843acdd49cd953f7a5f2a826fa1d6",
+      "head": "722d4b6543a672e3a42bbe8c25889de924b5abbf"
+    },
+    {
+      "worktree": "/home/nate/Oxy/Kaana/.worktrees/1572-mention-wire-integration-20261004",
+      "path": "internal/kaana/mention_wire_integration_test.go",
+      "sha256": "90a875b4bb48816906c278f69bb90acc964c59e06b55f913c57443b90110c8c0",
+      "head": "722d4b6543a672e3a42bbe8c25889de924b5abbf"
+    },
+    {
+      "worktree": "/home/nate/Oxy/Mention/.worktrees/1572-bounded-shadow-20261004",
+      "path": "packages/backend/src/services/contentClassification/jevRequest.ts",
+      "sha256": "060543df2f3ddb756a274c2680d73d02da4fbc5b949c41c258345916e6eb301d",
+      "head": "6c337d3a679bfccd948b1efdc8b93828d4980d71"
+    }
+  ],
+  "oxyComposition": {
+    "base": "5ef76601481fb82e5f8b500eacf75cd8a36577b0",
+    "packagesScriptsManifestsLockByteEqualRoot1578": "c210180fd"
+  },
+  "kaanaBase": "e6c9b9a1955280af1d35676c4a5749cd81a8b0f2",
+  "mentionSource": "f3a5417685e5f5bcfadf90b0aa7560c7bcb75f78",
+  "sdk": {
+    "publishedCoreVersion": "4.4.0",
+    "publishedArchive": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/core44-publication/core.tgz",
+    "publishedArchiveSha256": "49d95b3d5009981ce518f1fd0ae34b62da905d91edad12df7607d10b6b36aa4b",
+    "585MembersMatchAcceptedCandidate": true,
+    "runtime": "actual CJS archive through Node createRequire; not Jest source mapping"
+  },
+  "positive": {
+    "questions": 5,
+    "realSQLMeteredRows": 1,
+    "realSQLPermanentClaims": 1,
+    "realSQLClaimCalls": 2,
+    "providerFakeSends": 1,
+    "reservations": 0,
+    "customerReceipts": 0
+  },
+  "negative": [
+    "Mention cannot borrow synthetic Alia source audience",
+    "fresh signed replay reaches canonical SQL claim and is denied",
+    "signed foreign principal denied before claim/provider",
+    "SDK replay denied without second metered row"
+  ],
+  "testOnlyAuthority": [
+    "Oxy source getter/own relationship injected in Jest only",
+    "Go exported helper exists only in *_test.go; ordinary production getter still nil"
+  ],
+  "notClaimed": [
+    "production authority or eligibility",
+    "provider network integration or paid purchase",
+    "real Mention worker post persistence",
+    "real canary execution",
+    "public legal approval"
+  ],
+  "records": {
+    "fifth-run.log.txt": "9576e09431ccc74c4ad3b472e86135cdbb3abe1971357ae0c4a0bbf32ebfa4ee",
+    "final-run.log.txt": "9689b1ea14b83eba4fc36012d06043ce4c97f4aad8df3ede2ce8073686cd36e3",
+    "first-run.log.txt": "9852f0643e0bb94fd0a723c4d2d2f90b554b369f2b1294105832e87965ca4030",
+    "fixture-biome.log.txt": "54f6d733b3e5d94b76402889f2b1c51b01ad2ad873dbdc8cf019b03357d7c044",
+    "fixture-eslint.log.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fourth-run.log.txt": "6732ad6162d52d634c65d6b21e7dc0863846b88a597f11fcda6496e615d9e798",
+    "go-package.json": "9c5a7d2e488d54cb8e8c5292fba3e8d9666b6b4c217f2aeaa3a7b96404eec4a8",
+    "sdk-member-comparison.json": "e6901e3ead2a84937f279fed66895082562f3af2d36c9947b8d6e0c0ebe80c80",
+    "second-run.log.txt": "5f088de5a9bbf4bd9ade253dd98edbfb5f3b8d33d297c42d6cafb96b209b8329",
+    "sixth-run.log.txt": "904b25e4f11115edc295ee353d5a4615f0814ed7f0c4b1641362df6721bada1d",
+    "third-run.log.txt": "94272937a8b371f9937860796a350d7099d2112bafe7fea8fe935842cdca2295"
+  },
+  "ownedPostgresPidsAbsent": [
+    1963253,
+    1964665,
+    1965454,
+    1966443,
+    1967354,
+    1968210,
+    1971083
+  ],
+  "history": {
+    "firstFourRuns": "setup failures: TLS verify-full and complete canonical fixture roles; no shipping bug",
+    "fifthRun": "provider fake omitted required Score reply/confidence; real executor rejected it; no shipping bug",
+    "sixthAndFinal": "positive real interrepo passed"
+  },
+  "checks": {
+    "finalPackageTest": {
+      "suites": 1,
+      "tests": 1,
+      "seconds": 7.881
+    },
+    "goRaceFixture": {
+      "tests": 1,
+      "seconds": 1.393
+    },
+    "canonicalAPIBuild": 0,
+    "goBuildAll": 0,
+    "goVetKaana": 0,
+    "eslint": 0,
+    "biomeErrorOnWarnings": 0
+  },
+  "environment": "owned PG17 loopback TLS; no AWS/provider/production connection; synthetic authority only"
+}
