@@ -1,0 +1,12 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/seedOxyApplicationScopes.test.ts src/scripts/__tests__/seedOxyApplicationsPlan.test.ts src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts src/scripts/__tests__/seedEntrySelection.test.ts
+PASS src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+{"level":30,"time":1791153872026,"pid":2115314,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/scripts/__tests__/seedOxyApplicationScopes.test.ts
+PASS src/scripts/__tests__/seedEntrySelection.test.ts
+PASS src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       124 passed, 124 total
+Snapshots:   0 total
+Time:        1.22 s
+Ran all test suites within paths "src/scripts/__tests__/seedOxyApplicationScopes.test.ts", "src/scripts/__tests__/seedOxyApplicationsPlan.test.ts", "src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts", "src/scripts/__tests__/seedEntrySelection.test.ts".

@@ -1,0 +1,2 @@
+{"level":30,"time":1791154090462,"pid":2117659,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+{"kind":"compiled-node-cli-test","passed":true,"dryRunZeroWrites":true,"onlyScopesChanged":true,"repeatNoop":true,"node":"v24.21.0","syntheticOwnedDatabase":true}

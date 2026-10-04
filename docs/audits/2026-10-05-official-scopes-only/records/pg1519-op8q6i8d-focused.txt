@@ -1,0 +1,41 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/seedOxyApplicationScopes.test.ts src/scripts/__tests__/seedOxyApplicationsPlan.test.ts src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts src/scripts/__tests__/seedEntrySelection.test.ts
+FAIL src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+  ● the canonical official-application registry › Mention owns its canonical catalog namespace › preserves Mention authority and adds only explicit foreground coordination
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 2
+
+    @@ -1,7 +1,9 @@
+      Array [
+        "user:read",
+    +   "inference:invoke",
+    +   "inference:usage:read",
+        "files:read",
+        "files:write",
+        "federation:write",
+        "signals:write",
+        "catalogs:write",
+
+      535 |
+      536 |     it('preserves Mention authority and adds only explicit foreground coordination', () => {
+    > 537 |       expect(specNamed('Mention').scopes).toEqual([
+          |                                           ^
+      538 |         'user:read',
+      539 |         'files:read',
+      540 |         'files:write',
+
+      at Object.<anonymous> (src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts:537:43)
+
+PASS src/scripts/__tests__/seedEntrySelection.test.ts
+{"level":30,"time":1791153761786,"pid":2113972,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/scripts/__tests__/seedOxyApplicationScopes.test.ts
+PASS src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       1 failed, 121 passed, 122 total
+Snapshots:   0 total
+Time:        2.164 s
+Ran all test suites within paths "src/scripts/__tests__/seedOxyApplicationScopes.test.ts", "src/scripts/__tests__/seedOxyApplicationsPlan.test.ts", "src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts", "src/scripts/__tests__/seedEntrySelection.test.ts".
+error: script "test" exited with code 1
