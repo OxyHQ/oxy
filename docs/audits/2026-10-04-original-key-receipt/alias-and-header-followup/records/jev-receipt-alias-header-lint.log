@@ -1,0 +1,7 @@
+
+/home/nate/Oxy/oxy/.worktrees/jev-receipt-recovery-20261004/packages/api/scripts/generate-openapi.ts
+  0:0  warning  File ignored because of a matching ignore pattern. Use "--no-ignore" to disable file ignore settings or use "--no-warn-ignored" to suppress this warning
+
+✖ 1 problem (0 errors, 1 warning)
+
+ESLint found too many warnings (maximum: 0).
