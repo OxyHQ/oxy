@@ -387,3 +387,81 @@ for (const mutate of [
 	}
 }
 console.log("Maintenance pending-vs-fatal: 10 checks PASS.");
+
+let steadyChecks = 0;
+const observe = (late) =>
+	assertFinalDeployment(
+		plan,
+		next,
+		id,
+		[task],
+		150,
+		true,
+		reader(fixture(true), late),
+		true,
+	);
+assert.deepEqual(observe(), {
+	kind: "quiesced-admitted-observation-v1",
+	deploymentId: id,
+	steady: true,
+});
+steadyChecks++;
+for (const mutate of [
+	(s) => {
+		s.deployments[0].rolloutState = "IN_PROGRESS";
+	},
+	(s) => {
+		s.runningCount = 1;
+		s.pendingCount = 1;
+	},
+	(s) => {
+		s.deployments[0].runningCount = 1;
+		s.deployments[0].pendingCount = 1;
+	},
+	(s) => {
+		s.deployments[0].desiredCount = 1;
+	},
+]) {
+	const observed = observe((original) => {
+		const response = structuredClone(original.service);
+		mutate(response.services[0]);
+		return response;
+	});
+	assert.equal(observed.steady, false);
+	steadyChecks++;
+}
+for (const mutate of [
+	(s) => {
+		s.serviceName = "foreign";
+	},
+	(s) => {
+		s.status = "INACTIVE";
+	},
+	(s) => {
+		s.taskDefinition = old;
+	},
+	(s) => {
+		s.deploymentConfiguration.deploymentCircuitBreaker.rollback = true;
+	},
+	(s) => {
+		s.deployments[0].id = "foreign";
+	},
+	(s) => {
+		s.deployments[0].pendingCount = -1;
+	},
+	(s) => {
+		delete s.runningCount;
+	},
+]) {
+	assert.throws(() =>
+		observe((original) => {
+			const response = structuredClone(original.service);
+			mutate(response.services[0]);
+			return response;
+		}),
+	);
+	steadyChecks++;
+}
+console.log(
+	`Latest validated admitted observation: ${steadyChecks} checks PASS (synthetic AWS; no mutation).`,
+);
