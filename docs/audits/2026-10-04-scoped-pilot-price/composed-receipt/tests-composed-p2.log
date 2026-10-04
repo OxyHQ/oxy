@@ -1,0 +1,15 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/kaanaCatalogueSync.test.ts src/services/__tests__/inferenceInternalPilot.test.ts src/services/__tests__/scopedCataloguePublication.test.ts src/services/__tests__/scopedAdmission.test.ts src/services/__tests__/scopedExecution.service.test.ts src/services/__tests__/httpScopedExecution.test.ts src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/__tests__/openapiRouteWalker.test.ts
+PASS src/routes/__tests__/inferenceEdgeInternalMetered.test.ts (13.044 s)
+PASS src/services/__tests__/kaanaCatalogueSync.test.ts
+PASS src/services/__tests__/scopedAdmission.test.ts
+PASS src/__tests__/openapiRouteWalker.test.ts
+PASS src/services/__tests__/inferenceInternalPilot.test.ts
+PASS src/services/__tests__/scopedCataloguePublication.test.ts
+PASS src/services/__tests__/scopedExecution.service.test.ts
+PASS src/services/__tests__/httpScopedExecution.test.ts
+
+Test Suites: 8 passed, 8 total
+Tests:       126 passed, 126 total
+Snapshots:   0 total
+Time:        15.617 s
+Ran all test suites within paths "src/services/__tests__/kaanaCatalogueSync.test.ts", "src/services/__tests__/inferenceInternalPilot.test.ts", "src/services/__tests__/scopedCataloguePublication.test.ts", "src/services/__tests__/scopedAdmission.test.ts", "src/services/__tests__/scopedExecution.service.test.ts", "src/services/__tests__/httpScopedExecution.test.ts", "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/__tests__/openapiRouteWalker.test.ts".
