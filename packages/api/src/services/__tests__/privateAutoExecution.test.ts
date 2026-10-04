@@ -10,7 +10,7 @@ const approval = privateAutoApprovalFixture;
 const parent: PrivateAutoParentAdmission = {
   id: '018f2118-95bc-7aca-914e-17632106cad8', requestId: 'synthetic-parent-request',
   parentRequestId: null, accountId: approval.principal.accountId, applicationId: approval.principal.applicationId,
-  applicationCredentialId: approval.principal.credentialId, environment: 'production',
+  applicationCredentialId: approval.principal.credentialId, delegatedUserId: null, environment: 'production',
   economicTreatment: 'internal_metered', economicPolicyVersion: approval.economicPolicyVersion,
   economicRelationshipId: approval.economicRelationshipId, status: 'admitted',
   expiresAt: new Date(now + 60_000), finalAuthorizedDeploymentId: null,
@@ -66,6 +66,12 @@ describe('source-bound variable private Auto admission', () => {
     const permit = bindPrivateAutoExecution(approval, parent, { ...binding(), deadlineAt: now + 500 }, attestation, now);
     expect(permit?.runtimeExpiresAt).toBe(new Date(now + 500).toISOString());
     expect(permit?.expiresAt).toBe(approval.expiresAt);
+  });
+  it('refuses delegated parent or child in admission and settled recovery', () => {
+    expect(bindPrivateAutoExecution(approval, { ...parent, delegatedUserId: 'synthetic-user' }, binding(), attestation, now)).toBeUndefined();
+    expect(bindPrivateAutoExecution(approval, parent, { ...binding(), delegatedUserId: 'synthetic-user' }, attestation, now)).toBeUndefined();
+    expect(privateAutoRecoveryIdentity({ ...parent, status: 'settled', delegatedUserId: 'synthetic-user' }, binding())).toBeUndefined();
+    expect(privateAutoRecoveryIdentity(parent, { ...binding(), delegatedUserId: 'synthetic-user' })).toBeUndefined();
   });
   it('allows only read-only original-child recovery after settlement/expiry, with current own read authority', () => {
     const settled = { ...parent, status: 'settled', expiresAt: new Date(now - 1), finalAuthorizedDeploymentId: 'final' };

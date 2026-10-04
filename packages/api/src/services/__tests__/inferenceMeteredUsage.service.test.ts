@@ -207,7 +207,7 @@ describe('private Auto child claims against an actual durable parent', () => {
     const childId = privateAutoOperationId(parent.meteredUsageId);
     const child: MeteredAdmissionInput = { ...input, requestId: childId, idempotencyKey: childId,
       parentRequestId: input.requestId, endpoint: '/internal/auto-classification',
-      privateAutoParent: { meteredUsageId: parent.meteredUsageId, requestId: input.requestId } };
+      privateAutoParent: { meteredUsageId: parent.meteredUsageId, requestId: input.requestId, deadlineAt: Date.now() + 1000 } };
     return { fixture, parent, child };
   }
 
@@ -230,19 +230,22 @@ describe('private Auto child claims against an actual durable parent', () => {
     expect(await claimMeteredAdmission(daily.child)).toMatchObject({ status: 'capacity-exceeded', limit: 'daily' });
   });
 
-  it.each(['missing', 'other-principal', 'settled', 'expired', 'final-dispatch', 'nested'])('refuses %s parent before claiming a child', async (kind) => {
+  it.each(['missing', 'other-principal', 'settled', 'expired', 'final-dispatch', 'nested', 'delegated-parent', 'delegated-child'])('refuses %s parent before claiming a child', async (kind) => {
     const { fixture, parent, child } = await fixtureWithParent();
     let input = child;
     if (kind === 'missing') {
       const missing = randomUUID();
       const requestId = privateAutoOperationId(missing);
-      input = { ...child, requestId, idempotencyKey: requestId, privateAutoParent: { requestId: child.parentRequestId ?? '', meteredUsageId: missing } };
+      input = { ...child, requestId, idempotencyKey: requestId, privateAutoParent: { requestId: child.parentRequestId ?? '', meteredUsageId: missing, deadlineAt: Date.now() + 1000 } };
     } else if (kind === 'other-principal') {
       input = { ...child, accountId: 'foreign-account' };
     } else if (kind === 'settled') {
       await settle(fixture, parent.meteredUsageId);
+    } else if (kind === 'delegated-child') {
+      input = { ...child, delegatedUserId: fixture.accountId };
     } else {
       const delta = kind === 'expired' ? { expiresAt: new Date(Date.now() - 1000) } :
+        kind === 'delegated-parent' ? { delegatedUserId: fixture.accountId } :
         kind === 'nested' ? { parentRequestId: 'another-parent' } :
         { finalAuthorizedModelReference: 'synthetic/model@final', finalAuthorizedProvider: 'synthetic',
           finalAuthorizedDeploymentId: 'final-dispatched', finalAuthorizedCeilingAmount: '0.001', finalAuthorizedCeilingCurrency: 'USD' };
@@ -252,6 +255,42 @@ describe('private Auto child claims against an actual durable parent', () => {
     const childRows = await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
       .where(eq(inferenceMeteredUsage.requestId, input.requestId));
     expect(childRows).toHaveLength(0);
+  });
+
+  it.each(['parent', 'child-deadline'])('uses real time after a held row lock expires the %s', async (kind) => {
+    const { parent, child } = await fixtureWithParent();
+    let releaseLock!: () => void;
+    const release = new Promise<void>((resolve) => { releaseLock = resolve; });
+    let locked!: (deadline: number) => void;
+    const gotLock = new Promise<number>((resolve) => { locked = resolve; });
+    const holder = getDb().transaction(async (tx) => {
+      await tx.select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+        .where(eq(inferenceMeteredUsage.id, parent.meteredUsageId)).for('update');
+      const deadline = Date.now() + 350;
+      if (kind === 'parent') await tx.update(inferenceMeteredUsage).set({ expiresAt: new Date(deadline) })
+        .where(eq(inferenceMeteredUsage.id, parent.meteredUsageId));
+      locked(deadline); await release;
+    });
+    const deadlineAt = await gotLock;
+    const input = { ...child, privateAutoParent: { meteredUsageId: parent.meteredUsageId, requestId: child.parentRequestId ?? '', deadlineAt: kind === 'parent' ? Date.now() + 1000 : deadlineAt } };
+    const pending = claimMeteredAdmission(input);
+    try {
+      let waiting = false;
+      for (let i = 0; i < 50; i += 1) {
+        const result = await getDb().execute(sql`select count(*)::int as n from pg_stat_activity
+          where datname = current_database() and wait_event_type = 'Lock'
+            and query like '%inference_metered_usage%' and query like '%for update%'`);
+        if (Number((result as unknown as { n: number }[])[0]?.n) > 0) { waiting = true; break; }
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(waiting).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, deadlineAt - Date.now()) + 40));
+    } finally {
+      releaseLock(); await holder;
+    }
+    expect(await pending).toEqual({ status: 'parent-unavailable' });
+    expect(await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+      .where(eq(inferenceMeteredUsage.requestId, child.requestId))).toHaveLength(0);
   });
 });
 

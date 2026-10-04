@@ -54,7 +54,7 @@ import { quoteUnits } from './inferenceLedger.service';
 
 export interface MeteredAdmissionInput {
   /** Server-owned private Auto lineage; never read from a public request. */
-  readonly privateAutoParent?: { readonly meteredUsageId: string; readonly requestId: string };
+  readonly privateAutoParent?: { readonly meteredUsageId: string; readonly requestId: string; readonly deadlineAt: number };
   readonly requestId: string;
   readonly parentRequestId?: string;
   readonly idempotencyKey: string;
@@ -190,7 +190,8 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
       if (input.economics.treatment !== 'internal_metered' || input.requestId !== stableChildId ||
         input.economics.relationship.consumerApplicationId !== input.applicationId ||
         input.idempotencyKey !== stableChildId || input.parentRequestId !== parent.requestId ||
-        input.endpoint !== '/internal/auto-classification') return { status: 'parent-unavailable' };
+        input.endpoint !== '/internal/auto-classification' || input.delegatedUserId !== undefined ||
+        !Number.isFinite(parent.deadlineAt)) return { status: 'parent-unavailable' };
       // The parent and child share principal/economics, not a ledger row. Lock
       // the parent while claiming the child and its independent capacity slot.
       const eligibleParents = await tx.select({ id: inferenceMeteredUsage.id })
@@ -205,11 +206,20 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
           eq(inferenceMeteredUsage.economicPolicyVersion, input.economics.policyVersion),
           eq(inferenceMeteredUsage.economicRelationshipId, input.economics.relationship.relationshipId),
           eq(inferenceMeteredUsage.status, 'admitted'),
-          sql`${inferenceMeteredUsage.expiresAt} > now()`,
+          sql`${inferenceMeteredUsage.delegatedUserId} is null`,
           sql`${inferenceMeteredUsage.parentRequestId} is null`,
           sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`,
         )).for('update');
       if (eligibleParents.length !== 1) return { status: 'parent-unavailable' };
+      // WHERE is evaluated before a row-lock wait, and now() is fixed at TX start.
+      // Re-read real DB time AFTER both locks; neither parent nor deadline can renew.
+      const stillActive = await tx.select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+        .where(and(eq(inferenceMeteredUsage.id, parent.meteredUsageId),
+          eq(inferenceMeteredUsage.status, 'admitted'),
+          sql`${inferenceMeteredUsage.expiresAt} > clock_timestamp()`,
+          sql`to_timestamp(${parent.deadlineAt} / 1000.0) > clock_timestamp()`)).limit(1);
+      if (stillActive.length !== 1) return { status: 'parent-unavailable' };
+      values.expiresAt.setTime(Math.min(values.expiresAt.getTime(), parent.deadlineAt));
     }
 
     // Any unique conflict — the idempotency key or the request id — is a

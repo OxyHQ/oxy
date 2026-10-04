@@ -15,6 +15,7 @@ export interface PrivateAutoParentAdmission {
   readonly accountId: string;
   readonly applicationId: string;
   readonly applicationCredentialId: string;
+  readonly delegatedUserId: string | null;
   readonly environment: string;
   readonly economicTreatment: string;
   readonly economicPolicyVersion: string;
@@ -34,6 +35,7 @@ export interface PrivateAutoChildBinding {
   /** Set when the original classifier starts; never refreshed during admission. */
   readonly deadlineAt: number;
   readonly signal: AbortSignal;
+  readonly delegatedUserId?: string;
 }
 
 /** Identity/authority facts shared by admission and read-only recovery. */
@@ -43,6 +45,7 @@ export function privateAutoParentOwned(parent: PrivateAutoParentAdmission | unde
     parent.accountId === binding.principal.ownerAccountId &&
     parent.applicationId === binding.principal.applicationId &&
     parent.applicationCredentialId === binding.principal.credentialId &&
+    parent.delegatedUserId === null && binding.delegatedUserId === undefined &&
     parent.environment === binding.principal.environment && parent.economicTreatment === 'internal_metered' &&
     binding.principal.lane === 'service_token';
 }

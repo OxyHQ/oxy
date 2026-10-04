@@ -40,9 +40,9 @@ and dispatch rereads authority and current route/price/privacy facts.
    second execution for that parent.
 3. Validate the parent row: it exists, matches request and principal, is an
    unexpired internal-metered admission under the exact policy/relationship,
-   has no parent itself, and has no final generation authorization. Child quota
+   has no parent itself, no delegated user, and no final generation authorization. Child quota
    and insertion run under the existing application/environment advisory lock,
-   with the parent locked in the same transaction. Parent and child consume
+   with the parent locked in the same transaction. Real database time is rechecked after both lock waits, including the original child deadline; transaction-start `now()` cannot renew a parent. Parent and child consume
    separate slots in the existing concurrency/day limits. The child's stable
    request ID stays unique even if a pre-dispatch refusal releases its ordinary
    partial idempotency key.
@@ -106,3 +106,18 @@ The first implementation block supplies the schema, inactive getter, pure
 binding/recovery identity checks and atomic parent/child metering barrier. The
 end-to-end adapter/envelope/catalogue/Kaana wiring is a remaining implementation
 step, not an activation or completed production claim.
+
+## Inactive transport integration
+
+The signed descriptor carries `privateAutoSourceApproval` only with its independent
+`privateAutoExecutionContractVersion: 3.7.0` acknowledgement. Exact route, provider
+credential identity, model, regions and rate/source versions must match that
+approval; commissioning 3.6 cannot stand in for it. The absent source getter
+leaves production catalogue negotiation unchanged. Ordinary publication excludes
+both private metadata classes. Schema 4 uses the canonical actual input bytes
+and verifies their hash before signing one decisions request; it has no stream
+path. The original absolute deadline covers serialization, send and response.
+
+Catalogue persistence, private route selection and the parent/child classifier
+adapter remain subsequent integration steps; the transport slice alone does
+not make this a completed or activated Auto feature.
