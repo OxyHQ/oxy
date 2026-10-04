@@ -1,0 +1,97 @@
+{
+  "sourceHead": "1b8d8e0f51b0faa6a66582c58e0a212e8002de15",
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/driver.mjs",
+      "sha256": "628bf2af57e20d7eb37fc034de0353fea300902e5ef81fe53170d35983ca7100"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/driver-initial-local-network-refusal.mjs",
+      "sha256": "e47c273573a1956b024cf8c0cdd541d15bb0ce45fecd7448c500d61ef754d69f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/transcript-mismatch-green.log",
+      "sha256": "7aeaf4a55bd9d01b096c0485ed23f3d134798486b7fb7e54f376f212536ff3bc"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/network-mismatch-green.jsonl",
+      "sha256": "4aee8ef0b6a7b7836c43f1bfaa1c49d080186ad8ae190e767cbc12a95c4a36a7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/artifact.json",
+      "sha256": "80d49d173055e405895f60051b7d21456437d8313e86f7106f0541fc9a55bb2d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/routed-responses.jsonl",
+      "sha256": "0ffb9201d6a86c10390b9c9a26e9544a6512f6b9daea783da0318af653cf025e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/cleanup.json",
+      "sha256": "0fdf337968c08b887b143dea5f394a6d0c6bb562baef9f3d0d8fb1bd68c0d631"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/build-setup-note.json",
+      "sha256": "078f44f2471ffe86b0f8d9a15be222e8310198056033c8771fb89ef683101c14"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-third-party-replay/build-registered-client.log",
+      "sha256": "3cde75a9008af0a0f4b9ba98cd17cb7dd87e1db49c21c2f0ddb50f34391aa2da"
+    }
+  ],
+  "preservedInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-third-party/main.tsx",
+      "sha256": "36a045f4d7218f02d8a873dc9f203c1791095091bf6a7ed98178cf9638b8b9a4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-third-party/vite.config.ts",
+      "sha256": "0512d38e3654a0b31efe05a933a0a9cb4cf84096d717fe08a934b6bff4140c48"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-third-party/package.json",
+      "sha256": "e8d4fd55a68ddebd430ee5f7a6dc59dc76ae8694326be1f202a324c71e905f9d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-third-party/bun.lock",
+      "sha256": "04065836508e01ad26c444b32bfe4833752b0f2130ce00a29990f4fc884d417d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-third-party/dist/registry-modules.json",
+      "sha256": "d22956a7c23a522814b9c51854dd770c60faba22d1cb8a7b143382c0ea089253"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-registry-fixture-installs/web-third-party/verified.json",
+      "sha256": "5f58c18fbaca8df751267c87f7c026a9c624b4fc2d6161fb7fa3aaf8ebe5a432"
+    }
+  ],
+  "assertions": {
+    "cancelLeavesSignedOut": true,
+    "realPasswordAccountSelectionOAuthTokenAndProfile": true,
+    "grantRevokeThenRealConsentPrompt": true,
+    "sameSubjectConsentSuccess": true,
+    "differentSubjectConsentRejectedOriginalSubjectFreshProfile": true,
+    "logoutThenReloadSignedOut": true,
+    "cookies": 0,
+    "registryModuleCount": 916,
+    "allServedArtifactBytesPinned": true,
+    "sharedAuthorityAndThirdPartyListenersUntouched": true,
+    "ownBrowserAndTransportClosed": true
+  },
+  "transport": {
+    "browserVisibleOrigin": "http://127.0.0.1:17962",
+    "artifactOrigin": "http://127.0.0.1:17979",
+    "onlyRegisteredRpGetAssetsAndNavigationRouted": true,
+    "callbackQueriesNotSentToArtifactServer": true,
+    "apiIdpRequestsNotFulfilledOrRewritten": true,
+    "permission": "local-network-access on isolated browser origin17962 only; required because routed navigation changes Chromium address-space classification"
+  },
+  "limits": [
+    "Synthetic local API/IdP authority; not production callback transport acceptance.",
+    "Grant removal re-presented consent, but an already-issued session still read its profile; no immediate session-invalidation claim.",
+    "Post-mismatch first500ms observation was too early; second observation waited2500ms and confirmed original subject after fresh GET.",
+    "Initial static build lacked client environment and artifact binding refused it; fresh unchanged-source build embedded registered client a.",
+    "Initial Chromium context refused loopback before auth; scoped browser permission resolved this transport-only prerequisite.",
+    "IdP dev server emitted preserved CSS HMR/createRoot warnings; no product workaround or source edit applied.",
+    "Malformed state/expired code/PKCE protocol negatives remain covered by earlier byte-identical SDK/API fixtures; this replay adds real cancel and subject-mismatch negatives."
+  ]
+}

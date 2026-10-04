@@ -1,0 +1,142 @@
+$ vite build
+rolldown-vite v7.3.1 building client environment for production...
+[2K
+transforming...[plugin rolldown:vite-resolve] Module "node:crypto" has been externalized for browser compatibility, imported by "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-third-party/node_modules/@oxy.so/protocol/dist/esm/platform/crypto.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+[plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-third-party/node_modules/expo-font/build/serverContext.web.js". See https://vite.dev/guide/troubleshooting.html#module-externalized-for-browser-compatibility for more details.
+✓ 2439 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                 0.22 kB │ gzip:   0.19 kB
+dist/assets/unmatched-C2XkAHgU.png                              4.75 kB
+dist/assets/arrow_down-NdGCEnxo.png                             9.45 kB
+dist/assets/OxyServicesMaterialCommunityIcons-DVHLYwp4.ttf     28.85 kB
+dist/assets/JetBrainsMono-Variable-B9CIFXIH.woff2              40.40 kB
+dist/assets/OxyServicesIonicons-B1hZ8Dc8.ttf                   43.00 kB
+dist/assets/slide-4-DSNFt0xP.jpg                               46.63 kB
+dist/assets/InterVariable-Dx4kXJAl.woff2                       48.25 kB
+dist/assets/slide-3-Bp5gr1Be.jpg                               59.18 kB
+dist/assets/BlomusModernus-Bold-0E_Y-ihB.woff2                 77.61 kB
+dist/assets/BlomusModernus-Regular-kZR3rHS0.woff2              77.64 kB
+dist/assets/slide-2-BAN8I4Iy.jpg                               87.90 kB
+dist/assets/slide-1-CPYeLD4l.jpg                              102.17 kB
+dist/registry-modules.json                                    132.59 kB │ gzip:   9.07 kB
+dist/assets/__vite-browser-external-CO78v3lE.js                 0.05 kB │ gzip:   0.07 kB
+dist/assets/trustTierLabels-D5OkMtAk.js                         0.12 kB │ gzip:   0.12 kB
+dist/assets/services-QOjP2Rmi.js                                0.13 kB │ gzip:   0.13 kB
+dist/assets/services-CgMyV4JN.js                                0.13 kB │ gzip:   0.13 kB
+dist/assets/Ionicons--xO7vIAj.js                                0.15 kB │ gzip:   0.14 kB
+dist/assets/LinkCommonsScreen-58aFyGgw.js                       0.19 kB │ gzip:   0.17 kB
+dist/assets/SignInAuthenticatorScreen-C5B4Ro33.js               0.19 kB │ gzip:   0.17 kB
+dist/assets/FollowersListScreen-B7muCkEl.js                     0.20 kB │ gzip:   0.18 kB
+dist/assets/FollowingListScreen-DEjo1LBY.js                     0.20 kB │ gzip:   0.18 kB
+dist/assets/DeleteAccountScreen-CecEzQm3.js                     0.23 kB │ gzip:   0.19 kB
+dist/assets/SignInPasswordScreen-DLr2G_1d.js                    0.24 kB │ gzip:   0.20 kB
+dist/assets/AccountSecurityPanelScreen-B7XwLHzZ.js              0.26 kB │ gzip:   0.21 kB
+dist/assets/version-D8-p_RBf.js                                 0.33 kB │ gzip:   0.23 kB
+dist/assets/useReduceMotion-C2DGn1sz.js                         0.40 kB │ gzip:   0.29 kB
+dist/assets/SettingsIcon-Ddt2cjCL.js                            0.48 kB │ gzip:   0.34 kB
+dist/assets/useSettingToggle-B6MjLcai.js                        0.67 kB │ gzip:   0.44 kB
+dist/assets/colorUtils-omxxE4z_.js                              0.77 kB │ gzip:   0.24 kB
+dist/assets/UserLinksScreen-vxBvrz2Z.js                         0.82 kB │ gzip:   0.48 kB
+dist/assets/plural-CWYe3cpk.js                                  0.86 kB │ gzip:   0.51 kB
+dist/assets/ProfileSummaryCard-CrZ0wSZF.js                      1.01 kB │ gzip:   0.57 kB
+dist/assets/message-helpers-6BPlsYLP.js                         1.15 kB │ gzip:   0.58 kB
+dist/assets/AvatarCameraBadge-CBShwJys.js                       1.15 kB │ gzip:   0.70 kB
+dist/assets/RiSparklingLine-QZFBmVP9.js                         1.20 kB │ gzip:   0.64 kB
+dist/assets/TrustFAQScreen-C93757YL.js                          1.49 kB │ gzip:   0.77 kB
+dist/assets/build-Ci5kjSwp.js                                   1.51 kB │ gzip:   0.77 kB
+dist/assets/RiShieldCheckLine-DrEr-CBo.js                       1.62 kB │ gzip:   0.90 kB
+dist/assets/TrustRulesScreen-q2Pm2CG4.js                        1.92 kB │ gzip:   0.98 kB
+dist/assets/SearchSettingsScreen-CiD3HA_g.js                    2.10 kB │ gzip:   0.92 kB
+dist/assets/HelpSupportScreen-39fxJ3ru.js                       2.40 kB │ gzip:   0.86 kB
+dist/assets/Haptics-BqW2ZRxo.js                                 2.41 kB │ gzip:   1.09 kB
+dist/assets/ConnectedAppsScreen-CYgHQ6pY.js                     2.59 kB │ gzip:   1.29 kB
+dist/assets/NotificationsScreen-3OX3D1oj.js                     2.85 kB │ gzip:   1.04 kB
+dist/assets/module-BrG3WEZ7.js                                  2.90 kB │ gzip:   1.22 kB
+dist/assets/LanguageSelectorScreen-db-ImHLL.js                  3.05 kB │ gzip:   1.42 kB
+dist/assets/EditProfileScreen-BeNcOol7.js                       3.06 kB │ gzip:   1.13 kB
+dist/assets/PreferencesScreen-D2Inm5bR.js                       3.14 kB │ gzip:   1.30 kB
+dist/assets/SettingsList-DWMBV6Cx.js                            3.14 kB │ gzip:   1.36 kB
+dist/assets/HistoryViewScreen-T0nHwVlA.js                       3.38 kB │ gzip:   1.31 kB
+dist/assets/LearnMoreUsernamesScreen-HjuQEAtb.js                3.63 kB │ gzip:   1.57 kB
+dist/assets/TrustAboutScreen-D_C1Bvvb.js                        3.65 kB │ gzip:   1.56 kB
+dist/assets/Card-COH1vEPr.js                                    3.80 kB │ gzip:   1.64 kB
+dist/assets/DomainsScreen-CG7hMK_m.js                           3.81 kB │ gzip:   1.42 kB
+dist/assets/TrustCenterScreen-9Wwj57ka.js                       3.88 kB │ gzip:   1.57 kB
+dist/assets/LegalDocumentsScreen-DywA2H0U.js                    3.90 kB │ gzip:   1.28 kB
+dist/assets/TrustLeaderboardScreen-DErmpcke.js                  3.90 kB │ gzip:   1.66 kB
+dist/assets/ChangeAvatarScreen-DnzU5EpI.js                      4.03 kB │ gzip:   1.67 kB
+dist/assets/AccountSettingsScreen-BSYf89JU.js                   5.37 kB │ gzip:   2.17 kB
+dist/assets/AccountVerificationScreen-Dy6OsUrK.js               6.51 kB │ gzip:   2.68 kB
+dist/assets/CreateAccountScreen-Ygr-52qd.js                     6.90 kB │ gzip:   2.62 kB
+dist/assets/WelcomeNewUserScreen-BW0w-7qF.js                    7.95 kB │ gzip:   2.83 kB
+dist/assets/Chip-BVEEZ8Cg.js                                    8.00 kB │ gzip:   3.42 kB
+dist/assets/ProfileScreen-B4EPP1ZE.js                           8.09 kB │ gzip:   2.85 kB
+dist/assets/WebBrowser-DUyxSPbR.js                              8.11 kB │ gzip:   3.19 kB
+dist/assets/module-BMTFrw85.js                                  8.85 kB │ gzip:   2.63 kB
+dist/assets/TrustRewardsScreen-sZ5tb6Xp.js                      8.98 kB │ gzip:   2.77 kB
+dist/assets/AccountMembersScreen-DMRWyPYu.js                    9.34 kB │ gzip:   2.84 kB
+dist/assets/AppInfoScreen-BKqMn4Yg.js                           9.82 kB │ gzip:   3.47 kB
+dist/assets/PrivacySettingsScreen-CAUh8gNi.js                  10.51 kB │ gzip:   2.70 kB
+dist/assets/UserListScreen-DbnD32Um.js                         11.49 kB │ gzip:   4.51 kB
+dist/assets/zh-CN-CmvcPk91.js                                  11.86 kB │ gzip:   4.99 kB
+dist/assets/it-IT-BiKXw4n8.js                                  12.61 kB │ gzip:   4.63 kB
+dist/assets/AvatarCropScreen-XTx_81qf.js                       12.81 kB │ gzip:   4.88 kB
+dist/assets/ca-ES-CT0CQYcX.js                                  12.92 kB │ gzip:   4.70 kB
+dist/assets/pt-PT-BUVkBNzQ.js                                  13.03 kB │ gzip:   4.67 kB
+dist/assets/de-DE-DqT4ffjt.js                                  13.39 kB │ gzip:   4.89 kB
+dist/assets/fr-FR-_dMC5E6I.js                                  13.72 kB │ gzip:   4.88 kB
+dist/assets/ko-KR-D1t9eBEH.js                                  13.83 kB │ gzip:   4.92 kB
+dist/assets/ja-JP-CgsByJHL.js                                  15.92 kB │ gzip:   5.11 kB
+dist/assets/ar-SA-C7DCe3nu.js                                  16.09 kB │ gzip:   5.17 kB
+dist/assets/ManageAccountScreen-g2hqmjxS.js                    18.51 kB │ gzip:   5.42 kB
+dist/assets/validationUtils-CblVnFp7.js                        21.14 kB │ gzip:   6.14 kB
+dist/assets/PaymentGatewayScreen-BgrPyXNk.js                   23.96 kB │ gzip:   5.86 kB
+dist/assets/recoveryPhrase-Xc1wsazm.js                         24.56 kB │ gzip:  11.19 kB
+dist/assets/EditProfileFieldScreen-CvnzfIoG.js                 25.39 kB │ gzip:   8.44 kB
+dist/assets/OxyAccountDialogScreen-B6N8RUnq.js                 34.02 kB │ gzip:  11.32 kB
+dist/assets/internal-DQfHaj_U.js                               39.76 kB │ gzip:  13.47 kB
+dist/assets/esm-B6xXeMgP.js                                    42.20 kB │ gzip:  13.16 kB
+dist/assets/zh-B1hj3PfM.js                                     56.74 kB │ gzip:  23.94 kB
+dist/assets/id-CIBw8c42.js                                     59.79 kB │ gzip:  22.12 kB
+dist/assets/tr-Dbn7xD1I.js                                     61.71 kB │ gzip:  23.47 kB
+dist/assets/it-UHItyJw9.js                                     63.86 kB │ gzip:  23.35 kB
+dist/assets/pt-DWH-2enl.js                                     64.00 kB │ gzip:  23.55 kB
+dist/assets/de-DcZvYCbb.js                                     64.13 kB │ gzip:  23.77 kB
+dist/assets/ca-DDuTQE4M.js                                     64.25 kB │ gzip:  23.76 kB
+dist/assets/es-D2zaoMvV.js                                     64.45 kB │ gzip:  23.73 kB
+dist/assets/es-ES-C8tQDYX1.js                                  65.38 kB │ gzip:  20.74 kB
+dist/assets/fr-DCmNXMNF.js                                     66.34 kB │ gzip:  24.28 kB
+dist/assets/ja-Cg5NlaCa.js                                     68.06 kB │ gzip:  25.31 kB
+dist/assets/FileManagementScreen-CTzCZM8M.js                   82.69 kB │ gzip:  25.19 kB
+dist/assets/ar-wBbt30Fv.js                                     84.90 kB │ gzip:  26.93 kB
+dist/assets/ru-BBYLmOBz.js                                     91.51 kB │ gzip:  28.57 kB
+dist/assets/hi-Cw9pi7VH.js                                    102.10 kB │ gzip:  27.03 kB
+dist/assets/bn-D4RZ_Kph.js                                    104.25 kB │ gzip:  26.63 kB
+dist/assets/index-macXJ1jA.js                               3,889.28 kB │ gzip: 907.67 kB
+[33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/expo-modules-core/src/uuid/index.web.ts:6:10 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m6 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m"[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m([0m[38;5;249m"[0m[38;5;249mn[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249me[0m[38;5;249m:[0m[38;5;249mc[0m[38;5;249mr[0m[38;5;249my[0m[38;5;249mp[0m[38;5;249mt[0m[38;5;249mo[0m[38;5;249m"[0m[38;5;249m)[0m[38;5;249m.[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249mU[0m[38;5;249mU[0m[38;5;249mI[0m[38;5;249mD[0m[38;5;249m([0m[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m  │[0m               ──┬─  
+ [38;5;240m  │[0m                 ╰─── Use of direct `eval` here.
+ [38;5;240m  │[0m 
+ [38;5;240m  │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+[38;5;246m───╯[0m
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[33m[EVAL] Warning:[0m Use of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/expo/src/async-require/fetchThenEvalJs.ts:20:11 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m20 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249mn[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249mb[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249my[0m[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m   │[0m                 ──┬─  
+ [38;5;240m   │[0m                   ╰─── Use of direct `eval` here.
+ [38;5;240m   │[0m 
+ [38;5;240m   │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+[38;5;246m────╯[0m
+
+✓ built in 899ms

@@ -1,0 +1,13 @@
+{
+  "artifactServerPid": 429721,
+  "artifactServerStoppedByOwnedPid": true,
+  "browserClosed": true,
+  "sharedApiIdpThirdPartyPids": [
+    3816918,
+    3816958,
+    3816959,
+    3816960,
+    3816897
+  ],
+  "sharedProcessesStillAlive": true
+}

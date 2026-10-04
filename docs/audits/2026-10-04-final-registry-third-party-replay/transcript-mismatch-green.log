@@ -1,0 +1,124 @@
+READY
+{"console":"Access to fetch at 'http://127.0.0.1:17960/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720' from origin 'http://127.0.0.1:17962' has been blocked by CORS policy: Permission was denied for this request to access the `loopback` address space."}
+{"console":"Failed to load resource: net::ERR_FAILED"}
+{"console":"Access to fetch at 'http://127.0.0.1:17960/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720' from origin 'http://127.0.0.1:17962' has been blocked by CORS policy: Permission was denied for this request to access the `loopback` address space."}
+{"console":"Failed to load resource: net::ERR_FAILED"}
+{"console":"Access to fetch at 'http://127.0.0.1:17960/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720' from origin 'http://127.0.0.1:17962' has been blocked by CORS policy: Permission was denied for this request to access the `loopback` address space."}
+{"console":"Failed to load resource: net::ERR_FAILED"}
+{"console":"Access to fetch at 'http://127.0.0.1:17960/auth/oauth/client/oxy_dk_669366a5641957de151c258f467b91906642fb0f2be06720' from origin 'http://127.0.0.1:17962' has been blocked by CORS policy: Permission was denied for this request to access the `loopback` address space."}
+{"console":"Failed to load resource: net::ERR_FAILED"}
+READY
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":""}]
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"Continue to I11 disposable a 14560d051a\nApprove this in Oxy on your phone. You do not need to sign in here first.\nSign in with your Oxy identity\nScan with Commons on your phone\nCancel\nHaving trouble?\nI have Oxy on this device\nSign in on this device instead\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+[]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy\nCouldn't start sign-in\nSomething went wrong. Please try again."}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy\nCouldn't start sign-in\nSomething went wrong. Please try again."},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"Continue to I11 disposable a 14560d051a\nApprove this in Oxy on your phone. You do not need to sign in here first.\nSign in with your Oxy identity\nScan with Commons on your phone\nCancel\nHaving trouble?\nI have Oxy on this device\nSign in on this device instead\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"waited"
+{"error":"locator.click: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Sign in on this device instead', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" id=\"bloom-btn-_r_3_\" data-testid=\"commons-sign-in-here\" aria-label=\"Sign in on this device instead\" class=\"bloom-btn bloom-btn--link bloom-btn--underline-hover\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - <div class=\"css-view-g5y9jx\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scrolling\u001b[22m\n\u001b[2m    - <div dir=\"auto\" class=\"css-text-146c3p1 r-fontSize-1b43r93 r-fontWeight-1kfrs79\">Having trouble?</div> from <button tabindex=\"0\" role=\"button\" type=\"button\" aria-expanded=\"false\" class=\"css-view-g5y9jx r-cursor-1loqt21 r-touchAction-1otgn73 r-alignSelf-1kihuf0\">…</button> subtree intercepts pointer events\u001b[22m\n\u001b[2m  - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is visible, enabled and stable\u001b[22m\n\u001b[2m    - scrolling into view if needed\u001b[22m\n\u001b[2m    - done scro"}
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"Continue to I11 disposable a 14560d051a\nApprove this in Oxy on your phone. You do not need to sign in here first.\nSign in with your Oxy identity\nScan with Commons on your phone\nCancel\nHaving trouble?\nI have Oxy on this device\nSign in on this device instead\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+[]
+"clicked"
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"},{"page":1,"url":"http://127.0.0.1:17961/login","text":"Sign in\nUse your Oxy account\nContinue with Oxy\nor continue with\nEmail or username\nDon't have an account? Create account\nContinue\nBy continuing, you agree to our Terms of Service and Privacy Policy.\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+[{"type":"email","name":"","placeholder":"you@example.com","aria":"Email or username"}]
+"filled"
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"},{"page":1,"url":"http://127.0.0.1:17961/login","text":"Check your email\nIf an account matches browser14560d051a, we sent it a code and a sign-in link.\nCode\nType the code from the email, or open its link in this browser.\nDoes your code have letters?\nContinue\nSend a new email in 30s\nUse your password instead\nUse a different account\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"clicked"
+"filled"
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"},{"page":1,"url":"http://127.0.0.1:17961/login","text":"Choose an account\nContinue as an account below, or use another.\nbrowser14560d051a\n@browser14560d051a\nB\ngroup14560d051a\nOperated by browser14560d051a\nG\nUse another account\nBy continuing, you agree to our Terms of Service and Privacy Policy.\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"clicked"
+{"console":"[vite] Failed to reload /app/globals.css. This could be due to syntax errors or importing non-existent modules. (see errors above)"}
+{"error":"page.waitForTimeout: Target page, context or browser has been closed"}
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"}]
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject"}]
+[]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nGrant revoked"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":""}]
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"Choose an account\nto continue to I11 disposable a 14560d051a\nbrowser14560d051a\n@browser14560d051a\nB\ngroup14560d051a\nOperated by browser14560d051a\nG\nUse another account\nBy continuing, you agree to our Terms of Service and Privacy Policy.\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"I\nContinue to I11 disposable a 14560d051a\nUse your Oxy account to sign in to I11 disposable a 14560d051a. Review what this connection means before you continue.\nPublished by browser14560d051a\nhttp://127.0.0.1:17962\nPermissions requested\nRead your basic profile\nB\nbrowser14560d051a\nContinue to I11 disposable a 14560d051a\nCancel\nBy continuing, I11 disposable a 14560d051a will be able to sign in with your Oxy account. You can manage connected apps anytime in your Oxy account settings.\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"clicked"
+{"console":"[vite] Failed to reload /app/globals.css. This could be due to syntax errors or importing non-existent modules. (see errors above)"}
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nConsent: consented"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}]
+"clicked"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}]
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":""}]
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"Choose an account\nto continue to I11 disposable a 14560d051a\nbrowser14560d051a\n@browser14560d051a\nB\ngroup14560d051a\nOperated by browser14560d051a\nG\nUse another account\nBy continuing, you agree to our Terms of Service and Privacy Policy.\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"clicked"
+{"console":"[vite] Failed to reload /app/globals.css. This could be due to syntax errors or importing non-existent modules. (see errors above)"}
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}]
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nConsent: failed"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nConsent: failed"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"}]
+"reloaded"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"}]
+[]
+"clicked"
+{"console":"You are calling ReactDOMClient.createRoot() on a container that has already been passed to createRoot() before. Instead, call root.render() on the existing root instead if you want to update it."}
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"Choose an account\nto continue to I11 disposable a 14560d051a\nbrowser14560d051a\n@browser14560d051a\nB\ngroup14560d051a\nOperated by browser14560d051a\nG\nUse another account\nBy continuing, you agree to our Terms of Service and Privacy Policy.\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"clicked"
+{"console":"[vite] Failed to reload /app/globals.css. This could be due to syntax errors or importing non-existent modules. (see errors above)"}
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject"}]
+"clicked"
+{"console":"You are calling ReactDOMClient.createRoot() on a container that has already been passed to createRoot() before. Instead, call root.render() on the existing root instead if you want to update it."}
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject"},{"page":1,"url":"http://127.0.0.1:17961/authorize","text":"Choose an account\nto continue to I11 disposable a 14560d051a\nbrowser14560d051a\n@browser14560d051a\nB\ngroup14560d051a\nOperated by browser14560d051a\nG\nUse another account\nBy continuing, you agree to our Terms of Service and Privacy Policy.\nLanguage\nEnglish\nEspañol\nCatalà\nFrançais\nDeutsch\nItaliano\nPortuguês\n日本語\n한국어\n中文\nالعربية"}]
+"clicked"
+{"console":"[vite] Failed to reload /app/globals.css. This could be due to syntax errors or importing non-existent modules. (see errors above)"}
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nConsent: failed"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}]
+"clicked"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"}]
+"reloaded"
+"waited"
+[{"page":0,"url":"http://127.0.0.1:17962/","text":"Signed out\n\nSign in with Oxy"}]
+[]
