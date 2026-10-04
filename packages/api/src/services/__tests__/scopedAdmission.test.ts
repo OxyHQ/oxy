@@ -1,3 +1,4 @@
+import { ALIA_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
 jest.mock('../../config/postgres', () => ({ getDb: jest.fn(() => ({ select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }) })) }));
 jest.mock('../../utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } }));
 import * as scope from '../scopedExecution.service';
@@ -110,6 +111,37 @@ it.each(['capability-unsupported', 'capacity-unavailable', 'unknown-model'] as c
   jest.mocked(catalogue.resolveEdgeRoute).mockResolvedValue({ status, modelReference: permit.modelReference,
     required: { input: 'text', output: 'text' }, outputLimitExceeded: true, contextLimitExceeded: true } as catalogue.EdgeRouteResolution);
   expect((await admitRequest({ ...context, kaanaClient })).status).toBe('refused');
+  expect(ledger.reserve).not.toHaveBeenCalled();
+  expect(kaanaClient.execute).not.toHaveBeenCalled();
+});
+
+
+it('admits exact scoped decisions through the actual Alia internal pilot without a monetary hold', async () => {
+  const principal = { ...context.principal, applicationId: ALIA_INFERENCE_CONSUMER_APPLICATION_ID };
+  const audience = { ...permit, principal: { ...permit.principal, applicationId: principal.applicationId } };
+  jest.mocked(scope.scopedPermitForContext).mockReturnValue(audience);
+  jest.mocked(flags.isChargingAuthorized).mockReturnValue(false);
+  const kaanaClient = client();
+  kaanaClient.attestDeployments.mockResolvedValue({ ...attestation, deployments: [{ ...audience, scopedExecution: audience, regions: [] }] });
+  const result = await admitRequest({ ...context, principal, kaanaClient });
+  expect(result.status).toBe('admitted');
+  if (result.status !== 'admitted') throw new Error(JSON.stringify(result));
+  expect(result.admitted.scopedExecution?.permitId).toBe(audience.permitId);
+  expect(metered.claimMeteredAdmission).toHaveBeenCalledTimes(1);
+  expect(ledger.reserve).not.toHaveBeenCalled();
+  expect(kaanaClient.execute).not.toHaveBeenCalled();
+});
+
+it('keeps the internal input ceiling before quote, reservation, metering or provider execution', async () => {
+  const principal = { ...context.principal, applicationId: ALIA_INFERENCE_CONSUMER_APPLICATION_ID };
+  const input = { format: 'decisions' as const, decisions: { state: 'x'.repeat(8193), questions: [{ kind: 'noul' as const, id: 'q', question: 'Synthetic?' }] } };
+  jest.mocked(scope.scopedPermitForContext).mockReturnValue({ ...permit, fixtureSha256: scope.hashScopedInput(input),
+    principal: { ...permit.principal, applicationId: principal.applicationId } });
+  const kaanaClient = client();
+  const result = await admitRequest({ ...context, principal, request: { ...context.request, input }, kaanaClient });
+  expect(result).toMatchObject({ status: 'refused', error: { code: 'context_length_exceeded' } });
+  expect(ledger.quoteUnits).not.toHaveBeenCalled();
+  expect(metered.claimMeteredAdmission).not.toHaveBeenCalled();
   expect(ledger.reserve).not.toHaveBeenCalled();
   expect(kaanaClient.execute).not.toHaveBeenCalled();
 });

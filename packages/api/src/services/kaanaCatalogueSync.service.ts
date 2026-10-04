@@ -56,6 +56,7 @@ import {
   modelReferenceSchema,
 } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
+import { sourceReviewedScopedAudience } from './scopedExecution.service';
 import {
   DEPLOYMENT_REQUEST_PARAMETERS,
   INFERENCE_MODALITIES,
@@ -670,11 +671,17 @@ async function ensureSyncedPrice(
   provider: string,
   price: KaanaListPrice,
   now: Date,
-  counts: MutableCounts
-): Promise<string> {
+  counts: MutableCounts,
+  scopedExecution?: ScopedExecutionAudience,
+): Promise<string | undefined> {
+  if (scopedExecution !== undefined) {
+    const reviewed = sourceReviewedScopedAudience();
+    if (reviewed === undefined || canonicalScopedExecutionJson(reviewed) !== canonicalScopedExecutionJson(scopedExecution)) return undefined;
+  }
   const expected = syncedUnitPrices(price);
   const [active] = await tx
-    .select({ id: priceVersions.id })
+    .select({ id: priceVersions.id, currency: priceVersions.currency,
+      effectiveFrom: priceVersions.effectiveFrom, effectiveUntil: priceVersions.effectiveUntil })
     .from(priceVersions)
     .where(
       and(
@@ -693,6 +700,12 @@ async function ensureSyncedPrice(
       })
       .from(priceVersionUnitPrices)
       .where(eq(priceVersionUnitPrices.priceVersionId, active.id));
+    if (scopedExecution !== undefined) {
+      // A scoped import cannot replace, rename or reprice an existing version.
+      return active.id === scopedExecution.priceVersionId && active.currency === 'USD' &&
+        active.effectiveFrom <= now && active.effectiveUntil === null && sameUnitPrices(units, expected)
+        ? active.id : undefined;
+    }
     if (sameUnitPrices(units, expected)) return active.id;
     // A changed list price never rewrites a published version: receipts
     // settled under it stay explainable. It is superseded, and a new one starts.
@@ -701,9 +714,15 @@ async function ensureSyncedPrice(
       .set({ status: 'superseded', effectiveUntil: now })
       .where(eq(priceVersions.id, active.id));
   }
+  if (scopedExecution !== undefined) {
+    const [collision] = await tx.select({ id: priceVersions.id }).from(priceVersions)
+      .where(eq(priceVersions.id, scopedExecution.priceVersionId)).for('update');
+    if (collision !== undefined) return undefined;
+  }
   const [created] = await tx
     .insert(priceVersions)
     .values({
+      ...(scopedExecution === undefined ? {} : { id: scopedExecution.priceVersionId }),
       status: 'active',
       modelReference,
       provider,
@@ -997,6 +1016,12 @@ async function applyPlannedModel(
       bump(counts.deploymentSkips, 'reviewed_deployment');
       continue;
     }
+    const priceVersionId = await ensureSyncedPrice(tx, planned.modelReference, route.provider, route.price, now, counts, route.scopedExecution);
+    if (priceVersionId === undefined) {
+      bump(counts.deploymentSkips, 'unattested_route');
+      continue;
+    }
+
     // The same exact id on a different revision/provider row is identity
     // drift: that row no longer describes the deployment, so it is retired
     // before the id is bound to the row that does.
@@ -1007,11 +1032,6 @@ async function applyPlannedModel(
       now
     );
 
-    const priceVersionId = await ensureSyncedPrice(tx, planned.modelReference, route.provider, route.price, now, counts);
-    if (route.scopedExecution !== undefined && route.scopedExecution.priceVersionId !== priceVersionId) {
-      bump(counts.deploymentSkips, 'unattested_route');
-      continue;
-    }
     const routeFacts = {
       scopedExecution: route.scopedExecution ?? null,
       regions: [...route.regions],

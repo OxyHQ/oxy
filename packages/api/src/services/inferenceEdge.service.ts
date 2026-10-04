@@ -975,15 +975,15 @@ async function admitWithAutoDecision(
   }
 
   const pilot = economics.treatment === 'internal_metered' ? economics.relationship.pilot : undefined;
-  const pilotInputBudget = pilot === undefined ? undefined : controlledInputBudget(request);
+  const pilotInputBudget = pilot === undefined ? undefined : controlledInputBudget(request, scopedPermit);
   if (pilot !== undefined) {
     if (pilotInputBudget === undefined) return refuse('unsupported_modality',
-      'The internal pilot serves controlled text completions only.', { param: 'input' });
+      'The input is outside the controlled internal pilot.', { param: 'input' });
     if (pilotInputBudget > pilot.maxControlledInputBudget) return refuse('context_length_exceeded',
       'The controlled input exceeds the internal pilot budget.', { param: 'input' });
   }
   const acceptsPilotDeployment = (route: EdgeRoute): boolean =>
-    pilot === undefined || pilotAllowsDeployment(pilot, route);
+    pilot === undefined || pilotAllowsDeployment(pilot, route, scopedPermit);
 
   // 5a. Resolve the policy this request is admitted under, and PIN its version.
   //     The application's own policy wins, then the owner account's; `none`
