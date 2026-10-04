@@ -1,0 +1,46 @@
+{
+  "kind": "i08-root-live-cohort-acceptance-projection-v1",
+  "accepted": true,
+  "rootReceiptSha256": "92a3cfad2edeb26bb00a8fc94f2ea344f2075f8f8642813885683b5b7dc751d9",
+  "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mercaria:61",
+  "image": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mercaria@sha256:36b6db86db15d8b25d726c467ed83dc9b4e19a425b5d5be724517e22f45a20fb",
+  "desired": 1,
+  "running": 1,
+  "pending": 0,
+  "deployment": "COMPLETED",
+  "taskIds": [
+    "9550fb24e4a04c429db737cdc0cb3817"
+  ],
+  "everyTaskRegistrationPositive": true,
+  "registration": {
+    "msg": "Merchant billing cohort registered",
+    "cohortSha256": "a7ed9819eb8aa2e8360a430c907092e0af2059a8f9539bafc8eb780771046ed3",
+    "mode": "live",
+    "environment": "production",
+    "storeCount": 2
+  },
+  "allTargetsHealthy": true,
+  "publicSmoke": [
+    {
+      "path": "/health",
+      "status": 200,
+      "bodySha256": "5422b9bd3e64cd364c16f748573eb39d819af77a818d741cbc05473e33c352ee",
+      "noCookies": true,
+      "noRedirects": true
+    },
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "bodySha256": "31bf75f4c0a97cc1f7b60df824fa390b3be9ba014f29b63c87c698ba63d9a9fd",
+      "noCookies": true,
+      "noRedirects": true
+    }
+  ],
+  "generalStripeAndNewActionsRemainDisabled": true,
+  "credentialAliasesUseExistingReferences": true,
+  "financialMutationPerformedByRollout": false,
+  "old404Preserved": true,
+  "registrationOrUpdateRepeated": false,
+  "actualLogFileSha256": "f0690156fcb3ac095632fc7663aee3ca23f396e1d369b872bd5346db3fa6a853",
+  "observedAt": "2026-10-04T08:22:25.421218+00:00"
+}

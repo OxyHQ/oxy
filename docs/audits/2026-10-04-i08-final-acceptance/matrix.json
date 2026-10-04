@@ -1,0 +1,125 @@
+{
+  "kind": "i08-original-criteria-final-acceptance-v1",
+  "preparedForRootReview": false,
+  "productionCohortRollStillPending": false,
+  "issue": "OxyHQ/Peable#87",
+  "preparedAt": "2026-10-04T08:19:12.871462+00:00",
+  "records": [
+    {
+      "path": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/docs/audits/2026-10-03-i08-billing-provider/checkout-sandbox/proof.json",
+      "sha256": "9488212513afb8e0767257142f775c124a24f0f738c2b9ba65f32652af81ba2e"
+    },
+    {
+      "path": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/docs/audits/2026-10-03-i08-billing-provider/test-clock/proof.json",
+      "sha256": "61a02e0469da3a145d80ebc3dee6f4335dd0d4ab1ea80951657275094e36a031"
+    },
+    {
+      "path": "/home/nate/Oxy/Peable/.worktrees/1519-pay-bloom621-compat-20261003/docs/audits/2026-10-04-final-registry-adoption/proof.json",
+      "sha256": "09b38a81a6a4e0c1a58c77f8bfd7fd649d38a17e587a7cd90228ea9cb82cd26e"
+    },
+    {
+      "path": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/docs/audits/2026-10-03-i11-sdk-webhook-adoption/proof.json",
+      "sha256": "821208097700e28a0a0688c27778e1c1ebd210532e51182d8c38fbbef0beddfa"
+    },
+    {
+      "path": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/docs/audits/2026-10-03-composed-webhook-utf8/proof.json",
+      "sha256": "e7090d5982a7ec5407486cf5973ca96a01eb73942d90c5c94b66e7dfcd541070"
+    },
+    {
+      "path": "/home/nate/Oxy/Mercaria/.worktrees/1519-final-sdk-pins-20261003/docs/audits/2026-10-04-final-registry-adoption/proof.json",
+      "sha256": "425c032064d9f53888c1de83db54be165978a6a2040523284d0476d490c346fd"
+    },
+    {
+      "path": "/home/nate/Oxy/Mercaria/.worktrees/1519-billing-cohort-independent-20261004/docs/audits/2026-10-04-cohort-canonical-store-ids/proof.json",
+      "sha256": "c9a3510067e81b0b8579b94c78b80f7bfdf1d6bbc09840d88f96dceccd3ea42b"
+    },
+    {
+      "path": "/home/nate/Oxy/Mercaria/.worktrees/1519-billing-cohort-independent-20261004/docs/audits/2026-10-04-cohort-canonical-store-ids/attestation-proof.json",
+      "sha256": "438e69679baf0c004d5ab6ea8a6d5e0bc0714a3ad43f3cf2231c778f339a16c8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-mercaria-cohort-image-20261004/consumer-image-verification.json",
+      "sha256": "1b75a410e956c64c854df8e8d6f562cc12d3c36456050553aca5bf1d7eac63f5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-mercaria-cohort-image-20261004/peable-sdk-supplement.json",
+      "sha256": "9264a99b5ba3cecc0f69a0f38a8dfe1700f77f097899b6c6c540ab473c6f27e8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-mercaria-cohort-image-20261004/migration-verification.json",
+      "sha256": "2e329235893004900fc389c5068ef4c633fbca808ea46df742d067d09802c154"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-production-merchant-v2-execution/accepted-reconciled.json",
+      "sha256": "a9fd1b7d262751bc917a7fd1240a7b5c27f24721f1e712032ffaf3df4e30e4c3"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-production-portal-execution/complete.json",
+      "sha256": "f37aee225fd8ac56b78d3c1bce34c6f0e6cdf34b2158be28a616f3ef790ce515"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-fresh-stores/execution/accepted.json",
+      "sha256": "ba4a9d9f0d81de7fb43c0849a19f6be15ec8fa4881cca34f61156e3481097b8c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-peable-cohort/accepted-reconciled.json",
+      "sha256": "d5d293d56ebedcfefecb48b3abbdb7d210ca2386b21e7dbcde87153c03fa46f7"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-mercaria-cohort-promotion/independent-readback/accepted-reconciled.json",
+      "sha256": "92a3cfad2edeb26bb00a8fc94f2ea344f2075f8f8642813885683b5b7dc751d9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-mercaria-cohort-promotion/independent-readback/logs-9550fb24e4a04c429db737cdc0cb3817-1791102091577799389.private.json",
+      "sha256": "f0690156fcb3ac095632fc7663aee3ca23f396e1d369b872bd5346db3fa6a853"
+    }
+  ],
+  "criteria": [
+    {
+      "criterion": "Cobertura y huecos comprobados",
+      "status": "verified",
+      "basis": "Approved five-method contract, source fixtures and accepted Checkout/TestClock provider sandbox."
+    },
+    {
+      "criterion": "Contrato recurrente y financiero aprobado",
+      "status": "verified",
+      "basis": "Approved exact Mercaria merchant/app/production/platform-live cohort, sameexistingMoR; no generalmerchantpolicy."
+    },
+    {
+      "criterion": "Implementaci\u00f3n y sandbox de los cinco m\u00e9todos BillingProvider",
+      "status": "verified",
+      "basis": "Actual Stripe test-mode Checkout/Portal/alta/cancel + TestClock firstinvoice/renewal/refund/failure/requires_action. Authsynthetic limit preserved."
+    },
+    {
+      "criterion": "SDK conserva scopes, keys, retry seguro, cuentas/transfers pertinentes y ciclo aprobado",
+      "status": "verified",
+      "basis": "Published SDK0.2.2 + sharedtypes0.3.0; actualMercariaSDKclient adoptionHTTP/SQL+ingress tests; newARMimage exact53SDKmembers. Marketplace/referral rails unchanged."
+    },
+    {
+      "criterion": "Duplicados/desorden y adaptaci\u00f3n no hacen dinero real",
+      "status": "verified",
+      "basis": "SQL/HTTP replay/concurrency/reorder/rollback + scope/namespace negatives; sandbox test-mode only; no newlivepayments inauthorizedcut."
+    },
+    {
+      "criterion": "Corte de proveedor autorizado con evidencia",
+      "status": "verified",
+      "basis": "ActualROOT acceptedMercaria61/image36b6 exactcohort+positiveownlog everytask+TGhealthy+health andhealth/ready200, no writesrepeated."
+    },
+    {
+      "criterion": "Hija y padre actualizadas",
+      "status": "ready_for_issue_sync",
+      "basis": "Thisdurable matrix and rootacceptedreceipt; issue originalbody will besynchronized andclosed under ROOT explicitinstruction."
+    }
+  ],
+  "remainingLegitimateAcceptance": [],
+  "notRequiredNewGates": [
+    "No human live purchase, charge, refund, newprice/product, subscription cancel/recreate, termsacceptance or generalSTRIPE_ENABLED=true.",
+    "No zero-cost inference claim, newmerchantpolicy, provider_connections or extra persistentcredentials."
+  ],
+  "limits": [
+    "Provider sandbox and attributedSQLtests provefunctionalmethods; cohortproductioncut provesconfiguredexclusiveauthority/reader+registeredadapter, not a newlivefinancialtransaction.",
+    "Priorcommercialinventory was empty; do not claim historicalcustomers/subscriptions migrated. Actual2stores/2owners remainexisting and scoped.",
+    "Historical source/provider sandbox evidence is distinct from actual Mercaria61/Peable9 livecohort configuration acceptance; no newlivefinancialtransaction is claimed."
+  ],
+  "rootLiveAcceptanceSha256": "92a3cfad2edeb26bb00a8fc94f2ea344f2075f8f8642813885683b5b7dc751d9"
+}
