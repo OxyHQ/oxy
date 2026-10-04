@@ -1,0 +1,77 @@
+{
+  "kind": "i11-final-acceptance-index-pending-operational-tail",
+  "newTestsExecuted": false,
+  "newOperationsExecuted": false,
+  "issueBodyEdited": false,
+  "sourceInputs": [
+    {
+      "head": "4de033f4755391b422867b5d626301258f497eb2",
+      "path": "docs/audits/2026-10-04-i11-original-criteria-index/proof.json",
+      "sha256": "74eac9d5ebea01a3e37228d89428bb94685b6d58dc2665c421b4bbc573073bf8",
+      "gitCurrentEqual": true
+    },
+    {
+      "head": "4de033f4755391b422867b5d626301258f497eb2",
+      "path": "docs/audits/2026-10-04-i05-final-acceptance/proof.json",
+      "sha256": "5987f9f854f658348666cc39aac605a2f47b8b96e916b9cae059ab65a53ccff6",
+      "gitCurrentEqual": true
+    },
+    {
+      "head": "4de033f4755391b422867b5d626301258f497eb2",
+      "path": "docs/audits/2026-10-04-i09-final-acceptance/proof.json",
+      "sha256": "46e706aa1f00544c8c5b81a71b03a2f7c57b9a896f24ed2114f4500d7ff96aba",
+      "gitCurrentEqual": true
+    },
+    {
+      "head": "4de033f4755391b422867b5d626301258f497eb2",
+      "path": "docs/audits/2026-10-03-old-issuer-rollback/proof.json",
+      "sha256": "aeb1bf006bb47b04b82d9bed1c7dd56d25a4c72c9040ea3fb34bc9fd9d2fc16c",
+      "gitCurrentEqual": true
+    }
+  ],
+  "rootReceipts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-census-final/census.json",
+      "sha256": "a4ba47ee64bcf36fc3ab9e3d940ab8f29ed6d07a7313dae10ab0e04d0015a6b5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-registry-web-accepted.json",
+      "sha256": "37c0123abfe85ff96aefc1eb72cf1368595e3954363172d566f99430e9aae88e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/accepted.json",
+      "sha256": "99bec5e75b3d0adee929c35f0392cdffd39919ec7fb8ef6bdab88398467f48f1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-mercaria-cohort-promotion/independent-readback/accepted-reconciled.json",
+      "sha256": "92a3cfad2edeb26bb00a8fc94f2ea344f2075f8f8642813885683b5b7dc751d9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-workflow-restoration/mercaria-restored.json",
+      "sha256": "949ce5779e73255a36ed57b2a0a53bf893ef3eaf71ff1842d5787a2e93375cf5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-four-frontends-accepted/accepted.json",
+      "sha256": "349d461415c4e3b7f62f895d573ba60e769fb3248c3177ecfc0157d9298253b8"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
+      "sha256": "ba77b63b404621a44a28cedd1d4e78c2967f5de79618886ad5ccbb211f500f09"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
+      "sha256": "1868f53b50ea8595dfd11e3f1edd674ad63706c128a4f79d92e667d6e6652dda"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/runtime-summary.json",
+      "sha256": "d267b8a68a92d727af4ac3432bea949f34e3d32289bdcf56c2c0919cdb243890"
+    }
+  ],
+  "pending": [
+    "I08 final original-criteria closure receipt",
+    "PR1569/quiescence and bounded Forge gate",
+    "Final consolidated workflow original-state reconciliation"
+  ]
+}

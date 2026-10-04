@@ -1,0 +1,75 @@
+{
+  "kind": "selected-root-acceptance-projection",
+  "rawReceiptsCopied": false,
+  "fleet": {
+    "observedAt": "2026-10-04T08:23:06.014509+00:00",
+    "ECSListedCount": 31,
+    "nonlegacyCount": 31,
+    "nonlegacyZeroDesired": [
+      "tnp-relay"
+    ],
+    "nonlegacyUnsteady": [],
+    "suspendedScalers": [],
+    "AWSWrites": 0,
+    "containsNoEnvironmentOrSecretValues": true
+  },
+  "mercaria": {
+    "accepted": true,
+    "taskDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mercaria:61",
+    "sameImageRuntimeOnly": true,
+    "workflowId": 299667145,
+    "workflowState": "active",
+    "commercialCycleAcceptance": "Owned by I08; no commercial effect inferred from runtime health."
+  },
+  "web": {
+    "accepted": true,
+    "at": "2026-10-04T03:35:22.723398+00:00",
+    "artifactFilesVerified": 108,
+    "servedResponsesVerified": 12,
+    "transportLimitation": "Only browser RP static GET routing to byte-pinned artifact; real API/IdP and callback origin/PKCE unmodified. Not production client acceptance."
+  },
+  "android": {
+    "accepted": true,
+    "at": "2026-10-04T03:32:43.479035+00:00",
+    "device": "emulator-5580",
+    "freshUIProfileReads": 10,
+    "coldWindows": 3,
+    "identitySignerAndSecureStoreUnchanged": true,
+    "limits": [
+      "Emulator fixture apps, not human production account use",
+      "Path capture shared with concurrent web fixtures; traffic not uniquely attributable to each app",
+      "Response statuses were not captured; fresh profile acceptance uses completed SDK UI sequence and expected account, with GET observed in matching windows",
+      "Native legacy corruption coverage not rerun in this replay"
+    ]
+  },
+  "frontends": {
+    "accepted": true,
+    "holdRestored": true
+  },
+  "sourceReceipts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/fleet-census-final/census.json",
+      "sha256": "a4ba47ee64bcf36fc3ab9e3d940ab8f29ed6d07a7313dae10ab0e04d0015a6b5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-registry-web-accepted.json",
+      "sha256": "37c0123abfe85ff96aefc1eb72cf1368595e3954363172d566f99430e9aae88e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/accepted.json",
+      "sha256": "99bec5e75b3d0adee929c35f0392cdffd39919ec7fb8ef6bdab88398467f48f1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-mercaria-cohort-promotion/independent-readback/accepted-reconciled.json",
+      "sha256": "92a3cfad2edeb26bb00a8fc94f2ea344f2075f8f8642813885683b5b7dc751d9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-workflow-restoration/mercaria-restored.json",
+      "sha256": "949ce5779e73255a36ed57b2a0a53bf893ef3eaf71ff1842d5787a2e93375cf5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-four-frontends-accepted/accepted.json",
+      "sha256": "349d461415c4e3b7f62f895d573ba60e769fb3248c3177ecfc0157d9298253b8"
+    }
+  ]
+}
