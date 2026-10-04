@@ -432,6 +432,9 @@ for (const mutate of [
 }
 for (const mutate of [
 	(s) => {
+		s.loadBalancers[0].targetGroupArn = "foreign-target-group";
+	},
+	(s) => {
 		s.serviceName = "foreign";
 	},
 	(s) => {

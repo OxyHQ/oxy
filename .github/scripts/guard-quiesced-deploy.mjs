@@ -536,6 +536,7 @@ export function assertFinalDeployment(
 	assert.deepEqual(latest.failures, []);
 	assert.equal(latest.services.length, 1);
 	const current = latest.services[0];
+	assertBaselineInfrastructure(plan, { ...snapshot, service: latest }, !admitted);
 	assert.equal(current.serviceName, plan.service);
 	assert.equal(current.status, "ACTIVE");
 	assert.equal(current.taskDefinition, newDefinition);
