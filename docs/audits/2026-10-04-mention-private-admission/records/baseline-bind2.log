@@ -1,0 +1,48 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1853806, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-6iux9nf4/data", "port": 5598, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/routes/__tests__/mentionPrivateCommissioning.test.ts
+  console.log
+    [REDACTED: synthetic binding debug payload; original log retained privately by SHA-256]
+
+      at src/routes/__tests__/mentionPrivateCommissioning.test.ts:34:324
+
+FAIL src/routes/__tests__/mentionPrivateCommissioning.test.ts (5.628 s)
+  ✕ admits the own-role privately reviewed classifier with charging off, no funds or hold (69 ms)
+
+  ● admits the own-role privately reviewed classifier with charging off, no funds or hold
+
+    {"status":503,"body":{"schemaVersion":1,"code":"service_unavailable","message":"Decisions await reviewed provider eligibility, privacy, ZDR and contract negotiation.","retryable":false,"requestId":"fd57cadc-6a7f-4186-94f7-d03456f4a03a"}}
+
+      84 |
+      85 |
+    > 86 | it('admits the own-role privately reviewed classifier with charging off, no funds or hold',async()=>{const f=await authorizedFixture();jest.spyOn(rollout,'isChargingAuthorized').mockReturnValue(false);const result=await post(f);if(result.status!==200)throw new Error(JSON.stringify(result));expect(result).toMatchObject({status:200});expect(executions).toBe(1);const rows=await getDb().select().from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.applicationId,identity.applicationId));expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({economicTreatment:'internal_metered',economicRelationshipId:'mention-jev-kaana',applicationCredentialId:identity.credentialId});expect(await getDb().select().from(usageReservations).where(eq(usageReservations.applicationId,identity.applicationId))).toHaveLength(0);expect(await getDb().select().from(usageReceipts).where(eq(usageReceipts.applicationId,identity.applicationId))).toHaveLength(0);expect((await post(f)).status).toBe(409);expect(executions).toBe(1);});
+         |                                                                                                                                                                                                                                                                  ^
+      87 |
+
+      at src/routes/__tests__/mentionPrivateCommissioning.test.ts:86:258
+      at fulfilled (src/routes/__tests__/mentionPrivateCommissioning.test.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        5.653 s, estimated 6 s
+Ran all test suites within paths "src/routes/__tests__/mentionPrivateCommissioning.test.ts".
+error: script "test" exited with code 1
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-6iux9nf4"}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 59, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 50, in main
+    run(['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__tests__/mentionPrivateCommissioning.test.ts'], cwd=ROOT / 'packages/api')
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 22, in run
+    return subprocess.run([str(x) for x in argv], env=env, text=True, check=True, **kw)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__tests__/mentionPrivateCommissioning.test.ts']' returned non-zero exit status 1.

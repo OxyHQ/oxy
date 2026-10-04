@@ -60,6 +60,8 @@ export interface InternalMeteredCapacity {
   readonly maxConcurrentRequests: number;
   /** Requests admitted per UTC day, per application + environment. */
   readonly maxRequestsPerUtcDay: number;
+  /** Default remains all application traffic; a reviewed feature may own a separate budget. */
+  readonly scope?: 'relationship';
 }
 
 export interface InternalMeteredPilot {

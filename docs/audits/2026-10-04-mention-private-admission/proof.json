@@ -1,0 +1,117 @@
+{
+  "sourceHead": "fe2ec3af2f5353eaacdb0563d056c94439be89da",
+  "baseComposition": "e03e42c02",
+  "sources": [
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/README.md",
+      "sha256": "fb3f2800791a1da242818bacdfba3fe7e724986dd939a6ecfeb81137a65a73f1"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts",
+      "sha256": "5cbea8ffe78a649719a1f2c4e1b115a1e8968b1b94382c46d5d23bb4f8a664a6"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "ab1844ad8600d4e2c81e3fb91bcd14ba0eea7c0d9a64257a36f2363fc94f1a34"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/baseline-bind2.log",
+      "sha256": "fcb2c88c96666f26d17397d16ffca51c38045d15015a2c5cf62e1c9ab1811769",
+      "redaction": {
+        "originalSha256": "83a2da2a542976fba3d44aaac98cfd16d4b817ba5195bf1d7432b708c418d16f",
+        "removed": "Synthetic binding debug payload on line 6; scanner flagged key-like fixture value. Test results retained."
+      }
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/baseline.log",
+      "sha256": "915d6998fb290cb50d3b583a43739c6cae3754807b3a71685342b12cc7fc9588"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/build-final.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/check-types.cjs",
+      "sha256": "fc9f5f85c50ab21c5d3dffc3924680d522aee806ce72b64ac1e4b4fee95a46da"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/expanded-green.log",
+      "sha256": "04e3f7e65eea5ccc5be362a218bb9dbb1c63ef3a83519873aee6a7e46578ec56"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/final-110-green.log",
+      "sha256": "4796af4c09c6b0133e89c61b935465ad167a078136fc2cf55b5212854ed76f93"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/final-14-frozen.test.ts",
+      "sha256": "5cbea8ffe78a649719a1f2c4e1b115a1e8968b1b94382c46d5d23bb4f8a664a6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/final-14-red.log",
+      "sha256": "6d6dcc8662775caddb17c6fbf02b4f9897248d64f4fa0e4b557d81b94d232b2e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/funding-green-attempt.log",
+      "sha256": "1e7b5a1a9f9a33fe3ba9036c51178f81d24cd8a091bd8662c707bc2b82116473"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/owned-pg.py",
+      "sha256": "fcff466f69436d7aeaba3702230f7940b2969bad7f79c2ce90d0da33fbf15b8b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/regression-pg.py",
+      "sha256": "c73faa4a2bb976dd2ad7f1c672dca3296a5017ed2d7ef48a71cf74c864e24ed1"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/types-config-canonical.log",
+      "sha256": "b2533169e71153daa6cd5827c263f2430241ae15b8f06b30319c602ab2c94d9b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/types-final.log",
+      "sha256": "441c69afac8d0f07a6c37a908e54ee2ae39fce83ed27d9b752dba088c8034238"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-private-admission/records/types.log",
+      "sha256": "54896bbd81d920701baced01d871b94b03c0281020bfcf62403e6dacff5da1b7"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/api/dist/services/inferenceEdge.service.js",
+      "sha256": "ff7aa050ace8f7a24b824cc3ca366b98b3ea6fa00944e1e6a558a3c3ee2af391"
+    }
+  ],
+  "validation": {
+    "frozenRed": {
+      "failed": 2,
+      "passed": 12
+    },
+    "finalFocal": 14,
+    "regressionTests": 110,
+    "suites": 6,
+    "buildExit": 0,
+    "modifiedLintExit": 0,
+    "canonicalConfigTypesIncludingFixtureDiagnostics": 0,
+    "ownedPostgresPidsAbsent": [
+      1850208,
+      1853806,
+      1854983,
+      1856454,
+      1864636,
+      1864789
+    ]
+  },
+  "limits": [
+    "Synthetic source approvals and Kaana response",
+    "Real signed service HTTP, live local authority and normally migrated SQL",
+    "Production approval getters remain undefined",
+    "No AWS/provider/production operations",
+    "Commercial charging OFF is the specific regression condition"
+  ]
+}

@@ -103,7 +103,7 @@
  * prompt with a positive control proving the logger was called at all.
  */
 
-import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, exactDecimalSchema, type DecisionAnswer } from '@oxy.so/contracts';
+import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, type DecisionAnswer } from '@oxy.so/contracts';
 import { decisionAvailability } from '../config/decisionAvailability';
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -929,7 +929,7 @@ async function admitWithAutoDecision(
   let economics = resolveEconomicTreatment(principal);
   const classifierApproval = mentionClassifierApproval();
   const mentionClassifier = classifierApproval !== undefined
-    && isMentionClassifierRequest(principal, request, classifierApproval) ? { ...classifierApproval } : undefined;
+    && isMentionClassifierRequest(principal, request, classifierApproval) ? classifierApproval : undefined;
 
   const refuse = (
     code: InferenceErrorCode,
@@ -985,10 +985,7 @@ async function admitWithAutoDecision(
   if (pilot !== undefined) {
     if (pilotInputBudget === undefined) return refuse('unsupported_modality',
       'The input is outside the controlled internal pilot.', { param: 'input' });
-    const inputCeiling = request.operation.kind === 'completion'
-      ? pilot.maxControlledCompletionInputBudget ?? pilot.maxControlledInputBudget
-      : pilot.maxControlledInputBudget;
-    if (pilotInputBudget > inputCeiling) return refuse('context_length_exceeded',
+    if (pilotInputBudget > pilot.maxControlledInputBudget) return refuse('context_length_exceeded',
       'The controlled input exceeds the internal pilot budget.', { param: 'input' });
   }
   const acceptsPilotDeployment = (route: EdgeRoute): boolean =>
@@ -1077,12 +1074,7 @@ async function admitWithAutoDecision(
         ? 0
         : requestedOutput ?? ('model-maximum' as const),
   };
-  // Mention's exact source-reviewed classifier is still only a candidate here.
-  // Let catalogue/attestation/quote qualify it; the mandatory decision below
-  // must establish live authority and bounded internal treatment before any claim.
-  // All other commercial scoped requests retain their funding prerequisite.
-  if (scopedPermit !== undefined && economics.treatment === 'commercial'
-    && mentionClassifier === undefined && (!charging || !scopedFundingIntegrationAvailable())) {
+  if (scopedPermit !== undefined && economics.treatment === 'commercial' && (!charging || !scopedFundingIntegrationAvailable())) {
     return refuse('service_unavailable', 'Scoped promotional funding integration is unavailable.');
   }
   const authenticatedRoutingContext = {
@@ -1196,20 +1188,6 @@ async function admitWithAutoDecision(
     { readonly status: 'resolved' }
   > | undefined;
   let maxPricePerRequest = routingConstraints.maxPricePerRequest;
-  const parsedPilotPrice = pilot?.maxPricePerRequestUsd === undefined
-    ? undefined : exactDecimalSchema.safeParse(pilot.maxPricePerRequestUsd);
-  if (parsedPilotPrice !== undefined && !parsedPilotPrice.success) {
-    return refuse('policy_violation', 'The internal pilot quote ceiling is invalid.');
-  }
-  const pilotPriceLimit = parsedPilotPrice?.success ? parsedPilotPrice.data : undefined;
-  if (pilotPriceLimit !== undefined) {
-    if (maxPricePerRequest !== undefined && maxPricePerRequest.currency !== 'USD') {
-      return refuse('policy_violation', 'The internal pilot quote ceiling requires USD.');
-    }
-    if (maxPricePerRequest === undefined || exceedsAmount(maxPricePerRequest.amount, pilotPriceLimit)) {
-      maxPricePerRequest = { amount: pilotPriceLimit, currency: 'USD' };
-    }
-  }
   const childPriceLimit = context.autoClassificationChild?.maxPricePerRequest;
   if (childPriceLimit !== undefined) {
     if (maxPricePerRequest !== undefined && maxPricePerRequest.currency !== childPriceLimit.currency) {
@@ -1889,9 +1867,6 @@ async function admitWithAutoDecision(
     }
   }
 
-  if (pilotPriceLimit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, pilotPriceLimit))) {
-    return refuse('policy_violation', 'The internal pilot quote exceeds its authorized USD ceiling.');
-  }
   if (scopedPermit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, scopedPermit.maxCostUsd))) {
     return refuse('policy_violation', 'Scoped quote exceeds the authorized USD cost.');
   }
@@ -2179,23 +2154,21 @@ export async function executeInferenceRequest(
     if (context.kaanaClient === undefined) {
       throw new DataPlaneNotConfiguredError();
     }
+    if (admitted.mentionClassifier !== undefined) {
+      const current = mentionClassifierApproval();
+      if (JSON.stringify(current) !== JSON.stringify(admitted.mentionClassifier)
+        || Date.parse(admitted.mentionClassifier.expiresAt) <= Date.now()
+        || !await mentionClassifierAuthorityActive(context.principal)
+        || !await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId)) {
+        throw new Error('Mention classifier relationship is no longer active.');
+      }
+    }
     if (admitted.scopedExecution !== undefined) {
       const economicAdmissionActive = admitted.economics.treatment === 'internal_metered'
         ? await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId)
         : hold !== undefined && hold.expiresAt.getTime() > Date.now();
       if (!economicAdmissionActive || Date.parse(admitted.scopedExecution.expiresAt) <= Date.now()) {
         throw new Error('Scoped dispatch requires its retained unexpired economic admission and permit.');
-      }
-    }
-    if (admitted.mentionClassifier !== undefined) {
-      const authorityActive = await mentionClassifierAuthorityActive(context.principal);
-      const admissionActive = await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId);
-      // Re-read source approval and time AFTER both asynchronous database reads.
-      const current = mentionClassifierApproval();
-      if (!authorityActive || !admissionActive
-        || JSON.stringify(current) !== JSON.stringify(admitted.mentionClassifier)
-        || Date.parse(admitted.mentionClassifier.expiresAt) <= Date.now()) {
-        throw new Error('Mention classifier relationship is no longer active.');
       }
     }
     completion = await context.kaanaClient.execute(envelope, { signal: context.signal });

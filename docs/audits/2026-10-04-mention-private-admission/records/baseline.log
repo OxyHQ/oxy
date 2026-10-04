@@ -1,0 +1,62 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1850208, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-muoceakg/data", "port": 5598, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/routes/__tests__/mentionPrivateCommissioning.test.ts
+FAIL src/routes/__tests__/mentionPrivateCommissioning.test.ts
+  ● Test suite failed to run
+
+    Cannot find module '@oxy.so/telemetry/browser' from '../core/src/utils/edgeRegion.ts'
+
+    Require stack:
+      /home/nate/Oxy/oxy/.worktrees/mention-private-admission-composition-20261004/packages/core/src/utils/edgeRegion.ts
+      /home/nate/Oxy/oxy/.worktrees/mention-private-admission-composition-20261004/packages/core/src/HttpService.ts
+      /home/nate/Oxy/oxy/.worktrees/mention-private-admission-composition-20261004/packages/core/src/OxyServices.ts
+      /home/nate/Oxy/oxy/.worktrees/mention-private-admission-composition-20261004/packages/core/src/server/OxyServer.ts
+      /home/nate/Oxy/oxy/.worktrees/mention-private-admission-composition-20261004/packages/core/src/server/index.ts
+      src/utils/userCache.ts
+      src/services/user.service.ts
+      src/services/session.service.ts
+      src/middleware/authUtils.ts
+      src/services/inferenceEdge.service.ts
+      src/routes/__tests__/mentionPrivateCommissioning.test.ts
+
+    > 1 | export { peekBrowserEdgeRegionHeader } from '@oxy.so/telemetry/browser';
+        | ^
+      2 |
+
+      at Resolver._throwModNotFoundError (../../node_modules/.bun/jest-resolve@30.5.1/node_modules/jest-resolve/build/index.js:1031:11)
+      at Object.<anonymous> (../core/src/utils/edgeRegion.ts:1:1)
+      at Object.<anonymous> (../core/src/HttpService.ts:27:1)
+      at Object.<anonymous> (../core/src/OxyServices.ts:23:1)
+      at Object.<anonymous> (../core/src/server/OxyServer.ts:41:1)
+      at Object.<anonymous> (../core/src/server/index.ts:20:1)
+      at Object.<anonymous> (src/utils/userCache.ts:20:1)
+      at Object.<anonymous> (src/services/user.service.ts:36:1)
+      at Object.<anonymous> (src/services/session.service.ts:15:1)
+      at Object.<anonymous> (src/middleware/authUtils.ts:11:1)
+      at Object.<anonymous> (src/services/inferenceEdge.service.ts:176:1)
+      at Object.<anonymous> (src/routes/__tests__/mentionPrivateCommissioning.test.ts:17:1)
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        1.845 s
+Ran all test suites within paths "src/routes/__tests__/mentionPrivateCommissioning.test.ts".
+error: script "test" exited with code 1
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-muoceakg"}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 59, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 50, in main
+    run(['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__tests__/mentionPrivateCommissioning.test.ts'], cwd=ROOT / 'packages/api')
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 22, in run
+    return subprocess.run([str(x) for x in argv], env=env, text=True, check=True, **kw)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__tests__/mentionPrivateCommissioning.test.ts']' returned non-zero exit status 1.

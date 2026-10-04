@@ -1,0 +1,155 @@
+{
+  "sourceHead": "66c494787932218ac82f05ca52b53368c7ec6112",
+  "base": "28d90e4f2c9143253843725aa361975ec951c6cd",
+  "sources": [
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/README.md",
+      "sha256": "039b2a69e43c2d4e0c5af2bf323129ad27c07ecfeea9f15f4517fd8870cbc55a"
+    },
+    {
+      "path": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sha256": "578d23ed734494cfcc706764598b46706e508fca37701a238b580fda070170ae"
+    },
+    {
+      "path": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "sha256": "c87839d53177eaeebd3d7c9fa3c20afc2a1ebcd967ef1eb6ab5b29229c33126c"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/inferenceMeteredUsage.service.test.ts",
+      "sha256": "2f05318c4e97ad3334f7d65d04d797a84af1077c1f5b5636258c556077fa496c"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierAdmission.test.ts",
+      "sha256": "125fb90f4b2d237a268b929b73fcc6e0e943f316facc89c87e3aa90de34943f8"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierAuthority.db.test.ts",
+      "sha256": "fee0b7e4c8975917d92f898f91c11519810d1b851ca91ebdaa579320c9e0ba1a"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "sha256": "04d08bffbdfcc49d14694bb6c441ab0485396ba6e064c9d7596c25cec84e7399"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "e5402c9e7366eaa0c6508c06e65c885c9002477b58fcf839d7d01a572b8dd680"
+    },
+    {
+      "path": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "sha256": "c1445369fa3f0e378f08e3142c857881793de25ec4d420a420832b41f93badfd"
+    },
+    {
+      "path": "packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "sha256": "578f8dd845090824db36172c7ae9564cc6b8b3fe8233e81975c80d3ff7ce3998"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/build-edge.log",
+      "sha256": "eb96791cb7f7ae99510d7777eb492a85c17f18f417c564efaf0d8af3e569217e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/build-final.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/build-initial.log",
+      "sha256": "eb96791cb7f7ae99510d7777eb492a85c17f18f417c564efaf0d8af3e569217e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/compile-committed.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/edge-before-expiry-fix.ts",
+      "sha256": "e9074b503134723c9d2c42ca5919abf035603299c8a3f1db251c98fefd95d667"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/expiry-race-frozen.test.ts",
+      "sha256": "125fb90f4b2d237a268b929b73fcc6e0e943f316facc89c87e3aa90de34943f8"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/expiry-race-green.log",
+      "sha256": "3d67a5aa1ad720f8047f2ba8b2a0d630048298b939c3eab0515cd5365b4d7673"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/expiry-race-red.log",
+      "sha256": "cd932cd938acb4231f1553dbf18074c63d97ced62168b7bf44efe4808ceaaab9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/install.log",
+      "sha256": "edbcb654d7708e36ccf33c6c98ab238102658576c2f60ae7a6ee3494ed5be0a4"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/lint-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/owned-pg.py",
+      "sha256": "a5938419630aef2928fd9271bae4de0aa08946c04233242f10cb980826359ff7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/tests-committed.log",
+      "sha256": "f8b7f1fe27a3c598cfec7028f4aafbdae096c6f460883a094f999b65cfa3fa5a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/tests-expanded.log",
+      "sha256": "6f4e3b646799ea93d3d109fa53fdfcce4c8e7622eb87b6615d89f420f305ce44"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/tests-expanded2.log",
+      "sha256": "b1a00a78b53e94a80c6c7b1681b475e9bb29d6cbbb6d91b1a753b99683ae5566"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mention-scoped-internal-policy/records/tests-initial.log",
+      "sha256": "7999ba5f6f553a7c88fcb947f0dfd4957c3e242e660f36cbdbb67e280c33251d"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/api/dist/config/mentionClassifierEconomics.js",
+      "sha256": "da5acf878dd42070030cc5dd1fb20d2e2ca7ab841165126b882ad059f1044cce"
+    },
+    {
+      "path": "packages/api/dist/config/inferenceEconomicPolicy.js",
+      "sha256": "5a2dffd198e7f0737202017e088d2f6e473fd2eea58fc280bab31f9fd51612f4"
+    },
+    {
+      "path": "packages/api/dist/services/mentionClassifierEconomics.service.js",
+      "sha256": "ce304f2392aaab1c584683ad09d632677aeae5839e2372378383bd8c316969da"
+    },
+    {
+      "path": "packages/api/dist/services/inferenceEdge.service.js",
+      "sha256": "266715bfc65d4d0115f4c2cd1cbce23b6b8f1e9d7426dac3ef3a804f6ae71bbd"
+    },
+    {
+      "path": "packages/api/dist/services/inferenceMeteredUsage.service.js",
+      "sha256": "d0f9d9fe13a00aaaa47ec0809c1992c21119660c89d8b0f6691462c2b06f3939"
+    }
+  ],
+  "results": {
+    "tests": 99,
+    "suites": 9,
+    "apiBuild": 0,
+    "finalCompile": 0,
+    "newFilesLint": 0,
+    "ownedPostgresStopped": true,
+    "expiryFixtureSha256": "125fb90f4b2d237a268b929b73fcc6e0e943f316facc89c87e3aa90de34943f8",
+    "expiryRaceBefore": {
+      "pass": 69,
+      "fail": 1
+    },
+    "expiryRaceAfter": {
+      "pass": 70,
+      "fail": 0
+    }
+  },
+  "limits": [
+    "Approval getter remains undefined; no runtime, authority, trust, funding, provider or SDK publication change.",
+    "Canonical route/pricing/attestation collaborators are synthetic in admission tests; lifecycle and concurrency tests use real owned PostgreSQL.",
+    "Dispatch-expiry RED was in this new unpublished implementation, not an observed production incident.",
+    "Initial missing db import, invalid owner enum and mismatched synthetic default policy are setup/fixture mistakes retained separately, not counted as product RED.",
+    "Quote ceiling is canonical USD tariff evidence; controlled input budget is not certified provider invoice cost.",
+    "Root independently changing Alia pilot sizing; this source only adds optional relationship capacity scope and does not alter Alia policy values."
+  ]
+}
