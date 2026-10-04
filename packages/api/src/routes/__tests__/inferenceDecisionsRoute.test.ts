@@ -37,6 +37,8 @@ it("mounts authentication before all three existing limiters", () => {
 });
 it.each([
   [body, "service_unavailable", 503],
+  [{ ...body, state: "\ud800" }, "invalid_request", 400],
+  [{ ...body, questions: [{ ...body.questions[0], id: "\udfff" }] }, "invalid_request", 400],
   [{ ...body, stream: true }, "invalid_request", 400],
   [{ ...body, effort: "ultra" }, "invalid_request", 400],
 ])(

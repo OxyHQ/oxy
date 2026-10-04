@@ -1,5 +1,6 @@
 import {
   decisionAnswerSchema,
+  decisionInputSchema,
   decisionAnswersMatch,
   decisionRequestSchema,
   decisionInputBudget,
@@ -206,3 +207,32 @@ it("types a decisions failure without inventing usage or completion", () => {
   expect(decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: "req-g", error }).success).toBe(false);
   expect(decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: "req-f", error, extra: true }).success).toBe(false);
 });
+
+const unicodeInputs = (value: string) => [
+  { ...request, state: value },
+  { ...request, instructions: value },
+  { ...request, questions: [{ ...request.questions[0], id: value }] },
+  { ...request, questions: [{ ...request.questions[0], question: value }] },
+  { ...request, questions: [{ ...request.questions[0], criteria: value }] },
+  { ...request, questions: [{ id: "q", kind: "choice", question: "Pick", options: [value, "other"] }] },
+  { ...request, questions: [{ id: "q", kind: "score", question: "Rate", levels: [value, "other"] }] },
+];
+it.each(["\ud800", "\udfff", "x\ud800y", "\ud800\ud800", "\udc00\ud800"])(
+  "rejects unpaired UTF-16 in every provider-visible input field (%j)",
+  value => {
+    for (const input of unicodeInputs(value)) {
+      expect(decisionRequestSchema.safeParse(input).success).toBe(false);
+      const { model: _model, ...payload } = input;
+      expect(decisionInputSchema.safeParse(payload).success).toBe(false);
+    }
+  },
+);
+it.each(["😀", "x😀y", "\ufffd", "é", "e\u0301"])(
+  "preserves valid Unicode without normalization (%s)", value => {
+    for (const input of unicodeInputs(value)) {
+      expect(decisionRequestSchema.parse(input)).toEqual(input);
+      const { model: _model, ...payload } = input;
+      expect(decisionInputSchema.parse(payload)).toEqual(payload);
+    }
+  },
+);
