@@ -1,0 +1,52 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/scopedAdmission.test.ts
+FAIL src/services/__tests__/scopedAdmission.test.ts
+  ● admits exact scoped decisions through the actual Alia internal pilot without a monetary hold
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "admitted"
+    Received: "refused"
+
+      125 |   kaanaClient.attestDeployments.mockResolvedValue({ ...attestation, deployments: [{ ...audience, scopedExecution: audience, regions: [] }] });
+      126 |   const result = await admitRequest({ ...context, principal, kaanaClient });
+    > 127 |   expect(result.status).toBe('admitted');
+          |                         ^
+      128 |   if (result.status !== 'admitted') throw new Error(JSON.stringify(result));
+      129 |   expect(result.admitted.scopedExecution?.permitId).toBe(audience.permitId);
+      130 |   expect(metered.claimMeteredAdmission).toHaveBeenCalledTimes(1);
+
+      at src/services/__tests__/scopedAdmission.test.ts:127:25
+      at fulfilled (src/services/__tests__/scopedAdmission.test.ts:38:58)
+
+  ● keeps the internal input ceiling before quote, reservation, metering or provider execution
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+        "error": Object {
+    -     "code": "context_length_exceeded",
+    +     "code": "unsupported_modality",
+        },
+        "status": "refused",
+      }
+
+      140 |   const kaanaClient = client();
+      141 |   const result = await admitRequest({ ...context, principal, request: { ...context.request, input }, kaanaClient });
+    > 142 |   expect(result).toMatchObject({ status: 'refused', error: { code: 'context_length_exceeded' } });
+          |                  ^
+      143 |   expect(ledger.quoteUnits).not.toHaveBeenCalled();
+      144 |   expect(metered.claimMeteredAdmission).not.toHaveBeenCalled();
+      145 |   expect(ledger.reserve).not.toHaveBeenCalled();
+
+      at src/services/__tests__/scopedAdmission.test.ts:142:18
+      at fulfilled (src/services/__tests__/scopedAdmission.test.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 12 passed, 14 total
+Snapshots:   0 total
+Time:        0.765 s, estimated 1 s
+Ran all test suites within paths "src/services/__tests__/scopedAdmission.test.ts".
+error: script "test" exited with code 1

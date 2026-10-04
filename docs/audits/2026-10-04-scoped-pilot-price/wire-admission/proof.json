@@ -1,0 +1,75 @@
+{
+  "sourceHead": "f70c1253296f5f9c27360e13b6b97bdcedabb7f1",
+  "sources": [
+    {
+      "path": "packages/api/src/services/__tests__/inferenceInternalPilot.test.ts",
+      "sha256": "6d34c488358d4a090204adc4caa737477b3ec4a9f7987ad56e7531fd47fab17d"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "sha256": "2dfcc3521e880387d91a36e622aed7b06d07b465e7e8391de427ad18ca551993"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "bd8775280ee30c1e03019d6ceebb01915cf54f7f695885f8930a455708c17dbf"
+    },
+    {
+      "path": "packages/api/src/services/inferenceInternalPilot.ts",
+      "sha256": "9f51b3cc662edfe057d4f58eeb82b0f29de83007a26f8fa13905437409b53d34"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "203956f5a6f4977d495b8aa4b1f076f657aa3fdf587ddb901d01c90c82fbe3f5"
+    },
+    {
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "94fe71fa6274c3266bb0a5e27ef1952c067c4a1974ca2cf5ce32884c2b915348"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "sha256": "7891f723d842f73ef56d8e77c9cd9d520ca399d6ffce604135f729c4b949c4c3"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/wire-admission/records/tests-third.log",
+      "sha256": "70686711a6f7c559ef96b3c8c5afefa68cb278eebb5fb17b584d5c575f3331ad"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/wire-admission/records/tests-fourth.log",
+      "sha256": "74d99a3dbe7499fe7c724eb3621457ea84d982bae6bf5b99fdefa9df7749eaa5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/wire-admission/records/admission-baseline.log",
+      "sha256": "c3c4872aa678ec90d712398870213f25802b6fb9d970be24cb9ed05d8784bb74"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/wire-admission/records/admission-baseline-result.json",
+      "sha256": "ce6754440043536e59ecbf4eabb1388fbd81ebc96972ef762e0d3afb0cb2977d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/wire-admission/records/typecheck-wire.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/wire-admission/records/lint-wire.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "results": {
+    "greenTests": 68,
+    "greenSuites": 6,
+    "baselineAdmission": {
+      "failed": 2,
+      "passed": 12,
+      "filesRestoredByteExact": true
+    },
+    "typecheckExit": 0,
+    "lintExit": 0,
+    "postgresStopped": true
+  },
+  "limits": [
+    "Actual admission function with synthetic signed attestation and DB stubs; separate catalogue import tests use real owned PostgreSQL.",
+    "Source approval remains undefined; no canary, activation or production DB mutation."
+  ]
+}

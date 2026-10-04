@@ -1,0 +1,9 @@
+{
+  "exitCode": 1,
+  "baseline": "fbf106022^",
+  "files": [
+    "packages/api/src/services/inferenceInternalPilot.ts",
+    "packages/api/src/services/inferenceEdge.service.ts"
+  ],
+  "scope": "Original pilot/edge implementation against final scopedAdmission fixture; no production changes"
+}
