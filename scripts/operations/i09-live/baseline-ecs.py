@@ -128,7 +128,12 @@ def verify_registered(actual, expected):
     container = containers[0]; intended = expected['containerDefinitions'][0]
     for key in ['name', 'image', 'essential', 'entryPoint', 'command', 'workingDirectory']:
         require(container.get(key) == intended[key], 'Registered executable differs: ' + key)
-    for key in ['environment', 'secrets', 'portMappings', 'mountPoints', 'volumesFrom']:
+    for key in ['environment', 'secrets']:
+        observed=container.get(key,[])
+        require(isinstance(observed,list) and all(isinstance(row,dict) and isinstance(row.get('name'),str) for row in observed),'Invalid named container input: '+key)
+        require(len({row['name'] for row in observed})==len(observed),'Duplicate named container input: '+key)
+        require(sorted(observed,key=lambda row:row['name'])==sorted(intended[key],key=lambda row:row['name']),'Registered container inputs differ: '+key)
+    for key in ['portMappings', 'mountPoints', 'volumesFrom']:
         require(container.get(key, []) == intended[key], 'Registered container inputs differ: ' + key)
     require(not container.get('environmentFiles') and not container.get('links') and not container.get('extraHosts') and not container.get('dnsServers') and not container.get('dnsSearchDomains') and not container.get('systemControls') and not container.get('ulimits') and not container.get('privileged') and not container.get('linuxParameters') and not container.get('dependsOn') and not container.get('healthCheck') and not container.get('repositoryCredentials') and not container.get('resourceRequirements') and not container.get('user'), 'Registered container gained execution behavior')
     log = container.get('logConfiguration', {})

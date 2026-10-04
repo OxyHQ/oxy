@@ -12,6 +12,18 @@ class T(unittest.TestCase):
   for k,v in [('taskRoleArn','foreign'),('containerDefinitions',[{**d['containerDefinitions'][0],'environmentFiles':[{}]}])]:
    b=copy.deepcopy(a);b[k]=v
    with self.assertRaises(RuntimeError):m.verify_registered(b,d)
+ def registration(self):
+  d=m.build_definition(plan());a=copy.deepcopy(d);a.update(taskDefinitionArn='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-i09-exact-baseline:1',status='ACTIVE');return a,d
+ def test_aws_reordered_named_inputs(self):
+  a,d=self.registration();a['containerDefinitions'][0]['environment'].reverse();a['containerDefinitions'][0]['secrets'].reverse();m.verify_registered(a,d)
+ def test_named_input_changed_value_rejected(self):
+  for field,attr in [('environment','value'),('secrets','valueFrom')]:
+   a,d=self.registration();a['containerDefinitions'][0][field][0][attr]='changed'
+   with self.assertRaises(RuntimeError):m.verify_registered(a,d)
+ def test_duplicate_named_input_rejected(self):
+  for field in ['environment','secrets']:
+   a,d=self.registration();a['containerDefinitions'][0][field].append(copy.deepcopy(a['containerDefinitions'][0][field][0]))
+   with self.assertRaisesRegex(RuntimeError,'Duplicate'):m.verify_registered(a,d)
  def execute(self,failure=None):
   p=plan();d=m.build_definition(p);td='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-i09-exact-baseline:1';task='arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/'+'b'*32;calls=[]
   def aws(*a):
