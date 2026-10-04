@@ -1,7 +1,7 @@
 {
   "status": "INDEPENDENT_REPRODUCTION_COMPLETED_CANDIDATE_UNAPPROVED",
-  "recordedAtUTC": "2026-10-03T20:17:14.604714+00:00",
-  "candidateCommit": "9157c9c4bce3f4453f91b094410bcdffb564cb9c",
+  "recordedAtUTC": "2026-10-04T08:00:50.467436+00:00",
+  "candidateCommit": "66ddf83cd8389acd970c26f8ac6804b278e5c42e",
   "upstreamTag": "v1.4.0",
   "upstreamCommit": "fa385f92440879601240020f158bed68e444e83a",
   "toolchain": {
@@ -86,12 +86,12 @@
   "oxyTests": {
     "suitesPassing": 3,
     "testsPassing": 34,
-    "ownedPostgresPid": 4170519,
+    "ownedPostgresPid": 937112,
     "ownedPostgresMajor": 17,
     "ownedPostgresPort": 5578,
-    "ownedPostgresDataDirectory": "/home/nate/Oxy/.agent-evidence/fc3/oxy-forge-final-pg-li6bsdvt/data",
-    "database": "oxy_rehearsal_1519_c190ae830476590f",
-    "databaseLifecycle": "New owned PostgreSQL17/port5578 verified PID/UID/exe/data/socket; normal142 fresh and repeat;34PASS. pg_ctl fast stop, PID/postmaster.pid absent."
+    "ownedPostgresDataDirectory": "/home/nate/Oxy/.tmp/i05-forge-refreeze/oxy-forge-final-pg-9xa3g3l9/data",
+    "database": "oxy_rehearsal_1519_cb5d66903d88c540",
+    "databaseLifecycle": "Fresh own PostgreSQL17/5578 verified PID/executable/data/socket; canonical normal142 fresh/repeat, Oxy34PASS; fast stop and PID/postmaster absent. Fixed external harness copy preserves all ownership/assertions/commands, sets only ROOT and TMPDIR to owned/home because /tmp full."
   },
   "knownKeyControls": {
     "stock": {
@@ -166,16 +166,16 @@
     },
     {
       "file": "expo-14-final.log",
-      "sha256": "05f317216049707a6f26db2ab93cc9c39be3f684ecad4c0e87bca8168e4e0c48",
-      "completedFileMtimeUTC": "2026-10-03T19:02:21.698760+00:00",
+      "sha256": "fb16010f8bcacc26df8e75dc3ba0929b581bc567c2cc49d0e24f450540a4008e",
+      "completedFileMtimeUTC": "2026-10-04T08:00:50.467431+00:00",
       "command": "node scripts/forge-independent-expo-compat.cjs packages/api",
       "exitCode": 0,
-      "reusedHistorical": true
+      "reusedHistorical": false
     },
     {
       "file": "oxy-34.log",
-      "sha256": "dc79a0bb97acacfad143afe2266240e4fbc53ea2b10ecda2bc8e98d1cd509238",
-      "completedFileMtimeUTC": "2026-10-03T19:02:21.699847+00:00",
+      "sha256": "1dbe94904e446eacde95393ec28ceff79eeaec4968dc44e1eefb7459cf5052af",
+      "completedFileMtimeUTC": "2026-10-04T08:00:50.467261+00:00",
       "command": "python3 scripts/rehearsal/test-forge-final-input-1519.py; normal142 fresh/repeat; ownPG4170519 stopped",
       "exitCode": 0,
       "reusedHistorical": true
@@ -358,7 +358,7 @@
     }
   ],
   "inputTrees": {
-    "packages": "4d5e4192ce80e390658175f72f80fdf60751a007",
+    "packages": "fd531a1f891bc8bdb02b00eb5c0ffcdbf29bb7b7",
     "bun.lock": "b3a19f253e2a9f1944ca373f1866507d8130be17",
     "package.json": "81684a59a64778423aa390dcd748b771d581c96e",
     "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
@@ -496,6 +496,22 @@
       "freshDagAssertions": 82,
       "freshResolverCases": 14,
       "scope": "Fixed main literal and topology regression only. All17 crypto records, Oxy34/Expo14/API build/install/321 and actualPG4170519 lifecycle reused from prior measured source, not freshly executed. Product API/SDK/schema142 and all6SHA/10objects/15Forge files unchanged. Own ARM/fullgate/CI required."
+    },
+    "i05OperationsRefreeze": {
+      "source": "66ddf83cd8389acd970c26f8ac6804b278e5c42e",
+      "reviewedOpsSource": "091cb952a",
+      "baselineMain": "85dad68e5685413740a4a3fd52afee5bd724bed1",
+      "changedPackageInputs": [
+        "packages/api/src/scripts/foregroundPilotConfiguration.ts",
+        "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts"
+      ],
+      "runtimeScope": "Canonical operational script/schema only; served routes/SDK/schema142/lock/patch/toolchain unchanged. New image proof does not deploy it.",
+      "freshEvidence": "Full4/78SQL +compiledNode3 previously frozen091/821; fresh Oxy34/142fresh-repeat/Expo14; topology24/policy144/DAG82/resolver14 and binder/collector fixtures. All15 other crypto records reused only via unchanged patch/toolchain/Forge bytes.",
+      "policy": "INACTIVE until own ARM/authenticated root gate; fixed expiry2026-10-09T22:00Z never extended.",
+      "preservedHistorical": [
+        "historical-i05-before-refreeze/oxy-34.log",
+        "historical-i05-before-refreeze/expo-14-final.log"
+      ]
     }
   },
   "historicalSupplementalRecords": [

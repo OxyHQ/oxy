@@ -1,0 +1,22 @@
+✔ RSA pair has the default 2048-bit modulus and matching public exponent (0.764061ms)
+✔ key-pair PEM round trip preserves both moduli (0.298453ms)
+✔ public-key PEM round trip preserves exponent and modulus (0.155699ms)
+✔ private-key PEM round trip preserves private exponent (0.171825ms)
+✔ certificate PEM round trip verifies its self-signature (0.880995ms)
+✔ valid certificate and corresponding pair satisfy Expo validation (0.7556ms)
+✔ Expo manifest signature verifies with independent Node/OpenSSL SHA256 (0.749247ms)
+✔ altered manifest bytes fail independent Node/OpenSSL verification (0.246097ms)
+✔ private key from another pair is rejected by Expo signing verification (22.239397ms)
+✔ reversed certificate validity interval is rejected (0.815981ms)
+✔ expired certificate is rejected by Expo validation (21.256641ms)
+✔ CSR PEM round trip verifies its signature and requested identity (1.23563ms)
+✔ development certificate verifies its issuer and contains requested project scope (21.769198ms)
+✔ tampered CSR signature is rejected before development certificate issuance (1.414398ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 77.320834

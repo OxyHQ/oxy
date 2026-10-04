@@ -1,0 +1,2 @@
+Reproduced legacy local Git failure: historical commit exit=128, historical packages exit=128; both absent after squash clone.
+Historical independent inputs: 43 assertions passed; clean squash clone lacks historical commit; synthetic GitHub responses do not authorize policy.
