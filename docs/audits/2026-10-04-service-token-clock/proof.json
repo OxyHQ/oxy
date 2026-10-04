@@ -1,0 +1,49 @@
+{
+  "sourceHead": "92f5cbfe41e224c164051cf7945e00b5d71f28c0",
+  "source": {
+    "path": "packages/api/src/middleware/__tests__/serviceTokenEd25519.test.ts",
+    "sha256": "81d47a23c64617c5c2556ac051f60e7de99e8f3b4a8344e18126c65b4d95347b"
+  },
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-service-token-clock/records/clock-original.test.ts",
+      "sha256": "0069a7266567d16c40a72081f44cc7c9fd44e8c1e6ae7449ae06b632cea39796"
+    },
+    {
+      "path": "docs/audits/2026-10-04-service-token-clock/records/clock-delayed.test.ts",
+      "sha256": "ec8388928da79dd07325019d59df4e5723b61dcf38dc57f2dc8cd12a7bc12093"
+    },
+    {
+      "path": "docs/audits/2026-10-04-service-token-clock/records/clock-delayed-built.log",
+      "sha256": "d9c3799506cedb6d15f5e47570a0ba53b332e8b8809a36bb06fd1685b5e3d22e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-service-token-clock/records/clock-fixed-built.log",
+      "sha256": "a3d90f96ec1f49ebc76522bf33e14ac1973b57357db998cfcc8a80893ea9ee61"
+    },
+    {
+      "path": "docs/audits/2026-10-04-service-token-clock/records/clock-owned-pg-built.py",
+      "sha256": "2c0a202be0e1bba87f17779e5c16367003ebd4b7bbe58fb56217b63352251c4a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-service-token-clock/records/clock-harness-3.log",
+      "sha256": "a7545f97293fb5b45c8813e463e92117f823d621ff05bfd50734df80f4d952ba"
+    },
+    {
+      "path": "docs/audits/2026-10-04-service-token-clock/records/api-shard2.log",
+      "sha256": "6838d72bf8f626b56ad58db07926c38834f5163bc689719ede035bc335cb55dd"
+    }
+  ],
+  "results": {
+    "realCI": "2 failed/1330 passed in shard2; time sampled at table registration versus actual test execution",
+    "controlledDelayedRegistration": "1 failed/21 passed with clock advanced two seconds after registration",
+    "fixed": "22 passed with one fixed instant",
+    "runtimeChanges": false
+  },
+  "limits": [
+    "An occupied local port5581 was refused before database access; no foreign process touched.",
+    "Initial unit runs had zero tests because telemetry build was missing; preserved local setup logs, not counted as regression failures.",
+    "Canonical API/dependency build completed, fresh ownedPG1384177 stopped and postmaster absent.",
+    "This followup is for receiptPR1574; UnicodePR1573 source unchanged, failed-shard rerun follows identified preexisting clock fixture cause."
+  ]
+}
