@@ -410,7 +410,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         },
         {
           "service": "alia-integrations",
@@ -439,7 +439,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -688,7 +688,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         },
         {
           "service": "mention-mcp",
@@ -717,7 +717,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -1010,7 +1010,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -1205,7 +1205,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         },
         {
           "service": "clarity-worker",
@@ -1234,7 +1234,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -1442,7 +1442,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -1630,7 +1630,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -1834,7 +1834,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         },
         {
           "service": "homiio-worker",
@@ -1865,7 +1865,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -1918,16 +1918,16 @@
       "repository": "OxyHQ/website",
       "worktree": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
       "branch": "task/1519-website-final-sdk-20261003",
-      "preparedHead": "3f821153ceca5b542cf53a62d89ebdfae1f2d050",
+      "preparedHead": "96b52138370819a1cfb0eff1e02123a21aee89a8",
       "lot": 1,
       "bloom": "7.1.2",
       "manifestPatch": {
         "path": "docs/architecture/1519-consumer-rollout-preflight/execution/manifest-patches/website.patch",
-        "sha256": "c1ab51ee2156b6f5c758eea6f1e971b9c989712c1b035b2f802575da5341a62a",
+        "sha256": "1b5eec16fcbcc7bbbe6a6091c0218b1a4a4e760c8b0e0bbb5f5b20b032c5c7a8",
         "changes": [
           {
             "path": "package.json",
-            "before": "c26c91a3eba72684f0a6bcd37c429ccc73c6b9363f7b5470627d7bfb4a1bdd66",
+            "before": "213f0103820114a9ccd21a8cc27da077f4b6e7089c622faf0d07bb09c67c63ac",
             "after": "5c762b24c46f967621180b23f71b10b7e25582e2f00853d0714434ba4a4aee38"
           }
         ],
@@ -2033,7 +2033,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -2282,7 +2282,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -2536,7 +2536,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         },
         {
           "service": "tnp-dns",
@@ -2752,7 +2752,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -2971,7 +2971,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -3248,7 +3248,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -3435,7 +3435,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -3649,7 +3649,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -3887,7 +3887,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
@@ -4115,7 +4115,7 @@
             "--push",
             "."
           ],
-          "activation": "root-only new digest TD + captured count + rollback:false in one update; no latest tag"
+          "activation": "root-only TWO STAGES: bind reviewed new digest TD at count0 with rollback:false; verify sole COMPLETED zero and all old tasks STOPPED, then count-only restore captured count. Never restore an old receiver; restore scalers only after own smoke."
         }
       ],
       "mergeSequenceTemplates": [
