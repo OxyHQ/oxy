@@ -1,0 +1,16 @@
+{
+  "oldArchivePreserved": true,
+  "oldSHA256": "051e4b5266378caff00bc4ce369686ead6f1c4961b13579bcd5aa25131f4fb51",
+  "newArchive": "vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz",
+  "newSHA256": "15b8669a1e6a2273ceae261cb5baedfdf21a0cb7e789283728c4e970d02a990a",
+  "newMembers": {
+    "package/package.json": "4ffa30ed5f9c7ff5452be3c42c3fc67898a3fe497f3c22c8c14fe2f773c106ae",
+    "package/LICENSE": "1a4cdb441fc7674e4bdf1f203becde794ecbbbf18f633a01f7d8c3a5be10eca4",
+    "package/README.md": "9cf69dd9a4cab0177ae85e8ac1b0196c95e341ab98ee7d2bce5f277c8700400b",
+    "package/index.cjs": "9fed0d90984192f0e61517e1f10ddf4d057e1f801e4b89f9de22e208f45203be",
+    "package/index.d.ts": "361e944ba3803afa6439ae0e008d2640bcec7fd02e0de52c6fe62b03c5ffa50d"
+  },
+  "publication": false,
+  "buildAndPack": "bun run build && bun pm pack --destination ../../vendor/expo-native",
+  "bun": "1.4.2"
+}
