@@ -46,6 +46,27 @@
       "path": "docs/audits/2026-10-04-i08-final-acceptance/proof.json",
       "sha256": "7f1394773323647e47b2a63ff8530014cbeccfebc42cc0e880ba3f69a727c23a",
       "gitObjectRead": true
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "head": "80291a89328f999aa1c3ed4241ba0f6f84b0c687",
+      "path": "packages/backend/src/config/index.ts",
+      "sha256": "ac001a11f95f783ab9cb7e1528d43e96477c7c63b2a2ada2efc4bb82b5ef09de",
+      "gitObjectRead": true
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "head": "80291a89328f999aa1c3ed4241ba0f6f84b0c687",
+      "path": "packages/backend/src/app.ts",
+      "sha256": "dfb97ca57a1533d7f067c1e90ecab3212e98274d60329f9f4e36dd194a3c733f",
+      "gitObjectRead": true
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "head": "80291a89328f999aa1c3ed4241ba0f6f84b0c687",
+      "path": "packages/backend/src/services/billing/stripe/subscription-events.ts",
+      "sha256": "2141477919d7228742c90994b3c8212992a60a9a4b4046c288b668f4503b3452",
+      "gitObjectRead": true
     }
   ],
   "rootReceipts": [
@@ -81,7 +102,7 @@
   "records": [
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
-      "sha256": "ee96c89fe2455a8202e367987a9e2f6f7ccd65a04a07af116c737ba4e05e7ce2"
+      "sha256": "4be260b13b3933dcd35757e546306b92800f623cbae89286abaf160a22bf897b"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
@@ -93,6 +114,7 @@
     }
   ],
   "pending": [
+    "Mercaria Stripe-off consumer qualification review5978157590; narrow source fix/real app+SQL evidence pending",
     "PR1569/quiescence and bounded Forge gate",
     "Final consolidated workflow original-state reconciliation"
   ]
