@@ -1,0 +1,39 @@
+{
+  "kind": "i07-final-acceptance-metadata-proof-v1",
+  "sourceHead": "85dad68e5685413740a4a3fd52afee5bd724bed1",
+  "privateOriginals": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/accepted.json",
+      "sha256": "c5c352b2e6b2b4ec588d06fb319c7dd34333c929d4f0fb9460e0a1ead9885a72",
+      "publicCopy": "provider-root-accepted.json"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-commercial-inventory/comparison.json",
+      "sha256": "5fd7cb3158a038ea044ae9821d16b4c24b0341d83327f97f260258067dee0399",
+      "publicCopy": "commercial-read-comparison.json"
+    }
+  ],
+  "publicFiles": [
+    {
+      "path": "provider-root-accepted.json",
+      "sha256": "c5c352b2e6b2b4ec588d06fb319c7dd34333c929d4f0fb9460e0a1ead9885a72"
+    },
+    {
+      "path": "commercial-read-comparison.json",
+      "sha256": "5fd7cb3158a038ea044ae9821d16b4c24b0341d83327f97f260258067dee0399"
+    }
+  ],
+  "noPrivateRowSecretTokenOrDefinitionCopied": true,
+  "criteria": {
+    "twoProductsBundleIndividualPayerSubjectCancellationRevokeIsolation": "Existing source fixtures and Clarity HTTP/SQL; source85 includes exact proofs",
+    "productionInventory": "26 complete readonly SQL projections, no existing commercial rows requiring backfill; two existing stores/two owners retained",
+    "provider": "Existing configured Mercaria LIVE platform account only; five GETs/full pagination products/prices/subscriptions/Portal0; Oxy/Clarity runtime absent Stripe binding does not imply external account empty",
+    "publicationAndAdoption": "Published contracts/core/services and restored SDK consumers/Console; public smokes no authenticated transaction"
+  },
+  "limits": [
+    "Stripe TEST partial failure retained; real recovered events delivered with local signatures, no public webhook proof",
+    "No new commercial product/price/subscription/charge/backfill/grant introduced",
+    "No separate paid production cycle required by original I07 fixtures/inventory acceptance",
+    "Private provider/task/TD references are hashes and metadata only; no configurations copied"
+  ]
+}

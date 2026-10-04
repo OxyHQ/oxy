@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "dryRun": true,
+  "profiles": {
+    "oxy": {
+      "observedAt": "2026-10-03 23:01:44.922667+00",
+      "runtime": {
+        "node": "v24.21.0",
+        "postgresVersion": "3.4.9",
+        "postgresEntrySha256": "d8fea1a5311c47e65004646bc81f57305ac64d48f99004a5b3ca27bcfc6babf8"
+      },
+      "tables": {
+        "billing_subscriptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "subscriptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "user_credits": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_transactions": {
+          "status": "complete",
+          "count": 0
+        },
+        "access_products": {
+          "status": "complete",
+          "count": 0
+        },
+        "access_offers": {
+          "status": "complete",
+          "count": 0
+        },
+        "access_offer_benefits": {
+          "status": "complete",
+          "count": 0
+        },
+        "access_subscription_sources": {
+          "status": "complete",
+          "count": 0
+        },
+        "access_offer_segments": {
+          "status": "complete",
+          "count": 0
+        },
+        "access_grants": {
+          "status": "complete",
+          "count": 0
+        },
+        "access_provider_periods": {
+          "status": "complete",
+          "count": 0
+        },
+        "access_provider_events": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_credit_grants": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_credit_invoices": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_credit_spends": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_credit_consumptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_credit_refund_observations": {
+          "status": "complete",
+          "count": 0
+        }
+      },
+      "absentNewTables": [],
+      "status": "verified_no_existing_commercial_rows",
+      "existingCommercialRows": 0,
+      "destinationRows": 0,
+      "storeCount": null,
+      "ownerBindingCount": null,
+      "existingRowsPreserved": true,
+      "plannedBackfillWrites": 0,
+      "plannedCharges": 0,
+      "plannedCreditReconstruction": 0,
+      "currentReadComparison": "existing_sql_projection_empty_and_planned_grants_empty"
+    },
+    "clarity": {
+      "observedAt": "2026-10-04 02:53:39.34504+00",
+      "runtime": {
+        "node": "v22.23.3",
+        "postgresVersion": "3.4.9",
+        "postgresEntrySha256": "d8fea1a5311c47e65004646bc81f57305ac64d48f99004a5b3ca27bcfc6babf8"
+      },
+      "tables": {
+        "clarity_subscriptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "clarity_billing_customers": {
+          "status": "complete",
+          "count": 0
+        }
+      },
+      "absentNewTables": [],
+      "status": "verified_no_existing_commercial_rows",
+      "existingCommercialRows": 0,
+      "destinationRows": null,
+      "storeCount": null,
+      "ownerBindingCount": null,
+      "existingRowsPreserved": true,
+      "plannedBackfillWrites": 0,
+      "plannedCharges": 0,
+      "plannedCreditReconstruction": 0,
+      "currentReadComparison": "existing_sql_projection_empty_and_planned_grants_empty"
+    },
+    "mercaria": {
+      "observedAt": "2026-10-04 02:43:55.854868+00",
+      "runtime": {
+        "node": "v24.21.0",
+        "postgresVersion": "3.4.9",
+        "postgresEntrySha256": "d8fea1a5311c47e65004646bc81f57305ac64d48f99004a5b3ca27bcfc6babf8"
+      },
+      "tables": {
+        "merchant_plans": {
+          "status": "complete",
+          "count": 0
+        },
+        "merchant_plan_prices": {
+          "status": "complete",
+          "count": 0
+        },
+        "plan_entitlements": {
+          "status": "complete",
+          "count": 0
+        },
+        "billing_customers": {
+          "status": "complete",
+          "count": 0
+        },
+        "merchant_subscriptions": {
+          "status": "complete",
+          "count": 0
+        },
+        "stores": {
+          "status": "complete",
+          "count": 2
+        },
+        "store_members": {
+          "status": "complete",
+          "count": 2
+        }
+      },
+      "absentNewTables": [],
+      "status": "verified_no_existing_commercial_rows",
+      "existingCommercialRows": 0,
+      "destinationRows": null,
+      "storeCount": 2,
+      "ownerBindingCount": 2,
+      "existingRowsPreserved": true,
+      "plannedBackfillWrites": 0,
+      "plannedCharges": 0,
+      "plannedCreditReconstruction": 0,
+      "currentReadComparison": "existing_sql_projection_empty_and_planned_grants_empty"
+    }
+  },
+  "actualDatabaseWrites": false,
+  "providerInventoryClaimed": false,
+  "backfillStatus": "no_existing_rows_to_backfill",
+  "catalogueDecision": "No existing subscription/offer is inferred; no Oxy One sale or price is introduced.",
+  "targetMigrationRequired": false
+}

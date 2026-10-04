@@ -1,0 +1,71 @@
+{
+  "accepted": true,
+  "kind": "i07-live-provider-readonly-inventory-v1",
+  "mercaria": {
+    "planSha256": "94000fc9aa85b38d3f5d4d737012842449ccb7511528273908ed70e9f8e51db0",
+    "resultSha256": "0c99afb12b52e90402b0c6d6b1c485c36d0fa946aabe972a2e304ab3f5bfc19d",
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/7e8fa4bc600044a9851267f11154b6d3",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-stripe-preflight-mercaria:2",
+    "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mercaria@sha256:635ddbf7e8f7be500f09bfd2e81462154984cc45ed9bedd9185e3b9df40e7003",
+    "profile": "mercaria",
+    "readOnly": true,
+    "accountId": "acct_1TnXkUQWiCE02OnU",
+    "mode": "live",
+    "portalCount": 0,
+    "selectedPortalCompatible": null,
+    "activationPerformed": false,
+    "commercialInventoryComplete": true
+  },
+  "products": 0,
+  "prices": 0,
+  "subscriptions": 0,
+  "configuredAccount": "acct_1TnXkUQWiCE02OnU",
+  "mode": "live",
+  "readOnlyGETs": 5,
+  "providerMutations": 0,
+  "oxyAndClarityStripeRuntimeBinding": "absent_in_existing_TD_metadata",
+  "sources": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/clarity-metadata.json",
+      "sha256": "b2b24abe1a3806cebdfa8a7d576507bb985322c320b682fe36a36b8844eaa020"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/definition-final.private.json",
+      "sha256": "c4f4ba57e5ee1d0caf27fde6dd4d683768508a6ffdec23605622f920e07d260d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/mercaria-plan.json",
+      "sha256": "9af7d0f91ce7efcf09f34f089ed7f976e0fce685e0f7ddac46b5eb04ca28d8f8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/oxy-metadata.json",
+      "sha256": "e47f29377c2167a7b15a19f6575f0e2821c69952e17013509b2ec112f7634e48"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/prepare-reader.py",
+      "sha256": "1c088d8d98b70839f0cf85d5bc5ba7066dc7a33934b7e1f560093a42c1f7e1ac"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/read-stripe-preflight.mjs",
+      "sha256": "3aa4463da486f57502e4c1e642c56d1fda53497fca984d689ab9a6742db2e7fa"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/stripe-preflight-ecs.py",
+      "sha256": "605a9f0ad141314d40260606804149a42bca6dfb0552df833d3806981bbddc21"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/task-final.private.json",
+      "sha256": "63768f15bc78f2782f6614d6399c209e5d5ff33cc43da4b09110578a5cf3f14a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i07-provider-inventory/test-reader.mjs",
+      "sha256": "f7019564416d283848207ea565339dd5040f2e9fd9f8afe8d89304ead3d6ec9d"
+    }
+  ],
+  "limits": [
+    "Platform account scope only; not a census of other Stripe accounts/connected accounts.",
+    "Oxy/Clarity absent runtime Stripe bindings do not prove external accounts empty.",
+    "No commercial catalogue, subscription, grant or backfill created.",
+    "Remote paginated observations are not an atomic snapshot."
+  ]
+}
