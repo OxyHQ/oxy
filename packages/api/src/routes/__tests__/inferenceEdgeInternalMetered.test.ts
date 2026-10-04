@@ -27,9 +27,11 @@ import {
   inferenceDeployments,
   inferenceMeteredUsage,
   inferenceModelRevisions,
+  inferenceModelPowerClasses,
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
+  inferenceRoutingPolicies,
   priceVersions,
   priceVersionUnitPrices,
   usageReceipts,
@@ -48,13 +50,15 @@ import * as catalogue from '../../services/inferenceCatalogue.service';
 import * as powerLevels from '../../services/inferencePowerLevels.service';
 import * as scoped from '../../services/scopedExecution.service';
 import * as rollout from '../../config/rolloutFlags';
-import { executeInferenceRequest, readGenerationReceipt, readGenerationReceiptByIdempotencyKey, type EdgeExecutionContext } from '../../services/inferenceEdge.service';
+import { executeInferenceRequest, readGenerationReceipt, readGenerationReceiptByIdempotencyKey, PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY, type EdgeExecutionContext } from '../../services/inferenceEdge.service';
 import { resolveEffectiveRoutingPolicy } from '../../services/inferenceRoutingPolicy.service';
 import {
   attestFixtureDeployments,
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
 } from '../__fixtures__/kaanaRuntimeFixtures';
+import aliaHello from '../__fixtures__/aliaHello21Tools.json';
+import approvedHigh from '../__fixtures__/aliaApprovedHighRoute.json';
 
 jest.setTimeout(60_000);
 
@@ -275,12 +279,16 @@ async function makeRoute(ownerAccountId: string, applicationId: string, createPo
       status: 'active', effectiveFrom: new Date(Date.now() - 60_000),
     })
     .returning({ id: priceVersions.id });
+  // The production tuple uses its reviewed Cerebras rates. Mechanism fixtures
+  // keep their synthetic $3/$15 tariff independently of the production cap.
+  const inputPrice = pilot ? '0.350000000000' : '3.000000000000';
+  const outputPrice = pilot ? '0.750000000000' : '15.000000000000';
   await db.insert(priceVersionUnitPrices).values([
     { priceVersionId: price.id, unit: 'requests', amount: '0.000000000000', per: 1 },
-    { priceVersionId: price.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: price.id, unit: 'cached_input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: price.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
-    { priceVersionId: price.id, unit: 'reasoning_tokens', amount: '15.000000000000', per: 1_000_000 },
+    { priceVersionId: price.id, unit: 'input_tokens', amount: inputPrice, per: 1_000_000 },
+    { priceVersionId: price.id, unit: 'cached_input_tokens', amount: inputPrice, per: 1_000_000 },
+    { priceVersionId: price.id, unit: 'output_tokens', amount: outputPrice, per: 1_000_000 },
+    { priceVersionId: price.id, unit: 'reasoning_tokens', amount: outputPrice, per: 1_000_000 },
   ]);
   const kaanaDeploymentId = pilot ? 'dep_cerebras_gpt_oss_120b_observed_2026_09_01' : `kaana-im-${t}`;
   await db.insert(inferenceDeployments).values({
@@ -305,6 +313,75 @@ interface Caller {
   readonly credentialId: string;
   readonly machineToken: string;
   readonly modelReference: string;
+}
+
+/** A copy of the accepted read-only catalogue row, in this suite's own database.
+ * Permissions/classes/capabilities match that row; score freshness and IDs are
+ * local fixtures. Only the HTTP edge and SQL qualification are real here.
+ */
+async function makeApprovedHighRoute(ownerAccountId: string): Promise<void> {
+  const db = getDb();
+  await db.insert(inferencePublishers).values({ slug: 'deepseek', displayName: 'DeepSeek' });
+  const [model] = await db.insert(inferenceModels).values({
+    publisherSlug: 'deepseek', slug: 'deepseek-v4-flash-0731', displayName: 'DeepSeek V4 Flash 0731',
+    inputModalities: ['text'], outputModalities: ['text'],
+    supportsTools: approvedHigh.supports_tools, supportsParallelToolCalls: approvedHigh.supports_parallel_tool_calls,
+    supportsStructuredOutput: approvedHigh.supports_structured_output, supportsJsonMode: approvedHigh.supports_json_mode,
+    supportsReasoning: approvedHigh.supports_reasoning, supportsStreaming: approvedHigh.supports_streaming,
+    supportsPromptCaching: approvedHigh.supports_prompt_caching, reasoningEfforts: ['low', 'medium', 'high'],
+    maxContextTokens: approvedHigh.max_context_tokens, maxOutputTokens: approvedHigh.max_output_tokens,
+    licenseId: approvedHigh.license_id, licenseDisplayName: 'Serving provider terms (fixture label)',
+    commercialUseAllowed: approvedHigh.commercial_use_allowed,
+    requiresAttribution: approvedHigh.requires_attribution, releaseKind: 'third_party_hosted',
+  }).returning({ id: inferenceModels.id });
+  const [revision] = await db.insert(inferenceModelRevisions).values({
+    modelId: model.id, revision: approvedHigh.revision, releasedAt: new Date(approvedHigh.released_at), isCurrent: true,
+  }).returning({ id: inferenceModelRevisions.id });
+  await db.insert(inferenceModelPowerClasses).values({
+    modelId: approvedHigh.model_id, powerClass: 'high', evidenceSource: approvedHigh.class_evidence_source,
+    evidenceUrl: approvedHigh.class_evidence_url, evidenceSummary: approvedHigh.class_evidence_summary,
+    reviewedAt: new Date(approvedHigh.class_reviewed_at), reviewedBy: 'accepted-readonly-catalogue-fixture',
+  }).onConflictDoNothing();
+  await db.insert(inferenceProviders).values({
+    slug: 'openrouter', displayName: 'OpenRouter', kind: 'third_party', retainsPayloads: false,
+    retentionDays: 0, trainsOnCustomerData: false, zeroDataRetentionAvailable: true,
+  });
+  const [price] = await db.insert(priceVersions).values({
+    modelReference: approvedHigh.model_reference, provider: 'openrouter', currency: approvedHigh.currency,
+    status: 'active', effectiveFrom: new Date(approvedHigh.price_effective_from),
+  }).returning({ id: priceVersions.id });
+  await db.insert(priceVersionUnitPrices).values(approvedHigh.unit_prices.map(unit => ({
+    priceVersionId: price.id, unit: unit.unit as 'requests' | 'input_tokens' | 'cached_input_tokens' | 'output_tokens' | 'reasoning_tokens',
+    amount: unit.amount, per: Number(unit.per),
+  })));
+  await db.insert(inferenceDeployments).values({
+    modelRevisionId: revision.id, providerSlug: 'openrouter', internalRouteId: approvedHigh.deployment_id,
+    regions: [], retainsPayloads: false, retentionDays: 0, trainsOnCustomerData: false, zeroDataRetentionAvailable: true,
+    availabilityScope: 'platform_internal', commercialPermission: 'standard_application_use', status: 'active',
+    permissionState: 'approved', legalReviewStatus: 'approved', legalReviewedAt: new Date(approvedHigh.legal_reviewed_at),
+    legalReviewEvidenceRef: approvedHigh.legal_review_evidence_ref,
+    acceptedParameters: approvedHigh.accepted_parameters, priceVersionId: price.id,
+  });
+  await insertValidRoutingScorecard({ deploymentId: approvedHigh.deployment_id, priceVersionId: price.id, changedByUserId: ownerAccountId });
+}
+
+async function withInternalDefault<T>(caller: Caller, operation: () => Promise<T>): Promise<T> {
+  const policies = await getDb().select({ id: inferenceRoutingPolicies.id }).from(inferenceRoutingPolicies)
+    .where(and(eq(inferenceRoutingPolicies.applicationId, caller.applicationId), eq(inferenceRoutingPolicies.status, 'active')));
+  try {
+    for (const policy of policies) await getDb().update(inferenceRoutingPolicies).set({ status: 'archived' })
+      .where(eq(inferenceRoutingPolicies.id, policy.id));
+    expect(await resolveEffectiveRoutingPolicy(caller.applicationId)).toMatchObject({ status: 'none' });
+    return await operation();
+  } finally {
+    for (const policy of policies) await getDb().update(inferenceRoutingPolicies).set({ status: 'active' })
+      .where(eq(inferenceRoutingPolicies.id, policy.id));
+  }
+}
+
+async function pilotClaims(caller: Caller) {
+  return getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+    .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId));
 }
 
 let aliaFixture: Promise<Caller> | undefined;
@@ -862,6 +939,143 @@ describe('approved production pilot admission', () => {
   beforeAll(async () => {
     const caller = await alia();
     approvedCaller = { ...caller, modelReference: await makeRoute(caller.accountId, caller.applicationId, false, true) };
+    await makeApprovedHighRoute(caller.accountId);
+  });
+
+  it('serves the intact real Hello plus 21 tools through Auto High without a lower fallback', async () => {
+    const normalized = normalizeResponsesRequest(responsesRequestSchema.parse(aliaHello));
+    expect(controlledInputBudget(normalized)).toBe(29_027);
+    expect(normalized.tools).toHaveLength(21);
+    const response = await withInternalDefault(approvedCaller, () => post(aliaHello, bearer(serviceToken(approvedCaller))));
+    expect(response.status).toBe(200);
+    expect(executions).toBe(1);
+    const envelope = pilotEnvelopes[0];
+    expect(envelope.tools).toEqual(normalized.tools);
+    expect(envelope.input).toEqual(normalized.input);
+    expect(envelope.maxOutputTokens).toBe(2048);
+    expect(envelope.authorizedRoutes.map(route => route.deploymentId)).toEqual([approvedHigh.deployment_id]);
+    expect(envelope.authorizedRoutes[0]).toMatchObject({ modelReference: approvedHigh.model_reference, provider: 'openrouter' });
+    expect(envelope.routingPolicy).toEqual(PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY);
+    expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+  });
+
+  it.each(['pending permission', 'unreviewed legal', 'foreign tuple', 'retired route', 'medium class'] as const)(
+    'refuses the intact Auto payload when its High route has %s, without claims or lower fallback', async kind => {
+      const [route] = await getDb().select({ id: inferenceDeployments.id }).from(inferenceDeployments)
+        .where(eq(inferenceDeployments.internalRouteId, approvedHigh.deployment_id));
+      const before = await pilotClaims(approvedCaller);
+      try {
+        if (kind === 'pending permission' || kind === 'unreviewed legal') await getDb().update(inferenceDeployments)
+          .set({ permissionState: 'pending_review', ...(kind === 'unreviewed legal' ? { legalReviewStatus: 'in_review' as const } : {}) })
+          .where(eq(inferenceDeployments.id, route.id));
+        if (kind === 'foreign tuple') await getDb().update(inferenceDeployments)
+          .set({ internalRouteId: 'synthetic-foreign-high' }).where(eq(inferenceDeployments.id, route.id));
+        if (kind === 'retired route') await getDb().update(inferenceDeployments)
+          .set({ status: 'retired' }).where(eq(inferenceDeployments.id, route.id));
+        if (kind === 'medium class') await getDb().update(inferenceModelPowerClasses)
+          .set({ powerClass: 'medium' }).where(eq(inferenceModelPowerClasses.modelId, approvedHigh.model_id));
+        const response = await withInternalDefault(approvedCaller, () => post(aliaHello, bearer(serviceToken(approvedCaller))));
+        expect(response.status).toBe(503);
+        expect(executions).toBe(0);
+        expect(await pilotClaims(approvedCaller)).toEqual(before);
+        expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+      } finally {
+        await getDb().update(inferenceDeployments).set({ permissionState: 'approved', legalReviewStatus: 'approved',
+          internalRouteId: approvedHigh.deployment_id, status: 'active' }).where(eq(inferenceDeployments.id, route.id));
+        await getDb().update(inferenceModelPowerClasses).set({ powerClass: 'high' })
+          .where(eq(inferenceModelPowerClasses.modelId, approvedHigh.model_id));
+      }
+    });
+
+  it('refuses an over-ceiling High quote for the intact payload before any durable claim', async () => {
+    const [route] = await getDb().select({ priceVersionId: inferenceDeployments.priceVersionId }).from(inferenceDeployments)
+      .where(eq(inferenceDeployments.internalRouteId, approvedHigh.deployment_id));
+    if (route.priceVersionId === null) throw new Error('High fixture lacks price');
+    const priceVersionId = route.priceVersionId;
+    const before = await pilotClaims(approvedCaller);
+    try {
+      await getDb().update(priceVersionUnitPrices).set({ amount: '0.050000000001' })
+        .where(and(eq(priceVersionUnitPrices.priceVersionId, priceVersionId), eq(priceVersionUnitPrices.unit, 'requests')));
+      const response = await withInternalDefault(approvedCaller, () => post(aliaHello, bearer(serviceToken(approvedCaller))));
+      expect(response).toMatchObject({ status: 403, body: { code: 'policy_violation' } });
+      expect(executions).toBe(0);
+      expect(await pilotClaims(approvedCaller)).toEqual(before);
+    } finally {
+      await getDb().update(priceVersionUnitPrices).set({ amount: '0.000000000000' })
+        .where(and(eq(priceVersionUnitPrices.priceVersionId, priceVersionId), eq(priceVersionUnitPrices.unit, 'requests')));
+    }
+  });
+
+  it.each([['high', 'medium'], ['xhigh', 'high']] as const)(
+    'preserves explicit %s effort %s on the actual High model', async (level, effort) => {
+      const response = await withInternalDefault(approvedCaller, () => post({ ...aliaHello, routingProfile: level },
+        bearer(serviceToken(approvedCaller))));
+      expect(response.status).toBe(200);
+      expect(pilotEnvelopes[0].reasoning?.effort).toBe(effort);
+      expect(pilotEnvelopes[0].authorizedRoutes[0].deploymentId).toBe(approvedHigh.deployment_id);
+    });
+
+  it('does not invent a High fallback for an explicit Medium request', async () => {
+    const before = await pilotClaims(approvedCaller);
+    const response = await withInternalDefault(approvedCaller, () => post({ ...aliaHello, routingProfile: 'medium' },
+      bearer(serviceToken(approvedCaller))));
+    expect(response.status).toBe(503);
+    expect(executions).toBe(0);
+    expect(await pilotClaims(approvedCaller)).toEqual(before);
+  });
+
+  it('retains an explicit commercial-rights policy denial on the internal High model', async () => {
+    const before = await pilotClaims(approvedCaller);
+    await withInternalDefault(approvedCaller, async () => {
+      await createNeutralRoutingPolicy({ accountId: approvedCaller.accountId, applicationId: approvedCaller.applicationId,
+        overrides: { requireCommercialUseRights: true } });
+      try {
+        expect(await resolveEffectiveRoutingPolicy(approvedCaller.applicationId)).toMatchObject({ status: 'resolved',
+          stored: { policy: { requireCommercialUseRights: true } } });
+        const response = await post(aliaHello, bearer(serviceToken(approvedCaller)));
+        expect(response.status).toBe(503);
+        expect(executions).toBe(0);
+        expect(await pilotClaims(approvedCaller)).toEqual(before);
+      } finally {
+        await getDb().update(inferenceRoutingPolicies).set({ status: 'archived' })
+          .where(and(eq(inferenceRoutingPolicies.applicationId, approvedCaller.applicationId), eq(inferenceRoutingPolicies.status, 'active')));
+      }
+    });
+  });
+
+  it.each([
+    ['USD', '0.050000000000', 200],
+    ['USD', '0.050000000001', 403],
+    ['EUR', '0.010000000000', 403],
+  ])('qualifies the exact pilot quote %s %s before any claim (%s)', async (currency, amount, status) => {
+    const [deployment] = await getDb().select({ priceVersionId: inferenceDeployments.priceVersionId }).from(inferenceDeployments)
+      .where(eq(inferenceDeployments.internalRouteId, 'dep_cerebras_gpt_oss_120b_observed_2026_09_01'));
+    if (deployment.priceVersionId === null) throw new Error('Pilot fixture lacks price');
+    const id = deployment.priceVersionId;
+    const [originalPrice] = await getDb().select({ currency: priceVersions.currency }).from(priceVersions).where(eq(priceVersions.id, id));
+    const originalUnits = await getDb().select({ unit: priceVersionUnitPrices.unit, amount: priceVersionUnitPrices.amount })
+      .from(priceVersionUnitPrices).where(eq(priceVersionUnitPrices.priceVersionId, id));
+    const before = await pilotClaims(approvedCaller);
+    try {
+      await getDb().update(priceVersions).set({ currency }).where(eq(priceVersions.id, id));
+      await getDb().update(priceVersionUnitPrices).set({ amount: '0.000000000000' })
+        .where(eq(priceVersionUnitPrices.priceVersionId, id));
+      await getDb().update(priceVersionUnitPrices).set({ amount })
+        .where(and(eq(priceVersionUnitPrices.priceVersionId, id), eq(priceVersionUnitPrices.unit, 'requests')));
+      const response = await post({ model: approvedCaller.modelReference, input: 'Hello', maxOutputTokens: 2048 },
+        bearer(serviceToken(approvedCaller)));
+      expect(response.status).toBe(status);
+      expect(executions).toBe(status === 200 ? 1 : 0);
+      if (status !== 200) {
+        expect(response.body.code).toBe('policy_violation');
+        expect(await pilotClaims(approvedCaller)).toEqual(before);
+      }
+      expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({ reservations: [], receipts: [], balances: [] });
+    } finally {
+      await getDb().update(priceVersions).set({ currency: originalPrice.currency }).where(eq(priceVersions.id, id));
+      for (const unit of originalUnits) await getDb().update(priceVersionUnitPrices).set({ amount: unit.amount })
+        .where(and(eq(priceVersionUnitPrices.priceVersionId, id), eq(priceVersionUnitPrices.unit, unit.unit)));
+    }
   });
 
   it.each([
@@ -902,7 +1116,7 @@ describe('approved production pilot admission', () => {
     expect((await post({ ...payload, input }, bearer(serviceToken(approvedCaller)))).status).toBe(200);
     const before = await getDb().select().from(inferenceMeteredUsage)
       .where(eq(inferenceMeteredUsage.applicationId, approvedCaller.applicationId));
-    expect((await post({ ...payload, input: input + 'x' }, bearer(serviceToken(approvedCaller)))).status).toBe(400);
+    expect((await post({ ...payload, input: `${input}x` }, bearer(serviceToken(approvedCaller)))).status).toBe(400);
     expect(executions).toBe(1);
     expect(await getDb().select().from(inferenceMeteredUsage)
       .where(eq(inferenceMeteredUsage.applicationId, approvedCaller.applicationId))).toEqual(before);
