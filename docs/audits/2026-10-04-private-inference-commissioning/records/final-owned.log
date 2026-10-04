@@ -1,0 +1,34 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default database encoding has accordingly been set to "SQL_ASCII".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-e8mtlj2h/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-e8mtlj2h/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+{"stage": "fresh", "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-e8mtlj2h/migrate-fresh.txt"}
+{"stage": "repeat", "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-e8mtlj2h/migrate-repeat.txt"}
+{"newLocalServerPid": 1785651, "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-e8mtlj2h/data", "database": "oxy_rehearsal_1519_7c5019d87e517aa4", "command": ["bun", "--no-env-file", "run", "test", "--runInBand", "--runTestsByPath", "src/services/__tests__/privateCommissioning.test.ts", "src/services/__tests__/scopedExecution.service.test.ts", "src/services/__tests__/scopedAdmission.test.ts", "src/routes/__tests__/inferenceEdge.test.ts", "--testNamePattern", "^(wire audience|private source|refuses (no-legal|no-evidence|foreign-audience|expired|restricted|public-scope)|legal |compiled Node CLI|serializes |rechecks source|private commissioning HTTP|source-bound scoped execution|uses normal qualification|cannot use a permit|canonicalizes the actual|never borrows|attests the explicit|admits exact scoped|keeps the internal input)"], "exitCode": 0, "log": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-e8mtlj2h/focused.txt", "productionAccess": false}
+waiting for server to shut down.... done
+server stopped
+

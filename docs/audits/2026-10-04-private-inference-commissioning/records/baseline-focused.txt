@@ -1,0 +1,43 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/privateCommissioning.test.ts src/routes/__tests__/inferenceEdge.test.ts --testNamePattern "^private source authority|^private commissioning HTTP.*reserves once"
+FAIL src/routes/__tests__/inferenceEdge.test.ts
+  ● private commissioning HTTP › reserves once and sends once for the legally reviewed private route; public status stays disabled
+
+    {"status":404,"body":{"schemaVersion":1,"code":"model_not_found","message":"No model pub92b3bcf5ad/model-92b3bcf5ad@2026-01-01 is available to you.","retryable":false,"requestId":"42e62179-54e1-439d-9094-e4b9f3af60cd","param":"model"}}
+
+      4781 |     await withServer(c.client, async (request) => {
+      4782 |       const response = await request('POST', '/v1/decisions', c.body, { ...bearer(c.f.token), 'Idempotency-Key': c.permit.idempotencyKey });
+    > 4783 |       if (response.status !== 200) throw new Error(JSON.stringify({ status: response.status, body: json(response) }));
+           |                                          ^
+      4784 |       expect(response.status).toBe(200);
+      4785 |       expect(json(response)).toMatchObject({ data: [{ id: 'fixture', kind: 'noul', probability: 1 }] });
+      4786 |       const replay = await request('POST', '/v1/decisions', c.body, { ...bearer(c.f.token), 'Idempotency-Key': c.permit.idempotencyKey });
+
+      at src/routes/__tests__/inferenceEdge.test.ts:4783:42
+      at fulfilled (src/routes/__tests__/inferenceEdge.test.ts:67:58)
+
+FAIL src/services/__tests__/privateCommissioning.test.ts
+  ● private source authority admits real price only, preserving public permission and missing scores
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "resolved"
+    Received: "unknown-model"
+
+      73 |   f.authorizeFixture();
+      74 |   const result = await f.resolve();
+    > 75 |   expect(result.status).toBe('resolved');
+         |                         ^
+      76 |   if (result.status !== 'resolved') throw new Error('Fixture did not resolve');
+      77 |   expect(result.alternates).toEqual([]);
+      78 |   expect(result.route.scopedCatalogueEvidence).toMatchObject({ admission: 'private_commissioning',
+
+      at src/services/__tests__/privateCommissioning.test.ts:75:25
+      at fulfilled (src/services/__tests__/privateCommissioning.test.ts:38:58)
+
+Test Suites: 2 failed, 2 total
+Tests:       2 failed, 149 skipped, 151 total
+Snapshots:   0 total
+Time:        1.322 s, estimated 3 s
+Ran all test suites within paths "src/services/__tests__/privateCommissioning.test.ts", "src/routes/__tests__/inferenceEdge.test.ts".
+{"level":30,"time":1791132586984,"pid":1760884,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+error: script "test" exited with code 1
