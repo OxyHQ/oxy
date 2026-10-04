@@ -47,7 +47,8 @@ export function inspectInventory(inventory, now = Date.now) {
     requireValue(matches.length===1,'deployment_binding_differs'); const route=matches[0];
     requireValue(route.provider_slug===provider && route.status==='active' && route.permission_state==='approved'
       && route.legal_review_status==='approved' && route.availability_scope==='internal_alia'
-      && route.retains_payloads===false && route.trains_on_customer_data===false
+      && route.retains_payloads===(provider==='groq')
+      && route.retention_days===(provider==='groq'?30:0) && route.trains_on_customer_data===false
       && route.zero_data_retention_available===true && route.platform_fee_price_version_id===null,'route_not_reviewed');
     const matched=prices.filter(p=>p.id===route.price_version_id);
     requireValue(matched.length===1,'price_ambiguous');const price=matched[0];
@@ -64,7 +65,7 @@ export function inspectInventory(inventory, now = Date.now) {
     const output=[rate('output_tokens'),rate('reasoning_tokens')].reduce((a,b)=>a>b?a:b);
     const quote=input*32768n+output*128n+rate('requests');
     requireValue(quote<=20000000000n,'quote_exceeds_usd_002');
-    return {deploymentId,provider,priceVersionId:price.id,quotePicos:quote.toString(),currency:'USD'};
+    return {deploymentId,provider,priceVersionId:price.id,quotePicos:quote.toString(),currency:'USD',privacy:{retainsPayloads:route.retains_payloads,retentionDays:route.retention_days,trainsOnCustomerData:route.trains_on_customer_data,zeroDataRetentionAvailable:route.zero_data_retention_available}};
   });
   return {inventorySha256:hash(JSON.stringify(inventory)),observedAt:inventory.observedAt,
     inputCeiling:32768,outputCeiling:128,maxQuotePicos:'20000000000',quotes};

@@ -2,7 +2,7 @@
 """Root-only, one-shot dispatcher. Never imported/executed by preparation/tests.
 No retry of RegisterTaskDefinition/RunTask; unknown ACK requires exact census.
 """
-import argparse,base64,hashlib,json,os,signal,subprocess,time
+import argparse,base64,hashlib,json,os,re,signal,subprocess,time
 from pathlib import Path
 REGION='us-west-2';CLUSTER='oxy-cluster';ACCOUNT='237343248947'
 def need(ok,code):
@@ -10,11 +10,19 @@ def need(ok,code):
 def sha(b):return hashlib.sha256(b).hexdigest()
 def write(path,value):
  with open(path,'x')as f:os.chmod(path,0o600);json.dump(value,f,indent=2);f.write('\n');f.flush();os.fsync(f.fileno())
+class AwsOperationFailure(RuntimeError):
+ def __init__(self,action,category,code=None):
+  self.diagnostic={'stage':'aws.'+action,'category':category,'code':code}
+  super().__init__('AWS '+action+' '+category+((' '+code)if code else ''))
 def aws(*args):
  env={**os.environ,'AWS_MAX_ATTEMPTS':'1'}
  try:r=subprocess.run(['aws',*args,'--region',REGION,'--output','json','--cli-connect-timeout','20','--cli-read-timeout','80'],env=env,capture_output=True,text=True,timeout=90)
- except subprocess.TimeoutExpired:raise RuntimeError('aws_timeout_outcome_unknown')from None
- need(r.returncode==0,'aws_failure_raw_withheld');return json.loads(r.stdout)
+ except subprocess.TimeoutExpired:raise AwsOperationFailure('.'.join(args[:2]),'timeout_outcome_unknown')from None
+ if r.returncode:
+  match=re.search(r'An error occurred \(([A-Za-z][A-Za-z0-9]{1,64})\)',r.stderr)
+  raise AwsOperationFailure('.'.join(args[:2]),'service_error'if match else 'transport_or_cli_failure',match.group(1)if match else None)
+ try:return json.loads(r.stdout)
+ except (ValueError,TypeError):raise AwsOperationFailure('.'.join(args[:2]),'invalid_json')from None
 def named(rows):
  need(isinstance(rows,list)and all(isinstance(r,dict)and isinstance(r.get('name'),str)for r in rows),'named_shape')
  need(len({r['name']for r in rows})==len(rows),'named_duplicates');return sorted(rows,key=lambda r:r['name'])
@@ -87,6 +95,10 @@ def execute(plan_path,output):
   log=aws('logs','get-log-events','--log-group-name','/oxy/ecs','--log-stream-name',stream,'--start-from-head');write(out/'logs.private.json',log)
   decoded=decode(log['events'],plan);write(out/'result.private.json',decoded)
   need(t['containers'][0].get('exitCode')==0 and decoded['result'].get('ok')is True,'smoke_not_accepted')
+ except BaseException as error:
+  diagnostic=error.diagnostic if isinstance(error,AwsOperationFailure)else {'stage':'operation_validation','category':'interrupted'if isinstance(error,KeyboardInterrupt)else 'validation_or_decode_failure','code':str(error)if isinstance(error,RuntimeError)and re.fullmatch('[A-Za-z_]{1,100}',str(error))else None}
+  write(out/'failure.json',diagnostic)
+  raise
  finally:
   if task:
    try:
@@ -110,4 +122,6 @@ if __name__=='__main__':
  signal.signal(signal.SIGTERM,interrupted)
  a=argparse.ArgumentParser();a.add_argument('--plan',required=True);a.add_argument('--output',required=True);v=a.parse_args()
  try:execute(v.plan,v.output)
- except BaseException:print('Alia smoke failed; inspect original intent and cleanup, never retry inference.',file=os.sys.stderr);raise SystemExit(1)
+ except BaseException as error:
+  diagnostic=error.diagnostic if isinstance(error,AwsOperationFailure)else {'stage':'prepare_or_operation','category':'failed','code':None}
+  print(json.dumps({'failed':True,'diagnostic':diagnostic,'instruction':'Inspect original intent and cleanup; never retry inference.'}),file=os.sys.stderr);raise SystemExit(1)

@@ -17,6 +17,20 @@ class Transport(unittest.TestCase):
  def test_inventory_has_only_db_secret_and_no_task_role(self):
   prep.prepare(self.p/'binding.json',None,self.p/'reader','inventory');d=json.loads((self.p/'reader/definition.json').read_text())
   dispatch.validate_definition(d,d);self.assertNotIn('taskRoleArn',d);self.assertEqual(d['family'],'oxy-alia-budget-smoke-readonly');self.assertEqual(d['containerDefinitions'][0]['secrets'],[{'name':'DATABASE_URL','valueFrom':'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL'}]);self.assertLess(len(json.dumps(d)),60000)
+ def test_aws_error_diagnostics_are_action_scoped_without_raw_data(self):
+  import subprocess
+  from types import SimpleNamespace
+  old=dispatch.subprocess.run
+  try:
+   dispatch.subprocess.run=lambda *a,**k:SimpleNamespace(returncode=1,stdout='',stderr='An error occurred (AccessDeniedException) RAWSECRET https://private.example')
+   with self.assertRaises(dispatch.AwsOperationFailure)as context:dispatch.aws('ecs','describe-tasks','--tasks','private-arn')
+   self.assertEqual(context.exception.diagnostic,{'stage':'aws.ecs.describe-tasks','category':'service_error','code':'AccessDeniedException'})
+   self.assertNotIn('RAWSECRET',str(context.exception));self.assertNotIn('private',str(context.exception))
+   def timed(*a,**k):raise subprocess.TimeoutExpired('RAWSECRET',90)
+   dispatch.subprocess.run=timed
+   with self.assertRaises(dispatch.AwsOperationFailure)as context:dispatch.aws('logs','get-log-events')
+   self.assertEqual(context.exception.diagnostic['stage'],'aws.logs.get-log-events');self.assertNotIn('RAWSECRET',str(context.exception))
+  finally:dispatch.subprocess.run=old
  def test_only_alia_role_and_no_secrets(self):
   dispatch.validate_definition(self.definition,self.definition);self.assertEqual(self.definition['taskRoleArn'],prep.ROLE);self.assertEqual(self.definition['containerDefinitions'][0]['secrets'],[]);self.assertLess(len(json.dumps(self.definition)),60000)
  def test_reordered_env_accepted(self):
