@@ -17,7 +17,7 @@ function fixture({claims={},post='success',receipt='success'}={}) {
  const token=signing+'.'+sign(null,Buffer.from(signing),privateKey).toString('base64url');
  const table=rows=>({status:'complete',count:rows.length,rows});
  const inventory={kind:'inference-pilot-readiness',profile:'oxy',readOnly:true,isolation:'repeatable read',observedAt:new Date(now()).toISOString(),tables:{
-  inference_deployments:table(Object.entries(DEPLOYMENTS).map(([id,provider])=>({internal_route_id_digest:hash(id),provider_slug:provider,status:'active',permission_state:'approved',legal_review_status:'approved',availability_scope:'internal_alia',retains_payloads:false,trains_on_customer_data:false,zero_data_retention_available:true,price_version_id:'price-'+provider,platform_fee_price_version_id:null}))),
+  inference_deployments:table(Object.entries(DEPLOYMENTS).map(([id,provider])=>({internal_route_id_digest:hash(id),provider_slug:provider,status:'active',permission_state:'approved',legal_review_status:'approved',availability_scope:'internal_alia',retains_payloads:provider==='groq',retention_days:provider==='groq'?30:0,trains_on_customer_data:false,zero_data_retention_available:true,price_version_id:'price-'+provider,platform_fee_price_version_id:null}))),
   price_versions:table(Object.values(DEPLOYMENTS).map(provider=>({id:'price-'+provider,status:'active',currency:'USD',provider,model_reference:MODEL,effective_from:new Date(now()-1000).toISOString(),effective_until:null}))),
   price_version_unit_prices:table(Object.values(DEPLOYMENTS).flatMap(provider=>['input_tokens','cached_input_tokens','output_tokens','reasoning_tokens','requests'].map(unit=>({price_version_id:'price-'+provider,unit,amount:unit==='requests'?'0':'0.35',per:unit==='requests'?'1':'1000000'}))))
  }};
@@ -53,7 +53,10 @@ for(const [name,mutate]of [
  ['partial',x=>x.tables.price_versions.status='missing'],
  ['foreign deployment',x=>x.tables.inference_deployments.rows[0].internal_route_id_digest=hash('foreign')],
  ['unreviewed',x=>x.tables.inference_deployments.rows[0].legal_review_status='pending'],
- ['payload retained',x=>x.tables.inference_deployments.rows[0].retains_payloads=true],
+ ['Cerebras retention changed',x=>x.tables.inference_deployments.rows[0].retains_payloads=true],
+ ['Groq retention days changed',x=>x.tables.inference_deployments.rows[1].retention_days=31],
+ ['Groq privacy snapshot changed',x=>x.tables.inference_deployments.rows[1].retains_payloads=false],
+ ['OpenRouter retention days changed',x=>x.tables.inference_deployments.rows[2].retention_days=30],
  ['expired price',x=>x.tables.price_versions.rows[0].effective_until=new Date(now()+1000).toISOString()],
  ['expensive',x=>x.tables.price_version_unit_prices.rows[0].amount='10'],
  ['duplicate unit',x=>x.tables.price_version_unit_prices.rows[0].unit='output_tokens'],
@@ -76,3 +79,5 @@ test('actual Oxy normalization confirms canonical Hello exceeds old cap and fits
  const request=requestFor(intent);const budget=controlledInputBudget(normalizeResponsesRequest(responsesRequestSchema.parse(request)));
  assert.equal(budget,29027);assert.ok(budget<32768);assert.equal(request.routingProfile,'auto');assert.equal(request.maxOutputTokens,128);
 });
+
+test('reviewed Groq30-day retention is reported separately from ZDR availability',()=>{const result=inspectInventory(fixture().inventory,now);assert.deepEqual(result.quotes.find(q=>q.provider==='groq').privacy,{retainsPayloads:true,retentionDays:30,trainsOnCustomerData:false,zeroDataRetentionAvailable:true});});
