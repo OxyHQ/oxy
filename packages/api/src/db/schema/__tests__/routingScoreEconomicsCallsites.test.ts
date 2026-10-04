@@ -123,5 +123,6 @@ test('every application and script routing-score insert states reviewed economic
   // its append-only event (services/kaanaCatalogueSync.service.ts).
   // 16 -> 17: the shared servable-evidence test fixture (db/testServableEvidence.ts).
   // 17 -> 18: privateCommissioning.test.ts seeds explicit synthetic funding economics.
-  expect(callsites).toHaveLength(18);
+  // 18 -> 19: Mention private commissioning seeds its own explicit scoped funding evidence.
+  expect(callsites).toHaveLength(19);
 });
