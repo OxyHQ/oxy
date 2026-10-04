@@ -1,5 +1,7 @@
 # Local Mention → Oxy → signed Kaana proof
 
+This is the retained pre-activation checkpoint at e3bffdda/9e78da20. Its statement that source getters were absent describes that checkpoint. The later exact Alia source preparation and replay of this test are recorded in ../2026-10-04-jev-exact-activation; synthetic Mention injection never authorizes production Mention.
+
 The frozen Mention builder sends its five normal Noul/Score questions through the published core4.4 SDK, the real Oxy router and owned PostgreSQL catalogue/authority/metering, then the canonical signed HTTP client into Kaana httpapi and the Go executor. Only the provider adapter is fake. The adapter itself refuses to reply until the canonical SQL claim exists.
 
 The positive performs one provider send and persists one permanent claim plus one internal metered row. A newly signed replay reaches the actual SQL claim function under kaana_runtime, loses the permanent claim, and cannot send again. A Mention request cannot use the synthetic Alia audience, and a signed foreign principal is denied before claiming/sending. This proves the transport/executor boundary, not production authority or Mention's worker persistence; the latter has its own frozen150 controls.
