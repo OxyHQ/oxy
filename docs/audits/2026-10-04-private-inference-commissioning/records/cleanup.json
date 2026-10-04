@@ -1,0 +1,91 @@
+{
+  "kind": "owned-postgres-cleanup-v1",
+  "checks": [
+    {
+      "pid": 1782174,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-0tpsgbdt/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1750786,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-5ck2thfn/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1754629,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-7g38won5/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1748820,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-99t8z9f4/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1744451,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-_i9g_li9/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1740489,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-c3f48_if/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1752474,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-ciaqgegd/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1785651,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-e8mtlj2h/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1760789,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-jpb5dk5t/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1757104,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-pg2r8hu_/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1742065,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-sjkx06xx/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1753329,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-szc5yink/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1778659,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-upl9t2gc/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    },
+    {
+      "pid": 1790939,
+      "dataDirectory": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004/pg1519-wiujewhd/data",
+      "pidAbsent": true,
+      "postmasterPidAbsent": true
+    }
+  ],
+  "allObservedPidsAbsent": true,
+  "allOwnedPostmasterFilesAbsent": true
+}

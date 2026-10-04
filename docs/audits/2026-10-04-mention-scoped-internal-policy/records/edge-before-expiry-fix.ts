@@ -1,0 +1,4490 @@
+/**
+ * The public inference edge — admission, attribution, authorization,
+ * reservation, forwarding and settlement (issue #972 workstream 4, ADR 0010).
+ *
+ * ONE path to the data plane, shared by both public dialects. ADR 0010 rejected
+ * "let each public endpoint build its own upstream request" because two code
+ * paths mean two places a routing constraint or a reservation can be forgotten,
+ * and only one of them would be well covered. `routes/inferenceEdge.ts` reads
+ * the dialect and renders the answer; every decision between those two points
+ * happens here.
+ *
+ * ## The order is load-bearing, and it is ADR 0010's
+ *
+ * ```text
+ * 1. allocate requestId            before authentication — a rejected request is traceable
+ * 2. authenticate the credential   machine key or verified service token
+ * 3. resolve attribution           credential -> application -> owner account   (ADR 0007)
+ * 4. authorize scopes              credential scopes ∩ application scopes
+ * 5. resolve the routing policy, pin its version, then resolve the route UNDER it
+ * 6. reserve spend                 (ADR 0009) — reject HERE, before the data plane
+ * 7. forward the internal envelope
+ * 8. settle and refund against the returned usage
+ * ```
+ *
+ * Nothing is forwarded before step 6 completes, and every path out of step 7 —
+ * including "there is no data plane" — settles the hold. A refusal that left a
+ * reservation standing would take a customer's money out of circulation until
+ * the sweeper expired it, for a request that never ran.
+ *
+ * Steps 1 to 6 are {@link admitRequest}, and both entry points below call it.
+ * That is the ONE admission path ADR 0010 asks for: a streaming request and a
+ * non-streaming one are authorized, routed, limited and reserved by the same
+ * code, so a constraint cannot be enforced on one and forgotten on the other.
+ *
+ * ## Two entry points, because a stream is not a value
+ *
+ *  - {@link executeInferenceRequest} returns one completion.
+ *  - {@link streamInferenceRequest} is an async generator of
+ *    {@link EdgeStreamFrame}, so the route writes and flushes each frame as it
+ *    arrives and NOTHING is buffered. Its `finally` settles the hold whatever
+ *    ends the iteration — a terminal event, a transport failure, or a route that
+ *    stopped consuming because its own client went away. Abandoning a
+ *    `for await` runs that cleanup, which is what makes "the customer left"
+ *    propagate all the way to the provider without any caller remembering to say
+ *    so.
+ *
+ * ## A deployment with no data plane refuses, exactly as it did before
+ *
+ * `services/httpKaanaClient.ts` is the production implementation, but a
+ * deployment that has not configured one (`config/kaanaDataPlane.ts`) is
+ * constructed with no client: the edge answers a typed `service_unavailable` with
+ * a `requestId`, having reserved and released the hold, and `stream: true` is
+ * refused with a typed `invalid_request`. It never falls back to the Alia proxy
+ * and never fabricates a completion. See `__tests__/inferenceEdge.test.ts` — the
+ * refusal is asserted together with the balance being whole afterwards, because a
+ * refusal that silently keeps the money is the failure that looks like it worked.
+ *
+ * ## Settlement is one function, and it never depends on a completion
+ *
+ * {@link settleMeasured} takes the units, the source and the outcome, and every
+ * path reaches it: a clean completion, a stream that ended in an error, a client
+ * disconnect, and a request that produced output nobody could measure. The last
+ * of those settles ZERO units with `usageSource: 'estimated'`, which the ledger
+ * records as the refund reason `usage_unavailable` — the conservative answer, and
+ * a deliberately reconcilable one. What Oxy SHOULD charge when a provider reports
+ * no usage is an open policy question that belongs with the estimation and
+ * reconciliation work, not here.
+ *
+ * ## Two providers, and they are allowed to differ
+ *
+ * `route.provider` is the provider this request was ADMITTED against: the one
+ * whose price version sized the hold and whose constraints the routing policy was
+ * checked over. `usage.servingProvider` is the provider the data plane REPORTS as
+ * having actually served it. A same-model deployment failover makes them
+ * different, and the epic declares that failover LEGITIMATE — so a mismatch is
+ * not an error to refuse, it is a fact to record.
+ *
+ * Every record that describes what was SERVED therefore names the REPORTED
+ * provider: the receipt, the usage event (and so the daily rollup, whose primary
+ * key includes it), the customer's response body and its `X-Oxy-Provider` header.
+ * Every record that describes a request nothing served names the ADMITTED one,
+ * because there is no reported value to name — a reservation refused before the
+ * forward, and a completion repudiated as unreadable or model-substituted, are
+ * both in that class. The pattern mirrors `requestedModelReference` beside
+ * `resolvedModelReference`, which the schema already carries for the same reason.
+ *
+ * {@link settlementFrom} resolves the two into ONE value per request, so the
+ * receipt and the telemetry event can never name different providers for the same
+ * charge. A streaming response is the one place the admitted provider reaches a
+ * customer: `X-Oxy-Provider` is a header, headers go out before the first frame,
+ * and a switch that happens afterwards is delivered as a `route_switch` event
+ * instead — see {@link streamInferenceRequest}.
+ *
+ * ## A reported route switch is RECORDED, never validated
+ *
+ * See {@link recordEdgeRouteSwitch}.
+ *
+ * ## Prompts never enter this module's logs
+ *
+ * Every log line here names ids, codes and counts. The request body, the
+ * messages, the tool arguments and the model's output are not passed to
+ * `logger` on any path, and the test asserts it against a marker planted in a
+ * prompt with a positive control proving the logger was called at all.
+ */
+
+import { decisionAnswersMatch, decisionInputBudget, decisionFitsGateway, type DecisionAnswer } from '@oxy.so/contracts';
+import { decisionAvailability } from '../config/decisionAvailability';
+
+import { createHash, randomUUID } from 'node:crypto';
+import type { Request } from 'express';
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
+import type { z } from 'zod';
+import {
+  currentDeploymentLiveness,
+  isDeploymentPublished,
+} from './kaanaDeploymentPublication.service';
+import {
+  autoLadder,
+  AUTO_POWER_LEVELS,
+  classifyAutoPowerLevel,
+  type AutoPowerDecision,
+  type AutoRoutingFeatures,
+  type ConcretePowerLevel,
+  powerLevelEfforts,
+  type PowerEffortTarget,
+  resolvePowerLevelEffort,
+  powerLevelProfileIds,
+} from './inferencePowerLevels.service';
+import {
+  AUTO_CLASSIFIER_VERSION,
+  createAutoPowerLevelResolver,
+  type AutoClassificationChild,
+} from './inferenceAutoPowerLevel.service';
+import { createJevAutoClassifier } from './inferenceAutoClassifierChild.service';
+import { approvedAutoClassifier, autoClassifierApproval, sameAutoClassifierApproval, type AutoClassifierApproval } from '../config/autoClassification';
+import {
+  effectiveSameModelDeployment,
+  type inferenceAttributionSchema,
+  inferenceRequestSchema,
+  INFERENCE_SCOPES,
+  normalizedUsageReportSchema,
+  type ClientRequestMetadata,
+  type InferenceEnvironment,
+  type InferenceError,
+  type InferenceErrorCode,
+  type InferenceInput,
+  type InferenceMessage,
+  type InferenceReasoning,
+  type InferenceRequest,
+  type InferenceScope,
+  type InferenceStreamEvent,
+  type InferenceStreamRouteSwitchEvent,
+  type NormalizedUsageReport,
+  type ReasoningEffort,
+  type RoutingPolicyReference,
+  type RoutingProfile,
+  type RoutingTarget,
+  type RealtimeAudioFormat,
+  type UsageSource,
+  type UsageUnit,
+} from '@oxy.so/contracts';
+import { mentionClassifierApproval, type MentionClassifierApproval } from '../config/mentionClassifierEconomics';
+import { isMentionClassifierRequest, mentionClassifierAuthorityActive, mentionClassifierEconomicDecision } from './mentionClassifierEconomics.service';
+import { scopedPermitForContext, attestScopedPermit, scopedFundingIntegrationAvailable, scopedFundingRestriction } from './scopedExecution.service';
+import { scopedInferenceRequestSchema, type ScopedExecution, type ScopedInferenceRequest } from '@oxy.so/contracts';
+import { getDb } from '../config/postgres';
+import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
+import {
+  resolveEconomicTreatment,
+  type EconomicTreatmentDecision,
+} from '../config/inferenceEconomicPolicy';
+import { applications } from '../db/schema/applications';
+import { USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledgerColumns';
+import { usageReceipts, usageReceiptUnitPrices } from '../db/schema/usageReceipts';
+import { usageReservations } from '../db/schema/usageReservations';
+import { extractTokenFromRequest } from '../middleware/authUtils';
+import {
+  resolveMachineCredential,
+  type MachineCredentialPrincipal,
+} from '../middleware/machineCredential';
+import { verifyServiceToken } from '../middleware/serviceToken';
+import { resolveServiceTokenPrincipal } from './attribution.service';
+import {
+  claimMeteredAdmission,
+  finalizeMeteredAuthorization,
+  hasActiveInternalMeteredAdmission,
+  markMeteredAdmissionRefused,
+  settleMeteredUsage,
+} from './inferenceMeteredUsage.service';
+import {
+  exceedsAmount,
+  powerLevelCandidates,
+  resolveCatalogueViewer,
+  resolveEdgeRoute,
+  firstUnacceptedParameter,
+  requestParametersOf,
+  resolveRoutingProfileForEdge,
+  resolveRoutingProfileForEdgeById,
+  routingConstraintsOf,
+  TEXT_COMPLETION_MODALITY,
+  UNCONSTRAINED_ROUTING,
+  type CatalogueViewer,
+  type EdgeModalityRequirement,
+  type EdgeRoute,
+} from './inferenceCatalogue.service';
+import {
+  publishedUnitPrice,
+  quoteUnits,
+  reserve,
+  previewReservation,
+  settle,
+  type LedgerAttribution,
+  type ReservationView,
+} from './inferenceLedger.service';
+import {
+  recordRouteSwitch,
+  resolveEffectiveRoutingPolicy,
+  type RouteSwitchDetail,
+  type EffectiveRoutingPolicyResolution,
+} from './inferenceRoutingPolicy.service';
+import { recordInferenceUsage } from './inferenceTelemetry.service';
+import {
+  DataPlaneNotConfiguredError,
+  KaanaEnvelopeRejectedError,
+  KaanaIncompleteError,
+  KaanaProtocolError,
+  type KaanaClient,
+  type KaanaCompletion,
+  type KaanaDeploymentAttestation,
+  type KaanaUsageEvidence,
+} from './kaanaClient';
+import type { ApplicationScope } from '../utils/applicationScopes';
+import { controlledInputBudget, pilotAllowsDeployment } from './inferenceInternalPilot';
+import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
+import { logger } from '../utils/logger';
+import {
+  generationReceiptSchema,
+  type EdgeOperation,
+  type GenerationReceipt,
+  type NormalizedEdgeRequest,
+} from '../schemas/inferenceEdge.schemas';
+import { inferenceMeteredUsage } from '../db/schema/inferenceMeteredUsage';
+import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
+
+/* -------------------------------------------------------------------------- */
+/*  Limits                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The largest request body the edge accepts, in bytes.
+ *
+ * Deliberately BELOW the global `express.json({ limit: '1mb' })` ceiling, and
+ * that ordering is the whole point: the parser runs before routing, so a limit
+ * equal to its own would never fire and the customer would get the parser's
+ * untyped 413 with no `requestId` on it. At 768 KiB the edge's own typed
+ * `request_too_large` is what a customer actually receives, and the parser stays
+ * the backstop for a body that declares no `Content-Length`.
+ *
+ * 768 KiB of JSON is far more text than fits the context window of any model
+ * this edge serves — a request that large is refused by
+ * `context_length_exceeded` long before its size matters — so the ceiling
+ * rejects nothing a customer could have been served.
+ */
+export const MAX_REQUEST_BYTES = 786_432;
+
+/**
+ * Per-message allowance for the tokens a chat template adds around content —
+ * role markers, turn delimiters, the tool-call framing.
+ *
+ * Part of the input CEILING (see {@link estimateInputTokens}), so it only ever
+ * makes a hold larger. Eight is generous for every template in common use.
+ */
+const MESSAGE_TOKEN_OVERHEAD = 8;
+
+/**
+ * How long a hold stands before the expiry sweeper releases it.
+ *
+ * Long enough that a slow generation settles against its own hold rather than
+ * against an expired one; short enough that a settlement lost to a crash returns
+ * the customer's money within the quarter hour.
+ */
+export const RESERVATION_TTL_SECONDS = 900;
+
+/** The longest customer-supplied `Idempotency-Key` the edge will key on. */
+export const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
+
+/**
+ * The reference recorded when an application has configured NO routing policy.
+ *
+ * `resolveEffectiveRoutingPolicy` returning `none` is a real answer, not a gap:
+ * an application with no policy is served under the platform default. The
+ * envelope still requires a reference, because a charge must be explainable
+ * against the exact configuration that produced it — so the default is NAMED and
+ * VERSIONED rather than omitted, and a receipt written today stays attributable
+ * to something true after the customer configures a real policy tomorrow.
+ *
+ * `policyVersion` moves when the platform default's MEANING changes, not when
+ * this file is edited. A receipt referencing it carries no
+ * `routing_policy_version_id`, because there is no version row to point at —
+ * which is exactly how a reader tells the two cases apart.
+ */
+export const PLATFORM_DEFAULT_ROUTING_POLICY: RoutingPolicyReference = {
+  routingPolicyId: 'platform-default',
+  policyVersion: 1,
+};
+
+/**
+ * Whether an application served under {@link PLATFORM_DEFAULT_ROUTING_POLICY}
+ * (or the internal default) authorizes same-model failover — `true`, by owner
+ * decision (2026-09-30, contract set 3.4.0).
+ *
+ * Serving the SAME revision from another deployment is an availability
+ * decision, not a substitution: the caller gets exactly the weights it named.
+ * So an exact-model request gets it by default, and a policy opts out with an
+ * explicit `fallback.sameModelDeployment: false` or `fallback.disabled`
+ * (`effectiveSameModelDeployment`). Cross-model fallback is unaffected and
+ * still needs the policy's own authorization rows or a routing profile.
+ *
+ * A switch made under a default has no policy version row to name; it is
+ * recorded with neither a version nor a profile, which the route-switch table
+ * admits for a DEPLOYMENT switch only (`inference_route_switch_events_authority`).
+ */
+export const PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER = true;
+
+/**
+ * The reference recorded when an OFFICIAL Oxy application (first-party,
+ * internal or system — the `platform_internal` audience) configured no routing
+ * policy and named a concrete model.
+ *
+ * Why it exists: a concrete `publisher/model` target is ranked by a versioned
+ * policy's `optimiseFor`, and before this default an official product with no
+ * policy row could only reach the catalogue through a routing profile. The
+ * owner direction of 2026-09-25 is that Alia lists and serves EVERY model Kaana
+ * discovers, by model id, with no hand-curated profile in between — so official
+ * applications get a named, versioned default instead of a refusal.
+ *
+ * What it admits is exactly what the audience may already see: approved,
+ * offerable `platform_internal` (and public) deployments of the named model.
+ * It adds no constraint and no failover (see
+ * {@link PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER}, whose reasoning
+ * applies unchanged). A third-party application without a policy still gets
+ * `missing-versioned-optimisation`: this is not a public default.
+ */
+export const PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY: RoutingPolicyReference = {
+  routingPolicyId: 'platform-internal-default',
+  policyVersion: 1,
+};
+
+/**
+ * The dimension the internal default ranks a model's deployments by. `price`
+ * because it is the one score the catalogue sync can derive for every route
+ * from the provider's list price, and it carries no validity window: the
+ * latency, throughput and balanced dimensions need measurements Kaana does not
+ * publish yet.
+ */
+export const PLATFORM_INTERNAL_DEFAULT_OPTIMISE_FOR = 'price' as const;
+
+/** Display order for a refusal naming the efforts a model does support. */
+const REASONING_EFFORT_ORDER = ['low', 'medium', 'high'] as const;
+
+/* -------------------------------------------------------------------------- */
+/*  Authentication                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A caller the edge has authenticated, in the ONE shape both lanes produce.
+ *
+ * `scopes` is current database authority, never an unverified token claim. For
+ * machine/service callers it is `credential ∩ application`. For the private
+ * product-session lane, the human session is the authorization and scopes are
+ * the pinned application's current grants; its exact credential is a revocable
+ * attribution anchor only.
+ */
+export interface EdgePrincipal {
+  readonly lane: 'machine_credential' | 'service_token' | 'product_session';
+  readonly applicationId: string;
+  readonly credentialId: string;
+  /** `applications.owner_account_id` — the billing principal (ADR 0007). */
+  readonly ownerAccountId: string;
+  readonly environment: InferenceEnvironment;
+  readonly scopes: readonly ApplicationScope[];
+  /** What the catalogue audience is derived from. Never customer-facing. */
+  readonly applicationType: string | null;
+  readonly applicationIsInternal: boolean | null;
+}
+
+export type EdgeAuthentication =
+  | {
+      readonly ok: true;
+      readonly principal: EdgePrincipal;
+      /**
+       * Present only on the machine lane. Handed back so the router can put it
+       * on `req.machineCredential`, which is what the per-credential and
+       * per-application limiters of `middleware/machineCredential.ts` key on —
+       * those limiters are mounted, not reimplemented.
+       */
+      readonly machinePrincipal?: MachineCredentialPrincipal;
+    }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Authenticate an inference-edge caller.
+ *
+ * Two lanes, tried in the order that costs least: the machine lane matches on a
+ * fixed token shape and refuses anything else without a query, so a service
+ * token falls through to `verifyServiceToken` immediately.
+ *
+ * **A bare `oxy_dk_…` authenticates on neither.** It is an OAuth client id, and
+ * the machine lane matches only `token_prefix` — a column no public identifier
+ * is ever written to — while the service lane requires a signed JWT. That is not
+ * a check that could be forgotten; it is a column it is not in.
+ *
+ * **The machine lane is closed unless this deployment opens it**
+ * (`INFERENCE_MACHINE_CREDENTIAL_AUTH`, `config/rolloutFlags.ts`). The check sits
+ * before the lookup rather than after it, so a machine token costs no query while
+ * the lane is shut — and it is a lane refusal rather than a fall-through to the
+ * service lane, so the log says which lane was closed instead of reporting a
+ * malformed JWT.
+ *
+ * Every refusal is the same answer to the caller. `reason` is for the log.
+ */
+export async function authenticateEdgeCaller(
+  req: Pick<Request, 'headers'>
+): Promise<EdgeAuthentication> {
+  const token = extractTokenFromRequest(req);
+  if (!token) {
+    return { ok: false, reason: 'no_bearer' };
+  }
+
+  if (machineCredentialTokenPrefix(token) !== null && !isMachineCredentialLaneEnabled()) {
+    return { ok: false, reason: 'machine_lane_disabled' };
+  }
+
+  const machine = await resolveMachineCredential(token);
+  if (machine.ok) {
+    const application = await loadCatalogueApplication(machine.principal.applicationId);
+    return {
+      ok: true,
+      machinePrincipal: machine.principal,
+      principal: {
+        lane: 'machine_credential',
+        applicationId: machine.principal.applicationId,
+        credentialId: machine.principal.credentialId,
+        ownerAccountId: machine.principal.ownerAccountId,
+        environment: machine.principal.environment,
+        scopes: machine.principal.scopes,
+        applicationType: application?.type ?? null,
+        applicationIsInternal: application?.isInternal ?? null,
+      },
+    };
+  }
+
+  if (machine.reason !== 'not_machine_token') {
+    return { ok: false, reason: `machine_${machine.reason}` };
+  }
+
+  const verification = verifyServiceToken(token);
+  if (!verification.ok) {
+    return { ok: false, reason: `service_${verification.reason}` };
+  }
+
+  // The ROW, not the token's claims, is the authority for the application and
+  // owner hop (ADR 0007) — and re-reading it is what makes a revocation
+  // effective inside the token's own hour of life. WHICH row depends on which
+  // proof minted the token: an `application_credentials` row, or the
+  // `application_workload_identities` binding an ADR 0026 attestation selected.
+  // `resolveServiceTokenPrincipal` owns that branch for this call site and for
+  // the catalogue's, because resolving `credentialId` as a credential id
+  // unconditionally answered 401 to every first-party service that had given up
+  // its key pair — the edge refusing the exact callers the ADR exists for.
+  const resolution = await resolveServiceTokenPrincipal(verification.payload);
+  if (resolution.status !== 'resolved') {
+    return { ok: false, reason: `service_principal_${resolution.status}` };
+  }
+  const resolved = resolution.principal;
+
+  /**
+   * An attested caller reaches the ledger from here, and `credentialId` is the
+   * `wl_…` handle the whole way down.
+   *
+   * It used to stop here: `usage_reservations`, `usage_receipts`,
+   * `inference_usage_events` and `inference_usage_daily_rollups` all carry the
+   * authenticating identity in `application_credential_id`, `NOT NULL` with a
+   * foreign key to `application_credentials.id`, and a handle named no such row —
+   * so this function refused `proof === 'workload'` with
+   * `workload_attribution_unsupported` to keep a 401 from becoming a 500.
+   *
+   * The handle now names a real row, materialised from the binding by
+   * `services/workloadAttributionIdentity.service.ts` before the token was ever
+   * minted. Every foreign key, cascade, join and usage report downstream is
+   * unchanged, and nothing on this path needs to know which proof it was — which
+   * is the property the single `service_token` lane below already assumed.
+   */
+  const application = await loadCatalogueApplication(resolved.applicationId);
+
+  return {
+    ok: true,
+    principal: {
+      // One lane. An attested token IS a service token — same mint, same
+      // signature, same hour — and the proof that selected its row is not a
+      // different way of arriving here. Splitting the lane would fork every
+      // receipt, limiter key and telemetry row that reads it, to record
+      // something `proof` already says.
+      lane: 'service_token',
+      applicationId: resolved.applicationId,
+      credentialId: resolved.credentialId,
+      ownerAccountId: resolved.ownerAccountId,
+      environment: resolved.environment,
+      scopes: resolved.scopes,
+      applicationType: application?.type ?? null,
+      applicationIsInternal: application?.isInternal ?? null,
+    },
+  };
+}
+
+/** The two application columns the catalogue audience is derived from. */
+async function loadCatalogueApplication(
+  applicationId: string
+): Promise<{ type: string | null; isInternal: boolean | null } | undefined> {
+  const [row] = await getDb()
+    .select({ type: applications.type, isInternal: applications.isInternal })
+    .from(applications)
+    .where(eq(applications.id, applicationId))
+    .limit(1);
+  return row;
+}
+
+/** The catalogue audience this principal may be served from. */
+export function viewerForPrincipal(principal: EdgePrincipal): CatalogueViewer {
+  return resolveCatalogueViewer({
+    type: principal.applicationType,
+    isInternal: principal.applicationIsInternal,
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Execution                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export interface EdgeExecutionContext {
+  /** Internal only, constructed by the Auto adapter; never read from a public body. */
+  readonly autoClassificationChild?: {
+    readonly approval: AutoClassifierApproval;
+    readonly parentRequestId: string;
+    readonly modelReference: string;
+    readonly policy: EffectiveRoutingPolicyResolution;
+    readonly maxPricePerRequest: AutoClassificationChild['maxPricePerRequest'];
+  };
+  /** Allocated before authentication, so a rejected request is traceable. */
+  readonly requestId: string;
+  /**
+   * When the edge received this request, on the MONOTONIC clock
+   * (`performance.now()`), taken beside the request id in `edgeGate`.
+   *
+   * It is the origin of `inference_usage_events.latency_ms` — see
+   * {@link recordEdgeTelemetry}. Monotonic rather than `Date.now()` because a
+   * wall-clock step (NTP) between the two readings would produce a negative
+   * latency, which the column's own CHECK refuses; the row would then be lost
+   * on a path that swallows its errors, so the failure would be a silently
+   * missing metric rather than a visible one.
+   */
+  readonly receivedAt: number;
+  readonly principal: EdgePrincipal;
+  readonly request: NormalizedEdgeRequest;
+  /** `X-Oxy-User-Id`, or the OpenAI `user` field. Attribution only. */
+  readonly delegatedUserId?: string;
+  /** The customer's `Idempotency-Key`, when they sent one. */
+  readonly idempotencyKey?: string;
+  /**
+   * The public dialect, rendered into the envelope's `client.apiFormat` and
+   * checked against a model's declared `apiFormats`. Absent for a realtime
+   * session, which is not a one-shot dialect and never builds an envelope.
+   */
+  readonly apiFormat?: ClientRequestMetadata['apiFormat'];
+  readonly endpoint: string;
+  /** Aborted when the client disconnects. */
+  readonly signal: AbortSignal;
+  /**
+   * The data plane. Absent when this deployment configured none — see
+   * `config/kaanaDataPlane.ts` — in which case every invoke refuses.
+   */
+  readonly kaanaClient?: KaanaClient;
+}
+
+export interface EdgeCompletion {
+  readonly decisions?: readonly DecisionAnswer[];
+  readonly requestId: string;
+  readonly generationId?: string;
+  readonly resolvedModelReference: string;
+  /**
+   * The provider that actually served this request, as the data plane REPORTED
+   * it — which after a same-model failover is not the provider the edge admitted.
+   * The receipt and the daily rollup name the same value, so a customer reading
+   * `X-Oxy-Provider` and a customer reading their usage dashboard see one answer.
+   */
+  readonly servingProvider: string;
+  readonly finishReason: KaanaCompletion['finishReason'];
+  readonly output: readonly InferenceMessage[];
+  /**
+   * The transcript of each output's spoken audio, parallel to `output` — `null`
+   * where an output carried none. Absent unless the request asked for spoken
+   * output. See `KaanaCompletion.outputAudioTranscripts`.
+   */
+  readonly outputAudioTranscripts?: readonly (string | null)[];
+  readonly units: Partial<Record<UsageUnit, number>>;
+  readonly routingPolicy: RoutingPolicyReference;
+  /**
+   * How long Oxy took over this request, in whole milliseconds.
+   *
+   * **The clock starts** at {@link EdgeExecutionContext.receivedAt} — the
+   * monotonic reading `edgeGate` takes beside the request id, before
+   * authentication — and **stops** at the telemetry write that follows
+   * settlement. It therefore spans authentication, admission, scope
+   * authorization, routing, the reservation, the forward to the data plane, and
+   * the settlement of the hold: everything between the first byte this process
+   * saw of the request and the last thing it did before rendering the answer.
+   *
+   * **Most of that interval is UPSTREAM.** The data plane generating tokens
+   * dominates it, and this number does not separate the two — the part Oxy is
+   * answerable for is the DIFFERENCE between this and the data plane's own
+   * `completedAt - startedAt`, which is exactly why
+   * {@link recordEdgeTelemetry} refuses to report the latter as the platform's.
+   * It is also not the figure a caller measures: a client's own stopwatch
+   * additionally covers DNS, TLS, both network legs and its own parse, so the
+   * two are shown side by side and labelled rather than reconciled into one.
+   *
+   * It is the SAME reading `inference_usage_events.latency_ms` stores rather
+   * than a second `performance.now()` taken here, so the number a customer reads
+   * off their response and the number their usage dashboard reports cannot
+   * disagree by the few hundred microseconds between the two statements.
+   *
+   * A STREAM has no equivalent and deliberately reports none: its head is
+   * written before the first frame arrives, so there is no moment in a streamed
+   * request at which this number both exists and can still be sent.
+   */
+  readonly latencyMs: number;
+}
+
+export type EdgeExecution =
+  | { readonly status: 'completed'; readonly completion: EdgeCompletion }
+  | { readonly status: 'refused'; readonly error: InferenceError };
+
+/** The customer-visible frames one streamed request produces. */
+export type EdgeStreamFrame =
+  /**
+   * The first thing a streaming route learns, yielded when the data plane's own
+   * first frame arrives rather than at admission. That timing is what lets a
+   * refusal Kaana makes at the ENVELOPE layer still be an HTTP status: nothing is
+   * committed to the response until something real is about to be written to it.
+   */
+  | { readonly kind: 'open'; readonly head: EdgeStreamHead }
+  | { readonly kind: 'event'; readonly event: InferenceStreamEvent }
+  /** Terminal. Before an `open` it is an HTTP error; after one, a stream event. */
+  | { readonly kind: 'error'; readonly error: InferenceError };
+
+/** What a route needs before it writes the first byte of a stream. */
+export interface EdgeStreamHead {
+  readonly requestId: string;
+  readonly resolvedModelReference: string;
+  /**
+   * The ADMITTED provider — the one exception to the rule that a
+   * customer-visible provider is the reported one.
+   *
+   * This head becomes response HEADERS, and headers are sent before the first
+   * frame. The reported provider is not knowable then: the usage report is
+   * terminal, and a failover can happen at any point after. So a stream states
+   * the route it opened on and reports a later change as a `route_switch` event,
+   * which is the transport the contract provides for exactly this. The RECEIPT
+   * for the same request still names the reported provider.
+   */
+  readonly servingProvider: string;
+  readonly routingPolicy: RoutingPolicyReference;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Steps 4-6: admission, shared by both entry points                         */
+/* -------------------------------------------------------------------------- */
+
+/** Everything admission resolved, and the hold it took. */
+export interface AdmittedRequest {
+  readonly scopedExecution?: ScopedExecution;
+  readonly mentionClassifier?: MentionClassifierApproval;
+  readonly route: EdgeRoute;
+  /** The caller's concrete target or routing profile, preserved for the envelope. */
+  readonly routingTarget: RoutingTarget;
+  /**
+   * Every route this request is authorized to be served on, in preference
+   * order — `route` first, then the same-model failover destinations the
+   * customer's `fallback` controls permit. What {@link buildEnvelope} sends as
+   * `authorizedRoutes` (ADR 0017).
+   *
+   * NON-EMPTY, always: element 0 is `route`. A list of exactly one says "serve
+   * this, no failover", which is what a policy with fallback off authorizes and
+   * what an application on {@link PLATFORM_DEFAULT_ROUTING_POLICY} gets.
+   *
+   * The hold was sized against the most expensive entry, so no failover within
+   * this list can settle above it — see {@link admitRequest}.
+   */
+  readonly authorizedRoutes: readonly EdgeRoute[];
+  /**
+   * The reasoning effort the envelope carries: the caller's own, or a power
+   * level's default where every authorized route's model advertises it.
+   */
+  readonly reasoning?: InferenceReasoning;
+  readonly requestedModelReference: string;
+  readonly maxOutputTokens: number;
+  readonly routingPolicy: RoutingPolicyReference;
+  readonly routingPolicyVersionId: string | undefined;
+  readonly ledgerKey: string;
+  readonly ledgerAttribution: LedgerAttribution;
+  /**
+   * Absent while shadow metering (nothing is charged) and for every
+   * `internal_metered` request (nothing is ever charged). Which of the two is
+   * {@link AdmittedRequest.economics}, never this field.
+   */
+  readonly hold: ReservationView | undefined;
+  /**
+   * The economic treatment, derived from the authenticated principal against
+   * the versioned policy in `config/inferenceEconomicPolicy.ts` — never from
+   * anything the request carried.
+   */
+  readonly economics: EconomicTreatmentDecision;
+  /**
+   * The durable `inference_metered_usage` row this request claimed at
+   * admission. Its idempotency and its usage record, whatever the treatment.
+   */
+  readonly meteredUsageId: string;
+  /**
+   * A realtime session held for DURATION units (`routeCeilingPlans`): the most
+   * billable text items it may send, which its `requests` ceiling was sized
+   * from and the session must therefore enforce. Absent for every token-held
+   * session and every one-shot request.
+   */
+  readonly realtimeTextItemCap?: number;
+}
+
+export type Admission =
+  | { readonly status: 'admitted'; readonly admitted: AdmittedRequest }
+  | { readonly status: 'refused'; readonly error: InferenceError };
+
+/** UTF-16 code-unit order, with no locale, provider or display-name input. */
+function compareExactDeploymentIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/**
+ * Keep every same-priority ranking site on the one reviewed ordering contract.
+ *
+ * `preferNonReasoning` is set for a power level that asks for NO reasoning
+ * (`instant`): inside one funding class a model that does not reason ranks
+ * ahead of one that does, before price, because a reasoning model's output
+ * budget is spent on reasoning first — at `instant`'s budgets, often all of it.
+ */
+function compareQualifiedRoutes(
+  left: EdgeRoute,
+  right: EdgeRoute,
+  preferByok: boolean,
+  preferNonReasoning = false
+): number {
+  if (preferByok) {
+    const leftIsByok = left.availabilityScope === 'byok_only';
+    const rightIsByok = right.availabilityScope === 'byok_only';
+    if (leftIsByok !== rightIsByok) return leftIsByok ? -1 : 1;
+  }
+  const byFunding = left.fundingPriority - right.fundingPriority;
+  if (byFunding !== 0) return byFunding;
+  if (preferNonReasoning && left.reasoning !== right.reasoning) return left.reasoning ? 1 : -1;
+  const byScore = right.routingScore - left.routingScore;
+  return byScore !== 0
+    ? byScore
+    : compareExactDeploymentIds(left.deploymentId, right.deploymentId);
+}
+
+function sameRegionSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return leftSet.size === rightSet.size && [...leftSet].every((region) => rightSet.has(region));
+}
+
+/**
+ * Validate live data-plane evidence against the exact PostgreSQL routes the
+ * request would sign. Equality is on all four identity fields. Regions are a
+ * set because their wire order carries no meaning; an empty set remains the
+ * explicit unattested state and therefore only equals another empty set.
+ */
+function deploymentAttestationMismatch(
+  attestation: KaanaDeploymentAttestation,
+  authorizedRoutes: readonly EdgeRoute[]
+): string | undefined {
+  if (
+    typeof attestation?.snapshotId !== 'string' ||
+    attestation.snapshotId.length === 0 ||
+    !Array.isArray(attestation.deployments)
+  ) {
+    return 'kaana-attestation-malformed';
+  }
+  const expectedByID = new Map(
+    authorizedRoutes.map((route) => [route.deploymentId, route] as const)
+  );
+  if (expectedByID.size !== authorizedRoutes.length) {
+    return 'authorized-deployment-id-collision';
+  }
+  if (attestation.deployments.length !== expectedByID.size) {
+    return 'kaana-attestation-cardinality-mismatch';
+  }
+
+  const seen = new Set<string>();
+  for (const descriptor of attestation.deployments) {
+    if (
+      typeof descriptor?.deploymentId !== 'string' ||
+      typeof descriptor.modelReference !== 'string' ||
+      typeof descriptor.provider !== 'string' ||
+      !Array.isArray(descriptor.regions)
+    ) {
+      return 'kaana-attestation-malformed';
+    }
+    if (seen.has(descriptor.deploymentId)) {
+      return 'kaana-attestation-duplicate-id';
+    }
+    seen.add(descriptor.deploymentId);
+    const expected = expectedByID.get(descriptor.deploymentId);
+    if (expected === undefined) {
+      return 'kaana-attestation-extra-id';
+    }
+    if (
+      descriptor.modelReference !== expected.modelReference ||
+      descriptor.provider !== expected.provider ||
+      !sameRegionSet(descriptor.regions, expected.regions)
+    ) {
+      return 'kaana-attestation-identity-mismatch';
+    }
+  }
+  return seen.size === expectedByID.size ? undefined : 'kaana-attestation-missing-id';
+}
+
+/** The stable model line shared by all revision-pinned references. */
+function modelLineOf(reference: string): string {
+  const separator = reference.indexOf('@');
+  return separator === -1 ? reference : reference.slice(0, separator);
+}
+
+/** Log a refusal and build the customer's error. One origin for both. */
+export function refuseRequest(
+  context: EdgeExecutionContext,
+  code: InferenceErrorCode,
+  message: string,
+  options: { param?: string; reason?: string; forbidRetry?: true } = {}
+): InferenceError {
+  const { principal } = context;
+  logger.warn('inference.edge.refused', {
+    requestId: context.requestId,
+    code,
+    applicationId: principal.applicationId,
+    credentialId: principal.credentialId,
+    lane: principal.lane,
+    ...(options.reason === undefined ? {} : { reason: options.reason }),
+  });
+  return buildInferenceError({
+    code,
+    message,
+    requestId: context.requestId,
+    ...(options.param === undefined ? {} : { param: options.param }),
+    ...(options.forbidRetry === undefined ? {} : { forbidRetry: options.forbidRetry }),
+  });
+}
+
+/**
+ * Authorize, limit, route and reserve — ADR 0010's steps 4 to 6, for both a
+ * streaming request and a non-streaming one.
+ *
+ * Nothing is forwarded before this returns `admitted`, and when it returns
+ * `refused` nothing has been reserved on any arm except the one that says so.
+ *
+ * ## Charging is a flag, and until it is armed the edge SHADOW METERS
+ *
+ * `INFERENCE_CHARGING_AUTHORIZED` (`config/rolloutFlags.ts`) is unset by default,
+ * and while it is, the reservation here and the settlement later are replaced by
+ * one priced log line: the request is admitted, routed, forwarded and metered
+ * exactly as it would be, the exact amount it WOULD have been billed is computed
+ * from the same price version with the same `quoteUnits` arithmetic `settle` bills
+ * with, and no reservation, receipt, refund, ledger entry or balance movement is
+ * written. So a shadow period leaves nothing to reconcile away when charging is
+ * armed, which is the property that makes it worth running at all.
+ *
+ * What is NOT enforced while shadow metering, stated rather than discovered: an
+ * account with no billing profile is served, an empty balance is served, and a
+ * spending limit stops nothing — all three of those refusals live in `reserve`,
+ * which is the call being skipped. `GET /v1/generations/:id` has no receipt to
+ * return for such a request either. A repeated `Idempotency-Key` IS refused:
+ * the durable admission claim below enforces it without a reservation.
+ *
+ * The flag is read ONCE per request, here and nowhere else. Read twice, a flip
+ * between the reservation and the settlement would either settle against a hold
+ * that was never taken or take a hold nothing ever settles — which is why
+ * `hold` and `economics` are the only things later steps branch on.
+ *
+ * ## `internal_metered` is not shadow metering
+ *
+ * A principal the versioned economic policy names as an internal product
+ * relationship (Alia → Kaana, #1526) is admitted with NO hold whether or not
+ * charging is armed: no billing profile, balance, promotional grant, receipt
+ * or `platform_revenue` entry is involved, and no money moves between
+ * products. Everything else still applies — scopes, policy, catalogue
+ * eligibility, privacy, provider gates — plus a technical capacity budget and
+ * the durable idempotency claim below, so removing the hold removes neither
+ * the duplicate-execution guard nor the limit. Every other caller is
+ * `commercial` and is exactly as before.
+ *
+ * ## Every admitted request claims a durable usage row
+ *
+ * `claimMeteredAdmission` writes one `inference_metered_usage` row per request
+ * BEFORE any reservation, keyed on the ledger key. It is the idempotency guard
+ * for every treatment (a reservation used to be the only one, and only while
+ * charging), and the usage record a report reads cost from.
+ */
+export async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
+  return admitWithAutoDecision(context);
+}
+
+/** A semantic decision can restart routing once, with no hold and the SAME pinned policy. */
+async function admitWithAutoDecision(
+  context: EdgeExecutionContext,
+  resolvedAuto?: { readonly decision: AutoPowerDecision; readonly policy: EffectiveRoutingPolicyResolution },
+  preclaimedMeteredUsageId?: string
+): Promise<Admission> {
+  const { requestId, principal, request } = context;
+  const charging = isChargingAuthorized();
+  const scopedPermit = scopedPermitForContext(context);
+  let economics = resolveEconomicTreatment(principal);
+  const classifierApproval = mentionClassifierApproval();
+  const mentionClassifier = classifierApproval !== undefined
+    && isMentionClassifierRequest(principal, request, classifierApproval) ? classifierApproval : undefined;
+
+  const refuse = (
+    code: InferenceErrorCode,
+    message: string,
+    options: { param?: string; reason?: string } = {}
+  ): Admission => ({
+    status: 'refused',
+    error: refuseRequest(context, code, message, options),
+  });
+
+  if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
+  if (context.autoClassificationChild !== undefined && (
+    (!charging && economics.treatment === 'commercial') || request.operation.kind !== 'decisions' || request.target?.kind !== 'model'
+    || request.target.modelReference !== context.autoClassificationChild.modelReference
+    || !request.target.modelReference.includes('@')
+  )) {
+    return refuse('policy_violation', 'Auto classification requires a metered exact-model child.');
+  }
+
+  // 4. Authorize. `inference:invoke` spends the OWNING ACCOUNT's balance, which
+  //    is why it is checked before anything is resolved or reserved.
+  if (!principal.scopes.includes('inference:invoke')) {
+    return refuse(
+      'insufficient_scope',
+      'This credential does not hold the inference:invoke scope.'
+    );
+  }
+
+  // The economic treatment, from the AUTHENTICATED principal only. Read once,
+  // like the charging flag, so admission and settlement cannot disagree.
+  if (request.operation.kind === 'decisions' || request.input.format === 'decisions' || context.apiFormat === 'decisions') {
+    const gate = decisionAvailability();
+    if (!gate.available && scopedPermit === undefined) return refuse('service_unavailable', gate.reason, { reason: 'decisions-review-required' });
+    if (request.operation.kind !== 'decisions' || request.input.format !== 'decisions' || context.apiFormat !== 'decisions' || request.stream) {
+      return refuse('invalid_request', 'Decisions require the typed nonstreaming decisions endpoint.');
+    }
+  }
+
+  // Only the text modality is served. Refusing here rather than forwarding is
+  // what keeps the input CEILING sound: an image or audio part has no
+  // character-count bound, so a hold sized from one would be a guess.
+  const nonText = firstNonTextPart(request.input);
+  if (nonText !== undefined) {
+    return refuse(
+      'unsupported_modality',
+      `Input parts of type ${nonText} are not served by this edge yet.`,
+      { param: 'input' }
+    );
+  }
+
+  const pilot = economics.treatment === 'internal_metered' ? economics.relationship.pilot : undefined;
+  const pilotInputBudget = pilot === undefined ? undefined : controlledInputBudget(request, scopedPermit);
+  if (pilot !== undefined) {
+    if (pilotInputBudget === undefined) return refuse('unsupported_modality',
+      'The input is outside the controlled internal pilot.', { param: 'input' });
+    if (pilotInputBudget > pilot.maxControlledInputBudget) return refuse('context_length_exceeded',
+      'The controlled input exceeds the internal pilot budget.', { param: 'input' });
+  }
+  const acceptsPilotDeployment = (route: EdgeRoute): boolean =>
+    pilot === undefined || pilotAllowsDeployment(pilot, route, scopedPermit);
+
+  // 5a. Resolve the policy this request is admitted under, and PIN its version.
+  //     The application's own policy wins, then the owner account's; `none`
+  //     means the platform default, which is a real answer rather than a gap.
+  const policy = resolvedAuto?.policy ?? context.autoClassificationChild?.policy
+    ?? await resolveEffectiveRoutingPolicy(principal.applicationId);
+  const viewer = viewerForPrincipal(principal);
+  // An official application with no policy of its own is served under the
+  // named internal default; everyone else keeps the platform default.
+  const internalDefault =
+    policy.status !== 'resolved' && viewer.scopes.includes('platform_internal');
+  const routingPolicy: RoutingPolicyReference =
+    policy.status === 'resolved'
+      ? {
+          routingPolicyId: policy.stored.policy.routingPolicyId,
+          policyVersion: policy.stored.policy.policyVersion,
+        }
+      : internalDefault
+        ? PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY
+        : PLATFORM_DEFAULT_ROUTING_POLICY;
+  const routingPolicyVersionId =
+    policy.status === 'resolved' ? policy.stored.versionId : undefined;
+
+  const childApproval = context.autoClassificationChild?.approval;
+  if (context.autoClassificationChild !== undefined) {
+    const currentApproval = approvedAutoClassifier(autoClassifierApproval(), routingPolicy);
+    if (childApproval === undefined || currentApproval === undefined
+      || !sameAutoClassifierApproval(childApproval, currentApproval)
+      || request.target?.kind !== 'model' || request.target.modelReference !== childApproval.modelReference) {
+      return refuse('policy_violation', 'Auto classification approval does not match this deployment and policy version.');
+    }
+  }
+
+  // The same version's data-handling, provider, residency, licence and hosting
+  // controls, in the shape the route resolver filters candidates on. Passed
+  // explicitly on BOTH arms: an application with no policy is served under the
+  // platform default, which imposes no constraints, and saying so by name is
+  // what stops "unconstrained" from being the answer nobody chose (issue #1011).
+  const routingConstraints =
+    policy.status === 'resolved'
+      ? routingConstraintsOf(policy.stored.policy)
+      : UNCONSTRAINED_ROUTING;
+
+  // The caller's target, or the policy's own default when they named none —
+  // "per-application default model or routing profile", read from the version
+  // that was just pinned rather than from whatever is current at settlement.
+  const target =
+    request.target ??
+    (policy.status === 'resolved' ? policy.stored.policy.defaultTarget : undefined);
+
+  if (target === undefined) {
+    return refuse(
+      'invalid_request',
+      'Name a model, or configure a default target on this application’s routing policy.',
+      { param: 'model' }
+    );
+  }
+
+  const realtime = request.operation.kind === 'realtime_session' ? request.operation : undefined;
+  // A realtime session names a model and is never substituted (contract set
+  // 3.2.0): a routing profile could resolve to a different model line, and the
+  // conversation a session holds belongs to one.
+  if (realtime !== undefined && target.kind !== 'model') {
+    return refuse('invalid_request', 'A realtime session names a model, never a routing profile.', {
+      param: 'model',
+    });
+  }
+
+  const requiredModality = requirementForRequest(request, context.apiFormat);
+  // maxOutputTokens is a caller upper bound. Cap older Alia defaults as well as
+  // omitted values before route qualification, quotes, claims and signed attempts.
+  const requestedOutput = pilot === undefined ? request.maxOutputTokens
+    : Math.min(request.maxOutputTokens ?? pilot.maxOutputTokens, pilot.maxOutputTokens);
+  const estimatedInputTokens = pilotInputBudget ?? estimateInputTokens(request);
+  const contextInputTokens = request.input.format === 'decisions'
+    ? decisionInputBudget(request.input.decisions).context
+    : estimatedInputTokens;
+  const requiredCapacity = {
+    inputTokens: contextInputTokens,
+    outputTokens:
+      request.operation.kind !== 'completion'
+        ? 0
+        : requestedOutput ?? ('model-maximum' as const),
+  };
+  if (scopedPermit !== undefined && economics.treatment === 'commercial' && (!charging || !scopedFundingIntegrationAvailable())) {
+    return refuse('service_unavailable', 'Scoped promotional funding integration is unavailable.');
+  }
+  const authenticatedRoutingContext = {
+    ...(scopedPermit === undefined ? {} : { scopedExecution: scopedPermit }),
+    applicationId: principal.applicationId,
+    environment: principal.environment,
+  };
+  const fallbackEnabled =
+    request.operation.kind !== 'decisions' && policy.status === 'resolved' && !policy.stored.policy.fallback.disabled;
+  const authorizesSameModelFailover =
+    context.autoClassificationChild !== undefined
+      ? false
+      : target.kind !== 'model'
+      ? true
+      : policy.status === 'resolved'
+      ? effectiveSameModelDeployment(policy.stored.policy.fallback)
+      : PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER;
+  // Never for a realtime session: every authorized route of a session is
+  // `same_model` (the contract refuses anything else at the signature), so a
+  // cross-model destination is not merely unauthorized but unsignable.
+  const authorizesCrossModelFallback =
+    realtime === undefined && (target.kind !== 'model' || fallbackEnabled);
+
+  type ResolvedRoutes = Extract<
+    Awaited<ReturnType<typeof resolveEdgeRoute>>,
+    { readonly status: 'resolved' }
+  >;
+  interface RouteGroup {
+    readonly priority: number;
+    readonly resolution: ResolvedRoutes;
+  }
+  interface RankedCandidate {
+    readonly priority: number;
+    readonly route: EdgeRoute;
+  }
+
+  const routingEvidenceRefusal = async (
+    modelReference: string,
+    reason: string
+  ): Promise<Admission> => {
+    await recordEdgeTelemetry(context, {
+      requestedModelReference: modelReference,
+      statusCode: inferenceErrorStatus('no_route_available'),
+      units: {},
+    });
+    return refuse('no_route_available', 'No route is currently available.', {
+      reason: `routing_evidence:${reason}`,
+    });
+  };
+
+  const kaanaEvidenceRefusal = async (modelReference: string, reason: string): Promise<Admission> => {
+    await recordEdgeTelemetry(context, {
+      requestedModelReference: modelReference,
+      statusCode: inferenceErrorStatus('service_unavailable'),
+      units: {},
+    });
+    return refuse(
+      'service_unavailable',
+      'The inference routing evidence is temporarily unavailable.',
+      { reason: `routing_evidence:${reason}` }
+    );
+  };
+
+  const routeGroups: RouteGroup[] = [];
+  const requestedTargetReference =
+    target.kind === 'model'
+      ? target.modelReference
+      : target.kind === 'routing_profile_legacy'
+        ? target.routingProfile
+        : target.routingProfileId;
+  let admittedRoutingTarget: RoutingTarget | undefined =
+    target.kind === 'model' ? target : undefined;
+  let requestedModelReference = target.kind === 'model' ? target.modelReference : '';
+  let implicitOutputCeiling: number | undefined;
+  let sawOutputLimit = false;
+  let sawContextLimit = false;
+  let sawRequestPriceExclusion = false;
+  const requestedEffort = request.reasoning?.effort;
+  /**
+   * For a power level: the reasoning effort each priority group's level asks
+   * for when the caller named none (`auto` has one group per level).
+   */
+  let powerEffortByPriority: ReadonlyMap<number, PowerEffortTarget | undefined> | undefined;
+  let pendingAuto: {
+    readonly features: AutoRoutingFeatures;
+    readonly decision: AutoPowerDecision;
+    readonly levels: readonly ConcretePowerLevel[];
+  } | undefined;
+  /** A priority whose level asks for no reasoning ranks non-reasoning models first. */
+  const prefersNonReasoning = (priority: number): boolean =>
+    request.reasoning === undefined && powerEffortByPriority?.get(priority) === 'none';
+  /** Efforts advertised by models whose routes were dropped for lacking the requested one. */
+  const effortsOfExcludedRoutes = new Set<string>();
+  let sawUnsupportedEffort = false;
+  /**
+   * The request controls the envelope will make Kaana send, and the first one
+   * each dropped route's KNOWN accepted set lacked. A route Kaana's Translate
+   * would refuse on this ground is never signed: its `invalid_request` ends the
+   * request before any other authorized route is tried (OxyHQ/Kaana#124).
+   */
+  const carriedParameters = requestParametersOf(request);
+  const unacceptedParameters = new Set<string>();
+  const acceptsCarriedParameters = (route: EdgeRoute): boolean => {
+    const unaccepted = firstUnacceptedParameter(route.acceptedParameters, carriedParameters);
+    if (unaccepted === undefined) return true;
+    unacceptedParameters.add(unaccepted);
+    return false;
+  };
+  let concreteFailure: Exclude<
+    Awaited<ReturnType<typeof resolveEdgeRoute>>,
+    { readonly status: 'resolved' }
+  > | undefined;
+  let maxPricePerRequest = routingConstraints.maxPricePerRequest;
+  const childPriceLimit = context.autoClassificationChild?.maxPricePerRequest;
+  if (childPriceLimit !== undefined) {
+    if (maxPricePerRequest !== undefined && maxPricePerRequest.currency !== childPriceLimit.currency) {
+      return refuse('policy_violation', 'The classifier budget and application currency must match.');
+    }
+    if (maxPricePerRequest === undefined || exceedsAmount(maxPricePerRequest.amount, childPriceLimit.amount)) {
+      maxPricePerRequest = childPriceLimit;
+    }
+  }
+  const priceEligibleDeploymentIds = new Set<string>();
+  const quotedCandidateCeilings = new Map<
+    string,
+    Extract<RouteCeilingQuote, { readonly status: 'quoted' }>
+  >();
+
+  const capacityForNextPriority = (): typeof requiredCapacity =>
+    request.operation.kind === 'completion' &&
+    requestedOutput === undefined &&
+    implicitOutputCeiling !== undefined
+      ? { inputTokens: estimatedInputTokens, outputTokens: implicitOutputCeiling }
+      : requiredCapacity;
+
+  const qualifyPriority = async (
+    resolutions: readonly ResolvedRoutes[],
+    priority = 0
+  ): Promise<Admission | undefined> => {
+    // A route that cannot take the request's controls neither fixes the
+    // implicit output ceiling nor is quoted: it will never be signed.
+    const rankedAtPriority = resolutions
+      .flatMap((resolution) => [resolution.route, ...resolution.alternates])
+      .filter(acceptsPilotDeployment)
+      .filter(acceptsCarriedParameters)
+      .sort((left, right) =>
+        compareQualifiedRoutes(
+          left,
+          right,
+          routingConstraints.byokPreference === 'prefer',
+          prefersNonReasoning(priority)
+        )
+      );
+
+    // Without a request ceiling there is no price qualification to perform at
+    // this stage. Preserve the original rule: the first resolvable priority's
+    // funding/score/ID winner fixes an omitted output ceiling before lower priorities
+    // are resolved, so a smaller fallback is rejected on capacity before its
+    // route evidence can affect this request.
+    if (maxPricePerRequest === undefined) {
+      if (
+        request.operation.kind === 'completion' &&
+        requestedOutput === undefined &&
+        implicitOutputCeiling === undefined
+      ) {
+        implicitOutputCeiling = rankedAtPriority[0]?.maxOutputTokens;
+      }
+      return undefined;
+    }
+
+    const priceSurvivors: EdgeRoute[] = [];
+    for (const route of rankedAtPriority) {
+      const candidateMaxOutputTokens = outputTokenBudget(
+        request.operation,
+        requestedOutput ?? route.maxOutputTokens
+      );
+      const candidateQuote = await quoteRouteForRequest(
+        request,
+        route.priceVersionId,
+        routeCeilingPlans(request, route, estimatedInputTokens, candidateMaxOutputTokens)
+      );
+      if (candidateQuote.status !== 'quoted') {
+        logger.error(
+          'inference.edge.routing_evidence_unavailable',
+          new Error(`route ${route.deploymentId} could not be quoted: ${candidateQuote.reason}`),
+          { requestId, deploymentId: route.deploymentId, reason: candidateQuote.reason }
+        );
+        return routingEvidenceRefusal(
+          requestedModelReference || route.modelReference,
+          'missing-price'
+        );
+      }
+      quotedCandidateCeilings.set(route.deploymentId, candidateQuote);
+      if (
+        candidateQuote.currency === maxPricePerRequest.currency &&
+        !exceedsAmount(candidateQuote.amount, maxPricePerRequest.amount)
+      ) {
+        priceEligibleDeploymentIds.add(route.deploymentId);
+        priceSurvivors.push(route);
+      } else {
+        sawRequestPriceExclusion = true;
+      }
+    }
+
+    // Price is a qualification control. Only a survivor at this priority may
+    // fix an omitted output ceiling; if every route is over the cap, resolve the
+    // next priority against its own model maximum instead. Once fixed, lower
+    // priorities are capacity-filtered by resolveEdgeRoute BEFORE their exact
+    // ID/price/score evidence is evaluated.
+    if (
+      request.operation.kind === 'completion' &&
+      requestedOutput === undefined &&
+      implicitOutputCeiling === undefined &&
+      priceSurvivors[0] !== undefined
+    ) {
+      implicitOutputCeiling = priceSurvivors[0].maxOutputTokens;
+    }
+    return undefined;
+  };
+
+  if (target.kind === 'model') {
+    const optimiseFor =
+      policy.status === 'resolved'
+        ? policy.stored.policy.optimiseFor
+        : internalDefault
+          ? PLATFORM_INTERNAL_DEFAULT_OPTIMISE_FOR
+          : undefined;
+    if (optimiseFor === undefined) {
+      return routingEvidenceRefusal(target.modelReference, 'missing-versioned-optimisation');
+    }
+    let primary = await resolveEdgeRoute(
+      viewer,
+      target.modelReference,
+      routingConstraints,
+      requiredModality,
+      optimiseFor,
+      capacityForNextPriority(),
+      authenticatedRoutingContext
+    );
+    if (primary.status === 'routing-evidence-unavailable') {
+      return routingEvidenceRefusal(target.modelReference, primary.reason);
+    }
+    if (childApproval !== undefined && primary.status === 'resolved') {
+      const reviewed = [primary.route, ...primary.alternates].find((route) =>
+        route.deploymentId === childApproval.deploymentId
+        && route.modelReference === childApproval.modelReference
+        && route.provider === childApproval.provider
+        && sameRegionSet(route.regions, childApproval.regions));
+      if (reviewed === undefined) {
+        return refuse('policy_violation', 'The reviewed Auto classification deployment is not eligible.');
+      }
+      primary = { status: 'resolved', route: reviewed, alternates: [] };
+    }
+    if (primary.status === 'resolved') {
+      routeGroups.push({ priority: 0, resolution: primary });
+      const qualification = await qualifyPriority([primary]);
+      if (qualification !== undefined) return qualification;
+    } else {
+      concreteFailure = primary;
+      if (primary.status === 'capacity-unavailable') {
+        sawOutputLimit ||= primary.outputLimitExceeded;
+        sawContextLimit ||= primary.contextLimitExceeded;
+      }
+    }
+
+    if (
+      authorizesCrossModelFallback &&
+      !target.modelReference.includes('@') &&
+      policy.status === 'resolved'
+    ) {
+      for (const [index, modelReference] of policy.stored.policy.fallback.authorizedCrossModel.entries()) {
+        const fallback = await resolveEdgeRoute(
+          viewer,
+          modelReference,
+          routingConstraints,
+          requiredModality,
+          optimiseFor,
+          capacityForNextPriority(),
+          authenticatedRoutingContext
+        );
+        if (fallback.status === 'routing-evidence-unavailable') {
+          return routingEvidenceRefusal(target.modelReference, fallback.reason);
+        }
+        if (fallback.status === 'resolved') {
+          routeGroups.push({ priority: index + 1, resolution: fallback });
+          const qualification = await qualifyPriority([fallback]);
+          if (qualification !== undefined) return qualification;
+        } else if (fallback.status === 'capacity-unavailable') {
+          sawOutputLimit ||= fallback.outputLimitExceeded;
+          sawContextLimit ||= fallback.contextLimitExceeded;
+        }
+      }
+    }
+  } else {
+    const exactIdTarget = target.kind === 'routing_profile_id';
+    const profileResolution = exactIdTarget
+      ? await resolveRoutingProfileForEdgeById(target.routingProfileId)
+      : await resolveRoutingProfileForEdge(target.routingProfile);
+    if (profileResolution.status === 'unknown-profile') {
+      return refuse('no_route_available', 'No route is currently available.', {
+        param: exactIdTarget ? 'routingProfileId' : 'routingProfile',
+        reason: exactIdTarget ? 'unknown_routing_profile_id' : 'unknown_routing_profile',
+      });
+    }
+    if (profileResolution.status === 'routing-evidence-unavailable') {
+      return routingEvidenceRefusal(requestedTargetReference, profileResolution.reason);
+    }
+    const resolvedProfileId =
+      profileResolution.status === 'power-level'
+        ? profileResolution.routingProfileId
+        : profileResolution.profile.routingProfileId;
+    // The deprecated public slug is resolved here and cannot cross the signed
+    // boundary. Both public selectors emit the exact canonical catalogue PK.
+    admittedRoutingTarget = { kind: 'routing_profile_id', routingProfileId: resolvedProfileId };
+
+    // The application's allowed-profile list (power levels it may use). Checked
+    // before any route is resolved: naming a level the policy forbids is the
+    // caller's own setting to change, so it is a `policy_violation`, never a
+    // silent downgrade to an allowed level.
+    const allowedProfileIds =
+      policy.status === 'resolved' ? policy.stored.policy.allowedRoutingProfileIds : [];
+    const profileAllowed = (routingProfileId: string): boolean =>
+      allowedProfileIds.length === 0 || allowedProfileIds.includes(routingProfileId);
+    if (!profileAllowed(resolvedProfileId)) {
+      const slug =
+        profileResolution.status === 'power-level'
+          ? profileResolution.slug
+          : profileResolution.profile.slug;
+      await recordEdgeTelemetry(context, {
+        requestedModelReference: slug,
+        statusCode: inferenceErrorStatus('policy_violation'),
+        units: {},
+      });
+      return refuse(
+        'policy_violation',
+        `This application’s routing policy does not allow the routing profile "${slug}".`,
+        {
+          param: exactIdTarget ? 'routingProfileId' : 'routingProfile',
+          reason: 'policy_excluded:allowedRoutingProfileIds',
+        }
+      );
+    }
+
+    let profileCandidates: readonly { readonly modelReference: string; readonly priority: number }[];
+    let optimiseFor: RoutingProfile['optimiseFor'];
+    // A power level's membership is dynamic by definition, so a class member
+    // whose routing evidence is incomplete is NOT a member right now: it is
+    // skipped (and logged) instead of refusing the whole level. A fixed
+    // profile keeps the fail-closed rule — its author named every candidate.
+    let dynamicMembership = false;
+    if (profileResolution.status === 'power-level') {
+      dynamicMembership = true;
+      optimiseFor = profileResolution.optimiseFor;
+      const levelProfileIds = await powerLevelProfileIds();
+      const levelAllowed = (level: ConcretePowerLevel): boolean => {
+        const id = levelProfileIds.get(level);
+        return id !== undefined && profileAllowed(id);
+      };
+      let levels: ConcretePowerLevel[];
+      if (profileResolution.powerLevel === 'auto') {
+        const features = autoRoutingFeaturesOf(request, estimatedInputTokens);
+        const decision = resolvedAuto?.decision ?? classifyAutoPowerLevel(features);
+        levels = autoLadder(decision.level, levelAllowed);
+        logger.info('inference.edge.auto_power_level', {
+          requestId,
+          decided: decision.level,
+          reasons: decision.reasons,
+          classification: decision.classification,
+          ladder: levels,
+        });
+        pendingAuto = { features, decision, levels };
+      } else {
+        levels = [profileResolution.powerLevel];
+      }
+      const efforts = await powerLevelEfforts();
+      powerEffortByPriority = new Map(levels.map((level, index) => [index, efforts.get(level)]));
+      profileCandidates = await powerLevelCandidates(viewer, levels);
+    } else {
+      optimiseFor = profileResolution.profile.optimiseFor;
+      profileCandidates = profileResolution.profile.candidates;
+    }
+
+    const priorities = [...new Set(profileCandidates.map((candidate) => candidate.priority))].sort(
+      (left, right) => left - right
+    );
+    for (const priority of priorities) {
+      const resolvedAtPriority: ResolvedRoutes[] = [];
+      for (const candidate of profileCandidates.filter((entry) => entry.priority === priority)) {
+        const resolution = await resolveEdgeRoute(
+          viewer,
+          candidate.modelReference,
+          routingConstraints,
+          requiredModality,
+          optimiseFor,
+          capacityForNextPriority(),
+          authenticatedRoutingContext
+        );
+        if (resolution.status === 'routing-evidence-unavailable') {
+          if (dynamicMembership) {
+            logger.warn('inference.edge.power_level_member_unservable', {
+              requestId,
+              modelReference: candidate.modelReference,
+              reason: resolution.reason,
+            });
+            continue;
+          }
+          return routingEvidenceRefusal(candidate.modelReference, resolution.reason);
+        }
+        if (resolution.status === 'resolved') {
+          resolvedAtPriority.push(resolution);
+          routeGroups.push({ priority, resolution });
+        } else if (resolution.status === 'capacity-unavailable') {
+          sawOutputLimit ||= resolution.outputLimitExceeded;
+          sawContextLimit ||= resolution.contextLimitExceeded;
+        }
+      }
+      const qualification = await qualifyPriority(resolvedAtPriority, priority);
+      if (qualification !== undefined) return qualification;
+    }
+  }
+
+  // Kaana withholds a deployment it cannot serve (exhausted credential,
+  // sustained failure) from its serving snapshot. An unpublished route is an
+  // availability fact like capacity: it is dropped here, before the authorized
+  // set is built, rather than signed and then refused wholesale by the exact
+  // attestation below. See `kaanaDeploymentPublication.service.ts`.
+  const liveness = routeGroups.length === 0 || scopedPermit !== undefined ? undefined : await currentDeploymentLiveness();
+  if (liveness?.status === 'unavailable') {
+    return kaanaEvidenceRefusal(
+      requestedModelReference || requestedTargetReference,
+      'kaana-publication-unavailable'
+    );
+  }
+  let sawUnpublished = false;
+
+  const rankedCandidates: RankedCandidate[] = [];
+  for (const group of routeGroups) {
+    for (const route of [group.resolution.route, ...group.resolution.alternates]) {
+      if (!acceptsPilotDeployment(route)) continue;
+      if (liveness !== undefined && !isDeploymentPublished(liveness, route.deploymentId)) {
+        sawUnpublished = true;
+        continue;
+      }
+      if (
+        maxPricePerRequest !== undefined &&
+        !priceEligibleDeploymentIds.has(route.deploymentId)
+      ) {
+        continue;
+      }
+      // A named effort is a capability the MODEL must advertise, checked like
+      // capacity: a route that cannot honour it is never authorized, so Kaana
+      // is never asked to drop or reinterpret it.
+      if (requestedEffort !== undefined && !route.reasoningEfforts.includes(requestedEffort)) {
+        sawUnsupportedEffort = true;
+        for (const effort of route.reasoningEfforts) effortsOfExcludedRoutes.add(effort);
+        continue;
+      }
+      if (request.input.format === 'decisions' && route.provider === 'openrouter' &&
+          !decisionFitsGateway(request.input.decisions)) {
+        sawContextLimit = true;
+        continue;
+      }
+      if (!acceptsCarriedParameters(route)) continue;
+      if (requestedOutput !== undefined && requestedOutput > route.maxOutputTokens) {
+        sawOutputLimit = true;
+        continue;
+      }
+      const routeOutputTokens = outputTokenBudget(
+        request.operation,
+        requestedOutput ?? route.maxOutputTokens
+      );
+      if (contextInputTokens + routeOutputTokens > route.maxContextTokens) {
+        sawContextLimit = true;
+        continue;
+      }
+      rankedCandidates.push({ priority: group.priority, route });
+    }
+  }
+
+  rankedCandidates.sort((left, right) => {
+    const byPriority = left.priority - right.priority;
+    if (byPriority !== 0) return byPriority;
+    return compareQualifiedRoutes(
+      left.route,
+      right.route,
+      routingConstraints.byokPreference === 'prefer',
+      prefersNonReasoning(left.priority)
+    );
+  });
+
+  const uniqueCandidates: RankedCandidate[] = [];
+  const seenDeploymentIds = new Set<string>();
+  for (const candidate of rankedCandidates) {
+    if (seenDeploymentIds.has(candidate.route.deploymentId)) {
+      return routingEvidenceRefusal(
+        requestedModelReference || candidate.route.modelReference,
+        'duplicate-authorized-deployment'
+      );
+    }
+    seenDeploymentIds.add(candidate.route.deploymentId);
+    uniqueCandidates.push(candidate);
+  }
+
+  const primaryCandidate = uniqueCandidates[0];
+  if (primaryCandidate === undefined) {
+    if (maxPricePerRequest !== undefined && sawRequestPriceExclusion) {
+      const refusedReference =
+        requestedModelReference ||
+        routeGroups[0]?.resolution.route.modelReference ||
+        requestedTargetReference;
+      await recordEdgeTelemetry(context, {
+        requestedModelReference: refusedReference,
+        statusCode: inferenceErrorStatus('policy_violation'),
+        units: {},
+      });
+      return refuse(
+        'policy_violation',
+        `Every route for ${refusedReference} is excluded by this application’s routing policy: maxPricePerRequest.`,
+        { reason: 'policy_excluded:maxPricePerRequest' }
+      );
+    }
+    if (target.kind === 'model' && concreteFailure?.status === 'unknown-model') {
+      await recordEdgeTelemetry(context, {
+        requestedModelReference,
+        statusCode: inferenceErrorStatus('model_not_found'),
+        units: {},
+      });
+      return refuse('model_not_found', `No model ${requestedModelReference} is available to you.`, {
+        param: 'model',
+      });
+    }
+    if (target.kind === 'model' && concreteFailure?.status === 'policy-excluded') {
+      await recordEdgeTelemetry(context, {
+        requestedModelReference,
+        statusCode: inferenceErrorStatus('policy_violation'),
+        units: {},
+      });
+      return refuse(
+        'policy_violation',
+        `Every route for ${requestedModelReference} is excluded by this application’s routing policy: ${concreteFailure.constraints.join(', ')}.`,
+        { reason: `policy_excluded:${concreteFailure.constraints.join(',')}` }
+      );
+    }
+    if (target.kind === 'model' && concreteFailure?.status === 'capability-unsupported') {
+      await recordEdgeTelemetry(context, {
+        requestedModelReference,
+        statusCode: inferenceErrorStatus('unsupported_modality'),
+        units: {},
+      });
+      return refuse(
+        'unsupported_modality',
+        capabilityRefusal(requestedModelReference, concreteFailure.required),
+        { param: 'model', reason: 'capability_not_declared' }
+      );
+    }
+    if (target.kind === 'model' && concreteFailure?.status === 'modality-unsupported') {
+      const wanted =
+        concreteFailure.required.output === undefined
+          ? `${concreteFailure.required.input} input`
+          : `${concreteFailure.required.input} input and ${concreteFailure.required.output} output`;
+      return refuse(
+        'unsupported_modality',
+        `${requestedModelReference} does not serve ${wanted}. It accepts ${concreteFailure.supportedInput.join(', ')} and produces ${concreteFailure.supportedOutput.join(', ')}.`,
+        { param: 'model' }
+      );
+    }
+    if (sawUnsupportedEffort && requestedEffort !== undefined) {
+      const refusedReference =
+        requestedModelReference ||
+        routeGroups[0]?.resolution.route.modelReference ||
+        requestedTargetReference;
+      const supported = REASONING_EFFORT_ORDER.filter((effort) =>
+        effortsOfExcludedRoutes.has(effort)
+      );
+      return refuse(
+        'invalid_request',
+        supported.length === 0
+          ? `${refusedReference} does not accept a reasoning effort.`
+          : `${refusedReference} does not support reasoning effort "${requestedEffort}". Supported efforts: ${supported.join(', ')}.`,
+        { param: 'reasoning.effort', reason: 'unsupported_reasoning_effort' }
+      );
+    }
+    const unaccepted = carriedParameters.find((parameter) => unacceptedParameters.has(parameter));
+    if (unaccepted !== undefined) {
+      const refusedReference =
+        requestedModelReference ||
+        routeGroups[0]?.resolution.route.modelReference ||
+        requestedTargetReference;
+      return refuse(
+        'invalid_request',
+        unaccepted === 'maxOutputTokens'
+          ? `No available route for ${refusedReference} accepts an output limit, which every completion carries.`
+          : `No available route for ${refusedReference} accepts ${unaccepted}. Omit it to use the model’s own behaviour.`,
+        { param: unaccepted, reason: 'unsupported_parameter' }
+      );
+    }
+    if (sawOutputLimit) {
+      return refuse('output_limit_exceeded', 'No authorized route supports that output ceiling.', {
+        param: 'max_output_tokens',
+      });
+    }
+    if (sawContextLimit) {
+      return refuse(
+        'context_length_exceeded',
+        'No authorized route can fit this request and its output ceiling.',
+        { param: 'input' }
+      );
+    }
+    return refuse('no_route_available', 'No route is currently available.', {
+      ...(target.kind === 'routing_profile_legacy'
+        ? { param: 'routingProfile' }
+        : target.kind === 'routing_profile_id'
+          ? { param: 'routingProfileId' }
+          : {}),
+      reason: sawUnpublished ? 'no_published_deployment' : 'no_ordinary_candidate',
+    });
+  }
+
+  const route = primaryCandidate.route;
+  if (target.kind !== 'model') requestedModelReference = route.modelReference;
+  if (admittedRoutingTarget === undefined) {
+    return routingEvidenceRefusal(requestedTargetReference, 'missing-resolved-routing-target');
+  }
+  const maxOutputTokens = outputTokenBudget(
+    request.operation,
+    requestedOutput ?? route.maxOutputTokens
+  );
+  const capacityCompatible = uniqueCandidates.filter(
+    (candidate) =>
+      candidate.route.maxOutputTokens >= maxOutputTokens &&
+      candidate.route.maxContextTokens >= estimatedInputTokens + maxOutputTokens
+  );
+
+  // A power level's reasoning effort, when the caller named none: the level's
+  // target clamped to what the admitted route accepts
+  // (`resolvePowerLevelEffort` — the lowest accepted effort at or above the
+  // target), and then every failover destination must resolve ITS level to
+  // that same effort. The envelope carries ONE effort: a route that would
+  // refuse it is never signed (the same rule a caller-named effort gets
+  // above), and neither is one that would run the level at another effort —
+  // in particular a reasoning model sent no effort, which reasons at its
+  // provider's default.
+  let effectiveReasoning = request.reasoning;
+  //
+  // "Accepts" is two facts: the MODEL advertises the effort, and the exact
+  // DEPLOYMENT's known accepted parameters include `reasoning.effort` (a
+  // caller-named effort is already checked through `carriedParameters`; an
+  // injected one must pass the same Kaana Translate rule, OxyHQ/Kaana#124).
+  const appliesLevelEffort = request.reasoning === undefined && powerEffortByPriority !== undefined;
+  const levelEffortOn = (candidate: RankedCandidate): ReasoningEffort | undefined => {
+    const target = powerEffortByPriority?.get(candidate.priority);
+    if (target === undefined) return undefined;
+    const accepted =
+      firstUnacceptedParameter(candidate.route.acceptedParameters, ['reasoning.effort']) ===
+      undefined
+        ? candidate.route.reasoningEfforts
+        : [];
+    return resolvePowerLevelEffort(target, accepted);
+  };
+  const levelEffort = appliesLevelEffort ? levelEffortOn(primaryCandidate) : undefined;
+  if (levelEffort !== undefined) effectiveReasoning = { effort: levelEffort };
+
+  const authorizedRoutes: EdgeRoute[] = [route];
+  const admittedModelLine = modelLineOf(route.modelReference);
+  const authorizedModelLines = new Set<string>([admittedModelLine]);
+  for (const candidate of capacityCompatible.slice(1)) {
+    if (appliesLevelEffort && levelEffortOn(candidate) !== levelEffort) continue;
+    const candidateModelLine = modelLineOf(candidate.route.modelReference);
+    if (candidateModelLine === admittedModelLine) {
+      if (authorizesSameModelFailover) authorizedRoutes.push(candidate.route);
+      continue;
+    }
+    if (!authorizesCrossModelFallback) continue;
+    if (!authorizedModelLines.has(candidateModelLine) || authorizesSameModelFailover) {
+      authorizedRoutes.push(candidate.route);
+      authorizedModelLines.add(candidateModelLine);
+    }
+  }
+
+  // 6b. Reconcile Oxy's complete exact-ID authorization set with ONE live
+  //     Kaana inventory snapshot before any hold or inference POST. This is
+  //     identity attestation, not route selection: no name, provider, model or
+  //     array position can substitute for an exact deployment id.
+  //
+  // This preflight cannot eliminate the TOCTOU between this snapshot and
+  // execution on another Kaana replica. The signed inference envelope therefore
+  // keeps the executor's exact-route revalidation, and the existing settlement
+  // path releases/refunds a hold if the route is retired in that interval. A
+  // snapshot id is deliberately not sent as a pretend lease: Kaana does not
+  // retain snapshots globally across replicas, so that would create safety by
+  // name without creating the state required to enforce it.
+  if (context.kaanaClient === undefined) {
+    return kaanaEvidenceRefusal(requestedModelReference, 'kaana-not-configured');
+  }
+  let attestation: KaanaDeploymentAttestation;
+  try {
+    attestation = await context.kaanaClient.attestDeployments(
+      authorizedRoutes.map((authorized) => authorized.deploymentId),
+      { signal: context.signal, ...(scopedPermit === undefined ? {} : { scopedExecutionContractVersion: '3.6.0' as const }) }
+    );
+  } catch (error) {
+    logger.error(
+      'inference.edge.routing_evidence_unavailable',
+      error instanceof Error ? error : new Error(String(error)),
+      { requestId, reason: 'kaana-attestation-failed' }
+    );
+    return kaanaEvidenceRefusal(requestedModelReference, 'kaana-attestation-failed');
+  }
+  const attestationMismatch = deploymentAttestationMismatch(attestation, authorizedRoutes);
+  if (attestationMismatch !== undefined) {
+    logger.error(
+      'inference.edge.routing_evidence_unavailable',
+      new Error('Kaana deployment attestation did not match the exact authorization set.'),
+      { requestId, reason: attestationMismatch }
+    );
+    return kaanaEvidenceRefusal(requestedModelReference, attestationMismatch);
+  }
+
+  let scopedExecution: ScopedExecution | undefined;
+  if (scopedPermit !== undefined) {
+    if (authorizedRoutes.length !== 1 || route.scopedCatalogueEvidence === undefined) {
+      return refuse('service_unavailable', 'Scoped normal catalogue evidence is unavailable.');
+    }
+    scopedExecution = attestScopedPermit(scopedPermit, attestation, requestId, { ...route.scopedCatalogueEvidence, policy: routingPolicy });
+    if (scopedExecution === undefined) return refuse('service_unavailable', 'Scoped deployment evidence did not match.');
+  }
+
+  // 6c. Size the hold at the exact maximum of every partition the request can
+  //     consume, for every route the signed envelope authorizes. Completion
+  //     input is split between ordinary and cached tokens, and output between
+  //     ordinary and reasoning tokens. Quoting all four extreme partitions is
+  //     exactly `inputCeiling * max(input, cached) + outputCeiling *
+  //     max(output, reasoning)`, while keeping all amount/per arithmetic inside
+  //     the ledger's exact numeric implementation. It also makes an absent
+  //     child price fail closed before a hold or Kaana call.
+  const quotes = new Map<string, { readonly amount: string; readonly currency: string }>();
+  let quoteCurrency: string | undefined;
+  // A realtime session any of whose routes is held for DURATION units must
+  // enforce the text-item cap its `requests` ceiling was sized from.
+  let heldForDuration = false;
+  for (const authorized of authorizedRoutes) {
+    let routeQuote: RouteCeilingQuote | undefined = quotedCandidateCeilings.get(
+      authorized.deploymentId
+    );
+    if (routeQuote === undefined || requestedOutput === undefined) {
+      routeQuote = await quoteRouteForRequest(
+        request,
+        authorized.priceVersionId,
+        routeCeilingPlans(request, authorized, estimatedInputTokens, maxOutputTokens)
+      );
+    }
+    if (routeQuote.status !== 'quoted') {
+      logger.error(
+        'inference.edge.routing_evidence_unavailable',
+        new Error(`route ${authorized.deploymentId} could not be quoted: ${routeQuote.reason}`),
+        { requestId, deploymentId: authorized.deploymentId, reason: routeQuote.reason }
+      );
+      return routingEvidenceRefusal(requestedModelReference, 'missing-price');
+    }
+    if (quoteCurrency !== undefined && routeQuote.currency !== quoteCurrency) {
+      return routingEvidenceRefusal(requestedModelReference, 'price-currency-mismatch');
+    }
+    quoteCurrency = routeQuote.currency;
+    if (routeQuote.metering !== 'tokens') heldForDuration = true;
+    quotes.set(authorized.deploymentId, {
+      amount: routeQuote.amount,
+      currency: routeQuote.currency,
+    });
+  }
+  const realtimeTextItemCap =
+    heldForDuration && request.operation.kind === 'realtime_session'
+      ? request.operation.maxTextItems
+      : undefined;
+
+  const quote = quotes.get(route.deploymentId);
+  if (quote === undefined) {
+    return routingEvidenceRefusal(requestedModelReference, 'missing-primary-price');
+  }
+
+  let ceilingPriceVersionId = route.priceVersionId;
+  let maxAmount = quote.amount;
+  for (const authorized of authorizedRoutes.slice(1)) {
+    const authorizedQuote = quotes.get(authorized.deploymentId);
+    if (authorizedQuote === undefined) {
+      return routingEvidenceRefusal(requestedModelReference, 'missing-authorized-price');
+    }
+    if (exceedsAmount(authorizedQuote.amount, maxAmount)) {
+      ceilingPriceVersionId = authorized.priceVersionId;
+      maxAmount = authorizedQuote.amount;
+    }
+  }
+
+  if (scopedPermit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, scopedPermit.maxCostUsd))) {
+    return refuse('policy_violation', 'Scoped quote exceeds the authorized USD cost.');
+  }
+  if (mentionClassifier !== undefined) {
+    const decision = mentionClassifierEconomicDecision({ principal, request, approval: mentionClassifier,
+      routes: authorizedRoutes, policy: routingPolicy, quote: { amount: maxAmount, currency: quote.currency },
+      authorityActive: await mentionClassifierAuthorityActive(principal), delegatedUserId: context.delegatedUserId,
+      now: Date.now() });
+    if (decision === undefined) return refuse('policy_violation', 'Mention classifier relationship is not eligible.');
+    economics = decision;
+  }
+  const ledgerKey = ledgerIdempotencyKey(context);
+
+  // Idempotency is a CHARGE guarantee, not response replay: prompts and
+  // responses are not persisted by default, so there is no stored response to
+  // return for a repeated key. A key already bound to a reservation — held or
+  // settled — is therefore refused rather than re-executed, which is what makes
+  // "a retried request must not produce a second charge" structural.
+  if (context.idempotencyKey !== undefined && (await reservationExists(ledgerKey))) {
+    return refuse(
+      'idempotency_conflict',
+      'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
+      { param: 'Idempotency-Key' }
+    );
+  }
+
+  const ledgerAttribution: LedgerAttribution = {
+    accountId: principal.ownerAccountId,
+    applicationId: principal.applicationId,
+    applicationCredentialId: principal.credentialId,
+    ...(context.delegatedUserId === undefined
+      ? {}
+      : { delegatedUserId: context.delegatedUserId }),
+    requestId,
+    environment: principal.environment,
+  };
+
+  // 6d. Reserve. NOTHING is forwarded before this returns `reserved` — unless
+  //     this deployment is shadow metering, in which case nothing is held
+  //     because nothing will be charged. `hold` being `undefined` is what every
+  //     later step branches on, so the two modes cannot half-happen.
+  let hold: ReservationView | undefined;
+  /** A ledger refusal (a raced key included), recorded once, exactly as before Auto. */
+  const refuseReservation = async (
+    result: Awaited<ReturnType<typeof reserve>>,
+    error: InferenceError
+  ): Promise<Admission> => {
+    await recordEdgeTelemetry(context, {
+      requestedModelReference,
+      statusCode: inferenceErrorStatus(error.code),
+      units: {},
+      resolvedModelReference: route.modelReference,
+      // ADMITTED, and it can only be: this refusal happens BEFORE the forward,
+      // so no provider has served anything and there is no reported value in
+      // existence. The row says which route the request would have taken.
+      servingProvider: route.provider,
+    });
+    logger.warn('inference.edge.reservation_refused', {
+      requestId,
+      code: error.code,
+      accountId: principal.ownerAccountId,
+      applicationId: principal.applicationId,
+      reservationStatus: result.status,
+    });
+    return { status: 'refused', error };
+  };
+  if (context.signal.aborted) return refuse('cancelled', 'The request was cancelled.');
+  if (scopedPermit !== undefined && Date.parse(scopedPermit.expiresAt) <= Date.now()) return refuse('policy_violation', 'Scoped authorization expired before reservation.');
+  const holdTtlSeconds =
+    request.operation.kind === 'realtime_session'
+      ? Math.max(RESERVATION_TTL_SECONDS, request.operation.reservationTtlSeconds)
+      : RESERVATION_TTL_SECONDS;
+
+  // 6c'. Claim the durable usage row: the idempotency guard for EVERY
+  //      treatment, and the technical capacity check for `internal_metered`.
+  //      Nothing is reserved or forwarded unless this succeeds.
+  const meteredInput = {
+    requestId,
+    ...(context.autoClassificationChild === undefined ? {} : { parentRequestId: context.autoClassificationChild.parentRequestId }),
+    idempotencyKey: ledgerKey,
+    economics,
+    accountId: principal.ownerAccountId,
+    applicationId: principal.applicationId,
+    applicationCredentialId: principal.credentialId,
+    ...(context.delegatedUserId === undefined ? {} : { delegatedUserId: context.delegatedUserId }),
+    environment: principal.environment,
+    endpoint: context.endpoint,
+    requestedModelReference,
+    admittedModelReference: route.modelReference,
+    admittedProvider: route.provider,
+    admittedDeploymentId: route.deploymentId,
+    routingPolicyVersionId,
+    ceiling: { amount: maxAmount, currency: quote.currency },
+    expiresInSeconds: holdTtlSeconds,
+  };
+  const claim = preclaimedMeteredUsageId === undefined
+    ? await claimMeteredAdmission(meteredInput)
+    : { status: 'claimed' as const, meteredUsageId: preclaimedMeteredUsageId };
+  if (claim.status === 'duplicate') {
+    return refuse(
+      'idempotency_conflict',
+      'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
+      { param: 'Idempotency-Key' }
+    );
+  }
+  if (claim.status === 'capacity-exceeded') {
+    await recordEdgeTelemetry(context, {
+      requestedModelReference,
+      statusCode: inferenceErrorStatus(claim.limit === 'concurrency' ? 'rate_limited' : 'quota_exceeded'),
+      units: {},
+      resolvedModelReference: route.modelReference,
+      servingProvider: route.provider,
+    });
+    logger.warn('inference.edge.internal_capacity_exceeded', {
+      requestId,
+      applicationId: principal.applicationId,
+      environment: principal.environment,
+      limit: claim.limit,
+      economicPolicyVersion: economics.policyVersion,
+    });
+    // A TECHNICAL limit: the answer never asks anyone to fund anything.
+    return claim.limit === 'concurrency'
+      ? refuse(
+          'rate_limited',
+          'This application has reached its concurrent inference capacity. Try again shortly.',
+          { reason: 'internal-capacity-concurrency' }
+        )
+      : refuse(
+          'quota_exceeded',
+          'This application has reached its daily inference capacity.',
+          { reason: 'internal-capacity-daily' }
+        );
+  }
+
+  if (preclaimedMeteredUsageId !== undefined && !(await finalizeMeteredAuthorization(preclaimedMeteredUsageId, meteredInput))) {
+    return refuse('internal_error', 'Final Auto authorization could not be recorded.');
+  }
+
+  if (pendingAuto !== undefined && resolvedAuto === undefined) {
+    // The parent is already fully qualified, attested, quoted and past its
+    // idempotency check (a known attempt never reaches a child) at its
+    // deterministic floor. A child runs only when a STRICTLY higher level is
+    // viable too, since a semantic recommendation can only raise the floor.
+    const { decision: floorDecision, levels: ladder } = pendingAuto;
+    const rank = (level: string): number => (AUTO_POWER_LEVELS as readonly string[]).indexOf(level);
+    const floor = rank(floorDecision.level);
+    const viable = new Set(capacityCompatible.map((candidate) =>
+      rank(ladder[candidate.priority] ?? floorDecision.level)));
+    const classifier = Math.max(...viable) > floor
+      ? createJevAutoClassifier(context, policy, executeInferenceRequest, routingPolicy)
+      : undefined;
+    // Internal parents and children keep separate durable capacity claims.
+    // Commercial parents additionally preview the financial reservation before
+    // task text can reach the classifier; all independent reviews still apply.
+    if (classifier !== undefined && (economics.treatment === 'internal_metered' || charging)) {
+      const preview = economics.treatment === 'internal_metered' ? { status: 'eligible' as const } : await previewReservation({
+        idempotencyKey: ledgerKey, attribution: ledgerAttribution,
+        ceilingPriceVersionId, maxAmount, currency: quote.currency,
+        expiresInSeconds: RESERVATION_TTL_SECONDS,
+      });
+      // A raced key (`already-reserved`) refuses here like any ledger refusal,
+      // before any task text reaches a child.
+      if (preview.status !== 'eligible') {
+        const denied = reservationOrRefusal(preview, requestId, quote.currency);
+        if ('error' in denied) {
+          await markMeteredAdmissionRefused(claim.meteredUsageId);
+          return refuseReservation(preview, denied.error);
+        }
+      }
+      const semantic = await createAutoPowerLevelResolver(classifier)(pendingAuto.features, {
+        requestId, signal: context.signal,
+        state: () => JSON.stringify({ input: request.input, tools: request.tools }),
+      });
+      // A level with no viable route at or above it would refuse a request the
+      // deterministic floor admits; the floor stands instead.
+      const decision: AutoPowerDecision = [...viable].some((index) => index >= rank(semantic.level))
+        ? semantic
+        : { ...floorDecision, classification: { source: 'deterministic', reason: 'not_viable', version: AUTO_CLASSIFIER_VERSION } };
+      // Requalify even an unchanged level: policy stays pinned, live permissions,
+      // capability/privacy evidence, spending and exact attestation are read again.
+      const rerouted = await admitWithAutoDecision(context, { decision, policy }, claim.meteredUsageId);
+      if (rerouted.status === 'refused') {
+        // A child may have executed. Retain the parent key and record its
+        // failed generation, independently of the child's measured usage.
+        await settleMeteredUsage({ meteredUsageId: claim.meteredUsageId,
+          outcome: 'failed', usageSource: 'estimated', units: {},
+          resolvedModelReference: route.modelReference, servingProvider: route.provider,
+          generationId: undefined, priceVersionId: route.priceVersionId });
+      }
+      return rerouted;
+    }
+  }
+
+  if (charging && economics.treatment === 'commercial') {
+    const reservation = await reserve({
+      ...(scopedPermit === undefined ? {} : { fundingRestriction: scopedFundingRestriction }),
+      idempotencyKey: ledgerKey,
+      attribution: ledgerAttribution,
+      knownUnits: request.operation.kind === 'speech'
+        ? { characters: request.operation.characters }
+        : request.operation.kind === 'realtime_session'
+          ? {}
+          : { input_tokens: estimatedInputTokens },
+      ...(maxOutputTokens > 0 ? { maxOutputTokens } : {}),
+      ceilingPriceVersionId,
+      maxAmount,
+      currency: quote.currency,
+      // A session's hold has to outlive the session: its signed maximum
+      // duration, the resume window and the report after `session.closed`.
+      expiresInSeconds: holdTtlSeconds,
+    });
+
+    // `already-reserved` is a refusal, never a borrowed hold: a concurrent
+    // request owns it, whether this is a classifier or the final generation.
+    if (scopedPermit !== undefined && reservation.status !== 'reserved') {
+      const denied = reservationOrRefusal(reservation, requestId, quote.currency);
+      if ('error' in denied) return refuseReservation(reservation, denied.error);
+      return refuse('service_unavailable', 'Scoped execution requires its own exact reserved hold.');
+    }
+    const held = reservationOrRefusal(reservation, requestId, quote.currency);
+    if ('error' in held) {
+      // Refused before anything was forwarded: free the key and the slot, as a
+      // refused reservation always has.
+      if (preclaimedMeteredUsageId === undefined) await markMeteredAdmissionRefused(claim.meteredUsageId);
+      return refuseReservation(reservation, held.error);
+    }
+    hold = held.reservation;
+  }
+
+  return {
+    status: 'admitted',
+    admitted: {
+      ...(scopedExecution === undefined ? {} : { scopedExecution }),
+      ...(mentionClassifier === undefined ? {} : { mentionClassifier }),
+      route,
+      routingTarget: admittedRoutingTarget,
+      authorizedRoutes,
+      ...(effectiveReasoning === undefined ? {} : { reasoning: effectiveReasoning }),
+      requestedModelReference,
+      maxOutputTokens,
+      routingPolicy,
+      routingPolicyVersionId,
+      ledgerKey,
+      ledgerAttribution,
+      hold,
+      economics,
+      meteredUsageId: claim.meteredUsageId,
+      ...(realtimeTextItemCap === undefined ? {} : { realtimeTextItemCap }),
+    },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Steps 7-8, non-streaming                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Admit, reserve, forward and settle one NON-streaming inference request.
+ *
+ * Returns a refusal rather than throwing for every outcome a caller can be told
+ * about, so the two route handlers have exactly one branch each and cannot
+ * disagree about which failures are 4xx.
+ *
+ * A `stream: true` request never reaches here — the router dispatches it to
+ * {@link streamInferenceRequest} — and if one somehow did, {@link admitRequest}
+ * would refuse rather than quietly answer it non-streamed.
+ */
+export async function executeInferenceRequest(
+  context: EdgeExecutionContext
+): Promise<EdgeExecution> {
+  const { requestId, principal } = context;
+
+  const admission = await admitRequest(context);
+  if (admission.status === 'refused') {
+    return { status: 'refused', error: admission.error };
+  }
+  const { admitted } = admission;
+  const { route, hold } = admitted;
+
+  // 7. Build and forward the versioned internal envelope.
+  const envelope = buildEnvelope(context, admitted, false);
+
+  let completion: KaanaCompletion;
+  try {
+    if (context.kaanaClient === undefined) {
+      throw new DataPlaneNotConfiguredError();
+    }
+    if (admitted.mentionClassifier !== undefined) {
+      const current = mentionClassifierApproval();
+      if (JSON.stringify(current) !== JSON.stringify(admitted.mentionClassifier)
+        || Date.parse(admitted.mentionClassifier.expiresAt) <= Date.now()
+        || !await mentionClassifierAuthorityActive(context.principal)
+        || !await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId)) {
+        throw new Error('Mention classifier relationship is no longer active.');
+      }
+    }
+    if (admitted.scopedExecution !== undefined) {
+      const economicAdmissionActive = admitted.economics.treatment === 'internal_metered'
+        ? await hasActiveInternalMeteredAdmission(admitted.meteredUsageId, requestId)
+        : hold !== undefined && hold.expiresAt.getTime() > Date.now();
+      if (!economicAdmissionActive || Date.parse(admitted.scopedExecution.expiresAt) <= Date.now()) {
+        throw new Error('Scoped dispatch requires its retained unexpired economic admission and permit.');
+      }
+    }
+    completion = await context.kaanaClient.execute(envelope, { signal: context.signal });
+  } catch (error) {
+    const failure = classifyForwardFailure(error, context.signal);
+    // Whatever the data plane DID measure before it stopped — `KaanaIncompleteError`
+    // carries it — is what this settles against. A full refund on a request that
+    // produced two hundred tokens would be Oxy absorbing a cost it can account
+    // for, which is the mirror of the over-charge the reservation prevents.
+    //
+    // Built ONCE and shared with the telemetry row below, so the receipt and the
+    // event name the same provider: a failure whose evidence was a full report
+    // names the REPORTED provider on both, and one with no report names the
+    // admitted route on both. Two `settlementFrom` calls would be two chances to
+    // disagree about a request that already failed.
+    const evidence = usageEvidenceOf(error);
+    const evidenceValidation =
+      evidence === undefined
+        ? undefined
+        : validateUsageEvidence(evidence, requestId, admitted.authorizedRoutes);
+    if (evidenceValidation?.status === 'invalid') {
+      logger.error(
+        'inference.edge.incomplete_usage_report_rejected',
+        new Error('the incomplete response carried usage outside the signed exact route list'),
+        { requestId, accountId: principal.ownerAccountId, reason: evidenceValidation.reason }
+      );
+    }
+    const trustedEvidence = evidenceValidation?.status === 'valid' ? evidence : undefined;
+    const servedRoute = evidenceValidation?.status === 'valid' ? evidenceValidation.route : route;
+    const settlement = settlementFrom(trustedEvidence, failure.outcome, servedRoute.provider);
+    await settleMeasured(context, admitted, settlement, servedRoute);
+    await recordEdgeTelemetry(context, {
+      requestedModelReference: admitted.requestedModelReference,
+      statusCode: inferenceErrorStatus(failure.code),
+      units: {},
+      resolvedModelReference: servedRoute.modelReference,
+      servingProvider: settlement.servingProvider,
+      outcome: failure.outcome,
+    });
+    return {
+      status: 'refused',
+      error: refuseRequest(context, failure.code, failure.message, {
+        reason: failure.reason,
+        ...(forbidsRetryAfterForward(context.request) ? { forbidRetry: true } : {}),
+      }),
+    };
+  }
+
+  // The data plane answering about a different request, or naming any route not
+  // present in the signed exact-ID authorization list, is a refusal rather than
+  // a warning. Cross-model substitution is valid only when that exact route was
+  // explicitly authorized in the envelope.
+  const validation = validateCompletion(completion, requestId, admitted.authorizedRoutes, context.request);
+  if (validation.status === 'invalid') {
+    await settleMeasured(
+      context,
+      admitted,
+      settlementFrom(undefined, 'failed', route.provider),
+      route
+    );
+    await recordEdgeTelemetry(context, {
+      requestedModelReference: admitted.requestedModelReference,
+      statusCode: inferenceErrorStatus(validation.code),
+      units: {},
+      resolvedModelReference: route.modelReference,
+      // ADMITTED, deliberately, even though the rejected report carries a
+      // `servingProvider`. The whole answer was just repudiated — it either did
+      // not parse, or it named a model nobody authorized — so reading a field out
+      // of it would attribute a refused request to a provider on the authority of
+      // a document the edge declined to believe. The admitted route is the last
+      // thing about this request Oxy itself established.
+      servingProvider: route.provider,
+      outcome: 'failed',
+    });
+    return {
+      status: 'refused',
+      error: refuseRequest(context, validation.code, validation.message, {
+        reason: validation.reason,
+        ...(forbidsRetryAfterForward(context.request) ? { forbidRetry: true } : {}),
+      }),
+    };
+  }
+  const servedRoute = validation.route;
+
+  // 8. Settle against the exact usage, releasing the rest of the hold in the
+  //    same transaction — or, while shadow metering, price the same usage and
+  //    record what it would have cost without writing a financial record.
+  //
+  //    NOT `settleMeasured`: on this one path a settlement that fails is
+  //    reportable, because the customer's response has not been sent yet. Every
+  //    other path has either already answered with an error or already streamed
+  //    the whole response, and refusing after the fact would turn a ledger
+  //    discrepancy into a second failure the customer sees.
+  const units = unitsFromReport(completion.usage);
+
+  // The provider that actually served the request, as the data plane reports it —
+  // not `route.provider`, which is the provider the edge ADMITTED. A same-model
+  // deployment failover makes the two differ, and the epic authorizes that
+  // failover, so this is the value the receipt, the telemetry event, the daily
+  // rollup's primary key and the customer's own response body carry.
+  //
+  // Safe to read without a further check because {@link validateCompletion} has
+  // already parsed `completion.usage` against `normalizedUsageReportSchema` above,
+  // where `servingProvider` is a required provider slug.
+  const servingProvider = completion.usage.servingProvider;
+
+  let receiptId: string | undefined;
+  if (hold === undefined) {
+    if (admitted.economics.treatment === 'commercial') {
+      await recordShadowMetering(context, servedRoute, units, {
+        outcome: completion.usage.outcome,
+        usageSource: completion.usage.usageSource,
+        servingProvider,
+        ...(completion.generationId === undefined
+          ? {}
+          : { generationId: completion.generationId }),
+        routingPolicyVersionId: admitted.routingPolicyVersionId,
+      });
+    }
+  } else {
+    const settlement = await settle({
+      idempotencyKey: admitted.ledgerKey,
+      reservationId: hold.reservationId,
+      attribution: admitted.ledgerAttribution,
+      ...(completion.generationId === undefined
+        ? {}
+        : { generationId: completion.generationId }),
+      outcome: completion.usage.outcome,
+      usageSource: completion.usage.usageSource,
+      units,
+      resolvedModelReference: servedRoute.modelReference,
+      servingProvider,
+      priceVersionId: servedRoute.priceVersionId,
+      platformFeeOnly: servedRoute.availabilityScope === 'byok_only',
+      ...(admitted.routingPolicyVersionId === undefined
+        ? {}
+        : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
+    });
+
+    if (settlement.status !== 'settled' && settlement.status !== 'already-settled') {
+      // The generation happened and could not be charged for. That is an Oxy
+      // failure, and it is loud: the hold stands until the sweeper releases it,
+      // so the customer's money comes back on its own while the discrepancy is
+      // visible.
+      logger.error(
+        'inference.edge.settlement_failed',
+        new Error(`settlement returned ${settlement.status}`),
+        {
+          requestId,
+          reservationId: hold.reservationId,
+          accountId: principal.ownerAccountId,
+          settlementStatus: settlement.status,
+        }
+      );
+      // Technical usage survives a failed financial settlement. The durable
+      // receipt reconciler links any later committed receipt without replaying inference.
+      await recordMeteredSettlement(context, admitted, {
+        units, usageSource: completion.usage.usageSource,
+        outcome: completion.usage.outcome, generationId: completion.generationId,
+        servingProvider,
+      }, servedRoute, undefined);
+      return {
+        status: 'refused',
+        error: refuseRequest(
+          context,
+          'internal_error',
+          'The request completed but could not be settled.',
+          { reason: settlement.status }
+        ),
+      };
+    }
+    receiptId = settlement.receipt.receiptId;
+  }
+
+  // The durable usage record, for every treatment. For `internal_metered` it
+  // is the ONLY record of the request's usage, so — like a failed settlement
+  // above, and on this one path where an answer can still be refused — a
+  // request that could not be recorded is not reported as served.
+  const metered = await recordMeteredSettlement(
+    context,
+    admitted,
+    {
+      units,
+      usageSource: completion.usage.usageSource,
+      outcome: completion.usage.outcome,
+      generationId: completion.generationId,
+      servingProvider,
+    },
+    servedRoute,
+    receiptId
+  );
+  if (!metered && admitted.economics.treatment === 'internal_metered') {
+    return {
+      status: 'refused',
+      error: refuseRequest(
+        context,
+        'internal_error',
+        'The request completed but its usage could not be recorded.',
+        { reason: 'metered-usage-unrecorded' }
+      ),
+    };
+  }
+
+  // The switches the data plane reported, as the persisted customer-visible
+  // notice. Written after the settlement so the row a customer joins to their
+  // receipt exists by the time the receipt does; a failure to write one never
+  // fails a request that has already been served — see
+  // {@link recordEdgeRouteSwitch}.
+  //
+  // `?? []` because `KaanaCompletion` is deserialized JSON, and a required
+  // property on a wire-derived shape is a CLAIM about what the far side sends
+  // rather than an enforcement of it: a producer that omits this leaves
+  // `undefined` at runtime and `for…of` throws with `tsc` having signed off. The
+  // set of producers is not closed by the type system, so the guard belongs here
+  // and not in the annotation.
+  //
+  // It matters at THIS line in particular because it runs after the hold is
+  // settled and the handler has no try/catch: measured, the throw became an
+  // unhandled rejection with NO response written — not a 500, a request that
+  // never answers, with the money already taken.
+  for (const event of completion.routeSwitchEvents ?? []) {
+    await recordEdgeRouteSwitch(context, admitted, event);
+  }
+
+  // The one reading of the clock this request gets. The telemetry row and the
+  // customer's response both quote it — see {@link EdgeCompletion.latencyMs}.
+  const latencyMs = await recordEdgeTelemetry(context, {
+    requestedModelReference: admitted.requestedModelReference,
+    statusCode: 200,
+    units,
+    resolvedModelReference: servedRoute.modelReference,
+    servingProvider,
+    outcome: completion.usage.outcome,
+    usageSource: completion.usage.usageSource,
+    // The two figures only the data plane can know. `routeSwitches` is the
+    // fallback metric workstream 16 names; `timeToFirstTokenMs` is optional on
+    // the report and stays NULL when it is absent rather than being imputed.
+    routeSwitches: completion.usage.routeSwitches,
+    ...(completion.usage.timeToFirstTokenMs === undefined
+      ? {}
+      : { timeToFirstTokenMs: completion.usage.timeToFirstTokenMs }),
+    ...(completion.generationId === undefined
+      ? {}
+      : { generationId: completion.generationId }),
+  });
+
+  return {
+    status: 'completed',
+    completion: {
+      requestId,
+      ...(completion.generationId === undefined
+        ? {}
+        : { generationId: completion.generationId }),
+      resolvedModelReference: servedRoute.modelReference,
+      servingProvider,
+      finishReason: completion.finishReason,
+      output: completion.output,
+      ...(completion.decisions === undefined ? {} : { decisions: completion.decisions }),
+      ...(completion.outputAudioTranscripts === undefined
+        ? {}
+        : { outputAudioTranscripts: completion.outputAudioTranscripts }),
+      units,
+      routingPolicy: admitted.routingPolicy,
+      latencyMs,
+    },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Steps 7-8, streaming                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Admit, reserve, forward and settle one STREAMING inference request, yielding
+ * each frame as the data plane produces it.
+ *
+ * ## Nothing is buffered, and that is structural rather than careful
+ *
+ * The route's `for await` is the only consumer, and it writes and flushes inside
+ * the loop. There is no array of events anywhere in this function: an event is
+ * read from the data plane, yielded, and forgotten. The two things that ARE kept
+ * are the last usage measurement and the terminal error, both of which are single
+ * values and both of which the settlement needs.
+ *
+ * ## The `finally` is the whole cancellation and settlement story
+ *
+ * It runs on every exit — the stream ending, a transport failure, and a consumer
+ * that stopped consuming — because abandoning a `for await` resumes an async
+ * generator with a return completion, which runs its `finally`. So:
+ *
+ *  - the hold is settled exactly once, whatever happened, and
+ *  - `KaanaClient.stream`'s own `finally` aborts the upstream hop, which is what
+ *    propagates a client disconnect to Kaana and from there to the provider.
+ *
+ * A cancelled request is a SETTLEMENT case (ADR 0009), never a discarded one: the
+ * units measured before the cut are charged and the rest of the hold is released,
+ * so a customer who cancels pays for what they received.
+ *
+ * ## Where the usage comes from, in order of authority
+ *
+ *  1. the terminal `usage_report` frame — the full normalized report;
+ *  2. the last in-stream `usage` event, when the report never arrived, which is
+ *     the ordinary case for a client disconnect: Kaana still produces a report
+ *     but can no longer deliver the frame to a connection that is gone;
+ *  3. nothing, when neither arrived — settled as ZERO units marked `estimated`,
+ *     which the ledger records as the refund reason `usage_unavailable`.
+ *
+ * (3) is the conservative answer to an open policy question — what Oxy should
+ * charge for output it cannot measure — and it is deliberately the reconcilable
+ * one: a receipt exists, it says the usage was unavailable, and a later
+ * estimation policy can correct it with a compensating entry. It is NOT an
+ * estimator, and this is not the place for one.
+ */
+export async function* streamInferenceRequest(
+  context: EdgeExecutionContext
+): AsyncGenerator<EdgeStreamFrame> {
+  const admission = await admitRequest(context);
+  if (admission.status === 'refused') {
+    yield { kind: 'error', error: admission.error };
+    return;
+  }
+  const { admitted } = admission;
+  const { route } = admitted;
+
+  const kaanaClient = context.kaanaClient;
+  if (kaanaClient === undefined) {
+    // Unreachable: `admitRequest` refuses a streaming request with no data plane
+    // before reserving anything. Handled rather than asserted because the
+    // alternative is a non-null assertion, and because a future edit to that
+    // order would otherwise release nothing.
+    await settleMeasured(
+      context,
+      admitted,
+      settlementFrom(undefined, 'failed', route.provider),
+      route
+    );
+    yield {
+      kind: 'error',
+      error: refuseRequest(
+        context,
+        'invalid_request',
+        'Streaming responses are not served by this edge yet. Send stream: false.',
+        { param: 'stream', reason: 'no_data_plane' }
+      ),
+    };
+    return;
+  }
+
+  const envelope = buildEnvelope(context, admitted, true);
+
+  let report: NormalizedUsageReport | undefined;
+  let partial: KaanaUsageEvidence | undefined;
+  let terminal: InferenceError | undefined;
+  let forwardFailure: ForwardFailure | undefined;
+  let meteringProtocolRejected = false;
+  let opened = false;
+  let sawOutput = false;
+
+  try {
+    for await (const frame of kaanaClient.stream(envelope, { signal: context.signal })) {
+      if (frame.kind === 'usage') {
+        report = frame.usage;
+        // Never forwarded as a customer event: it is the technical record
+        // settlement runs against, and the contract's stream union has no member
+        // for it.
+        continue;
+      }
+
+      const event = frame.event;
+      if (!opened) {
+        opened = true;
+        yield {
+          kind: 'open',
+          head: {
+            requestId: context.requestId,
+            resolvedModelReference: route.modelReference,
+            // ADMITTED — the head becomes headers, and the reported provider is
+            // not knowable before the first frame. See {@link EdgeStreamHead}.
+            servingProvider: route.provider,
+            routingPolicy: admitted.routingPolicy,
+          },
+        };
+      }
+
+      if (event.type === 'usage') {
+        partial = {
+          kind: 'partial',
+          requestId: event.requestId,
+          deploymentId: event.deploymentId,
+          units: event.units,
+          usageSource: event.usageSource,
+        };
+      } else if (
+        (event.type === 'delta' && event.text.length > 0) ||
+        event.type === 'audio'
+      ) {
+        sawOutput = true;
+      } else if (event.type === 'error') {
+        terminal = event.error;
+      }
+
+      yield { kind: 'event', event };
+
+      // AFTER the yield, deliberately. A `yield` suspends until the route asks
+      // for the next frame, so this insert sits between "the customer has the
+      // notice" and "the edge reads the next frame from the data plane" — never
+      // in front of a frame somebody is waiting for. Written here rather than
+      // accumulated for the `finally` because a notice already shown to a
+      // customer must survive a process that dies later in the same stream, and
+      // because this function keeps no array of events by design.
+      if (event.type === 'route_switch') {
+        await recordEdgeRouteSwitch(context, admitted, event);
+      }
+    }
+  } catch (error) {
+    // A known Kaana frame that failed its schema may have been the terminal
+    // usage report itself. Treat the whole metering sequence as contradictory:
+    // otherwise `report` remains undefined and an earlier partial frame could be
+    // charged after the terminal record was explicitly unreadable.
+    meteringProtocolRejected = error instanceof KaanaProtocolError;
+    forwardFailure = classifyForwardFailure(error, context.signal);
+  } finally {
+    // A report that answers a different request, or names a model this edge did
+    // not admit, is DISCARDED rather than settled: it is the input to a charge and
+    // it crosses a service boundary. Unlike the non-streaming path this cannot
+    // also refuse the response — the customer already has it — so the request
+    // settles as unmeasured and the discrepancy is loud in the log.
+    const usable =
+      report === undefined
+        ? undefined
+        : validateUsageReport(report, context.requestId, admitted.authorizedRoutes);
+    if (report !== undefined && usable === undefined) {
+      logger.error(
+        'inference.edge.stream_usage_report_rejected',
+        new Error('the streamed usage report does not answer the request that was admitted'),
+        {
+          requestId: context.requestId,
+          resolvedModelReference: route.modelReference,
+          accountId: context.principal.ownerAccountId,
+        }
+      );
+    }
+
+    // A present but invalid terminal report invalidates the whole metering
+    // record; never fall back from a contradictory report to an earlier partial
+    // event. Partial evidence is usable only when no report arrived and its
+    // request/deployment identity resolves to exactly one signed route.
+    const partialValidation =
+      report === undefined && !meteringProtocolRejected && partial !== undefined
+        ? validateUsageEvidence(partial, context.requestId, admitted.authorizedRoutes)
+        : undefined;
+    if (meteringProtocolRejected && partial !== undefined) {
+      logger.error(
+        'inference.edge.stream_partial_usage_discarded_after_protocol_rejection',
+        new Error('a later known Kaana frame failed schema validation'),
+        { requestId: context.requestId }
+      );
+    }
+    if (partialValidation?.status === 'invalid') {
+      logger.error(
+        'inference.edge.stream_partial_usage_rejected',
+        new Error('the streamed partial usage did not name one signed exact route'),
+        { requestId: context.requestId, reason: partialValidation.reason }
+      );
+    }
+    const evidence: KaanaUsageEvidence | undefined =
+      usable !== undefined
+        ? { kind: 'report', report: usable.report }
+        : partialValidation?.status === 'valid'
+          ? partial
+          : undefined;
+    const outcome = streamOutcome(context, { terminal, sawOutput });
+    const servedRoute = usable?.route ??
+      (partialValidation?.status === 'valid' ? partialValidation.route : route);
+    const settlement = settlementFrom(evidence, outcome, servedRoute.provider);
+
+    await settleMeasured(context, admitted, settlement, servedRoute);
+    await recordEdgeTelemetry(context, {
+      requestedModelReference: admitted.requestedModelReference,
+      // A stream that produced any frame answered 200 and cannot un-answer it.
+      statusCode: opened
+        ? 200
+        : inferenceErrorStatus(forwardFailure?.code ?? terminal?.code ?? 'internal_error'),
+      units: settlement.units,
+      resolvedModelReference: servedRoute.modelReference,
+      // REPORTED when a usable report arrived, admitted otherwise — the same
+      // value the receipt carries, resolved once in `settlementFrom`. A stream's
+      // `X-Oxy-Provider` header deliberately differs here: see
+      // {@link EdgeStreamHead}.
+      servingProvider: settlement.servingProvider,
+      outcome: settlement.outcome,
+      usageSource: settlement.usageSource,
+      ...(usable === undefined ? {} : { routeSwitches: usable.report.routeSwitches }),
+      ...(usable?.report.timeToFirstTokenMs === undefined
+        ? {}
+        : { timeToFirstTokenMs: usable.report.timeToFirstTokenMs }),
+      ...(settlement.generationId === undefined
+        ? {}
+        : { generationId: settlement.generationId }),
+    });
+  }
+
+  // A transport or protocol failure produced no terminal event, so the customer
+  // has not been told the stream ended. Kaana's OWN terminal error was already
+  // forwarded verbatim as an event, which is why there is nothing to add for it.
+  if (forwardFailure !== undefined) {
+    yield {
+      kind: 'error',
+      error: refuseRequest(context, forwardFailure.code, forwardFailure.message, {
+        reason: forwardFailure.reason,
+      }),
+    };
+  }
+}
+
+/**
+ * What a stream that did not end in a usage report should be recorded as.
+ *
+ * `cancelled` is decided from the CLIENT's signal rather than from the absence of
+ * a terminal event, because those are different facts: a client that disconnected
+ * and an upstream that died both end the stream without one, and only the first is
+ * the customer's own doing. `partial` needs output to have been seen — a stream
+ * that failed before its first token is `failed`, not a partial delivery.
+ */
+function streamOutcome(
+  context: EdgeExecutionContext,
+  observed: { terminal: InferenceError | undefined; sawOutput: boolean }
+): 'failed' | 'cancelled' | 'partial' {
+  if (context.signal.aborted) return 'cancelled';
+  if (observed.terminal?.code === 'cancelled') return 'cancelled';
+  return observed.sawOutput ? 'partial' : 'failed';
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The customer-visible record of a route switch                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Persist one route switch the data plane REPORTED, as the customer-visible
+ * notice `inference_route_switch_events` was built for (issue #972 workstream 6,
+ * "Emit a customer-visible event/receipt when an allowed route switch occurs").
+ *
+ * Reached from BOTH dialects and BOTH transports: a streaming request records
+ * each `route_switch` event as it forwards it, and a non-streaming one records
+ * the events `KaanaCompletion.routeSwitchEvents` carried out of the fold. The
+ * writer itself is `inferenceRoutingPolicy.service.ts`'s `recordRouteSwitch`,
+ * which already owns the authorisation lookup and the idempotency — this function
+ * is the edge's adapter onto it, not a second writer.
+ *
+ * ## What a recorded row DOES and does NOT claim
+ *
+ * It claims: the data plane reported this switch, and — for a `model`-scope
+ * substitution only — the destination is named in the customer's own
+ * authorisation rows, because `recordRouteSwitch` looks that up and refuses to
+ * write a row it cannot find one for.
+ *
+ * It does NOT claim the switch respected the customer's routing policy, and that
+ * is unchanged now that {@link buildEnvelope} sends `authorizedRoutes` (ADR 0017).
+ * What the list changes is where the guarantee comes from: a data plane that
+ * takes the next ENTRY cannot leave the set Oxy filtered, because every entry
+ * survived the customer's controls before it was sent. What it cannot do is prove
+ * the data plane took an entry. A row here still records what the data plane
+ * REPORTED, and a report is not evidence about the reporter.
+ * **Do not upgrade this to a compliance assertion.**
+ *
+ * That is also why a deployment-scope switch is still WRITTEN when the customer's
+ * `fallback.sameModelDeployment` is off. Under this edge such a switch is
+ * unauthorized by construction — the envelope named exactly one route — so the
+ * row is evidence that something served a route it was not given, and refusing to
+ * record it would destroy exactly the evidence worth keeping.
+ *
+ * ## Failing to write one never fails the request
+ *
+ * By the time this runs the customer has been served and the hold has been
+ * settled. Every refusal and every exception is logged and swallowed, for the
+ * same reason `recordEdgeTelemetry` is best-effort: turning a bookkeeping gap
+ * into a second, customer-visible failure trades one lost row for one lost
+ * response.
+ *
+ * ## The platform default cannot be recorded, and that is a configuration gap
+ *
+ * `routing_policy_version_id` is `NOT NULL`: a switch that cannot name the
+ * configuration which allowed it explains nothing, and for a same-model failover
+ * the authorising configuration is a policy version's `sameModelDeployment`. An
+ * application served under {@link PLATFORM_DEFAULT_ROUTING_POLICY} has NO version
+ * row — deliberately, that is how a reader tells the platform default from a
+ * configured policy — so there is nothing to point at and the notice is skipped
+ * with a named log line rather than written against an invented authority.
+ * Closing that needs a real platform-default policy version somebody decides to
+ * seed, not a nullable column here.
+ */
+async function recordEdgeRouteSwitch(
+  context: EdgeExecutionContext,
+  admitted: AdmittedRequest,
+  event: InferenceStreamRouteSwitchEvent
+): Promise<void> {
+  if (event.requestId !== context.requestId) {
+    // Same reasoning as `validateUsageReport`: a record that crosses a service
+    // boundary and names a different request is discarded, not stored under this
+    // one's id.
+    logger.error(
+      'inference.edge.route_switch_request_mismatch',
+      new Error('the data plane reported a route switch for a different request'),
+      { requestId: context.requestId, sequence: event.sequence }
+    );
+    return;
+  }
+
+  const routingPolicyVersionId = admitted.routingPolicyVersionId;
+  // A routing-profile (power-level) request: the profile authorized every
+  // model line it signed, so those lines are what a model switch may land on.
+  const routingProfile =
+    admitted.routingTarget.kind === 'routing_profile_id'
+      ? {
+          routingProfileId: admitted.routingTarget.routingProfileId,
+          authorizedModelLines: [
+            ...new Set(admitted.authorizedRoutes.map((route) => modelLineOf(route.modelReference))),
+          ],
+        }
+      : undefined;
+
+  // `authorizedByPolicy` is deliberately NOT forwarded. On the wire it is a
+  // `z.literal(true)` — a producer asserting its own permission — and
+  // `recordRouteSwitch` LOOKS the authorisation up instead, so there is no field
+  // here for the data plane's claim about itself to travel in.
+  const detail: RouteSwitchDetail =
+    event.detail.scope === 'deployment'
+      ? {
+          scope: 'deployment',
+          modelReference: event.detail.modelReference,
+          toProvider: event.detail.toProvider,
+          ...(event.detail.toDeploymentId === undefined
+            ? {}
+            : { toDeploymentId: event.detail.toDeploymentId }),
+        }
+      : {
+          scope: 'model',
+          requestedModelId: event.detail.requestedModelId,
+          fromModelReference: event.detail.fromModelReference,
+          toModelReference: event.detail.toModelReference,
+          toProvider: event.detail.toProvider,
+        };
+
+  try {
+    const result = await recordRouteSwitch({
+      requestId: context.requestId,
+      sequence: event.sequence,
+      accountId: context.principal.ownerAccountId,
+      applicationId: context.principal.applicationId,
+      environment: context.principal.environment,
+      ...(routingPolicyVersionId === undefined ? {} : { routingPolicyVersionId }),
+      ...(routingProfile === undefined ? {} : { routingProfile }),
+      reason: event.reason,
+      detail,
+      occurredAt: new Date(event.occurredAt),
+    });
+
+    // `already-recorded` is the idempotent answer, not a failure: the unique
+    // `(request_id, sequence)` key makes a retried or redelivered event a no-op,
+    // which is the same guarantee the ledger's own idempotency key gives the
+    // charge. No second mechanism is introduced for it.
+    if (result.status === 'recorded' || result.status === 'already-recorded') return;
+
+    logger.error(
+      'inference.edge.route_switch_refused',
+      new Error(`the reported route switch could not be recorded: ${result.status}`),
+      {
+        requestId: context.requestId,
+        sequence: event.sequence,
+        scope: event.detail.scope,
+        routingPolicyVersionId,
+        status: result.status,
+      }
+    );
+  } catch (error) {
+    logger.error(
+      'inference.edge.route_switch_write_failed',
+      error instanceof Error ? error : new Error(String(error)),
+      { requestId: context.requestId, sequence: event.sequence }
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Internals                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The key every ledger call for this request is idempotent on.
+ *
+ * Namespaced by the CREDENTIAL when the customer supplied one, so two customers
+ * choosing the same key cannot collide with each other; namespaced by the
+ * request id otherwise, so an internal retry of one HTTP request never
+ * double-charges even without a customer key.
+ */
+function ledgerIdempotencyKey(context: EdgeExecutionContext): string {
+  if (context.autoClassificationChild !== undefined) {
+    const parentKey = context.idempotencyKey ?? context.autoClassificationChild.parentRequestId;
+    return `oxy-edge:auto:${context.principal.credentialId}:${createHash('sha256').update(parentKey).digest('hex')}`;
+  }
+  return context.idempotencyKey === undefined
+    ? `oxy-edge:req:${context.requestId}`
+    : `oxy-edge:idem:${context.principal.credentialId}:${context.idempotencyKey}`;
+}
+
+/** Whether a reservation — held, settled or expired — already carries this key. */
+async function reservationExists(idempotencyKey: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: usageReservations.id })
+    .from(usageReservations)
+    .where(eq(usageReservations.idempotencyKey, idempotencyKey))
+    .limit(1);
+  return row !== undefined;
+}
+
+/**
+ * Map a reservation outcome onto either the hold or the customer's refusal.
+ *
+ * `no-billing-profile` and `insufficient-funds` become the SAME customer-facing
+ * code, and the distinction the ledger fought to keep survives where it matters
+ * — in the log line and in the message. The customer's next action is identical
+ * for both (fund the account that owns this application), and giving them two
+ * codes would be two branches in their client for one decision.
+ *
+ * `already-reserved` is a refusal, never a hold. The pre-check in
+ * {@link admitRequest} is a fast path only: two requests carrying one key can
+ * both pass it, and the ledger's lock-then-lookup inside `reserve` is what
+ * decides the race. The loser borrowing the winner's hold would forward a
+ * second execution against one reservation.
+ */
+function reservationOrRefusal(
+  result: Awaited<ReturnType<typeof reserve>>,
+  requestId: string,
+  currency: string
+): { reservation: ReservationView } | { error: InferenceError } {
+  switch (result.status) {
+    case 'reserved':
+      return { reservation: result.reservation };
+    case 'already-reserved':
+      return {
+        error: buildInferenceError({
+          code: 'idempotency_conflict',
+          message:
+            'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
+          requestId,
+          param: 'Idempotency-Key',
+        }),
+      };
+    case 'no-billing-profile':
+      return {
+        error: buildInferenceError({
+          code: 'insufficient_balance',
+          message:
+            'The account that owns this application has no inference billing profile. Add one in the Oxy Console.',
+          requestId,
+        }),
+      };
+    case 'insufficient-funds':
+      return {
+        error: buildInferenceError({
+          code: 'insufficient_balance',
+          message: `This request needs ${result.required} ${result.currency} and ${result.available} ${result.currency} is available.`,
+          requestId,
+        }),
+      };
+    case 'spending-limit-exceeded':
+      return {
+        error: buildInferenceError({
+          code: 'spending_limit_exceeded',
+          message: 'A spending limit on this account stops this request.',
+          requestId,
+        }),
+      };
+    case 'currency-mismatch':
+      return {
+        error: buildInferenceError({
+          code: 'internal_error',
+          message: `This route is priced in ${currency} and the account is billed in ${result.expected}.`,
+          requestId,
+        }),
+      };
+  }
+}
+
+/**
+ * The log event a shadow-metered request produces. Named as a constant because
+ * it is an operational contract — a dashboard, an alert and a reconciliation
+ * query all key on it — and a renamed string that still compiles would take all
+ * three down silently.
+ */
+export const SHADOW_METERING_EVENT = 'inference.edge.shadow_metered';
+
+/**
+ * Price a completed request exactly as it would be charged, and record the
+ * amount without charging it.
+ *
+ * The charge comes from {@link quoteUnits} against the route's own price
+ * version — the SAME function and the same price rows `settle` computes a bill
+ * from — so the shadow figure and the eventual bill are two evaluations of one
+ * expression rather than two implementations that agree until a price shape
+ * changes.
+ *
+ * Nothing here writes to the database. The units are already recorded by
+ * `recordInferenceUsage` (telemetry carries units and never money, by schema),
+ * so this line is the money half and the two correlate on `requestId` — which is
+ * the same correlation workstream 16's observability item asks for across the
+ * edge, the data plane, the ledger and the receipt.
+ *
+ * A failure to price is `error`, not silence: an unpriceable completed request
+ * is exactly the gap a shadow period exists to find before a customer's bill
+ * depends on it. It does not fail the request — the customer has their
+ * completion, and refusing it after the fact would turn a metering gap into an
+ * outage.
+ */
+async function recordShadowMetering(
+  context: EdgeExecutionContext,
+  route: EdgeRoute,
+  units: Partial<Record<UsageUnit, number>>,
+  measured: {
+    readonly outcome: NormalizedUsageReport['outcome'];
+    readonly usageSource: UsageSource;
+    /**
+     * The provider the data plane reported, or the admitted route's when it
+     * reported none. Passed rather than read off `route`, because a shadow record
+     * that named the admitted provider while the eventual bill named the reported
+     * one would not be the same figure a charged run produces — which is the ONE
+     * property a shadow period exists to establish.
+     */
+    readonly servingProvider: string;
+    readonly generationId?: string;
+    readonly routingPolicyVersionId: string | undefined;
+  }
+): Promise<void> {
+  const quote = await quoteUnits(route.priceVersionId, units);
+
+  const attribution = {
+    requestId: context.requestId,
+    ...(measured.generationId === undefined
+      ? {}
+      : { generationId: measured.generationId }),
+    accountId: context.principal.ownerAccountId,
+    applicationId: context.principal.applicationId,
+    credentialId: context.principal.credentialId,
+    environment: context.principal.environment,
+    resolvedModelReference: route.modelReference,
+    servingProvider: measured.servingProvider,
+    priceVersionId: route.priceVersionId,
+    platformFeeOnly: route.availabilityScope === 'byok_only',
+    ...(measured.routingPolicyVersionId === undefined
+      ? {}
+      : { routingPolicyVersionId: measured.routingPolicyVersionId }),
+  };
+
+  if (quote.status !== 'quoted') {
+    logger.error(
+      'inference.edge.shadow_metering_unpriced',
+      new Error(`shadow metering could not price the request: ${quote.status}`),
+      attribution
+    );
+    return;
+  }
+
+  logger.info(SHADOW_METERING_EVENT, {
+    ...attribution,
+    outcome: measured.outcome,
+    usageSource: measured.usageSource,
+    units,
+    // Named for what it is. `billedAmount` would read as a charge in every
+    // dashboard that picked it up, which is the one thing this number is not.
+    wouldHaveBilledAmount: quote.amount,
+    currency: quote.currency,
+  });
+}
+
+/** One settlement, however the units for it were arrived at. */
+export interface MeasuredSettlement {
+  readonly units: Partial<Record<UsageUnit, number>>;
+  readonly usageSource: UsageSource;
+  readonly outcome: NormalizedUsageReport['outcome'];
+  readonly generationId: string | undefined;
+  /**
+   * The provider this request's receipt, telemetry event and rollup bucket name.
+   *
+   * Already resolved — reported when the data plane reported one, the admitted
+   * route's provider otherwise — so no consumer of this shape has to decide, and
+   * two records of one charge cannot disagree. See {@link settlementFrom}.
+   */
+  readonly servingProvider: string;
+}
+
+/**
+ * Turn whatever the data plane measured into the one shape a settlement takes.
+ *
+ * Three arms, and only the first can be exact:
+ *
+ *  - a full report: its own units, source and outcome, because it is the record
+ *    the contract designed for this;
+ *  - the units of a validated in-stream `usage` event: exact units tied to one
+ *    exact authorized deployment, while the outcome comes from the edge, which
+ *    is the only party that knows whether the client cancelled;
+ *  - nothing: ZERO units marked `estimated`. The ledger maps that to the refund
+ *    reason `usage_unavailable`, so the receipt says "usage was never measured"
+ *    rather than "usage was zero" — a distinction a later reconciliation depends
+ *    on, and the reason this is not simply a release.
+ *
+ * The third arm is the conservative side of a genuinely open question: what a
+ * customer should be charged for output nobody measured. Refunding the unknown is
+ * chosen because the alternative — estimating — invents the number a bill is
+ * computed from, and an estimator belongs with the reconciliation work rather than
+ * inside a settlement path.
+ *
+ * ## Which provider the settlement names
+ *
+ * The REPORTED one on the first arm, the already-validated deployment provider
+ * on the partial arm, and `admittedProvider` only when no usage evidence exists.
+ *
+ * A partial event names an exact deployment but not a provider; its caller must
+ * resolve that ID against the signed route list and pass the resolved provider.
+ * Nothing arrived names nothing by definition, so only that arm uses the
+ * admitted provider.
+ */
+export function settlementFrom(
+  evidence: KaanaUsageEvidence | undefined,
+  fallbackOutcome: 'failed' | 'cancelled' | 'partial',
+  admittedProvider: string
+): MeasuredSettlement {
+  if (evidence === undefined) {
+    return {
+      units: {},
+      usageSource: 'estimated',
+      outcome: fallbackOutcome,
+      generationId: undefined,
+      servingProvider: admittedProvider,
+    };
+  }
+  if (evidence.kind === 'report') {
+    return {
+      units: unitsFromReport(evidence.report),
+      usageSource: evidence.report.usageSource,
+      outcome: evidence.report.outcome,
+      generationId: evidence.report.generationId,
+      servingProvider: evidence.report.servingProvider,
+    };
+  }
+  return {
+    units: unitsFromQuantities(evidence.units),
+    usageSource: evidence.usageSource,
+    outcome: fallbackOutcome,
+    generationId: undefined,
+    servingProvider: admittedProvider,
+  };
+}
+
+/** The usage evidence a data-plane failure carried, when it carried any. */
+function usageEvidenceOf(error: unknown): KaanaUsageEvidence | undefined {
+  return error instanceof KaanaIncompleteError ? error.usage : undefined;
+}
+
+/**
+ * Write the terminal ledger record for a request whose response is already
+ * decided — an error the caller is about to return, or a stream the customer has
+ * already received.
+ *
+ * A settlement rather than a bare release, because ADR 0009 has one terminal
+ * write for a hold and `usage_receipts` legitimately carries a zero-unit,
+ * zero-amount receipt. The customer then has a `GET /v1/generations/:id` record
+ * saying what happened and what it cost, which a silent release would not give
+ * them.
+ *
+ * A failure to settle is logged and swallowed. That is not indifference: there is
+ * no response left to turn into an error, and the expiry sweeper releases the hold
+ * at its deadline regardless — so the customer's money comes back on its own while
+ * the discrepancy stays visible in the log.
+ *
+ * While shadow metering (`hold === undefined`) this prices the same units and
+ * records what they WOULD have cost, so a shadow period's records cover the
+ * failure paths too rather than only the happy one.
+ */
+export async function settleMeasured(
+  context: EdgeExecutionContext,
+  admitted: AdmittedRequest,
+  settlement: MeasuredSettlement,
+  servedRoute: EdgeRoute
+): Promise<void> {
+  const { hold } = admitted;
+
+  if (hold === undefined) {
+    if (admitted.economics.treatment === 'commercial') {
+      await recordShadowMetering(context, servedRoute, settlement.units, {
+        outcome: settlement.outcome,
+        usageSource: settlement.usageSource,
+        servingProvider: settlement.servingProvider,
+        ...(settlement.generationId === undefined
+          ? {}
+          : { generationId: settlement.generationId }),
+        routingPolicyVersionId: admitted.routingPolicyVersionId,
+      });
+    }
+    await recordMeteredSettlement(context, admitted, settlement, servedRoute, undefined);
+    return;
+  }
+
+  let receiptId: string | undefined;
+  try {
+    const result = await settle({
+      idempotencyKey: admitted.ledgerKey,
+      reservationId: hold.reservationId,
+      attribution: admitted.ledgerAttribution,
+      ...(settlement.generationId === undefined
+        ? {}
+        : { generationId: settlement.generationId }),
+      outcome: settlement.outcome,
+      usageSource: settlement.usageSource,
+      units: settlement.units,
+      resolvedModelReference: servedRoute.modelReference,
+      servingProvider: settlement.servingProvider,
+      priceVersionId: servedRoute.priceVersionId,
+      platformFeeOnly: servedRoute.availabilityScope === 'byok_only',
+      ...(admitted.routingPolicyVersionId === undefined
+        ? {}
+        : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
+    });
+    if (result.status === 'settled' || result.status === 'already-settled') {
+      receiptId = result.receipt.receiptId;
+    } else {
+      logger.error(
+        'inference.edge.release_failed',
+        new Error(`settlement returned ${result.status}`),
+        {
+          requestId: context.requestId,
+          reservationId: hold.reservationId,
+          outcome: settlement.outcome,
+          usageSource: settlement.usageSource,
+        }
+      );
+    }
+  } catch (error) {
+    logger.error(
+      'inference.edge.release_threw',
+      error instanceof Error ? error : new Error(String(error)),
+      { requestId: context.requestId, reservationId: hold.reservationId }
+    );
+  }
+  await recordMeteredSettlement(context, admitted, settlement, servedRoute, receiptId);
+}
+
+/**
+ * Write the durable usage record for a request whose response is already
+ * decided. Logged and swallowed like the ledger write beside it: there is no
+ * response left to turn into an error. Returns whether it was recorded.
+ */
+async function recordMeteredSettlement(
+  context: EdgeExecutionContext,
+  admitted: AdmittedRequest,
+  settlement: MeasuredSettlement,
+  servedRoute: EdgeRoute,
+  usageReceiptId: string | undefined
+): Promise<boolean> {
+  try {
+    const result = await settleMeteredUsage({
+      meteredUsageId: admitted.meteredUsageId,
+      outcome: settlement.outcome,
+      usageSource: settlement.usageSource,
+      units: settlement.units,
+      resolvedModelReference: servedRoute.modelReference,
+      servingProvider: settlement.servingProvider,
+      generationId: settlement.generationId,
+      priceVersionId: servedRoute.priceVersionId,
+      ...(usageReceiptId === undefined ? {} : { usageReceiptId }),
+    });
+    if (result.status !== 'settled') {
+      logger.error(
+        'inference.edge.metered_usage_not_settled',
+        new Error(`metered usage settlement returned ${result.status}`),
+        { requestId: context.requestId, meteredUsageId: admitted.meteredUsageId }
+      );
+      return false;
+    }
+    return true;
+  } catch (error) {
+    logger.error(
+      'inference.edge.metered_usage_failed',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        requestId: context.requestId,
+        meteredUsageId: admitted.meteredUsageId,
+        economicTreatment: admitted.economics.treatment,
+      }
+    );
+    return false;
+  }
+}
+
+/**
+ * Whether a failure after the forward must never be reported as retryable.
+ *
+ * Decisions: a signed request may already have executed and been billed
+ * upstream, and responses are not retained, so a client reading `retryable`
+ * would resend it under a new key and pay twice. The code is preserved; only
+ * the retry signal is withheld.
+ */
+function forbidsRetryAfterForward(request: NormalizedEdgeRequest): boolean {
+  return request.input.format === 'decisions';
+}
+
+interface ForwardFailure {
+  readonly code: InferenceErrorCode;
+  readonly message: string;
+  readonly reason: string;
+  readonly outcome: 'failed' | 'cancelled';
+}
+
+/**
+ * What a failed forward means to the customer.
+ *
+ * ## The data plane's own code is used; its retryability is not
+ *
+ * A terminal `error` event carries a code from the contract's closed set, and
+ * that code is what the customer gets — passed through `buildInferenceError`,
+ * which re-derives `retryable` from the edge's own total map. So there is ONE
+ * authority for "should a client retry this" rather than two that can disagree,
+ * and a data plane cannot teach every SDK to retry something the edge knows is
+ * hopeless. The message is passed through too, and the contract's own
+ * `safeErrorTextSchema` refuses it if it ever carries credential-shaped material.
+ *
+ * ## A 4xx from the data plane is never the customer's fault
+ *
+ * `KaanaEnvelopeRejectedError` means Oxy's signature, envelope version or body
+ * was refused. Surfacing Kaana's code would tell a customer their API key is bad
+ * when it is Oxy's signing key that is, so it becomes `internal_error` and the
+ * real status goes to the log.
+ *
+ * ## The no-data-plane case is `service_unavailable` and NOT retryable
+ *
+ * An unconfigured deployment is fixed by an operator, and telling every SDK to
+ * retry would turn one misconfiguration into a retry storm.
+ */
+function classifyForwardFailure(error: unknown, signal: AbortSignal): ForwardFailure {
+  if (error instanceof DataPlaneNotConfiguredError) {
+    return {
+      code: 'service_unavailable',
+      message: 'No inference data plane is configured for this deployment.',
+      reason: 'no_data_plane',
+      outcome: 'failed',
+    };
+  }
+  if (signal.aborted) {
+    return {
+      code: 'cancelled',
+      message: 'The client closed the connection before the request completed.',
+      reason: 'client_disconnected',
+      outcome: 'cancelled',
+    };
+  }
+  if (error instanceof KaanaIncompleteError) {
+    if (error.reason === 'terminal_error' && error.failure !== undefined) {
+      return {
+        code: error.failure.code,
+        message: error.failure.message,
+        reason: `kaana_error:${error.failure.code}`,
+        outcome: error.failure.code === 'cancelled' ? 'cancelled' : 'failed',
+      };
+    }
+    if (error.reason === 'execution_uncertain') {
+      return {
+        code: 'provider_error',
+        message:
+          'The request may have executed upstream; its outcome and cost are unknown. Do not resend it under a new Idempotency-Key.',
+        reason: 'kaana_execution_uncertain',
+        outcome: 'failed',
+      };
+    }
+    if (error.reason === 'usage_missing') {
+      return {
+        code: 'internal_error',
+        message: 'The request ran and Oxy could not read the usage it produced.',
+        reason: 'kaana_usage_missing',
+        outcome: 'failed',
+      };
+    }
+    return {
+      code: 'provider_error',
+      message: 'The inference data plane stopped responding before the request completed.',
+      reason: 'kaana_stream_truncated',
+      outcome: 'failed',
+    };
+  }
+  if (error instanceof KaanaEnvelopeRejectedError) {
+    return {
+      code: 'internal_error',
+      message: 'The request could not be forwarded to the inference data plane.',
+      reason: `kaana_rejected_envelope:${error.status}`,
+      outcome: 'failed',
+    };
+  }
+  if (error instanceof KaanaProtocolError) {
+    return {
+      code: 'internal_error',
+      message: 'The inference data plane answered in a form Oxy could not read.',
+      reason: 'kaana_protocol',
+      outcome: 'failed',
+    };
+  }
+  return {
+    code: 'provider_error',
+    message: 'The inference data plane could not serve this request.',
+    reason: 'kaana_error',
+    outcome: 'failed',
+  };
+}
+
+/**
+ * Refuse a completion that does not answer the request that was admitted.
+ *
+ * The usage report is PARSED, not trusted. It is the input to a charge, it
+ * crosses a service boundary from an independently deployed producer, and the
+ * contract's whole versioning rule is that a producer running ahead of a
+ * consumer must fail at the parse rather than be silently reinterpreted. A
+ * malformed report reaching `settle` would be a number nobody validated turning
+ * into money.
+ */
+type CompletionValidation =
+  | { readonly status: 'valid'; readonly route: EdgeRoute }
+  | {
+      readonly status: 'invalid';
+      readonly code: InferenceErrorCode;
+      readonly message: string;
+      readonly reason: string;
+    };
+
+function validateCompletion(
+  completion: KaanaCompletion,
+  requestId: string,
+  authorizedRoutes: readonly EdgeRoute[],
+  request: NormalizedEdgeRequest
+): CompletionValidation {
+  if (request.input.format === 'decisions' && (!completion.decisions || !decisionAnswersMatch(request.input.decisions, completion.decisions) || completion.output.length !== 0)) {
+    return { status: 'invalid', code: 'internal_error', message: 'The data plane returned invalid decisions.', reason: 'decisions-invalid' };
+  }
+  const report = normalizedUsageReportSchema.safeParse(completion.usage);
+  if (!report.success) {
+    return {
+      status: 'invalid',
+      code: 'internal_error',
+      message: 'The inference data plane returned a usage report Oxy could not read.',
+      reason: `usage_report_invalid:${report.error.issues[0]?.path.join('.') ?? 'unknown'}`,
+    };
+  }
+
+  return validateReportRoute(report.data, requestId, authorizedRoutes);
+}
+
+function validateReportRoute(
+  report: NormalizedUsageReport,
+  requestId: string,
+  authorizedRoutes: readonly EdgeRoute[]
+): CompletionValidation {
+  if (report.requestId !== requestId) {
+    return {
+      status: 'invalid',
+      code: 'internal_error',
+      message: 'The inference data plane answered a different request.',
+      reason: 'request_id_mismatch',
+    };
+  }
+
+  const candidates = authorizedRoutes.filter(
+    (route) =>
+      route.deploymentId === report.deploymentId &&
+      route.modelReference === report.resolvedModelReference &&
+      route.provider === report.servingProvider
+  );
+  if (candidates.length === 0) {
+    return {
+      status: 'invalid',
+      code: 'policy_violation',
+      message: 'The request was served by a deployment no routing policy authorized.',
+      reason: 'route_not_authorized',
+    };
+  }
+  if (candidates.length > 1) {
+    return {
+      status: 'invalid',
+      code: 'internal_error',
+      message: 'The exact deployment identity matched more than one authorized route.',
+      reason: 'deployment_id_ambiguous',
+    };
+  }
+  return { status: 'valid', route: candidates[0] };
+}
+
+/** Validate either terminal or partial metering against one exact signed route. */
+export function validateUsageEvidence(
+  evidence: KaanaUsageEvidence,
+  requestId: string,
+  authorizedRoutes: readonly EdgeRoute[]
+): CompletionValidation {
+  if (evidence.kind === 'report') {
+    return validateReportRoute(evidence.report, requestId, authorizedRoutes);
+  }
+  if (evidence.requestId !== requestId) {
+    return {
+      status: 'invalid',
+      code: 'internal_error',
+      message: 'The inference data plane metered a different request.',
+      reason: 'request_id_mismatch',
+    };
+  }
+  const candidates = authorizedRoutes.filter(
+    (route) => route.deploymentId === evidence.deploymentId
+  );
+  if (candidates.length === 0) {
+    return {
+      status: 'invalid',
+      code: 'policy_violation',
+      message: 'Partial usage named a deployment no routing policy authorized.',
+      reason: 'route_not_authorized',
+    };
+  }
+  if (candidates.length > 1) {
+    return {
+      status: 'invalid',
+      code: 'internal_error',
+      message: 'Partial usage matched more than one authorized deployment.',
+      reason: 'deployment_id_ambiguous',
+    };
+  }
+  return { status: 'valid', route: candidates[0] };
+}
+
+/**
+ * The report, when it answers the request that was admitted; `undefined` when it
+ * does not.
+ *
+ * The same two checks {@link validateCompletion} makes, in the form the streaming
+ * path needs: there the response is already delivered, so a bad report can only
+ * be discarded rather than turned into a refusal.
+ */
+export function validateUsageReport(
+  report: NormalizedUsageReport,
+  requestId: string,
+  authorizedRoutes: readonly EdgeRoute[]
+): { readonly report: NormalizedUsageReport; readonly route: EdgeRoute } | undefined {
+  const validation = validateReportRoute(report, requestId, authorizedRoutes);
+  if (validation.status === 'invalid') return undefined;
+  return { report, route: validation.route };
+}
+
+/** The contract's unit array as the `{ unit: quantity }` map the ledger takes. */
+function unitsFromReport(report: NormalizedUsageReport): Partial<Record<UsageUnit, number>> {
+  return unitsFromQuantities(report.units);
+}
+
+export function unitsFromQuantities(
+  quantities: readonly { unit: UsageUnit; quantity: number }[]
+): Partial<Record<UsageUnit, number>> {
+  const units: Partial<Record<UsageUnit, number>> = {};
+  for (const quantity of quantities) {
+    units[quantity.unit] = quantity.quantity;
+  }
+  return units;
+}
+
+/**
+ * Build and VALIDATE the versioned envelope the data plane receives.
+ *
+ * `stream` is passed rather than read off `context.request`, because it is the
+ * EDGE's decision by the time this runs: a request that asked to stream and was
+ * admitted by a deployment with a data plane streams, and there is exactly one
+ * call site for each value.
+ */
+export function buildEnvelope(
+  context: EdgeExecutionContext,
+  admitted: AdmittedRequest,
+  stream: boolean
+): InferenceRequest | ScopedInferenceRequest {
+  const { request } = context;
+  const { route, routingTarget, authorizedRoutes, maxOutputTokens, routingPolicy } = admitted;
+  const apiFormat = context.apiFormat;
+  if (apiFormat === undefined || request.operation.kind === 'realtime_session') {
+    // Unreachable through the router: a realtime session is signed by
+    // `inferenceRealtime.service.ts` as a session request, never as an envelope.
+    throw new Error('A realtime session has no one-shot envelope.');
+  }
+  const authorizesCrossModel = authorizedRoutes.some(
+    (authorized) => modelLineOf(authorized.modelReference) !== modelLineOf(route.modelReference)
+  );
+
+  return (admitted.scopedExecution === undefined ? inferenceRequestSchema : scopedInferenceRequestSchema).parse({
+    schemaVersion: admitted.scopedExecution === undefined ? 2 : 3,
+    ...(admitted.scopedExecution === undefined ? {} : { scopedExecution: admitted.scopedExecution }),
+    attribution: attributionFor(context),
+    // The signed route list pins every executable destination. Preserve a
+    // profile, and preserve an unpinned concrete target only when its versioned
+    // policy authorized a cross-model fallback; otherwise pin the admitted
+    // model revision itself.
+    target:
+      routingTarget.kind === 'routing_profile_id' || authorizesCrossModel
+        ? routingTarget
+        : { kind: 'model', modelReference: route.modelReference },
+    modality:
+      request.operation.kind === 'speech' || request.audioOutput !== undefined ? 'audio' : 'text',
+    input: request.input,
+    stream,
+    ...(maxOutputTokens > 0 ? { maxOutputTokens } : {}),
+    sampling: request.sampling,
+    // Forwarded only after admission checked the admitted route's model
+    // advertises this effort.
+    ...(admitted.reasoning === undefined ? {} : { reasoning: admitted.reasoning }),
+    ...(request.speech === undefined ? {} : { speech: request.speech }),
+    // Forwarded only after admission found a route whose model DECLARES
+    // spoken output on this dialect and prices every audio unit it can meter.
+    ...(request.audioOutput === undefined ? {} : { audioOutput: request.audioOutput }),
+    tools: request.tools,
+    ...(request.toolChoice === undefined ? {} : { toolChoice: request.toolChoice }),
+    ...(request.responseFormat === undefined
+      ? {}
+      : { responseFormat: request.responseFormat }),
+    client: {
+      apiFormat,
+      endpoint: context.endpoint,
+      ...(request.clientRequestId === undefined
+        ? {}
+        : { clientRequestId: request.clientRequestId }),
+      receivedAt: new Date().toISOString(),
+      ...(request.labels === undefined ? {} : { labels: request.labels }),
+    },
+    ...(context.idempotencyKey === undefined
+      ? {}
+      : { idempotencyKey: context.idempotencyKey }),
+    // The routes Oxy has authorized for this request, in preference order, and a
+    // policy REFERENCE beside them (ADR 0017). The reference is provenance only —
+    // it lets a receipt name the exact configuration that produced the charge —
+    // and the data plane still holds no policy VALUE: no provider allowlist, no
+    // region residency, no zero-retention requirement, no price ceiling. It does
+    // not need one. Every entry here already survived all of them, so failing over
+    // is "take the next entry" and a switch outside the customer's policy is
+    // impossible BY CONSTRUCTION rather than by two enforcement engines, in two
+    // languages, agreeing.
+    //
+    // A one-entry list is not a degenerate case: it is what a policy with fallback
+    // off, and what the platform default, authorize — serve this route or fail.
+    // The list is never empty (`authorizedRoutes[0]` is the admitted route) and
+    // Cross-model entries exist only when the concrete versioned policy or the
+    // explicit profile authorized them; the exact deployment identities below
+    // are the only destinations Kaana may execute.
+    //
+    // Do NOT add a policy snapshot field beside this. A second, unpublished shape
+    // on this hop is exactly the divergence the contract package exists to
+    // prevent, and it would put the eleven filtered controls back on the data
+    // plane's side of the boundary.
+    authorizedRoutes: authorizedRoutes.map((authorized) => {
+      const crossModel =
+        modelLineOf(authorized.modelReference) !== modelLineOf(route.modelReference);
+      return {
+        substitution: crossModel ? 'cross_model' : 'same_model',
+        ...(crossModel ? { authorizedByPolicy: true as const } : {}),
+        deploymentId: authorized.deploymentId,
+        modelReference: authorized.modelReference,
+        provider: authorized.provider,
+        regions: authorized.regions,
+        ...(authorized.customerProviderCredential === undefined
+          ? {}
+          : { customerProviderCredential: authorized.customerProviderCredential }),
+      };
+    }),
+    routingPolicy,
+  });
+}
+
+/**
+ * The attribution block every signed hop to the data plane carries — the
+ * one-shot envelope and the realtime session request alike, so the two cannot
+ * name a request's payer differently.
+ */
+export function attributionFor(
+  context: EdgeExecutionContext
+): z.input<typeof inferenceAttributionSchema> {
+  const { principal } = context;
+  return {
+    principal: {
+      billing: { accountId: principal.ownerAccountId },
+      applicationId: principal.applicationId,
+      credentialId: principal.credentialId,
+      environment: principal.environment,
+      inferenceScopes: principal.scopes.filter(isInferenceScope),
+    },
+    ...(context.delegatedUserId === undefined ? {} : { userId: context.delegatedUserId }),
+    requestId: context.requestId,
+  };
+}
+
+const INFERENCE_SCOPE_SET: ReadonlySet<string> = new Set<string>(INFERENCE_SCOPES);
+
+function isInferenceScope(scope: ApplicationScope): scope is ApplicationScope & InferenceScope {
+  return INFERENCE_SCOPE_SET.has(scope);
+}
+
+/**
+ * A strict UPPER BOUND on the input tokens a request can encode.
+ *
+ * Not an approximation and not a tokenizer: every token a BPE tokenizer emits
+ * consumes at least one character of its input, so the character count is a
+ * ceiling on the token count for any text. {@link MESSAGE_TOKEN_OVERHEAD} covers
+ * the template tokens a chat format adds around each turn, and tool definitions
+ * are counted because they are serialized into the prompt.
+ *
+ * Over-estimating is the SAFE direction and costs the customer nothing: a hold
+ * is released in full at settlement, and the alternative — a hold sized from a
+ * typical response — is how a balance goes negative on a long generation. It is
+ * a ceiling precisely because non-text parts, whose token cost has no character
+ * bound, are refused before this runs.
+ */
+/**
+ * Which route capability an operation needs, before any route is resolved.
+ *
+ * Total over {@link EdgeOperation} with no default arm, so a new endpoint cannot
+ * reach the router without declaring what it needs a model to do.
+ */
+export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequirement {
+  switch (operation.kind) {
+    case 'completion':
+      // Spoken output is audio OUT; the transcript beside it is the same answer,
+      // not a second modality the model must separately declare.
+      return operation.spokenOutput === true
+        ? { input: 'text', output: 'audio' }
+        : TEXT_COMPLETION_MODALITY;
+    case 'realtime_session':
+      // Every session consumes audio (the contract's own refinement on
+      // `modelCapabilitiesSchema`); what it produces is the session's choice.
+      return {
+        input: 'audio',
+        output: operation.requiredOutput,
+        realtime: { kind: operation.sessionKind, transport: operation.transport },
+      };
+    case 'embeddings':
+      return { input: 'text', output: 'embedding' };
+    case 'decisions':
+    case 'rerank':
+      // Input only. `INFERENCE_MODALITIES` has no member for a ranking, and
+      // claiming `text` output would assert something false about the model.
+      return { input: 'text' };
+    case 'speech':
+      return { input: 'text', output: 'audio' };
+    case 'images':
+      return { input: 'text', output: 'image' };
+  }
+}
+
+/**
+ * The whole capability requirement of one request: its modalities, plus the
+ * request SHAPE the model must declare it can execute (contract set 3.2.0).
+ *
+ * `apiFormat` is checked against a model's declared `apiFormats` whenever the
+ * model declares them; spoken output additionally REQUIRES the declaration,
+ * because an undeclared model is one nobody said can answer in speech on this
+ * dialect, and catalogue presence alone is not that evidence (OxyHQ/Kaana#90).
+ */
+export function requirementForRequest(
+  request: NormalizedEdgeRequest,
+  apiFormat: ClientRequestMetadata['apiFormat'] | undefined
+): EdgeModalityRequirement {
+  const modality = modalityForOperation(request.operation);
+  return {
+    ...modality,
+    ...(apiFormat === undefined ? {} : { apiFormat }),
+    ...(request.audioOutput === undefined && request.operation.kind !== 'decisions' ? {} : { requiresDeclaredApiFormat: true }),
+  };
+}
+
+/** The customer-facing sentence for a `capability-unsupported` resolution. */
+function capabilityRefusal(modelReference: string, required: EdgeModalityRequirement): string {
+  if (required.realtime !== undefined) {
+    return `${modelReference} does not hold realtime ${required.realtime.kind} sessions over ${required.realtime.transport}.`;
+  }
+  if (required.requiresDeclaredApiFormat === true && required.apiFormat !== undefined) {
+    return required.apiFormat === 'decisions'
+      ? `${modelReference} does not declare support for decisions.`
+      : `${modelReference} does not declare spoken output on ${required.apiFormat}.`;
+  }
+  return required.apiFormat === undefined
+    ? `${modelReference} cannot execute this request.`
+    : `${modelReference} is not served through ${required.apiFormat}.`;
+}
+
+/**
+ * Output tokens an operation may generate, which is what the context check and
+ * the hold both size against.
+ *
+ * Only a completion generates them. An embedding, a ranking, an audio clip and an
+ * image are not token streams, and including `output_tokens: 0` in a ceiling would
+ * be worse than omitting it: `quoteUnits` refuses a unit the route does not price,
+ * so a zero would make every route that sensibly omits an `output_tokens` price
+ * fail to quote.
+ */
+function outputTokenBudget(operation: EdgeOperation, resolved: number): number {
+  return operation.kind === 'completion' ? resolved : 0;
+}
+
+/**
+ * The CEILING — a provable upper bound, per priced unit, on what this request can
+ * consume, derivable from the request body plus the route.
+ *
+ * Total over {@link EdgeOperation} with no default arm. That is the point: adding
+ * a modality fails `tsc` here until its bound is written down, and an unsound
+ * bound is the one defect in this file that costs money rather than availability.
+ *
+ * The soundness argument differs per arm and is recorded per arm, because "it
+ * looked like the other ones" is how a guess enters:
+ *
+ *  - `input_tokens` is bounded by CHARACTERS for every arm, on the one argument
+ *    that generalises: every BPE token consumes at least one character of its
+ *    input, so a character count is a token ceiling. It is not a tight bound and
+ *    does not need to be.
+ *  - `requests: 1` is exact for every operation: one admitted envelope is one
+ *    provider request, and Kaana reports that unit even when its price is zero.
+ *  - `embeddings`, `characters` and `images` are EXACT — the caller declared them.
+ *    An exact figure is a valid ceiling.
+ *  - Nothing here is derived from a byte length. No unit on this list is priced in
+ *    bytes, and `bytes ÷ an assumed rate` is precisely the reasoning that makes a
+ *    transcription hold unsound. The one byte-derived bound in this file is
+ *    {@link realtimeDurationCeiling}, and its rate is not assumed: it is the
+ *    SIGNED audio format of a session whose byte caps Kaana enforces.
+ */
+export function ceilingForOperation(
+  operation: EdgeOperation,
+  estimatedInputTokens: number,
+  maxOutputTokens: number
+): Partial<Record<UsageUnit, number>> {
+  switch (operation.kind) {
+    case 'completion':
+      return { requests: 1, input_tokens: estimatedInputTokens, output_tokens: maxOutputTokens };
+    case 'embeddings':
+      return {
+        requests: 1,
+        input_tokens: estimatedInputTokens,
+        embeddings: operation.embeddings,
+      };
+    case 'decisions':
+    case 'rerank':
+      return { requests: 1, input_tokens: estimatedInputTokens };
+    case 'speech':
+      // `characters` alone. See the `speech` arm of `EdgeOperation` for why no
+      // duration figure appears: a duration-priced route fails to quote and is
+      // refused, which is the sound outcome.
+      return { requests: 1, characters: operation.characters };
+    case 'images':
+      return { requests: 1, input_tokens: estimatedInputTokens, images: operation.images };
+    case 'realtime_session':
+      // The two figures are the SESSION's budgets here, computed per route by
+      // `realtimeCeilingScenarios`, which is the only caller that passes them.
+      return {
+        requests: 1,
+        input_tokens: estimatedInputTokens,
+        output_tokens: maxOutputTokens,
+        session_milliseconds: operation.maxSessionMilliseconds,
+      };
+  }
+}
+
+/**
+ * Exact extreme partitions used to size a hold.
+ *
+ * A completion's prompt and generation budgets are each partitions, not four
+ * independent budgets. Their maximum charge is therefore attained by putting
+ * the whole prompt budget on either `input_tokens` or
+ * `cached_input_tokens`, and the whole generation budget on either
+ * `output_tokens` or `reasoning_tokens`. The Cartesian product below covers all
+ * four extrema. Requiring every scenario to quote also proves all four unit
+ * prices exist before execution.
+ */
+export function ceilingQuoteScenarios(
+  operation: EdgeOperation,
+  estimatedInputTokens: number,
+  maxOutputTokens: number
+): readonly Partial<Record<UsageUnit, number>>[] {
+  if (operation.kind === 'realtime_session') {
+    // Session wall-clock time (contract set 3.3.0) is not a member of either
+    // token partition: a provider that bills it bills it BESIDE whatever else
+    // the session consumed, so it is added to every vertex at its own ceiling.
+    // Being in every scenario, it must be priced on every route — at zero where
+    // the provider does not bill session time — exactly as `requests` must.
+    return partitionScenarios(
+      REALTIME_INPUT_UNITS,
+      estimatedInputTokens,
+      REALTIME_OUTPUT_UNITS,
+      maxOutputTokens
+    ).map((scenario) => ({ ...scenario, session_milliseconds: operation.maxSessionMilliseconds }));
+  }
+  if (operation.kind !== 'completion') {
+    return [ceilingForOperation(operation, estimatedInputTokens, maxOutputTokens)];
+  }
+  return partitionScenarios(
+    TEXT_INPUT_UNITS,
+    estimatedInputTokens,
+    operation.spokenOutput === true ? SPOKEN_OUTPUT_UNITS : TEXT_OUTPUT_UNITS,
+    maxOutputTokens
+  );
+}
+
+/** The units a text prompt can be metered in: it is text, cached or not. */
+const TEXT_INPUT_UNITS = ['input_tokens', 'cached_input_tokens'] as const satisfies readonly UsageUnit[];
+/** The units a text generation budget is spent in. */
+const TEXT_OUTPUT_UNITS = ['output_tokens', 'reasoning_tokens'] as const satisfies readonly UsageUnit[];
+/**
+ * Spoken output (contract set 3.2.0): the audio and its transcript are both
+ * drawn from the one completion budget, so `audio_output_tokens` is a third
+ * member of the output partition — and the most expensive one on every audio
+ * model priced so far, which is exactly why leaving it out would under-hold.
+ */
+const SPOKEN_OUTPUT_UNITS = [
+  'output_tokens',
+  'reasoning_tokens',
+  'audio_output_tokens',
+] as const satisfies readonly UsageUnit[];
+/**
+ * A realtime response reads its conversation, and the conversation holds text
+ * and audio, either of them cached — so every input token of a response is one
+ * of these four, and the context window bounds their sum.
+ */
+const REALTIME_INPUT_UNITS = [
+  'input_tokens',
+  'cached_input_tokens',
+  'audio_input_tokens',
+  'cached_audio_input_tokens',
+] as const satisfies readonly UsageUnit[];
+const REALTIME_OUTPUT_UNITS = SPOKEN_OUTPUT_UNITS;
+
+/**
+ * Every extreme of two partitioned budgets: the whole input budget on one input
+ * unit, the whole output budget on one output unit, for every pair.
+ *
+ * A charge is linear in each unit, so its maximum over a partition is attained
+ * at a vertex — all of the budget on the most expensive member. Quoting every
+ * vertex is therefore exactly `input × max(input prices) + output × max(output
+ * prices)`, computed with the ledger's own arithmetic; and because EVERY
+ * scenario must quote, a route that prices any member of either partition not
+ * at all is refused before a hold is taken or Kaana is called. That is the
+ * existing rule for an unpriced unit, applied to the new ones: an unpriced unit
+ * never becomes a free one.
+ */
+function partitionScenarios(
+  inputUnits: readonly UsageUnit[],
+  inputBudget: number,
+  outputUnits: readonly UsageUnit[],
+  outputBudget: number
+): readonly Partial<Record<UsageUnit, number>>[] {
+  return inputUnits.flatMap((inputUnit) =>
+    outputUnits.map((outputUnit) => ({
+      requests: 1,
+      [inputUnit]: inputBudget,
+      [outputUnit]: outputBudget,
+    }))
+  );
+}
+
+/**
+ * The ceiling scenarios for one ROUTE.
+ *
+ * Every operation but a realtime session is bounded by its request body alone,
+ * so the route contributes only its output cap. A session is bounded by the
+ * route too: each of its at most `maxResponses` responses reads at most the
+ * route's context window and writes at most its per-response output cap
+ * (`config.maxOutputTokens`, else the model's). Kaana enforces `maxResponses`
+ * exactly (it closes the session with `limit_exceeded` rather than exceed it),
+ * which is what makes the product a bound rather than an estimate.
+ */
+export function routeCeilingScenarios(
+  request: NormalizedEdgeRequest,
+  route: Pick<EdgeRoute, 'maxContextTokens' | 'maxOutputTokens'>,
+  estimatedInputTokens: number,
+  maxOutputTokens: number
+): readonly Partial<Record<UsageUnit, number>>[] {
+  if (request.operation.kind !== 'realtime_session') {
+    return ceilingQuoteScenarios(request.operation, estimatedInputTokens, maxOutputTokens);
+  }
+  const perResponseOutput = request.maxOutputTokens ?? route.maxOutputTokens;
+  const responses = request.operation.maxResponses;
+  return ceilingQuoteScenarios(
+    request.operation,
+    responses * route.maxContextTokens,
+    responses * perResponseOutput
+  );
+}
+
+/**
+ * Decoded bytes per millisecond of every contract realtime audio format: 24 kHz
+ * mono PCM16 is 48 000 bytes a second, 8 kHz G.711 (either law) 8 000 — the
+ * rates Kaana meters `audio_*_milliseconds` at.
+ */
+export const REALTIME_AUDIO_BYTES_PER_MS = {
+  pcm16_24khz: 48,
+  g711_ulaw: 8,
+  g711_alaw: 8,
+} as const satisfies Record<RealtimeAudioFormat, number>;
+
+/** The fewest bytes per millisecond any format carries: the most milliseconds a byte cap can meter. */
+const DENSEST_MS_BYTES_PER_MS = Math.min(...Object.values(REALTIME_AUDIO_BYTES_PER_MS));
+
+type RealtimeSessionOperation = Extract<EdgeOperation, { readonly kind: 'realtime_session' }>;
+
+/**
+ * The exact duration ceiling of one realtime session, for a route that is
+ * priced by audio DURATION and per text item (xAI's Voice Agent: audio per
+ * minute each way, a flat fee per text `conversation.item.create`) rather than
+ * by tokens.
+ *
+ * Every figure is a bound Kaana or the edge enforces, never an estimate:
+ *
+ *  - `audio_input_milliseconds` ≤ ⌈maxInputAudioBytes ÷ input bytes-per-ms⌉.
+ *    Kaana refuses any command that would pass the signed input byte cap, and
+ *    meters the bytes it wrote at the session's input format — which is signed
+ *    and cannot be changed by `session.update`. Rounding is once, over the total.
+ *  - `audio_output_milliseconds` ≤ ⌈maxOutputAudioBytes ÷ output bytes-per-ms⌉,
+ *    likewise, at the signed output format. A session that signed none is held
+ *    at the format with the most milliseconds per byte (G.711), never at PCM16.
+ *  - `requests` ≤ `maxTextItems`, the cap the edge enforces on billable text
+ *    items (`inferenceRealtime.service.ts`), since no signed limit bounds them.
+ *  - `session_milliseconds` ≤ `maxDurationMs` plus the bounded open
+ *    (`realtimeMaxSessionMilliseconds`), as on every realtime plan.
+ *
+ * No token figure appears: a route priced in tokens is sized by
+ * {@link routeCeilingScenarios}, and a route that prices neither shape fails to
+ * quote either plan and is refused — an unpriced unit is never a free one.
+ */
+export function realtimeDurationCeiling(
+  operation: RealtimeSessionOperation
+): Partial<Record<UsageUnit, number>> {
+  const { audio } = operation;
+  const outputBytesPerMs =
+    audio.outputFormat === undefined
+      ? DENSEST_MS_BYTES_PER_MS
+      : REALTIME_AUDIO_BYTES_PER_MS[audio.outputFormat];
+  return {
+    audio_input_milliseconds: Math.ceil(
+      audio.maxInputAudioBytes / REALTIME_AUDIO_BYTES_PER_MS[audio.inputFormat]
+    ),
+    audio_output_milliseconds: Math.ceil(audio.maxOutputAudioBytes / outputBytesPerMs),
+    requests: operation.maxTextItems,
+    // Contract set 3.3.0: held on every realtime plan, exactly as the token
+    // scenarios hold it. xAI bills a `server_vad` session's wall clock INSTEAD
+    // of its audio, and Oxy cannot know which Kaana will report, so both are
+    // held; the settlement charges only what was measured.
+    session_milliseconds: operation.maxSessionMilliseconds,
+  };
+}
+
+/**
+ * What a route's hold was sized over. `tokens` is every one-shot request and a
+ * token-priced realtime route; the other two are realtime only, and are what
+ * makes the session enforce its text-item cap.
+ */
+export type RouteCeilingMetering = 'tokens' | 'duration' | 'tokens_and_duration';
+
+export interface RouteCeilingPlan {
+  readonly metering: RouteCeilingMetering;
+  /** Every scenario must quote for the plan to hold; the dearest one is the ceiling. */
+  readonly scenarios: readonly Partial<Record<UsageUnit, number>>[];
+}
+
+/**
+ * The alternative ceilings a route may be held at, in order; the FIRST plan
+ * whose every scenario quotes is the route's ceiling.
+ *
+ * Every operation but a realtime session has one plan: its token (or
+ * character, image, embedding) scenarios, exactly as before. A realtime
+ * session is metered by whichever units its route's price version prices:
+ *
+ *  1. `tokens_and_duration` — a route pricing both shapes is held for both,
+ *     because Oxy does not know which one the data plane will report for it;
+ *  2. `tokens` — the token partition scenarios alone (OpenAI Realtime);
+ *  3. `duration` — {@link realtimeDurationCeiling} alone (xAI Voice Agent).
+ *
+ * A token-priced route fails plan 1 at its first quote (it prices no audio
+ * milliseconds) and is then held at exactly the ceiling it always was.
+ */
+export function routeCeilingPlans(
+  request: NormalizedEdgeRequest,
+  route: Pick<EdgeRoute, 'maxContextTokens' | 'maxOutputTokens'>,
+  estimatedInputTokens: number,
+  maxOutputTokens: number
+): readonly RouteCeilingPlan[] {
+  const tokens = routeCeilingScenarios(request, route, estimatedInputTokens, maxOutputTokens);
+  if (request.operation.kind !== 'realtime_session') {
+    return [{ metering: 'tokens', scenarios: tokens }];
+  }
+  const duration = realtimeDurationCeiling(request.operation);
+  return [
+    {
+      metering: 'tokens_and_duration',
+      scenarios: tokens.map((scenario) => ({
+        ...scenario,
+        ...duration,
+        requests: (scenario.requests ?? 0) + (duration.requests ?? 0),
+      })),
+    },
+    { metering: 'tokens', scenarios: tokens },
+    { metering: 'duration', scenarios: [duration] },
+  ];
+}
+
+type RouteCeilingQuote =
+  | {
+      readonly status: 'quoted';
+      readonly amount: string;
+      readonly currency: string;
+      readonly metering: RouteCeilingMetering;
+    }
+  | { readonly status: 'unquoted'; readonly reason: string };
+
+/**
+ * A route's ceiling quote, with each operation's own price invariants.
+ *
+ * Decisions hold `requests` and `input_tokens` only, yet a provider truthfully
+ * reports the few `output_tokens` a classification emits. That is sound only
+ * when the route PUBLISHES output tokens at exactly zero: then any reported
+ * count prices to nothing and the hold still covers the exact charge. A missing
+ * or positive output price is unquoted, which refuses before any hold or
+ * Kaana call; nothing is estimated and no reported unit is dropped.
+ */
+async function quoteRouteForRequest(
+  request: NormalizedEdgeRequest,
+  priceVersionId: string,
+  plans: readonly RouteCeilingPlan[]
+): Promise<RouteCeilingQuote> {
+  if (request.operation.kind === 'decisions') {
+    const output = await publishedUnitPrice(priceVersionId, 'output_tokens');
+    if (output !== 'zero') {
+      return { status: 'unquoted', reason: `decisions-output-price-${output}` };
+    }
+  }
+  return quoteRouteCeiling(priceVersionId, plans);
+}
+
+/** The first fully-quoted plan's dearest scenario, with the ledger's own arithmetic. */
+async function quoteRouteCeiling(
+  priceVersionId: string,
+  plans: readonly RouteCeilingPlan[]
+): Promise<RouteCeilingQuote> {
+  let reason = 'no-ceiling-plan';
+  for (const plan of plans) {
+    let dearest: { readonly amount: string; readonly currency: string } | undefined;
+    let quotedEvery = true;
+    for (const units of plan.scenarios) {
+      const quote = await quoteUnits(priceVersionId, units);
+      if (quote.status !== 'quoted') {
+        reason = quote.status;
+        quotedEvery = false;
+        break;
+      }
+      if (dearest === undefined || exceedsAmount(quote.amount, dearest.amount)) {
+        dearest = { amount: quote.amount, currency: quote.currency };
+      }
+    }
+    if (quotedEvery && dearest !== undefined) {
+      return { status: 'quoted', ...dearest, metering: plan.metering };
+    }
+  }
+  return { status: 'unquoted', reason };
+}
+
+export function estimateInputTokens(request: NormalizedEdgeRequest): number {
+  let characters = 0;
+  let messages = 0;
+
+  if (request.input.format === 'messages') {
+    messages = request.input.messages.length;
+    for (const message of request.input.messages) {
+      for (const part of message.content) {
+        if (part.type === 'text') characters += part.text.length;
+      }
+      if (message.name !== undefined) characters += message.name.length;
+      for (const call of message.toolCalls ?? []) {
+        characters += call.name.length + call.arguments.length;
+      }
+    }
+  } else if (request.input.format === 'text') {
+    messages = 1;
+    characters += request.input.text.length;
+  } else if (request.input.format === 'decisions') {
+    return decisionInputBudget(request.input.decisions).gateway;
+  } else {
+    messages = request.input.texts.length;
+    for (const text of request.input.texts) characters += text.length;
+  }
+
+  for (const tool of request.tools) {
+    characters += JSON.stringify(tool).length;
+  }
+
+  return characters + messages * MESSAGE_TOKEN_OVERHEAD;
+}
+
+/** The first non-text content part in an input, if there is one. */
+/**
+ * The request features `auto` decides on. Read from the NORMALIZED request so
+ * both dialects decide identically.
+ */
+function autoRoutingFeaturesOf(
+  request: NormalizedEdgeRequest,
+  estimatedInputTokens: number
+): AutoRoutingFeatures {
+  return {
+    toolCount: request.tools.length,
+    estimatedInputTokens,
+    ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
+    nonTextInput: firstNonTextPart(request.input) !== undefined,
+    ...(request.reasoning === undefined ? {} : { requestedEffort: request.reasoning.effort }),
+    structuredOutput:
+      request.responseFormat !== undefined && request.responseFormat.type !== 'text',
+  };
+}
+
+function firstNonTextPart(input: InferenceInput): string | undefined {
+  if (input.format !== 'messages') return undefined;
+  for (const message of input.messages) {
+    for (const part of message.content) {
+      if (part.type !== 'text') return part.type;
+    }
+  }
+  return undefined;
+}
+
+export interface EdgeTelemetryInput {
+  readonly requestedModelReference: string;
+  readonly statusCode: number;
+  readonly units: Partial<Record<UsageUnit, number>>;
+  readonly resolvedModelReference?: string;
+  readonly servingProvider?: string;
+  readonly generationId?: string;
+  readonly outcome?: NormalizedUsageReport['outcome'];
+  readonly usageSource?: NormalizedUsageReport['usageSource'];
+  /**
+   * How many allowed route switches the data plane performed. Absent on every
+   * path that never reached one, where the recorder's own `0` is the truth.
+   */
+  readonly routeSwitches?: number;
+  /**
+   * The data plane's own time to first token. Forwarded, never measured here:
+   * the edge observes a forwarded frame only after Kaana has received it from
+   * the upstream provider, so the only honest source is Kaana's usage report.
+   * Absent means unknown, which is what the NULL column says — see
+   * {@link recordEdgeTelemetry}.
+   */
+  readonly timeToFirstTokenMs?: number;
+}
+
+/**
+ * Record the request in the usage stream (workstream 8), including the timing
+ * the observability item of workstream 16 asks for.
+ *
+ * Best effort, and deliberately so: telemetry is eventually consistent by
+ * contract, and a dashboard write must never fail a request that has already
+ * been charged. The exact billed amount comes from `usage_receipts`, never from
+ * here.
+ *
+ * ## Why the timings are written here and not exported to a metrics library
+ *
+ * `inference_usage_events` already carries `latency_ms`, `time_to_first_token_ms`
+ * and `route_switches`, and until now nothing wrote any of them — a metric
+ * surface that existed and was empty, which reads exactly like a metric surface
+ * that is correctly zero. Request rate, error rate and cancellation are already
+ * derivable from this table (`request_count`, `error_count` and `outcome` on the
+ * daily rollup); latency, time to first token and fallback were the three the
+ * epic names that were NOT, and all three are one assignment away. Adding a
+ * `prom-client` registry beside a durable table nothing scrapes would have added
+ * a second, weaker copy of the same numbers. `docs/inference/observability.md`
+ * argues it in full and names the infrastructure work the scrape side waits on.
+ *
+ * `latencyMs` is Oxy's own measurement — receipt of the request to this write —
+ * so it includes authentication, admission, routing, the reservation, the
+ * forward and the settlement. It is deliberately NOT the data plane's
+ * `completedAt - startedAt`: that would measure the upstream and call it the
+ * platform's, and the difference between the two is exactly the overhead a
+ * control plane is answerable for.
+ *
+ * ## Why it RETURNS the number it recorded
+ *
+ * {@link EdgeCompletion.latencyMs} reports the same figure to the customer, and
+ * taking a second `performance.now()` at the point the completion is built would
+ * make the response and the usage dashboard disagree by however long this write
+ * took. One reading, reported twice. It is returned even when the write below
+ * fails, because a failed telemetry insert makes the measurement unstored, not
+ * untrue — and the response is already owed an answer.
+ */
+export async function recordEdgeTelemetry(
+  context: EdgeExecutionContext,
+  input: EdgeTelemetryInput
+): Promise<number> {
+  // Rounded to a whole millisecond: the column is an integer, and drizzle would
+  // otherwise hand Postgres a float for a `bigint` column.
+  const latencyMs = Math.round(performance.now() - context.receivedAt);
+
+  try {
+    await recordInferenceUsage({
+      accountId: context.principal.ownerAccountId,
+      applicationId: context.principal.applicationId,
+      applicationCredentialId: context.principal.credentialId,
+      ...(context.delegatedUserId === undefined
+        ? {}
+        : { delegatedUserId: context.delegatedUserId }),
+      requestId: context.requestId,
+      ...(input.generationId === undefined ? {} : { generationId: input.generationId }),
+      environment: context.principal.environment,
+      endpoint: context.endpoint,
+      statusCode: input.statusCode,
+      outcome: input.outcome ?? 'failed',
+      requestedModelReference: input.requestedModelReference,
+      ...(input.resolvedModelReference === undefined
+        ? {}
+        : { resolvedModelReference: input.resolvedModelReference }),
+      ...(input.servingProvider === undefined
+        ? {}
+        : { servingProvider: input.servingProvider }),
+      usageSource: input.usageSource ?? 'oxy_measured',
+      units: input.units,
+      latencyMs,
+      ...(input.timeToFirstTokenMs === undefined
+        ? {}
+        : { timeToFirstTokenMs: input.timeToFirstTokenMs }),
+      ...(input.routeSwitches === undefined ? {} : { routeSwitches: input.routeSwitches }),
+    });
+  } catch (error) {
+    logger.error(
+      'inference.edge.telemetry_failed',
+      error instanceof Error ? error : new Error(String(error)),
+      { requestId: context.requestId }
+    );
+  }
+
+  return latencyMs;
+}
+
+/** Allocate the id every response, error and ledger record correlates on. */
+export function allocateRequestId(): string {
+  return randomUUID();
+}
+
+/* -------------------------------------------------------------------------- */
+/*  GET /v1/generations/:id                                                   */
+/* -------------------------------------------------------------------------- */
+
+export type GenerationReceiptLookup =
+  | { readonly status: 'found'; readonly receipt: GenerationReceipt }
+  | { readonly status: 'not-found' };
+
+/**
+ * Recover a settled record after a lost response, without invoking inference.
+ * The original key is credential-bound, exactly as admission stored it. A
+ * rotated credential cannot guess another credential's keys. Unknown/pending
+ * records remain not-found, never evidence of zero cost or permission to retry.
+ * Authentication and current credential validity are enforced by edgeGate.
+ */
+export async function readGenerationReceiptByIdempotencyKey(
+  principal: EdgePrincipal,
+  key: string,
+  delegatedUserId?: string
+): Promise<GenerationReceiptLookup> {
+  if (!principal.scopes.includes('inference:usage:read') || key.length === 0
+    || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) return { status: 'not-found' };
+  const [original] = await getDb().select()
+    .from(inferenceMeteredUsage).where(and(
+      eq(inferenceMeteredUsage.idempotencyKey, `oxy-edge:idem:${principal.credentialId}:${key}`),
+      eq(inferenceMeteredUsage.applicationCredentialId, principal.credentialId),
+      eq(inferenceMeteredUsage.applicationId, principal.applicationId),
+      eq(inferenceMeteredUsage.accountId, principal.ownerAccountId),
+      eq(inferenceMeteredUsage.environment, principal.environment),
+      delegatedUserId === undefined ? isNull(inferenceMeteredUsage.delegatedUserId)
+        : eq(inferenceMeteredUsage.delegatedUserId, delegatedUserId),
+      eq(inferenceMeteredUsage.status, 'settled'),
+    )).limit(1);
+  if (!original) return { status: 'not-found' };
+  // Keep the selected row identity. The public id lookup also accepts provider
+  // generation aliases, which can collide with another request's id.
+  if (original.economicTreatment === 'internal_metered') return internalGenerationReceipt(original);
+  if (original.usageReceiptId === null) return { status: 'not-found' };
+  const [receipt] = await getDb().select().from(usageReceipts).where(and(
+    eq(usageReceipts.id, original.usageReceiptId),
+    eq(usageReceipts.requestId, original.requestId),
+    eq(usageReceipts.accountId, original.accountId),
+    eq(usageReceipts.applicationId, original.applicationId),
+    eq(usageReceipts.applicationCredentialId, original.applicationCredentialId),
+    eq(usageReceipts.environment, original.environment),
+    original.delegatedUserId === null ? isNull(usageReceipts.delegatedUserId)
+      : eq(usageReceipts.delegatedUserId, original.delegatedUserId),
+  )).limit(1);
+  return receipt === undefined ? { status: 'not-found' } : financialGenerationReceipt(receipt);
+}
+
+/**
+ * Read back the settled receipt for one request.
+ *
+ * `:id` is the `requestId` the caller already holds — it is on every response
+ * and every error of this edge, in `X-Oxy-Request-Id` — or the `generationId`
+ * the endpoint is named for. Both are matched, in that order; each has its own
+ * index on `usage_receipts`.
+ *
+ * **Entitlement is the application, and a caller who is not entitled gets 404.**
+ * A receipt belongs to the application that spent the money, so a credential of
+ * a different application is told the receipt does not exist rather than that it
+ * exists and is somebody else's — the same reasoning the catalogue applies to
+ * internal-only routes. Reading another account's spend history through an
+ * application you can reach is exactly what the epic's negative test forbids.
+ * Credential rotation preserves that entitlement. An optional delegated-user
+ * selector filters attribution; omitting it does not restrict application reads.
+ */
+export async function readGenerationReceipt(
+  principal: EdgePrincipal,
+  id: string,
+  delegatedUserId?: string
+): Promise<GenerationReceiptLookup> {
+  if (!principal.scopes.includes('inference:usage:read')) {
+    return { status: 'not-found' };
+  }
+
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(usageReceipts)
+    .where(
+      and(
+        eq(usageReceipts.applicationId, principal.applicationId),
+        delegatedUserId === undefined ? undefined : eq(usageReceipts.delegatedUserId, delegatedUserId),
+        or(eq(usageReceipts.requestId, id), eq(usageReceipts.generationId, id))
+      )
+    )
+    .orderBy(desc(usageReceipts.settledAt))
+    .limit(1);
+
+  if (!row) {
+    const [usage] = await db.select().from(inferenceMeteredUsage).where(and(
+      eq(inferenceMeteredUsage.applicationId, principal.applicationId),
+      delegatedUserId === undefined ? undefined : eq(inferenceMeteredUsage.delegatedUserId, delegatedUserId),
+      eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
+      eq(inferenceMeteredUsage.status, 'settled'),
+      or(eq(inferenceMeteredUsage.requestId, id), eq(inferenceMeteredUsage.generationId, id)),
+    )).orderBy(desc(inferenceMeteredUsage.settledAt)).limit(1);
+    if (usage === undefined) return { status: 'not-found' };
+    return internalGenerationReceipt(usage);
+  }
+  return financialGenerationReceipt(row);
+}
+
+/** Pure projection of the already selected, settled technical row. */
+function internalGenerationReceipt(usage: typeof inferenceMeteredUsage.$inferSelect): GenerationReceiptLookup {
+    return { status: 'found', receipt: generationReceiptSchema.parse({
+      schemaVersion: 2, kind: 'metered_usage', meteredUsageId: usage.id,
+      requestId: usage.requestId,
+      ...(usage.generationId === null ? {} : { generationId: usage.generationId }),
+      ...(usage.parentRequestId === null ? {} : { parentRequestId: usage.parentRequestId }),
+      applicationId: usage.applicationId, credentialId: usage.applicationCredentialId,
+      ...(usage.delegatedUserId === null ? {} : { delegatedUserId: usage.delegatedUserId }),
+      environment: usage.environment, economicTreatment: usage.economicTreatment,
+      economicPolicyVersion: usage.economicPolicyVersion,
+      outcome: usage.outcome, usageSource: usage.usageSource,
+      units: Object.entries(USAGE_UNIT_COLUMN_KEYS).map(([unit, key]) => ({ unit, quantity: usage[key] })),
+      resolvedModelReference: usage.resolvedModelReference, servingProvider: usage.servingProvider,
+      tariff: usage.tariffStatus === 'quoted'
+        ? { status: 'quoted', amount: usage.tariffAmount, currency: usage.tariffCurrency,
+            priceVersionId: usage.settledPriceVersionId }
+        : { status: 'unpriced', priceVersionId: usage.settledPriceVersionId },
+      customerCharge: { status: 'not_charged' }, settledAt: usage.settledAt?.toISOString(),
+    }) };
+}
+
+/** Project one exact financial receipt, including its pinned unit prices. */
+async function financialGenerationReceipt(row: typeof usageReceipts.$inferSelect): Promise<GenerationReceiptLookup> {
+  const db = getDb();
+
+  const snapshotRows = await db
+    .select({
+      unit: usageReceiptUnitPrices.unit,
+      amount: usageReceiptUnitPrices.amount,
+      per: usageReceiptUnitPrices.per,
+    })
+    .from(usageReceiptUnitPrices)
+    .where(eq(usageReceiptUnitPrices.receiptId, row.id))
+    .orderBy(asc(usageReceiptUnitPrices.unit));
+
+  return {
+    status: 'found',
+    receipt: generationReceiptSchema.parse({
+      schemaVersion: 1,
+      receiptId: row.id,
+      requestId: row.requestId,
+      ...(row.generationId === null ? {} : { generationId: row.generationId }),
+      applicationId: row.applicationId,
+      credentialId: row.applicationCredentialId,
+      ...(row.delegatedUserId === null ? {} : { delegatedUserId: row.delegatedUserId }),
+      environment: row.environment,
+      outcome: row.outcome,
+      usageSource: row.usageSource,
+      // EVERY unit column, including the zeros. The row records eleven
+      // quantities and reporting only the non-zero ones would make "the provider
+      // reported zero output tokens" indistinguishable from "output tokens were
+      // never metered" — a distinction `usage_source` is what actually carries.
+      units: Object.entries(USAGE_UNIT_COLUMN_KEYS).map(([unit, key]) => ({
+        unit,
+        quantity: row[key],
+      })),
+      resolvedModelReference: row.resolvedModelReference,
+      servingProvider: row.servingProvider,
+      priceSnapshot: {
+        priceVersionId: row.priceVersionId,
+        currency: row.currency,
+        unitPrices: snapshotRows.map((price) => ({
+          unit: price.unit,
+          amount: price.amount,
+          per: price.per,
+          currency: row.currency,
+        })),
+      },
+      billedAmount: row.billedAmount,
+      currency: row.currency,
+      platformFeeOnly: row.platformFeeOnly,
+      settledAt: row.settledAt.toISOString(),
+    }),
+  };
+}

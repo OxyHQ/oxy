@@ -1,0 +1,383 @@
+{
+  "kind": "private-inference-commissioning-source-proof-v1",
+  "sourceCommit": "bd44a0b1784cad0c164b14cb2482ee6ad7b29c63",
+  "baseCommit": "28d90e4f2c9143253843725aa361975ec951c6cd",
+  "source": [
+    {
+      "path": "docs/adr/0027-automatic-internal-catalogue-from-kaana.md",
+      "sha256": "8a396f969958a14c636af4d9d6f027f4011eabc557079e556aba102ffdda3bdd",
+      "bytes": 7828
+    },
+    {
+      "path": "docs/runbooks/private-inference-commissioning.md",
+      "sha256": "bcc38cb70053a18283ff92e7968df8b8479a3236aa46835dff3868fd70067bc8",
+      "bytes": 4033
+    },
+    {
+      "path": "packages/api/scripts/record-scoped-legal-review.ts",
+      "sha256": "4f2172709a777232b97e21df5dfbeb7155b110c63bc09a9d6d5f5aaf9260347d",
+      "bytes": 278
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdge.test.ts",
+      "sha256": "a08208f02c6927179dee6d5ee1bfb221546e878ab34f2687bd0948c61b918f62",
+      "bytes": 189921
+    },
+    {
+      "path": "packages/api/src/scripts/recordScopedLegalReview.ts",
+      "sha256": "ba36589a2183bc359e96cb2fde1a56c5e993d19d122f13569ddf8eed19948d55",
+      "bytes": 1094
+    },
+    {
+      "path": "packages/api/src/services/__tests__/privateCommissioning.test.ts",
+      "sha256": "16cae0f4a849eaa387ef06fd872b08d0c86b303923ceb4af6faef953e3c39d10",
+      "bytes": 16761
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "sha256": "7d84d40e2eba247dcc2377ee6d43ed57b7ead69b171d179580ce8e509b09f7d1",
+      "bytes": 12376
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedExecution.service.test.ts",
+      "sha256": "a33a5c3ac95f4ad047953d1bce270d83e6e13366d14b0dee79c5fc4096b2081a",
+      "bytes": 6032
+    },
+    {
+      "path": "packages/api/src/services/inferenceCatalogue.service.ts",
+      "sha256": "e77fb374b24867137d9b51958697c545fa9adf7553e65ed779d6e9e68cdf42b5",
+      "bytes": 141252
+    },
+    {
+      "path": "packages/api/src/services/inferenceCatalogueAdmin.service.ts",
+      "sha256": "9f7d16d8b7c02e3fcf8190a549a0346381d3862d47d6405eb9d1da3bfa6ddf7c",
+      "bytes": 28037
+    },
+    {
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "7c160b71ba6ae9d841f43ba46f9f0291c5c8b65b949bd258d8db0e27d42cb0bd",
+      "bytes": 7137
+    },
+    {
+      "path": "packages/api/src/services/scopedLegalReviewOperation.service.ts",
+      "sha256": "85d6769c94e6674f155740b8335fff95fb7df5e4419d82758c2bdfc8e654b8fd",
+      "bytes": 5118
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/baseline-focused.txt",
+      "sha256": "dcf951847f8211bdbef595b0b51a5cd0c0b81212c79a41530ed67ac423a92973",
+      "bytes": 2795,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/baseline-migrate-fresh.txt",
+      "sha256": "ee7f4f8b1d11b97c19c7dc56f16ff6c5e4f339c8f8a6b2f581f26abd7a4da227",
+      "bytes": 8875,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/baseline-migrate-repeat.txt",
+      "sha256": "c144cd8baec94773f47e67ccc13a02744fa2eb6d8b0dd0b436bd05a75b9cbe2a",
+      "bytes": 173,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/baseline-red.log",
+      "sha256": "844b9604dd20e0f31619db10ffbf9c0a78250a700cd7a68aa75302273422cd72",
+      "bytes": 2961,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/baseline-red.py",
+      "sha256": "0f73834865e31170785a31d0916de8d536dd78c77d177455e6958e1698fea82d",
+      "bytes": 1395,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/baseline-restored.json",
+      "sha256": "d5e7776686a72cfe4210fce527739d800727170e70c97d21e8032afb42e05668",
+      "bytes": 348,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/biome-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/biome.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/build-bounded.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358,
+      "role": "final"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/build-frozen.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/final-focused.txt",
+      "sha256": "4581c8ee0d99224be85d39e4ebcd9a8cf68ce59bbe8785c38bc6e8d5b88fd402",
+      "bytes": 1336,
+      "role": "final"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/final-migrate-fresh.txt",
+      "sha256": "4ef4c88ef6ac6d7f81d557583be5559b651de3e88976f0fcd1eee289d647051e",
+      "bytes": 8875,
+      "role": "final"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/final-migrate-repeat.txt",
+      "sha256": "beb82716b867acb800925afbba9e9a1329cc8a8b2e6bd16484fa19b63174045e",
+      "bytes": 173,
+      "role": "final"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/final-owned.log",
+      "sha256": "aeb7d7a0ecf5befc10e8d5416769ef9653fc8eaad41f8a0548b651cb7f96d380",
+      "bytes": 2486,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/frozen-biome.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "role": "final"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/frozen-owned-final.log",
+      "sha256": "fac95229c600af78c04752f6982bcc020ab9f15f536de34ff3ec227af1840a12",
+      "bytes": 2486,
+      "role": "final"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/frozen-types.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "role": "final"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-attempt1.log",
+      "sha256": "41f0603eef45fa00a800f234416cf9da71682df8a0153b6b875786c4b7f074a8",
+      "bytes": 2881,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-attempt2.log",
+      "sha256": "a8b8e2c52aa37b7cb4fbd09fe08c25b99837f73ef759bc0f93e6641b9331c6a6",
+      "bytes": 2881,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-attempt3.log",
+      "sha256": "692653f19ce076410b4c04809adb280b81347f70a5559239891816474e15f025",
+      "bytes": 2881,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-attempt4.log",
+      "sha256": "b2536a9fb27519b9e66cef0192853c07b2446332122ea63da0013f6655618baf",
+      "bytes": 3285,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-attempt5.log",
+      "sha256": "8bce61daf5ccdeedea2c480b8ff4ed058d4c1b38d76bf9398214b0c1294f33a8",
+      "bytes": 3285,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-attempt8.log",
+      "sha256": "29ce77ed9e157ee51e80762cafcfaad8ef76888090474fb415de985c4626f18d",
+      "bytes": 3285,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-attempt9.log",
+      "sha256": "675c794bd359ba3106c3f00f651b9637e21ba6006cda3edd2e8639eb0cd55bd2",
+      "bytes": 2402,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-final.log",
+      "sha256": "d2227ce96ea7d7188e2307a2ce77403b345862e2d75507d7fc9b6bf7a6250ca9",
+      "bytes": 2420,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/green-frozen.log",
+      "sha256": "228f40d95ad5f011fc15c2ff6fad097b84f42d8b8a0d1a68d1480cd137c589f8",
+      "bytes": 2420,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/http-attempt6.log",
+      "sha256": "3b8697cc88ff9ba428c4adededab60f4f1ad019724118d7177015d16ae267d01",
+      "bytes": 2761,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/http-attempt7.log",
+      "sha256": "7ec5ba842a417aa07504d8c42cb514433513b59451bbdf8f8cb95894f279928b",
+      "bytes": 2761,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/owned-pg-baseline.py",
+      "sha256": "2991fe8c0c37d4c544ba5f297a4e24442b695f29c85bbfc29afebfff54cc6ce3",
+      "bytes": 5428,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/owned-pg-http.py",
+      "sha256": "02b9c3bbba88fb7b0cc99e378167848fbfde0c39fd5b32c675d581f7e11e25ed",
+      "bytes": 5332,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/owned-pg.py",
+      "sha256": "67113d6e4955351c03bfe78fa7afb23d14635a9f3bfe6958ee5cb7e37066887a",
+      "bytes": 5840,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/types-final.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/types-frozen.log",
+      "sha256": "3dfbf56fb3effdc83427a2ff26228ea9ef6a9e0ec57490a54c0ef663e8801407",
+      "bytes": 31,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/types.log",
+      "sha256": "83479355d3b1c24c52030446c3027eabc8576584b2095715213092b40fccdd92",
+      "bytes": 326,
+      "role": "historical-or-harness"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/records/cleanup.json",
+      "sha256": "f33c28618a46db0a0158b4aae0f4175e1ae2b35ed18639e376388909c1d897ed",
+      "bytes": 3088,
+      "role": "final"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/api/dist/services/inferenceCatalogue.service.js",
+      "sha256": "3b1c5aa9be8819d3a05aa7266d777dd63afcbd56d2b95aa2954c3363067f1a74",
+      "bytes": 122824,
+      "retainedPath": "docs/audits/2026-10-04-private-inference-commissioning/records/compiled/services/inferenceCatalogue.service.js"
+    },
+    {
+      "path": "packages/api/dist/services/inferenceCatalogueAdmin.service.js",
+      "sha256": "fe92321e8b18bd244901babe9296bc5afad244daedd9181f0550505e847f89ab",
+      "bytes": 29322,
+      "retainedPath": "docs/audits/2026-10-04-private-inference-commissioning/records/compiled/services/inferenceCatalogueAdmin.service.js"
+    },
+    {
+      "path": "packages/api/dist/services/scopedExecution.service.js",
+      "sha256": "fe6d09e6a7ab21e6a610a641a6fe9d548cac1e715295daf98d97d93dbc24f78b",
+      "bytes": 5795,
+      "retainedPath": "docs/audits/2026-10-04-private-inference-commissioning/records/compiled/services/scopedExecution.service.js"
+    },
+    {
+      "path": "packages/api/dist/services/scopedLegalReviewOperation.service.js",
+      "sha256": "5eb01c1d37d002829d21eea7d95ca2872dbcdfdb05c03127f490ee53f8caba68",
+      "bytes": 6805,
+      "retainedPath": "docs/audits/2026-10-04-private-inference-commissioning/records/compiled/services/scopedLegalReviewOperation.service.js"
+    },
+    {
+      "path": "packages/api/dist/scripts/recordScopedLegalReview.js",
+      "sha256": "e7b8895ee83292fc66c0e0f037f295b9a4724971379bb554c1d341cae84a982d",
+      "bytes": 2140,
+      "retainedPath": "docs/audits/2026-10-04-private-inference-commissioning/records/compiled/scripts/recordScopedLegalReview.js"
+    }
+  ],
+  "unchanged": [
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "2634d7538f79ef0d67d60348b1820078b15a016d64f1e1062b79b1b551be467c",
+      "base": "28d90e4f2c9143253843725aa361975ec951c6cd"
+    },
+    {
+      "path": "packages/contracts/src/inference/scopedExecution.ts",
+      "sha256": "86635839ede7ae203022c22d79b200a28a646c0ae7584e484e8eceb864321774",
+      "base": "28d90e4f2c9143253843725aa361975ec951c6cd"
+    },
+    {
+      "path": "packages/api/drizzle/meta/_journal.json",
+      "sha256": "e3894d3ecba628dc48762384306624e56dd02aaa3698fac6da9f7940b682ddd6",
+      "base": "28d90e4f2c9143253843725aa361975ec951c6cd"
+    },
+    {
+      "path": "packages/api/package.json",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510",
+      "base": "28d90e4f2c9143253843725aa361975ec951c6cd"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "3e76f111ff3ff6a627a9217f54eb1b83e3e59f59916caa1bc3b211c8d802c56f",
+      "base": "28d90e4f2c9143253843725aa361975ec951c6cd"
+    }
+  ],
+  "results": {
+    "baseline": {
+      "suitesFailed": 2,
+      "testsFailed": 2,
+      "meaningfulFailures": [
+        "SQL unknown-model instead of resolved",
+        "HTTP404 model_not_found instead of200"
+      ],
+      "restoredByteExactAtCheckpoint": true,
+      "setupFailure": false
+    },
+    "final": {
+      "suitesPassed": 4,
+      "testsPassed": 40,
+      "testsSkipped": 131,
+      "total": 171,
+      "freshMigrationExitCode": 0,
+      "repeatMigrationExitCode": 0,
+      "journalEntries": 142,
+      "buildExitCode": 0,
+      "scriptsTypesExitCode": 0,
+      "biomeExitCode": 0,
+      "compiledNodeCliDryRunAndApply": true
+    }
+  },
+  "boundaries": [
+    "Production source audience getter remains undefined; no activation or production writes.",
+    "Real owned PostgreSQL and actual HTTP router/ledger; mocked source approval and synthetic data-plane transport.",
+    "HTTP positive uses a synthetic commercial fixture: one promotional reservation and one send; not a live Alia/provider authority claim.",
+    "Alia existing internal-metered economic configuration covered by admission qualification fixture: one claim and no monetary hold.",
+    "Compiled Node CLI tested in NODE_ENV=test with owned SQL, not a production operator execution.",
+    "Legal review requires existing active local staff/capability/fence checks; reviewer IDs are CLI audit attribution, never HTTP authentication.",
+    "Legal approval does not approve public serving; pending_review/disabled/platform_internal are preserved.",
+    "No new rate card, price, score, identity, grant, credential, DDL, publication or inference request created in production.",
+    "Initial commissioning scope is Alia. Future Mention private commissioning requires its own composed admission test and source approval.",
+    "Prior setup failures and cap/transport fixture diagnostics retained as historical; only baseline catalogue replacement is the attributed product RED.",
+    "No actual audience expiry or new root fixture023ad is activated by this source."
+  ],
+  "retainedPrivateRoot": "/home/nate/Oxy/.agent-evidence/integration-jev-commissioning-20261004"
+}

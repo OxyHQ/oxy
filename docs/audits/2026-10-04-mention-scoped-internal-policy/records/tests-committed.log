@@ -1,0 +1,24 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1752231, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-01f8ekfm/data", "port": 5597, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/services/__tests__/mentionClassifierEconomics.test.ts src/services/__tests__/mentionClassifierAuthority.db.test.ts src/services/__tests__/mentionClassifierAdmission.test.ts src/services/__tests__/inferenceMeteredUsage.service.test.ts src/config/__tests__/inferenceEconomicPolicy.test.ts src/services/__tests__/scopedAdmission.test.ts src/services/__tests__/scopedExecution.service.test.ts src/services/__tests__/inferenceInternalPilot.test.ts src/services/__tests__/inferenceDecisions.test.ts
+{"level":30,"time":1791132229094,"pid":1752240,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/mentionClassifierAuthority.db.test.ts (6.199 s)
+PASS src/services/__tests__/inferenceMeteredUsage.service.test.ts
+PASS src/services/__tests__/scopedAdmission.test.ts
+PASS src/services/__tests__/mentionClassifierAdmission.test.ts
+PASS src/services/__tests__/inferenceDecisions.test.ts
+PASS src/services/__tests__/mentionClassifierEconomics.test.ts
+{"level":40,"time":1791132236113,"pid":1752240,"hostname":"SuperPC","requestId":"req-synthetic-decisions","code":"service_unavailable","applicationId":"fixture","reason":"decisions-review-required","msg":"inference.edge.refused"}
+PASS src/services/__tests__/inferenceInternalPilot.test.ts
+PASS src/services/__tests__/scopedExecution.service.test.ts
+PASS src/config/__tests__/inferenceEconomicPolicy.test.ts
+
+Test Suites: 9 passed, 9 total
+Tests:       99 passed, 99 total
+Snapshots:   0 total
+Time:        9.086 s, estimated 11 s
+Ran all test suites within paths "src/services/__tests__/mentionClassifierEconomics.test.ts", "src/services/__tests__/mentionClassifierAuthority.db.test.ts", "src/services/__tests__/mentionClassifierAdmission.test.ts", "src/services/__tests__/inferenceMeteredUsage.service.test.ts", "src/config/__tests__/inferenceEconomicPolicy.test.ts", "src/services/__tests__/scopedAdmission.test.ts", "src/services/__tests__/scopedExecution.service.test.ts", "src/services/__tests__/inferenceInternalPilot.test.ts", "src/services/__tests__/inferenceDecisions.test.ts".
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-01f8ekfm"}

@@ -1,0 +1,3 @@
+$ tsc -p tsconfig.scripts.json
+src/services/platformActivity.service.ts(4,38): error TS2307: Cannot find module '@oxy.so/telemetry/socket' or its corresponding type declarations.
+src/services/platformActivity.service.ts(9,8): error TS2307: Cannot find module '@oxy.so/telemetry/server' or its corresponding type declarations.
