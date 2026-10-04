@@ -47,6 +47,7 @@ import * as inbox from "../inference/inbox";
 import * as modelDocumentation from "../inference/modelDocumentation";
 import * as money from "../inference/money";
 import * as priceVersion from "../inference/priceVersion";
+import * as privateAutoExecution from "../inference/privateAutoExecution";
 import * as providerConnection from "../inference/providerConnection";
 import * as realtime from "../inference/realtime";
 import * as request from "../inference/request";
@@ -55,6 +56,10 @@ import * as streamEvents from "../inference/streamEvents";
 import * as usage from "../inference/usage";
 import * as scopedExecution from "../inference/scopedExecution";
 import { scopedEnvelopeFixture } from "./scopedExecution.fixture";
+import {
+  privateAutoApprovalFixture,
+  privateAutoInputFixture,
+} from "./privateAutoExecution.fixture";
 import * as version from "../inference/version";
 
 /**
@@ -77,6 +82,7 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   modelDocumentation,
   money,
   priceVersion,
+  privateAutoExecution,
   providerConnection,
   realtime,
   request,
@@ -156,6 +162,7 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   // Request envelope
   inferenceRequestSchema: 2,
   scopedInferenceRequestSchema: 3,
+  privateAutoInferenceRequestSchema: 4,
   // Stream events
   inferenceStreamStartEventSchema: 1,
   inferenceStreamDeltaEventSchema: 1,
@@ -272,6 +279,10 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
  * ever-growing list is the gate switching itself off one line at a time.
  */
 const FROZEN_EMBEDDED_SHAPES: string[] = [
+  "privateAutoSourceApprovalSchema",
+  "privateAutoExecutionSchema",
+  "privateAutoPrincipalSchema",
+  "privateAutoInputSchema",
   "scopedExecutionAudienceSchema",
   "scopedExecutionSchema",
   "decisionInputSchema",
@@ -800,6 +811,65 @@ const REALTIME_FIXTURES: Record<string, unknown> = {
 
 const FIXTURES: Record<string, unknown> = {
   ...REALTIME_FIXTURES,
+  privateAutoInferenceRequestSchema: (() => {
+    const {
+      review: _review,
+      limits: _limits,
+      ...authority
+    } = privateAutoApprovalFixture;
+    const operationId = privateAutoExecution.privateAutoOperationId(
+      "018f2118-95bc-7aca-914e-17632106cad8",
+    );
+    return {
+      schemaVersion: 4,
+      privateAutoExecution: {
+        ...authority,
+        contractVersion: "3.7.0",
+        approvalSha256: "a".repeat(64),
+        parentMeteredUsageId: "018f2118-95bc-7aca-914e-17632106cad8",
+        parentRequestId: "synthetic-parent-request",
+        operationId,
+        requestId: operationId,
+        inputSha256: "b".repeat(64),
+        runtimeExpiresAt: "2026-10-04T00:00:01Z",
+        snapshotId: "synthetic-snapshot",
+        catalogueEvidenceHash: "c".repeat(64),
+      },
+      attribution: {
+        requestId: operationId,
+        principal: {
+          billing: { accountId: authority.principal.accountId },
+          applicationId: authority.principal.applicationId,
+          credentialId: authority.principal.credentialId,
+          environment: authority.principal.environment,
+          inferenceScopes: ["inference:invoke"],
+        },
+      },
+      target: { kind: "model", modelReference: authority.modelReference },
+      modality: "text",
+      input: privateAutoInputFixture(),
+      stream: false,
+      sampling: {},
+      tools: [],
+      client: {
+        apiFormat: "decisions",
+        endpoint: "/internal/auto-classification",
+        receivedAt: "2026-10-04T00:00:00Z",
+      },
+      idempotencyKey: operationId,
+      routingPolicy: authority.policy,
+      authorizedRoutes: [
+        {
+          substitution: "same_model",
+          deploymentId: authority.deploymentId,
+          modelReference: authority.modelReference,
+          provider: authority.provider,
+          regions: [],
+        },
+      ],
+    };
+  })(),
+
   embeddingSuccessSchema: {
     schemaVersion: 1,
     requestId: "req_embedding_1",
