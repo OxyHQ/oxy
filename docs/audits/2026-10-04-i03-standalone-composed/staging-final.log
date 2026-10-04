@@ -1,0 +1,14 @@
+✔ stages only the compiled hash, preserves original, cleans own file idempotently (1.739634ms)
+✔ modified bytes and non-Buffer input never create a file (1.171261ms)
+✔ existing regular file or symlink is refused without replacing its bytes (0.549478ms)
+✔ symlinked service directory is refused before any write (0.618555ms)
+✔ cleanup refuses changed bytes, permissions, or replacement inode (0.773141ms)
+✔ real compiled canonical module resolves unchanged sibling dependencies (328.295167ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 386.033156

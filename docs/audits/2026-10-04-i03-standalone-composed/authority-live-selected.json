@@ -1,0 +1,113 @@
+{
+  "observedAt": "2026-10-04 04:02:02.428829+00",
+  "readOnly": true,
+  "isolation": "repeatable read",
+  "application": {
+    "id": "6a2f851751b784a86fd0e934",
+    "name": "Alia",
+    "type": "internal",
+    "status": "active",
+    "is_official": true,
+    "is_internal": true,
+    "owner_account_id": "01a0369b-1222-712f-8df6-f8ffeb78ccc2",
+    "scopes": [
+      "user:read",
+      "inference:invoke",
+      "inference:models:read",
+      "inference:usage:read",
+      "inference:routing:read",
+      "acting-as:offline",
+      "accounts:act-as-session",
+      "capabilities:read",
+      "capability-tickets:issue",
+      "clarity:search",
+      "clarity:index"
+    ]
+  },
+  "accounts": [
+    {
+      "id": "01a0369b-1222-712f-8df6-f8ffeb78ccc2",
+      "account_status": "active"
+    },
+    {
+      "id": "01a0966c-d2bd-7799-93b3-f2dda099cdeb",
+      "account_status": "active"
+    }
+  ],
+  "grant": [
+    {
+      "id": "01a0966d-5177-7161-934b-272a29af8316",
+      "user_id": "01a0966c-d2bd-7799-93b3-f2dda099cdeb",
+      "application_id": "6a2f851751b784a86fd0e934",
+      "scopes": [
+        "acting-as:offline",
+        "inference:invoke"
+      ]
+    }
+  ],
+  "fences": [],
+  "revocations": [],
+  "epochs": [],
+  "receipt": {
+    "planSha256": "895d21768dd26c179664cf8c99ba0a49a9106853f9c86a86e372ff42e55521a4",
+    "resultSha256": "7993f9e3606486ed306005e0cccef089e645e16d7b71f4c20c79f8aef046998d",
+    "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/24153ef2a20d4effb434a438022e9297",
+    "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-service-authority-inventory-oxy:6",
+    "runtimeImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:b8d0d2f2325bf6d2a5a0df0f414185dfb940c48dc528cff794fa3820a3a2c534",
+    "profile": "oxy",
+    "readOnly": true,
+    "tables": {
+      "applications": {
+        "status": "complete",
+        "count": 28
+      },
+      "application_credentials": {
+        "status": "complete",
+        "count": 76
+      },
+      "application_workload_identities": {
+        "status": "complete",
+        "count": 16
+      },
+      "app_grants": {
+        "status": "complete",
+        "count": 1
+      },
+      "service_acting_as_revocations": {
+        "status": "complete",
+        "count": 0
+      },
+      "service_acting_as_authority_epochs": {
+        "status": "complete",
+        "count": 0
+      },
+      "users": {
+        "status": "complete",
+        "count": 6
+      },
+      "account_closure_fences": {
+        "status": "complete",
+        "count": 0
+      }
+    }
+  },
+  "cleanup": {
+    "taskStopped": true,
+    "definitionInactive": true,
+    "failures": []
+  },
+  "privateInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/authority-live-693/execution/result.private.json",
+      "sha256": "cc597986c2ef326a3814cc5d44227cd600196aad519e9c02198433bcc8de00b2"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/authority-live-693/execution/receipt.json",
+      "sha256": "7c0851ef342fdbaa05ca67c0ad9dc5dfaecd6053f2ca2706211aa2a76d7e469f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/authority-live-693/execution/cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "abb5655f67e1b2b473c4baed74ede89bb6b6e9d7",
+  "apiCorrection": "205565de1",
+  "expirySource": "7595381df55693a1bc92ca76528e19638bb701fb",
+  "sources": [
+    {
+      "path": "packages/api/src/services/aliaRevocationCanary.service.ts",
+      "sha256": "dabc54aaeeeddd29fc2fec1f7ff482b491043d1cdb5aca47f06538ef149f3c35"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/aliaRevocationCanary.db.test.ts",
+      "sha256": "aa12142ed80b1aa26f8f9645aeb632484e396e475c3d6e9f069680abbe0c52dd"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary-ecs.py",
+      "sha256": "6650a03c537297492cef1f8d90f72b2c19ba98f08e20047ee82a678b76310cea"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary.mjs",
+      "sha256": "3fb76dc48f539f3a62d44371efb300d133a15f7466ca7b39e7c0e6c7603b7e41"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary-receiver.mjs",
+      "sha256": "13ff992886c09afeaba560c6e8bd4e7873faad2fba53d2467fb800bad546c10a"
+    },
+    {
+      "path": "scripts/agency/stage-alia-canary-module.mjs",
+      "sha256": "1fbaa085c6182bc0caeb57ba996837564274ce48dc85cf7f7d3a39ce547527e0"
+    },
+    {
+      "path": "scripts/agency/artifacts/alia-revocation-canary.cjs",
+      "sha256": "2977ad4b30cd33bbce2a0a8b2faa3c3f16838d7dc06f72d8cc324a8ea64343d6"
+    },
+    {
+      "path": "scripts/agency/artifacts/alia-revocation-canary.json",
+      "sha256": "0a57d9603a34e3ae622150f5a0c5e430108d3fb158f8f6063010ffe90f8c72e5"
+    },
+    {
+      "path": "scripts/agency/tests/stage-alia-canary-module.test.mjs",
+      "sha256": "a62aa43ca80a17b6398688eb94fdba338b4008a8893823ce7400ec07da404f6c"
+    },
+    {
+      "path": "scripts/agency/tests/alia-canary-staged-db.mjs",
+      "sha256": "df85c70fdaccc411942d1c4a555f9a22cb2cfe881012f4d6e03ec4d880cd33dd"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-task-node.py",
+      "sha256": "a9044b90447efa857e6e6c45b859bd913bd8e6a58ab108b2a8d9f6bf85ce6d90"
+    },
+    {
+      "path": "scripts/agency/tests/canary-task-node-seed.mjs",
+      "sha256": "84e145c9863ca8ef90d692122334b7a0d6d48975066ae6251da64f06ab39237e"
+    },
+    {
+      "path": "scripts/agency/tests/test-alia-canary-ecs.py",
+      "sha256": "b96fbd661d4d4af45ff8de48a5ab777676dbc8f33c2eb13bc53de8324c1f485a"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-expiry.py",
+      "sha256": "34ff7ee41596c66a29e05b8317d9fa104542f14dae3fc1570d3019fb5ec8a702"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-expiry.mjs",
+      "sha256": "159eb955638a161ddcde7944ec9ba7e458d39d4a58d6d271f1e7e276f56069be"
+    },
+    {
+      "path": "scripts/agency/foreground-pilot-ecs.py",
+      "sha256": "b9fc5d2649c2875c5745ea94fcf5edf2ea17c614d856df78a9570eb235839e8d"
+    },
+    {
+      "path": "scripts/agency/oxy-profile-registrar-preflight-ecs.py",
+      "sha256": "881cdf42e575e6bf3b0164ea4765ffadfb2277fc647e365293f89e10495375d0"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/staging-final.log",
+      "sha256": "ad70b3ef4b450827529cf2f4d89f4e4d4b39e5633e3d4880fdaa7dca09771e8b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/composed-protocol-final.log",
+      "sha256": "5ec16df401f49c1b89b4b6297d63df3de4ef0e0a993f67470770194b459f34db"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/composed-expiry.log",
+      "sha256": "9499dc9a2e13d001d454b4324d00197ea5bbc94e11598d10b35160d202f008eb"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/composed-entrypoint-final.log",
+      "sha256": "9ff3adc7fc087d9567c1eaf71daa3aa6b9aa2801c57714e4ec49dd7154af04c0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/staged-db-migration.log",
+      "sha256": "965d2b5f4be1e24ddf0c0f6ad467f49f52e293c8aede04c1717d0b17965dd1b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/staged-db-proof.log",
+      "sha256": "c96ce5f092dddb728e3fb66146a544d3f85ce9f6308edea017d055d36bd5bd67"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/staged-db-receipt.json",
+      "sha256": "ebffb8f0fc5623a6fc4fa30615f4feac333d97d0abf2f3c41bb06d6650a01630"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/staged-pg-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/authority-live-selected.json",
+      "sha256": "f4653674be0a9268a0e35d6ceff1010ad3abe82ff67e9ec6fa9bd17d9629be8a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-standalone-composed/image-api-dist-members.json",
+      "sha256": "b243fb27820d1de6262484a1998dd788c1661da804a32ace3f96f222c8e40bd9"
+    }
+  ],
+  "results": {
+    "stagingFilesystemTests": 6,
+    "protocolTests": 16,
+    "actualSQLClockControls": 9,
+    "generatedPrepareRecoveryAndRejections": 8,
+    "originalOCIAPIFiles": 737,
+    "stagedCanonicalOwnSQL": "prepare/issue/revoke/inspect/recover/authorityunchanged PASS; original module rejects and remains unchanged",
+    "ownPostgresStopped": true,
+    "freshProductionMetadata": "readonly root693 confirms exact owner/type/flags/grant/fences; STOPPED/INACTIVE cleanup"
+  },
+  "limits": [
+    "No live issuance or revocation measurement; root-only execute after review.",
+    "Local Node/native dependencies use frozen85dad workspace; API dist737 extracted from actual ARM OCI, not ARM execution.",
+    "Original image module remains wrong for this canary and is deliberately preserved and hashchecked. Corrected CJS is a new owned one-shot file, never a deployed API replacement.",
+    "No grants or application metadata were changed in production; existing grant only.",
+    "The prior2237 prepare failure remains historical. New source requires a fresh plan, not replay of the failed dispatch."
+  ]
+}

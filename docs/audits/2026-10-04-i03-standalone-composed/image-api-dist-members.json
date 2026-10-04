@@ -1,0 +1,2954 @@
+{
+  "imageDigest": "sha256:b8d0d2f2325bf6d2a5a0df0f414185dfb940c48dc528cff794fa3820a3a2c534",
+  "layer": "blobs/sha256/3011ea7c03014915d411f6e6d2652ff3a52d01c1e087fbfca819ac55364a241a",
+  "records": [
+    {
+      "path": "dist/asset-variant-worker.js",
+      "sha256": "331a7a995406d19347c9d22cde0c5fa90a444729c82fa2b28d8d2231b6a2006a"
+    },
+    {
+      "path": "dist/capabilities/inbox-mcp-http.js",
+      "sha256": "a044699c80171d0c8a7342c62f7e22cd36c93a69dd7626cea8cb1220a47a8e0c"
+    },
+    {
+      "path": "dist/capabilities/inbox-service-client.js",
+      "sha256": "7c4e0c0cb8f7bcd9e9fd8da785c55a9a23811308e17a33cfd317a8edfe9be07f"
+    },
+    {
+      "path": "dist/capabilities/inbox.catalog.js",
+      "sha256": "388dcc0a446e066222a41a00ff570a32d13f076ab52af93dbd2b2813e950d8cd"
+    },
+    {
+      "path": "dist/capabilities/inbox.events.js",
+      "sha256": "6d458093b2cf01384cdb1b0eff988024c5e86fd6442a129bc1878963390a777c"
+    },
+    {
+      "path": "dist/capabilities/inbox.handlers.js",
+      "sha256": "cc7aa443d98eb743643abcb0c8487214d2f3003c945cd9126ae1c2145a4a4b71"
+    },
+    {
+      "path": "dist/capabilities/inbox.mcp.js",
+      "sha256": "1f54c50975f0a040a0cb62f8dd245ff671c883e2f3abe78fe15cdb39fc8a8d72"
+    },
+    {
+      "path": "dist/capabilities/inbox.tools.js",
+      "sha256": "753da4f75fabef04adaae6c84acacf2932e8daec8ab5bc5064e0a7684852303c"
+    },
+    {
+      "path": "dist/capabilities/oxy-profile.catalog.js",
+      "sha256": "88fb81ed5cb011d1a66b2927e87cb33a1b014ebcb40a215450c2cbe00f98e6c0"
+    },
+    {
+      "path": "dist/capabilities/oxy-profile.handlers.js",
+      "sha256": "0e29cda2af9f1c255776b04ed7377bccbbdf3bb14c283cf9bf20001765cab9d9"
+    },
+    {
+      "path": "dist/capabilities/oxy-profile.transport.js",
+      "sha256": "a60820facbfc613c72b628346e86ef8986fbc23345f2bcc988e88e3ef1b13364"
+    },
+    {
+      "path": "dist/config/allowedOrigins.js",
+      "sha256": "01191c18e2f8c62904665a503c08e4cbf0a4841e732b01a2ab900bcc7ea4c625"
+    },
+    {
+      "path": "dist/config/autoClassification.js",
+      "sha256": "898913ea851201704282fbcf46e28f4ee0ffb4b2d7bb34fdcd05160a98b897d0"
+    },
+    {
+      "path": "dist/config/billingNamespace.js",
+      "sha256": "b3aa770253888a615b995997b01a22fa3cd82ff3636b9febd2295bccb94b25a5"
+    },
+    {
+      "path": "dist/config/capabilityTicketSigning.js",
+      "sha256": "0d0bc580cc611b5c2f18dbf34976315b8ad29cc5826b216096be943a9814a8f4"
+    },
+    {
+      "path": "dist/config/cdn.js",
+      "sha256": "7a3c890b32b38aee416a66d1b9e0556942a226aced46d8d87b97ee04a31e8366"
+    },
+    {
+      "path": "dist/config/chainCollectionPolicy.js",
+      "sha256": "e7613d9243718f6aae283431c698a1d36c6c9a455bd1a691f19877d9c39a6d7e"
+    },
+    {
+      "path": "dist/config/cors.js",
+      "sha256": "d31f58958cc698c9231f1b51dcbeb338e0879fe34945a71835481db3e9f2236f"
+    },
+    {
+      "path": "dist/config/decisionAvailability.js",
+      "sha256": "9918ab13e386d19ab63eccc6f0577d0018011f4fb117daceda7b18df63baa6eb"
+    },
+    {
+      "path": "dist/config/dynamicOriginRegistry.js",
+      "sha256": "d3ceedfe5ec8a168510d167c74113e1286246f5656d2262098b1120e329a0a7d"
+    },
+    {
+      "path": "dist/config/email.config.js",
+      "sha256": "357eaca5f7f769b844f2ec01902af2f2a38401ec63635737e56743e31675c802"
+    },
+    {
+      "path": "dist/config/env.js",
+      "sha256": "5b5f380ef2b24fbb5f2973884ee3582c6b2f469623f19c83350244157762e23e"
+    },
+    {
+      "path": "dist/config/federationBridgePolicy.js",
+      "sha256": "4a37b098078d924d58dfe8f314704528d92b1a14a7be3ca9d2c949d2d5619b55"
+    },
+    {
+      "path": "dist/config/federationBridgeTrust.js",
+      "sha256": "ba808dbeb5b208842a51995a1d7c91322445387b0bb2c3bca50b8e1f4c9755b0"
+    },
+    {
+      "path": "dist/config/inboxInference.js",
+      "sha256": "d57e340e7eaa7b8e8c94581ee82856d8ab0976996490ff3fc0fe514edb0a2343"
+    },
+    {
+      "path": "dist/config/inferenceEconomicPolicy.js",
+      "sha256": "5a2dffd198e7f0737202017e088d2f6e473fd2eea58fc280bab31f9fd51612f4"
+    },
+    {
+      "path": "dist/config/inferencePlatformScopeWriteGate.js",
+      "sha256": "13728d0425b71498f52733725972f94f9b23d1bbc61bd139769dbce0d009477a"
+    },
+    {
+      "path": "dist/config/inferenceRoutingScoreValidity.js",
+      "sha256": "9dd9702c20bdce390bf9909da5a0b58add44a35204f47bc6eb46f221e2e0093f"
+    },
+    {
+      "path": "dist/config/kaanaBootstrapDeploymentSelection.js",
+      "sha256": "a985faf85547408247ca8db090e38a1a4a31d53a2813a6ea982798eab3582b39"
+    },
+    {
+      "path": "dist/config/kaanaCredentialControl.js",
+      "sha256": "617d4a72a291ae3149d93a9179a82c3088a06e17098f232825001677f830c798"
+    },
+    {
+      "path": "dist/config/kaanaDataPlane.js",
+      "sha256": "2a6324fb04a4a54675345d62e88d9b24c61cf33a4253c005107e53b5a01b1399"
+    },
+    {
+      "path": "dist/config/kaanaInitialCatalogue.js",
+      "sha256": "333a25d745946c6e4c58cf27cc0851701aee666235c75b1f3ad8589a1ada0bf2"
+    },
+    {
+      "path": "dist/config/kaanaInitialInventory.js",
+      "sha256": "349a886d741d2a56e2df8d10ea8c52a12f1057a1836ef875b9344f0d57cea7ec"
+    },
+    {
+      "path": "dist/config/nativeProductAgents.js",
+      "sha256": "10f8401427181e10f6dcfaa3ba994ae59446bf5e8567e324a2fdbf375342b20d"
+    },
+    {
+      "path": "dist/config/postgres.js",
+      "sha256": "d71c6f13be5ef0c6c9aa9d7b9878a1488dd5a85523755243aaf0972b6480cea2"
+    },
+    {
+      "path": "dist/config/reconcileOfficialRedirectUris.js",
+      "sha256": "a20c785275d9f05c09411cc1549519d8f00ea4357ee9c00d0f9ea0e6f987d030"
+    },
+    {
+      "path": "dist/config/redis.js",
+      "sha256": "e1872f9301793202841d7db3ceda7c1f36fc81abc502f0bbf2d13d9054dd7ed6"
+    },
+    {
+      "path": "dist/config/rolloutFlags.js",
+      "sha256": "5d6481f69256830b2e43fab4359dcf0ab2dd8d54e15cb8d6abf6f6be9a5f2807"
+    },
+    {
+      "path": "dist/config/serviceTokenSigning.js",
+      "sha256": "475df3c796c162cd5a85fdd5a800c119042c3152601efdd5764905425bb772f1"
+    },
+    {
+      "path": "dist/config/swagger.js",
+      "sha256": "254817ada9d18a93aef28ca39c7fa662bdf444d7cae36ed249ef1c4784bfc355"
+    },
+    {
+      "path": "dist/constants/federationCache.js",
+      "sha256": "41cef6eebef8a1975f9866f037dbc79e32d6d69ab7f78f7ea1604eb77e447918"
+    },
+    {
+      "path": "dist/constants/systemLabels.js",
+      "sha256": "c5cb4162bc1046ba2fd1cede7a913fa907f039606571c19a75e8de1ef2e3d124"
+    },
+    {
+      "path": "dist/controllers/analytics.controller.js",
+      "sha256": "3998b2c2a850809cd1b911957e9bd34220a520533817cc736a10f59dfa95d4f0"
+    },
+    {
+      "path": "dist/controllers/devices.controller.js",
+      "sha256": "c08864d9d51b9dea34d474219da651739caecde2cc1856e9e5641a5ca19f2a7f"
+    },
+    {
+      "path": "dist/controllers/email.controller.js",
+      "sha256": "ace46f74c9f6ef5a77aa5dcf5f1fa3cd8893f8bbdd300bbb4f026c87418a08dc"
+    },
+    {
+      "path": "dist/controllers/emailContext.controller.js",
+      "sha256": "33b19fd1ae70046c7f412fc2fa080d3b39b0845e5caabdfc28934c463a0d1d11"
+    },
+    {
+      "path": "dist/controllers/emailProxy.controller.js",
+      "sha256": "ecb06f99081b6cada231762a293b37bbcc62be74ec04f80b38d6ac2425fb0082"
+    },
+    {
+      "path": "dist/controllers/locationSearch.controller.js",
+      "sha256": "423333ce85acea47fd0818dec93aba1e471c7c861914763bfe9e32f8c6ea4e2a"
+    },
+    {
+      "path": "dist/controllers/notification.controller.js",
+      "sha256": "b81e8ec3eeaa0453925a450c06f3fb05f80ed3fccd43b4ba0c968f1cfd77dee1"
+    },
+    {
+      "path": "dist/controllers/payment.controller.js",
+      "sha256": "76214dd17bcf86be2445f44bfe694c410d4e0964ebace357c6317af2f969d6f1"
+    },
+    {
+      "path": "dist/controllers/securityActivity.controller.js",
+      "sha256": "119e39bdc19a7c06439d015d48ba121188bdd4bf53addbe0393ef0789a85fd0e"
+    },
+    {
+      "path": "dist/controllers/session.controller.js",
+      "sha256": "31a4c7deff2449d9dffd0dca8257f2610959d0ad988e6a300b29fe092ed51e61"
+    },
+    {
+      "path": "dist/controllers/storage.controller.js",
+      "sha256": "90056701681689a8e45b14a4efcc4c97d21d812bfa384adedd6443ceb2a595d6"
+    },
+    {
+      "path": "dist/controllers/subscription.controller.js",
+      "sha256": "6a1a6451750df348cf2b77192b3c35af90416b80908bfb616ede0777ace6a962"
+    },
+    {
+      "path": "dist/controllers/users.controller.js",
+      "sha256": "6af6353150476e35ca59ac22cf74feb86b6fa7d5a67281f324f3eb8ae8d13fb0"
+    },
+    {
+      "path": "dist/controllers/utils/dateUtils.js",
+      "sha256": "5619d4576c748d4d54fa0c8f7bb2ee1f4f9f7fd089768e4bc8a2b9e1f7808c36"
+    },
+    {
+      "path": "dist/controllers/wallet.controller.js",
+      "sha256": "fde24db77ff47469475ba8af47fcdeb162c75e3f5565839e8e4206ce8b6f1ef2"
+    },
+    {
+      "path": "dist/cron/snooze.cron.js",
+      "sha256": "b20307cf7cda281580afe280ecabb15da166db5d763d92aad76c4c77741751db"
+    },
+    {
+      "path": "dist/db/credits.js",
+      "sha256": "cd4662de93e0cb99a52ba8ce10323d252c2888c60287fe3142a30efc2eb0f1a4"
+    },
+    {
+      "path": "dist/db/expiry.js",
+      "sha256": "eb7a423f705f94a8377ea3324519aa7a31ba934adf114653c043814843ddba3d"
+    },
+    {
+      "path": "dist/db/extensions.js",
+      "sha256": "43a88a4ab84e009ab75d94c9ac3ad451a65b43d5cfaae2ec5e0f322e7e3b79e0"
+    },
+    {
+      "path": "dist/db/migrate.js",
+      "sha256": "ebe7646d916826e067538067b2c0aca0388e3dec94efcc1790946be5509b1936"
+    },
+    {
+      "path": "dist/db/migrationsFolder.js",
+      "sha256": "422f9ec91d3256badf01541c34f66ba9d45824e4daf25d84fdc1989bd49a6177"
+    },
+    {
+      "path": "dist/db/schema/accountBalances.js",
+      "sha256": "373f921bcbc7293ac1fad89895bd373959f96c02e3297a08dcfbbfa496e44b52"
+    },
+    {
+      "path": "dist/db/schema/accountBillingImmutability.js",
+      "sha256": "3bf0fd0cde64d53214268b2f81e228eae1d5a620be05e382ee384faecad5bad2"
+    },
+    {
+      "path": "dist/db/schema/accountClosureFences.js",
+      "sha256": "64c99e052af94e9ccebe40af3225f9a41abce47c537321820102a76b5c0ee9cf"
+    },
+    {
+      "path": "dist/db/schema/accountEvents.js",
+      "sha256": "9d4bd3eb7ab4643f6c347c30e95ba9fe20a96bc2019ede738c399bd56a0afc52"
+    },
+    {
+      "path": "dist/db/schema/accountMembers.js",
+      "sha256": "ea57a70bbf7f1a29bdfc3e1bb26563bbb73ebebd9923b20810a752e15a92dc21"
+    },
+    {
+      "path": "dist/db/schema/agency.js",
+      "sha256": "443f7881b02380c977440632447248f55ec4c206e87126c38b99657ccfff1e18"
+    },
+    {
+      "path": "dist/db/schema/apiKeyUsageEvents.js",
+      "sha256": "b2a3430511ebabf823c47a68c6e210b4964663fcb4caa035bb353b657a715ca7"
+    },
+    {
+      "path": "dist/db/schema/appAffinityEdges.js",
+      "sha256": "faad3ced8c183a7e2b8cfe94c795acadac7dedeb3925314b5b4be8671ac032f6"
+    },
+    {
+      "path": "dist/db/schema/appAffinitySeenEvents.js",
+      "sha256": "7cc830e1111c9a4706b7bb046a4ba8bf8f9d880a90bd7f971284051bd22768c3"
+    },
+    {
+      "path": "dist/db/schema/appCategories.js",
+      "sha256": "f872802d215abf9e2971a2a16ca87d5caf68b37a32eb3ffd37a4f5856c7a3e33"
+    },
+    {
+      "path": "dist/db/schema/appEndorsementEdges.js",
+      "sha256": "1fee95e08778bb350af9154b0e2fddc55d8f4a4e29d92a29b96918e5ebf43c9e"
+    },
+    {
+      "path": "dist/db/schema/appGrants.js",
+      "sha256": "5f74efe9a22bd35b4ec5c0db59803bc64d211d6cad6e2c8cdcc0805dd65baeba"
+    },
+    {
+      "path": "dist/db/schema/appListingScreenshots.js",
+      "sha256": "47ce784457941b94fd8c77ea9e52ebb04b7798a7a9aff406e539299bd697fa12"
+    },
+    {
+      "path": "dist/db/schema/appListings.js",
+      "sha256": "62269eb034104e573193ac3b5dcaa65506688db595dfa6137e77cfa3fb033b93"
+    },
+    {
+      "path": "dist/db/schema/appReviewReplies.js",
+      "sha256": "2a89ffb230c53039608aef331df3fc931a5977c76c5f989d3923ed829703a5bc"
+    },
+    {
+      "path": "dist/db/schema/appReviews.js",
+      "sha256": "ee449580e6874a68be3ff20e53a1e11941416fbe56774c981b544b53151028fc"
+    },
+    {
+      "path": "dist/db/schema/appUpdateAssets.js",
+      "sha256": "ff727b259f2a7db62aa4fdebab84c35f4aa6297e6fae65cf4257d9d8d37fc5ac"
+    },
+    {
+      "path": "dist/db/schema/appUpdates.js",
+      "sha256": "d04bd6f8c8e306f7f9e87fad95ce01076b0614723aff80b63df3cf45fd0ce47f"
+    },
+    {
+      "path": "dist/db/schema/appUserSignals.js",
+      "sha256": "3236256a64703aea6894ac1c6e3822af9cfb994e32f1275556dd78c4fe10d11b"
+    },
+    {
+      "path": "dist/db/schema/applicationCredentialAuditEvents.js",
+      "sha256": "41a4cbcff6eb1576839813ef89bd36741ff152e6e3c40cce10e7fdd858682631"
+    },
+    {
+      "path": "dist/db/schema/applicationCredentialAuditImmutability.js",
+      "sha256": "530239d800beae9b7d8df94e2f659543ac01990b997343fec5eed17118b5c180"
+    },
+    {
+      "path": "dist/db/schema/applicationCredentials.js",
+      "sha256": "86bf0e49eb8ae0ce50ecfd3f19463b6694fad3720f350bdaac6f4955899a8e30"
+    },
+    {
+      "path": "dist/db/schema/applicationModerationTrust.js",
+      "sha256": "08a5cfa8c7dc4e116940a7cdf6c898790e39e8baddec130276f316d55ca78dbc"
+    },
+    {
+      "path": "dist/db/schema/applicationWorkloadIdentities.js",
+      "sha256": "bcda255bb6dd2d497f3d190f063c846f7cc8eeb60ab68155c620f49d6fc2e4c7"
+    },
+    {
+      "path": "dist/db/schema/applications.js",
+      "sha256": "9854c3660882733b8ac0305b6e1f5233d8ce9f837c0ff3bd32de5dc1edd6c3a3"
+    },
+    {
+      "path": "dist/db/schema/authChallenges.js",
+      "sha256": "9714a7b6395ba38215a14eab9e733d0cb9a9e2a9f7ce8550d1de977abcf05707"
+    },
+    {
+      "path": "dist/db/schema/authCodes.js",
+      "sha256": "f1d5cd49bb434399f23ea2da199d190b38c4412069977bcdf598d82d3fba2cd1"
+    },
+    {
+      "path": "dist/db/schema/authSessions.js",
+      "sha256": "d5f57499c1f2165de9166db912395210436e2507d3c45ebdd18a5df56860bf2f"
+    },
+    {
+      "path": "dist/db/schema/billingAutoRechargeAttempts.js",
+      "sha256": "635b6767d8c756c9db8934df252b4596c3cc5196a786699538f68de368e48e8f"
+    },
+    {
+      "path": "dist/db/schema/billingCreditGrants.js",
+      "sha256": "3c8baee296563fcb36b0dc869d6590e1f444c285a7ab0fb2a785a0b90c10d843"
+    },
+    {
+      "path": "dist/db/schema/billingCreditImmutability.js",
+      "sha256": "40e17d51ce857d7f5152c1af06a0a6c8219a766c95eee95904ae9ac085c29d93"
+    },
+    {
+      "path": "dist/db/schema/billingExternalPayments.js",
+      "sha256": "18a7d81ef15e0fd7f948fd988031a936430018cf3e73cfe7234d0f52796d575a"
+    },
+    {
+      "path": "dist/db/schema/billingInvoices.js",
+      "sha256": "81bf94049e4677880da3a221f099f92bea9661a3602dfdfaefe1dab21a9c4679"
+    },
+    {
+      "path": "dist/db/schema/billingLedgerEntries.js",
+      "sha256": "3b06b697f8df69d2c5bb55646e0551a098ea2b07ca41099af683b1b774cd9896"
+    },
+    {
+      "path": "dist/db/schema/billingProfiles.js",
+      "sha256": "1f637f70e875fa6a7e755bf3d04c4ee19cdccbead5d0e4307137bf0ac8c713d5"
+    },
+    {
+      "path": "dist/db/schema/billingReconciliation.js",
+      "sha256": "cd2fb56599d664f80c9cb23c127e5a21db872b28c1bce3b762bb8bfa4441234d"
+    },
+    {
+      "path": "dist/db/schema/billingStripeEvents.js",
+      "sha256": "dc37e9ea8fa5967224ff70189fb7ded5741c6eaa455bf8349eec2dcb739d0af5"
+    },
+    {
+      "path": "dist/db/schema/billingSubscriptions.js",
+      "sha256": "809045772e548bb73e2c5a835ec20e1d8a130a100b900aeaba0f6ed15d67eaf5"
+    },
+    {
+      "path": "dist/db/schema/billingTransactions.js",
+      "sha256": "49f08219358249bb5c338a5aabfb3d479f27a0b2043c8b29bc4ceacef62a90f7"
+    },
+    {
+      "path": "dist/db/schema/blocks.js",
+      "sha256": "b865710cdac6566dcc2258ca463f15af2524a3efe759c6fc954035ff8162cc70"
+    },
+    {
+      "path": "dist/db/schema/bookmarks.js",
+      "sha256": "abda45780100e0b73c2ba220631e347c459225846dc6ce8461ee3a8d701c4ecd"
+    },
+    {
+      "path": "dist/db/schema/bundles.js",
+      "sha256": "2d556a69b288a570abbfca1d348ba63f0de7fe0fed9a12577f3895ad269e57e9"
+    },
+    {
+      "path": "dist/db/schema/civicNonces.js",
+      "sha256": "949a6249afcb0fd75b413a5003d06296c3cc820bba0126e0f4da1eee6f905a62"
+    },
+    {
+      "path": "dist/db/schema/conductStrikes.js",
+      "sha256": "ac17da97c4c1c501f4a234d390d7c5d59c4ff3f7d367f9297fa0bf8c8147a27d"
+    },
+    {
+      "path": "dist/db/schema/contacts.js",
+      "sha256": "24ba476f3a34eebcc6cc05049cfe1fc34c0695fc759fe8a295bec5b8e7c1d3d9"
+    },
+    {
+      "path": "dist/db/schema/deferredForeignKeys.js",
+      "sha256": "00fa8bc179ef33d993d8a8d91e73d9f1c263a84609e92f7fd268182947ce3012"
+    },
+    {
+      "path": "dist/db/schema/deviceAccountContexts.js",
+      "sha256": "e05eb1b807eafe85326ef1260bab9741e69bec63436cba417e893cbe70af0090"
+    },
+    {
+      "path": "dist/db/schema/deviceCredentials.js",
+      "sha256": "bd04d27e0268e444ba71582d7ccec2db0f350bccf47c74614468bdb5df32d60d"
+    },
+    {
+      "path": "dist/db/schema/deviceJoinCodes.js",
+      "sha256": "24b784d40f4692ebdaf5385558b65f2c79e20689136eb27fc1250eaad8e0ca5c"
+    },
+    {
+      "path": "dist/db/schema/devicePrincipalBackfillConflicts.js",
+      "sha256": "60bf3d9be39125be9f79c12e91c0eda065e233f5fac45e1a723f8b0091976ff9"
+    },
+    {
+      "path": "dist/db/schema/devicePrincipals.js",
+      "sha256": "6e3f81e6fab105a93b7f1136056059d04b6857db44b8252189662e75c5b5fca7"
+    },
+    {
+      "path": "dist/db/schema/deviceSessionAccounts.js",
+      "sha256": "944bed5454afc07bee9804a8a0915155be9562a833403a3ec8989d7e576fb197"
+    },
+    {
+      "path": "dist/db/schema/deviceSessions.js",
+      "sha256": "aab7607697f8ddddd99277ad7ea2cada774d3c80113c3de21cc647ca36f891e4"
+    },
+    {
+      "path": "dist/db/schema/domainVerifications.js",
+      "sha256": "41d61362f274ceaf21c6c9ebd0119c39881b791ba8af5043efb7b5a682bfb6b3"
+    },
+    {
+      "path": "dist/db/schema/emailFilterActions.js",
+      "sha256": "4b6026bdffff00398fedf20f85dfccaade6051096e8896f50b1a6fe7ede416b3"
+    },
+    {
+      "path": "dist/db/schema/emailFilterConditions.js",
+      "sha256": "a43de63168d16b0f43122548e6dbaa47eece654b56e0f5d38cd6b757833b7632"
+    },
+    {
+      "path": "dist/db/schema/emailFilters.js",
+      "sha256": "df7c4c513fc87f2397060634b52f50a86295b36bcbea28498c7c7ce8f085ddb9"
+    },
+    {
+      "path": "dist/db/schema/emailOutbox.js",
+      "sha256": "1bca9d1588a31175666848b4559020ed21a98b0e81bad632cc6ea324770a7de5"
+    },
+    {
+      "path": "dist/db/schema/emailSavedSearches.js",
+      "sha256": "be19b0920e94c40f0fd518cc1b4df34adb8be8e62c7da7b203f69422af62307c"
+    },
+    {
+      "path": "dist/db/schema/emailSignInRequests.js",
+      "sha256": "45e98f24d2afadb4291db303c27c3456fc5fd503b858c922bbde43b9fa61dd37"
+    },
+    {
+      "path": "dist/db/schema/emailSuppressions.js",
+      "sha256": "c56e0671097de48ac8185778525bbfebc89056fbd886009fe2cb4b1d8f5e33a0"
+    },
+    {
+      "path": "dist/db/schema/emailTemplates.js",
+      "sha256": "dbe7585bfe4f04201f47f9ef4f2e301db8ce4e1041cf271396de9cbcf068da54"
+    },
+    {
+      "path": "dist/db/schema/emailVerifications.js",
+      "sha256": "3c84db6426f0d6cfb71c031533c930252a0a6c33f7c85d13b1db66504892c1e0"
+    },
+    {
+      "path": "dist/db/schema/externalIdentities.js",
+      "sha256": "6d72f84480e3badc766d379b8b0ad0ec64b5e0010db60acd4549aeb5399b4781"
+    },
+    {
+      "path": "dist/db/schema/externalIdentityMetaProofs.js",
+      "sha256": "e8498dc39b045fabaf5c81825ddf4b814f7d70c0d709066cec62dcc3ee67467a"
+    },
+    {
+      "path": "dist/db/schema/families.js",
+      "sha256": "daa5aff5da95d45a27144d79a262986f7d646facb42aadec046ea0c23db611dc"
+    },
+    {
+      "path": "dist/db/schema/federatedAccountMoves.js",
+      "sha256": "3e404be59db18fd6fe3813772471b0e8f0b6b81fad628486337c067fb0265a84"
+    },
+    {
+      "path": "dist/db/schema/federationKeyPairs.js",
+      "sha256": "749df5b82cc4f876dc6295cf347198f5ed9684c37446f4aeb29de2c0c8593378"
+    },
+    {
+      "path": "dist/db/schema/fileLinks.js",
+      "sha256": "a525ce308f110084137bf68cd0ecbb9f7278ec95e03d27240ffa14c3f3c91675"
+    },
+    {
+      "path": "dist/db/schema/fileVariants.js",
+      "sha256": "2566b910b4103b6aac388190781e503c3e9a92c20667fc736f4635d36da68ee4"
+    },
+    {
+      "path": "dist/db/schema/files.js",
+      "sha256": "a25bb626705168f4f04f1ba48591e2d750639dbf92f91af3ba03f52bf68b2d51"
+    },
+    {
+      "path": "dist/db/schema/followApplicationOverrides.js",
+      "sha256": "71ba160bb906de3654233b9c41ffc23141b56876d3911d6eccd750736113433b"
+    },
+    {
+      "path": "dist/db/schema/followEvents.js",
+      "sha256": "52f50f8e9aa930c336865faff30570d2ad7e2a15372ae7acba555b89b74e1e7c"
+    },
+    {
+      "path": "dist/db/schema/followNamespaces.js",
+      "sha256": "82dc03449169dab0ac35632ec4f2d125def6b03d65b2fae9d5fd37a3f00b1f22"
+    },
+    {
+      "path": "dist/db/schema/followRelationships.js",
+      "sha256": "6c1419a6ab89dc6ca980fa885b473a7b006efb584833206fb5eecb90e6aef9be"
+    },
+    {
+      "path": "dist/db/schema/followTargetKinds.js",
+      "sha256": "4f0ea2713ec15938933ee41ac849e7a3aaacb070f619343b680e33252f312bc8"
+    },
+    {
+      "path": "dist/db/schema/followTargets.js",
+      "sha256": "8804058b9a12a6cf923bc785abe219dc9a7a13aa5dca3970b66d3a429e005070"
+    },
+    {
+      "path": "dist/db/schema/foregroundApprovalMigration.js",
+      "sha256": "a010b6f2cee3ac7b2d6a94616ed0fdc15f3987d0d9b270f8d3323b1183ffa7fe"
+    },
+    {
+      "path": "dist/db/schema/identityBackups.js",
+      "sha256": "9575f04c1cc6adb710cedf5224c06e0534f585cc6b3621487b0e41ffb8e45bbf"
+    },
+    {
+      "path": "dist/db/schema/identityBindings.js",
+      "sha256": "b23f0e98b620a7552b2e883fb11e9107d42b30de01dbaf19c61984b04ace34ed"
+    },
+    {
+      "path": "dist/db/schema/identityLinkRequests.js",
+      "sha256": "db8be41c4481fe7a1736c7190bb5ef00506ea2270f15a6fb95c26bfe6842b546"
+    },
+    {
+      "path": "dist/db/schema/identityProofChallenges.js",
+      "sha256": "b85ecbe986db1657f81f0efddf3bcb4dd81dc7ee27241876991d15d43fed9239"
+    },
+    {
+      "path": "dist/db/schema/index.js",
+      "sha256": "ac3a28c24dc793d8c0dbb8be23d87b8fca51f0be124bf4343fc0ff6aa425e3f9"
+    },
+    {
+      "path": "dist/db/schema/inferenceCatalogueSync.js",
+      "sha256": "980cd9c44c785fd8a81ff5fe9f076c80e5d6064ea4249b74185c5cd2757b351d"
+    },
+    {
+      "path": "dist/db/schema/inferenceDeploymentRoutingScoreImmutability.js",
+      "sha256": "38879970cc88b676e1efb58b0f00a92df1e9d6c99f2d49c69bea45480dfaf8f9"
+    },
+    {
+      "path": "dist/db/schema/inferenceDeploymentRoutingScores.js",
+      "sha256": "e6adecc95208a2833ed4eb4c361eb1dfabf4b4cb282785d1eae3e70a2d8d40c9"
+    },
+    {
+      "path": "dist/db/schema/inferenceDeployments.js",
+      "sha256": "a62aac1af2cdd98741ce069299b02d8d89ef15b1dd1b824e2fde10ae12a9ece2"
+    },
+    {
+      "path": "dist/db/schema/inferenceMeteredUsage.js",
+      "sha256": "96bb1eb962e3fe42eab61adc1ce40efd77914ed5aa76bcac77af1b078b1bec12"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelEvaluations.js",
+      "sha256": "668342883a552112146b1122efa7c2feb2d698b257e28a34e7bafb9da953a8ff"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelGpaiDocumentation.js",
+      "sha256": "cdd4bc24d493d2a616f72e01254a0e01628e7d6217cdf62e2591a5eef71f9506"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelPowerClasses.js",
+      "sha256": "6493243d528a9ff21c513d53e3e526a7e28f16e492e5a54cae78e8f7c7f9bc1c"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelProvenance.js",
+      "sha256": "61e6c067d3fa41eb86101d5f1f655f35765d1b3e1d9535b500413b123782d969"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelReleaseArtifacts.js",
+      "sha256": "813508662a4b47056b2cd4b192fce84ddc62a5c7059b8f5ae714bc68d14c02fe"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelReleaseImmutability.js",
+      "sha256": "f920ff4fc2cab1ac6e0218e94325241c19bb1f0462a7ab3f8290d4056bcbc205"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelReleaseSignatures.js",
+      "sha256": "8f79b451d6cea3976a3b1015d55c8dcdf25301735001be8bdd98735c7dd1bfdd"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelReleases.js",
+      "sha256": "8ff34ca302de671a2f2c47c64c3e80f9ecd067e12a1e6ae9eafb85538ad86ce1"
+    },
+    {
+      "path": "dist/db/schema/inferenceModelRevisions.js",
+      "sha256": "170ccb0d9bd795585f30674fd78144073c04f6f9cc2779b6e7779466f88135a6"
+    },
+    {
+      "path": "dist/db/schema/inferenceModels.js",
+      "sha256": "6dca96f60909c8506ceee93e0a48ccb8c09474686f8d7588725bce18938a9155"
+    },
+    {
+      "path": "dist/db/schema/inferenceProviderConnectionAuditEvents.js",
+      "sha256": "3903d3dd3484330421e94a78d9dd257a45df715a8eff589c08d363d943dcd68c"
+    },
+    {
+      "path": "dist/db/schema/inferenceProviderConnectionImmutability.js",
+      "sha256": "2e03c9e3d7d227ea2f3346bda271199ad80196a65f9489ff51bd02e62b830a36"
+    },
+    {
+      "path": "dist/db/schema/inferenceProviderConnections.js",
+      "sha256": "9c66ee2fe3d6a1be60c72d32479a3abeb26e5d478bd8ee94cacbdc1635c1ee41"
+    },
+    {
+      "path": "dist/db/schema/inferenceProviderCostAttempts.js",
+      "sha256": "f0459e047e1f002561a3e41959b87b00d50179791b0456162e44b5e14a2f453f"
+    },
+    {
+      "path": "dist/db/schema/inferenceProviderCredentialOperations.js",
+      "sha256": "68e9c590630fd98ec0a645a174d7c3a012ee2481a4d6ca7fd9f04bfa7cb8ebe9"
+    },
+    {
+      "path": "dist/db/schema/inferenceProviderCredentialValidations.js",
+      "sha256": "8d2a039ac2f15519b75fa383e7b20ccc0567cfb3100480be0ba3a8657b0cd8dd"
+    },
+    {
+      "path": "dist/db/schema/inferenceProviders.js",
+      "sha256": "c96df41888f3fa513cf9f515424a970c11e1ca1a9ce68cf274bf49d344eca075"
+    },
+    {
+      "path": "dist/db/schema/inferencePublishers.js",
+      "sha256": "cd35bb0b8578649e0dfee9f71c57a239c42b1721288c383df848f9a8b901b81c"
+    },
+    {
+      "path": "dist/db/schema/inferenceRouteSwitchEvents.js",
+      "sha256": "dfcf033cb3633b1b91f0296b6a9be6093461587a3e3ada75b8c08f0ddaffe8c0"
+    },
+    {
+      "path": "dist/db/schema/inferenceRoutingImmutability.js",
+      "sha256": "fc3c560dec75e1a5ace7be1317a36400640245d749388faeeaee630c7779fb8f"
+    },
+    {
+      "path": "dist/db/schema/inferenceRoutingPolicies.js",
+      "sha256": "7a8233ab162ef49023b3872a9f6b3277cb28c6c15fc8194f36656320b37c12b6"
+    },
+    {
+      "path": "dist/db/schema/inferenceRoutingPolicyFallbacks.js",
+      "sha256": "3c374afb164480d7179f9acac959945f468344da15ac99ac6a72c9731b7fda88"
+    },
+    {
+      "path": "dist/db/schema/inferenceRoutingPolicyPriceCaps.js",
+      "sha256": "a398f4a62a6bc0d98c9ab86470ba997534936ed28eb75f2973209a0197ed58ae"
+    },
+    {
+      "path": "dist/db/schema/inferenceRoutingPolicyVersions.js",
+      "sha256": "9f646c0cc2c9463155a006cc1a42da70ec584b4c50ba92ef580a5177f5ee58bd"
+    },
+    {
+      "path": "dist/db/schema/inferenceRoutingProfileCandidates.js",
+      "sha256": "ed2fc5c44eb808e226a3472798d7fd2cbb4a9a45905b2266dfc9a6f191ba68b6"
+    },
+    {
+      "path": "dist/db/schema/inferenceRoutingProfiles.js",
+      "sha256": "2c318941ad115539cc3bbb1586a6f0047ba2a13cc88cc4ff365b5167f163f4d6"
+    },
+    {
+      "path": "dist/db/schema/inferenceSlug.js",
+      "sha256": "38b5f3926f18719709db89c8818ad91747d58a40683f37c5d60636ba97d195da"
+    },
+    {
+      "path": "dist/db/schema/inferenceSpendAnomalies.js",
+      "sha256": "a2553190128391609f14b3b66b04aef13eaca2ddac65b59b0b03c53b786c48a6"
+    },
+    {
+      "path": "dist/db/schema/inferenceTokenAnomalies.js",
+      "sha256": "d95011ecd60ed2efe8c69cdb77ab2d7d99bbd11f0486aec63c6794f953383e58"
+    },
+    {
+      "path": "dist/db/schema/inferenceUsageDailyRollups.js",
+      "sha256": "e06cb665491db0f651fcaaf4c5f4ec7c30c974ee18c9d6336d785c813401c3b8"
+    },
+    {
+      "path": "dist/db/schema/inferenceUsageEvents.js",
+      "sha256": "46de4c85aeb74969b8bff0d4db9383c09d15ec0644f07214e8ad050c7fb15db0"
+    },
+    {
+      "path": "dist/db/schema/internalCostCenters.js",
+      "sha256": "2617f6018ee21ae2dab9e05a1d095f85b9f6141bf28d917a27b60d9b02715662"
+    },
+    {
+      "path": "dist/db/schema/labels.js",
+      "sha256": "1b64215ea52c1fe4407c2ea098bc70195a2b7c36ff36620bb02d229d340a98e6"
+    },
+    {
+      "path": "dist/db/schema/ledgerColumns.js",
+      "sha256": "545ba52958a0dc3ef09b1ad5e0c5a4928b0d46e7b57d03f7d1dbed674f614425"
+    },
+    {
+      "path": "dist/db/schema/ledgerImmutability.js",
+      "sha256": "9950d3ba3fe73314325cdac3390c0e95ee8249c1188a31d244142ec73280f378"
+    },
+    {
+      "path": "dist/db/schema/mailboxes.js",
+      "sha256": "3a741a600fc2a1fbca441dc095e6fdda40b0aef7fd0fd97d4e96256d1691a3f3"
+    },
+    {
+      "path": "dist/db/schema/mcpOAuth.js",
+      "sha256": "4eb70dcc4963b130e037aca83c5739a0d984548d80a18dfb1bdb547645031dd2"
+    },
+    {
+      "path": "dist/db/schema/messageAttachments.js",
+      "sha256": "42378837694974110b88c99b6d2038c2ee373b45261af7691953729d4118f5f3"
+    },
+    {
+      "path": "dist/db/schema/messageRecipients.js",
+      "sha256": "0fc392329bc3017cfd81d73d0af1c09f9a83c79d656dbafa05b65d54e709f16d"
+    },
+    {
+      "path": "dist/db/schema/messages.js",
+      "sha256": "4035ddba6281a71f508103ce0d246e2ce616a5a90cbeaffe2f763a0a4389a46a"
+    },
+    {
+      "path": "dist/db/schema/moderationEffects.js",
+      "sha256": "fb80638ee4ca23a51bb0bd0361c630096219640b571cd1016c1e9d5a195ed271"
+    },
+    {
+      "path": "dist/db/schema/moderationPolicies.js",
+      "sha256": "98434908c36f87274ddb0e9629c91a9c5753c0895ff950505c4ac91786fe0ffb"
+    },
+    {
+      "path": "dist/db/schema/moderationPolicySeverityRules.js",
+      "sha256": "1e56cf8d23e1bf5e964f4596e2e9747b85f1603399d07ec1912b84b2b6de81dd"
+    },
+    {
+      "path": "dist/db/schema/moderationPolicyStandingThresholds.js",
+      "sha256": "1b17086845e6be6a6ae2c8224e4617bf51b6d5e1fc147ca7d28db5c9870bfa57"
+    },
+    {
+      "path": "dist/db/schema/nodeIngestWitnesses.js",
+      "sha256": "c7151a6a3d73ea066c2b387909e0f8d42729a90a95f7debe919ebff999d5d766"
+    },
+    {
+      "path": "dist/db/schema/normalizedAppEventOutbox.js",
+      "sha256": "d3ea917cff18358f2dacb96d7a26bd2291147e4d51637f34e4d54b50b254b704"
+    },
+    {
+      "path": "dist/db/schema/notifications.js",
+      "sha256": "530b1bfdb44a2fee0b35a75bfc33e36744baccaa1941f232ab20c2a6f4f239c4"
+    },
+    {
+      "path": "dist/db/schema/personhoodStatuses.js",
+      "sha256": "cb9bbbddc56c8fae0ae8e95900a0bf594744e8a52c7dfea6698e9589dd057ebf"
+    },
+    {
+      "path": "dist/db/schema/personhoodVouches.js",
+      "sha256": "adde141480fa79febfadafd34180830be6a39c0b1ebe98a979a222ded89c7551"
+    },
+    {
+      "path": "dist/db/schema/priceVersions.js",
+      "sha256": "9d267d4d8abe8dd87be6029e1db1d7341f929569a59dc74ffbf2026fbba4ee44"
+    },
+    {
+      "path": "dist/db/schema/productAccess.js",
+      "sha256": "ebea3789e7a7632dd5ec3a1fb493ba84b640b6c93ad91e8e6e870b2c62fc270c"
+    },
+    {
+      "path": "dist/db/schema/productAccessImmutability.js",
+      "sha256": "ca0bf5013eeeae8787b178b605840c192fedf110ac265ff98b1c6c2c6bf80f21"
+    },
+    {
+      "path": "dist/db/schema/productProviderEvidence.js",
+      "sha256": "41420fddcacf6ba3d66473d49eeeee2ce2b9aacc4c59a5feaaaf53a15beed71e"
+    },
+    {
+      "path": "dist/db/schema/productProviderEvidenceImmutability.js",
+      "sha256": "dcc420bb6c884e8a1ee3f67d41c0689c7bab396a60fd3efc7842aca5d3560b0f"
+    },
+    {
+      "path": "dist/db/schema/protectedColumns.js",
+      "sha256": "f62678076a17adbe4540e576a3e8e92aabc16d6c59889207ca88107638e36ed7"
+    },
+    {
+      "path": "dist/db/schema/pushTokens.js",
+      "sha256": "cef9912d19adbd2b99d634a1431b3f5ec22723215e515776de4bdd8bce1340bf"
+    },
+    {
+      "path": "dist/db/schema/reminders.js",
+      "sha256": "67800dd690f69794cd9bc069de1b2ed18fbe8e57703efcfd7825a1b57e230b5d"
+    },
+    {
+      "path": "dist/db/schema/repoHeads.js",
+      "sha256": "3aebd22eb1f6e878cfe1953e0fb2cf6483c9a861365e0bd94117ed34e61cc809"
+    },
+    {
+      "path": "dist/db/schema/reporterReputationProfiles.js",
+      "sha256": "81e682cfed242745665177118cdec875055a49107476537492dbd0d41e1616dd"
+    },
+    {
+      "path": "dist/db/schema/reputationBalances.js",
+      "sha256": "01f283a950c88eebc886611024efd4920305135fa59ca94314eb5f18d05fd212"
+    },
+    {
+      "path": "dist/db/schema/reputationTransactions.js",
+      "sha256": "e937ac0844d8a5fbb45222beb0e71679dd1420c5e65e385e61f0626cf8b05006"
+    },
+    {
+      "path": "dist/db/schema/restrictions.js",
+      "sha256": "5592017819a58cb8d523884d78f65318a691a2757691232ba635d67471ef79ac"
+    },
+    {
+      "path": "dist/db/schema/reviewerReputationProfiles.js",
+      "sha256": "a21555c113bae3f5a501c2d43d61ec319210caf50a574cb21642fa3d047298ac"
+    },
+    {
+      "path": "dist/db/schema/securityActivities.js",
+      "sha256": "9bee3590c56d3f4d148ba923b50cc902234952208ec6482b88110371927e6c69"
+    },
+    {
+      "path": "dist/db/schema/senderAvatars.js",
+      "sha256": "72b95b3d5e8b75fe918deb14bb98697f00e71d5ec313f33d8e414eba12d0b94c"
+    },
+    {
+      "path": "dist/db/schema/serviceActingAsAuthorityEpochs.js",
+      "sha256": "06650e7bc1e3d2a495f2cc11a46f491a8cde3b9e584dc15c4db0135f4e02b71d"
+    },
+    {
+      "path": "dist/db/schema/serviceActingAsRevocations.js",
+      "sha256": "4d0b95150ead2ace805e9a0a05a09e2d96e048117017edb2d2d13b0ef09d275b"
+    },
+    {
+      "path": "dist/db/schema/sessions.js",
+      "sha256": "15245309bc11548e27789463d6deaa6840c2788d421c48fd3f312231e9454bdf"
+    },
+    {
+      "path": "dist/db/schema/signInChallenges.js",
+      "sha256": "50f5b92e2a4749c8305cfa1e9ffdf902b1b646a1676fa65ff5bbfbddeac9b2a2"
+    },
+    {
+      "path": "dist/db/schema/signedRecords.js",
+      "sha256": "ce12d564f91d415a9eca6b9813a919d6e67450cdc8358f23920b681b8d180913"
+    },
+    {
+      "path": "dist/db/schema/spendingLimits.js",
+      "sha256": "c4001f8c7ca142546c70218e2195a3207da307ff3c5dedd3dc597c8801d6707b"
+    },
+    {
+      "path": "dist/db/schema/stickers.js",
+      "sha256": "1615e0f77dc9d592642c2e16aa21eb289ab62659d3ce329b57e96eeb99a78b2d"
+    },
+    {
+      "path": "dist/db/schema/storageObjectDeletions.js",
+      "sha256": "92e697400e2e55a01b926fdcf4f50f133a3a6b6e92e66d03e151421b965415c5"
+    },
+    {
+      "path": "dist/db/schema/subscriptions.js",
+      "sha256": "0ddb1c232a783ffeecd93593edd5d0fa220355d6019d1aa18971fa72d62fbb75"
+    },
+    {
+      "path": "dist/db/schema/topics.js",
+      "sha256": "7df8008c1d79f039377640e1b9382f3a4ba2f1aca84380c29457efb2774829cc"
+    },
+    {
+      "path": "dist/db/schema/transactions.js",
+      "sha256": "9dad1709173149a0dddf40f2490f388327af2133ea8cc544afe9320151f37618"
+    },
+    {
+      "path": "dist/db/schema/transparencyCheckpoints.js",
+      "sha256": "94bdbeefe91a6bdcd4779749d8d5622f0b8740124ce03b5e8a24a51713d396cc"
+    },
+    {
+      "path": "dist/db/schema/updateAssets.js",
+      "sha256": "5001b70db9dc2327f365f9088b7337056db7f11d4a0fd04239df1beb13246dde"
+    },
+    {
+      "path": "dist/db/schema/updateChannelRollbacks.js",
+      "sha256": "79d7b2baa2403369bde782f36ed35adb99f33ba5de46e539a9a597971da908f1"
+    },
+    {
+      "path": "dist/db/schema/updateChannels.js",
+      "sha256": "5fcd8b6b78d1ab772485b6933a0ed46a08241fb353aa106d2a9f2d895787ca3c"
+    },
+    {
+      "path": "dist/db/schema/usageReceipts.js",
+      "sha256": "2389ac171845a9dc8a3b72d9d1f28a74f9a4acbebd237107788cc1f1fd8185a2"
+    },
+    {
+      "path": "dist/db/schema/usageRefunds.js",
+      "sha256": "8f153f905f358c6fefd4f3838becd5e0f117b62197b3941c881cf4351bd73568"
+    },
+    {
+      "path": "dist/db/schema/usageReservations.js",
+      "sha256": "2e32db5e8b0b5cd1742736f6533015b328f79764fd5d85f6ea560370acec7ae3"
+    },
+    {
+      "path": "dist/db/schema/userAnalytics.js",
+      "sha256": "b0c6fe5945152cd820e9f0cdc30fb415637b1b12f76479e433a11335687a6de7"
+    },
+    {
+      "path": "dist/db/schema/userAncestors.js",
+      "sha256": "1f67e67ec85530912d16c2ca62848b95cb5e645a2a613fd680bbe1290cd4e145"
+    },
+    {
+      "path": "dist/db/schema/userAppData.js",
+      "sha256": "a9d17f0b14ff1709dc5b092da984871ae875b7df4be3d8ea1eed453e53f5b14a"
+    },
+    {
+      "path": "dist/db/schema/userAuthMethods.js",
+      "sha256": "218cba2ae6f31432a06d64aa26c05c4af53e1d49de126d3389585a490577128d"
+    },
+    {
+      "path": "dist/db/schema/userCredits.js",
+      "sha256": "61b39e535ba0cd78c99f50fa03bb969d2c3c60f6db08af5ec36c216aa026387b"
+    },
+    {
+      "path": "dist/db/schema/userFollows.js",
+      "sha256": "194e12ca290ec8859fff40851637412813dd1b246416b87e2af72fd4dea39f25"
+    },
+    {
+      "path": "dist/db/schema/userLinkMetadata.js",
+      "sha256": "d22127587604e0c291d30d2b574f5125f658d40409953a8ab5ed44f24985290f"
+    },
+    {
+      "path": "dist/db/schema/userLinkedAccounts.js",
+      "sha256": "736525a83d3119606c9923535bfbada19478fea0d24c679c5babb6614997f495"
+    },
+    {
+      "path": "dist/db/schema/userLocations.js",
+      "sha256": "ef597d9c1260947d9faf9122be2b36255ed7e0dcec8af652486cf4e857d548c6"
+    },
+    {
+      "path": "dist/db/schema/userNodes.js",
+      "sha256": "c1ed8a91509780e93120df8baf22e98173126772c21ef8fd8d4b6c3db84b6ede"
+    },
+    {
+      "path": "dist/db/schema/userPasswords.js",
+      "sha256": "0d7d391376f95cc3484971004a621826e5fd1181529b280fb63799e11b8643d1"
+    },
+    {
+      "path": "dist/db/schema/userTotp.js",
+      "sha256": "357b3a86a03bc1d0e1bd3c67b8e2b05adf3aa06b228ded11138a877895cc3ca0"
+    },
+    {
+      "path": "dist/db/schema/userVerifiedDomains.js",
+      "sha256": "94e2fa853168f812b69b10c2198dbe45e42db128f1819006493ccfaa51378251"
+    },
+    {
+      "path": "dist/db/schema/users.js",
+      "sha256": "be8945de3f53b10b8a162d8ccec2ca29fe432810bf11aa2e7d4a01085e7003c2"
+    },
+    {
+      "path": "dist/db/schema/validationRequests.js",
+      "sha256": "97eee76ec5b59657ee6f3e401b41835b02978ef7031a4968d560930b7530b63f"
+    },
+    {
+      "path": "dist/db/schema/validationVotes.js",
+      "sha256": "f6acb4151bf1375a2f0aeecbb8270d7a8c2bde523ea2447a5c566eeea81f1064"
+    },
+    {
+      "path": "dist/db/schema/validatorAffinities.js",
+      "sha256": "5b998fb442884f6e09470408bd557aae709a6fd0c7b566d1591c6d825a438f79"
+    },
+    {
+      "path": "dist/db/schema/verifiableCredentials.js",
+      "sha256": "536dbaad24468ee4099735344049856f1bd38ebc370d53e0c3d5a820850498db"
+    },
+    {
+      "path": "dist/db/schema/wallets.js",
+      "sha256": "31c8850eb2d0152079aafb41b45b6b52ab3c5d816091d40e8997100f28a30800"
+    },
+    {
+      "path": "dist/db/subscriptionStatus.js",
+      "sha256": "4ff3868d3b420a170850ac8260c355cd1db81308a3b4c51dfa8153abd1a1b1e9"
+    },
+    {
+      "path": "dist/db/testDatabase.js",
+      "sha256": "366fee536045f766fd4409a7e3507885d38a7d4f0af493e3896ebf03a0718262"
+    },
+    {
+      "path": "dist/db/testServableEvidence.js",
+      "sha256": "9b54668f5e55251f9e916c885eeadd8a5e94a98e51a032c44df854167539af30"
+    },
+    {
+      "path": "dist/email-worker.js",
+      "sha256": "b791600e6a82bdf9a3bdeaabd1a78a9ef9ea17c9340e94da7457280f3bbf8b00"
+    },
+    {
+      "path": "dist/middleware/auth.js",
+      "sha256": "aeaf13e17d0dfb3b5c441b370f1f126493a5307dbe8f8f0ff0fe7d888c90321f"
+    },
+    {
+      "path": "dist/middleware/authUtils.js",
+      "sha256": "f0c551224eb93ce1990378e2153ba74185f6d25f9d933dc9c20a27d95a1a48f8"
+    },
+    {
+      "path": "dist/middleware/emailCapabilityAuth.js",
+      "sha256": "2d735b24e2daca5290fe36f1885dfe11944287f86b7cdba34c5eec26a4fc27dd"
+    },
+    {
+      "path": "dist/middleware/errorHandler.js",
+      "sha256": "b7fa1f8ac886b8ee5f44194a9704e2b01216ea51f5f8cca249199d2df6306c49"
+    },
+    {
+      "path": "dist/middleware/firstPartyDeviceAccess.js",
+      "sha256": "f0e7acdf2029005085020be9dc9622e5ab2656ea3bd9f7a269a69de2689ae3b5"
+    },
+    {
+      "path": "dist/middleware/machineCredential.js",
+      "sha256": "046ae251f4933d0acfd6354a2021f43af16f279aeee491b0fea6cde871fe282e"
+    },
+    {
+      "path": "dist/middleware/mediaHeaders.js",
+      "sha256": "5460e85b14ab22d882c8bb91131fc7708b7912ea76cbd3856baceaf35589979d"
+    },
+    {
+      "path": "dist/middleware/officialOrigin.js",
+      "sha256": "bf2c806016f2d9fb60cd9e16e5ea71c6f4947c65cff65f69a2f1650e87cabde4"
+    },
+    {
+      "path": "dist/middleware/operator.js",
+      "sha256": "3c66aec2d6f16459f23dafa21ab5a21c132fb343a16ff49ede3e09d83a92fd6c"
+    },
+    {
+      "path": "dist/middleware/optionalAuth.js",
+      "sha256": "373ded757accf77b525e69f8a2ba1ffbfb6a443340aae8695fab766d3ac1f04c"
+    },
+    {
+      "path": "dist/middleware/originGuard.js",
+      "sha256": "df8814b8e119e134a486fd488f192291a7c0a6e090211698d0246c7cc09e0938"
+    },
+    {
+      "path": "dist/middleware/performance.js",
+      "sha256": "7bb854d8ae3d73cd5ff1e64780e081bee2ade3ac4e9bdebbc946031f420e292b"
+    },
+    {
+      "path": "dist/middleware/premiumAccess.js",
+      "sha256": "43b66f708b094e8c21c681ebf50a11c30d24f8f59a9b917289f39c29cf6e218b"
+    },
+    {
+      "path": "dist/middleware/rateLimiter.js",
+      "sha256": "9b9db184b74d9a248f80f24f0f891fc621c77c41bd6d2958ecfcb09342386d01"
+    },
+    {
+      "path": "dist/middleware/requireStaff.js",
+      "sha256": "f654716085cb0587c9d41f68fdc03071133956d2925c2781c4058f4963d9d7da"
+    },
+    {
+      "path": "dist/middleware/security.js",
+      "sha256": "b9f7aae519058faa6e8ae1319d44e318df90a88c5321e3c5e6ce6ec1c46b4799"
+    },
+    {
+      "path": "dist/middleware/serviceToken.js",
+      "sha256": "05dfa1b6b30cd060504b12e609e2b1ad1c7ddcdddda3342fc0d9713e962aefa9"
+    },
+    {
+      "path": "dist/middleware/socketRateLimit.js",
+      "sha256": "9adf08565e8b23763df944151ae994325d14cf8effbc78a13d6d7828b00de073"
+    },
+    {
+      "path": "dist/middleware/validate.js",
+      "sha256": "a55c58dca4d6fe383dce6dbae0949346bea3b00c1f5c5d29436e525b664f2fdb"
+    },
+    {
+      "path": "dist/operations/mercariaEphemeralCredential.js",
+      "sha256": "214a06be0f3f560cce11115eaeb1691bbd3dae24d6c10be5c08a4e0270643cf4"
+    },
+    {
+      "path": "dist/queue/assetVariants.queue.js",
+      "sha256": "402601e089cd9027cedff08edf91969b1cc2678d29d31d9c7940f466614dad67"
+    },
+    {
+      "path": "dist/queue/backgroundJobs.js",
+      "sha256": "a4131c84953bbef3c9b06388b9e31ce3aa5065e7946150f03f645e4fe77b584c"
+    },
+    {
+      "path": "dist/queue/conductRiskExpiry.queue.js",
+      "sha256": "aec5844b7d939160306a75b69d9f8c65c6ef5e6c56eca64a42026f40eaa4b77c"
+    },
+    {
+      "path": "dist/queue/connection.js",
+      "sha256": "6b1f9612f51e6275843029928c1b364d0c4fc6ee2cec3eaa67cff9e568aa19da"
+    },
+    {
+      "path": "dist/queue/constants.js",
+      "sha256": "ebbb200d02b7499797e0906cbade54694e6d8151e215ed543b3e893db2370ef7"
+    },
+    {
+      "path": "dist/queue/federatedAvatarRetry.queue.js",
+      "sha256": "7f0ec862ce1ff506d820ec499b6c979aa56d8b438f72feb11a09505af5300428"
+    },
+    {
+      "path": "dist/queue/nodeIngest.queue.js",
+      "sha256": "7e4ea1b4808e7a079dff36ef52049d106a155be8e39ba23a6f73510e97ed148d"
+    },
+    {
+      "path": "dist/queue/queueManager.js",
+      "sha256": "d9547eea8ba971026a44aebd0f1c003f59003a1f71b142e32101ce4026e453a0"
+    },
+    {
+      "path": "dist/queue/subscriptionExpiry.queue.js",
+      "sha256": "c3117b52adda2d5035f8aa4e633d56f6312e6283034581b7d25c55f2401bda73"
+    },
+    {
+      "path": "dist/queue/transparencyCheckpoint.queue.js",
+      "sha256": "9b304276ba7cd145b7c4564b6bcdbfb4d5d2af601216e78f36f68b8a2622289c"
+    },
+    {
+      "path": "dist/routes/accountBilling.js",
+      "sha256": "edd564974411a951f909b1034ad0b1e70d3b9ab09dfd3e73b2f5c999167c3f70"
+    },
+    {
+      "path": "dist/routes/accountEmail.js",
+      "sha256": "6ca1fa5ce17f1a97e6dd8a5d8496be7f822773fa364739393f1e85bae10af640"
+    },
+    {
+      "path": "dist/routes/accountEvents.js",
+      "sha256": "85fec97d11fbbef73da2e55fa9cc8e293449dc11ad3104822d7c3b39bfe4d731"
+    },
+    {
+      "path": "dist/routes/accountSecurity.js",
+      "sha256": "b8a1bfbac11cff4f999bc0e56a5072b96fa44d06c79d7dd1824ca649d89856b0"
+    },
+    {
+      "path": "dist/routes/accounts.js",
+      "sha256": "3944862e165827aa4b915bdeb300117eec9c90ea0bea22f5eacb447b8049ca0f"
+    },
+    {
+      "path": "dist/routes/agentAuth.js",
+      "sha256": "73eb4ccc059d08b843646606dc16dde97e59957d63b389cd05b7485a22aa3cd4"
+    },
+    {
+      "path": "dist/routes/agentKeys.js",
+      "sha256": "ee7e2c4b004a5376ab8afe36f85e5d51a7c935c37f0f0da33106e2e5f0092914"
+    },
+    {
+      "path": "dist/routes/analytics.routes.js",
+      "sha256": "725cd799c3c16277a641540b4d20e8abe4fcbef7e900d09799103f13db850d7f"
+    },
+    {
+      "path": "dist/routes/appSignals.js",
+      "sha256": "d0ab517bd7bad56d4aa65c2c7e89781ee1b3fff9535eb67c6ecf1e7482ecfa11"
+    },
+    {
+      "path": "dist/routes/applications.js",
+      "sha256": "d172a12be1d3a7a4df705480ea185ded601c469bf00e40536dfbd33a6aae650d"
+    },
+    {
+      "path": "dist/routes/assets.js",
+      "sha256": "6ed0a581d5a1d5851aba48606ce68288723819f815465b4a20110b01c74d1e2c"
+    },
+    {
+      "path": "dist/routes/auth.js",
+      "sha256": "973cc8a77faf7394160dab19fca0fcf959e52d87b83fa1d767cf915fc5ccfad6"
+    },
+    {
+      "path": "dist/routes/authLinking.js",
+      "sha256": "45541f2590ae223ba13900e04a37c072fa229952ed4ef81d1d214a926e4bc25a"
+    },
+    {
+      "path": "dist/routes/billing.js",
+      "sha256": "80410af6f32208157f9301e43c7a69f3a36f18379862fe38c820f2335bff3fc8"
+    },
+    {
+      "path": "dist/routes/capabilities.js",
+      "sha256": "f870559f02b7345c35b2f22e7bbbdc95c39535771d933fa919e03bbbb6f93143"
+    },
+    {
+      "path": "dist/routes/cdn.js",
+      "sha256": "4ec240d5be5d23b443165534648f6964b0aad4caf164df4d7a223f2302c4bcd3"
+    },
+    {
+      "path": "dist/routes/chains.js",
+      "sha256": "622a2f9b2da78d42356f273fbfdd6090872e63feef3c27416c50e74ab8d8a376"
+    },
+    {
+      "path": "dist/routes/civic.js",
+      "sha256": "a2a0d0f3913bbd9093962e2f21464455b14504af7a4494a7a25b522dc0d82840"
+    },
+    {
+      "path": "dist/routes/contacts.js",
+      "sha256": "c5b375866b82b670483db26fb27ef16f9fe5f71035446774ec0a0f299f53cd52"
+    },
+    {
+      "path": "dist/routes/costCenters.js",
+      "sha256": "dddbe5cdfb11e451a8e9fbbcd7f79bf75eb052cf570dd470d5f0ce65cf96f02d"
+    },
+    {
+      "path": "dist/routes/credits.js",
+      "sha256": "6ddc67873fa7033e650728ce73fe0ab6d12ee72922b9c91abb9d5525c6d74a2d"
+    },
+    {
+      "path": "dist/routes/devices.js",
+      "sha256": "3125a6ad5092a96218e3baa8ef39be632b20ae5fb45a189993cefb039e468bbe"
+    },
+    {
+      "path": "dist/routes/did.js",
+      "sha256": "196a2bb1e01924cb9745d965ed7dd0e36dec2a665b3f82875f1be326be842fd4"
+    },
+    {
+      "path": "dist/routes/email.js",
+      "sha256": "d46261ce8373b78857631864629a40f3a7286a27ba29282b52489f03b98a5898"
+    },
+    {
+      "path": "dist/routes/emailFeedback.js",
+      "sha256": "3993dd3ee98b4fe83eb26801da81853009bb7bf13a7115112eaacfe2faadf2c7"
+    },
+    {
+      "path": "dist/routes/emailInbound.js",
+      "sha256": "7cd22894b6114eb746b0eaedb1d9272bc03feea79cd66ffe31076c17eb7bff8a"
+    },
+    {
+      "path": "dist/routes/emailProxy.js",
+      "sha256": "6ee820b889b06406dc5be05514e0ca0088ca63faddaf64eed778e09e7e367f2e"
+    },
+    {
+      "path": "dist/routes/families.js",
+      "sha256": "2495e24b141a85dc48d9335dec5393bd33238ef95ad86a8aeb582e385d25fff2"
+    },
+    {
+      "path": "dist/routes/federation.js",
+      "sha256": "51538fc0e6177f2806a94da84489e5ab62d545e7a8988eab9c1bb13f0ba3d481"
+    },
+    {
+      "path": "dist/routes/followRegistry.v2.routes.js",
+      "sha256": "3dce73dccdfa2f314f5a46491bf1cfb239fed577d9053308924be46f32cd43e7"
+    },
+    {
+      "path": "dist/routes/follows.v2.routes.js",
+      "sha256": "37f1bbf5e0904cd1e8be5030109043eae86f0dffcbdb009d6c0a8064a0861dfe"
+    },
+    {
+      "path": "dist/routes/foregroundProfiles.js",
+      "sha256": "6da3a58c4d974fa978c637eb409ced4f24e0652293e1ed59105e0e456c56a686"
+    },
+    {
+      "path": "dist/routes/identity.js",
+      "sha256": "467d2d44b4c60dba7b22c472a7214287ca27711371e2f94e9aff5683bb44451d"
+    },
+    {
+      "path": "dist/routes/identityBackup.js",
+      "sha256": "7f828653b44e9c5f3a02858e317152c0e7863cba034e4cc1d6530f157440e7a6"
+    },
+    {
+      "path": "dist/routes/identityLink.js",
+      "sha256": "7a947c4970e2e33d3e590b6654d7944cf8e7399f3d1d38f90cc3f9bbf3f49b33"
+    },
+    {
+      "path": "dist/routes/identityProof.js",
+      "sha256": "eead73feb3dcf9db44b7cd19d54dd00254638256c4029718541310431af80fea"
+    },
+    {
+      "path": "dist/routes/inboxInference.js",
+      "sha256": "95212e1ebac8ce8ecd54fb053e01575dcd39799ee7c13fc1efc7e574abc165b6"
+    },
+    {
+      "path": "dist/routes/inferenceAdmin.js",
+      "sha256": "38274edcb11223de8d241b4d408d0f20bb3484d2667e0892ea33de52eafaf69d"
+    },
+    {
+      "path": "dist/routes/inferenceCatalogue.js",
+      "sha256": "622710e3397d6f02d25c8b42b0ed653ce52ec7a2f3223fbaa3fda5ee046f85a1"
+    },
+    {
+      "path": "dist/routes/inferenceEdge.js",
+      "sha256": "22617ec6a90535ec29feba1e96bd78a5ceb78c7f3f8dceb2f92dc6595ed816af"
+    },
+    {
+      "path": "dist/routes/inferenceProviderConnections.js",
+      "sha256": "e650a68429430eac787eda7441aea8328d058755614dc6b4929daf594bf4f168"
+    },
+    {
+      "path": "dist/routes/inferenceRealtime.js",
+      "sha256": "6ce9638471c97530138c44e2a3ce9990e7d3327af487e1d2bdee83cba5b0444b"
+    },
+    {
+      "path": "dist/routes/inferenceReporting.js",
+      "sha256": "dbb0ccb530c07628df5206281ee7c59024d1ac9bb3782e2c2f0e1e776d13d2e1"
+    },
+    {
+      "path": "dist/routes/inferenceRoutingPolicies.js",
+      "sha256": "93c0b6003753cb9474d8c61a4507494a6d8feb65cb45087afa03cfec34f1f49a"
+    },
+    {
+      "path": "dist/routes/internal.js",
+      "sha256": "21e077d67af4834bfe5b1fd61eaaec677f0a6a388e2ce603288f9d5770ec770d"
+    },
+    {
+      "path": "dist/routes/linkedAccounts.js",
+      "sha256": "0312166bdff04b26c74f1ce37a006498fd45ea6ab428c69a2f4299e5b8dcd6ef"
+    },
+    {
+      "path": "dist/routes/locationSearch.js",
+      "sha256": "97454b86dcdc91571256ce5cbf47e269117dc4ce54a3446e4e23e34587fb99c5"
+    },
+    {
+      "path": "dist/routes/mcpOAuth.js",
+      "sha256": "20942ea199aeaa6ea22ac3b5fa065b834c6f107de7ddfdf047dcedbfae628726"
+    },
+    {
+      "path": "dist/routes/moderationReputation.routes.js",
+      "sha256": "cdbe2557b788e6818c562d61ae398ee1f648fac4bc635e4e63eb62ddb709961d"
+    },
+    {
+      "path": "dist/routes/nodes.js",
+      "sha256": "5115ec2704910385945ed46fef9a7c45e0a81807a5d4b9efa4405ff7e7faefc9"
+    },
+    {
+      "path": "dist/routes/notifications.routes.js",
+      "sha256": "67293213d705e1e7c79eb926e2302a5886b59ff63cc9de6ca063314b1ccddec2"
+    },
+    {
+      "path": "dist/routes/payment.routes.js",
+      "sha256": "d4f6f4d235cdbad9fb0a97e976fb83ccca66fe81f7eb71e7f785a177743ce7de"
+    },
+    {
+      "path": "dist/routes/platform-stats.js",
+      "sha256": "9ee21cf949bd7351184328e6e38451654603936d19097997c2c1516cb1ea0014"
+    },
+    {
+      "path": "dist/routes/privacy.js",
+      "sha256": "ea5864423428b3f168b05562c23aaa14471a47ba0648110265597bbc2a9a8850"
+    },
+    {
+      "path": "dist/routes/productAccess.js",
+      "sha256": "10da5ee462c19a7da1eb69c128554edfd1ec06b83334df5181b24b39aa742255"
+    },
+    {
+      "path": "dist/routes/productCatalogue.js",
+      "sha256": "1b5ba4897aa220a3317777326ba33b19bc3773814f7932f1c3b8d7e173995e57"
+    },
+    {
+      "path": "dist/routes/profiles.js",
+      "sha256": "1e065e0779dd2754b9ded0288b000fb066f05237e8caa0117e4a3fb6e331bc0f"
+    },
+    {
+      "path": "dist/routes/reputation.routes.js",
+      "sha256": "925b49ad33f363a3fe4b1fa28a90d7560a2e1ca95a7b9a2ae29575977e264840"
+    },
+    {
+      "path": "dist/routes/resourceIntrospection.js",
+      "sha256": "85689039658d58669c57d1b4d1b10e270efa1823f4f03dbe45357367a690ad2b"
+    },
+    {
+      "path": "dist/routes/search.js",
+      "sha256": "26547477aca8660562cdede80ebe8a3260c9612546961047fec9a4cd0caeed5e"
+    },
+    {
+      "path": "dist/routes/security.js",
+      "sha256": "17b2a486e34db1dc3334aef89225a9041d1b3444f0a8fa536799c638fb6b4a73"
+    },
+    {
+      "path": "dist/routes/session.js",
+      "sha256": "e6d163fad24f454ebf88301e4d073ecda0965e1ad49d3169416eceba7ba1f6c2"
+    },
+    {
+      "path": "dist/routes/sessionDevice.js",
+      "sha256": "dc70d7a48a146dd0ddd4ee57cc209950416948775c689feae6a104a4e9056132"
+    },
+    {
+      "path": "dist/routes/signIn.js",
+      "sha256": "23ecc679831a8a49e0984d0fa09881ce69d4c309581fd9835335509559404000"
+    },
+    {
+      "path": "dist/routes/stickers.js",
+      "sha256": "be2a30c84803c5c1be69f2ffc2ffee7b39954793bc968099810d605df976078c"
+    },
+    {
+      "path": "dist/routes/storage.js",
+      "sha256": "381ec5264e1b6264f13a8b7001f23e6df305595e9119dd3fd604a9d03795890e"
+    },
+    {
+      "path": "dist/routes/store.js",
+      "sha256": "8149cf696d12378c6b4572d625040bd73b194ff36c963693a3b96d5606274df0"
+    },
+    {
+      "path": "dist/routes/subscription.routes.js",
+      "sha256": "4f3f7bdfe86812bf2a0c4d60d7450ec8805a5b2f0efdf13cdb4a20807ba35ecf"
+    },
+    {
+      "path": "dist/routes/topics.routes.js",
+      "sha256": "c17349c5325702ac7a1048a374c37ebc44a04fc3f8d0e1930076411038cbd2e5"
+    },
+    {
+      "path": "dist/routes/transparency.js",
+      "sha256": "15d2b0481b12cc0719c28030796e3286ca9f16e4f3e86dda52daaaca9f6c44c8"
+    },
+    {
+      "path": "dist/routes/updates.js",
+      "sha256": "acad3daf011cf45182840bbb34a6b446c9dbd076066cd3c56522835ba805edfa"
+    },
+    {
+      "path": "dist/routes/updatesAdmin.js",
+      "sha256": "f02a8e90fab168677005cc6fab0b07247248c0fa896d96ce72327c06245b6225"
+    },
+    {
+      "path": "dist/routes/userData.js",
+      "sha256": "1cbd6eac6e3cf8f3df1206780e0d798b083e3e7a5a3f8d8901f08b2431213008"
+    },
+    {
+      "path": "dist/routes/users.js",
+      "sha256": "1ca304c5832b8eaf809df4a37b2e7ed9c9c3f80401fd486aaa7d690935b6c892"
+    },
+    {
+      "path": "dist/routes/wallet.routes.js",
+      "sha256": "b4d491b6159c6ee502a4e729b3eca01c24c731dfd566e727842ad075598c0fa6"
+    },
+    {
+      "path": "dist/routes/webfinger.js",
+      "sha256": "0afa5599e2244a5c6add58e7c44abc46361e9d5f4cde127f6309d8cb261c327c"
+    },
+    {
+      "path": "dist/schemas/account.schemas.js",
+      "sha256": "beed946e9d0b90cb399345da0cb0e8327a93a4d64f74bb1e46b72e0102130cc8"
+    },
+    {
+      "path": "dist/schemas/accountBilling.schemas.js",
+      "sha256": "ddd34510fb8b3232cc5bcf15bd45dfbab66dcdc82bce452546b9b0dae2578a01"
+    },
+    {
+      "path": "dist/schemas/application.schemas.js",
+      "sha256": "86688a5082756fe4b013d8eb40deb0bc67255ea4e704a4d3110f06bf3df164d7"
+    },
+    {
+      "path": "dist/schemas/assets.schemas.js",
+      "sha256": "8473f117ed5abf58ed91b14ea482ea8e7e7b10e97908d68bf026858e6c80a0c2"
+    },
+    {
+      "path": "dist/schemas/auth.schemas.js",
+      "sha256": "bfa8affb528f66f8da7093eca040329d558fb84e31f348ddc8ee6fdd67e32e44"
+    },
+    {
+      "path": "dist/schemas/authLinking.schemas.js",
+      "sha256": "115043df3b2043c66da5b42cf33703c59f7e4056fa1f339e077973b8c6d023eb"
+    },
+    {
+      "path": "dist/schemas/billing.schemas.js",
+      "sha256": "42f8f00ab80586cd56a1f07ac56b7a5c51fa1ce3236d26832b0326b3492579bd"
+    },
+    {
+      "path": "dist/schemas/chains.schemas.js",
+      "sha256": "85c0197cbd9cccd424552906da90c7e2e6773c41949c6d1cce460e7c1140065d"
+    },
+    {
+      "path": "dist/schemas/contacts.schemas.js",
+      "sha256": "ce55e6c9ec75d913d6813ed5e2e71203562f613823878d74d56832a4675ab041"
+    },
+    {
+      "path": "dist/schemas/credits.schemas.js",
+      "sha256": "6bc32718ad1e16a459b448380357c38009e498a1deefd4af81acf3bd02812660"
+    },
+    {
+      "path": "dist/schemas/devices.schemas.js",
+      "sha256": "8c5ca63c3679ffb53da325e20bc1b5ac338ad072dd8cc2555a5195c87e539520"
+    },
+    {
+      "path": "dist/schemas/email.schemas.js",
+      "sha256": "8ed7707b2fa6fed5d28303a8b1d16f5d69524219b553d782f4f71bfe5c97b40e"
+    },
+    {
+      "path": "dist/schemas/family.schemas.js",
+      "sha256": "f152ecb1a05f33c0210f3b6d2caa22bcc93252198661d7f388af0b5df6339665"
+    },
+    {
+      "path": "dist/schemas/federation.schemas.js",
+      "sha256": "89b35106bf379922ac7684e8e1b51681a3e1a506ffec351e9ac3058be4806625"
+    },
+    {
+      "path": "dist/schemas/identityLink.schemas.js",
+      "sha256": "400472ad514aa83247305e2d7804b9e4584ed7a6ddd2f2d295fa220d094b2327"
+    },
+    {
+      "path": "dist/schemas/inferenceAdmin.schemas.js",
+      "sha256": "43294af630f66091ffeb7c10c7bf2a9971faec17666e531e211da1ed10b27637"
+    },
+    {
+      "path": "dist/schemas/inferenceCatalogue.schemas.js",
+      "sha256": "6765b5f94210aaed9ad0e3c405038f0490c05e23e1a47011a1afc37e8007fb79"
+    },
+    {
+      "path": "dist/schemas/inferenceEdge.schemas.js",
+      "sha256": "7e3e2ddf0f50eff77e266804e11fa24e88952d5a66c810159ad5799d07231f10"
+    },
+    {
+      "path": "dist/schemas/inferenceProviderConnection.schemas.js",
+      "sha256": "f20cc555483402dc451b349a2fe525af6b36d4f9be3b7676db1aa99752ebbc1b"
+    },
+    {
+      "path": "dist/schemas/inferenceReporting.schemas.js",
+      "sha256": "8c273f151cbb20e9701cc22e2bc02f301bb3de79c9de8c330581ea1432239900"
+    },
+    {
+      "path": "dist/schemas/inferenceRoutingPolicy.schemas.js",
+      "sha256": "bca1d2f117f0d5517af5fd45a0c48f2f7d548a7a5c554f733cb12176c3684521"
+    },
+    {
+      "path": "dist/schemas/linkedAccounts.schemas.js",
+      "sha256": "9acfab9f2a2c21b266357da02bfc9ba5725a8ec7b3cd382bb8a7a78b9d12a15a"
+    },
+    {
+      "path": "dist/schemas/notifications.schemas.js",
+      "sha256": "8de7eddc39d11706064bd8270b7a8134bb8f59a014f499c025cea141010e20e8"
+    },
+    {
+      "path": "dist/schemas/privacy.schemas.js",
+      "sha256": "8b924f3bbe57251a52c14248c2b0ef030c79dd181f0dfa6ed7105b88815316db"
+    },
+    {
+      "path": "dist/schemas/productAccess.schemas.js",
+      "sha256": "fc80e098f7b6dcd6ec3c2da87e2194a17ea77fb8e48e7c99ae71919a22b05ceb"
+    },
+    {
+      "path": "dist/schemas/profiles.schemas.js",
+      "sha256": "470c4ed183f0cb9ff729b7f3c0ef966b0fe8f22979c89305c40e4b9d01deaafd"
+    },
+    {
+      "path": "dist/schemas/reputation.schemas.js",
+      "sha256": "85dc93119c84c0eb7e9819b17fc532dc859c9beec1b199b2f30bf081c9631e25"
+    },
+    {
+      "path": "dist/schemas/search.schemas.js",
+      "sha256": "f8c48cf48c78026b14ca06950373cdfaaf8fbee436a58b1e34a9e61a8c455897"
+    },
+    {
+      "path": "dist/schemas/security.schemas.js",
+      "sha256": "d67ad1a0e91aadef8708d3754fa24190cc9b16e04143e1e064df8cf1bba6a297"
+    },
+    {
+      "path": "dist/schemas/session.schemas.js",
+      "sha256": "a9e809779ccd52ba499279793291c7d3023056fd182e0663dc45718e78f9f2aa"
+    },
+    {
+      "path": "dist/schemas/stickers.schemas.js",
+      "sha256": "7a2193ae18075ccc50329978678fd23a6e466a301cfb13a1e5a19fb7cd707d04"
+    },
+    {
+      "path": "dist/schemas/store.schemas.js",
+      "sha256": "42f39bfe5f6bcbf6094813e4d65cf4ec094b37371c0449e99df217d51932e9b9"
+    },
+    {
+      "path": "dist/schemas/subscription.schemas.js",
+      "sha256": "164926b2dd8286eeb084da0bd7becb5b3959b9338bc40855f358033cfebca58d"
+    },
+    {
+      "path": "dist/schemas/userData.schemas.js",
+      "sha256": "89808eb7aff2637eac6cf7907c151906d4de56b05049eddc13609df5489aa9a5"
+    },
+    {
+      "path": "dist/schemas/users.schemas.js",
+      "sha256": "cf4b3e38d1e22e51ce94b1c854b0be272a3249909d3ec04a640f728af1d7fda2"
+    },
+    {
+      "path": "dist/schemas/wallet.schemas.js",
+      "sha256": "82ca242d27483f85f3f0fc51598b08500c67b0bc7288ec0e70eee3041a12bd31"
+    },
+    {
+      "path": "dist/scripts/backfill-reputation-denorm.js",
+      "sha256": "40c4ffaa4957a34b6da3e2173e35005a1e0ac9e41b5a604f9403d961f3ee4553"
+    },
+    {
+      "path": "dist/scripts/catalogueReviewerBootstrapPlan.js",
+      "sha256": "061e9464573258de921f482efc5fcf970e947295e6bc341cb33ee3e365c8c9f7"
+    },
+    {
+      "path": "dist/scripts/delete-accounts.js",
+      "sha256": "338d6ca1d8676f8b8bea44b5e07a6b32ce62629ab83acfb77ba9f4ba14458f44"
+    },
+    {
+      "path": "dist/scripts/foregroundPilotConfiguration.js",
+      "sha256": "4494a2b570f6f43b28c418842e1d2c3d1add93bc267c82de15bcdb0480f7e78e"
+    },
+    {
+      "path": "dist/scripts/foregroundPilotExecutor.js",
+      "sha256": "c0fcbf7d875cc5e61311ffc43f08d92fea5b1646fd65731f482df777019e686e"
+    },
+    {
+      "path": "dist/scripts/foregroundPilotHttps.js",
+      "sha256": "1d35c4f60130ee04585e55501ad9279b392b706d89d409faf801e88d18da4830"
+    },
+    {
+      "path": "dist/scripts/hlsMasterPlaylistRewrite.js",
+      "sha256": "d412de6bb8df76b7e60267863d64776aedfbfd82aab5e4f2ed4ed3fc89967b8c"
+    },
+    {
+      "path": "dist/scripts/inboxPrincipalReadback.js",
+      "sha256": "3884cb5e4a28e73f3cc3d65e4ec6d5a9ce41423df7f59a15dd7536ce48676c30"
+    },
+    {
+      "path": "dist/scripts/inboxPrincipalReadbackTask.js",
+      "sha256": "92a1727cddc9219996cf58df358fa91684c5e90cfd16c59fd43d617cf217665c"
+    },
+    {
+      "path": "dist/scripts/inboxRoutingProfileReadback.js",
+      "sha256": "d36560ac84804eb8858e57d33f923fb0e0cf620c1989ed5973bb5e3149b64358"
+    },
+    {
+      "path": "dist/scripts/internalCostCenterSpecs.js",
+      "sha256": "df34e2b8726ac0016d60155b3975564d2a0305eca8eda7b23ae58a3fc7e772ce"
+    },
+    {
+      "path": "dist/scripts/jevMeteringReadback.js",
+      "sha256": "4c645cf28caf3c2a53bd1baa26e001f06c0a3855c15b112359cf8df2a6b107d1"
+    },
+    {
+      "path": "dist/scripts/jevPrincipalsReadback.js",
+      "sha256": "a65245db15b70796655892cd6f134c638d859733c158d3e40abd268f01eeb79b"
+    },
+    {
+      "path": "dist/scripts/jevPrincipalsReadbackTask.js",
+      "sha256": "f081bbd6b5e79b6ccd09f2152b9de1c537a29e608074727185571ccf637b4075"
+    },
+    {
+      "path": "dist/scripts/kaanaCatalogueBootstrapPlan.js",
+      "sha256": "1455d342e6b19ca61c5fd11000972739d085ea5b23c65406551d798f25eff803"
+    },
+    {
+      "path": "dist/scripts/kaanaScorecardRenewal.js",
+      "sha256": "9e6bab23c878fa6926a43587ab204560ad4c78f2663b261f4a78162f00493548"
+    },
+    {
+      "path": "dist/scripts/nativeProductAgentAccountPlan.js",
+      "sha256": "b34c9b00bafc7a4d3629eb68c94407bb9a331a0ce331cbb3ba1debdf5f2c4305"
+    },
+    {
+      "path": "dist/scripts/nativeProductAgentBootstrapFailure.js",
+      "sha256": "2f61e60f8ee21f567abaa4f9336b15b84687ad319cd76c583deb8cdffb18928e"
+    },
+    {
+      "path": "dist/scripts/nativeProductAgentsBootstrapPlan.js",
+      "sha256": "6eef44b7ff41b2425e89e85c5537edc093ce91707ddc2e543a93c5c01d65f228"
+    },
+    {
+      "path": "dist/scripts/oldIssuerAuthRetirement.js",
+      "sha256": "045b35d69cb794c7a372f31f5eaf480760457511a18adc4b4642b1f7446fcd7a"
+    },
+    {
+      "path": "dist/scripts/purge-alternative-body-attachments.js",
+      "sha256": "4e78c1d902dec9f77edadd6bd99d92ddf53285c9ac70ae036727a71b03a50054"
+    },
+    {
+      "path": "dist/scripts/registerCommonsClientsPlan.js",
+      "sha256": "878ae5b3736339c4fb39a0a02ea899c458ce1d3f0c8e8beed5443c8166f3a91f"
+    },
+    {
+      "path": "dist/scripts/repair-federated-remote-avatars.js",
+      "sha256": "d591bd9fb2f4c74af5e771075dc5e85c31bc1825cba1884b7b0a1cb14206266c"
+    },
+    {
+      "path": "dist/scripts/repair-reply-row-id-threading.js",
+      "sha256": "6a64f5638c21ac15e50fa69a7522535ebd49d201abd19b81970ca8e2dd193cfd"
+    },
+    {
+      "path": "dist/scripts/report-accounts-without-identity.js",
+      "sha256": "9bb6c30d5ba8e62a9cb71bca71f491ce364c51dcfacc5efbe18dd28bb3ed5f4c"
+    },
+    {
+      "path": "dist/scripts/rewrite-hls-master-playlists.js",
+      "sha256": "fc7ae587a1dc03b03b2ddceb91cd23ee694d4486b03d747dd61bd90ba03190f0"
+    },
+    {
+      "path": "dist/scripts/seedEntrySelection.js",
+      "sha256": "f0cecc813a94c5ebb8b3c78f446b8a229cd1e47f87aea4f24e49d3bc0f1e5e4d"
+    },
+    {
+      "path": "dist/scripts/seedOxyApplicationsPlan.js",
+      "sha256": "fe6c9a748f0474b5afefbd251943a38491ee1bcbda18014f59d6191051b0d74f"
+    },
+    {
+      "path": "dist/scripts/seedOxyApplicationsSpecs.js",
+      "sha256": "951862197d3b6f1273ecdd81a309c9a1f41623f09e42fa889714798a299413b0"
+    },
+    {
+      "path": "dist/server.js",
+      "sha256": "6b1eab1d61d4cce2132337bf2f995f1214ddc3edfeef95edabad8c262bc9b2e5"
+    },
+    {
+      "path": "dist/services/TopicService.js",
+      "sha256": "7026244ce9c6811a546ab55713651f7990f76d1854defbbb3288daae8edd1b86"
+    },
+    {
+      "path": "dist/services/account.service.js",
+      "sha256": "7b9c82ee1ba18ed44169bacea69ff6aab91aebf890f611aaf8eb8e6fbdc3e1d5"
+    },
+    {
+      "path": "dist/services/accountAuditTrail.service.js",
+      "sha256": "2648695aa0e9d330f44e4db45a6486e7cd32cce54d725e362108a64b6954beaa"
+    },
+    {
+      "path": "dist/services/accountBilling.service.js",
+      "sha256": "fedce00397d65a91c5c51565d38a1c801599d8e65ea6a7b1e54650249a3a9ece"
+    },
+    {
+      "path": "dist/services/accountBillingAudit.service.js",
+      "sha256": "c4a2189a1e0e965cd7c842abd221b24f897622474e98b0905a8c16a483534a2e"
+    },
+    {
+      "path": "dist/services/accountDeletion.service.js",
+      "sha256": "2bd7fba0140fd46c1bab7279988d5501e0ad6c4017c396415b15112f24d101c1"
+    },
+    {
+      "path": "dist/services/accountEmail.mail.js",
+      "sha256": "a05fc8e5e2140452ed8d30363825503d073ba82881773793da0f8c1274c59082"
+    },
+    {
+      "path": "dist/services/accountEmail.service.js",
+      "sha256": "34574ada0eeddbfb32e10c7f99eb191d313ee13e6f1592981e99623d173d5a54"
+    },
+    {
+      "path": "dist/services/accountEventWebhook.worker.js",
+      "sha256": "6219f79907ad2f238f32daa6cf3d35bea4d1ad465e3a83527afdf9fc4175caa4"
+    },
+    {
+      "path": "dist/services/accountEvents.service.js",
+      "sha256": "3581e494c168e365516a169b6eca56b3a55923f2a8701033d7bbfd7a14479579"
+    },
+    {
+      "path": "dist/services/accountFinancialHolds.service.js",
+      "sha256": "17e661dd3ba3776247c11e3669b60f876f634da8df21858a18b2ae3e8c674015"
+    },
+    {
+      "path": "dist/services/accountInvoicing.service.js",
+      "sha256": "8548a2fe33572453a4e59cc37fad794ee69a9546d54e2bc886b20b471662c78c"
+    },
+    {
+      "path": "dist/services/accountStorageDeletion.service.js",
+      "sha256": "d8655ba92a01b53b65e20802553a06287ed7e56c1740c4ca804d8d31b1dbad25"
+    },
+    {
+      "path": "dist/services/accountStorageDeletion.worker.js",
+      "sha256": "60932dd1319a5027984804c794119d40531ef797dc237c0df5feed340937dc11"
+    },
+    {
+      "path": "dist/services/agencyServicePrincipal.service.js",
+      "sha256": "28271ff2f6ef76c53821dfc55ef2a1faa77f4e5df53efbeae1869aef109ee13b"
+    },
+    {
+      "path": "dist/services/agentKeyAuth.service.js",
+      "sha256": "3d1c2aa6e3450ca8f2cad8150c3b510b0920e3458f51915ffe5e1ee0e6b0821c"
+    },
+    {
+      "path": "dist/services/agentKeyAuthority.service.js",
+      "sha256": "a2a8c8b0e0dc9403d37cb42d25e9e79cb2e1bb6404d79311ba1e49e6afea362a"
+    },
+    {
+      "path": "dist/services/agentKeyGovernance.service.js",
+      "sha256": "43e49bfae6d482c1c2f81d08d3d937c0f440f5d55bc5dac6166b3cdbe124d570"
+    },
+    {
+      "path": "dist/services/aiLabeling.service.js",
+      "sha256": "efc72521188bf3b0ccfa299e91c22cb24ec1bc8a93bca47ab71f0896fb28ca0d"
+    },
+    {
+      "path": "dist/services/aliaRevocationCanary.service.js",
+      "sha256": "363cba14df14761139aea3f21ffd7a60eb1394f386380e9de24eeee0f150e098"
+    },
+    {
+      "path": "dist/services/appChainRead.service.js",
+      "sha256": "acc9685f8238b9cdf56e661d5a94a9ddfd835772a633711e6e0516c3eae880bf"
+    },
+    {
+      "path": "dist/services/appChainWrite.service.js",
+      "sha256": "03e4f3f9bc536fb4ec4681119b0731ed4c557413ce77f676848ec10b0b9975a6"
+    },
+    {
+      "path": "dist/services/appSignals.service.js",
+      "sha256": "908b442e01b5ef90486d01f7059d309af06d2186c5303c28c828a4e9baf2c82a"
+    },
+    {
+      "path": "dist/services/applicationCredentialAudit.service.js",
+      "sha256": "13f6c78be7031244712771e4801f0dce393fcf25da95381635fbee28f6c907e5"
+    },
+    {
+      "path": "dist/services/applicationCredentialRevocation.service.js",
+      "sha256": "6dcb62483c3206888483111ad95952176945360f3fdd301f20ae202ca3bd47a4"
+    },
+    {
+      "path": "dist/services/applySubscriptionPeriodCredits.service.js",
+      "sha256": "9a55676c0417614edd3cdfb61ff6291df32c943e85cf9930261dc3ecda0793b6"
+    },
+    {
+      "path": "dist/services/assetService.js",
+      "sha256": "b45a26a0b641e27909e3f1672471bc50e02875f0ed2ad72215c30c2254255f3f"
+    },
+    {
+      "path": "dist/services/assetServiceSingleton.js",
+      "sha256": "8bdbda26da73ca2a5fa85952b808975a1d658a96242bf6a2d45f5e4830bf8dbc"
+    },
+    {
+      "path": "dist/services/attribution.service.js",
+      "sha256": "fe3ff930a47ee612efa0552b318108d1f0f335707666c1fe0678e911eec950d6"
+    },
+    {
+      "path": "dist/services/authSession.service.js",
+      "sha256": "fcf0cc6a941c048f20599394bbe75d92ff92c46b012253b3db0709794a2a28b2"
+    },
+    {
+      "path": "dist/services/authSessionDelivery.service.js",
+      "sha256": "bbb97c2d274739a2bf64ea02e120efde9e01e337cef078df875717280a32ce6e"
+    },
+    {
+      "path": "dist/services/billingReconciliation.service.js",
+      "sha256": "f18d664e7e75692d13056cc22072a9c34ea558c033936c7850e4b03ac0336a8b"
+    },
+    {
+      "path": "dist/services/capabilityAuditCorrelation.js",
+      "sha256": "96d9af2db822957d50b09ec0f6af072fc75b1ea50732b810e0d8a2cea6f3fb64"
+    },
+    {
+      "path": "dist/services/capabilityAuthority.service.js",
+      "sha256": "06f7a24af55f45e8e983f6a0d4e470ba1c066ac7a92b9bf7ea23c9a2d36554b2"
+    },
+    {
+      "path": "dist/services/capabilityCatalog.service.js",
+      "sha256": "7468bcf99ed37fb1962a996df7622b8976aebcdda2e0b41dd821723b58afe53e"
+    },
+    {
+      "path": "dist/services/capabilityGrantPolicy.js",
+      "sha256": "b28046bec7a6778d187f6eee37047aaebb77c7ba813c0766807812513e137cfc"
+    },
+    {
+      "path": "dist/services/capabilityLimitPolicy.js",
+      "sha256": "31a54085b8904a49b69ce2c339f6c450eb694615dae07885537e7d9ad7991b23"
+    },
+    {
+      "path": "dist/services/capabilityRuntimeStore.service.js",
+      "sha256": "cd4e5cd3033e77dcec37b98d9e4c007477527d95a1b611ba7494305904984692"
+    },
+    {
+      "path": "dist/services/cardExtraction.service.js",
+      "sha256": "f44247f6935ac33a456e9879c3093f5290ee0a94528c47f09650710c8bb24e0d"
+    },
+    {
+      "path": "dist/services/cdnInvalidation.js",
+      "sha256": "3bc0d833c5bf27ca22b6dcfbf559cb2e67f299f92999960030c02eb7392c6bd2"
+    },
+    {
+      "path": "dist/services/civic/attestation.service.js",
+      "sha256": "f14ae77b49551c4ef410ab970a5130f740119b42888f66c94aa321f5dca5df39"
+    },
+    {
+      "path": "dist/services/civic/credential.service.js",
+      "sha256": "8d5adfec1a2bde313f94592a9654e62cd2abc8b925a62faeda21ed48204944a0"
+    },
+    {
+      "path": "dist/services/civic/graphExclusion.js",
+      "sha256": "b0754507135fe69be4240f6c6bab2b19652078444e7665f21113d507e5a309a3"
+    },
+    {
+      "path": "dist/services/civic/personhood.service.js",
+      "sha256": "41403d47c5c23dc383bd39c2919d03e3037c195332d50b7c5610d55bfdfb89b6"
+    },
+    {
+      "path": "dist/services/civic/personhoodAudit.service.js",
+      "sha256": "2d91588ea7ca89a322c8bf246f523705816870f41e869bc1df265c349ea07c27"
+    },
+    {
+      "path": "dist/services/civic/publicCard.service.js",
+      "sha256": "93b78baff94515f98caf939699301c99092ba49cbbfc1d88b489ba37827a92e4"
+    },
+    {
+      "path": "dist/services/civic/realLife.service.js",
+      "sha256": "837d1e5f9538b3571f42149cf84b186a2be0e0501eadd9e5b7951da7f991f169"
+    },
+    {
+      "path": "dist/services/civic/slash.service.js",
+      "sha256": "51b678471745184d214172eb0b0038baae6c24ef3ca698bdcffae5ef3ae0dffd"
+    },
+    {
+      "path": "dist/services/civic/sybil.service.js",
+      "sha256": "0860cb561ffc6bdc8163a965cd2165f14b18889a299668f625cb56bf208ac830"
+    },
+    {
+      "path": "dist/services/civic/validator.service.js",
+      "sha256": "04e9989d94f08c7867120b0da3863db7e710f12980da937bb4abc84e1d78ba20"
+    },
+    {
+      "path": "dist/services/contentHashLock.js",
+      "sha256": "4f451e569281660e14999cbf19aec321e53ae7a7c76c8e5902f2bb5057b73653"
+    },
+    {
+      "path": "dist/services/deviceJoin.service.js",
+      "sha256": "f0dc1e4b38912fecddccebc7c86a950c6cfe7aa3d368a30424c2da3dea71178e"
+    },
+    {
+      "path": "dist/services/deviceLogin.service.js",
+      "sha256": "08bcab2eda23e081508e6ca12a9181566e4a92ca79af40f19a24662e9ff9186c"
+    },
+    {
+      "path": "dist/services/deviceSession.service.js",
+      "sha256": "5caad5e07bc597f9816cee31ba1c74054625db18a08e030d4715d22d5ec92ffd"
+    },
+    {
+      "path": "dist/services/did.service.js",
+      "sha256": "74298699760a4d796f1f70928e084d6e61b0ed6da1cd0f3cfab972370fb29611"
+    },
+    {
+      "path": "dist/services/email.service.js",
+      "sha256": "f4c17a26253ec10d584d0b9fc71901a0134dcf33e491cfe0b60bc435818f141b"
+    },
+    {
+      "path": "dist/services/emailIdempotency.js",
+      "sha256": "fdf2268aee2535cf156944496be5bd8f8fc603001d5c00b0953730889faa1da1"
+    },
+    {
+      "path": "dist/services/emailOutbox.service.js",
+      "sha256": "f9ff1d95a0674858f6e884867c65cc7743780d73c89bfd7c517a6ee7702b9158"
+    },
+    {
+      "path": "dist/services/emailOutbox.worker.js",
+      "sha256": "1c34f406c4d09aba746addc30f3855339b042c7650160e20f4abe17bd3d02ae0"
+    },
+    {
+      "path": "dist/services/emailPushDelivery.service.js",
+      "sha256": "debaefe6c85b95a2bc6f05290f03b7d5c75ef1eb618de7e46c4711cbe7e354ae"
+    },
+    {
+      "path": "dist/services/emailSignIn.service.js",
+      "sha256": "96e681f33c4429c0ef6bba5f0fe8aabcaa48d078213bcd248a13089178fa22d9"
+    },
+    {
+      "path": "dist/services/emailSuppression.service.js",
+      "sha256": "484b1197ed46e4b6f4ab557fb39df2ba9cf346257e9ae0b78ffcaf1c3c86d79f"
+    },
+    {
+      "path": "dist/services/emailWireContract.js",
+      "sha256": "62febb7afa52089851bb1d7f662e8d90596dc95a6210263058c74e0ae3d0e916"
+    },
+    {
+      "path": "dist/services/entitlement.service.js",
+      "sha256": "12b4ba44996080602f08056f3f1bcb9a59b599be626e320b8b9760b3dbb18e9f"
+    },
+    {
+      "path": "dist/services/externalIdentityCacheInspection.service.js",
+      "sha256": "98cceebfd34b6b74092c4bdb3d6e7aec6bf2bced9f1807ae6f3c023eb64f281f"
+    },
+    {
+      "path": "dist/services/externalIdentityRegistry.service.js",
+      "sha256": "36df8bb5a15f6eb1c710ec62a8cfef09d525fa7b3fd0da00aa864cc4f975c68a"
+    },
+    {
+      "path": "dist/services/externalProfileInspection.service.js",
+      "sha256": "4a73a355f593e7742dcdf1cfd8ed15deaf7013cbaaaecae0daf791751e568381"
+    },
+    {
+      "path": "dist/services/family.service.js",
+      "sha256": "23d1c4f20e8f94f770025088cc8a229701a4669da1a1e1783df1533fe0380e79"
+    },
+    {
+      "path": "dist/services/federation/avatarFetchBackpressure.js",
+      "sha256": "a828f1dbb525fdf25b82cbd812bf9936053fdaa31f3607a67159dc56543894a7"
+    },
+    {
+      "path": "dist/services/federation/avatarImage.js",
+      "sha256": "ba62399c636dd43081e755a6d1e3b2e99698be9790a2d6b1978353efc5b6e387"
+    },
+    {
+      "path": "dist/services/federation/avatarRetry.js",
+      "sha256": "aa9855824238882e78145166a13fe1dd3431d2271589ff62dccc5961034277ca"
+    },
+    {
+      "path": "dist/services/federation/blockedDomainPurge.service.js",
+      "sha256": "9276b7e78484abdac902c8f5a6f4d03fd0b8f090cd133cae2a7da9eb9c137f39"
+    },
+    {
+      "path": "dist/services/federation/externalIdentityPolicy.js",
+      "sha256": "b2ca22e3dc284163f8caf126b286c576b99bee5b8a5cf3eb987188385e6365e3"
+    },
+    {
+      "path": "dist/services/federation/instagramGraph.js",
+      "sha256": "fa66c5b0289cc2fb058d8491432d9533c2ab6c056ee8c94c6f07a243b7017147"
+    },
+    {
+      "path": "dist/services/federation/instanceFetchSignature.js",
+      "sha256": "91aec3b5acb58e09032465860a352683a83e81afa94cbe97df3be6248fdce3f9"
+    },
+    {
+      "path": "dist/services/federation/metaFirstPartyProof.service.js",
+      "sha256": "fe949b351dfc71bfb287ba82c06099fa2e2149dc3b4afb5c4be44231f8aa1f13"
+    },
+    {
+      "path": "dist/services/federation/metaIdentityProofRegistry.service.js",
+      "sha256": "bd14643e9b4f6ba4a336039a57d871dcb1e3ecfa1a3370fda4289f684e895fd7"
+    },
+    {
+      "path": "dist/services/federation/resolutionFailure.js",
+      "sha256": "74517c99cdf040212b12426af8b513d85a90e503fa2f34f41cf709363731b307"
+    },
+    {
+      "path": "dist/services/federation.service.js",
+      "sha256": "4a7cc00591e9a06a757339c0fd35539145c4c0321e1883b6fe44ec3ad8b004cd"
+    },
+    {
+      "path": "dist/services/federationMove.service.js",
+      "sha256": "f7be5675b120f94f800499f74477594a1ab3523de083d143d603c927e6f969a3"
+    },
+    {
+      "path": "dist/services/fileOwnerSplit.service.js",
+      "sha256": "bdb76f273feb982a6bb187ad34653b8d47891742a55b1ada7a881bc8f3a834ed"
+    },
+    {
+      "path": "dist/services/fileRepository.js",
+      "sha256": "d2536cac3353e9a2f5760096321a7c00fe22127029ad885cc26ab699b667a1b6"
+    },
+    {
+      "path": "dist/services/followCapability.service.js",
+      "sha256": "c033491fe5280a9961e9934e1ba27c67640c19c61d45a07e6209bc354dc322a5"
+    },
+    {
+      "path": "dist/services/followCommand.service.js",
+      "sha256": "ad121381ba9236cae13ef1a05bfada9fcb55319728d81c666e716720d625ca30"
+    },
+    {
+      "path": "dist/services/followOutbox.worker.js",
+      "sha256": "07388f57d8574e4267d25f1e6a4f9f49aabedb7bcd09350266d36057ad65b7d0"
+    },
+    {
+      "path": "dist/services/followRegistry.service.js",
+      "sha256": "3114ea9275cecd61fc6d4d887725462d8f104e376b407e45571013451fac12e2"
+    },
+    {
+      "path": "dist/services/foregroundCapabilityRequester.service.js",
+      "sha256": "9679c9ae011b2afb8088d405a35db802f5babfebf79d8bdac79a7b011633d0e2"
+    },
+    {
+      "path": "dist/services/httpKaanaClient.js",
+      "sha256": "cb96aa6fc7c732f3100bc884ca439a96b61a2d61ab781b0262f9d917435a8a0c"
+    },
+    {
+      "path": "dist/services/identityBinding.service.js",
+      "sha256": "a2443f9113c666d93b3378669058c585b6ed805aacddf2e956c3694baa24cbd4"
+    },
+    {
+      "path": "dist/services/identityExport.service.js",
+      "sha256": "e774805ca7b7ee6c17248782d891250aede337cc06b740c7405187fe9c5f10a2"
+    },
+    {
+      "path": "dist/services/identityLink.service.js",
+      "sha256": "9f05ec4d37bb26cf2c5cfa6eb0ab062cc2dd3bd437cdc32e1790bc384ff423e0"
+    },
+    {
+      "path": "dist/services/identityProof.service.js",
+      "sha256": "0a14e76e61fa15352a0e2b079f874153186fdfce71f5ed7faf2b37f49e17af40"
+    },
+    {
+      "path": "dist/services/inboundMime.js",
+      "sha256": "d7a7cf5772bbafb0537059bf4f337288863fa01ab3bbf2eaaf50f5d29900e04e"
+    },
+    {
+      "path": "dist/services/inboxDailyBrief.service.js",
+      "sha256": "bfaac0d10c2137e3c0c0e824dacbdff1da2700302e66cc8b968db24dbd64fded"
+    },
+    {
+      "path": "dist/services/inboxInference.service.js",
+      "sha256": "0c9518676abf7c6f56025ca2b9d92bef438d3e27b1b8226efb10d9e49f6afedb"
+    },
+    {
+      "path": "dist/services/inboxRealtime.js",
+      "sha256": "a99e20f5e003d6e09cacb10abfb37ec1a777540a171ea9f57a24ffafd2d7423d"
+    },
+    {
+      "path": "dist/services/inferenceAutoClassifierChild.service.js",
+      "sha256": "cd58acef6e895f7e1bc3cb0bce26b0976afe25b3c33bf30db7cd77fd7ab31b67"
+    },
+    {
+      "path": "dist/services/inferenceAutoPowerLevel.service.js",
+      "sha256": "dc6ec3874112fe419e669075d8ef6b52c87ea2450222c17c05a2af7cf56fcb3c"
+    },
+    {
+      "path": "dist/services/inferenceCatalogue.service.js",
+      "sha256": "d0f86ef880dde80d7d3d4b6fcaaf427b7389aeabd237f806017a801b2bec53b4"
+    },
+    {
+      "path": "dist/services/inferenceCatalogueAdmin.service.js",
+      "sha256": "cc38441a4a1bd155e063294234fe7ef2f8e9c649a1d21f5fc1db84482c10a259"
+    },
+    {
+      "path": "dist/services/inferenceEdge.service.js",
+      "sha256": "e048b274d59c650dc2e512e1c57c6122fcf314ba790bd3aa082114baef084b12"
+    },
+    {
+      "path": "dist/services/inferenceInternalPilot.js",
+      "sha256": "3280a962ac4f816dfbe64bebe3c5468d43de246684edd0a377e699524a00ab43"
+    },
+    {
+      "path": "dist/services/inferenceLedger.service.js",
+      "sha256": "c052c9ace3a7c979d6131978440ff7edfce001f62fe976c157fe8ba6db6bf5f7"
+    },
+    {
+      "path": "dist/services/inferenceMeteredUsage.service.js",
+      "sha256": "717ebd69390a0318406eca31f4951a0f47b49e8851a972e47146262e6548a292"
+    },
+    {
+      "path": "dist/services/inferenceMetrics.service.js",
+      "sha256": "0c8b3f3398566c90fd1b877c286345400da27ef41355edf05dd9393fbee775d7"
+    },
+    {
+      "path": "dist/services/inferenceModelDocumentation.service.js",
+      "sha256": "9d243f02c5f4f804b2bd67dc4001f43e9abe3623604fb3dd2d95344814ac2237"
+    },
+    {
+      "path": "dist/services/inferencePowerLevels.service.js",
+      "sha256": "b129c4ad3a1a3d7525c9826461536b100aeee00b92e02b55d83f4ec2f10344d4"
+    },
+    {
+      "path": "dist/services/inferenceProviderConnection.service.js",
+      "sha256": "786a449fcbc256753a8f7be2d77d4a956e4a63f23beacd10579d884292fb9800"
+    },
+    {
+      "path": "dist/services/inferenceRealtime.service.js",
+      "sha256": "ea61316730f10fa6fc2511ea5d5164fbc77a68df1dae7c1191f0c0d9015950ab"
+    },
+    {
+      "path": "dist/services/inferenceReporting.service.js",
+      "sha256": "c03eac4c79459cde1c9d73f0a8456e5b3d8cac12f48e36498907fc96a2f67be7"
+    },
+    {
+      "path": "dist/services/inferenceRoutingPolicy.service.js",
+      "sha256": "5acda651617ec50b6d43d5658af333ab2f6e967711fac0c3d09dbcd252447c98"
+    },
+    {
+      "path": "dist/services/inferenceRoutingReadiness.service.js",
+      "sha256": "2bfec74077f0f9508e293d1c46bd01b6c5bd594e22d9937f658d3be1118eb30b"
+    },
+    {
+      "path": "dist/services/inferenceTelemetry.service.js",
+      "sha256": "249f2ed6d07e68ebda427618d6d6d95e54a800d044d4eb4e988cf7a42f6664ea"
+    },
+    {
+      "path": "dist/services/kaanaCatalogueSync.service.js",
+      "sha256": "6d27942ce1bae8900826c42c7b9f68222494b5d1194ecbe3669e23fa2f77997a"
+    },
+    {
+      "path": "dist/services/kaanaClient.js",
+      "sha256": "318beb182bd95d347d56120fc4688034747b2479533224360a96fbb7d51eae6a"
+    },
+    {
+      "path": "dist/services/kaanaCredentialControl.js",
+      "sha256": "0557f9551f73e6d29c4fd89045b5c06ce664f32f2dc784636c14e37a2a750b18"
+    },
+    {
+      "path": "dist/services/kaanaCredentialValidation.js",
+      "sha256": "67d426fc0483c801bfbb0df2fa74b5d897cb55d6397b620016a7c48448bb0913"
+    },
+    {
+      "path": "dist/services/kaanaDeploymentPublication.service.js",
+      "sha256": "7f087375522e9eb7cc61bc47986627efb5806997229788ae31e00430faaeafdd"
+    },
+    {
+      "path": "dist/services/kaanaProviderCostFeed.service.js",
+      "sha256": "fa6d5c35001a1d8b890a0f17ebd21d5c249b8b1a3ade2f0a498eaa7b0434128a"
+    },
+    {
+      "path": "dist/services/kaanaRealtimeClient.js",
+      "sha256": "edfeb064c7f880971f317f256b97453a7d403169e10df2e2f68d172a17a45d82"
+    },
+    {
+      "path": "dist/services/linkPreview/linkPreviewExport.js",
+      "sha256": "6f4f0d776d3c6edbbd1a4a9a30876cd2399ffa0110f1d5a8d7384dd63d59f54c"
+    },
+    {
+      "path": "dist/services/linkedAccounts/atproto.provider.js",
+      "sha256": "aac22b58f47032f17747fb4ee270faae12b63c7898934d9b13e60c8d389fa777"
+    },
+    {
+      "path": "dist/services/linkedAccounts/atprotoClientLoader.js",
+      "sha256": "63c90ec7d418ce98cc26add5c0cacd616820f5d90f852b7866298f1536813b9a"
+    },
+    {
+      "path": "dist/services/linkedAccounts/challenges.js",
+      "sha256": "487eec99aeffca6dfc790edfa25c3b769bb7cb8f915a000f8d0bd2d431c9f31e"
+    },
+    {
+      "path": "dist/services/linkedAccounts/common.js",
+      "sha256": "87acd2486e4889674fbdcb5d3d6f9a4cc6d2b1dc3e826aef3e94d66e56c89800"
+    },
+    {
+      "path": "dist/services/linkedAccounts/http.js",
+      "sha256": "a90d4f3d2b841eeee6735047292aaed115542604c4c5117fb26917bfef9fed89"
+    },
+    {
+      "path": "dist/services/linkedAccounts/linkedAccounts.service.js",
+      "sha256": "e5016fd1e38b0a8def3d74e8a6a81f602d0d32ced99b964b7d2ccf8ba3573f33"
+    },
+    {
+      "path": "dist/services/linkedAccounts/mastodon.provider.js",
+      "sha256": "3cffed940dc424d2c3e0fd5df3a8373e2f54d7722a94e6ba7cf10216b3a82353"
+    },
+    {
+      "path": "dist/services/linkedAccounts/returnTo.js",
+      "sha256": "712a9eabfe30e72c1390c651a94f245e937f7376b35c126ab583ba4a87ea16f4"
+    },
+    {
+      "path": "dist/services/locationQueryService.js",
+      "sha256": "3f3d0dd6041d3e26a674a123ead7bea882dab8795a769bdeb9fbcb21360024f4"
+    },
+    {
+      "path": "dist/services/locationService.js",
+      "sha256": "3c5e24bac6aacf1e1691f5974975aee9622a6173c7e9381c73a9ad52461d2d19"
+    },
+    {
+      "path": "dist/services/loginLockout.service.js",
+      "sha256": "ebabd834d4319a7cacbb31f78b49a7e56bbd21c731e2452e2ab56bab816eae3b"
+    },
+    {
+      "path": "dist/services/mcpConnection.service.js",
+      "sha256": "cd0cc0d179294786ebbe520ed9d6acf07666b353ad38c98f3afdee8b63e0d01f"
+    },
+    {
+      "path": "dist/services/mcpOAuth.service.js",
+      "sha256": "3989fb41f89b380d60aa061145be04f1d8f7fa11bedcfe2eaf795e89451def31"
+    },
+    {
+      "path": "dist/services/mediaPrivacyService.js",
+      "sha256": "28859c6da876b05166f868d3cf4542c293243e9d15613e27e6c1bd6338ffd409"
+    },
+    {
+      "path": "dist/services/mercariaBillingAuthority.service.js",
+      "sha256": "c2171f7fa92204634055fdfe878355fa771860e2b332915c188c17863faaf0b8"
+    },
+    {
+      "path": "dist/services/mercariaEphemeralCredential.contract.js",
+      "sha256": "750012d966785f4f30836c9314d7af6485def22b446a39be3bd5484e2b8c6435"
+    },
+    {
+      "path": "dist/services/mercariaEphemeralCredential.service.js",
+      "sha256": "b60c6053fabb2cef7904d3db12f50b5d3d54e5e0de9c4a3339df6ba681111482"
+    },
+    {
+      "path": "dist/services/moderationReputation.service.js",
+      "sha256": "3bd147d28ec6c2491d9d0017e9e70eeefab6fcc5f984d05f75ef31778bede10f"
+    },
+    {
+      "path": "dist/services/nativeRequesterAssertion.runtime.js",
+      "sha256": "593085dec8b0bd214b60810a7bd19fcd826458db027470590a4bd60862db7f40"
+    },
+    {
+      "path": "dist/services/nativeRequesterAssertion.service.js",
+      "sha256": "bd585d87f51218743e657ed5f78f311786502cb5f4a344141b0c90a40d1f25fb"
+    },
+    {
+      "path": "dist/services/nodeRegistry.service.js",
+      "sha256": "29c828c69318c8f748e776fa63ceef2821ea55c45369fdde5ae9f38771f72a51"
+    },
+    {
+      "path": "dist/services/nodeSync.service.js",
+      "sha256": "7ccac33cdd447d70741ad4681617fafbf0ec98438966c1362ba539b48bf45db0"
+    },
+    {
+      "path": "dist/services/normalizedAppEventOutbox.worker.js",
+      "sha256": "1908a0ffde8a754cfa2638d0faa83284eae7003badfa4f42553ecbe9718aed66"
+    },
+    {
+      "path": "dist/services/notification.service.js",
+      "sha256": "b3a0021a4e6d2633c732abe58764365e79304f2d48d5ae852de2eaea84d5f455"
+    },
+    {
+      "path": "dist/services/oauthCode.service.js",
+      "sha256": "c1905167238ffe25d107ee5a27906fc04d1195fbc1351e9ed8dc7a32c93f07f3"
+    },
+    {
+      "path": "dist/services/oauthConsent.service.js",
+      "sha256": "59539f755d7179048e582353d4891f53b8ba218b9f670f22484721efdc25bf0e"
+    },
+    {
+      "path": "dist/services/oxyRecordStore.js",
+      "sha256": "321e2b04945fe07a2b781f37c5c844a1ee3dc9da0e3c5e532ce0026e4d5ce676"
+    },
+    {
+      "path": "dist/services/oxyVerificationResolver.js",
+      "sha256": "0e697cf0ba366d8721adaefe00fe8c9a741c96a81bbb8bad80c913108f96887d"
+    },
+    {
+      "path": "dist/services/password.service.js",
+      "sha256": "c277957147a6c200709bb9059ce0fd373d708e5d5889c7e5e5d2a58d5209a665"
+    },
+    {
+      "path": "dist/services/platformActivity.schema.js",
+      "sha256": "91a26259ccb8e9aa9704d2e7d4a4133f43c1bb9abc03c247581bbd698e02c22b"
+    },
+    {
+      "path": "dist/services/platformActivity.service.js",
+      "sha256": "b761424006695d1a59b193077139da3a2b6337f83b2a903ae3a2e9a5a7488459"
+    },
+    {
+      "path": "dist/services/platformInfrastructure.service.js",
+      "sha256": "287c4bea2b24222da1fe412129d45ec363e53a0dab4a793a66fdc471f6cd84e4"
+    },
+    {
+      "path": "dist/services/productAccess.js",
+      "sha256": "8c1de4fbc4f0b726cde6caa11c3b84b88b8766e82848699d1f5dd7274f0ce38b"
+    },
+    {
+      "path": "dist/services/productAccessAuthorization.service.js",
+      "sha256": "9bdef5da427bbb70f8741782b5872732e642d57fb091a5dc909757883aa24bfd"
+    },
+    {
+      "path": "dist/services/productAccessMapping.js",
+      "sha256": "548a1562bb3aa9458cc54f64c7c1fc2056108962668b34e07d82778342d6e0d6"
+    },
+    {
+      "path": "dist/services/productAccessPersistence.service.js",
+      "sha256": "053c8bd028da9fcf1a05e3b77a0ffdb3dfa10b217cd37327604fae228d2bc128"
+    },
+    {
+      "path": "dist/services/productBillingCatalogue.service.js",
+      "sha256": "8bc49cebd4695ae56a4cd03e459a3a7aaa2db3d587b2691fc6b38b04b29240c8"
+    },
+    {
+      "path": "dist/services/productProviderEvidence.service.js",
+      "sha256": "e631d9635a03b4481deb4b156987c335b17f2c57e8870d5e4d9f1695113bbe0b"
+    },
+    {
+      "path": "dist/services/providerCredentialValidation.service.js",
+      "sha256": "bce3af0fb05d2538b50bcafb5ecdf30c84ff995910887a6b33f9ddac4e9f8e4c"
+    },
+    {
+      "path": "dist/services/push.service.js",
+      "sha256": "ac0ffc3b3d939e9921f4334de321a993fb5bc8de9887c188ca8239e27f605d18"
+    },
+    {
+      "path": "dist/services/reauth.service.js",
+      "sha256": "fa7b42e7d61e18910da6efd45b2547bd0d016c3c60d2b7810ac0705d038e27b2"
+    },
+    {
+      "path": "dist/services/relayMessageId.js",
+      "sha256": "c57cff36b7e2aeaaffde8ffd0c6afb92e7b9e69141126ab4a6c3f34d54f56b6a"
+    },
+    {
+      "path": "dist/services/repoLog.service.js",
+      "sha256": "86da2c27866750638b1cdf8157f9bb8914efb5744384044b4fc438c495703b37"
+    },
+    {
+      "path": "dist/services/reputation.service.js",
+      "sha256": "afc10ab15257fa59b7deba48696ada6b199c81443418a62955c846001215adf7"
+    },
+    {
+      "path": "dist/services/reputationRules.js",
+      "sha256": "7d5b1c49495695ad08688bbacdb96b02e0072e147d028e617e57f0603009c500"
+    },
+    {
+      "path": "dist/services/s3Service.js",
+      "sha256": "bd26538983437d468aef63e65201d099588cb8b5cd4b910e58d9e43c4e74f254"
+    },
+    {
+      "path": "dist/services/s3ServiceSingleton.js",
+      "sha256": "0c52fbd7bfba43a40d7bc3b5a52628e64fda894bcc78d9223f339fad9836d186"
+    },
+    {
+      "path": "dist/services/scopedExecution.service.js",
+      "sha256": "2c4887c5e29f75f3c428b042e15a585e9f5c5fd45454e3c6b18960d85e7a2041"
+    },
+    {
+      "path": "dist/services/secretLeakProbe.js",
+      "sha256": "bdbbfaa92397b9a4fb0b251259f85e3efda3d589828de8ef7fcbfb3e67ffbd50"
+    },
+    {
+      "path": "dist/services/securityActivityService.js",
+      "sha256": "86e3d53284a8615b458daada1be83b97566028aa5d151810a7169a028061322c"
+    },
+    {
+      "path": "dist/services/senderAvatar.service.js",
+      "sha256": "77feff398bdc0d39c0ec61ec842d0f999f6a280d1d0bc14a0574c90cc42f3d49"
+    },
+    {
+      "path": "dist/services/serviceActingAs.service.js",
+      "sha256": "cf682a3d9e2234a8003f9e82c96f6e3d36564a21cab7c78e8038e7a0c28e4f89"
+    },
+    {
+      "path": "dist/services/serviceTokenMint.service.js",
+      "sha256": "70d6d6f273253a6a7ded933c7236351246b21a8a10c0681b85c05d3b255025aa"
+    },
+    {
+      "path": "dist/services/session.service.js",
+      "sha256": "9120d91cf923e30e92949b480d8336d0b05015a131e8af1d25edf8a5cfcb0954"
+    },
+    {
+      "path": "dist/services/signInSession.service.js",
+      "sha256": "c2386f19731ca0bcf0fc7c84724b0fde2406e8fab13b09042f44d869bbb68ec9"
+    },
+    {
+      "path": "dist/services/signature.service.js",
+      "sha256": "54edff4b66520d2eb91444f2c8918b2e8603d44a48c2bd8762266924d7e3b142"
+    },
+    {
+      "path": "dist/services/signedRecord.service.js",
+      "sha256": "b7ae22056a05f2fccd13058462cb8ae47b3f71f9f7dc00b673b5b4b51a42c6e7"
+    },
+    {
+      "path": "dist/services/smtp.inbound.js",
+      "sha256": "f1c3e5e60393d2dd0f8ad02b6bb8da248771e1cae74193e6631679cfd8217ad3"
+    },
+    {
+      "path": "dist/services/smtp.outbound.js",
+      "sha256": "ee2ea80d82116d2bac783e67fee9a46e9f16f919e3f57c659195110bc30da720"
+    },
+    {
+      "path": "dist/services/spam.service.js",
+      "sha256": "9ff46fd6774c605ecd6d7cbe9a1187ae67e491dd18f56fcf8cd807110d1ee821"
+    },
+    {
+      "path": "dist/services/spendAnomaly.service.js",
+      "sha256": "df2ff0ff58a10b9ff6f2cba39c4f5fdce6826d08589fc34e43ff2a94b1e0d34c"
+    },
+    {
+      "path": "dist/services/spendingLimit.service.js",
+      "sha256": "ca3a0d4552e93af3dc1ba732cafd0778ba9644b22d7043cff19f0abbffacc479"
+    },
+    {
+      "path": "dist/services/stickerRender.js",
+      "sha256": "2433d15e7f3c301fe5f6e82efd6be0ad24589b2d7b4944a5bc68a8b114bd1311"
+    },
+    {
+      "path": "dist/services/stickerValidation.js",
+      "sha256": "278cc69e6ce45f844c659a0ecfa83c250bbf78e8696280be12f32e6c3561a3b8"
+    },
+    {
+      "path": "dist/services/stickers.service.js",
+      "sha256": "61e68b59f5bdab3dbe3b94bfc89906926a27c233e66e5a1fdd144750bd81ad93"
+    },
+    {
+      "path": "dist/services/store.service.js",
+      "sha256": "8c2147c70f3d5bebacc5ceac13e7d8bfda91a99177fa5a78c268b5f7d817c1d3"
+    },
+    {
+      "path": "dist/services/stripeAccountBilling.service.js",
+      "sha256": "553fd21136308e7a6507a868bf22bdae77d9d3d581f96c5d3a26f3b33bd5bc1f"
+    },
+    {
+      "path": "dist/services/stripeSubscriptionEvidence.service.js",
+      "sha256": "b8532ef5cddbe95c94f88ca50a2006fe2c258939786bc3c465013f27e697e307"
+    },
+    {
+      "path": "dist/services/stripeWebhookEvents.service.js",
+      "sha256": "9b14a06d5092ad13ef47a6a8733b493d31bada3e873dec8230aec345438f8aaa"
+    },
+    {
+      "path": "dist/services/subscriptionCreditLedger.service.js",
+      "sha256": "1312d01fdd5193b8d1003d1061120a826f59a966a4e0e981a9b7073c622918f8"
+    },
+    {
+      "path": "dist/services/subscriptionPeriodPolicy.js",
+      "sha256": "57696954886f776f9c4ec05769008cdbe01753d28d61ec99f9dd6996653b05d5"
+    },
+    {
+      "path": "dist/services/subscriptionPromotionPolicy.js",
+      "sha256": "eace679932c217082137da99e9e822de162180beae54b72d24bbf8f2016bce9b"
+    },
+    {
+      "path": "dist/services/systemNotificationPush.service.js",
+      "sha256": "c4b8e2eb0c026f4c771f753a509ad1f7a9a5d7e78f82270dd643a9cb0e43910e"
+    },
+    {
+      "path": "dist/services/tokenAnomaly.service.js",
+      "sha256": "78af888838be44f6b632f24995b5785377e188bb21a702e2b54f085f3395300f"
+    },
+    {
+      "path": "dist/services/totp.service.js",
+      "sha256": "96590eae61b1efe0258a23699ef39873deee50638fd2f47acce2df6022bc4c40"
+    },
+    {
+      "path": "dist/services/transparency.service.js",
+      "sha256": "73ea06f71db920a88ca773ab7f093df941fd48b9342140ce7e909c3a95757c7e"
+    },
+    {
+      "path": "dist/services/updates/assetKeys.js",
+      "sha256": "2d11d5d4726679ff657ec16a440e9cdf64a9b0113c123cbad8ef45c9a700c5d0"
+    },
+    {
+      "path": "dist/services/updates/manifest.service.js",
+      "sha256": "81a019c2ccd657f0da66a0062fdf17265dee6c2bc0db7531f508bc6609b8a2c6"
+    },
+    {
+      "path": "dist/services/updates/publish.service.js",
+      "sha256": "c16ef297ca0777473f11e3db951ad976991379360992fd51b231a16d37d2b078"
+    },
+    {
+      "path": "dist/services/updates/signing.service.js",
+      "sha256": "0a059572ad04b23b87e20db743cbbbb542d492c10a11cb5daae2a47e05f188e2"
+    },
+    {
+      "path": "dist/services/user.service.js",
+      "sha256": "fb616b0dbdb5c8ac47300caf171ca5f2110b1768ede61bbc0bf199657a01576f"
+    },
+    {
+      "path": "dist/services/variantService.js",
+      "sha256": "de82eb5156ca30401a7973276e1eb49ab404fe72b954d546ab1125a6be6c8e97"
+    },
+    {
+      "path": "dist/services/workerActivity.service.js",
+      "sha256": "6be1432b056dc336d9f957f6183b1dd82f86a97c042b1dcfb13f1d1fccdba291"
+    },
+    {
+      "path": "dist/services/workloadAttestation.service.js",
+      "sha256": "8f2c8283f10c48222a7b5169a85900b939397c00666637f4a546a21cba00c8dc"
+    },
+    {
+      "path": "dist/services/workloadAttributionIdentity.service.js",
+      "sha256": "979df599e68ab0bdcd0bfbb430a4186e8c27da33804eac70414becfbbafa7b63"
+    },
+    {
+      "path": "dist/services/workloadIdentity.service.js",
+      "sha256": "870dc91488e48a45dd2d460456c96d99225aeae68564c18043ac7e46b34bfe48"
+    },
+    {
+      "path": "dist/services/workloadIdentityBinding.service.js",
+      "sha256": "fc11f3a1393ca008ab1844f606d8e619a546e11b79d34a50a3811138860d40c4"
+    },
+    {
+      "path": "dist/telemetry.js",
+      "sha256": "e2bc5e9fb7a487eed27287d6327155b159057dd649a9cf38cc452a2d81dc1237"
+    },
+    {
+      "path": "dist/types/asset.types.js",
+      "sha256": "19febfbd1f459c9b99cd502ecc7f983e8091fe3d6eb926f02f73133fdca35633"
+    },
+    {
+      "path": "dist/types/file.types.js",
+      "sha256": "aba71d47590394196bbaa455657e4b82fc5ccfb8b515d9fac1b48cba37a5f982"
+    },
+    {
+      "path": "dist/types/location.types.js",
+      "sha256": "8feaab25b8b43b184f50f5d2b3076cf0e3a23bb67093ecbd22ab5d78b43c3601"
+    },
+    {
+      "path": "dist/types/mediaPrivacy.types.js",
+      "sha256": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230"
+    },
+    {
+      "path": "dist/types/s3.types.js",
+      "sha256": "401100b4f47b8c86032108c62f6b6efc3253cc3c0dc2376678f5a1f589b9d7f2"
+    },
+    {
+      "path": "dist/types/session.js",
+      "sha256": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230"
+    },
+    {
+      "path": "dist/types/session.types.js",
+      "sha256": "6d7389219fd32a68675e8e5b5ffa31c64cd4065c9c14fc2d14314a9baef4ec89"
+    },
+    {
+      "path": "dist/types/socketEvents.js",
+      "sha256": "a783fb04df141701b828b1c4af797e244a0b798bab3d3750b14e8557da312d03"
+    },
+    {
+      "path": "dist/types/user.types.js",
+      "sha256": "1b71a953271e515808c428d79970b59ff61c2d3d8d386174d5335037591f2954"
+    },
+    {
+      "path": "dist/types/variant.types.js",
+      "sha256": "f2d6fca89fcb5f9332771cc2874a056e7defaa177da770e28751e2c2f697b59a"
+    },
+    {
+      "path": "dist/utils/accountRoles.js",
+      "sha256": "53f0e2248d57f7937b69038e0f93d947534991a2d208a50ef89ac7d7a6fc0182"
+    },
+    {
+      "path": "dist/utils/apiRateLimiter.js",
+      "sha256": "4a0066517d659fddd224ea0c9bc0c6a3bf331dd1e3b9ea7f1a5fde7c6408fcc7"
+    },
+    {
+      "path": "dist/utils/applicationCapabilities.js",
+      "sha256": "f8006ce5dc2067f6c26ae11da2f4010c67a00164fc91d2779d394d14ebe0ae04"
+    },
+    {
+      "path": "dist/utils/applicationScopes.js",
+      "sha256": "2d6b3e2821e0a05993d4c19b4496e9403a3be61385f30b33fddd34dba73d0d2d"
+    },
+    {
+      "path": "dist/utils/applicationTier.js",
+      "sha256": "64e85f47bd1d6d87185467cbd3c4fbf5a572f8304ec9fd1789927c73176d3b9b"
+    },
+    {
+      "path": "dist/utils/asyncHandler.js",
+      "sha256": "9556f547b309f36eb4516534005ec8605c39e05af7ca4d4dbead8393b82795bc"
+    },
+    {
+      "path": "dist/utils/atproto.constants.js",
+      "sha256": "b94b0b41dfc626cad7705829949781a9b0fa2fb1ec248ecb5784682c92999313"
+    },
+    {
+      "path": "dist/utils/authErrors.js",
+      "sha256": "c01d4e6e08268f74131d6e393c26ad96aed004caf86735676d25c77177ba01fa"
+    },
+    {
+      "path": "dist/utils/authMethodEntries.js",
+      "sha256": "425267edda06ddd09867d49da9b8a256357b938ec9143500bd2d8b54edf52eed"
+    },
+    {
+      "path": "dist/utils/authSessionSocket.js",
+      "sha256": "288a24d735d76e65f5f799bcb30fde86d14f988f4e8d42c062832b029f6a0b9c"
+    },
+    {
+      "path": "dist/utils/billingResponse.js",
+      "sha256": "1b4bb31b06924baeed4e33c0172280371c0c70cd03c50ac331c333173989f4b6"
+    },
+    {
+      "path": "dist/utils/billingStripe.js",
+      "sha256": "f1de051f137c25a50cc837bcc60382ec52851f908b9f0040eafe67b07cd7a88f"
+    },
+    {
+      "path": "dist/utils/blockCache.js",
+      "sha256": "151402fd5ca21c9b1c956325b601e4938fa50c994e469de684649703d6a2e5e4"
+    },
+    {
+      "path": "dist/utils/boundedBody.js",
+      "sha256": "ec55e8dc1256e497335b7315a076f666e703b3fae4c517f092b5a760ee329da4"
+    },
+    {
+      "path": "dist/utils/cdnRedirect.js",
+      "sha256": "5131aec2349dcac00a4fa0d9416a8e3e4ca037b2c5892b9b78fb0709dae7bc41"
+    },
+    {
+      "path": "dist/utils/civic.constants.js",
+      "sha256": "d53ef334e951aef1585396574daf7ffc62672de0f3585cd0a7a616df42197af2"
+    },
+    {
+      "path": "dist/utils/constants.js",
+      "sha256": "7d90741a0b7b2f045bca034fdc6b8b6dda6aa6a8135de7bc5a23bf3fcf863d04"
+    },
+    {
+      "path": "dist/utils/contactHash.js",
+      "sha256": "765aa98e0d43b01eb43ec5ab076148cba4140f4abf1625a06fd1e264a86173eb"
+    },
+    {
+      "path": "dist/utils/credentialDomainCache.js",
+      "sha256": "efbf00bbcb1737c313a55a94e86c5c54a4ba120ec589a0ab183dfdb1da5e8f4b"
+    },
+    {
+      "path": "dist/utils/credentialEnvironment.js",
+      "sha256": "d0b41bde2f95f28b8eaaca9f56cd7f815b9f5fe1f1e2362e3c0baab860de32fb"
+    },
+    {
+      "path": "dist/utils/credentialMaterial.js",
+      "sha256": "dc7e7e5180223cec591ca314c3d93c85b9d0c2dd3717e584586e0b0533af19d7"
+    },
+    {
+      "path": "dist/utils/credentialUsability.js",
+      "sha256": "7a5fa8e8057799dbd2271c5c895aebc4e2729bd1284f6e21ae8d437586115da9"
+    },
+    {
+      "path": "dist/utils/dbConnection.js",
+      "sha256": "2de459768b6d9c9af1718ebc9f2645a295ef5982fe86ee82b2a5e2838d9990aa"
+    },
+    {
+      "path": "dist/utils/deviceUtils.js",
+      "sha256": "9dedc7a5e861d3ee028a991f2cb83b0988d39e3dc2298c3f8ccf7dced8da9d1c"
+    },
+    {
+      "path": "dist/utils/displayName.js",
+      "sha256": "0117064e6fd4d4eec9e6011bcc8a2bca6efa26fee706322a19c313acd59132ef"
+    },
+    {
+      "path": "dist/utils/displayNameSanitize.js",
+      "sha256": "1d3a780f9635f303c26c05d56e05fbb9e25df53a36a00a9dfd222fa5035b45b3"
+    },
+    {
+      "path": "dist/utils/emailAttachmentSecurity.js",
+      "sha256": "bfe0702fba893706b7e67d9a23d05a2ca0fbe7d2a8c8fd0ef0a37a0b2a69cc94"
+    },
+    {
+      "path": "dist/utils/error.js",
+      "sha256": "c8a120ab4485bbe2c49ea22d7bd41ee97c70dd39425b6c8cfb702d99e987b488"
+    },
+    {
+      "path": "dist/utils/federatedAvatar.js",
+      "sha256": "f87bfc62f7203c5da0e24b4aa4f818b231ba6268f6e6857434d06be1ba944708"
+    },
+    {
+      "path": "dist/utils/fileCache.js",
+      "sha256": "e232f794899de5dcd9772f8e1b3ecce98b6278d5dc74f021bfc1623f1c2bf914"
+    },
+    {
+      "path": "dist/utils/fileMediaMetadata.js",
+      "sha256": "54a53fc89189f956d40a7622484db6982fbeceeecba852fc169266587ca9f07b"
+    },
+    {
+      "path": "dist/utils/follow.constants.js",
+      "sha256": "07c88b7d2afdf802d0591bee7ecec447f5357a0cb24207dd0e777f173cbfe285"
+    },
+    {
+      "path": "dist/utils/graphCache.js",
+      "sha256": "d2419823da84235154eeda391d86a771c740949ea661e6999ef17722602eb13d"
+    },
+    {
+      "path": "dist/utils/imageContentSignature.js",
+      "sha256": "26a11f29b4c5bde43f1c16ce8b82ed50cb64a48202a0a2f2f87d742e0d8f12f9"
+    },
+    {
+      "path": "dist/utils/inferenceEdgeErrors.js",
+      "sha256": "ae7c60b12dabce84625e3d0c3f2268c25314c5f92469ca528fdf246050156582"
+    },
+    {
+      "path": "dist/utils/ipKey.js",
+      "sha256": "69da109fe39103dd8df5a7d0bd07d5b7c22e3ae11e9939ea794ac704f442230c"
+    },
+    {
+      "path": "dist/utils/locationCache.js",
+      "sha256": "9a417e360c54eae2c3f8c6254ce3843d2835edb93b1ef16537f6ea51c13b2900"
+    },
+    {
+      "path": "dist/utils/logger.js",
+      "sha256": "951620e1eca48d91da9a8fd0b51d54e1fa7642aaedb43e5a11fe1641e181c155"
+    },
+    {
+      "path": "dist/utils/machineCredentialToken.js",
+      "sha256": "c55a81a76db24b4b1b521aaa5afc451dc0aa7afa8835a935afbe011845ae0045"
+    },
+    {
+      "path": "dist/utils/mediaToken.js",
+      "sha256": "98ba62c9de942f7c361b146e52ee03504f92173f44f519697bf0321e9d7c7d52"
+    },
+    {
+      "path": "dist/utils/minorUnits.js",
+      "sha256": "e36f6ea7f1d404239d93eb80d3935b4d64af5fc622cdcd5419385f7cb0ce22f1"
+    },
+    {
+      "path": "dist/utils/moderation.constants.js",
+      "sha256": "d31ecfef9c252eecee61195a07835c6d670ab3bd3d6645236431d8a1dc4341ec"
+    },
+    {
+      "path": "dist/utils/multikey.js",
+      "sha256": "e45694771723e3bc99486cbcfd85e4c8ce2295615bc4fad7bcce57145a002917"
+    },
+    {
+      "path": "dist/utils/nodes.constants.js",
+      "sha256": "962558ab47ab04d82bb31b181e4077397ea7bab62f537e3d08725a8727b83a5e"
+    },
+    {
+      "path": "dist/utils/oauthClientAuth.js",
+      "sha256": "6fe6ec76cfcaad67337d800af3acfc7f8432d1c751279806c073c09356d1743c"
+    },
+    {
+      "path": "dist/utils/oauthRedirect.js",
+      "sha256": "2c1c70240c9da7a09396e901194f87ea41e40f9a8ab7d917fc87d7ce9abfb823"
+    },
+    {
+      "path": "dist/utils/oauthResponse.js",
+      "sha256": "1bbd1a02fb08f5e36e03224e5943421fd10880df905da5cce91319a7f37a6eff"
+    },
+    {
+      "path": "dist/utils/origin.js",
+      "sha256": "60308447472f8c21a3c1c96e3c5a92c393ce445b954a0933b3ce718f0ee304dc"
+    },
+    {
+      "path": "dist/utils/performanceMonitor.js",
+      "sha256": "cc84d8861b9412186c39eb331d3197f38e55d2a797ec3208f4f0f5b84b2ea191"
+    },
+    {
+      "path": "dist/utils/personhoodDerive.js",
+      "sha256": "3d8796f5a975bd32dd788650cfd0a25c74c6aab76f18cab1f836028fc70f47f9"
+    },
+    {
+      "path": "dist/utils/placeholders.js",
+      "sha256": "a32a7276d0ad911939483a995e70be9579bbbc6fae76a481c96c8df68daec96c"
+    },
+    {
+      "path": "dist/utils/postgresErrors.js",
+      "sha256": "a9926bdc9c63b1d0099698917fea82ac0340e57ae3b246aebd808116cb76ca22"
+    },
+    {
+      "path": "dist/utils/privateOperatorFiles.js",
+      "sha256": "45e19c774a23e3693dd16f29ba3da8488c9f8c6173ccfdad95c5db3fe59fa93f"
+    },
+    {
+      "path": "dist/utils/profileColor.js",
+      "sha256": "8b9242a05924a32be40beddce07fbf2da079d659b0935e028f17910e4834ff7d"
+    },
+    {
+      "path": "dist/utils/profileQuery.js",
+      "sha256": "b0b4f5abd29a3e7dd915fc77e1e6411a28f9cdff784d14a7adfa18d34f86d101"
+    },
+    {
+      "path": "dist/utils/profileTextNormalization.js",
+      "sha256": "92afaebeec405de05a6324319766b459400451529c50414545c464ef4c1b7f82"
+    },
+    {
+      "path": "dist/utils/publicUserProjection.js",
+      "sha256": "0a4a2ccfafd789b56dcc9437fd72ad2cde2439858671a2f72b5965218e260a77"
+    },
+    {
+      "path": "dist/utils/queryString.js",
+      "sha256": "49d0abc371ec41dc9f680452d542895c28e03184f1a642b6e52deeb4a1528906"
+    },
+    {
+      "path": "dist/utils/recommendationWeights.js",
+      "sha256": "95434c64a2586708776f5c1e286acf184df4bee6809d02deb81d453e4ef51c91"
+    },
+    {
+      "path": "dist/utils/redirectAllowlist.js",
+      "sha256": "5f5c1485128e71ca883ef43829d10a2fec43ea5e2cc1dcd02d77042a780833d6"
+    },
+    {
+      "path": "dist/utils/redirectUris.js",
+      "sha256": "6d08eaf52fc8e7fc1c82f99e35c56f7c110773b6001fe6f34c67f804e44c8a46"
+    },
+    {
+      "path": "dist/utils/reputation.constants.js",
+      "sha256": "ff139770b1b60adbb986edf83c7868b923c20212990b3258b07e42124c32b593"
+    },
+    {
+      "path": "dist/utils/reputationDerive.js",
+      "sha256": "42711fe84f8fc273b37dc4e9b0ad1eb208b4cc08ecc461ea6b8c57744302bbbf"
+    },
+    {
+      "path": "dist/utils/resolveApplicationFromClientId.js",
+      "sha256": "171aa47b29b23dbbe9b9870b8f05c3791dbb6e80097079c19bde40262ed5e297"
+    },
+    {
+      "path": "dist/utils/resolveUserIdentifier.js",
+      "sha256": "bff0ed5cfab69c153d4a01996898bda5cba2fe8d15e60bfad56ddcd7a3e58f3a"
+    },
+    {
+      "path": "dist/utils/sanitize.js",
+      "sha256": "086421e1384405d10530691236c9ebed2972ad2cc13cb9c903857b2376b92574"
+    },
+    {
+      "path": "dist/utils/sanitizeUrl.js",
+      "sha256": "2d0e1c1640ba54440b69060ab6732a2d2eac726fe0553c2d91aa5f84e073b4ae"
+    },
+    {
+      "path": "dist/utils/secretBox.js",
+      "sha256": "1a0ae7fc86436d3a82863815488d88696bc700a27c132962912f3a3caffdcf62"
+    },
+    {
+      "path": "dist/utils/serializeApplication.js",
+      "sha256": "952801ce04644fa2708b433e42c59793f11c748d6291bee211ce89b2a6c15cf8"
+    },
+    {
+      "path": "dist/utils/serverKey.js",
+      "sha256": "a326f24d5aa36e1f47ad34f8264f3fb05d7a7a7cedf5ff7556bf6865ed89e73a"
+    },
+    {
+      "path": "dist/utils/serviceCredentialFinalization.js",
+      "sha256": "11f5626b549d8f81082da350310e5073d961b34761eb7e93553eb3e44e95ccd9"
+    },
+    {
+      "path": "dist/utils/serviceCredentialPendingReconciliation.js",
+      "sha256": "42572f4915d175957ef5b3df492a751cf19a96c4f3bb5522b2dd3144a504ec3a"
+    },
+    {
+      "path": "dist/utils/serviceCredentialScopeRotations.js",
+      "sha256": "39c43900e5db1a3b36befc4e079cf75e71fcde89d2497f92d00d43fe6e47811a"
+    },
+    {
+      "path": "dist/utils/serviceRateLimitKey.js",
+      "sha256": "4c5130adb1df4ad6c4fbc9dd126b9ed9a651a16c7c3814dfcc92b9809f89b795"
+    },
+    {
+      "path": "dist/utils/sessionCache.js",
+      "sha256": "f4aab7ef813236777c9183ec9fee85c80e41111de266a118f7dcccc390a74942"
+    },
+    {
+      "path": "dist/utils/sessionUtils.js",
+      "sha256": "1f62e54ea2da864dedd694b1d38512edf99edb628abcacc83477800966fe2c2a"
+    },
+    {
+      "path": "dist/utils/signInIdentifier.js",
+      "sha256": "9ef80cd8ce4bc0fbe40d211fa85cda5ddcb696ca7af14ace6cfa93a84267a292"
+    },
+    {
+      "path": "dist/utils/slashes.js",
+      "sha256": "55fdcff820ead443c00c3367bd0687f4b4f008d637cee31124da44dd7004e595"
+    },
+    {
+      "path": "dist/utils/socket.js",
+      "sha256": "152f27fdd3212d94e8ae5b41667fddc27345d3cbd02ea83f4c9eec13d0e16a40"
+    },
+    {
+      "path": "dist/utils/socketAuth.js",
+      "sha256": "414afb2d4d0f4fa938529cd70b9e103cbf7671b010c2bda0f9c91c6ce8d40768"
+    },
+    {
+      "path": "dist/utils/stripeClient.js",
+      "sha256": "231dc473ffe88fd19a3c59a270db8a35415a83045827919b69388e764928ed90"
+    },
+    {
+      "path": "dist/utils/subscriptionPlan.js",
+      "sha256": "133b6dda3a52c90bdd1957207fac2ad793fa93c18a604a2e58c6a54a39ee85b5"
+    },
+    {
+      "path": "dist/utils/subscriptionResponse.js",
+      "sha256": "38abac853b3e00f540739f0b092e818377b68ed862b8abe49d917eb8f2cf322c"
+    },
+    {
+      "path": "dist/utils/trustedApplication.js",
+      "sha256": "97178d13ce16c1ee580a07c6ceabdf627d2b628550adbf751bbb26989c0842ea"
+    },
+    {
+      "path": "dist/utils/userCache.js",
+      "sha256": "fa7fb72dcaf8e4544481c4b547ebb3316a915cafef3eff3086b9f9ba917621ff"
+    },
+    {
+      "path": "dist/utils/userCacheInvalidationSubscriber.js",
+      "sha256": "4bb71c35bbbf085e0b365105af0fd365e08521e1041467b2535974c08f347d94"
+    },
+    {
+      "path": "dist/utils/userTransform.js",
+      "sha256": "794038c8cc49adcc43a1f7c5ca9d0b047c870d35b2a99fc9151c8d403bd24dab"
+    },
+    {
+      "path": "dist/utils/username.js",
+      "sha256": "2a39d96b62fc4ece5f5df696de329f516392b347a56424fe2607d6f8f5e95652"
+    },
+    {
+      "path": "dist/utils/validation.js",
+      "sha256": "d06fe92b00757e8158513163a7d1143311ed3e45e13ed1be61df18eaf0768cfd"
+    }
+  ]
+}
