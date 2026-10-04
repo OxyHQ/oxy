@@ -1,0 +1,245 @@
+$ vitest run "src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts"
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1571-console-machine-key-alia-20261004/packages/api
+
+stderr | src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > /alia/chat admits only the canonical machine principal and forwards no human identity
+2026-10-04T16:21:32.922Z WARN [oxy.auth] refused INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'auth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT',
+  status: 401,
+  optional: true,
+  path: '/alia/chat'
+}
+2026-10-04T16:21:32.922Z WARN [oxy.auth] 401 after refusal INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'requireOxyAuth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT'
+}
+
+stderr | src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > /v1/chat/completions admits only the canonical machine principal and forwards no human identity
+2026-10-04T16:21:32.934Z WARN [oxy.auth] refused INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'auth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT',
+  status: 401,
+  optional: true,
+  path: '/v1/chat/completions'
+}
+2026-10-04T16:21:32.934Z WARN [oxy.auth] 401 after refusal INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'requireOxyAuth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT'
+}
+
+stderr | src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > does not enable machine keys on /v1/me
+2026-10-04T16:21:32.936Z WARN [oxy.auth] refused INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'auth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT',
+  status: 401,
+  optional: true,
+  path: '/v1/me'
+}
+2026-10-04T16:21:32.936Z WARN [oxy.auth] 401 after refusal INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'requireOxyAuth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT'
+}
+
+stderr | src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > does not enable machine keys on /v1/audio/speech
+2026-10-04T16:21:32.938Z WARN [oxy.auth] refused INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'auth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT',
+  status: 401,
+  optional: true,
+  path: '/v1/audio/speech'
+}
+2026-10-04T16:21:32.938Z WARN [oxy.auth] 401 after refusal INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'requireOxyAuth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT'
+}
+
+stderr | src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > does not manufacture a person from x-oxy-user-id
+2026-10-04T16:21:32.939Z WARN [oxy.auth] refused INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'auth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT',
+  status: 401,
+  optional: true,
+  path: '/alia/chat'
+}
+2026-10-04T16:21:32.940Z WARN [oxy.auth] 401 after refusal INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'requireOxyAuth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT'
+}
+
+stderr | src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > does not manufacture a person from x-oxy-requester-assertion
+2026-10-04T16:21:32.942Z WARN [oxy.auth] refused INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'auth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT',
+  status: 401,
+  optional: true,
+  path: '/alia/chat'
+}
+
+stderr | src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > fails closed without exposing a credential-bearing error
+2026-10-04T16:21:32.950Z WARN [oxy.auth] refused INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'auth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT',
+  status: 401,
+  optional: true,
+  path: '/alia/chat'
+}
+2026-10-04T16:21:32.950Z WARN [oxy.auth] 401 after refusal INVALID_TOKEN_FORMAT: Bearer credential is not a decodable JWT {
+  component: 'auth',
+  method: 'requireOxyAuth',
+  code: 'INVALID_TOKEN_FORMAT',
+  stage: 'token',
+  reason: 'Bearer credential is not a decodable JWT'
+}
+
+ ❯ src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts (10 tests | 7 failed) 54ms
+     × /alia/chat admits only the canonical machine principal and forwards no human identity 28ms
+     × /v1/chat/completions admits only the canonical machine principal and forwards no human identity 3ms
+     × does not enable machine keys on /v1/me 2ms
+     × does not enable machine keys on /v1/audio/speech 2ms
+     × does not manufacture a person from x-oxy-user-id 2ms
+     × does not manufacture a person from x-oxy-requester-assertion 2ms
+     × fails closed without exposing a credential-bearing error 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > /alia/chat admits only the canonical machine principal and forwards no human identity
+ FAIL  src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > /v1/chat/completions admits only the canonical machine principal and forwards no human identity
+AssertionError: expected 401 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 401
+
+ ❯ src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts:61:31
+     59|     it(`${route} admits only the canonical machine principal and forwa…
+     60|       const response = await send(route);
+     61|       expect(response.status).toBe(200);
+       |                               ^
+     62|       expect(await response.json()).toEqual({ principal, user: null, s…
+     63|       expect(introspect).toHaveBeenCalledWith(machineToken);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > does not enable machine keys on /v1/me
+ FAIL  src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > does not enable machine keys on /v1/audio/speech
+AssertionError: expected 401 to be 403 // Object.is equality
+
+- Expected
++ Received
+
+- 403
++ 401
+
+ ❯ src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts:67:84
+     65|   }
+     66|   it.each(['/v1/me', '/v1/audio/speech'])('does not enable machine key…
+     67|     expect((await send(route, {}, route.endsWith('/me') ? 'GET' : 'POS…
+       |                                                                                    ^
+     68|     expect(introspect).not.toHaveBeenCalled();
+     69|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > does not manufacture a person from x-oxy-user-id
+AssertionError: expected 401 to be 403 // Object.is equality
+
+- Expected
++ Received
+
+- 403
++ 401
+
+ ❯ src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts:71:79
+     69|   });
+     70|   it.each(['x-oxy-user-id', 'x-oxy-requester-assertion'])('does not ma…
+     71|     expect((await send('/alia/chat', { [header]: 'claimed-person' })).…
+       |                                                                               ^
+     72|     expect(handlerEntries).toBe(0);
+     73|     expect(introspect).not.toHaveBeenCalled();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > does not manufacture a person from x-oxy-requester-assertion
+AssertionError: expected 200 to be 403 // Object.is equality
+
+- Expected
++ Received
+
+- 403
++ 200
+
+ ❯ src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts:71:79
+     69|   });
+     70|   it.each(['x-oxy-user-id', 'x-oxy-requester-assertion'])('does not ma…
+     71|     expect((await send('/alia/chat', { [header]: 'claimed-person' })).…
+       |                                                                               ^
+     72|     expect(handlerEntries).toBe(0);
+     73|     expect(introspect).not.toHaveBeenCalled();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts > Console machine credential on the actual Alia HTTP auth entry > fails closed without exposing a credential-bearing error
+AssertionError: expected 401 to be 503 // Object.is equality
+
+- Expected
++ Received
+
+- 503
++ 401
+
+ ❯ src/middleware/__tests__/console-machine-key-entry.baseline-1571.test.ts:93:29
+     91|     introspect.mockRejectedValueOnce(new Error(machineToken));
+     92|     const response = await send('/alia/chat');
+     93|     expect(response.status).toBe(503);
+       |                             ^
+     94|     expect(await response.text()).not.toContain(machineToken);
+     95|     expect(handlerEntries).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 3 passed (10)
+   Start at  19:21:32
+   Duration  329ms (transform 41ms, setup 0ms, import 183ms, tests 54ms, environment 0ms)
+
+error: script "test" exited with code 1

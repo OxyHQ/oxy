@@ -1,0 +1,20 @@
+$ node --test worker/edge-checks.mjs && vitest run src/components/apps/__tests__/alia-machine-opt-in.test.tsx
+✔ frontend keeps asset streams, headers and errors when telemetry is disabled (15.655778ms)
+✔ enabled edge producer publishes actual media operations without a dashboard viewer (3.289337ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.34861
+
+ RUN  v4.1.11 /home/nate/Oxy/oxy/.worktrees/1571-alia-machine-principal-20261004/packages/console
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  19:33:08
+   Duration  2.24s (transform 185ms, setup 0ms, import 1.57s, tests 211ms, environment 370ms)
+
