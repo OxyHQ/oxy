@@ -1,0 +1,437 @@
+{
+  "schemaVersion": 1,
+  "kind": "root-only-final-consumer-frontends",
+  "preparedAt": "2026-10-04T03:51:11.795554+00:00",
+  "performed": "Read-only GitHub metadata, pinned workflow source, public client GETs; no enable/dispatch/Cloudflare write.",
+  "rows": [
+    {
+      "repository": "OxyHQ/Alia",
+      "main": "3904331b48e70bcb4560cd876f3aa5e7dc183ef0",
+      "ci": {
+        "id": 37167676080,
+        "name": "CI",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "3904331b48e70bcb4560cd876f3aa5e7dc183ef0",
+        "html_url": "https://github.com/OxyHQ/Alia/actions/runs/37167676080"
+      },
+      "workflow": {
+        "id": 246635202,
+        "path": ".github/workflows/deploy-frontends.yml",
+        "sourceSha256": "8cce916b1ead676a81a446936ee4a54670423fe817735299a64463a72be5da6c",
+        "currentState": "disabled_manually",
+        "originalState": "active",
+        "holdReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/00-Alia-246635202-intent.json",
+        "holdReceiptSha256": "338003c8b12a1705bc763f91e7990ae4c778480697b07971ac2ba1079b1618a3",
+        "closedManualSourceAndCIGuard": false
+      },
+      "client": {
+        "id": "oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3",
+        "applicationId": "6a2f851751b784a86fd0e934",
+        "binding": "source fallback used by app and canvas",
+        "publicMetadataStatus": 200,
+        "metadataObservedAt": "2026-10-04T03:30:16.310687+00:00",
+        "metadataSha256": "120a86d208dcba8489013198875bb57351506f5c47c12d82a6237e238fb0f308"
+      },
+      "publicApiOrigin": "https://api.alia.onl",
+      "commandsRootOnly": {
+        "enable": "gh workflow enable 246635202 --repo OxyHQ/Alia",
+        "dispatch": "gh workflow run 246635202 --repo OxyHQ/Alia --ref main"
+      },
+      "gates": [
+        "Fresh main equals pinned SHA and exact CI is still completed/success; no conflicting active run.",
+        "Root has accepted corresponding API/backend promotion before frontend dispatch.",
+        "Restore only this originally-active workflow, retain unrelated holds.",
+        "Verify dispatch run head_sha equals pinned SHA and successful upload/deployment artifact before public smoke.",
+        "Fetch public HTML and its exact JS/CSS; verify registered client and production API binding, no candidate/workspace aliases.",
+        "Visible SDK dialog and public route smoke; no invented account or production authentication material."
+      ]
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "main": "b7b3fc2c338feb82cf4b1e94c54be349a9203c0e",
+      "ci": {
+        "id": 37163246733,
+        "name": "CI",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "b7b3fc2c338feb82cf4b1e94c54be349a9203c0e",
+        "html_url": "https://github.com/OxyHQ/Clarity/actions/runs/37163246733"
+      },
+      "workflow": {
+        "id": 256392990,
+        "path": ".github/workflows/deploy.yml",
+        "sourceSha256": "3144eaa9dc56a8c52e35cd1b86a3cd6fa189871397d5b2e79636200274667df6",
+        "currentState": "disabled_manually",
+        "originalState": "active",
+        "holdReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/07-Clarity-256392990-intent.json",
+        "holdReceiptSha256": "287c9891e51b74c86a30773c03452d3cc5b878d86631eacdba172323e31ec5d3",
+        "closedManualSourceAndCIGuard": true
+      },
+      "client": {
+        "id": "oxy_dk_75cdd9996d19362e15ddedcc5ab0f4fb310de8d7b5e8523a",
+        "applicationId": "01a0646a-2382-74a3-a795-788924d55722",
+        "binding": "registered product client literal in layout",
+        "publicMetadataStatus": 200,
+        "metadataObservedAt": "2026-10-04T03:30:16.317122+00:00",
+        "metadataSha256": "411381bb704e8d5bee8bafbdce82ac3578ef10dc8022b2514c272058aeafadcf"
+      },
+      "publicApiOrigin": "https://api.clarity.surf",
+      "commandsRootOnly": {
+        "enable": "gh workflow enable 256392990 --repo OxyHQ/Clarity",
+        "dispatch": "gh workflow run 256392990 --repo OxyHQ/Clarity --ref main -f expected_sha=b7b3fc2c338feb82cf4b1e94c54be349a9203c0e -f ci_run_id=37163246733"
+      },
+      "gates": [
+        "Fresh main equals pinned SHA and exact CI is still completed/success; no conflicting active run.",
+        "Root has accepted corresponding API/backend promotion before frontend dispatch.",
+        "Restore only this originally-active workflow, retain unrelated holds.",
+        "Verify dispatch run head_sha equals pinned SHA and successful upload/deployment artifact before public smoke.",
+        "Fetch public HTML and its exact JS/CSS; verify registered client and production API binding, no candidate/workspace aliases.",
+        "Visible SDK dialog and public route smoke; no invented account or production authentication material."
+      ]
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "main": "ac5ebe5d30427cea6336c2819eec8f1312d8200b",
+      "ci": {
+        "id": 37168968634,
+        "name": "CI",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "ac5ebe5d30427cea6336c2819eec8f1312d8200b",
+        "html_url": "https://github.com/OxyHQ/Nilo/actions/runs/37168968634"
+      },
+      "workflow": {
+        "id": 282793657,
+        "path": ".github/workflows/deploy.yml",
+        "sourceSha256": "2e4f584f82742b2e1aa1fae24b0975c4b35b54289f41b1a92375861458367506",
+        "currentState": "disabled_manually",
+        "originalState": "active",
+        "holdReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/29-Nilo-282793657-intent.json",
+        "holdReceiptSha256": "bcc41be66ecc3f47274d87daa56a1dafe5c04d0126df1c59c71e38e206a9fd5e",
+        "closedManualSourceAndCIGuard": true
+      },
+      "client": {
+        "id": "oxy_dk_5a97e4ebc00e5268de90ee19490954b202ecd3ea2117f0e7",
+        "applicationId": "ed143b1b58d60eab417f7d5c",
+        "binding": "GitHub EXPO_PUBLIC_OXY_CLIENT_ID",
+        "publicMetadataStatus": 200,
+        "metadataObservedAt": "2026-10-04T03:30:16.300188+00:00",
+        "metadataSha256": "82222b87e3690b756fd2e4f53ad4ce2ec4a435e56c617dc0f0aa54b3d3545d32"
+      },
+      "publicApiOrigin": "https://api.nilo.so",
+      "commandsRootOnly": {
+        "enable": "gh workflow enable 282793657 --repo OxyHQ/Nilo",
+        "dispatch": "gh workflow run 282793657 --repo OxyHQ/Nilo --ref main -f expected_sha=ac5ebe5d30427cea6336c2819eec8f1312d8200b -f ci_run_id=37168968634"
+      },
+      "gates": [
+        "Fresh main equals pinned SHA and exact CI is still completed/success; no conflicting active run.",
+        "Root has accepted corresponding API/backend promotion before frontend dispatch.",
+        "Restore only this originally-active workflow, retain unrelated holds.",
+        "Verify dispatch run head_sha equals pinned SHA and successful upload/deployment artifact before public smoke.",
+        "Fetch public HTML and its exact JS/CSS; verify registered client and production API binding, no candidate/workspace aliases.",
+        "Visible SDK dialog and public route smoke; no invented account or production authentication material."
+      ]
+    },
+    {
+      "repository": "OxyHQ/Move",
+      "main": "5c9c819902ef530200382b53720b6edc8fd37f86",
+      "ci": {
+        "id": 37168791994,
+        "name": "CI",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "5c9c819902ef530200382b53720b6edc8fd37f86",
+        "html_url": "https://github.com/OxyHQ/Move/actions/runs/37168791994"
+      },
+      "workflow": {
+        "id": 367281369,
+        "path": ".github/workflows/deploy-frontends.yml",
+        "sourceSha256": "07ea80c00aa2f87ffdc1ce40118e6f10a730b01900d101345ff56013d05e24f1",
+        "currentState": "disabled_manually",
+        "originalState": "active",
+        "holdReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/move-workflow-hold/complete.json",
+        "holdReceiptSha256": "028f0406f93888cc06f1b5f4f2aab938b1c36dfb8d8df1519935212f1ceb29df",
+        "closedManualSourceAndCIGuard": true
+      },
+      "client": {
+        "id": "oxy_dk_e153bca818b231446c63539a59cbafc0076948c10453e77a",
+        "applicationId": "4bac8f1baed68fd02d65d592",
+        "binding": "GitHub EXPO_PUBLIC_OXY_CLIENT_ID",
+        "publicMetadataStatus": 200,
+        "metadataObservedAt": "2026-10-04T03:30:16.923641+00:00",
+        "metadataSha256": "12677da0d9b4e6f641a8f427886f1183394556cfd35287bef666cc5fd8b5b997"
+      },
+      "publicApiOrigin": "https://api.move.oxy.so",
+      "commandsRootOnly": {
+        "enable": "gh workflow enable 367281369 --repo OxyHQ/Move",
+        "dispatch": "gh workflow run 367281369 --repo OxyHQ/Move --ref main -f expected_sha=5c9c819902ef530200382b53720b6edc8fd37f86 -f ci_run_id=37168791994"
+      },
+      "gates": [
+        "Fresh main equals pinned SHA and exact CI is still completed/success; no conflicting active run.",
+        "Root has accepted corresponding API/backend promotion before frontend dispatch.",
+        "Restore only this originally-active workflow, retain unrelated holds.",
+        "Verify dispatch run head_sha equals pinned SHA and successful upload/deployment artifact before public smoke.",
+        "Fetch public HTML and its exact JS/CSS; verify registered client and production API binding, no candidate/workspace aliases.",
+        "Visible SDK dialog and public route smoke; no invented account or production authentication material.",
+        "Root must release existing OXY_1519_ROLLOUT_HOLD=true after Move backend acceptance; otherwise job is deliberately skipped."
+      ]
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "main": "bd4599b9a9fe205fb93b5ec221dc9d0e3b891ab5",
+      "ci": {
+        "id": 37168786543,
+        "name": "CI",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "bd4599b9a9fe205fb93b5ec221dc9d0e3b891ab5",
+        "html_url": "https://github.com/OxyHQ/Noted/actions/runs/37168786543"
+      },
+      "workflow": {
+        "id": 299591403,
+        "path": ".github/workflows/deploy-cloudflare.yml",
+        "sourceSha256": "6843f7465809c5278703555f6ec54a81f2160d1308b72858fefd288f8f9fd7c4",
+        "currentState": "disabled_manually",
+        "originalState": "active",
+        "holdReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/31-Noted-299591403-intent.json",
+        "holdReceiptSha256": "fb4bc2799bd675667c049eee17c106a6b3ca10b6269c4c7f4179f93b53e46b03",
+        "closedManualSourceAndCIGuard": false
+      },
+      "client": {
+        "id": "oxy_dk_6850133a8633e1941722ad912766db4c60985f1102eaf658",
+        "applicationId": "6a37b3e71ddfd195b65681d2",
+        "binding": "source fallback when missing or blank variable",
+        "publicMetadataStatus": 200,
+        "metadataObservedAt": "2026-10-04T03:30:16.922528+00:00",
+        "metadataSha256": "31dd29aca51f68195476fb11eb3ad585856332215a3704dbc2795812f2db32d0"
+      },
+      "publicApiOrigin": "https://api.noted.oxy.so",
+      "commandsRootOnly": {
+        "enable": "gh workflow enable 299591403 --repo OxyHQ/Noted",
+        "dispatch": "gh workflow run 299591403 --repo OxyHQ/Noted --ref main"
+      },
+      "gates": [
+        "Fresh main equals pinned SHA and exact CI is still completed/success; no conflicting active run.",
+        "Root has accepted corresponding API/backend promotion before frontend dispatch.",
+        "Restore only this originally-active workflow, retain unrelated holds.",
+        "Verify dispatch run head_sha equals pinned SHA and successful upload/deployment artifact before public smoke.",
+        "Fetch public HTML and its exact JS/CSS; verify registered client and production API binding, no candidate/workspace aliases.",
+        "Visible SDK dialog and public route smoke; no invented account or production authentication material."
+      ]
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "main": "a597619ff71497226bf80449732678c93e047a20",
+      "ci": {
+        "id": 37168245905,
+        "name": "CI",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "a597619ff71497226bf80449732678c93e047a20",
+        "html_url": "https://github.com/OxyHQ/Allo/actions/runs/37168245905"
+      },
+      "workflow": {
+        "id": 246810797,
+        "path": ".github/workflows/deploy-frontends.yml",
+        "sourceSha256": "32ce63eb5220af3bca16915255c75969708d3257d1f807cdf13c9beb767ebce7",
+        "currentState": "disabled_manually",
+        "originalState": "active",
+        "holdReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/03-Allo-246810797-intent.json",
+        "holdReceiptSha256": "175b5a54dfdcb15fc51d16f9499537ed87b348664d3333b2dd0ec2da9a2d4d44",
+        "closedManualSourceAndCIGuard": false
+      },
+      "client": {
+        "id": "oxy_dk_7b2fab6623e0ac753b38319664d4f0c6bb164e5fc219f60f",
+        "applicationId": "6a2f851751b784a86fd0e92b",
+        "binding": "source fallback",
+        "publicMetadataStatus": 200,
+        "metadataObservedAt": "2026-10-04T03:30:16.949759+00:00",
+        "metadataSha256": "fee6b7dd297b45abd2fa346965a23fc28ca29ed493941daa07c9ca272b1479ac"
+      },
+      "publicApiOrigin": "https://api.allo.you",
+      "commandsRootOnly": {
+        "enable": "gh workflow enable 246810797 --repo OxyHQ/Allo",
+        "dispatch": "gh workflow run 246810797 --repo OxyHQ/Allo --ref main"
+      },
+      "gates": [
+        "Fresh main equals pinned SHA and exact CI is still completed/success; no conflicting active run.",
+        "Root has accepted corresponding API/backend promotion before frontend dispatch.",
+        "Restore only this originally-active workflow, retain unrelated holds.",
+        "Verify dispatch run head_sha equals pinned SHA and successful upload/deployment artifact before public smoke.",
+        "Fetch public HTML and its exact JS/CSS; verify registered client and production API binding, no candidate/workspace aliases.",
+        "Visible SDK dialog and public route smoke; no invented account or production authentication material."
+      ]
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "main": "4d9e1ed843be0d22ec360933b76ccf63cb3c26ec",
+      "ci": {
+        "id": 37168533009,
+        "name": "CI",
+        "event": "push",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "4d9e1ed843be0d22ec360933b76ccf63cb3c26ec",
+        "html_url": "https://github.com/OxyHQ/Homiio/actions/runs/37168533009"
+      },
+      "workflow": {
+        "id": 246636761,
+        "path": ".github/workflows/deploy-frontends.yml",
+        "sourceSha256": "abf5b71a4322106151608405784b23193466fe9bb9388a2bc2228026993713f4",
+        "currentState": "disabled_manually",
+        "originalState": "active",
+        "holdReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/13-Homiio-246636761-intent.json",
+        "holdReceiptSha256": "fec4068c6c731e89e527fe66223873e8972f61c7297e35b81e86d9d5e91db521",
+        "closedManualSourceAndCIGuard": false
+      },
+      "client": {
+        "id": "oxy_dk_7d7b4924dcbfe16a245fb9c826b86d7bd43f0c5259c76ea1",
+        "applicationId": "6a2f851751b784a86fd0e922",
+        "binding": "GitHub production client overrides source fallback",
+        "publicMetadataStatus": 200,
+        "metadataObservedAt": "2026-10-04T03:30:17.512158+00:00",
+        "metadataSha256": "17f179f32fd9597cb72ba959f8133dd2b79e7a23280be08aef37c52aacf5f3b6"
+      },
+      "publicApiOrigin": "https://api.homiio.com",
+      "commandsRootOnly": {
+        "enable": "gh workflow enable 246636761 --repo OxyHQ/Homiio",
+        "dispatch": "gh workflow run 246636761 --repo OxyHQ/Homiio --ref main"
+      },
+      "gates": [
+        "Fresh main equals pinned SHA and exact CI is still completed/success; no conflicting active run.",
+        "Root has accepted corresponding API/backend promotion before frontend dispatch.",
+        "Restore only this originally-active workflow, retain unrelated holds.",
+        "Verify dispatch run head_sha equals pinned SHA and successful upload/deployment artifact before public smoke.",
+        "Fetch public HTML and its exact JS/CSS; verify registered client and production API binding, no candidate/workspace aliases.",
+        "Visible SDK dialog and public route smoke; no invented account or production authentication material."
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Alia/metadata.json",
+      "sha256": "49f2402b995cc0c2cbed6a2a16f5aa135d59e88339628803b8dc5f0a00822537"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Alia/deploy-frontends.yml",
+      "sha256": "8cce916b1ead676a81a446936ee4a54670423fe817735299a64463a72be5da6c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Alia/public-client-metadata.json",
+      "sha256": "120a86d208dcba8489013198875bb57351506f5c47c12d82a6237e238fb0f308"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/00-Alia-246635202-intent.json",
+      "sha256": "338003c8b12a1705bc763f91e7990ae4c778480697b07971ac2ba1079b1618a3"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Clarity/metadata.json",
+      "sha256": "621c5b0a059ea18f1db73503b662fe39f6fdfd17badec1fdf46f5263a0379a76"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Clarity/deploy.yml",
+      "sha256": "3144eaa9dc56a8c52e35cd1b86a3cd6fa189871397d5b2e79636200274667df6"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Clarity/public-client-metadata.json",
+      "sha256": "411381bb704e8d5bee8bafbdce82ac3578ef10dc8022b2514c272058aeafadcf"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/07-Clarity-256392990-intent.json",
+      "sha256": "287c9891e51b74c86a30773c03452d3cc5b878d86631eacdba172323e31ec5d3"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Nilo/metadata.json",
+      "sha256": "1ee8d5402c4afdfec3865d16ae4ae6dd6f9545efc37bc302caf15aa5683e6d37"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Nilo/deploy.yml",
+      "sha256": "2e4f584f82742b2e1aa1fae24b0975c4b35b54289f41b1a92375861458367506"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Nilo/public-client-metadata.json",
+      "sha256": "82222b87e3690b756fd2e4f53ad4ce2ec4a435e56c617dc0f0aa54b3d3545d32"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/29-Nilo-282793657-intent.json",
+      "sha256": "bcc41be66ecc3f47274d87daa56a1dafe5c04d0126df1c59c71e38e206a9fd5e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Move/metadata.json",
+      "sha256": "5ba066d32a700935a5db1dfea0f177f6fcf99968e0e5b7caa03963b7be542350"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Move/deploy-frontends.yml",
+      "sha256": "07ea80c00aa2f87ffdc1ce40118e6f10a730b01900d101345ff56013d05e24f1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Move/public-client-metadata.json",
+      "sha256": "12677da0d9b4e6f641a8f427886f1183394556cfd35287bef666cc5fd8b5b997"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/move-workflow-hold/complete.json",
+      "sha256": "028f0406f93888cc06f1b5f4f2aab938b1c36dfb8d8df1519935212f1ceb29df"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Noted/metadata.json",
+      "sha256": "21a9df5d150af2b5bdd42ae0f7af42fb0f7d9e2c950894b7db09b30ac2cdad65"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Noted/deploy-cloudflare.yml",
+      "sha256": "6843f7465809c5278703555f6ec54a81f2160d1308b72858fefd288f8f9fd7c4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Noted/public-client-metadata.json",
+      "sha256": "31dd29aca51f68195476fb11eb3ad585856332215a3704dbc2795812f2db32d0"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/31-Noted-299591403-intent.json",
+      "sha256": "fb4bc2799bd675667c049eee17c106a6b3ca10b6269c4c7f4179f93b53e46b03"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Allo/metadata.json",
+      "sha256": "cb4c9d4452101f0bf0a3419ff137ba1941c3bab05837342897ec7c3b99330e36"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Allo/deploy-frontends.yml",
+      "sha256": "32ce63eb5220af3bca16915255c75969708d3257d1f807cdf13c9beb767ebce7"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Allo/public-client-metadata.json",
+      "sha256": "fee6b7dd297b45abd2fa346965a23fc28ca29ed493941daa07c9ca272b1479ac"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/03-Allo-246810797-intent.json",
+      "sha256": "175b5a54dfdcb15fc51d16f9499537ed87b348664d3333b2dd0ec2da9a2d4d44"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Homiio/metadata.json",
+      "sha256": "1f5d29ef1e219a50dd2c0fa3463daa34bb79eaed760764db2229c4b2368b2384"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Homiio/deploy-frontends.yml",
+      "sha256": "abf5b71a4322106151608405784b23193466fe9bb9388a2bc2228026993713f4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-frontend-release-handoff-20261004/Homiio/public-client-metadata.json",
+      "sha256": "17f179f32fd9597cb72ba959f8133dd2b79e7a23280be08aef37c52aacf5f3b6"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/consumer-workflow-hold-preflight-2110/execution/13-Homiio-246636761-intent.json",
+      "sha256": "fec4068c6c731e89e527fe66223873e8972f61c7297e35b81e86d9d5e91db521"
+    }
+  ],
+  "limits": [
+    "All claims describe observed pins, not deployment completion. Root must refresh before execution.",
+    "Alia/Noted/Allo/Homiio canonical manual workflows have no in-workflow exact CI input gate; root external head/run verification remains required.",
+    "Homiio unrelated Dependabot run failure is not the successful pinned main CI; retained raw metadata contains both.",
+    "No secret was read or copied. Client IDs and API origins are public."
+  ]
+}

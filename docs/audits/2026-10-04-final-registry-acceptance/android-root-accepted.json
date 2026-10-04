@@ -1,0 +1,137 @@
+{
+  "kind": "root-final-registry-native-replay-v1",
+  "accepted": true,
+  "at": "2026-10-04T03:32:43.479035+00:00",
+  "device": "emulator-5580",
+  "fixtureOnly": true,
+  "scenarios": {
+    "running": {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/running/actions.jsonl",
+      "sha256": "8a01774c72767233b7fce414aa648e620211e693f26ae64fa70541f8294427a1",
+      "completedAt": "2026-10-04T03:09:30.242321+00:00"
+    },
+    "warm": {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/warm/actions.jsonl",
+      "sha256": "1674b210197125c21506b249a059556554cce04b854224015e7fd2690c5aa72b",
+      "completedAt": "2026-10-04T03:14:16.052947+00:00"
+    },
+    "stopped": {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/stopped/actions.jsonl",
+      "sha256": "3d6ddb8d63b68870f4dbe06706603d49ea2a488b1f7e924670d112c7a2d084f8",
+      "completedAt": "2026-10-04T03:28:45.962079+00:00"
+    },
+    "warm-logout-denial": {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/warm-logout-denial/actions.jsonl",
+      "sha256": "a549bbbd2854013931bb3a5720081c9b55880500e2d10111482cbd907c217748",
+      "completedAt": "2026-10-04T03:15:14.644512+00:00"
+    },
+    "stopped-denial": {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/stopped-denial/actions.jsonl",
+      "sha256": "c0b2901b3e7159f2bc9783d9464854935db6f9808282a78619e17f577dd2251b",
+      "completedAt": "2026-10-04T03:29:56.316158+00:00"
+    }
+  },
+  "freshUIProfileReads": [
+    {
+      "scenario": "running",
+      "uiExpectedUser": "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+      "from": "2026-10-04T03:07:52.500608+00:00",
+      "to": "2026-10-04T03:07:58.919742+00:00",
+      "observedProfileGETs": 1
+    },
+    {
+      "scenario": "running",
+      "uiExpectedUser": "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+      "from": "2026-10-04T03:08:12.041960+00:00",
+      "to": "2026-10-04T03:08:18.926777+00:00",
+      "observedProfileGETs": 1
+    },
+    {
+      "scenario": "running",
+      "uiExpectedUser": "01a100f9-45fa-7422-93b5-69855a040250",
+      "from": "2026-10-04T03:08:23.896532+00:00",
+      "to": "2026-10-04T03:08:30.285106+00:00",
+      "observedProfileGETs": 3
+    },
+    {
+      "scenario": "running",
+      "uiExpectedUser": "01a100f9-45fa-7422-93b5-69855a040250",
+      "from": "2026-10-04T03:08:32.590591+00:00",
+      "to": "2026-10-04T03:08:39.052529+00:00",
+      "observedProfileGETs": 1
+    },
+    {
+      "scenario": "running",
+      "uiExpectedUser": "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+      "from": "2026-10-04T03:08:43.539717+00:00",
+      "to": "2026-10-04T03:08:50.301048+00:00",
+      "observedProfileGETs": 1
+    },
+    {
+      "scenario": "running",
+      "uiExpectedUser": "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+      "from": "2026-10-04T03:08:52.630760+00:00",
+      "to": "2026-10-04T03:08:59.087597+00:00",
+      "observedProfileGETs": 1
+    },
+    {
+      "scenario": "warm",
+      "uiExpectedUser": "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+      "from": "2026-10-04T03:13:53.395875+00:00",
+      "to": "2026-10-04T03:13:59.698983+00:00",
+      "observedProfileGETs": 1
+    },
+    {
+      "scenario": "warm",
+      "uiExpectedUser": "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+      "from": "2026-10-04T03:14:02.105396+00:00",
+      "to": "2026-10-04T03:14:08.402704+00:00",
+      "observedProfileGETs": 1
+    },
+    {
+      "scenario": "stopped",
+      "uiExpectedUser": "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+      "from": "2026-10-04T03:28:12.671527+00:00",
+      "to": "2026-10-04T03:28:18.977813+00:00",
+      "observedProfileGETs": 1
+    },
+    {
+      "scenario": "stopped",
+      "uiExpectedUser": "01a100f9-45f0-70b1-9a52-a35bbad8c3b7",
+      "from": "2026-10-04T03:28:21.221466+00:00",
+      "to": "2026-10-04T03:28:27.637008+00:00",
+      "observedProfileGETs": 1
+    }
+  ],
+  "coldWindows": [
+    {
+      "scenario": "running",
+      "app": "mention",
+      "from": "2026-10-04T03:09:07.679977+00:00",
+      "to": "2026-10-04T03:09:18.895555+00:00",
+      "challengeOrVerifyObserved": 0
+    },
+    {
+      "scenario": "running",
+      "app": "allo",
+      "from": "2026-10-04T03:09:18.899071+00:00",
+      "to": "2026-10-04T03:09:30.238483+00:00",
+      "challengeOrVerifyObserved": 0
+    },
+    {
+      "scenario": "stopped",
+      "app": "mention",
+      "from": "2026-10-04T03:28:32.841303+00:00",
+      "to": "2026-10-04T03:28:45.949940+00:00",
+      "challengeOrVerifyObserved": 0
+    }
+  ],
+  "identitySignerAndSecureStoreUnchanged": true,
+  "ownedPathObserverStopped": true,
+  "limits": [
+    "Emulator fixture apps, not human production account use",
+    "Path capture shared with concurrent web fixtures; traffic not uniquely attributable to each app",
+    "Response statuses were not captured; fresh profile acceptance uses completed SDK UI sequence and expected account, with GET observed in matching windows",
+    "Native legacy corruption coverage not rerun in this replay"
+  ]
+}

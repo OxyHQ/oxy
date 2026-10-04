@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "kind": "published-registry-web-native-root-acceptance",
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-final-registry-acceptance/web-root-accepted.json",
+      "sha256": "37c0123abfe85ff96aefc1eb72cf1368595e3954363172d566f99430e9aae88e",
+      "operatorReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-registry-web-accepted.json"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-acceptance/android-root-accepted.json",
+      "sha256": "99bec5e75b3d0adee929c35f0392cdffd39919ec7fb8ef6bdab88398467f48f1",
+      "operatorReceipt": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/accepted.json"
+    },
+    {
+      "privatePath": "/home/nate/Oxy/.agent-evidence/i04-registry-web-proof-self-review-20261004/review.json",
+      "sha256": "bd6ea5120cba3aebc8c7fdc1e87196f87fc711d5e1a7b2e8f41aa9fecbf8c8f4"
+    },
+    {
+      "privatePath": "/home/nate/Oxy/.agent-evidence/i04-registry-web-proof-self-review-20261004/runtime-current.json",
+      "sha256": "10c8734f5d217a5a21eeeadb8856fbdf395833c37aeab47cda550406dc4a9de9"
+    }
+  ],
+  "artifacts": "Native source/APKs/bundles and registry resolvers remain bound by ../2026-10-04-final-registry-native-build/proof.json; web proofs remain unchanged.",
+  "operator": "Root only; this commit copies metadata receipts, no new runtime operation.",
+  "limits": [
+    "Local synthetic API/IdP and emulator5580, no real customer identity or Pixel.",
+    "Third-party browser retains approved asset-only routing and local-network permission limitation.",
+    "Android path observation shared with web; statuses not captured; completed SDK UI sequence plus matching GET windows proves fresh reads.",
+    "AND03 corruption historical acceptance was not rerun with registry artifacts."
+  ]
+}

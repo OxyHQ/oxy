@@ -1,0 +1,60 @@
+{
+  "accepted": true,
+  "at": "2026-10-04T03:35:22.723398+00:00",
+  "scope": "Published registry SDK local fixture first-party and third-party acceptance",
+  "proofs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/audits/2026-10-04-final-registry-web-replay/proof.json",
+      "sha256": "beb2d982c946d3fd4ff7bc8ab875fc201f333206cedf741f2fe7657bb0a5df99",
+      "assertions": {
+        "realPasswordSignIn": true,
+        "explicitSecondHolderJoin": true,
+        "orgSwitchBothFreshProfiles": true,
+        "partialLogoutPersonFallbackWithoutReload": true,
+        "fullLogoutBothAndReloadSignedOut": true,
+        "explicitFreshProfileReads": 6,
+        "observedSuccessfulUsersMeGets": 8,
+        "cookies": 0,
+        "postLogoutAutomaticChallengeVerify": 0,
+        "browserClosed": true,
+        "thirdPartySharedListenersUntouched": true
+      },
+      "limits": [
+        "Synthetic owned local API/IdP authority, not production client acceptance.",
+        "First-party registry browser replay only; third-party callback replay pending safe listener handover.",
+        "Native build/export is separate; root device replay pending.",
+        "Preserved fixture clears the SDK response cache before profile reads; six explicit reads require actual HTTP responses."
+      ]
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/docs/audits/2026-10-04-final-registry-third-party-replay/proof.json",
+      "sha256": "242b70a11571483303f8b597d5718d78a7f925c22e437a4f5061d7faaabb4701",
+      "assertions": {
+        "cancelLeavesSignedOut": true,
+        "realPasswordAccountSelectionOAuthTokenAndProfile": true,
+        "grantRevokeThenRealConsentPrompt": true,
+        "sameSubjectConsentSuccess": true,
+        "differentSubjectConsentRejectedOriginalSubjectFreshProfile": true,
+        "logoutThenReloadSignedOut": true,
+        "cookies": 0,
+        "registryModuleCount": 916,
+        "allServedArtifactBytesPinned": true,
+        "sharedAuthorityAndThirdPartyListenersUntouched": true,
+        "ownBrowserAndTransportClosed": true
+      },
+      "limits": [
+        "Synthetic local API/IdP authority; not production callback transport acceptance.",
+        "Grant removal re-presented consent, but an already-issued session still read its profile; no immediate session-invalidation claim.",
+        "Post-mismatch first500ms observation was too early; second observation waited2500ms and confirmed original subject after fresh GET.",
+        "Initial static build lacked client environment and artifact binding refused it; fresh unchanged-source build embedded registered client a.",
+        "Initial Chromium context refused loopback before auth; scoped browser permission resolved this transport-only prerequisite.",
+        "IdP dev server emitted preserved CSS HMR/createRoot warnings; no product workaround or source edit applied.",
+        "Malformed state/expired code/PKCE protocol negatives remain covered by earlier byte-identical SDK/API fixtures; this replay adds real cancel and subject-mismatch negatives."
+      ]
+    }
+  ],
+  "thirdPartyArtifactFilesVerified": 108,
+  "servedResponsesVerified": 12,
+  "transportLimitationAccepted": "Only browser RP static GET routing to byte-pinned artifact; real API/IdP and callback origin/PKCE unmodified. Not production client acceptance.",
+  "nativeReplaySeparate": "android-registry-final-0300/accepted.json"
+}
