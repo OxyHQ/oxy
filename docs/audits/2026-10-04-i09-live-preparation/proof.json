@@ -1,0 +1,168 @@
+{
+  "sourceHead": "0185a8db93695a9c6feda9f3b2b5fc98c5f9df9d",
+  "sources": [
+    {
+      "path": "scripts/operations/i09-live/README.md",
+      "sha256": "2cfc1fa92f0be77597ff7d56de7b45f6db45b6c6ad5ed98fe6bd98bcdc1ab267"
+    },
+    {
+      "path": "scripts/operations/i09-live/baseline-ecs.py",
+      "sha256": "27edea7dca985cded4bace7511c38608ab685d27ac6cdee9c10d5e9d12e6013b"
+    },
+    {
+      "path": "scripts/operations/i09-live/canary-reconciliation.mjs",
+      "sha256": "ed28197861dac118908e187bf5706aecab10238839adbc13b67ff6af6384099a"
+    },
+    {
+      "path": "scripts/operations/i09-live/canary-reconciliation.test.mjs",
+      "sha256": "a15da5742f9d31e8c7ce2f1f35a2dc6707b695e5d6c02772e804b8f4c20feed9"
+    },
+    {
+      "path": "scripts/operations/i09-live/decode-i09-result.py",
+      "sha256": "fbf971c59110fd85c5bb76fa62955b3dfb7db5989e0a7150ab5a053ffeaf9b63"
+    },
+    {
+      "path": "scripts/operations/i09-live/decoder.test.py",
+      "sha256": "092daa7b64fb17f337eea449afacced72674369d599c143d1e6e66a97c0447bb"
+    },
+    {
+      "path": "scripts/operations/i09-live/observation.test.mjs",
+      "sha256": "36665781dc0bfa874f16e344e4c420d71b80df7d4a8c00ce3ac4fb16f1e618ae"
+    },
+    {
+      "path": "scripts/operations/i09-live/oxy-inference-credential.js",
+      "sha256": "e285c443351502cd28a237fecd0d3c6e7eb672353370b5f6d691d0026ec61641"
+    },
+    {
+      "path": "scripts/operations/i09-live/oxy-inference-credential.source.ts",
+      "sha256": "d2c0b0c949afd49cffd0442c0c8b1798c64bef483bab2941492d646ccea836d7"
+    },
+    {
+      "path": "scripts/operations/i09-live/pilot-canary.mjs",
+      "sha256": "c71cf9e81edeb6c7ff254026c485afda9a56947223e75c84aad6bb62e0a95ece"
+    },
+    {
+      "path": "scripts/operations/i09-live/pilot-canary.original.mjs",
+      "sha256": "c221e874e40e927ef43347c06789eab14034c0a0e42b2c1ecbac4b4117b24d95"
+    },
+    {
+      "path": "scripts/operations/i09-live/pilot-canary.test.mjs",
+      "sha256": "f5c9cdb1c8bfc5496b614d9d34e4d8a7ae95c7e563c39cbe3ff9f35af9c49084"
+    },
+    {
+      "path": "scripts/operations/i09-live/prepare-observation.py",
+      "sha256": "42c587af906d87e54c82de191a6069a2cef50c9d314e0f384f90a04432aeeafe"
+    },
+    {
+      "path": "scripts/operations/i09-live/read-canary-observation.mjs",
+      "sha256": "7ce99cbb63e28a3aaba5ce1be19e35afc5944015d38aa30b156d2bbaf25c4fcf"
+    },
+    {
+      "path": "scripts/operations/i09-live/stage-inference-credential.mjs",
+      "sha256": "d96a8248f49e5036a14f25cfe41b2397e80de695a7d00675af128554aa0b05c4"
+    },
+    {
+      "path": "scripts/operations/i09-live/stage-inference-credential.test.mjs",
+      "sha256": "9b0c25943ac134f59ac1dbd60518c2d21d2fcb9111b91ba7cd5a7f15c7b32eb3"
+    },
+    {
+      "path": "scripts/operations/i09-live/test-baseline-ecs.py",
+      "sha256": "d370d57738c66ce07fc86f8ebf9d9c0c1f3884666eda07404fdb7287c7342696"
+    },
+    {
+      "path": "scripts/operations/i09-live/test-prepared-definitions.py",
+      "sha256": "5e8a01f9ab8d3e46fa849a564151b8a0998e171c421854d27dd5fc644aaa7592"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/baseline-transport.log",
+      "sha256": "85bdb3d23316195a7aad16b696a688d839cd6f3a8ddf856daed46f675b993098"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/decoder.log",
+      "sha256": "c4f94e052808452595a4572640a056a76265936d69e4163672c31cc637d57f92"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/definitions.log",
+      "sha256": "73da6dadbfde00f263596fa3cd559b72d980305411498f5f6eb946c3b7c83f44"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/observation-sql-initial-fixture-array.log",
+      "sha256": "b177988b905dc85f511858774b2c8b2053dca5995e95e70b14faa63621a8f86c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/observation-sql.log",
+      "sha256": "876ec49c186c601ee10f1a8938cd0cd65ba9f3b4a815f113ecbe664ef8ae7acd"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/operators.log",
+      "sha256": "537938e320f8dc3b6c68f13d9090e4d7e7cefce085605d37a8e6cd7d375a9393"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/stage-inference-tests-initial-cleanup-order.log",
+      "sha256": "5e28af34f048694b8858c36785a317dfa10afd0cf3d5e62a5231a24223265cb0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/stage-inference-tests.log",
+      "sha256": "6f4a44426807e977c6e68484aa6a8e5f7b78a1f7d49c474e823f9fe26805cd9d"
+    }
+  ],
+  "privateInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readiness-run/receipt.json",
+      "sha256": "c09305460dc2ba4b582b4aaac3280fa3dbc1773543e42ca5b28f5233b3edbfc2"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readiness-run/cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readiness-run/result.private.json",
+      "sha256": "0578ee5527b0f75b5c70b743b44a7b60d6c6a701d95451c897991a8ba1b18688"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/related-run/receipt.json",
+      "sha256": "f57d8be9423a733ee5286dd63099ade2981f80ffc55f7e77ee0da1f274e5bf62"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/related-run/cleanup.json",
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/related-run/result.private.json",
+      "sha256": "7fc3072620f9240b3482813d7c7550b8c89b06acb9f97d8516ef0dffed9b08d4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/operation-v3/plan.json",
+      "sha256": "fe6670dc3557ec1258206a28ab65ea4dff3d3e18e8f209a704ff6a16f1574a17"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/operation-v3/baseline-definition.json",
+      "sha256": "9a572318bfa7a18706c3e7ff3b7fc8905bd9e797bd077fb56e58dae1ded4a818"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/operation-v3/caller-definition.json",
+      "sha256": "13bc1fd519fae212987b959fae05283de558bcaf5c39b9560bb66e63338599ad"
+    }
+  ],
+  "validation": {
+    "baselineTransport": 10,
+    "jwtAuthorityAndIntent": 9,
+    "reconciliation": 7,
+    "sqlObservation": 4,
+    "staging": 3,
+    "generatedEntrypoints": 3,
+    "resultDecoderControls": 5,
+    "liveInferenceExecuted": false,
+    "localPgPidGone": 658888,
+    "preparedDefinitionsAreNotExecutionReceipts": true
+  },
+  "limits": [
+    "Original fixture array-prototype equality failure is retained separately; four SQL controls passed after assertion correction.",
+    "Initial staging fixture cleanup-order failure retained separately; three controls passed after fixture correction.",
+    "No live inference, feed replay, registry attestation or task creation performed by this preparation.",
+    "Exact Alia source compiled to standalone ESM is staged without changing the deployed index.js.",
+    "Baseline launcher handles only the read-only SQL/signed exact registry query phase; caller/post require separately reviewed operator transport."
+  ]
+}

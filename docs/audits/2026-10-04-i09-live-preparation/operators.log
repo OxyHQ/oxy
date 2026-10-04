@@ -1,0 +1,24 @@
+✔ canonical exact attestation keeps missing parameter declaration unknown (1.175291ms)
+✔ attestation refuses missing/duplicate/foreign identities and contract (0.317189ms)
+✔ feed reads bounded pages with exact request filtering (0.174416ms)
+✔ feed refuses nonadvancing cursor and bounded absence (0.215175ms)
+✔ settled exact operation rejects duplicate key, wrong authority, money changes (0.995509ms)
+✔ replay calls canonical writer once only after exact authenticated facts match (0.315282ms)
+✔ foreign or altered feed cannot write, unexpected insert cannot pass (0.207072ms)
+✔ real signed token and bounded HTTP response, exact intent repeated without token/text output (17.639868ms)
+✔ wrong owner never invokes inference (0.867718ms)
+✔ wrong workload never invokes inference (0.487826ms)
+✔ wrong app never invokes inference (0.443862ms)
+✔ wrong environment never invokes inference (0.51157ms)
+✔ missing scope never invokes inference (0.429331ms)
+✔ old lifetime never invokes inference (0.473951ms)
+✔ first refusal does not retry or silently choose another intent (1.262348ms)
+✔ bad signature never invokes inference (0.761719ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.769649

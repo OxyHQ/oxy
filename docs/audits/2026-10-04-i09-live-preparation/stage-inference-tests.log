@@ -1,0 +1,11 @@
+✔ stages reviewed bytes, imports canonical factory with installed SDK and deletes only owned file (101.278942ms)
+✔ refuses bytes drift, existing path and changed owned bytes without replacing another file (0.719281ms)
+✔ unchanged factory performs one real loopback canonical mint through installed OxyServer; no provider (27.433577ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 189.153594

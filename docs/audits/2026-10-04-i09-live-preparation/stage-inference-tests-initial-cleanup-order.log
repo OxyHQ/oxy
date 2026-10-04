@@ -1,0 +1,41 @@
+✔ stages reviewed bytes, imports canonical factory with installed SDK and deletes only owned file (135.431214ms)
+✔ refuses bytes drift, existing path and changed owned bytes without replacing another file (1.004839ms)
+✖ unchanged factory performs one real loopback canonical mint through installed OxyServer; no provider (27.333775ms)
+
+Interrupted while running:
+
+⚠ /home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.test.mjs (../.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.test.mjs:1:1)
+✖ /home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.test.mjs (34545.117958ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 2
+ℹ fail 1
+ℹ cancelled 1
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 34549.677455
+
+✖ failing tests:
+
+test at ../.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.test.mjs:7:1
+✖ unchanged factory performs one real loopback canonical mint through installed OxyServer; no provider (27.333775ms)
+  Error: ENOENT: no such file or directory, lstat '/tmp/i09-factory-A6x0R4/oxy1519-e285c443351502cd28a237fecd0d3c6e7eb672353370b5f6d691d0026ec61641-oxy-inference-credential.js'
+      at lstatSync (node:fs:1770:25)
+      at verify (file:///home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.mjs:44:21)
+      at Object.cleanup (file:///home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.mjs:54:7)
+      at TestContext.<anonymous> (file:///home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.test.mjs:7:219)
+      at TestHook.runInAsyncScope (node:async_hooks:227:14)
+      at TestHook.run (node:internal/test_runner/test:1402:25)
+      at TestHook.run (node:internal/test_runner/test:1757:18)
+      at TestHook.run (node:internal/util:581:20)
+      at Test.runHook (node:internal/test_runner/test:1289:20)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'lstat',
+    path: '/tmp/i09-factory-A6x0R4/oxy1519-e285c443351502cd28a237fecd0d3c6e7eb672353370b5f6d691d0026ec61641-oxy-inference-credential.js'
+  }
+
+test at ../.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.test.mjs:1:1
+✖ /home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/stage-inference-credential.test.mjs (34545.117958ms)
+  'Promise resolution is still pending but the event loop has already resolved'

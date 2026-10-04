@@ -1,0 +1,2 @@
+{"prepared": true, "path": "/tmp/i09-definitions-kcdgcqk3/op", "planSha256": "fe6670dc3557ec1258206a28ab65ea4dff3d3e18e8f209a704ff6a16f1574a17"}
+I09 3 generated entrypoints syntax PASS; minimal authority, unchanged factory, exact source hashes, wrong intent rejection PASS; no network/mutations
