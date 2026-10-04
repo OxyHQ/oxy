@@ -12,6 +12,7 @@ jest.mock('../../utils/logger', () => ({ logger: { warn: jest.fn(), error: jest.
 jest.mock('../../utils/socket', () => ({ broadcastDeviceState: jest.fn(), broadcastSessionAccountsChanged: jest.fn() }));
 
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
+import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 import { applications, applicationCredentials, users } from '../../db/schema';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
@@ -21,6 +22,10 @@ import internalRouter from '../internal';
 let server: http.Server;
 let origin: string;
 let receiver: { applicationId: string; credentialId: string; ownerAccountId: string };
+const originalDatabaseUrl = process.env.DATABASE_URL;
+let ownDatabaseUrl: string | undefined;
+
+jest.setTimeout(60_000);
 
 async function owner(): Promise<string> {
   const [row] = await getDb().insert(users).values({}).returning({ id: users.id });
@@ -51,6 +56,9 @@ function receiverToken(applicationId = receiver.applicationId): string {
 }
 
 beforeAll(async () => {
+  // The canonical resource ID is fixed; another suite may already own that ID
+  // in the worker database. Keep this receiver and its credentials isolated.
+  ownDatabaseUrl = await createTestDatabase();
   await connectPostgres();
   const ownerAccountId = await owner();
   await getDb().insert(applications).values({
@@ -71,8 +79,17 @@ beforeAll(async () => {
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 afterAll(async () => {
-  await new Promise<void>(resolve => server.close(() => resolve()));
-  await closePostgres();
+  try {
+    if (server) await new Promise<void>(resolve => server.close(() => resolve()));
+    await closePostgres();
+  } finally {
+    try {
+      if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+    } finally {
+      if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = originalDatabaseUrl;
+    }
+  }
 });
 
 function resourceClient() {
