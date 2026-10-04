@@ -820,6 +820,14 @@ jobs:
         run: |
           bun scripts/test-check-dependency-audit.mjs
           bun scripts/test-forge-audit-policy.mjs
+      - name: 'Native Expo crypto: sealed fork and compatibility checks'
+        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
+        run: |
+          python3 scripts/verify-native-expo-forks.py
+          PYTHONDONTWRITEBYTECODE=1 python3 scripts/test-verify-native-expo-forks.py
+          bun install --cwd tooling/expo-code-signing-native --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+          bun run --cwd tooling/expo-code-signing-native test
+          node scripts/forge-independent-expo-compat.cjs packages/api
       # INACTIVE skips both steps. A future reviewed source policy needs installed
       # byte inventory and authenticated GETs; this token proves service access,
       # never a human decision. No patch script or dependency hook runs here.

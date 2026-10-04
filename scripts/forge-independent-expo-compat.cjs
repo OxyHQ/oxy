@@ -7,7 +7,6 @@ const expoEntry = require.resolve('@expo/code-signing-certificates', {
   paths: [path.resolve(process.argv[2] || 'packages/api')],
 });
 const expo = require(expoEntry);
-const forge = require(require.resolve('node-forge', { paths: [path.dirname(expoEntry)] }));
 const pair = expo.generateKeyPair();
 const other = expo.generateKeyPair();
 const pem = expo.convertKeyPairToPEM(pair);
