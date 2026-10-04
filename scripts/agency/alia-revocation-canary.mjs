@@ -106,6 +106,7 @@ export async function executeCanary({apiPackage,plan,operator,signal,canaryModul
     const credentialExpiresAtMillis=expiryMillis(plan.expiresAt);
     const issueClock=await databaseClock(m);
     requireRemaining(credentialExpiresAtMillis,issueClock,ISSUE_REMAINING_MS);
+    stopIfAborted();
     // Set before the await: uncertain commit must still reconcile/retire by exact ID.
     issued=true;await m.canary.issueAliaRevocationCanary(plan,m.material.credentialVerifier(material),operator);
     stopIfAborted();const {bearer,expiresAtMillis:bearerExpiresAtMillis}=await mintBearer(material,plan);stopIfAborted();

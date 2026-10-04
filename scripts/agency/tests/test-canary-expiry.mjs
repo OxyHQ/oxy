@@ -13,7 +13,7 @@ const source=resolve(process.argv[2]);
 const psql='/usr/lib/postgresql/17/bin/psql';
 const sql=query=>execFileSync(psql,['-X','-h','127.0.0.1','-p','5628','-U','oxy','-d',process.env.EXPIRY_FIXTURE_DATABASE,'-v','ON_ERROR_STOP=1','-Atc',query],{encoding:'utf8'}).trim();
 assert.match(process.env.EXPIRY_FIXTURE_DATABASE??'',/^canary_expiry_[a-f0-9]{16}$/);
-let offset=0,mode='',issued=0,revoked=0,clockReads=0,probes=0;
+let offset=0,mode='',issued=0,revoked=0,clockReads=0,probes=0,controller;
 const now=()=>Number(sql(`SELECT floor(extract(epoch FROM clock_timestamp())*1000 + ${offset})::bigint`));
 const id='aaaaaaaa-1111-4111-8111-111111111111';
 const fixtureService={
@@ -24,7 +24,7 @@ const fixtureService={
  async retireAliaCanaryAfterTaskFailure(){sql(`UPDATE owned_credential SET status='revoked' WHERE id='${id}'`);return{credentialId:id,retired:true,exists:true};},
 };
 const db={async connectPostgres(){},async closePostgres(){},getDb(){return{
- async execute(){clockReads++;return[{nowMillis:String(now())}];},
+ async execute(){clockReads++;const value=now();if(mode==='cancel-clock'&&clockReads===1)controller.abort();return[{nowMillis:String(value)}];},
  select(){return{from(){return{async where(){return[{status:sql(`SELECT status FROM owned_credential WHERE id='${id}'`)}]}}}}},
 };}};
 function fork(){const child=new EventEmitter();child.exitCode=null;
@@ -59,8 +59,8 @@ await actual.link(async name=>{
 });await actual.evaluate();
 let checks=0;
 async function run(name,seconds=300){offset=0;mode=name;issued=revoked=clockReads=probes=0;sql('TRUNCATE owned_credential');
- const start=now(),plan={applicationId:'fixture-app',ownerAccountId:'fixture-owner',credentialId:id,nonce:'b'.repeat(24),principalId:'existing-fixture-grant',expiresAt:new Date(start+seconds*1000).toISOString()};
- const result=await actual.namespace.executeCanary({apiPackage:'/fixture/api/package.json',plan,operator:{operatorArn:'fixture-operator',authorizationSha256:'a'.repeat(64)}});
+ controller=new AbortController();const start=now(),plan={applicationId:'fixture-app',ownerAccountId:'fixture-owner',credentialId:id,nonce:'b'.repeat(24),principalId:'existing-fixture-grant',expiresAt:new Date(start+seconds*1000).toISOString()};
+ const result=await actual.namespace.executeCanary({apiPackage:'/fixture/api/package.json',plan,operator:{operatorArn:'fixture-operator',authorizationSha256:'a'.repeat(64)},signal:controller.signal});
  assert.equal(result.cleanupConfirmed,true);assert.equal(sql("SELECT count(*) FROM owned_credential WHERE status<>'revoked'"),'0');
  return{result,issued,probes,clockReads};}
 // Same requirement fixture on old and final parent: initial ALLOW, canonical
@@ -72,6 +72,7 @@ for(const name of ['cross-warm','short-bearer']){const x=await run(name);assert.
 for(const seconds of [30,-10]){const x=await run('fresh',seconds);assert.equal(x.result.measured,false);assert.equal(x.issued,0);checks++;}
 const fresh=await run('fresh');assert.equal(fresh.result.success,true);assert.equal(fresh.result.measured,true);assert.equal(fresh.probes,2);assert(fresh.clockReads>=4);checks++;
 assert(fresh.result.checks.some(x=>x.kind==='expiry_excluded'&&x.marginMs===2000));checks++;
+const cancelled=await run('cancel-clock');assert.equal(cancelled.result.primaryFailure,'canary_interrupted');assert.equal(cancelled.issued,0);checks++;
 const error=await run('oracle-error');assert.equal(error.result.measured,false);assert.equal(error.result.primaryFailure,'canary_authoritative_denial_failed');checks++;
 const recovery=await actual.namespace.recoverCanary({apiPackage:'/fixture/api/package.json',plan:{credentialId:id,nonce:'b'.repeat(24),expiresAt:new Date(now()-1000).toISOString()},operator:{}});assert(recovery.cleanupConfirmed);assert.equal(sql("SELECT count(*) FROM owned_credential WHERE status<>'revoked'"),'0');checks++;
 console.log(JSON.stringify({kind:'actual-parent-controlled-expiry-own-pg-fixture',checks,clock:'actual PostgreSQL clock_timestamp with fixture offset',forkAndMint:'VM-isolated synthetic boundaries',providerRequests:0,awsRequests:0,allOwnedRowsRetired:true}));

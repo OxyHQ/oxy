@@ -15,7 +15,7 @@ sample cannot set `measured: true`, even with canonical revoked-row readback and
 a refusal within five monotonic seconds. Cleanup still retires the own row.
 
 The identical controlled expiry fixture fails on parent source `2237ee282`
-(`measured: true` after expiry) and passes on the new helper. Nine cases execute
+(`measured: true` after expiry) and passes on the new helper. The original nine cases execute
 the actual parent through a VM, with a real owned PostgreSQL clock/credential
 state and synthetic mint, credential service and fork boundaries. The fixture
 clock adds a controlled SQL offset; this is not a live API/SDK revocation sample.
@@ -38,3 +38,7 @@ loader stages that module with exclusive creation and verifies removal. Its
 transport composition and root's fresh execution plan are required before use;
 this checkpoint does not claim that the existing image contains the patched
 metadata module or that a live canary has executed.
+
+A tenth regression aborts during the newly awaited SQL clock read. The helper
+rechecks the signal before issue, so this interruption creates no credential.
+The ten-case final log is separate from the preserved nine-case checkpoint.
