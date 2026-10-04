@@ -1,0 +1,538 @@
+{
+  "kind": "i04-original-criteria-acceptance-audit",
+  "sdkSource": "85dad68e5685413740a4a3fd52afee5bd724bed1",
+  "consumerCount": 18,
+  "consumers": [
+    {
+      "repository": "OxyHQ/Atlas",
+      "acceptedAdoptionBranchHead": "f641f3bd3eb85552991b3ad52ff93b44f8305a5f",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "941ae457c8ee90b8c1d17c60dae0398f7f09eeb1daec0ff554635d3cad1a8da5",
+        "url": "https://github.com/OxyHQ/Atlas/blob/f641f3bd3eb85552991b3ad52ff93b44f8305a5f/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "0d9f6216db39eb15aa4036572e2392af2a39667e2b1a323dbb8854b044c029f2"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "bec4589a89dd672798a5cf8cfca2123a6242c0c51a094f44521c7bff0beb189c"
+        }
+      ],
+      "recordedValidation": {
+        "edgePassed": 2,
+        "sdkImporterMembers": 2999,
+        "bloomImporterMembers": 43882,
+        "frontendTypesExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Alia",
+      "acceptedAdoptionBranchHead": "34760e37bed353321e568bc4cbbb45db26d00dd2",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "7f45c7bf9ce657c0d6b83fe6e2e1d7123c0857981b27eee6e66a1e6a4188cbe8",
+        "url": "https://github.com/OxyHQ/Alia/blob/34760e37bed353321e568bc4cbbb45db26d00dd2/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "011be0c23e8eaea15b384a78e629bed11aeb5bed8df8a17dbd27f1c99641bfb0"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "348799a2503bb752f097e86ce383d2cf99d38eb5a6caaa40929880c44fa4faef"
+        }
+      ],
+      "recordedValidation": {
+        "apiSuitesPassed": 191,
+        "apiTestsPassed": 2022,
+        "apiTestsSkipped": 1,
+        "apiTypesBuild": "PASS",
+        "allConsumerTypes": "PASS",
+        "appAndCanvasBuilds": "PASS",
+        "registryInstalledMemberChecks": 12920
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "acceptedAdoptionBranchHead": "298052e58203ef321c4b63d543a6f023e7c75197",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "c34ea8d7fb3ede9792dc478a2e566771d8b6a14abe342b09f80b36ad29abd0f1",
+        "url": "https://github.com/OxyHQ/Mention/blob/298052e58203ef321c4b63d543a6f023e7c75197/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "6efb9a305136fa99ba67c7430791858c4e934b7a8a466045bbc9a6675483930f"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "95516a3b545f81e8d7d9c1779ca075212fdfb92d4c7205541700956f6ab79e5a"
+        }
+      ],
+      "recordedValidation": {
+        "backendSqlHttpTests": 16,
+        "mcpTests": 119,
+        "frontendCompatibilityTests": 3,
+        "backendMcpBuildTypes": "PASS",
+        "frontendTypesExport": "PASS",
+        "doctor": "PASS",
+        "sdkMemberComparisons": 5180,
+        "bloomImporters": 2,
+        "bloomFilesPerImporter": 21941
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "acceptedAdoptionBranchHead": "3f8e2f0c8930edc5d1f1c5e61855e5295b288911",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "425c032064d9f53888c1de83db54be165978a6a2040523284d0476d490c346fd",
+        "url": "https://github.com/OxyHQ/Mercaria/blob/3f8e2f0c8930edc5d1f1c5e61855e5295b288911/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "f4baa12c8eb65b7a48f62477608815e68f3d74884002236eb1f85a30d5401a7f"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "f950d4374476c27b2b957c400545aadce0880508bf4caf68422b2155756ddbb7"
+        }
+      ],
+      "recordedValidation": {
+        "backendFocal": 102,
+        "backendSkipped": 2,
+        "actorFinal": 8,
+        "actorRedPassed": 7,
+        "actorRedFailed": 1
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "acceptedAdoptionBranchHead": "c76a44e280d3aad2c98b6210057899415aed3287",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "4da3b428f9bbaa50ac2e7c019f1109fde681da8d0bad194faf291d209f169af6",
+        "url": "https://github.com/OxyHQ/Clarity/blob/c76a44e280d3aad2c98b6210057899415aed3287/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "d7700d7e871e9157bdd7ea95ec852a6f7f4a77d39652b7fa00f785f5006188a3"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "48926393ca1ab3d1d3b91ce40d2daf162debe4581fee25664bad639228ae19fb"
+        }
+      ],
+      "recordedValidation": {
+        "backendFocal": 51,
+        "frontend": 25
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "acceptedAdoptionBranchHead": "c1a0cec2efbdaa3dc3446b965a6ce363c4513301",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "6978be63d1030b0b2e9df5fa4099634d4f5996822cf7f1d1a79efa71e334cc0f",
+        "url": "https://github.com/OxyHQ/Allo/blob/c1a0cec2efbdaa3dc3446b965a6ce363c4513301/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "e87be1546922e96df67c6bc1691ed963b7a044ff4e1c0948fa7b39d034eecbe0"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "5a6e0749d8a39c6fac94ad8102a1c1c7ca18619fdc134dc21776e2737f8e1be7"
+        }
+      ],
+      "recordedValidation": {
+        "backendFiles": 2,
+        "backendPassed": 16,
+        "sdkImporterMembers": 6975,
+        "bloomImporterMembers": 43882,
+        "typesBuildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "acceptedAdoptionBranchHead": "860277c3e3837178a6db1b68759d6266345e9eb8",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "c8e4b33d73379f5826623706efe70a7afb178b53c5853af7385f78563ddac177",
+        "url": "https://github.com/OxyHQ/Noted/blob/860277c3e3837178a6db1b68759d6266345e9eb8/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "b0a61aef83949562cbbdea12456844d211a2350ced2b1d866f03cd72ba5c0487"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "ca3a7bdc88f0cba30660e7c867a0f648f2c90484a2665760344d809a6f71218a"
+        }
+      ],
+      "recordedValidation": {
+        "frontendFiles": 2,
+        "frontendPassed": 14,
+        "backendFiles": 2,
+        "backendPassed": 14,
+        "sdkImporterMembers": 7214,
+        "bloomImporterMembers": 41880,
+        "buildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "acceptedAdoptionBranchHead": "c3f12731d4504127875d2eb68765d4ffeea8207e",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "8d5c124839c1c883eb5585ae6b2075b3064c413bf1c78b1a0a574ee3d82993f7",
+        "url": "https://github.com/OxyHQ/Homiio/blob/c3f12731d4504127875d2eb68765d4ffeea8207e/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "05c70c5ef08d1a0f01a88d7b3709f1847826d2ca70a304e9f238a3c64572b4a6"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "7ef25eaafb15a264b73659ce527fff513f35adca6a49bd7813708bcc2701fa4b"
+        }
+      ],
+      "recordedValidation": {
+        "frontendSuites": 13,
+        "frontendPassed": 134,
+        "backendSuites": 2,
+        "backendPassed": 64,
+        "sdkImporterMembers": 4359,
+        "bloomImporterMembers": 41880,
+        "typesBuildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/website",
+      "acceptedAdoptionBranchHead": "0870e326f6e0db9b934e7445272920d862f4a3bf",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "9f5768569de21dfbbb35eeb01e3b59a0cdde3fb17de7f377a6845666700bb4bd",
+        "url": "https://github.com/OxyHQ/website/blob/0870e326f6e0db9b934e7445272920d862f4a3bf/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "5c762b24c46f967621180b23f71b10b7e25582e2f00853d0714434ba4a4aee38"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "b89e15bc7b216fea5a33191fd3d1beffdbdd203295ecef02764c81d305e4c436"
+        }
+      ],
+      "recordedValidation": {
+        "sdkImporterMembers": 3238,
+        "bloomImporterMembers": 21941,
+        "canonicalBuild": "passed",
+        "bloomDemos": 17,
+        "kaanaBrandTests": 3,
+        "browserThemeDocsLanding": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Peable",
+      "acceptedAdoptionBranchHead": "a2f578038f6aee1c2628608a2a7b3a3b2c91ea88",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "09b38a81a6a4e0c1a58c77f8bfd7fd649d38a17e587a7cd90228ea9cb82cd26e",
+        "url": "https://github.com/OxyHQ/Peable/blob/a2f578038f6aee1c2628608a2a7b3a3b2c91ea88/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "7e74951f5bb578adcde3347d629bd0c4701ca000f61dec66fedb0daff62e5faf"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "f5db0b689e2e41f9c457162d416e777ba565c8507ada01ad4ecf82222f390438"
+        }
+      ],
+      "recordedValidation": {
+        "frontendTests": 388,
+        "payTests": 130,
+        "authBoundaryTests": 3,
+        "failedTests": 0,
+        "filteredBackendTests": 777,
+        "typesAndBuilds": "PASS"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "acceptedAdoptionBranchHead": "8190292c8e8071136b37121e6fcfb17c48b32eda",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "39fb1fddae5973f50a49ba01ed9ab629d42ab900ecb1a556cf1fc66b607dc599",
+        "url": "https://github.com/OxyHQ/tnp/blob/8190292c8e8071136b37121e6fcfb17c48b32eda/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "72b77317a1aba52ad8060703b09918bd645ab4ae789040546f258589a827c9f3"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "28f10df6795087c67bdbb197943f519edc6db8ed50e4c50b8068305355e8234d"
+        }
+      ],
+      "recordedValidation": {
+        "receiverPassed": 1,
+        "sdkImporterMembers": 4742,
+        "bloomImporterMembers": 20940,
+        "typesBuildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Willo",
+      "acceptedAdoptionBranchHead": "0a1a1915d2178275cf171fe8546630949d5238c5",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "5746d0f93f50ecf8828c7e9a02cd04efd803f8bacff705e0c4f7d58a46ca4c1e",
+        "url": "https://github.com/OxyHQ/Willo/blob/0a1a1915d2178275cf171fe8546630949d5238c5/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "9fb3f62ed085fec0221f698d26e2c588affc0866fb149b0cb2335731aa5d430d"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "380fbee9db372061e48101ee38db437cc660a8532a8b75b32c9494ba027288b7"
+        }
+      ],
+      "recordedValidation": {
+        "receiverPassed": 1,
+        "filteredTests": 46,
+        "sdkImporterMembers": 3580,
+        "bloomImporterMembers": 41880,
+        "typesBuildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "acceptedAdoptionBranchHead": "3cb44f55cefb1e91f6c5e5bdf9f7beca459da666",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "40ac30fee4d28bf559689997dc1c9b3433dcaf0091658e848df7dd496c9ac7b5",
+        "url": "https://github.com/OxyHQ/GoWay/blob/3cb44f55cefb1e91f6c5e5bdf9f7beca459da666/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "cb03265e6c865e03ca4c64edebfa1d860742b517b4eacc5fbb900d14d4e7068b"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "6f6ad044de36230eb25a457effe00799b354001ce79a81dbc3abae7232bcdb15"
+        }
+      ],
+      "recordedValidation": {
+        "receiverFiles": 1,
+        "receiverPassed": 1,
+        "filteredTests": 535,
+        "sdkImporterMembers": 3580,
+        "bloomImporterMembers": 20940,
+        "buildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "acceptedAdoptionBranchHead": "0000447654d1d04cdda71ed0e3ca4c3bf3502384",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "b77997cae6f35948c8d808164b5e4320d2133369314fee8706df479f89572480",
+        "url": "https://github.com/OxyHQ/Moovo/blob/0000447654d1d04cdda71ed0e3ca4c3bf3502384/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "3cb4883888957f63b9a1057b6c5de40dd94b74ede50cf935c123bf7becb41931"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "098a6557f59d124c94bd6dda739e44c9de766b51da1ac6765bef4fe563d19c4a"
+        }
+      ],
+      "recordedValidation": {
+        "receiverPassed": 1,
+        "filteredTests": 871,
+        "sdkImporterMembers": 16368,
+        "bloomImporterMembers": 104700,
+        "typesBuildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "acceptedAdoptionBranchHead": "8adb30d26fabfbf1ea5ba5fd938962117ec10568",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "62c96e3b0131e348e1fc68db8dfd261cbd80208c2d2e9218ff3a750c3cf7e8f5",
+        "url": "https://github.com/OxyHQ/Nilo/blob/8adb30d26fabfbf1ea5ba5fd938962117ec10568/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "5894ead2556a66778aab69028c1e7a038b4551745f4197d6a3f6445f791770e5"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "d45a8d3b707034f13468b14328fbadfbcfc1f9d7146aa83cecc771fbec7682cd"
+        }
+      ],
+      "recordedValidation": {
+        "receiverFiles": 1,
+        "receiverPassed": 1,
+        "filteredTests": 158,
+        "sdkImporterMembers": 6975,
+        "bloomImporterMembers": 41880,
+        "buildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "acceptedAdoptionBranchHead": "e5445b1c2b6dcb57fdfeaab6ce71801c7bb420a3",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "04bf95e8e30a34ad0d76cab9b9c94928ee3614c1997152a9ed88f4e28e5ae557",
+        "url": "https://github.com/OxyHQ/CrowdSource/blob/e5445b1c2b6dcb57fdfeaab6ce71801c7bb420a3/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "75cbaed8a6a21618f7ccc8264320aad184af8f73b3e31da1218ae0159956252a"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "0d59a98cedbcb7146c814be4f3db53e442bfaf6fddcbc6cde899dcd9b14d7024"
+        }
+      ],
+      "recordedValidation": {
+        "receiverPassed": 1,
+        "sdkImporterMembers": 6579,
+        "bloomImporterMembers": 41880,
+        "typesBuildTwoExports": "passed",
+        "externalExportMaps": 177,
+        "localRuntimeAudit": "passed UID1001,140 package names,zero tooling targets",
+        "securityAudit": "passed approved exact expiring graph"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "acceptedAdoptionBranchHead": "5af5897c7daa667b2f6715974458fb694d90110d",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "be25d51b0ba341878513a96354db15943b069417ab949c612e5bdb04f2061fde",
+        "url": "https://github.com/OxyHQ/Syra/blob/5af5897c7daa667b2f6715974458fb694d90110d/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "bf19b3cca5d5bd502d83beff5ca995491adb2a0bcb5eb2533e133f715cc7d1f4"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "f2639633b497c95f6fe1ed297307096ac8324a8406b85e268a147042dd5e483c"
+        }
+      ],
+      "recordedValidation": {
+        "receiverPassed": 1,
+        "sdkImporterMembers": 8997,
+        "bloomImporterMembers": 62820,
+        "typesBuildExport": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    },
+    {
+      "repository": "OxyHQ/Move",
+      "acceptedAdoptionBranchHead": "ad3fff2994bd890779cfc2a0df3e546a02436614",
+      "proof": {
+        "path": "docs/audits/2026-10-04-final-registry-adoption/proof.json",
+        "sha256": "da15990c7559dc3679681a870deadce9fc1ad8856342b8bc1f3b70c3227f63bc",
+        "url": "https://github.com/OxyHQ/Move/blob/ad3fff2994bd890779cfc2a0df3e546a02436614/docs/audits/2026-10-04-final-registry-adoption/proof.json"
+      },
+      "manifestAndLock": [
+        {
+          "path": "package.json",
+          "sha256": "e96b7c1ce7c21c48cd69161f49ccdd353eb297d313675557a82772fc4eafc324"
+        },
+        {
+          "path": "bun.lock",
+          "sha256": "47a6e0c11612e456a03b9f9c60be9004772265763ec604e7face56e32042fdab"
+        }
+      ],
+      "recordedValidation": {
+        "backendPassed": 82,
+        "frontendPassed": 11,
+        "sdkImporterMembers": 3976,
+        "bloomImporterMembers": 20940,
+        "typesBuildExportGates": "passed"
+      },
+      "scope": "Existing reviewed adoption evidence; no new runtime replay or claim about later unrelated main commits."
+    }
+  ],
+  "rootReceipts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/published-final-sdk-85dad/complete.json",
+      "sha256": "3421a5be70eca17c18f8d3e833a603b83aeaec9690666b92bf93a5f56ff864a9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-registry-web-accepted.json",
+      "sha256": "37c0123abfe85ff96aefc1eb72cf1368595e3954363172d566f99430e9aae88e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/android-registry-final-0300/accepted.json",
+      "sha256": "99bec5e75b3d0adee929c35f0392cdffd39919ec7fb8ef6bdab88398467f48f1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i03-final-revocation-accepted.json",
+      "sha256": "6e49f7186bb856f87b48ba704c12d4c53e6d61a06a2a57c988cca362272b2499"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-four-frontends-accepted/accepted.json",
+      "sha256": "349d461415c4e3b7f62f895d573ba60e769fb3248c3177ecfc0157d9298253b8"
+    }
+  ],
+  "criteria": {
+    "discriminatedPrincipals": "Implemented with type/audience/signature negative controls; published contracts/core/MCP source preserved.",
+    "toolsListNotCall": "Capability authorization, resource/catalog binding and domain effect guards; actual Alia/Mention product fixtures retained.",
+    "liveRevocation": "I03 accepted original two-process measurement, expiry excluded; not p99.",
+    "commonErrorsTimeoutRetries": "Published raw transport/abort/session-fence controls and MCP idempotency/timeout controls; acknowledged operation preserved on cleanup failure.",
+    "publishedPackageTests": "Five public archive checks, consumer installed-member checks, full source/CI checks and registry browser/Android replays."
+  },
+  "limits": [
+    "This audit reuses accepted evidence and verifies current branch proof/manifest/lock bytes; it does not rerun production effects.",
+    "Approved HTTP compatibility lane remains available; a new universal legacy-removal or human MCP pilot gate is not added to I04.",
+    "I05 human pilot, I07/I08 commercial criteria and I09 real inference remain separately tracked.",
+    "Runtime smokes do not imply every product account has exercised authenticated or financial operations."
+  ]
+}
