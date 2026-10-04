@@ -1,0 +1,7 @@
+The publisher could lose its pinned commit after a squash, then a publisher-only retry could receive a carried successful job whose attempt number disagreed with the original proof. Both failures stopped before registry copy.
+
+The collector now authenticates the exact pinned commit and tree through the fixed GitHub repository before fetching missing Git objects from that repository. It changes no branch, checkout or FETCH_HEAD. Tests run the complete candidate collector over a real clean single-branch squash clone without the candidate commit or branch. The frozen baseline fails; the corrected collector completes, and wrong authenticated SHA/tree fail. API and audit transports in those tests are isolated fixtures.
+
+Recovery explicitly requires a full workflow retry, including inspection. Proof and OCI artifact names include the producing attempt in uploads, downloads and validation; the existing nonce, digest, source, repository and expiry checks remain. A publisher-only retry cannot reuse the previous attempt. A full retry produces new transport artifacts without deleting the originals. Tests cover carried jobs, relabeled metadata with an old nonce, a fresh second attempt and mixed transports, together with the actual workflow shell boundary and existing negative cases.
+
+The policy is INACTIVE in this source commit. A new composite freeze, authenticated ARM image and source gate are required before applying the existing user decision; its expiry remains 2026-10-09T22:00:00.000Z. No production mutation was executed by these tests.
