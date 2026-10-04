@@ -1,0 +1,97 @@
+{
+  "kind": "native-expo-declared-archive-inventory-followup-v1",
+  "sourceCommit": "3454017b91aa721527bd36046a561bb0ea29bf71",
+  "previousProofCommit": "35e6dbfa6d5ce28763f12095f0157a86bdeda004",
+  "failure": {
+    "jobId": 111519296484,
+    "description": "Archive-name glob included historical CLI .1 and current .3; last identity overwrote expected .3 with .1",
+    "originalGitHubLog": {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/accounts-1582-guards-failed.log",
+      "sha256": "bfc82cf0a3513467cbed886c9dbf6e5196f0aeafe57c4a721195aeb113f7897d"
+    },
+    "localRedExactVersionMismatch": true
+  },
+  "change": {
+    "bothHostCallers": "Production dependency fixture and native ARM workflow now use one readDeclaredNativePackageInventory function selecting the two exact manifest overrides",
+    "strictChecksPreserved": [
+      "installed version equality",
+      "every selected member byte hash",
+      "physical file requirement",
+      "whole image Forge absence",
+      "exact two package identities"
+    ],
+    "historicalArchivesPreserved": true,
+    "cliArchiveAndLockUnchanged": true
+  },
+  "validation": {
+    "canonicalProductionDependencyFixture": "PASS (frozen production install, database peers no connection, Forge absence, byte inventory,14 actual Expo compatibility controls)",
+    "inventoryControls": 9,
+    "originalInventoryControlsRetained": 6,
+    "additionalControls": [
+      "Historical archive cannot overwrite selected .3",
+      "Absent archive/path escape/wrong package identity rejected",
+      "Old version cannot accept .3 installed identity"
+    ],
+    "biome": "1.9.4 PASS error-on-warnings for changed inventory modules",
+    "nodeSyntaxChecks": 3,
+    "gitDiffCheck": "PASS",
+    "AccountsExportRepeated": false,
+    "scope": "No image/ARM execution or production acceptance claimed; prior real Accounts export proof remains unchanged"
+  },
+  "sourceInputs": [
+    {
+      "path": ".github/workflows/native-expo-image-proof.yml",
+      "sha256": "65a232d405f8f73cfc128c6cfc06f4e34803e895b78a369b91cd477c4bd50711"
+    },
+    {
+      "path": "scripts/native-expo-image-inventory.mjs",
+      "sha256": "05c5caaf2bccbdc7ce5ecb95bcf3e60dd494c9765a4cfb1c3e1ec8cb63afcd1a"
+    },
+    {
+      "path": "scripts/test-api-runtime-dependencies.mjs",
+      "sha256": "8039ccebfd5b0b663cfc48b4790d8df2e212c60440dfb293f54782f2bc203c42"
+    },
+    {
+      "path": "scripts/test-native-expo-image-inventory.mjs",
+      "sha256": "188d47895d4d17d8445bcc36995fbd2ef9f4d0c9353552d7b0a6fcb44db3ff6b"
+    },
+    {
+      "path": "package.json",
+      "sha256": "74b2f74d85c5555ca0c33add5142ae55399f37396c5e5d2eb0bedc2cb1cb60f7"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "908022a8e899c7c3179501f67d35c38738d9f1674654caf292b12d9e9b04cd3d"
+    },
+    {
+      "path": "vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz",
+      "sha256": "e5735f981844667d962870d4c3597655069f6b4202a981333962de9b9bf42eb1"
+    },
+    {
+      "path": "vendor/expo-native/oxy.so-expo-code-signing-native-0.1.1.tgz",
+      "sha256": "051e4b5266378caff00bc4ce369686ead6f1c4961b13579bcd5aa25131f4fb51"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/inventory-followup/runtime-red.log",
+      "sha256": "9642675f05e1baf5cc2e644c6b0782261483db82aa471db472c2a281ce6babf9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/inventory-followup/runtime-green-final.log",
+      "sha256": "83d3ebfe6d5149bfb8ac587884878fd44b125fb44b7f6c65a1bd193e06ad2c93"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/inventory-followup/inventory-green-final.log",
+      "sha256": "407582132f75272fdd84e2b5de9be4e91fc37bc3eba0eca81c6e543eb75e6ea4"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/inventory-followup/lint-green.log",
+      "sha256": "967c1eb73ff103928ef8edf73b47e89032eeb26ac7ff0f457c68f8c3928f9618"
+    }
+  ],
+  "limits": [
+    "No new archive or SDK bytes, lock, package versions, or production writes",
+    "YAML parser not available locally; workflow change is one executable Node command using the tested shared generator"
+  ]
+}

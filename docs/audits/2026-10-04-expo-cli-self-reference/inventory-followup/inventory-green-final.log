@@ -1,0 +1,34 @@
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+    with tarfile.open(selection['archive']) as source:
+         ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/tarfile.py", line 1905, in open
+    return func(name, "r", fileobj, **kwargs)
+  File "/usr/lib/python3.13/tarfile.py", line 1973, in gzopen
+    fileobj = GzipFile(name, mode + "b", compresslevel, fileobj)
+  File "/usr/lib/python3.13/gzip.py", line 203, in __init__
+    fileobj = self.myfileobj = builtins.open(filename, mode or 'rb')
+                               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/native-declared-wzvbpD/vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz'
+Traceback (most recent call last):
+  File "<string>", line 8, in <module>
+    assert package['name']==selection['identity']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+✔ actual native files and two identities are required (1.918332ms)
+✔ cached unreachable Forge path is rejected (1.292278ms)
+✔ renamed Forge package identity is rejected (0.636909ms)
+✔ tampered native code fails byte integrity (0.532332ms)
+✔ missing native package fails even when Forge is absent (0.496752ms)
+✔ native file symlink cannot substitute mounted proof bytes (0.421662ms)
+✔ historical archive cannot override the exact manifest selection (59.363597ms)
+✔ declared archive must be local, present and have the exact package identity (49.868412ms)
+✔ old declared version cannot accept newly installed CLI bytes (0.604948ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119.979412
