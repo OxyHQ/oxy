@@ -1,0 +1,80 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1963253, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-wire-pg-2f5jg7m4/data", "port": 5627, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/routes/__fixtures__/mentionWire.fixture.ts --testMatch "**/mentionWire.fixture.ts"
+  console.log
+    === RUN   TestMentionOxySignedWireFixture
+        mention_wire_integration_test.go:107: credential store: DATABASE_URL must use sslmode=verify-full with a trusted root
+    --- FAIL: TestMentionOxySignedWireFixture (0.00s)
+    FAIL
+    FAIL	github.com/OxyHQ/Kaana/internal/kaana	0.014s
+    FAIL
+
+      at src/routes/__fixtures__/mentionWire.fixture.ts:136:13
+
+FAIL src/routes/__fixtures__/mentionWire.fixture.ts (6.766 s)
+  ● actual Mention builder + packaged SDK + Oxy SQL + signed Go executor isolates audience and permanently denies replay
+
+    Real Go fixture failed to start: === RUN   TestMentionOxySignedWireFixture
+        mention_wire_integration_test.go:107: credential store: DATABASE_URL must use sslmode=verify-full with a trusted root
+    --- FAIL: TestMentionOxySignedWireFixture (0.00s)
+    FAIL
+    FAIL	github.com/OxyHQ/Kaana/internal/kaana	0.014s
+    FAIL
+
+      115 |   const deadline = Date.now()+65000;
+      116 |   while (!existsSync(configuration+".ready")) {
+    > 117 |     if (child.exitCode !== null || Date.now()>deadline) throw new Error("Real Go fixture failed to start: "+readFileSync(join(own,"go.log"),"utf8"));
+          |                                                               ^
+      118 |     await wait(50);
+      119 |   }
+      120 |   const {url} = JSON.parse(readFileSync(configuration+".ready","utf8"));
+
+      at src/routes/__fixtures__/mentionWire.fixture.ts:117:63
+      at fulfilled (src/routes/__fixtures__/mentionWire.fixture.ts:38:58)
+
+
+  ● Test suite failed to run
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      135 |     const code=await childDone;
+      136 |     console.log(readFileSync(join(own,"go.log"),"utf8"));
+    > 137 |     expect(code).toBe(0);
+          |                  ^
+      138 |     closeSync(goLog);
+      139 |   }
+      140 |   jest.restoreAllMocks(); await closePostgres(); if(ownUrl) await dropTestDatabase(ownUrl);
+
+      at src/routes/__fixtures__/mentionWire.fixture.ts:137:18
+      at fulfilled (src/routes/__fixtures__/mentionWire.fixture.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        6.792 s
+Ran all test suites within paths "src/routes/__fixtures__/mentionWire.fixture.ts".
+Jest did not exit one second after the test run has completed.
+
+'This usually means that there are asynchronous operations that weren't stopped in your tests. Consider running Jest with `--detectOpenHandles` to troubleshoot this issue.
+error: script "test" exited with code 1
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-wire-pg-2f5jg7m4"}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-wire-20261004/owned-pg.py", line 71, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-wire-20261004/owned-pg.py", line 62, in main
+    run(['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__fixtures__/mentionWire.fixture.ts', '--testMatch', '**/mentionWire.fixture.ts'], cwd=ROOT / 'packages/api')
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/integration-mention-wire-20261004/owned-pg.py", line 23, in run
+    return subprocess.run([str(x) for x in argv], env=env, text=True, check=True, **kw)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__fixtures__/mentionWire.fixture.ts', '--testMatch', '**/mentionWire.fixture.ts']' returned non-zero exit status 1.
