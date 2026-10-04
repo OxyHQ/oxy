@@ -1,0 +1,3 @@
+$ tsc --noEmit
+node_modules/@oxy.so/services/src/ui/screens/AvatarCropScreen.tsx(176,35): error TS2307: Cannot find module 'expo-image-manipulator' or its corresponding type declarations.
+node_modules/@oxy.so/services/src/ui/screens/ChangeAvatarScreen.tsx(121,35): error TS2307: Cannot find module 'expo-image-picker' or its corresponding type declarations.

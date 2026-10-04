@@ -1,0 +1,14 @@
+[
+  {
+    "lane": "mention",
+    "package": "earth.mention.app.dev",
+    "x86_64": true,
+    "sha256": "527b6dc8f173863756371e14c2706f2a6ab0d15739c1a5085efcf3b435cdfcb1"
+  },
+  {
+    "lane": "allo",
+    "package": "com.allo.app.dev",
+    "x86_64": true,
+    "sha256": "1e8531227f2abb1ba0fe22d638ae80a5eefbff408877846b924813633b0115f8"
+  }
+]

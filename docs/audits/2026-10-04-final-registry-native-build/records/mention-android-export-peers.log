@@ -1,0 +1,34 @@
+$ expo export --platform android --output-dir dist --clear
+React Compiler enabled
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+ WARN  Attempted to import the module "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@noble/hashes/crypto.js" which is not listed in the "exports" of "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@noble/hashes" under the requested subpath "./crypto.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+Android Bundling failed 7927ms index.js (3308 modules)
+
+TypeError [ERR_INVALID_ARG_VALUE]: The argument 'path' must be a string, Uint8Array, or URL without null bytes. Received '\x00polyfill:assets-registry'
+
+Import stack:
+
+ node_modules/expo-asset/build/Asset.js
+ | import "@react-native/assets-registry/registry"
+
+ node_modules/expo-asset/build/index.js
+ | import "./Asset"
+
+ node_modules/expo/src/Expo.fx.tsx
+ | import "expo-asset"
+
+ node_modules/expo/src/Expo.ts
+ | import "./Expo.fx"
+
+ acceptance/entry.tsx
+ | import "expo"
+
+ index.js
+ | import "./acceptance/entry"
+
+ 
+ | import "./index"
+
+error: script "export:android" exited with code 1

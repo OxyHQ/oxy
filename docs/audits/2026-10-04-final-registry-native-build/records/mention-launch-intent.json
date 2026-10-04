@@ -1,0 +1,18 @@
+{
+  "kind": "native",
+  "lane": "mention",
+  "fixture": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention",
+  "port": 17977,
+  "command": [
+    "bun",
+    "--no-env-file",
+    "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/bin/cli",
+    "start",
+    "--localhost",
+    "--port",
+    "17977"
+  ],
+  "manifestSha256": "10ac9fb612420bc490f7951dc0bfaa2834980cc1b0bf28c7160311fdf795b12a",
+  "verifiedReceiptSha256": "312d499174c1bf3829bf7af512c611adf78aa21a92a6cae39a2a1d3df1639ede",
+  "launch": true
+}

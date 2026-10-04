@@ -1,0 +1,172 @@
+{
+  "fixture": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention",
+  "lockSha256": "4edfc6a0fadd28797e93d7ee9beaec2f887df01fa79d29b317ba31a9e4e7bce3",
+  "artifacts": {
+    "@oxy.so/core": {
+      "version": "4.2.0",
+      "integrity": "sha512-FsSXwSTAPbkOVrwRXKFGYuylFcVwOlmlRMvmbgDV3RCnH2/rys/qv2SaXiZDXYaNNGI7yPQNYolgjdxUOZB0EQ==",
+      "sha256": "20fbd2e6fadd5d1e0a6ea9b6ad0ed9f65e77d5289600f6085ebfc16c224d5795"
+    },
+    "@oxy.so/contracts": {
+      "version": "4.9.0",
+      "integrity": "sha512-dDMZlTSCR1wOd0XlhM8fZ7frSzvUm7JxPsEVGXjb92OIsb3MTb7SKFGHD7/U61oI8IOxw6oVrzeIaZ5aOWh7nA==",
+      "sha256": "d495f3b1aabbfea8da57107e4f4bbee7c8d2e9e34f9e2345923e12a5c080fdaa"
+    },
+    "@oxy.so/protocol": {
+      "version": "1.2.2",
+      "integrity": "sha512-6PlaD/GwG0CKvA1kZ0HVB5xM8JMKBms0dYmgAngGIk5lkPRz8x6hu7JkpvGGFef1yAvcxv8F19wW2pf3+YrEoQ==",
+      "sha256": "88498ab28c1aa373f6f725f1625662b47d61e50d8ae25a54c80bfb2ecb65b5db"
+    },
+    "@oxy.so/services": {
+      "version": "11.1.0",
+      "integrity": "sha512-OMRCdULR30WmDc66TzBov1VP2aZAFUBjuskEJPBRvDWIC+9r9DaOCYhLxlBhy6YgdKPnJBnY5YU1Bp/HcFiZDw==",
+      "sha256": "20edf86b755293700e81b2dbe680ea2fa99e42d5a85fc089b53398f0eb05c99d"
+    },
+    "@oxy.so/telemetry": {
+      "version": "1.2.0",
+      "integrity": "sha512-ryydgkL5jDUVzpG0I2O1/QF+AHYITpaHdqABXdno23J7kYeijUO+QBIXEEQxCBy/9S7AslqDvHwhWpFsGLLrzA==",
+      "sha256": "c9d84dd2979e3dbca9178264971bbe3a4b231f0a0a043aa5d5d32760806dbb12"
+    },
+    "@oxy.so/bloom": {
+      "version": "6.2.1",
+      "integrity": "sha512-oVNfAkQFNjdQWH3U4Wx/R2oF7JE3wBBJBC8dbjWHqvQaxUUA/DsFWX99Ld58Dl6mYvS7Jt7NU4OWPfZLuzuOpg==",
+      "sha256": "edf4cfe3d8597e4bf86f997bceacf332f7fce4a8f92c541b3cd375decbce3a0a"
+    },
+    "@oxy.so/app-preset": {
+      "version": "3.0.0",
+      "integrity": "sha512-IHPoQfaS3i08npYClbBvvOz+oHTzVN72cpjPb6FrWoEysUxeBkSz+DYag4rGI4wGm4rTxcUIMvWACo4kDp6KWg==",
+      "sha256": "4eca7bac14e7f631f2008e10852fbf7d1c54c942e047f3caea506a0b967a503f"
+    }
+  },
+  "resolvers": [
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/core",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/core",
+      "version": "4.2.0",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/contracts",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/contracts",
+      "version": "4.9.0",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/protocol",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/protocol",
+      "version": "1.2.2",
+      "files": 145,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/services",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/services",
+      "version": "11.1.0",
+      "files": 2418,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/telemetry",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/telemetry",
+      "version": "1.2.0",
+      "files": 33,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/bloom",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/bloom",
+      "version": "6.2.1",
+      "files": 20940,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "package.json",
+      "name": "@oxy.so/app-preset",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/app-preset",
+      "version": "3.0.0",
+      "files": 22,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/core/package.json",
+      "name": "@oxy.so/contracts",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/contracts",
+      "version": "4.9.0",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/core/package.json",
+      "name": "@oxy.so/protocol",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/protocol",
+      "version": "1.2.2",
+      "files": 145,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/core/package.json",
+      "name": "@oxy.so/telemetry",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/telemetry",
+      "version": "1.2.0",
+      "files": 33,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/protocol/package.json",
+      "name": "@oxy.so/contracts",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/contracts",
+      "version": "4.9.0",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/services/package.json",
+      "name": "@oxy.so/core",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/core",
+      "version": "4.2.0",
+      "files": 581,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/services/package.json",
+      "name": "@oxy.so/contracts",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/contracts",
+      "version": "4.9.0",
+      "files": 198,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/services/package.json",
+      "name": "@oxy.so/bloom",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/bloom",
+      "version": "6.2.1",
+      "files": 20940,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/app-preset/package.json",
+      "name": "@oxy.so/services",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/services",
+      "version": "11.1.0",
+      "files": 2418,
+      "allFilesEqual": true
+    },
+    {
+      "importer": "node_modules/@oxy.so/app-preset/package.json",
+      "name": "@oxy.so/bloom",
+      "root": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@oxy.so/bloom",
+      "version": "6.2.1",
+      "files": 20940,
+      "allFilesEqual": true
+    }
+  ],
+  "runtimeTested": false
+}

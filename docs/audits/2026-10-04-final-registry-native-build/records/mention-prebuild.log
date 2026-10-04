@@ -1,0 +1,8 @@
+- Creating native directory (./android)
+✔ Created native directory
+- Updating package.json
+› Using react-native@0.86.0 instead of recommended react-native@0.86.3.
+- Updating package.json
+✔ Updated package.json | no changes
+- Running prebuild
+✔ Finished prebuild

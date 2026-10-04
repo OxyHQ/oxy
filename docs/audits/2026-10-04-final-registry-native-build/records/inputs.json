@@ -1,0 +1,12 @@
+[
+  {
+    "fixture": "mention",
+    "beforeSha256": "f0c735e6b162bddbbcfb6aea958daa60c1b11bd331294ced24ed42bcdaf5eba4",
+    "afterSha256": "74ac6de836899d91b1528f4111a0dc7416d31a0e59a2d78fdf57062ec8b239cb"
+  },
+  {
+    "fixture": "allo",
+    "beforeSha256": "f0c735e6b162bddbbcfb6aea958daa60c1b11bd331294ced24ed42bcdaf5eba4",
+    "afterSha256": "74ac6de836899d91b1528f4111a0dc7416d31a0e59a2d78fdf57062ec8b239cb"
+  }
+]

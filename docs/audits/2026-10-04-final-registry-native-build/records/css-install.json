@@ -1,0 +1,22 @@
+[
+  {
+    "fixture": "mention",
+    "step": "css-resolve",
+    "exitCode": 0
+  },
+  {
+    "fixture": "mention",
+    "step": "css-frozen",
+    "exitCode": 0
+  },
+  {
+    "fixture": "allo",
+    "step": "css-resolve",
+    "exitCode": 0
+  },
+  {
+    "fixture": "allo",
+    "step": "css-frozen",
+    "exitCode": 0
+  }
+]

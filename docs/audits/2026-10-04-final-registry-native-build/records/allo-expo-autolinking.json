@@ -1,0 +1,761 @@
+{
+  extraDependencies: [],
+  coreFeatures: [ [32m'swiftui'[39m, [32m'compose'[39m ],
+  modules: [
+    {
+      packageName: [32m'@expo/dom-webview'[39m,
+      projects: [
+        {
+          name: [32m'expo-dom-webview'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/@expo/dom-webview/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.webview.DomWebViewModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'expo.modules.webview'[39m,
+            artifactId: [32m'expo.modules.webview'[39m,
+            version: [32m'57.0.1'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.1'[39m
+    },
+    {
+      packageName: [32m'@expo/log-box'[39m,
+      projects: [
+        {
+          name: [32m'expo-log-box'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/@expo/log-box/android'[39m,
+          modules: [],
+          services: [],
+          packages: [ [32m'expo.modules.logbox.ExpoLogBoxPackage'[39m ]
+        }
+      ],
+      packageVersion: [32m'57.0.4'[39m
+    },
+    {
+      packageName: [32m'@expo/ui'[39m,
+      projects: [
+        {
+          name: [32m'expo-ui'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/@expo/ui/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.ui.ExpoUIModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'expo.modules.ui'[39m,
+            artifactId: [32m'expo.modules.ui'[39m,
+            version: [32m'57.0.21'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      coreFeatures: [ [32m'swiftui'[39m, [32m'compose'[39m ],
+      packageVersion: [32m'57.0.21'[39m
+    },
+    {
+      packageName: [32m'@oxy.so/services'[39m,
+      projects: [
+        {
+          name: [32m'oxy-so-services'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/@oxy.so/services/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'so.oxy.identity.OxyIdentityModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'so.oxy.devicesession.OxyDeviceSessionModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'so.oxy.session.OxyBackgroundSessionModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: []
+        }
+      ],
+      packageVersion: [32m'11.1.0'[39m
+    },
+    {
+      packageName: [32m'expo'[39m,
+      projects: [
+        {
+          name: [32m'expo'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.fetch.ExpoFetchModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [ [32m'expo.modules.ExpoModulesPackage'[39m ]
+        }
+      ],
+      packageVersion: [32m'57.0.21'[39m
+    },
+    {
+      packageName: [32m'expo-application'[39m,
+      projects: [
+        {
+          name: [32m'expo-application'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-application/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.application.ApplicationModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.application'[39m,
+            version: [32m'57.0.3'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.3'[39m
+    },
+    {
+      packageName: [32m'expo-asset'[39m,
+      projects: [
+        {
+          name: [32m'expo-asset'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-asset/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.asset.AssetModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'expo.modules.asset'[39m,
+            artifactId: [32m'expo.modules.asset'[39m,
+            version: [32m'57.0.18'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.18'[39m
+    },
+    {
+      packageName: [32m'expo-blur'[39m,
+      projects: [
+        {
+          name: [32m'expo-blur'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-blur/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.blur.BlurModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.blur'[39m,
+            version: [32m'57.0.2'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.2'[39m
+    },
+    {
+      packageName: [32m'expo-clipboard'[39m,
+      projects: [
+        {
+          name: [32m'expo-clipboard'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-clipboard/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.clipboard.ClipboardModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.clipboard'[39m,
+            version: [32m'57.0.2'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.2'[39m
+    },
+    {
+      packageName: [32m'expo-constants'[39m,
+      projects: [
+        {
+          name: [32m'expo-constants'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-constants/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.constants.ConstantsModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [ [32m'expo.modules.constants.ConstantsService'[39m ],
+          packages: []
+        }
+      ],
+      packageVersion: [32m'57.0.17'[39m
+    },
+    {
+      packageName: [32m'expo-crypto'[39m,
+      projects: [
+        {
+          name: [32m'expo-crypto'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-crypto/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.crypto.CryptoModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.crypto.aes.AesCryptoModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.crypto'[39m,
+            version: [32m'57.0.2'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.2'[39m
+    },
+    {
+      packageName: [32m'expo-document-picker'[39m,
+      projects: [
+        {
+          name: [32m'expo-document-picker'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-document-picker/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.documentpicker.DocumentPickerModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.documentpicker'[39m,
+            version: [32m'57.0.1'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.1'[39m
+    },
+    {
+      packageName: [32m'expo-file-system'[39m,
+      projects: [
+        {
+          name: [32m'expo-file-system'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-file-system/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.filesystem.FileSystemModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.filesystem.legacy.FileSystemLegacyModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.filesystem'[39m,
+            version: [32m'57.0.6'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.6'[39m
+    },
+    {
+      packageName: [32m'expo-font'[39m,
+      projects: [
+        {
+          name: [32m'expo-font'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-font/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.font.FontLoaderModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.font.FontUtilsModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.font'[39m,
+            version: [32m'57.0.3'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.3'[39m
+    },
+    {
+      packageName: [32m'expo-haptics'[39m,
+      projects: [
+        {
+          name: [32m'expo-haptics'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-haptics/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.haptics.HapticsModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.haptics'[39m,
+            version: [32m'57.0.2'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.2'[39m
+    },
+    {
+      packageName: [32m'expo-image'[39m,
+      projects: [
+        {
+          name: [32m'expo-image'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-image/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.image.ExpoImageModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'expo.modules.image'[39m,
+            artifactId: [32m'expo.modules.image'[39m,
+            version: [32m'57.0.4'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.4'[39m
+    },
+    {
+      packageName: [32m'expo-image-loader'[39m,
+      projects: [
+        {
+          name: [32m'expo-image-loader'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-image-loader/android'[39m,
+          modules: [],
+          services: [ [32m'expo.modules.imageloader.ImageLoaderService'[39m ],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.imageloader'[39m,
+            version: [32m'57.0.1'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.1'[39m
+    },
+    {
+      packageName: [32m'expo-image-manipulator'[39m,
+      projects: [
+        {
+          name: [32m'expo-image-manipulator'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-image-manipulator/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.imagemanipulator.ImageManipulatorModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.imagemanipulator'[39m,
+            version: [32m'57.0.16'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.16'[39m
+    },
+    {
+      packageName: [32m'expo-image-picker'[39m,
+      projects: [
+        {
+          name: [32m'expo-image-picker'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-image-picker/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.imagepicker.ImagePickerModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.imagepicker'[39m,
+            version: [32m'57.0.16'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.16'[39m
+    },
+    {
+      packageName: [32m'expo-keep-awake'[39m,
+      projects: [
+        {
+          name: [32m'expo-keep-awake'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-keep-awake/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.keepawake.KeepAwakeModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.keepawake'[39m,
+            version: [32m'57.0.2'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.2'[39m
+    },
+    {
+      packageName: [32m'expo-linear-gradient'[39m,
+      projects: [
+        {
+          name: [32m'expo-linear-gradient'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-linear-gradient/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.lineargradient.LinearGradientModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.lineargradient'[39m,
+            version: [32m'57.0.1'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.1'[39m
+    },
+    {
+      packageName: [32m'expo-linking'[39m,
+      projects: [
+        {
+          name: [32m'expo-linking'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-linking/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.linking.ExpoLinkingModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [ [32m'expo.modules.linking.ExpoLinkingPackage'[39m ],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.linking'[39m,
+            version: [32m'57.0.9'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.9'[39m
+    },
+    {
+      packageName: [32m'expo-modules-core'[39m,
+      projects: [
+        {
+          name: [32m'expo-modules-core'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-modules-core/android'[39m,
+          modules: [],
+          services: [],
+          packages: [
+            [32m'expo.modules.adapters.react.ReactAdapterPackage'[39m,
+            [32m'expo.modules.core.BasePackage'[39m,
+            [32m'expo.modules.kotlin.edgeToEdge.EdgeToEdgePackage'[39m
+          ]
+        }
+      ],
+      plugins: [
+        {
+          id: [32m'expo-module-gradle-plugin'[39m,
+          group: [32m'expo.modules'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-modules-core/expo-module-gradle-plugin'[39m,
+          applyToRootProject: [33mfalse[39m
+        }
+      ],
+      packageVersion: [32m'57.0.20'[39m
+    },
+    {
+      packageName: [32m'expo-notifications'[39m,
+      projects: [
+        {
+          name: [32m'expo-notifications'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-notifications/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.badge.BadgeModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.background.ExpoBackgroundNotificationTasksModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.categories.ExpoNotificationCategoriesModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.channels.NotificationChannelGroupManagerModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.channels.NotificationChannelManagerModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.emitting.NotificationsEmitter'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.handling.NotificationsHandler'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.permissions.NotificationPermissionsModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.presentation.ExpoNotificationPresentationModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.scheduling.NotificationScheduler'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.serverregistration.ServerRegistrationModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.tokens.PushTokenModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.topics.TopicSubscriptionModule'[39m,
+              name: [1mnull[22m
+            },
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.notifications.notifications.channels.AndroidXNotificationsChannelsProvider'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [ [32m'expo.modules.notifications.NotificationsPackage'[39m ],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.notifications'[39m,
+            version: [32m'57.0.17'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.17'[39m
+    },
+    {
+      packageName: [32m'expo-router'[39m,
+      projects: [
+        {
+          name: [32m'expo-router'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-router/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.router.ExpoRouterModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'expo.modules.router'[39m,
+            artifactId: [32m'expo.modules.router'[39m,
+            version: [32m'57.0.20'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.20'[39m
+    },
+    {
+      packageName: [32m'expo-secure-store'[39m,
+      projects: [
+        {
+          name: [32m'expo-secure-store'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-secure-store/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.securestore.SecureStoreModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.securestore'[39m,
+            version: [32m'57.0.3'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.3'[39m
+    },
+    {
+      packageName: [32m'expo-splash-screen'[39m,
+      projects: [
+        {
+          name: [32m'expo-splash-screen'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-splash-screen/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.splashscreen.SplashScreenModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.splashscreen'[39m,
+            version: [32m'57.0.8'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.8'[39m
+    },
+    {
+      packageName: [32m'expo-status-bar'[39m,
+      projects: [
+        {
+          name: [32m'expo-status-bar'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-status-bar/android'[39m,
+          modules: [],
+          services: [],
+          packages: [ [32m'expo.modules.statusbar.StatusBarPackage'[39m ],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.statusbar'[39m,
+            version: [32m'57.0.1'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.1'[39m
+    },
+    {
+      packageName: [32m'expo-system-ui'[39m,
+      projects: [
+        {
+          name: [32m'expo-system-ui'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-system-ui/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.systemui.SystemUIModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [ [32m'expo.modules.systemui.SystemUIPackage'[39m ],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.systemui'[39m,
+            version: [32m'57.0.3'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.3'[39m
+    },
+    {
+      packageName: [32m'expo-web-browser'[39m,
+      projects: [
+        {
+          name: [32m'expo-web-browser'[39m,
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo-web-browser/android'[39m,
+          modules: [
+            ExpoAndroidModuleConfig {
+              classifier: [32m'expo.modules.webbrowser.WebBrowserModule'[39m,
+              name: [1mnull[22m
+            }
+          ],
+          services: [],
+          packages: [ [32m'expo.modules.webbrowser.WebBrowserPackage'[39m ],
+          publication: {
+            groupId: [32m'host.exp.exponent'[39m,
+            artifactId: [32m'expo.modules.webbrowser'[39m,
+            version: [32m'57.0.2'[39m,
+            repository: [32m'local-maven-repo'[39m
+          }
+        }
+      ],
+      packageVersion: [32m'57.0.2'[39m
+    }
+  ]
+}

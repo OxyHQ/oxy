@@ -1,0 +1,293 @@
+{
+  root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention'[39m,
+  reactNativePath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native'[39m,
+  dependencies: {
+    [32m'@react-native-async-storage/async-storage'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-async-storage/async-storage'[39m,
+      name: [32m'@react-native-async-storage/async-storage'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-async-storage/async-storage/android'[39m,
+          packageImportPath: [32m'import com.reactnativecommunity.asyncstorage.AsyncStoragePackage;'[39m,
+          packageInstance: [32m'new AsyncStoragePackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'rnasyncstorage'[39m,
+          componentDescriptors: [],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-async-storage/async-storage/android/build/generated/source/codegen/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'@react-native-community/netinfo'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-community/netinfo'[39m,
+      name: [32m'@react-native-community/netinfo'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-community/netinfo/android'[39m,
+          packageImportPath: [32m'import com.reactnativecommunity.netinfo.NetInfoPackage;'[39m,
+          packageInstance: [32m'new NetInfoPackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'RNCNetInfoSpec'[39m,
+          componentDescriptors: [],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-community/netinfo/android/build/generated/source/codegen/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'@react-native-masked-view/masked-view'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-masked-view/masked-view'[39m,
+      name: [32m'@react-native-masked-view/masked-view'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-masked-view/masked-view/android'[39m,
+          packageImportPath: [32m'import org.reactnative.maskedview.RNCMaskedViewPackage;'[39m,
+          packageInstance: [32m'new RNCMaskedViewPackage()'[39m,
+          buildTypes: [],
+          componentDescriptors: [],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-masked-view/masked-view/android/build/generated/source/codegen/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    expo: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo'[39m,
+      name: [32m'expo'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android'[39m,
+          packageImportPath: [32m'import expo.modules.ExpoModulesPackage;'[39m,
+          packageInstance: [32m'new ExpoModulesPackage()'[39m,
+          buildTypes: [],
+          componentDescriptors: [],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/build/generated/source/codegen/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'lottie-react-native'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native'[39m,
+      name: [32m'lottie-react-native'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android'[39m,
+          packageImportPath: [32m'import com.airbnb.android.react.lottie.LottiePackage;'[39m,
+          packageInstance: [32m'new LottiePackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'lottiereactnative'[39m,
+          componentDescriptors: [ [32m'LottieAnimationViewComponentDescriptor'[39m ],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/build/generated/source/codegen/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'react-native-gesture-handler'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-gesture-handler'[39m,
+      name: [32m'react-native-gesture-handler'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-gesture-handler/android'[39m,
+          packageImportPath: [32m'import com.swmansion.gesturehandler.RNGestureHandlerPackage;'[39m,
+          packageInstance: [32m'new RNGestureHandlerPackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'rngesturehandler_codegen'[39m,
+          componentDescriptors: [
+            [32m'RNGestureHandlerButtonComponentDescriptor'[39m,
+            [32m'RNGestureHandlerRootViewComponentDescriptor'[39m
+          ],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-gesture-handler/android/build/generated/source/codegen/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'react-native-keyboard-controller'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller'[39m,
+      name: [32m'react-native-keyboard-controller'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android'[39m,
+          packageImportPath: [32m'import com.reactnativekeyboardcontroller.KeyboardControllerPackage;'[39m,
+          packageInstance: [32m'new KeyboardControllerPackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'RNKC'[39m,
+          componentDescriptors: [
+            [32m'KeyboardControllerViewComponentDescriptor'[39m,
+            [32m'KeyboardGestureAreaComponentDescriptor'[39m,
+            [32m'OverKeyboardViewComponentDescriptor'[39m,
+            [32m'KeyboardBackgroundViewComponentDescriptor'[39m,
+            [32m'ClippingScrollViewDecoratorViewComponentDescriptor'[39m,
+            [32m'KeyboardToolbarGroupViewComponentDescriptor'[39m
+          ],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'react-native-reanimated'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated'[39m,
+      name: [32m'react-native-reanimated'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android'[39m,
+          packageImportPath: [32m'import com.swmansion.reanimated.ReanimatedPackage;'[39m,
+          packageInstance: [32m'new ReanimatedPackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'rnreanimated'[39m,
+          componentDescriptors: [],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/build/generated/source/codegen/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'react-native-safe-area-context'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context'[39m,
+      name: [32m'react-native-safe-area-context'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android'[39m,
+          packageImportPath: [32m'import com.th3rdwave.safeareacontext.SafeAreaContextPackage;'[39m,
+          packageInstance: [32m'new SafeAreaContextPackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'safeareacontext'[39m,
+          componentDescriptors: [
+            [32m'RNCSafeAreaProviderComponentDescriptor'[39m,
+            [32m'RNCSafeAreaViewComponentDescriptor'[39m
+          ],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'react-native-screens'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens'[39m,
+      name: [32m'react-native-screens'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android'[39m,
+          packageImportPath: [32m'import com.swmansion.rnscreens.RNScreensPackage;'[39m,
+          packageInstance: [32m'new RNScreensPackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'rnscreens'[39m,
+          componentDescriptors: [
+            [32m'RNSFullWindowOverlayComponentDescriptor'[39m,
+            [32m'RNSScreenContainerComponentDescriptor'[39m,
+            [32m'RNSScreenNavigationContainerComponentDescriptor'[39m,
+            [32m'RNSScreenStackHeaderConfigComponentDescriptor'[39m,
+            [32m'RNSScreenStackHeaderSubviewComponentDescriptor'[39m,
+            [32m'RNSScreenStackComponentDescriptor'[39m,
+            [32m'RNSSearchBarComponentDescriptor'[39m,
+            [32m'RNSScreenComponentDescriptor'[39m,
+            [32m'RNSScreenFooterComponentDescriptor'[39m,
+            [32m'RNSScreenContentWrapperComponentDescriptor'[39m,
+            [32m'RNSModalScreenComponentDescriptor'[39m,
+            [32m'RNSTabsHostComponentDescriptor'[39m,
+            [32m'RNSSafeAreaViewComponentDescriptor'[39m,
+            [32m'RNSStackScreenComponentDescriptor'[39m,
+            [32m'RNSStackHeaderConfigComponentDescriptor'[39m,
+            [32m'RNSStackHeaderSubviewComponentDescriptor'[39m
+          ],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'react-native-svg'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-svg'[39m,
+      name: [32m'react-native-svg'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-svg/android'[39m,
+          packageImportPath: [32m'import com.horcrux.svg.SvgPackage;'[39m,
+          packageInstance: [32m'new SvgPackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'rnsvg'[39m,
+          componentDescriptors: [
+            [32m'RNSVGCircleComponentDescriptor'[39m,
+            [32m'RNSVGClipPathComponentDescriptor'[39m,
+            [32m'RNSVGDefsComponentDescriptor'[39m,
+            [32m'RNSVGFeBlendComponentDescriptor'[39m,
+            [32m'RNSVGFeColorMatrixComponentDescriptor'[39m,
+            [32m'RNSVGFeCompositeComponentDescriptor'[39m,
+            [32m'RNSVGFeFloodComponentDescriptor'[39m,
+            [32m'RNSVGFeGaussianBlurComponentDescriptor'[39m,
+            [32m'RNSVGFeMergeComponentDescriptor'[39m,
+            [32m'RNSVGFeOffsetComponentDescriptor'[39m,
+            [32m'RNSVGFilterComponentDescriptor'[39m,
+            [32m'RNSVGEllipseComponentDescriptor'[39m,
+            [32m'RNSVGForeignObjectComponentDescriptor'[39m,
+            [32m'RNSVGGroupComponentDescriptor'[39m,
+            [32m'RNSVGImageComponentDescriptor'[39m,
+            [32m'RNSVGLinearGradientComponentDescriptor'[39m,
+            [32m'RNSVGLineComponentDescriptor'[39m,
+            [32m'RNSVGMarkerComponentDescriptor'[39m,
+            [32m'RNSVGMaskComponentDescriptor'[39m,
+            [32m'RNSVGPathComponentDescriptor'[39m,
+            [32m'RNSVGPatternComponentDescriptor'[39m,
+            [32m'RNSVGRadialGradientComponentDescriptor'[39m,
+            [32m'RNSVGRectComponentDescriptor'[39m,
+            [32m'RNSVGSvgViewAndroidComponentDescriptor'[39m,
+            [32m'RNSVGSymbolComponentDescriptor'[39m,
+            [32m'RNSVGTextComponentDescriptor'[39m,
+            [32m'RNSVGTextPathComponentDescriptor'[39m,
+            [32m'RNSVGTSpanComponentDescriptor'[39m,
+            [32m'RNSVGUseComponentDescriptor'[39m
+          ],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-svg/android/src/main/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    },
+    [32m'react-native-worklets'[39m: {
+      root: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-worklets'[39m,
+      name: [32m'react-native-worklets'[39m,
+      platforms: {
+        android: {
+          sourceDir: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-worklets/android'[39m,
+          packageImportPath: [32m'import com.swmansion.worklets.WorkletsPackage;'[39m,
+          packageInstance: [32m'new WorkletsPackage()'[39m,
+          buildTypes: [],
+          libraryName: [32m'rnworklets'[39m,
+          componentDescriptors: [],
+          cmakeListsPath: [32m'/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-worklets/android/build/generated/source/codegen/jni/CMakeLists.txt'[39m,
+          cxxModuleCMakeListsModuleName: [1mnull[22m,
+          cxxModuleCMakeListsPath: [1mnull[22m,
+          cxxModuleHeaderName: [1mnull[22m,
+          isPureCxxDependency: [33mfalse[39m
+        }
+      }
+    }
+  },
+  project: {}
+}

@@ -1,0 +1,890 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.3.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:settings-plugin:pluginDescriptors
+> Task :gradle-plugin:settings-plugin:processResources
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:pluginDescriptors
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:processResources
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:processResources NO-SOURCE
+> Task :gradle-plugin:shared:compileKotlin
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:jar
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileKotlin
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:jar
+> Task :gradle-plugin:settings-plugin:compileKotlin
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:classes
+> Task :gradle-plugin:settings-plugin:jar
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileKotlin
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:classes
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:jar
+> Task :expo-gradle-plugin:expo-autolinking-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:pluginDescriptors
+> Task :expo-module-gradle-plugin:processResources
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileKotlin
+> Task :expo-gradle-plugin:expo-autolinking-plugin:pluginDescriptors
+> Task :expo-gradle-plugin:expo-autolinking-plugin:processResources
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:pluginDescriptors
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:processResources
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:classes
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:jar
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileKotlin
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:classes
+> Task :gradle-plugin:react-native-gradle-plugin:processResources
+> Task :expo-gradle-plugin:expo-autolinking-plugin:jar
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:react-native-gradle-plugin:classes
+> Task :gradle-plugin:react-native-gradle-plugin:jar
+
+> Task :expo-module-gradle-plugin:compileKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/expo-module-gradle-plugin/src/main/kotlin/expo/modules/plugin/android/AndroidLibraryExtension.kt:9:24 'var targetSdk: Int?' is deprecated. Will be removed from library DSL in v9.0. Use testOptions.targetSdk or/and lint.targetSdk instead.
+
+> Task :expo-module-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-module-gradle-plugin:classes
+> Task :expo-module-gradle-plugin:jar
+
+> Configure project :
+[32m[ExpoRootProject][0m Using the following versions:
+  - buildTools:  [32m36.0.0[0m
+  - minSdk:      [32m24[0m
+  - compileSdk:  [32m36[0m
+  - targetSdk:   [32m35[0m
+  - ndk:         [32m27.1.12297006[0m
+  - kotlin:      [32m2.1.20[0m
+  - ksp:         [32m2.1.20-2.0.1[0m
+
+> Configure project :app
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-max-sdk-override-plugin[0m'
+  [expo-max-sdk-override-plugin] This plugin will find all permissions declared with `android:maxSdkVersion`. If there exists a declaration with the `android:maxSdkVersion` annotation and another one without, the plugin will remove the annotation from the final merged manifest. In order to see a log with the changes run a clean build of the app.
+
+> Configure project :expo
+
+Using expo modules
+  - [32mexpo-log-box[0m (57.0.4)
+  - [32moxy-so-services[0m (0.1.0)
+  - [32mexpo-constants[0m (57.0.17)
+
+> Configure project :expo-modules-core
+Linking react-native-worklets native libs into expo-modules-core build tasks
+task ':react-native-worklets:mergeDebugNativeLibs'
+task ':react-native-worklets:mergeReleaseNativeLibs'
+
+> Configure project :expo
+  - [32mexpo-modules-core[0m (57.0.20)
+  - [33m[📦][0m [32mexpo-dom-webview[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-ui[0m (57.0.21)
+  - [33m[📦][0m [32mexpo-application[0m (57.0.3)
+  - [33m[📦][0m [32mexpo-asset[0m (57.0.18)
+  - [33m[📦][0m [32mexpo-blur[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-clipboard[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-crypto[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-document-picker[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-file-system[0m (57.0.6)
+  - [33m[📦][0m [32mexpo-font[0m (57.0.3)
+  - [33m[📦][0m [32mexpo-haptics[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-image[0m (57.0.4)
+  - [33m[📦][0m [32mexpo-image-loader[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-image-manipulator[0m (57.0.16)
+  - [33m[📦][0m [32mexpo-image-picker[0m (57.0.16)
+  - [33m[📦][0m [32mexpo-keep-awake[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-linear-gradient[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-linking[0m (57.0.9)
+  - [33m[📦][0m [32mexpo-notifications[0m (57.0.17)
+  - [33m[📦][0m [32mexpo-router[0m (57.0.20)
+  - [33m[📦][0m [32mexpo-secure-store[0m (57.0.3)
+  - [33m[📦][0m [32mexpo-splash-screen[0m (57.0.8)
+  - [33m[📦][0m [32mexpo-status-bar[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-system-ui[0m (57.0.3)
+  - [33m[📦][0m [32mexpo-web-browser[0m (57.0.2)
+
+
+> Task :expo:generatePackagesList
+> Task :expo:preBuild
+> Task :app:generateAutolinkingNewArchitectureFiles
+> Task :app:generateAutolinkingPackageList
+> Task :app:generateCodegenSchemaFromJavaScript SKIPPED
+> Task :app:generateCodegenArtifactsFromSchema SKIPPED
+> Task :app:generateReactNativeEntryPoint
+> Task :expo-log-box:preBuild UP-TO-DATE
+> Task :expo-modules-core:preBuild UP-TO-DATE
+> Task :lottie-react-native:generateCodegenSchemaFromJavaScript
+> Task :expo-constants:createExpoConfig
+> Task :expo-constants:preBuild
+> Task :oxy-so-services:preBuild UP-TO-DATE
+> Task :react-native-async-storage_async-storage:generateCodegenSchemaFromJavaScript
+> Task :lottie-react-native:generateCodegenArtifactsFromSchema
+> Task :lottie-react-native:preBuild
+> Task :react-native-community_netinfo:generateCodegenSchemaFromJavaScript
+> Task :react-native-async-storage_async-storage:generateCodegenArtifactsFromSchema
+> Task :react-native-async-storage_async-storage:preBuild
+> Task :react-native-gesture-handler:generateCodegenSchemaFromJavaScript
+> Task :react-native-community_netinfo:generateCodegenArtifactsFromSchema
+> Task :react-native-community_netinfo:preBuild
+> Task :react-native-gesture-handler:generateCodegenArtifactsFromSchema
+> Task :react-native-gesture-handler:preBuild
+> Task :react-native-masked-view_masked-view:preBuild UP-TO-DATE
+> Task :react-native-keyboard-controller:generateCodegenSchemaFromJavaScript
+> Task :react-native-reanimated:assertMinimalReactNativeVersionTask
+> Task :react-native-reanimated:assertWorkletsVersionTask
+> Task :react-native-keyboard-controller:generateCodegenArtifactsFromSchema
+> Task :react-native-keyboard-controller:preBuild
+> Task :react-native-reanimated:generateCodegenSchemaFromJavaScript
+> Task :react-native-safe-area-context:generateCodegenSchemaFromJavaScript
+> Task :react-native-reanimated:generateCodegenArtifactsFromSchema
+> Task :react-native-safe-area-context:generateCodegenArtifactsFromSchema
+> Task :react-native-safe-area-context:preBuild
+> Task :react-native-reanimated:prepareReanimatedHeadersForPrefabs
+> Task :react-native-reanimated:preBuild
+> Task :react-native-screens:generateCodegenSchemaFromJavaScript
+> Task :react-native-svg:generateCodegenSchemaFromJavaScript
+> Task :react-native-screens:generateCodegenArtifactsFromSchema
+> Task :react-native-screens:preBuild
+> Task :react-native-svg:generateCodegenArtifactsFromSchema
+> Task :react-native-svg:preBuild
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo:preDebugBuild
+> Task :react-native-worklets:assertMinimalReactNativeVersionTask
+> Task :expo:writeDebugAarMetadata
+> Task :expo-constants:preDebugBuild
+> Task :expo-constants:writeDebugAarMetadata
+> Task :expo-log-box:preDebugBuild UP-TO-DATE
+> Task :expo-log-box:writeDebugAarMetadata
+> Task :expo-modules-core:preDebugBuild UP-TO-DATE
+> Task :expo-modules-core:writeDebugAarMetadata
+> Task :lottie-react-native:preDebugBuild
+> Task :lottie-react-native:writeDebugAarMetadata
+> Task :oxy-so-services:preDebugBuild UP-TO-DATE
+> Task :oxy-so-services:writeDebugAarMetadata
+> Task :react-native-async-storage_async-storage:preDebugBuild
+> Task :react-native-async-storage_async-storage:writeDebugAarMetadata
+> Task :react-native-community_netinfo:preDebugBuild
+> Task :react-native-community_netinfo:writeDebugAarMetadata
+> Task :react-native-gesture-handler:preDebugBuild
+> Task :react-native-gesture-handler:writeDebugAarMetadata
+> Task :react-native-keyboard-controller:preDebugBuild
+> Task :react-native-keyboard-controller:writeDebugAarMetadata
+> Task :react-native-masked-view_masked-view:preDebugBuild UP-TO-DATE
+> Task :react-native-masked-view_masked-view:writeDebugAarMetadata
+> Task :react-native-reanimated:preDebugBuild
+> Task :react-native-reanimated:writeDebugAarMetadata
+> Task :react-native-safe-area-context:preDebugBuild
+> Task :react-native-safe-area-context:writeDebugAarMetadata
+> Task :react-native-screens:preDebugBuild
+> Task :react-native-screens:writeDebugAarMetadata
+> Task :react-native-svg:preDebugBuild
+> Task :react-native-worklets:generateCodegenSchemaFromJavaScript
+> Task :react-native-svg:writeDebugAarMetadata
+> Task :expo:generateDebugResValues
+> Task :expo:generateDebugResources
+> Task :expo:packageDebugResources
+> Task :expo-constants:generateDebugResValues
+> Task :expo-constants:generateDebugResources
+> Task :expo-constants:packageDebugResources
+> Task :expo-log-box:generateDebugResValues
+> Task :expo-log-box:generateDebugResources
+> Task :expo-log-box:packageDebugResources
+> Task :expo-modules-core:generateDebugResValues
+> Task :expo-modules-core:generateDebugResources
+> Task :expo-modules-core:packageDebugResources
+> Task :lottie-react-native:generateDebugResValues
+> Task :lottie-react-native:generateDebugResources
+> Task :react-native-worklets:generateCodegenArtifactsFromSchema
+> Task :lottie-react-native:packageDebugResources
+> Task :oxy-so-services:generateDebugResValues
+> Task :oxy-so-services:generateDebugResources
+> Task :oxy-so-services:packageDebugResources
+> Task :react-native-async-storage_async-storage:generateDebugResValues
+> Task :react-native-async-storage_async-storage:generateDebugResources
+> Task :react-native-worklets:prepareWorkletsHeadersForPrefabs
+> Task :react-native-worklets:preBuild
+> Task :app:preBuild
+> Task :react-native-async-storage_async-storage:packageDebugResources
+> Task :app:preDebugBuild
+> Task :react-native-worklets:preDebugBuild
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :react-native-worklets:writeDebugAarMetadata
+> Task :react-native-community_netinfo:generateDebugResValues
+> Task :react-native-community_netinfo:generateDebugResources
+> Task :app:generateDebugBuildConfig
+> Task :react-native-community_netinfo:packageDebugResources
+> Task :react-native-gesture-handler:generateDebugResValues
+> Task :react-native-gesture-handler:generateDebugResources
+> Task :react-native-gesture-handler:packageDebugResources
+> Task :react-native-keyboard-controller:generateDebugResValues
+> Task :react-native-keyboard-controller:generateDebugResources
+> Task :react-native-keyboard-controller:packageDebugResources
+> Task :react-native-masked-view_masked-view:generateDebugResValues
+> Task :react-native-masked-view_masked-view:generateDebugResources
+> Task :react-native-masked-view_masked-view:packageDebugResources
+> Task :react-native-reanimated:generateDebugResValues
+> Task :react-native-reanimated:generateDebugResources
+> Task :react-native-reanimated:packageDebugResources
+> Task :react-native-safe-area-context:generateDebugResValues
+> Task :react-native-safe-area-context:generateDebugResources
+> Task :react-native-safe-area-context:packageDebugResources
+> Task :react-native-screens:generateDebugResValues
+> Task :react-native-screens:generateDebugResources
+> Task :react-native-screens:packageDebugResources
+> Task :react-native-svg:generateDebugResValues
+> Task :react-native-svg:generateDebugResources
+> Task :react-native-svg:packageDebugResources
+> Task :react-native-worklets:generateDebugResValues
+> Task :react-native-worklets:generateDebugResources
+> Task :react-native-worklets:packageDebugResources
+> Task :expo:extractDeepLinksDebug
+> Task :expo:processDebugManifest
+> Task :expo-constants:extractDeepLinksDebug
+> Task :expo-constants:processDebugManifest
+> Task :expo-log-box:extractDeepLinksDebug
+> Task :expo-log-box:processDebugManifest
+> Task :expo-modules-core:extractDeepLinksDebug
+
+> Task :expo-modules-core:processDebugManifest
+/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/AndroidManifest.xml:8:9-11:45 Warning:
+	meta-data#com.facebook.soloader.enabled@android:value was tagged at AndroidManifest.xml:8 to replace other declarations but no other declaration present
+
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :lottie-react-native:extractDeepLinksDebug
+> Task :lottie-react-native:processDebugManifest
+> Task :oxy-so-services:extractDeepLinksDebug
+> Task :oxy-so-services:processDebugManifest
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :react-native-async-storage_async-storage:extractDeepLinksDebug
+
+> Task :react-native-async-storage_async-storage:processDebugManifest
+package="com.reactnativecommunity.asyncstorage" found in source AndroidManifest.xml: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-async-storage/async-storage/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.reactnativecommunity.asyncstorage" from the source AndroidManifest.xml: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-async-storage/async-storage/android/src/main/AndroidManifest.xml.
+
+> Task :react-native-community_netinfo:extractDeepLinksDebug
+
+> Task :react-native-community_netinfo:processDebugManifest
+package="com.reactnativecommunity.netinfo" found in source AndroidManifest.xml: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-community/netinfo/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.reactnativecommunity.netinfo" from the source AndroidManifest.xml: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-community/netinfo/android/src/main/AndroidManifest.xml.
+
+> Task :react-native-gesture-handler:extractDeepLinksDebug
+> Task :react-native-gesture-handler:processDebugManifest
+> Task :react-native-keyboard-controller:extractDeepLinksDebug
+
+> Task :react-native-keyboard-controller:processDebugManifest
+package="com.reactnativekeyboardcontroller" found in source AndroidManifest.xml: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.reactnativekeyboardcontroller" from the source AndroidManifest.xml: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/AndroidManifest.xml.
+
+> Task :react-native-masked-view_masked-view:extractDeepLinksDebug
+> Task :react-native-masked-view_masked-view:processDebugManifest
+> Task :react-native-reanimated:extractDeepLinksDebug
+> Task :react-native-reanimated:processDebugManifest
+> Task :react-native-safe-area-context:extractDeepLinksDebug
+
+> Task :react-native-safe-area-context:processDebugManifest
+package="com.th3rdwave.safeareacontext" found in source AndroidManifest.xml: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.th3rdwave.safeareacontext" from the source AndroidManifest.xml: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android/src/main/AndroidManifest.xml.
+
+> Task :react-native-screens:extractDeepLinksDebug
+> Task :react-native-screens:processDebugManifest
+> Task :react-native-svg:extractDeepLinksDebug
+> Task :react-native-svg:processDebugManifest
+> Task :react-native-worklets:extractDeepLinksDebug
+> Task :react-native-worklets:processDebugManifest
+> Task :expo:compileDebugLibraryResources
+> Task :expo:parseDebugLocalResources
+> Task :expo:generateDebugRFile
+> Task :expo-constants:compileDebugLibraryResources
+> Task :expo-constants:parseDebugLocalResources
+> Task :expo-constants:generateDebugRFile
+> Task :expo-log-box:compileDebugLibraryResources
+> Task :expo-log-box:parseDebugLocalResources
+> Task :expo-log-box:generateDebugRFile
+> Task :expo-modules-core:compileDebugLibraryResources
+> Task :expo-modules-core:parseDebugLocalResources
+> Task :expo-modules-core:generateDebugRFile
+> Task :lottie-react-native:compileDebugLibraryResources
+> Task :lottie-react-native:parseDebugLocalResources
+> Task :lottie-react-native:generateDebugRFile
+> Task :oxy-so-services:compileDebugLibraryResources
+> Task :oxy-so-services:parseDebugLocalResources
+> Task :oxy-so-services:generateDebugRFile
+> Task :react-native-async-storage_async-storage:compileDebugLibraryResources
+> Task :react-native-async-storage_async-storage:parseDebugLocalResources
+> Task :react-native-async-storage_async-storage:generateDebugRFile
+> Task :react-native-community_netinfo:compileDebugLibraryResources
+> Task :react-native-community_netinfo:parseDebugLocalResources
+> Task :react-native-community_netinfo:generateDebugRFile
+> Task :react-native-gesture-handler:compileDebugLibraryResources
+> Task :react-native-gesture-handler:parseDebugLocalResources
+> Task :react-native-gesture-handler:generateDebugRFile
+> Task :react-native-keyboard-controller:compileDebugLibraryResources
+> Task :react-native-keyboard-controller:parseDebugLocalResources
+> Task :react-native-keyboard-controller:generateDebugRFile
+> Task :react-native-masked-view_masked-view:compileDebugLibraryResources
+> Task :react-native-masked-view_masked-view:parseDebugLocalResources
+> Task :react-native-masked-view_masked-view:generateDebugRFile
+> Task :react-native-reanimated:compileDebugLibraryResources
+> Task :react-native-reanimated:parseDebugLocalResources
+> Task :react-native-reanimated:generateDebugRFile
+> Task :react-native-safe-area-context:compileDebugLibraryResources
+> Task :react-native-safe-area-context:parseDebugLocalResources
+> Task :react-native-safe-area-context:generateDebugRFile
+> Task :react-native-screens:compileDebugLibraryResources
+> Task :react-native-screens:parseDebugLocalResources
+> Task :react-native-screens:generateDebugRFile
+> Task :react-native-svg:compileDebugLibraryResources
+> Task :react-native-svg:parseDebugLocalResources
+> Task :react-native-svg:generateDebugRFile
+> Task :react-native-worklets:compileDebugLibraryResources
+> Task :react-native-worklets:parseDebugLocalResources
+> Task :react-native-worklets:generateDebugRFile
+> Task :expo:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo:generateDebugBuildConfig
+> Task :expo-constants:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-constants:generateDebugBuildConfig
+> Task :expo-modules-core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-modules-core:generateDebugBuildConfig
+> Task :react-native-worklets:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-worklets:generateDebugBuildConfig
+> Task :app:mergeDebugResources
+> Task :app:packageDebugResources
+> Task :app:parseDebugLocalResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+
+> Task :app:processDebugMainManifest
+/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/android/app/src/debug/AndroidManifest.xml Warning:
+	provider#expo.modules.filesystem.FileSystemFileProvider@android:authorities was tagged at AndroidManifest.xml:0 to replace other declarations but no other declaration present
+/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/android/app/src/debug/AndroidManifest.xml Warning:
+	activity#expo.modules.imagepicker.ExpoCropImageActivity@android:exported was tagged at AndroidManifest.xml:0 to replace other declarations but no other declaration present
+
+> Task :app:expoDebugOverrideMaxSdkConflicts
+[33m---------- Expo Max Sdk Override Plugin ----------[0m
+[32m>>> No 'android:maxSdkVersion' conflicts found[0m
+[33m--------------------------------------------------[0m
+
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :react-native-worklets:compileDebugKotlin
+> Task :react-native-worklets:javaPreCompileDebug
+> Task :app:processDebugResources
+> Task :expo-modules-core:javaPreCompileDebug
+> Task :expo-constants:javaPreCompileDebug
+> Task :expo-log-box:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-log-box:generateDebugBuildConfig
+> Task :expo-log-box:javaPreCompileDebug
+> Task :oxy-so-services:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :oxy-so-services:generateDebugBuildConfig
+> Task :oxy-so-services:javaPreCompileDebug
+> Task :expo:javaPreCompileDebug
+> Task :lottie-react-native:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :lottie-react-native:generateDebugBuildConfig
+> Task :react-native-worklets:compileDebugJavaWithJavac
+> Task :react-native-worklets:bundleLibCompileToJarDebug
+
+> Task :lottie-react-native:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:12:8 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:21:17 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:35:47 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:48:47 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:61:47 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:72:16 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:74:13 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:76:13 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:78:13 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:108:28 'static fun isAttachedToWindow(p0: View): Boolean' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:138:28 'static fun isAttachedToWindow(p0: View): Boolean' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:148:28 'static fun isAttachedToWindow(p0: View): Boolean' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewManagerImpl.kt:157:28 'static fun isAttachedToWindow(p0: View): Boolean' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewPropertyManager.kt:22:8 'class ReactFontManager : Any' is deprecated. This class is deprecated and will be deleted in the near future. Please use [com.facebook.react.common.assets.ReactFontManager] instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewPropertyManager.kt:76:24 'class ReactFontManager : Any' is deprecated. This class is deprecated and will be deleted in the near future. Please use [com.facebook.react.common.assets.ReactFontManager] instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottieAnimationViewPropertyManager.kt:90:24 'class ReactFontManager : Any' is deprecated. This class is deprecated and will be deleted in the near future. Please use [com.facebook.react.common.assets.ReactFontManager] instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/main/java/com/airbnb/android/react/lottie/LottiePackage.kt:11:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/lottie-react-native/android/src/newarch/com/airbnb/android/react/lottie/LottieAnimationViewManager.kt:107:18 'fun receiveCommand(view: LottieAnimationView, commandName: String, args: ReadableArray?): Unit' is deprecated. args is not nullable, please update your method signature.
+
+> Task :lottie-react-native:javaPreCompileDebug
+> Task :lottie-react-native:compileDebugJavaWithJavac
+> Task :lottie-react-native:bundleLibCompileToJarDebug
+> Task :react-native-async-storage_async-storage:generateDebugBuildConfig
+> Task :react-native-async-storage_async-storage:javaPreCompileDebug
+
+> Task :react-native-async-storage_async-storage:compileDebugJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-async-storage/async-storage/android/src/javaPackage/java/com/reactnativecommunity/asyncstorage/AsyncStoragePackage.java uses unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :react-native-async-storage_async-storage:bundleLibCompileToJarDebug
+> Task :react-native-community_netinfo:generateDebugBuildConfig
+> Task :react-native-community_netinfo:javaPreCompileDebug
+
+> Task :react-native-community_netinfo:compileDebugJavaWithJavac
+/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-community/netinfo/android/src/newarch/com/reactnativecommunity/netinfo/NetInfoModule.java:43: warning: [removal] onCatalystInstanceDestroy() in NativeModule has been deprecated and marked for removal
+    public void onCatalystInstanceDestroy() {
+                ^
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+1 warning
+
+> Task :react-native-community_netinfo:bundleLibCompileToJarDebug
+> Task :react-native-gesture-handler:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-gesture-handler:generateDebugBuildConfig
+> Task :react-native-reanimated:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-reanimated:generateDebugBuildConfig
+
+> Task :react-native-reanimated:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/NodesManager.kt:13:8 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/NodesManager.kt:58:95 'fun resolveCustomDirectEventName(eventName: String): String?' is deprecated.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/NodesManager.kt:234:29 'fun receiveEvent(surfaceId: Int, targetTag: Int, eventName: String, canCoalesceEvent: Boolean, customCoalesceKey: Int, params: WritableMap?, category: Int): Unit' is deprecated. Use the overload with eventTimestamp parameter instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/ReanimatedPackage.kt:5:8 'class ReactInstanceManager : Any' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/ReanimatedPackage.kt:60:73 'class ReactInstanceManager : Any' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/ReanimatedPackage.kt:61:63 'val reactNativeHost: ReactNativeHost' is deprecated. You should not use ReactNativeHost directly in the New Architecture. Use ReactHost instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/EventHandler.kt:7:8 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/EventHandler.kt:25:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/EventHandler.kt:38:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/EventHandler.kt:48:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/EventHandler.kt:57:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/NoopEventHandler.kt:8:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/NoopEventHandler.kt:20:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/NoopEventHandler.kt:29:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/nativeProxy/NoopEventHandler.kt:37:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated/sensor/ReanimatedSensor.kt:28:26 'val defaultDisplay: Display!' is deprecated. Deprecated in Java.
+
+> Task :react-native-reanimated:javaPreCompileDebug
+> Task :react-native-reanimated:compileDebugJavaWithJavac
+> Task :react-native-reanimated:bundleLibCompileToJarDebug
+> Task :react-native-svg:generateDebugBuildConfig
+> Task :react-native-svg:javaPreCompileDebug
+
+> Task :react-native-svg:compileDebugJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :react-native-svg:bundleLibCompileToJarDebug
+
+> Task :react-native-gesture-handler:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-gesture-handler/android/src/main/java/com/swmansion/gesturehandler/react/Extensions.kt:8:8 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-gesture-handler/android/src/main/java/com/swmansion/gesturehandler/react/Extensions.kt:13:29 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-gesture-handler/android/src/main/java/com/swmansion/gesturehandler/react/Extensions.kt:14:32 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+
+> Task :react-native-gesture-handler:javaPreCompileDebug
+> Task :react-native-gesture-handler:compileDebugJavaWithJavac
+> Task :react-native-gesture-handler:bundleLibCompileToJarDebug
+> Task :react-native-keyboard-controller:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-keyboard-controller:generateDebugBuildConfig
+
+> Task :react-native-keyboard-controller:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/fabric/java/com/reactnativekeyboardcontroller/OverKeyboardViewManager.kt:3:8 'class LayoutShadowNode : ReactShadowNodeImpl' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/fabric/java/com/reactnativekeyboardcontroller/OverKeyboardViewManager.kt:29:44 'class LayoutShadowNode : ReactShadowNodeImpl' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/fabric/java/com/reactnativekeyboardcontroller/OverKeyboardViewManager.kt:31:48 'class LayoutShadowNode : ReactShadowNodeImpl' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/extensions/EditText.kt:69:42 Unchecked cast of 'ArrayList<*>' to 'ArrayList<TextWatcher>'.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/extensions/ReactContext.kt:12:109 'val DEFAULT: Int' is deprecated. UIManagerType.DEFAULT will be deleted in the next release of React Native. Use [LEGACY] instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/extensions/ReactContext.kt:18:27 'fun getEventDispatcher(context: ReactContext, uiManagerType: Int): EventDispatcher?' is deprecated. UIManagerType is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/extensions/ThemedReactContext.kt:18:21 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/interactive/KeyboardAnimationController.kt:89:16 'static fun getWindowInsetsController(p0: View): WindowInsetsControllerCompat?' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:4:8 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:73:7 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:75:9 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:77:9 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:79:9 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:81:9 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:83:9 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:85:9 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/managers/KeyboardControllerViewManagerImpl.kt:87:9 'object MapBuilder : Any' is deprecated. Use Kotlin's built-in collections extensions.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/modules/statusbar/StatusBarManagerCompatModuleImpl.kt:70:38 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/modules/statusbar/StatusBarManagerCompatModuleImpl.kt:73:20 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/modules/statusbar/StatusBarManagerCompatModuleImpl.kt:78:18 'var statusBarColor: Int' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/EdgeToEdgeReactViewGroup.kt:115:58 'static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/EdgeToEdgeReactViewGroup.kt:150:81 'static field FLAG_FULLSCREEN: Int' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardHostShadowNode.kt:3:8 'class LayoutShadowNode : ReactShadowNodeImpl' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardHostShadowNode.kt:4:8 'class ReactShadowNodeImpl : Any, ReactShadowNode<ReactShadowNodeImpl!>' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardHostShadowNode.kt:15:45 'class LayoutShadowNode : ReactShadowNodeImpl' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardHostShadowNode.kt:22:12 'class ReactShadowNodeImpl : Any, ReactShadowNode<ReactShadowNodeImpl!>' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:13:8 'object ReactFeatureFlags : Any' is deprecated. Use com.facebook.react.internal.featureflags.ReactNativeFeatureFlags instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:30:44 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:79:5 The corresponding parameter in the supertype 'ReactViewGroup' is named 'left'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:80:5 The corresponding parameter in the supertype 'ReactViewGroup' is named 'top'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:81:5 The corresponding parameter in the supertype 'ReactViewGroup' is named 'right'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:82:5 The corresponding parameter in the supertype 'ReactViewGroup' is named 'bottom'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:132:9 'object ReactFeatureFlags : Any' is deprecated. Use com.facebook.react.internal.featureflags.ReactNativeFeatureFlags instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:152:5 The corresponding parameter in the supertype 'ReactViewGroup' is named 'w'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:153:5 The corresponding parameter in the supertype 'ReactViewGroup' is named 'h'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:154:5 The corresponding parameter in the supertype 'ReactViewGroup' is named 'oldw'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-keyboard-controller/android/src/main/java/com/reactnativekeyboardcontroller/views/overlay/OverKeyboardViewGroup.kt:155:5 The corresponding parameter in the supertype 'ReactViewGroup' is named 'oldh'. This may cause problems when calling this function with named arguments.
+
+> Task :react-native-keyboard-controller:javaPreCompileDebug
+> Task :react-native-keyboard-controller:compileDebugJavaWithJavac
+> Task :react-native-keyboard-controller:bundleLibCompileToJarDebug
+> Task :react-native-masked-view_masked-view:generateDebugBuildConfig
+> Task :react-native-masked-view_masked-view:javaPreCompileDebug
+
+> Task :react-native-masked-view_masked-view:compileDebugJavaWithJavac
+Note: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@react-native-masked-view/masked-view/android/src/main/java/org/reactnative/maskedview/RNCMaskedViewPackage.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :react-native-masked-view_masked-view:bundleLibCompileToJarDebug
+> Task :react-native-safe-area-context:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-safe-area-context:generateDebugBuildConfig
+
+> Task :react-native-safe-area-context:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaProviderManager.kt:39:19 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaView.kt:8:8 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaView.kt:45:54 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaViewShadowNode.kt:9:32 'class LayoutShadowNode : ReactShadowNodeImpl' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaViewShadowNode.kt:110:61 'class NativeViewHierarchyOptimizer : Any' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+
+> Task :react-native-safe-area-context:javaPreCompileDebug
+> Task :react-native-safe-area-context:compileDebugJavaWithJavac
+> Task :react-native-safe-area-context:bundleLibCompileToJarDebug
+> Task :react-native-screens:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-screens:generateDebugBuildConfig
+
+> Task :expo-modules-core:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/apploader/AppLoaderProvider.kt:34:52 Unchecked cast of 'Class<*>!' to 'Class<out HeadlessAppLoader>'.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:14:8 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:22:8 'typealias ErrorManagerModule = JSLoggerModule' is deprecated. Use JSLoggerModule instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:61:13 'val hostingRuntimeContext: MainRuntime' is deprecated. Use AppContext.runtimeContext instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:271:21 'typealias ErrorManagerModule = JSLoggerModule' is deprecated. Use JSLoggerModule instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:380:21 'val DEFAULT: Int' is deprecated. UIManagerType.DEFAULT will be deleted in the next release of React Native. Use [LEGACY] instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:381:10 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/defaultmodules/NativeModulesProxyModule.kt:16:5 'fun Constants(legacyConstantsProvider: () -> Map<String, Any?>): Unit' is deprecated. Use `Constant` or `Property` instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/events/KModuleEventEmitterWrapper.kt:99:21 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/events/KModuleEventEmitterWrapper.kt:108:21 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/views/ViewDefinitionBuilder.kt:470:16 'val errorManager: JSLoggerModule?' is deprecated. Use AppContext.jsLogger instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/views/ViewDefinitionBuilder.kt:470:30 'fun reportExceptionToLogBox(codedException: CodedException): Unit' is deprecated. Use appContext.jsLogger.error(...) instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/views/ViewManagerDefinition.kt:41:16 'val errorManager: JSLoggerModule?' is deprecated. Use AppContext.jsLogger instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/views/ViewManagerDefinition.kt:41:30 'fun reportExceptionToLogBox(codedException: CodedException): Unit' is deprecated. Use appContext.jsLogger.error(...) instead.
+
+> Task :expo-modules-core:compileDebugJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :expo-modules-core:bundleLibCompileToJarDebug
+
+> Task :expo-constants:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-constants/android/src/main/java/expo/modules/constants/ConstantsModule.kt:13:5 'fun Constants(legacyConstantsProvider: () -> Map<String, Any?>): Unit' is deprecated. Use `Constant` or `Property` instead.
+
+> Task :expo-constants:compileDebugJavaWithJavac
+> Task :expo-constants:bundleLibCompileToJarDebug
+> Task :expo-log-box:compileDebugKotlin
+> Task :expo-log-box:compileDebugJavaWithJavac
+> Task :expo-log-box:bundleLibCompileToJarDebug
+
+> Task :react-native-screens:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/RNScreensPackage.kt:66:9 The corresponding parameter in the supertype 'BaseReactPackage' is named 'name'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/RNScreensPackage.kt:67:9 The corresponding parameter in the supertype 'BaseReactPackage' is named 'reactContext'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/RNScreensPackage.kt:79:17 'constructor(name: String, className: String, canOverrideExistingModule: Boolean, needsEagerInit: Boolean, hasConstants: Boolean, isCxxModule: Boolean, isTurboModule: Boolean): ReactModuleInfo' is deprecated. This constructor is deprecated and will be removed in the future. Use ReactModuleInfo(String, String, boolean, boolean, boolean, boolean)].
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt:53:77 Unchecked cast of '(CoordinatorLayout.Behavior<View!>?..CoordinatorLayout.Behavior<*>?)' to 'BottomSheetBehavior<Screen>'.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt:58:33 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt:515:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenContainer.kt:250:18 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenContainer.kt:260:18 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt:225:37 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt:242:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt:258:22 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt:327:22 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenModalFragment.kt:180:22 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStack.kt:106:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:169:18 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:226:31 'var targetElevation: Float' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:229:13 'fun setHasOptionsMenu(p0: Boolean): Unit' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:439:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:446:22 'fun onPrepareOptionsMenu(p0: Menu): Unit' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:449:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:454:22 'fun onCreateOptionsMenu(p0: Menu, p1: MenuInflater): Unit' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt:181:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt:191:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt:48:42 'fun replaceSystemWindowInsets(p0: Int, p1: Int, p2: Int, p3: Int): @NonNull() WindowInsetsCompat' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt:49:39 'val systemWindowInsetLeft: Int' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt:51:39 'val systemWindowInsetRight: Int' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt:52:39 'val systemWindowInsetBottom: Int' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreensModule.kt:100:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/SearchBarView.kt:137:29 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:7:8 'object ReactFeatureFlags : Any' is deprecated. Use com.facebook.react.internal.featureflags.ReactNativeFeatureFlags instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:25:13 'object ReactFeatureFlags : Any' is deprecated. Use com.facebook.react.internal.featureflags.ReactNativeFeatureFlags instead.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:32:9 The corresponding parameter in the supertype 'ReactViewGroup' is named 'left'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:33:9 The corresponding parameter in the supertype 'ReactViewGroup' is named 'top'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:34:9 The corresponding parameter in the supertype 'ReactViewGroup' is named 'right'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:35:9 The corresponding parameter in the supertype 'ReactViewGroup' is named 'bottom'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:71:9 The corresponding parameter in the supertype 'RootView' is named 'childView'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:72:9 The corresponding parameter in the supertype 'RootView' is named 'ev'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:79:46 The corresponding parameter in the supertype 'RootView' is named 'ev'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:83:9 The corresponding parameter in the supertype 'RootView' is named 'childView'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:84:9 The corresponding parameter in the supertype 'RootView' is named 'ev'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:95:34 The corresponding parameter in the supertype 'RootView' is named 't'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/DimmingView.kt:64:9 The corresponding parameter in the supertype 'ReactCompoundView' is named 'touchX'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/DimmingView.kt:65:9 The corresponding parameter in the supertype 'ReactCompoundView' is named 'touchY'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/DimmingView.kt:69:9 The corresponding parameter in the supertype 'ReactCompoundViewGroup' is named 'touchX'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/DimmingView.kt:70:9 The corresponding parameter in the supertype 'ReactCompoundViewGroup' is named 'touchY'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/common/event/BaseEventEmitter.kt:12:38 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/host/TabsHostViewManager.kt:44:9 The corresponding parameter in the supertype 'TabsHostViewManager' is named 'view'. This may cause problems when calling this function with named arguments.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/safearea/SafeAreaView.kt:143:45 'fun consumeDisplayCutout(): @NonNull() WindowInsetsCompat' is deprecated. Deprecated in Java.
+
+> Task :react-native-screens:javaPreCompileDebug
+> Task :react-native-screens:compileDebugJavaWithJavac
+> Task :react-native-screens:bundleLibCompileToJarDebug
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :expo:mergeDebugShaders
+> Task :expo:compileDebugShaders NO-SOURCE
+> Task :expo:generateDebugAssets UP-TO-DATE
+> Task :expo:mergeDebugAssets
+> Task :expo-constants:mergeDebugShaders
+> Task :expo-constants:compileDebugShaders NO-SOURCE
+> Task :expo-constants:generateDebugAssets UP-TO-DATE
+> Task :expo-constants:mergeDebugAssets
+> Task :expo-log-box:mergeDebugShaders
+> Task :expo-log-box:compileDebugShaders NO-SOURCE
+> Task :expo-log-box:generateDebugAssets UP-TO-DATE
+> Task :expo-log-box:mergeDebugAssets
+> Task :expo-modules-core:mergeDebugShaders
+> Task :expo-modules-core:compileDebugShaders NO-SOURCE
+> Task :expo-modules-core:generateDebugAssets UP-TO-DATE
+> Task :expo-modules-core:mergeDebugAssets
+> Task :lottie-react-native:mergeDebugShaders
+> Task :lottie-react-native:compileDebugShaders NO-SOURCE
+> Task :lottie-react-native:generateDebugAssets UP-TO-DATE
+> Task :lottie-react-native:mergeDebugAssets
+> Task :oxy-so-services:mergeDebugShaders
+> Task :oxy-so-services:compileDebugShaders NO-SOURCE
+> Task :oxy-so-services:generateDebugAssets UP-TO-DATE
+> Task :oxy-so-services:mergeDebugAssets
+> Task :react-native-async-storage_async-storage:mergeDebugShaders
+> Task :react-native-async-storage_async-storage:compileDebugShaders NO-SOURCE
+> Task :react-native-async-storage_async-storage:generateDebugAssets UP-TO-DATE
+> Task :react-native-async-storage_async-storage:mergeDebugAssets
+> Task :react-native-community_netinfo:mergeDebugShaders
+> Task :react-native-community_netinfo:compileDebugShaders NO-SOURCE
+> Task :react-native-community_netinfo:generateDebugAssets UP-TO-DATE
+> Task :react-native-community_netinfo:mergeDebugAssets
+> Task :react-native-gesture-handler:mergeDebugShaders
+> Task :react-native-gesture-handler:compileDebugShaders NO-SOURCE
+> Task :react-native-gesture-handler:generateDebugAssets UP-TO-DATE
+> Task :react-native-gesture-handler:mergeDebugAssets
+> Task :react-native-keyboard-controller:mergeDebugShaders
+> Task :react-native-keyboard-controller:compileDebugShaders NO-SOURCE
+> Task :react-native-keyboard-controller:generateDebugAssets UP-TO-DATE
+> Task :react-native-keyboard-controller:mergeDebugAssets
+> Task :react-native-masked-view_masked-view:mergeDebugShaders
+> Task :react-native-masked-view_masked-view:compileDebugShaders NO-SOURCE
+> Task :react-native-masked-view_masked-view:generateDebugAssets UP-TO-DATE
+> Task :react-native-masked-view_masked-view:mergeDebugAssets
+> Task :react-native-reanimated:mergeDebugShaders
+> Task :react-native-reanimated:compileDebugShaders NO-SOURCE
+> Task :react-native-reanimated:generateDebugAssets UP-TO-DATE
+> Task :react-native-reanimated:mergeDebugAssets
+> Task :react-native-safe-area-context:mergeDebugShaders
+> Task :react-native-safe-area-context:compileDebugShaders NO-SOURCE
+> Task :react-native-safe-area-context:generateDebugAssets UP-TO-DATE
+> Task :react-native-safe-area-context:mergeDebugAssets
+> Task :react-native-screens:mergeDebugShaders
+> Task :react-native-screens:compileDebugShaders NO-SOURCE
+> Task :react-native-screens:generateDebugAssets UP-TO-DATE
+> Task :react-native-screens:mergeDebugAssets
+> Task :react-native-svg:mergeDebugShaders
+> Task :react-native-svg:compileDebugShaders NO-SOURCE
+> Task :react-native-svg:generateDebugAssets UP-TO-DATE
+> Task :react-native-svg:mergeDebugAssets
+> Task :react-native-worklets:mergeDebugShaders
+> Task :react-native-worklets:compileDebugShaders NO-SOURCE
+> Task :react-native-worklets:generateDebugAssets UP-TO-DATE
+> Task :react-native-worklets:mergeDebugAssets
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :lottie-react-native:bundleLibRuntimeToJarDebug
+> Task :oxy-so-services:compileDebugKotlin
+> Task :oxy-so-services:compileDebugJavaWithJavac
+> Task :oxy-so-services:bundleLibCompileToJarDebug
+> Task :react-native-gesture-handler:bundleLibRuntimeToJarDebug
+
+> Task :expo:compileDebugKotlin
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/src/main/java/expo/modules/ExpoModulesPackage.kt:34:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt:22:8 'class ReactInstanceManager : Any' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt:102:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt:102:43 'class ReactInstanceManager : Any' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt:103:21 'val reactInstanceManager: ReactInstanceManager' is deprecated. Deprecated in Java.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/src/main/java/expo/modules/fetch/ExpoFetchModule.kt:33:39 'constructor(reactContext: ReactContext): ForwardingCookieHandler' is deprecated. Use the default constructor.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/src/main/java/expo/modules/fetch/NativeResponse.kt:44:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo/android/src/main/java/expo/modules/fetch/NativeResponse.kt:46:11 'fun deallocate(): Unit' is deprecated. Use sharedObjectDidRelease() instead.
+
+> Task :expo:compileDebugJavaWithJavac
+> Task :expo:bundleLibCompileToJarDebug
+> Task :react-native-keyboard-controller:bundleLibRuntimeToJarDebug
+> Task :app:compileDebugKotlin
+> Task :app:compileDebugJavaWithJavac
+> Task :react-native-reanimated:bundleLibRuntimeToJarDebug
+> Task :react-native-safe-area-context:bundleLibRuntimeToJarDebug
+> Task :react-native-screens:bundleLibRuntimeToJarDebug
+> Task :expo:bundleLibRuntimeToJarDebug
+> Task :expo-modules-core:bundleLibRuntimeToJarDebug
+> Task :react-native-worklets:bundleLibRuntimeToJarDebug
+> Task :react-native-async-storage_async-storage:bundleLibRuntimeToJarDebug
+> Task :react-native-community_netinfo:bundleLibRuntimeToJarDebug
+> Task :react-native-masked-view_masked-view:bundleLibRuntimeToJarDebug
+> Task :react-native-svg:bundleLibRuntimeToJarDebug
+> Task :expo-log-box:bundleLibRuntimeToJarDebug
+> Task :oxy-so-services:bundleLibRuntimeToJarDebug
+> Task :expo-constants:bundleLibRuntimeToJarDebug
+> Task :app:desugarDebugFileDependencies
+> Task :app:dexBuilderDebug
+> Task :app:processDebugJavaRes
+> Task :expo:processDebugJavaRes
+> Task :expo-constants:processDebugJavaRes
+> Task :expo-log-box:processDebugJavaRes
+> Task :expo-modules-core:processDebugJavaRes
+> Task :lottie-react-native:processDebugJavaRes
+> Task :oxy-so-services:processDebugJavaRes
+> Task :react-native-async-storage_async-storage:processDebugJavaRes NO-SOURCE
+> Task :react-native-community_netinfo:processDebugJavaRes NO-SOURCE
+> Task :react-native-gesture-handler:processDebugJavaRes
+> Task :react-native-keyboard-controller:processDebugJavaRes
+> Task :react-native-masked-view_masked-view:processDebugJavaRes NO-SOURCE
+> Task :react-native-reanimated:processDebugJavaRes
+> Task :react-native-safe-area-context:processDebugJavaRes
+> Task :react-native-screens:processDebugJavaRes
+> Task :react-native-svg:processDebugJavaRes NO-SOURCE
+> Task :react-native-worklets:processDebugJavaRes
+> Task :lottie-react-native:bundleLibRuntimeToDirDebug
+> Task :react-native-gesture-handler:bundleLibRuntimeToDirDebug
+> Task :app:mergeDebugJavaResource
+> Task :react-native-keyboard-controller:bundleLibRuntimeToDirDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :react-native-reanimated:bundleLibRuntimeToDirDebug
+> Task :app:checkDebugDuplicateClasses
+> Task :react-native-safe-area-context:bundleLibRuntimeToDirDebug
+> Task :app:mergeExtDexDebug
+> Task :react-native-screens:bundleLibRuntimeToDirDebug
+> Task :expo:bundleLibRuntimeToDirDebug
+> Task :expo-modules-core:bundleLibRuntimeToDirDebug
+> Task :react-native-worklets:bundleLibRuntimeToDirDebug
+> Task :react-native-async-storage_async-storage:bundleLibRuntimeToDirDebug
+> Task :react-native-community_netinfo:bundleLibRuntimeToDirDebug
+> Task :react-native-masked-view_masked-view:bundleLibRuntimeToDirDebug
+> Task :react-native-svg:bundleLibRuntimeToDirDebug
+> Task :expo-log-box:bundleLibRuntimeToDirDebug
+> Task :oxy-so-services:bundleLibRuntimeToDirDebug
+> Task :expo-constants:bundleLibRuntimeToDirDebug
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :expo:mergeDebugJniLibFolders
+> Task :expo:mergeDebugNativeLibs NO-SOURCE
+> Task :expo:copyDebugJniLibsProjectOnly
+> Task :expo-constants:mergeDebugJniLibFolders
+> Task :expo-constants:mergeDebugNativeLibs NO-SOURCE
+> Task :expo-constants:copyDebugJniLibsProjectOnly
+> Task :expo-log-box:mergeDebugJniLibFolders
+> Task :expo-log-box:mergeDebugNativeLibs NO-SOURCE
+> Task :expo-log-box:copyDebugJniLibsProjectOnly
+> Task :expo-modules-core:mergeDebugJniLibFolders
+> Task :lottie-react-native:mergeDebugJniLibFolders
+> Task :lottie-react-native:mergeDebugNativeLibs NO-SOURCE
+> Task :lottie-react-native:copyDebugJniLibsProjectOnly
+> Task :oxy-so-services:mergeDebugJniLibFolders
+> Task :oxy-so-services:mergeDebugNativeLibs NO-SOURCE
+> Task :oxy-so-services:copyDebugJniLibsProjectOnly
+> Task :react-native-async-storage_async-storage:mergeDebugJniLibFolders
+> Task :react-native-async-storage_async-storage:mergeDebugNativeLibs NO-SOURCE
+> Task :react-native-async-storage_async-storage:copyDebugJniLibsProjectOnly
+> Task :react-native-community_netinfo:mergeDebugJniLibFolders
+> Task :react-native-community_netinfo:mergeDebugNativeLibs NO-SOURCE
+> Task :react-native-community_netinfo:copyDebugJniLibsProjectOnly
+> Task :react-native-gesture-handler:mergeDebugJniLibFolders
+> Task :react-native-keyboard-controller:mergeDebugJniLibFolders
+> Task :react-native-keyboard-controller:mergeDebugNativeLibs NO-SOURCE
+> Task :react-native-keyboard-controller:copyDebugJniLibsProjectOnly
+> Task :react-native-masked-view_masked-view:mergeDebugJniLibFolders
+> Task :react-native-masked-view_masked-view:mergeDebugNativeLibs NO-SOURCE
+> Task :react-native-masked-view_masked-view:copyDebugJniLibsProjectOnly
+> Task :react-native-reanimated:mergeDebugJniLibFolders
+> Task :react-native-safe-area-context:mergeDebugJniLibFolders
+> Task :react-native-safe-area-context:mergeDebugNativeLibs NO-SOURCE
+> Task :react-native-safe-area-context:copyDebugJniLibsProjectOnly
+
+> Task :react-native-worklets:configureCMakeDebug[x86_64]
+[CXX5304] This version only understands SDK XML versions up to 3 but an SDK XML file of version 4 was encountered. This can happen if you use versions of Android Studio and the command-line tools that were released at different times.
+[CXX5304] This version only understands SDK XML versions up to 3 but an SDK XML file of version 4 was encountered. This can happen if you use versions of Android Studio and the command-line tools that were released at different times.
+
+> Task :react-native-screens:configureCMakeDebug[x86_64]
+> Task :react-native-screens:buildCMakeDebug[x86_64]
+> Task :react-native-screens:mergeDebugJniLibFolders
+> Task :react-native-screens:mergeDebugNativeLibs
+> Task :react-native-screens:copyDebugJniLibsProjectOnly
+> Task :react-native-svg:mergeDebugJniLibFolders
+> Task :react-native-svg:mergeDebugNativeLibs NO-SOURCE
+> Task :react-native-svg:copyDebugJniLibsProjectOnly
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :react-native-worklets:buildCMakeDebug[x86_64][worklets]
+> Task :react-native-worklets:externalNativeBuildDebug
+> Task :react-native-worklets:generateJsonModelDebug
+> Task :react-native-worklets:prefabDebugConfigurePackage
+> Task :react-native-worklets:prefabDebugPackage
+> Task :react-native-worklets:mergeDebugJniLibFolders
+> Task :react-native-worklets:mergeDebugNativeLibs
+> Task :react-native-worklets:copyDebugJniLibsProjectOnly
+> Task :react-native-reanimated:configureCMakeDebug[x86_64]
+> Task :react-native-reanimated:generateJsonModelDebug
+> Task :react-native-reanimated:prefabDebugConfigurePackage
+> Task :expo-modules-core:configureCMakeDebug[x86_64]
+> Task :app:configureCMakeDebug[x86_64]
+
+> Task :expo-modules-core:buildCMakeDebug[x86_64]
+C/C++: ninja: Entering directory `/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/.cxx/Debug/2q5wk5m5/x86_64'
+C/C++: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/expo-modules-core/android/src/main/cpp/fabric/ExpoComponentDescriptorFactory.cpp:17:5: warning: 'RawPropsParser' is deprecated [-Wdeprecated-declarations]
+C/C++:    17 |     react::RawPropsParser(/*useRawPropsJsiValue=*/true)
+C/C++:       |     ^
+C/C++: /home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/react-native/ReactCommon/react/renderer/core/RawPropsParser.h:31:5: note: 'RawPropsParser' has been explicitly marked deprecated here
+C/C++:    31 |   [[deprecated]] explicit RawPropsParser(bool /* ignored */) : RawPropsParser() {}
+C/C++:       |     ^
+C/C++: 1 warning generated.
+
+> Task :expo-modules-core:mergeDebugNativeLibs
+> Task :expo-modules-core:copyDebugJniLibsProjectOnly
+> Task :react-native-gesture-handler:configureCMakeDebug[x86_64]
+> Task :react-native-reanimated:buildCMakeDebug[x86_64][reanimated]
+> Task :react-native-reanimated:externalNativeBuildDebug
+> Task :react-native-reanimated:prefabDebugPackage
+> Task :react-native-gesture-handler:buildCMakeDebug[x86_64]
+> Task :react-native-gesture-handler:mergeDebugNativeLibs
+> Task :react-native-gesture-handler:copyDebugJniLibsProjectOnly
+> Task :react-native-reanimated:mergeDebugNativeLibs
+> Task :react-native-reanimated:copyDebugJniLibsProjectOnly
+> Task :app:buildCMakeDebug[x86_64]
+> Task :app:mergeDebugNativeLibs
+> Task :app:stripDebugDebugSymbols
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+
+[Incubating] Problems report is available at: file:///home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 2m 5s
+447 actionable tasks: 447 executed

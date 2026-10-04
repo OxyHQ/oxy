@@ -1,0 +1,9 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [1]
+Saved lockfile
+
++ expo-image-manipulator@57.0.16
++ expo-image-picker@57.0.16
+
+3 packages installed [400.00ms]

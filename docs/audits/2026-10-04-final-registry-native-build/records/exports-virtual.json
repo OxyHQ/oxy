@@ -1,0 +1,26 @@
+[
+  {
+    "fixture": "mention",
+    "exitCode": 0,
+    "command": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "export:android",
+      "--clear"
+    ],
+    "publicClientId": "oxy_dk_fdd8bad9263ac96d8f44e10c7cee68c62f0a1896a9ac6c4c"
+  },
+  {
+    "fixture": "allo",
+    "exitCode": 0,
+    "command": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "export:android",
+      "--clear"
+    ],
+    "publicClientId": "oxy_dk_0d3595f8bb0182adb0972a4981ec4c609567a1eea56e4747"
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "fixture": "mention",
+    "exitCode": 1,
+    "command": [
+      "bun",
+      "--no-env-file",
+      "run",
+      "export:android",
+      "--clear"
+    ],
+    "publicClientId": "oxy_dk_fdd8bad9263ac96d8f44e10c7cee68c62f0a1896a9ac6c4c"
+  }
+]

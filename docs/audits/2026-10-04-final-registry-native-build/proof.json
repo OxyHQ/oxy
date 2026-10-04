@@ -1,0 +1,562 @@
+{
+  "source": "7baaa2fc4e57f3b8c7235a87f803ca83a65835b7",
+  "sources": [
+    {
+      "path": "scripts/adoption/registry-fixtures/native/acceptance/entry.tsx",
+      "sha256": "8fd2684a48a9394f4087186f7259044854f425f70aa3a2768f01d25bcd576ab2"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/app.config.js",
+      "sha256": "5d7da4f9b597fc71a782a5f7197d991c69429e2d6e693079ad649e2be4497e99"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/app.json",
+      "sha256": "2166a35df755fd3e656522569674a8a6fa2f970ed6ef69919f93eb1c094c0b58"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/OxyLogo.svg",
+      "sha256": "5264cd9b239c509a840e62d46ff340bd9b403e8085322fd24bf21f6c4dcb9d7d"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/android-icon-background.png",
+      "sha256": "fb139c2dee362ebf2070e23b96da6fc0d43f8492de38b8af1fd7223e19b5861d"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/android-icon-foreground.png",
+      "sha256": "9e3d0315a33c6799de601dd34cd8bf8cc3a8d16f3bf75592baec2ceb7240b391"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/android-icon-monochrome.png",
+      "sha256": "6371fc2c12e33ad2215a86c281db3d682a81bebe7c957a842c13b8bf00cceb83"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/favicon.png",
+      "sha256": "a4e030697a7571b3e95d31860e4da55d2f98e5e861e2b55e414f45a8556828ba"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/icon.png",
+      "sha256": "119462bb78eb240a65c869fc067ee599639b3cb5a41953f25c07b17d2a8c7e0f"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/partial-react-logo.png",
+      "sha256": "015a72aeb24c1166243ebc185355c9488cc892fbf3aa82f9ae66819a10f3451c"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/react-logo.png",
+      "sha256": "224b7636b15e672801579b5b418077cbc2ca42f0146389062364356b0ecb5c5c"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/react-logo@2x.png",
+      "sha256": "fa600be9ad2f869c7a8dbaffc78bb15af741123e1319c948f0be51753a153cde"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/react-logo@3x.png",
+      "sha256": "cd84e02a5d542a3e71b7fa10a685c1b9fb51db4aff92aca6c0da6461ce17be16"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/images/splash-icon.png",
+      "sha256": "5f4c0a732b6325bf4071d9124d2ae67e037cb24fcc9c482ef82bea742109a3b8"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/assets/logo.tsx",
+      "sha256": "d0adf0613eaf5ae8de85632bb3e3d5a072bf249291cb7863743ac2ed671e6e10"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/babel.config.js",
+      "sha256": "2a898566f2801519ec0c20e5f439a24ec34a22ef7f1fecf011df4ced6ec3e91c"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/global.css",
+      "sha256": "1aead181e4799f714333fc44e7655027349b16c42fdc74aec9d8ec14f8e22973"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/index.js",
+      "sha256": "92f445c9e3e3a1fca8deb3fc6528b08ef6227ce581e3f36b4222b409c8c989ac"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/metro.config.js",
+      "sha256": "5ebc2722463734927c00dc1356f0f832774f510c161b3db94c1ea8dbbe8458c8"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/package.json",
+      "sha256": "28eb61595d8f376d8301073c76d62128952b02659eefbf5e0040219c10d34d49"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/postcss.config.mjs",
+      "sha256": "f50058e0d309cdb3e7c25a1123337338641fb71e988572607d57f47209db1fd1"
+    },
+    {
+      "path": "scripts/adoption/registry-fixtures/native/tsconfig.json",
+      "sha256": "f3f05824484a0099e227cba49f95200918140819dd53aba7899e4c148226ea04"
+    },
+    {
+      "path": "scripts/adoption/test-registry-fixtures.py",
+      "sha256": "e32e56a2665919f22e0b8bb372c326231847f289fd3872be41c138cb288ab78b"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-android-export-virtual.log",
+      "sha256": "86fabfe1344f511a7537ed99df79e73f25e233a710b6c1a16ef9dac3de8fd38b",
+      "bytes": 2885
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-apk-badging.txt",
+      "sha256": "f911f769385bdda2fd3a3ad847b17954f579cba94c613e3c6885d7a4555c60d3",
+      "bytes": 8822
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-certificate.txt",
+      "sha256": "dd8354c541be23361fa7bbb5cbc470b4ddf8855ee14bedbe9b2390550ae23cc9",
+      "bytes": 311
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-css-frozen.log",
+      "sha256": "270dfa739a79155b88b7d724d86824f7532fe589a57dfd62bf3ed266f6771768",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-css-resolve.log",
+      "sha256": "e4434ca7ed75779fae188a3a676352391dc4f6c7fad89b04460c8af5a229ed0d",
+      "bytes": 140
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-expo-autolinking-final.json",
+      "sha256": "63433017243f67dadea3691b7c1b2d894949be76d088b847080ab121517068ce",
+      "bytes": 15314
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-expo-autolinking-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-expo-autolinking.json",
+      "sha256": "21c34a967f66fd8a41070be6efa882d28ce03951fa95d01e49130dd70aff186e",
+      "bytes": 27244
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-expo-autolinking.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-final-verified.json",
+      "sha256": "3ab725ecf1a1ddd15e022f6d81f8d64c49e32b541cae71fe1941f0a4ced67d6b",
+      "bytes": 6560
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-frozen-final.log",
+      "sha256": "aff1062b33de167bcef073407825f6e39ceff47ccfdb6c091ea648e27546b818",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-gradle.log",
+      "sha256": "04075bdb4f80fc289cd6088b580a3a25649ce6d0e4342d45bca3491e8f3addfa",
+      "bytes": 89895
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-live-resolver-summary.json",
+      "sha256": "7f3985b7cb8dbbfa911ab609f28d526015370246143ef4cfaec690bb0a227ffb",
+      "bytes": 211427
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-peers-frozen.log",
+      "sha256": "c8e67c20623c247d5265a30816084855d053b93c64346ae79cd529c53a713cf4",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-peers-resolve.log",
+      "sha256": "d6502133266d535bc32197d35ffc312fa97ab29a1137616ac7489927849cd1ca",
+      "bytes": 333
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-prebuild.log",
+      "sha256": "797186ab991116a850e9c221ac492fafce1388f72207171cf07819e64d7e4db9",
+      "bytes": 270
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-resolve-final.log",
+      "sha256": "0223f808ae6d374cd42d90c7cdc30c21296a93b6bc3d5ef1f72077d117dd166a",
+      "bytes": 202
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-rn-autolinking-final.json",
+      "sha256": "00c0913f03c4c74d1906610ca23620901c1bd3529bb7d4ccc8211a2c187e5181",
+      "bytes": 12060
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-rn-autolinking-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-rn-autolinking.json",
+      "sha256": "641947c77b32b1a336e44cbb1723abe89fdeeecdd8a109d0a5abbae6b5cd80ac",
+      "bytes": 16732
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-rn-autolinking.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-sign.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-tsconfig-before.json",
+      "sha256": "f0c735e6b162bddbbcfb6aea958daa60c1b11bd331294ced24ed42bcdaf5eba4",
+      "bytes": 200
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-types-final.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-types-latest.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-types.log",
+      "sha256": "b79e825eb70973dc7ae97b0797bbf98c3cde171a7b604a20b0801b49553af58f",
+      "bytes": 358
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-verified.json",
+      "sha256": "41bfb7d44951162b73ae6dfdcf2d4008039d04b908909b91dd460cfce063617f",
+      "bytes": 6560
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/apk-builds.json",
+      "sha256": "beadc4ec70dc8c833fae2b39821f5b0a8962819429e182e5b21c7c740653dc4b",
+      "bytes": 937
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/apk-identity.json",
+      "sha256": "973a1e771612820e0cfe754fbcd4bffb52721dad322aa931f3c9ed8e6c3ec43d",
+      "bytes": 341
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/build-owned-apks.py",
+      "sha256": "38c49eea8303941f0481cebb94c440848d3141912eaddff9ed74cb77053a968d",
+      "bytes": 2441
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/css-install.json",
+      "sha256": "4da0e77fae937dfa60af49db958971ba168f2df92775b5bad6540f27dff6ef1e",
+      "bytes": 315
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/export-owned-peers.py",
+      "sha256": "bcba363000489337f2687354f8582051cbb5722b183dc002c834b521a5e249ba",
+      "bytes": 1112
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/export-owned-virtual.py",
+      "sha256": "ed001142ac10512ddf4b1a0167a573439b7962b7e707a9d270d31a7e69d1ca3b",
+      "bytes": 1116
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/export-owned.py",
+      "sha256": "49be380e748a2e58bd0aad68cd64181a9da4697ec59c024882484204c1a2c24f",
+      "bytes": 1108
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/exports-css.json",
+      "sha256": "d7d208406c9391ae285a0f2e7559fff6506fe7599dc11d4f04ab1a6e8f41255e",
+      "bytes": 250
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/exports-peers.json",
+      "sha256": "d7d208406c9391ae285a0f2e7559fff6506fe7599dc11d4f04ab1a6e8f41255e",
+      "bytes": 250
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/exports-virtual.json",
+      "sha256": "e304813421651f56c154e642bdc9ea6128a45ad17ec3dc41d3b8ccc1d79149ef",
+      "bytes": 494
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/exports.json",
+      "sha256": "d7d208406c9391ae285a0f2e7559fff6506fe7599dc11d4f04ab1a6e8f41255e",
+      "bytes": 250
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/final-checks.json",
+      "sha256": "89b77525d6277354e357af93f573350714a3faefa3d286c5b381e03e163f6f76",
+      "bytes": 444
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/freeze-proof.py",
+      "sha256": "802e29e3b9755a75cfd4a4ab64525a99a7ce66e0a18bd51ff5049265a53bc18a",
+      "bytes": 4565
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/frozen-inputs.json",
+      "sha256": "52cd6801d3ad2458298e307f7bcf04040e3e0ff043bbe1a48034d416091c3760",
+      "bytes": 9652
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/inputs.json",
+      "sha256": "599c6e3d334c50c44846b775c6bc92b6c8400aff088996aedf60af1c933204f9",
+      "bytes": 418
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/live-bundles.json",
+      "sha256": "ed7792e0c04e1e5cb74c427b89e44499f2885979805230d450900952283ce41e",
+      "bytes": 711
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-android-export-css.log",
+      "sha256": "416352d0fcbd0cf27bb928387b0035f0ac2977220cb727931ede33953e98f23c",
+      "bytes": 2017
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-android-export-peers.log",
+      "sha256": "38acbbaf718f5c0bd635ae38af70d228008f2bf7458c6cfff17b8e526cb1df04",
+      "bytes": 1270
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-android-export-virtual.log",
+      "sha256": "f395c5fc8eed989091af33424eb340be196361bd1e42f871ca4700b7f61adf0e",
+      "bytes": 2714
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-android-export.log",
+      "sha256": "afc278a1ea425eeafb970800d4bc69d6b89013e7d9e70fc2aee4013a448de212",
+      "bytes": 1013
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-apk-badging.txt",
+      "sha256": "ac3ad8ca0d761a5a9f8eb3e13dd513fc60e56f829ecf9c75b23ef98057d05c34",
+      "bytes": 9113
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-certificate.txt",
+      "sha256": "dd8354c541be23361fa7bbb5cbc470b4ddf8855ee14bedbe9b2390550ae23cc9",
+      "bytes": 311
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-css-frozen.log",
+      "sha256": "33c4f2b62292bc94ef63dcc4990c66de8ac27fef1e5d02a1c75135be53f6ce86",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-css-resolve.log",
+      "sha256": "8e28e678de47a1f4dab5c66d236799c94a1fa26907e522a88178b562582f43a6",
+      "bytes": 141
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-expo-autolinking-final.json",
+      "sha256": "b01a19422e68c52b62e070068c3ecb900df6ab6cc43982e9282f3028765b61cb",
+      "bytes": 15407
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-expo-autolinking-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-expo-autolinking.json",
+      "sha256": "faf935f160e59da3a7735d8cf77f7cadddf10a55d806ed4778a3ac78807cef85",
+      "bytes": 27337
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-expo-autolinking.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-final-verified.json",
+      "sha256": "312d499174c1bf3829bf7af512c611adf78aa21a92a6cae39a2a1d3df1639ede",
+      "bytes": 6611
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-frozen-final.log",
+      "sha256": "aff1062b33de167bcef073407825f6e39ceff47ccfdb6c091ea648e27546b818",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-gradle.log",
+      "sha256": "9de8742b344a18c7d1fd206cfc4ae23240838712dc0dfae260a227e4a4c8ca56",
+      "bytes": 90428
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-live-resolver-summary.json",
+      "sha256": "cc27662096017cce79660c2d67246fd4964de8d6a179a7bd6d5dcbd197ea74d3",
+      "bytes": 214108
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-peers-frozen.log",
+      "sha256": "3ddb9c3182b14e589a912e391c5f590b776607c1dad7b9da6cbd67106653896e",
+      "bytes": 98
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-peers-resolve.log",
+      "sha256": "13cdedb9c2ed03793c9ee2eadc110200900030c22431ca9da3d081fec60960a4",
+      "bytes": 334
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-prebuild.log",
+      "sha256": "797186ab991116a850e9c221ac492fafce1388f72207171cf07819e64d7e4db9",
+      "bytes": 270
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-resolve-final.log",
+      "sha256": "83ce4ab02b7b01dd6c2b87ebebf526f8b6f90be8192ed3a0e44e57543a025d86",
+      "bytes": 203
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-rn-autolinking-final.json",
+      "sha256": "e4ff23bda3ae37b74bbfca593bf96d17a1c944a7811f994ed08cabc3263307c2",
+      "bytes": 12174
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-rn-autolinking-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-rn-autolinking.json",
+      "sha256": "d19936ca21c5cf983bb69b56080cfdb35f03c910ec8f7c30f4949fc78a359a4b",
+      "bytes": 16846
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-rn-autolinking.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-sign.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-tsconfig-before.json",
+      "sha256": "f0c735e6b162bddbbcfb6aea958daa60c1b11bd331294ced24ed42bcdaf5eba4",
+      "bytes": 200
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-types-final.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-types-latest.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-types.log",
+      "sha256": "b79e825eb70973dc7ae97b0797bbf98c3cde171a7b604a20b0801b49553af58f",
+      "bytes": 358
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-verified.json",
+      "sha256": "6f111e11ce6be4d630c2565a9d5a050af9a726d2af208bdc05b9a838e8971d3e",
+      "bytes": 6611
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/native-graph-comparison.json",
+      "sha256": "fd258b17bd0069002a909286651332b6f1f378761a06401c077ff93481c5263e",
+      "bytes": 2232
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/results.json",
+      "sha256": "95e1499d10b2accfdcc40d2bc45cf6b52efe2e7560ccde4341ebf5e547593d24",
+      "bytes": 106
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/template-tests-final.log",
+      "sha256": "3f729d8c4756126918c0014f60da8fc906089bd34e458694563137ff01af6881",
+      "bytes": 3722
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/template-tests-virtual-final.log",
+      "sha256": "13b96ed43ad62b23c6812e318f100b156de88f41891dfeb3b15c976596356e17",
+      "bytes": 104
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/template-tests.log",
+      "sha256": "13b96ed43ad62b23c6812e318f100b156de88f41891dfeb3b15c976596356e17",
+      "bytes": 104
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-launch-intent.json",
+      "sha256": "7b370b24b1b473a5315dac4070cad53e22eca3d420c083032bf6349f9d663f99",
+      "bytes": 555
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/mention-launch-started.json",
+      "sha256": "8cf0c1658f175e541c26291273ab1ebb1988c51307480b9d78a550ef28a77c4c",
+      "bytes": 100
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-launch-intent.json",
+      "sha256": "fb4215bbc8866e1deb85ab3842df7917c7b390111095b5f2742e18a5d27bff6b",
+      "bytes": 546
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-native-build/records/allo-launch-started.json",
+      "sha256": "4cdb64360466c996b4b27d87c79f9077a03975868f795097cd131502478c3f8a",
+      "bytes": 100
+    }
+  ],
+  "privateArtifacts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/allo-live-index.bundle",
+      "sha256": "6c106cf15effb0761fa55b5f07556d6f359b692e6f20ec13fc0ec97c2a672758",
+      "bytes": 22172705
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/allo-registry-signed.apk",
+      "sha256": "1e8531227f2abb1ba0fe22d638ae80a5eefbff408877846b924813633b0115f8",
+      "bytes": 90086989
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/allo-resolver-frozen.jsonl",
+      "sha256": "0afe40d3c1e369150fe9da2e2a3bc48e62ec419be27b80d89ae2166ae611e415",
+      "bytes": 581733
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/mention-export-resolved.jsonl",
+      "sha256": "f297b24ff96dd072713b4677d11cbba260932bebd3ca0ca82abb609fbf62d3b7",
+      "bytes": 1184941
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/mention-live-index.bundle",
+      "sha256": "bd7d78395a2dd287a9edd047c456a47e1d6f959c59484f4cd51259a3ba8c3c29",
+      "bytes": 22172714
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/mention-registry-signed.apk",
+      "sha256": "527b6dc8f173863756371e14c2706f2a6ab0d15739c1a5085efcf3b435cdfcb1",
+      "bytes": 90086989
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/mention-resolver-frozen.jsonl",
+      "sha256": "8a17a20f364383455acac5b5540b8164f15145557f7950091d2ac5cf77d99bb4",
+      "bytes": 296225
+    }
+  ],
+  "validation": {
+    "templateTests": 6,
+    "nativeTypes": "both passed",
+    "androidExports": "both passed",
+    "gradleDebug": "both passed x86_64",
+    "registryMemberVerification": "both passed all targeted importer members",
+    "liveBundles": "both HTTP200 frozen",
+    "certificateSha256": "0114ce567a3be9b87dcbb0ef1083bba5f6e38ebf6733b29df93be1acfd7fbb55"
+  },
+  "limits": [
+    "No device install or runtime acceptance yet. Root alone may install-r same package and fixture certificate on owned AVD5580; no clear/uninstall/identity mutation.",
+    "Old APK native graph is incomplete for standalone dependencies; fresh APKs eliminate that reuse claim.",
+    "Initial TS/CSS/missing-peer/virtual-module setup failures are preserved. Virtual resolver exception is only Expo canonical in-memory assets registry; real paths still confined.",
+    "Historic Metros17967/17968, API17960, PG and browser RPs remain untouched. New Metros17977/17978 own only standalone fixtures.",
+    "One final-types recording attempt found an existing evidence filename; prior log was not overwritten, and both final typechecks reran into distinct latest logs. Expo/NativeWind generated type includes were preserved before source freeze."
+  ]
+}

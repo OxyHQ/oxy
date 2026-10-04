@@ -1,0 +1,34 @@
+..[eval]:4
+const ctx={__dirname:dir,module:{exports:{}},Set,require:(id)=>id==='node:path'?path:id==='node:fs'?{realpathSync:p=>{if(p.includes('\\0'))throw Error('NUL path');return p},appendFileSync:(_p,s)=>records.push(s)}:{createOxyMetroConfig:()=>base}};vm.runInNewContext(source,ctx);const c=ctx.module.exports;
+                                                                                                                                           ^
+
+Error: NUL path
+    at Object.realpathSync ([eval]:4:146)
+    at config.resolver.resolveRequest (evalmachine.<anonymous>:19:23)
+    at [eval]:7:49
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30)
+    at evalTypeScript (node:internal/process/execution:295:3)
+    at node:internal/main/eval_string:71:3
+
+Node.js v24.21.0
+E...
+======================================================================
+ERROR: test_metro_refuses_external_resolution_preserves_preset (__main__.Fixtures.test_metro_refuses_external_resolution_preserves_preset)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/scripts/adoption/test-registry-fixtures.py", line 44, in test_metro_refuses_external_resolution_preserves_preset
+    subprocess.run(['node','-e',script,str(ROOT/'registry-fixtures/native/metro.config.js')],check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['node', '-e', "const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');\nconst source=fs.readFileSync(process.argv[1],'utf8');const dir='/owned/fixture';let target=dir+'/node_modules/@oxy.so/core/lib/index.js',records=[];\nconst base={watchFolders:['/unsafe'],resolver:{nodeModulesPaths:['/unsafe/node_modules'],extraNodeModules:{'@oxy.so/core':'/unsafe/source'},resolveRequest:()=>({type:'sourceFile',filePath:target})}};\nconst ctx={__dirname:dir,module:{exports:{}},Set,require:(id)=>id==='node:path'?path:id==='node:fs'?{realpathSync:p=>{if(p.includes('\\\\0'))throw Error('NUL path');return p},appendFileSync:(_p,s)=>records.push(s)}:{createOxyMetroConfig:()=>base}};vm.runInNewContext(source,ctx);const c=ctx.module.exports;\nif(c.watchFolders.length||c.resolver.nodeModulesPaths.join()!==dir+'/node_modules'||Object.keys(c.resolver.extraNodeModules).length)throw Error('isolation config');\nc.resolver.resolveRequest({originModulePath:dir+'/entry.tsx'},'@oxy.so/core','android');if(records.length!==1)throw Error('missing resolver receipt');\ntarget='\\\\0polyfill:assets-registry';c.resolver.resolveRequest({},'@react-native/assets-registry/registry','android');\nlet virtualRefused=false;try{c.resolver.resolveRequest({},'@oxy.so/core','android')}catch{virtualRefused=true}if(!virtualRefused)throw Error('unexpected virtual path');\ntarget='/outside/core.js';let refused=false;try{c.resolver.resolveRequest({},'@oxy.so/core','android')}catch{refused=true}if(!refused)throw Error('escaped');", '/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003/scripts/adoption/registry-fixtures/native/metro.config.js']' returned non-zero exit status 1.
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.071s
+
+FAILED (errors=1)

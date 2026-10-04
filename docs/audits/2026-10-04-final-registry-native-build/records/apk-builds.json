@@ -1,0 +1,32 @@
+[
+  {
+    "lane": "mention",
+    "apk": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/mention-registry-signed.apk",
+    "sha256": "527b6dc8f173863756371e14c2706f2a6ab0d15739c1a5085efcf3b435cdfcb1",
+    "bytes": 90086989,
+    "command": [
+      "./gradlew",
+      ":app:assembleDebug",
+      "--no-daemon",
+      "--max-workers=2",
+      "-Dorg.gradle.jvmargs=-Xmx3g",
+      "-PreactNativeArchitectures=x86_64"
+    ],
+    "installed": false
+  },
+  {
+    "lane": "allo",
+    "apk": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/allo-registry-signed.apk",
+    "sha256": "1e8531227f2abb1ba0fe22d638ae80a5eefbff408877846b924813633b0115f8",
+    "bytes": 90086989,
+    "command": [
+      "./gradlew",
+      ":app:assembleDebug",
+      "--no-daemon",
+      "--max-workers=2",
+      "-Dorg.gradle.jvmargs=-Xmx3g",
+      "-PreactNativeArchitectures=x86_64"
+    ],
+    "installed": false
+  }
+]

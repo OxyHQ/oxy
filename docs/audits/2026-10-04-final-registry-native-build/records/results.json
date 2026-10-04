@@ -1,0 +1,10 @@
+[
+  {
+    "fixture": "mention",
+    "exitCode": 2
+  },
+  {
+    "fixture": "allo",
+    "exitCode": 2
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "lane": "mention",
+    "port": 17977,
+    "url": "http://127.0.0.1:17977/index.bundle?platform=android&dev=true&minify=false",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/mention-live-index.bundle",
+    "bytes": 22172714,
+    "sha256": "bd7d78395a2dd287a9edd047c456a47e1d6f959c59484f4cd51259a3ba8c3c29"
+  },
+  {
+    "lane": "allo",
+    "port": 17978,
+    "url": "http://127.0.0.1:17978/index.bundle?platform=android&dev=true&minify=false",
+    "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-native-types-20261004/allo-live-index.bundle",
+    "bytes": 22172705,
+    "sha256": "6c106cf15effb0761fa55b5f07556d6f359b692e6f20ec13fc0ec97c2a672758"
+  }
+]

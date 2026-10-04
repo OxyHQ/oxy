@@ -1,0 +1,13 @@
+$ expo export --platform android --output-dir dist --clear
+NativeWind made the following changes to your project to support TypeScript:
+  - Created nativewind-env.d.ts
+  - Updated ./tsconfig.json to include the nativewind-env.d.ts file
+React Compiler enabled
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+ WARN  Attempted to import the module "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@noble/hashes/crypto.js" which is not listed in the "exports" of "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/mention/node_modules/@noble/hashes" under the requested subpath "./crypto.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+Android Bundling failed 7129ms index.js (3303 modules)
+
+SyntaxError: global.css: failed to deserialize; expected an object-like struct named Specifier, found ()
+error: script "export:android" exited with code 1

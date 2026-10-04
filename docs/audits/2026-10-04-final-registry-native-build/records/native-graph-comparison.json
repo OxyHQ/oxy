@@ -1,0 +1,32 @@
+{
+  "oldExpoSource": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/node_modules/.bun/expo@57.0.21/node_modules/expo/android/build/generated/expo/src/main/java/expo/modules/ExpoModulesPackageList.kt",
+  "oldExpoSourceSha256": "34bad9241ef289ca3f0fb5f646ed82dd34fd07ba1f4b812e7ea377dca63afbea",
+  "oldRNSource": "/home/nate/Oxy/oxy/.worktrees/1519-native-siblings-20261003/packages/test-app-expo/android/build/generated/autolinking/autolinking.json",
+  "oldRNSourceSha256": "76c449e0ca9728cb6351fa50549cf03a4d6d8bb838d514a0bfbc5697fef322c7",
+  "sameRNPackageNames": true,
+  "addedExpoModuleClasses": [
+    "expo.modules.application.ApplicationModule",
+    "expo.modules.clipboard.ClipboardModule",
+    "expo.modules.imagemanipulator.ImageManipulatorModule",
+    "expo.modules.imagepicker.ImagePickerModule",
+    "expo.modules.lineargradient.LinearGradientModule",
+    "expo.modules.notifications.badge.BadgeModule",
+    "expo.modules.notifications.notifications.background.ExpoBackgroundNotificationTasksModule",
+    "expo.modules.notifications.notifications.categories.ExpoNotificationCategoriesModule",
+    "expo.modules.notifications.notifications.channels.AndroidXNotificationsChannelsProvider",
+    "expo.modules.notifications.notifications.channels.NotificationChannelGroupManagerModule",
+    "expo.modules.notifications.notifications.channels.NotificationChannelManagerModule",
+    "expo.modules.notifications.notifications.emitting.NotificationsEmitter",
+    "expo.modules.notifications.notifications.handling.NotificationsHandler",
+    "expo.modules.notifications.notifications.presentation.ExpoNotificationPresentationModule",
+    "expo.modules.notifications.notifications.scheduling.NotificationScheduler",
+    "expo.modules.notifications.permissions.NotificationPermissionsModule",
+    "expo.modules.notifications.serverregistration.ServerRegistrationModule",
+    "expo.modules.notifications.tokens.PushTokenModule",
+    "expo.modules.notifications.topics.TopicSubscriptionModule"
+  ],
+  "removedExpoModuleClasses": [
+    "expo.modules.constants.ConstantsService"
+  ],
+  "reuseConclusion": "Not claiming complete installed APK graph equivalence; fresh own-fixture APKs required for full graph acceptance"
+}

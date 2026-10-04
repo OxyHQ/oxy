@@ -1,0 +1,32 @@
+[
+  {
+    "fixture": "mention",
+    "step": "resolve",
+    "exitCode": 0
+  },
+  {
+    "fixture": "mention",
+    "step": "frozen",
+    "exitCode": 0
+  },
+  {
+    "fixture": "mention",
+    "step": "types",
+    "exitCode": 0
+  },
+  {
+    "fixture": "allo",
+    "step": "resolve",
+    "exitCode": 0
+  },
+  {
+    "fixture": "allo",
+    "step": "frozen",
+    "exitCode": 0
+  },
+  {
+    "fixture": "allo",
+    "step": "types",
+    "exitCode": 0
+  }
+]

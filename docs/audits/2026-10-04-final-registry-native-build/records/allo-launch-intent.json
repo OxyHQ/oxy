@@ -1,0 +1,18 @@
+{
+  "kind": "native",
+  "lane": "allo",
+  "fixture": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo",
+  "port": 17978,
+  "command": [
+    "bun",
+    "--no-env-file",
+    "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/allo/node_modules/expo/bin/cli",
+    "start",
+    "--localhost",
+    "--port",
+    "17978"
+  ],
+  "manifestSha256": "10ac9fb612420bc490f7951dc0bfaa2834980cc1b0bf28c7160311fdf795b12a",
+  "verifiedReceiptSha256": "3ab725ecf1a1ddd15e022f6d81f8d64c49e32b541cae71fe1941f0a4ced67d6b",
+  "launch": true
+}
