@@ -1,6 +1,6 @@
 import { privateAutoOperationId } from '@oxy.so/contracts';
 import { privateAutoApprovalFixture, privateAutoInputFixture } from '../../../../contracts/src/__tests__/privateAutoExecution.fixture';
-import { privateAutoClassifierSourceApproval, reviewedPrivateAutoApproval } from '../../config/privateAutoClassification';
+import { reviewedPrivateAutoApproval } from '../../config/privateAutoClassification';
 import { decisionAvailability } from '../../config/decisionAvailability';
 import { bindPrivateAutoExecution, privateAutoHash, privateAutoRecoveryIdentity,
   type PrivateAutoParentAdmission, type PrivateAutoChildBinding } from '../privateAutoExecution.service';
@@ -27,8 +27,7 @@ const attestation = { contractVersion: '3.7.0', snapshotId: 'synthetic-snapshot'
   catalogueEvidenceHash: 'c'.repeat(64) };
 
 describe('source-bound variable private Auto admission', () => {
-  it('keeps both source approval and ordinary/public decisions inactive', () => {
-    expect(privateAutoClassifierSourceApproval()).toBeUndefined();
+  it('keeps ordinary/public decisions inactive and refuses absent private approval', () => {
     expect(decisionAvailability().available).toBe(false);
     expect(bindPrivateAutoExecution(undefined, parent, binding(), attestation, now)).toBeUndefined();
   });

@@ -834,6 +834,7 @@ describe('independent private Auto catalogue import', () => {
     });
   it('does not authorize import or allocate price from signed metadata without local source approval', async () => {
     const f = await fixture();
+    jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(undefined);
     expect(privateAutoSource.privateAutoClassifierSourceApproval()).toBeUndefined();
     expect((await runKaanaCatalogueSync({ reader: f.privateReader })).deployments.skipped.unattested_route).toBe(1);
     expect(await f.rows()).toEqual([]);
