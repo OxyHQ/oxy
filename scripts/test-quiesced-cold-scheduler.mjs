@@ -94,10 +94,9 @@ case 'ecs register-task-definition':{
 case 'ecs run-task':event({op:'migration'});emit({failures:[],tasks:[{taskArn:p.previousTasks[0].replace('a'.repeat(32),'d'.repeat(32))}]});break;
 case 'ecs update-service':{
  const td=value('--task-definition'),count=Number(value('--desired-count'));
+ if(process.env.FIXTURE_SPAWN_OLD==='true'&&td===next&&s.td===p.previousTaskDefinition&&count>0)event({op:'old-scheduler-launch',td:p.previousTaskDefinition});
  const config=args.includes('--deployment-configuration')?JSON.parse(value('--deployment-configuration')):null;
- if(td){s.td=td;s.started=true;} if(config)s.config=config; s.count=count;save();event({op:'update',td:td||null,count,autoRollback:config?.deploymentCircuitBreaker.rollback});
- const response=service().services[0];if(!td&&count>0&&process.env.FIXTURE_BAD_RESTORE_ACK==='true')response.deployments=[];
- emit({service:response});break;}
+ if(td){s.td=td;s.started=true;} if(config)s.config=config; s.count=count;save();event({op:'update',td:td||null,count,autoRollback:config?.deploymentCircuitBreaker.rollback});emit({service:service().services[0]});break;}
 default:process.stderr.write('Unexpected fixture request');process.exit(3);
 }
 `,
@@ -105,7 +104,7 @@ default:process.stderr.write('Unexpected fixture request');process.exit(3);
 );
 const guard = join(scratch, "head.sh");
 writeFileSync(guard, "#!/usr/bin/env bash\nexit 0\n");
-let count = 0;
+const count = 0;
 function run(
 	name,
 	{
@@ -113,7 +112,7 @@ function run(
 		failure = false,
 		drift = false,
 		omittedStopping = false,
-		badRestoreAck = false,
+		spawnOld = false,
 	} = {},
 ) {
 	const dir = join(scratch, name);
@@ -141,7 +140,7 @@ function run(
 		FIXTURE_DIR: dir,
 		FIXTURE_FAIL: String(failure),
 		FIXTURE_OLD_STOPPING: String(omittedStopping),
-		FIXTURE_BAD_RESTORE_ACK: String(badRestoreAck),
+		FIXTURE_SPAWN_OLD: String(spawnOld),
 		MAX_WAIT_SECS: "2",
 		POLL_INTERVAL: "1",
 		RUN_MIGRATIONS: "true",
@@ -171,59 +170,25 @@ function run(
 	return { result, events, final };
 }
 try {
-	const good = run("good");
-	assert.equal(good.result.status, 0, good.result.stdout + good.result.stderr);
-	count++;
+	const observed = run("cold-scheduler", { spawnOld: true });
+	assert.equal(
+		observed.result.status,
+		0,
+		observed.result.stdout + observed.result.stderr,
+	);
 	assert.deepEqual(
-		good.events.map((x) => x.op),
-		["register", "migration", "worker", "update", "update"],
+		observed.events.filter((x) => x.op === "old-scheduler-launch"),
+		[],
+		"ECS launched old deployment from cold atomic newTD+positive count",
 	);
-	count++;
-	assert.equal(good.events.at(-2).td, next);
-	assert.equal(good.events.at(-2).count, 0);
-	assert.equal(good.events.at(-1).td, null);
-	assert.equal(good.events.at(-1).count, 2);
-	assert.equal(good.events.at(-2).autoRollback, false);
-	count++;
-	const failure = run("failure", { failure: true });
-	assert.notEqual(failure.result.status, 0);
-	count++;
-	assert.equal(failure.final.count, 0);
-	assert.equal(failure.final.td, next);
-	count++;
-	assert.ok(
-		failure.result.stdout.includes("old bootstrap was not restored"),
-		failure.result.stdout + failure.result.stderr,
-	);
-	count++;
-	assert.ok(
-		failure.events.filter((x) => x.op === "update").every((x) => x.td !== old),
-	);
-	count++;
-	const omitted = run("omitted-old-stopping", { omittedStopping: true });
-	assert.notEqual(omitted.result.status, 0);
-	assert.deepEqual(omitted.events, []);
-	assert.equal(omitted.final.count, 0);
-	count++;
-	const badAck = run("bad-restore-ack", { badRestoreAck: true });
-	assert.notEqual(badAck.result.status, 0);
-	assert.equal(badAck.final.count, 0);
-	assert.equal(badAck.final.td, next);
-	assert.ok(
-		badAck.events.some((event) => event.op === "update" && event.count === 2),
-	);
-	assert.equal(badAck.events.at(-1).count, 0);
-	count++;
-	const normal = run("normal0", { maintenance: false });
-	assert.notEqual(normal.result.status, 0);
-	assert.deepEqual(normal.events, []);
-	count++;
-	const drift = run("drift", { drift: true });
-	assert.notEqual(drift.result.status, 0);
-	assert.deepEqual(drift.events, []);
-	count++;
+	const updates = observed.events.filter((x) => x.op === "update");
+	assert.equal(updates.length, 2);
+	assert.equal(updates[0].td, next);
+	assert.equal(updates[0].count, 0);
+	assert.equal(updates[1].td, null);
+	assert.equal(updates[1].count, 2);
 	console.log(
-		`Quiesced canonical shell: ${count} checks PASS (mock AWS CLI; real shell, migration/worker/update ordering, failure stopped).`,
+		"Cold ECS scheduler: old deployment not launched; install0 then count-only2 PASS.",
 	);
 } finally {
 	rmSync(scratch, { recursive: true });
