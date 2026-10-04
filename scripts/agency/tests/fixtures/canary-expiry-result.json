@@ -1,0 +1,75 @@
+{
+  "kind": "alia-canary-transport-v1",
+  "nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "operation": "execute",
+  "result": {
+    "kind": "alia-credential-revocation-canary-result-v1",
+    "credentialId": "11111111-1111-4111-8111-111111111111",
+    "nonce": "bbbbbbbbbbbbbbbbbbbbbbbb",
+    "operatorArn": "arn:aws:sts::237343248947:assumed-role/Fixture/decoder",
+    "authorizationSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "checks": [
+      {
+        "kind": "two_independent_receivers",
+        "coreVersion": "4.2.0",
+        "cachePrewarmed": true,
+        "verifierCredentialId": "wl_d50a0056191d0448024900b4",
+        "verifierSameApplication": true,
+        "effectsPerReceiverBefore": 1,
+        "receiverSamples": [
+          {
+            "index": 0,
+            "outcome": "ALLOW",
+            "observedAtMillis": 1791092429084
+          },
+          {
+            "index": 1,
+            "outcome": "ALLOW",
+            "observedAtMillis": 1791092429081
+          }
+        ]
+      },
+      {
+        "kind": "expiry_excluded",
+        "credentialExpiresAtMillis": 1791095722742,
+        "bearerExpiresAtMillis": 1791092727000,
+        "marginMs": 2000,
+        "issueRemainingMillis": 3295030,
+        "measurementRemainingMillis": 297914,
+        "beforeDatabaseMillis": 1791092429086,
+        "afterDatabaseMillis": 1791092429179
+      },
+      {
+        "kind": "canonical_credential_revocation",
+        "commitFromT0Ms": 18.64197000000013,
+        "receivers": [
+          {
+            "index": 0,
+            "outcome": "DENY",
+            "effectCount": 1,
+            "status": 403,
+            "observedAtMillis": 1791092429173,
+            "elapsedFromT0Ms": 86.18026800000007
+          },
+          {
+            "index": 1,
+            "outcome": "DENY",
+            "effectCount": 1,
+            "status": 403,
+            "observedAtMillis": 1791092429177,
+            "elapsedFromT0Ms": 90.65801899999997
+          }
+        ]
+      },
+      {
+        "kind": "existing_authority_unchanged",
+        "verified": true
+      }
+    ],
+    "measured": true,
+    "cleanupConfirmed": true,
+    "success": true,
+    "primaryFailure": null,
+    "cleanupFailure": null
+  }
+}

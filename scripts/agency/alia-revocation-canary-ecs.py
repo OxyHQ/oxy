@@ -304,6 +304,72 @@ def validate_plan(plan):
     require(digest(build_definition(plan)) == plan['taskDefinitionSha256'], 'Definition bytes differ')
 
 
+def verify_measurement(result, plan):
+    """Closed metadata schema, including the independently measured expiry margin."""
+    import math
+    def number(value):
+        return type(value) in (int, float) and math.isfinite(value) and value >= 0
+    def integer(value):
+        return type(value) is int and 0 <= value <= 9007199254740991
+    def fields(row, names):
+        require(isinstance(row, dict) and set(row) == set(names.split()), 'Canary check fields differ')
+    checks = result['checks']
+    require(isinstance(checks, list) and len(checks) <= 4, 'Canary measurement fields differ')
+    order = ['two_independent_receivers', 'expiry_excluded', 'canonical_credential_revocation', 'existing_authority_unchanged']
+    kinds = [row.get('kind') if isinstance(row, dict) else None for row in checks]
+    require(all(kind in order for kind in kinds) and len(set(kinds)) == len(kinds)
+            and kinds == sorted(kinds, key=order.index), 'Canary check kinds/order differ')
+    indexed = dict(zip(kinds, checks))
+    for kind, row in indexed.items():
+        if kind == 'two_independent_receivers':
+            fields(row, 'kind coreVersion cachePrewarmed verifierCredentialId verifierSameApplication effectsPerReceiverBefore receiverSamples')
+            require(row['coreVersion'] == '4.2.0' and row['cachePrewarmed'] is True
+                    and row['verifierSameApplication'] is True and row['effectsPerReceiverBefore'] == 1
+                    and isinstance(row['verifierCredentialId'], str)
+                    and re.fullmatch(r'wl_[a-f0-9]{24}', row['verifierCredentialId']) is not None
+                    and row['verifierCredentialId'] != plan['canaryPlan']['credentialId'], 'Receiver identity differs')
+            require(isinstance(row['receiverSamples'], list) and len(row['receiverSamples']) == 2, 'Receiver samples differ')
+            for index, sample in enumerate(row['receiverSamples']):
+                fields(sample, 'index outcome observedAtMillis')
+                require(type(sample['index']) is int and sample['index'] == index and sample['outcome'] == 'ALLOW'
+                        and integer(sample['observedAtMillis']), 'Warm sample differs')
+        elif kind == 'expiry_excluded':
+            fields(row, 'kind credentialExpiresAtMillis bearerExpiresAtMillis marginMs issueRemainingMillis measurementRemainingMillis beforeDatabaseMillis afterDatabaseMillis')
+            require(all(integer(value) for key, value in row.items() if key != 'kind')
+                    and row['marginMs'] == 2000 and row['issueRemainingMillis'] >= 122000
+                    and row['measurementRemainingMillis'] >= 62000
+                    and row['beforeDatabaseMillis'] <= row['afterDatabaseMillis']
+                    and row['afterDatabaseMillis'] < min(row['credentialExpiresAtMillis'], row['bearerExpiresAtMillis']) - 2000,
+                    'Expiry exclusion differs')
+        elif kind == 'canonical_credential_revocation':
+            fields(row, 'kind commitFromT0Ms receivers')
+            require(number(row['commitFromT0Ms']) and row['commitFromT0Ms'] < 5000
+                    and isinstance(row['receivers'], list) and len(row['receivers']) == 2, 'Revocation measurement differs')
+            for index, sample in enumerate(row['receivers']):
+                fields(sample, 'index outcome effectCount status observedAtMillis elapsedFromT0Ms')
+                require(type(sample['index']) is int and sample['index'] == index and sample['outcome'] == 'DENY'
+                        and type(sample['effectCount']) is int and sample['effectCount'] == 1
+                        and type(sample['status']) is int and sample['status'] in (401, 403)
+                        and integer(sample['observedAtMillis']) and number(sample['elapsedFromT0Ms'])
+                        and row['commitFromT0Ms'] <= sample['elapsedFromT0Ms'] < 5000, 'Denied sample differs')
+        else:
+            fields(row, 'kind verified')
+            require(type(row['verified']) is bool, 'Authority check differs')
+    if result['measured']:
+        require(all(kind in indexed for kind in order[:3]), 'Measured result is incomplete')
+        expiry = indexed['expiry_excluded']; boundary = min(expiry['credentialExpiresAtMillis'], expiry['bearerExpiresAtMillis']) - 2000
+        require(expiry['measurementRemainingMillis'] == min(expiry['credentialExpiresAtMillis'], expiry['bearerExpiresAtMillis']) - expiry['beforeDatabaseMillis'], 'Measurement remaining differs')
+        from datetime import datetime
+        expected = round(datetime.fromisoformat(plan['canaryPlan']['expiresAt'].replace('Z', '+00:00')).timestamp() * 1000)
+        require(expiry['credentialExpiresAtMillis'] == expected, 'Credential expiry differs from intent')
+        for sample in indexed['two_independent_receivers']['receiverSamples'] + indexed['canonical_credential_revocation']['receivers']:
+            require(sample['observedAtMillis'] < boundary, 'Sample reached expiry')
+    if result['success']:
+        require(result['measured'] is True and result['cleanupConfirmed'] is True and kinds == order
+                and indexed['existing_authority_unchanged']['verified'] is True
+                and result['primaryFailure'] is None and result['cleanupFailure'] is None, 'Success contract differs')
+
+
 def collect_result(plan, arn):
     stream = plan['live']['logStreamPrefix'] + '/canary/' + arn.rsplit('/', 1)[1]
     for attempt in range(12):
@@ -345,7 +411,8 @@ def collect_result(plan, arn):
                     require(result['operatorArn'] == plan['operator']['operatorArn']
                         and result['authorizationSha256'] == plan['operator']['authorizationSha256']
                         and type(result['success']) is bool and type(result['measured']) is bool
-                        and isinstance(result['checks'], list) and len(result['checks']) <= 3, 'Canary measurement fields differ')
+                        and isinstance(result['checks'], list), 'Canary measurement fields differ')
+                    verify_measurement(result, plan)
                 else: require(type(result['authorityUnchanged']) is bool, 'Recovery authority result differs')
                 require(result.get('credentialId') == plan['canaryPlan']['credentialId']
                         and result.get('nonce') == plan['canaryPlan']['nonce'], 'Foreign canary result')
