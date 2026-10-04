@@ -1,0 +1,11 @@
+# Console → Alia app-only machine contract
+
+Candidate source: Oxy `c8f60f2aa` over main `28d90e4f2`; Alia `69e0d85a8` over main `b2bc57f45`. [proof.json](proof.json) binds both repositories, 24 local records and the unpublished core fixture.
+
+A raw Console key previously reached JWT auth and returned HTTP 401, with observer `INVALID_TOKEN_FORMAT`. The frozen current-main auth and desired HTTP fixture preserve 7 failures / 3 passes; the candidate passes all 10 entry cases. The new SDK and Oxy endpoint accept only the fixed Alia recipient and explicit credential∩app `alia:chat` + `inference:invoke`. The app principal stays separate from user/service identity. Alia forwards the caller key only to canonical Oxy inference so Oxy derives the caller payer, with no Alia-credential fallback or personal/tool lane.
+
+Console General exposes an explicit pair opt-in; unrelated edits preserve partial scope sets. Component controls pass 6 cases. An HTTP/SQL test with real account membership confirms app-update revocation blocks the same request permitted for its control, and on/off changes create no credentials. Existing credential creation remains scoped to the application's grant.
+
+Validation: core 14 HTTP/receipt controls; Oxy 60 cases across 3 suites (11 introspection cases use actual HTTP, signing, receiver verification, canonical resolver and owned SQL); membership 7; Console 6 + 2 edge controls; Alia 112 across 8 suites. Core/Oxy API/Alia API/Console build, Alia/Console types, lint with zero warnings, and generated schema/snapshot sync pass. Migration 0143 widens exactly three CHECK vocabularies; no row/grant update. The owned PostgreSQL process was stopped and its PID file is absent.
+
+Alia's checks use an unpublished source-built core tarball: 585 installed members exactly match the pack. Its nominal manifest version is 4.3.0, but it is explicitly **not** the published 4.3.0 artifact or a release. No local dependency references, version or lock change are introduced. Root must release the new core API under its version plan, adopt that exact registry version in Alia, and review deployment. No production or provider call is claimed. Generic Oxy #873/#874 service access remains separate.

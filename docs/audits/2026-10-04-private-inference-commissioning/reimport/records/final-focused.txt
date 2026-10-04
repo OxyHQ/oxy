@@ -1,0 +1,56 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/kaanaCatalogueSync.test.ts
+PASS src/services/__tests__/kaanaCatalogueSync.test.ts
+  parsing Kaana’s catalogue
+    ✓ reads the exact wire shape Kaana publishes (7 ms)
+    ✓ refuses a body that is not a catalogue at all (12 ms)
+    ✓ keeps decimals exact and refuses anything that is not one (3 ms)
+    ✓ ranks cheaper routes higher (3 ms)
+  planning one model line
+    ✓ plans a describable line, keeping only known efforts in order (4 ms)
+    ✓ skips missing_context_tokens rather than inventing a value (3 ms)
+    ✓ skips missing_max_output_tokens rather than inventing a value (3 ms)
+    ✓ skips missing_modalities rather than inventing a value (2 ms)
+    ✓ skips non_text_output_unreviewed rather than inventing a value (3 ms)
+    ✓ skips no_priced_route rather than inventing a value (2 ms)
+    ✓ skips the reserved alia namespace and a blocked line (2 ms)
+    ✓ skips a route on a provider Oxy holds no data policy for, or that Kaana did not attest (1 ms)
+    ✓ refuses a non-USD price rather than converting it (1 ms)
+    accepted request parameters
+      ✓ normalizes into Oxy vocabulary order, dropping unknown words, and keeps absent as unknown (2 ms)
+      ✓ attributes a single-provider line’s set to its route (1 ms)
+      ✓ leaves the route unknown when the line reported nothing or names no providers (2 ms)
+      ✓ never pins a multi-provider intersection on any one route (1 ms)
+      ✓ prefers the deployment’s own attested set (2 ms)
+  syncing into the catalogue
+    ✓ writes a routable, internal-only, priced route for a new model line (78 ms)
+    ✓ stores a route’s accepted parameters, keeps them current and lets the edge read them (72 ms)
+    ✓ is idempotent: an unchanged report writes no new price or scorecard (53 ms)
+    ✓ supersedes a price version when the list price changes, and re-points route and scorecard (68 ms)
+    ✓ retires a route Kaana stops reporting, and withholds a mass retirement unless confirmed (160 ms)
+    ✓ refuses to sync an empty report (4 ms)
+    ✓ blocks a line immediately and brings it back only after the block is lifted (116 ms)
+    ✓ never rewrites a reviewed model, beyond keeping its efforts current (26 ms)
+    ✓ counts, and does not write, lines it cannot describe (34 ms)
+  source-reviewed scoped price bootstrap
+    ✓ does not let authenticated remote metadata authorize a local price identity (27 ms)
+    ✓ creates the exact reviewed price from the signed list price but leaves execution disabled (39 ms)
+    ✓ rejects an audience different from the source review without creating a price (27 ms)
+    ✓ preserves an existing active version on other-id mismatch (38 ms)
+    ✓ preserves an existing active version on other-price mismatch (32 ms)
+    ✓ reuses an exactly matching pre-existing version without replacing it (37 ms)
+    ✓ preserves the exact private legal review across identical canonical reimport (62 ms)
+    ✓ invalidates the prior private review before reimport with changed privacy (58 ms)
+    ✓ invalidates the prior private review before reimport with changed regions (56 ms)
+    ✓ invalidates the prior private review before reimport with changed model (63 ms)
+    ✓ invalidates the prior private review before reimport with changed audience (61 ms)
+    ✓ invalidates the prior private review before reimport with changed price (61 ms)
+    ✓ invalidates the prior private review before reimport with changed parameters (61 ms)
+    ✓ invalidates the prior private review before reimport with changed route (62 ms)
+    ✓ invalidates the prior private review before reimport with changed revision (60 ms)
+    ✓ refuses a price ID belonging to a foreign route without modifying that route (31 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       43 passed, 43 total
+Snapshots:   0 total
+Time:        1.793 s
+Ran all test suites within paths "src/services/__tests__/kaanaCatalogueSync.test.ts".

@@ -217,6 +217,24 @@ afterAll(async () => {
   await closePostgres();
 });
 
+describe('explicit Console Alia machine capabilities', () => {
+  test('real app-update membership controls opt-in and opt-out without credential grants', async () => {
+    const { subject, control, appId } = await seedOrgWithApp('admin', { revokes: ['apps:update'] });
+    await getDb().update(applications).set({ scopes: ['user:read'] }).where(eq(applications.id, appId));
+    const payload = { scopes: ['user:read', 'alia:chat', 'inference:invoke'] };
+    currentUserId = subject;
+    expect((await request('PATCH', `/applications/${appId}`, payload)).status).toBe(403);
+    const read = async () => (await getDb().select().from(applications).where(eq(applications.id, appId)))[0].scopes;
+    expect(await read()).toEqual(['user:read']);
+    currentUserId = control;
+    expect((await request('PATCH', `/applications/${appId}`, payload)).status).toBe(200);
+    expect(await read()).toEqual(payload.scopes);
+    expect(await getDb().select().from(applicationCredentials).where(eq(applicationCredentials.applicationId, appId))).toEqual([]);
+    expect((await request('PATCH', `/applications/${appId}`, { scopes: ['user:read'] })).status).toBe(200);
+    expect(await read()).toEqual(['user:read']);
+  });
+});
+
 describe('a per-member REVOKE is honoured by the application RBAC lane', () => {
   test('credentials:rotate — refused for the member it was revoked from, allowed for their twin', async () => {
     // Non-vacuity: the role under test must actually carry the power, or the

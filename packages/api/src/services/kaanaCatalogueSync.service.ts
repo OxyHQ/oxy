@@ -46,6 +46,7 @@
 
 import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { isDeepStrictEqual } from 'node:util';
 import {
   scopedExecutionAudienceSchema,
   canonicalScopedExecutionJson,
@@ -883,7 +884,7 @@ async function applyPlannedModel(
     .onConflictDoNothing({ target: inferencePublishers.slug });
 
   const [existing] = await tx
-    .select({ id: inferenceModels.id, catalogueSource: inferenceModels.catalogueSource })
+    .select()
     .from(inferenceModels)
     .where(and(eq(inferenceModels.publisherSlug, planned.publisher), eq(inferenceModels.slug, planned.slug)))
     .for('update');
@@ -920,6 +921,8 @@ async function applyPlannedModel(
     reasoningEfforts: [...planned.reasoningEfforts],
     providerReleasedAt: planned.providerReleasedAt,
   };
+  const modelFactsUnchanged = existing !== undefined && Object.entries(modelFacts)
+    .every(([key, value]) => isDeepStrictEqual(existing[key as keyof typeof modelFacts], value));
   let modelRowId: string;
   if (existing === undefined) {
     const [created] = await tx
@@ -980,26 +983,44 @@ async function applyPlannedModel(
       bump(counts.deploymentSkips, 'unknown_provider');
       continue;
     }
+    const deploymentFacts = {
+      id: inferenceDeployments.id,
+      modelRevisionId: inferenceDeployments.modelRevisionId,
+      providerSlug: inferenceDeployments.providerSlug,
+      autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
+      scopedExecution: inferenceDeployments.scopedExecution,
+      availabilityScope: inferenceDeployments.availabilityScope,
+      permissionState: inferenceDeployments.permissionState,
+      status: inferenceDeployments.status,
+      regions: inferenceDeployments.regions,
+      retainsPayloads: inferenceDeployments.retainsPayloads,
+      retentionDays: inferenceDeployments.retentionDays,
+      trainsOnCustomerData: inferenceDeployments.trainsOnCustomerData,
+      zeroDataRetentionAvailable: inferenceDeployments.zeroDataRetentionAvailable,
+      subprocessors: inferenceDeployments.subprocessors,
+      policyUrl: inferenceDeployments.policyUrl,
+      priceVersionId: inferenceDeployments.priceVersionId,
+      internalRouteId: inferenceDeployments.internalRouteId,
+      acceptedParameters: inferenceDeployments.acceptedParameters,
+    };
+    type DeploymentFacts = Pick<typeof inferenceDeployments.$inferSelect, keyof typeof deploymentFacts>;
     const byId = await tx
-      .select({
-        id: inferenceDeployments.id,
-        autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
-        status: inferenceDeployments.status,
-      })
+      .select(deploymentFacts)
       .from(inferenceDeployments)
       .where(eq(inferenceDeployments.internalRouteId, route.deploymentId))
       .for('update');
-    if (byId.some((row) => row.autoApprovalPolicyId === null)) {
+    const reviewedAudience = route.scopedExecution === undefined ? undefined : sourceReviewedScopedAudience(now.getTime());
+    const reviewedPrivateImport = reviewedAudience !== undefined &&
+      canonicalScopedExecutionJson(reviewedAudience) === canonicalScopedExecutionJson(route.scopedExecution);
+    const managedPrivate = (row: DeploymentFacts) => reviewedPrivateImport &&
+      row.autoApprovalPolicyId === null && row.scopedExecution !== null &&
+      row.availabilityScope === 'platform_internal' && row.permissionState === 'pending_review' && row.status === 'disabled';
+    if (byId.some((row) => row.autoApprovalPolicyId === null && !managedPrivate(row))) {
       bump(counts.deploymentSkips, 'reviewed_deployment');
       continue;
     }
     const [byRoute] = await tx
-      .select({
-        id: inferenceDeployments.id,
-        autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
-        status: inferenceDeployments.status,
-        permissionState: inferenceDeployments.permissionState,
-      })
+      .select(deploymentFacts)
       .from(inferenceDeployments)
       .where(
         and(
@@ -1012,9 +1033,43 @@ async function applyPlannedModel(
         )
       )
       .for('update');
-    if (byRoute !== undefined && byRoute.autoApprovalPolicyId === null) {
+    if (byRoute !== undefined && byRoute.autoApprovalPolicyId === null && !managedPrivate(byRoute)) {
       bump(counts.deploymentSkips, 'reviewed_deployment');
       continue;
+    }
+    // Human review is bound to these facts, not the next publication timestamp.
+    // A managed private row may be revisited only under fresh compiled authority;
+    // ordinary manually reviewed rows retain their existing protection above.
+    const privateFacts = {
+      modelRevisionId: revisionId, providerSlug: route.provider,
+      scopedExecution: route.scopedExecution ?? null, regions: [...route.regions],
+      retainsPayloads: provider.retainsPayloads, retentionDays: provider.retentionDays,
+      trainsOnCustomerData: provider.trainsOnCustomerData, zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
+      subprocessors: provider.subprocessors, policyUrl: provider.policyUrl,
+      priceVersionId: route.scopedExecution?.priceVersionId, internalRouteId: route.deploymentId,
+      acceptedParameters: route.acceptedParameters === null ? null : [...route.acceptedParameters],
+    };
+    const samePrivateFacts = (row: DeploymentFacts) => modelFactsUnchanged &&
+      managedPrivate(row) && Object.entries(privateFacts).every(([key, value]) =>
+        isDeepStrictEqual(row[key as keyof typeof privateFacts], value));
+    let preservePrivateReview = byRoute !== undefined && samePrivateFacts(byRoute);
+    if (reviewedPrivateImport) {
+      const currentUnits = await tx.select({ unit: priceVersionUnitPrices.unit, amount: priceVersionUnitPrices.amount,
+        per: priceVersionUnitPrices.per }).from(priceVersionUnitPrices)
+        .where(eq(priceVersionUnitPrices.priceVersionId, route.scopedExecution!.priceVersionId));
+      const [currentPrice] = await tx.select().from(priceVersions)
+        .where(eq(priceVersions.id, route.scopedExecution!.priceVersionId));
+      preservePrivateReview = preservePrivateReview && currentPrice !== undefined && currentPrice.status === 'active' &&
+        currentPrice.provider === route.provider && currentPrice.modelReference === planned.modelReference &&
+        currentPrice.currency === 'USD' && currentPrice.effectiveFrom <= now && currentPrice.effectiveUntil === null &&
+        sameUnitPrices(currentUnits, syncedUnitPrices(route.price));
+      // Invalidate before a changed price/identity can be rejected by immutable
+      // import. Never retain approval merely because that update was skipped.
+      const rows = new Map([...byId, ...(byRoute === undefined ? [] : [byRoute])].map(row => [row.id, row]));
+      for (const row of rows.values()) if (managedPrivate(row) && !(row.id === byRoute?.id && preservePrivateReview)) {
+        await tx.update(inferenceDeployments).set({ legalReviewStatus: 'not_started', legalReviewEvidenceRef: null,
+          legalReviewedAt: null, legalReviewedByUserId: null }).where(eq(inferenceDeployments.id, row.id));
+      }
     }
     const priceVersionId = await ensureSyncedPrice(tx, planned.modelReference, route.provider, route.price, now, counts, route.scopedExecution);
     if (priceVersionId === undefined) {
@@ -1075,7 +1130,7 @@ async function applyPlannedModel(
         .set({
           ...routeFacts,
           availabilityScope: 'platform_internal',
-          ...(revived || route.scopedExecution !== undefined ? approval : {}),
+          ...(route.scopedExecution !== undefined ? (preservePrivateReview ? {} : approval) : (revived ? approval : {})),
         })
         .where(eq(inferenceDeployments.id, byRoute.id));
     }

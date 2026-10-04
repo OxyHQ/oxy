@@ -1,0 +1,11 @@
+$ vitest run src/lib/chat/__tests__/controlled-input-measurement.test.ts
+
+ RUN  v4.1.10 /home/nate/Oxy/Alia/.worktrees/1571-chat-budget-measurement-20261004/packages/api
+
+[16:50:30] [33mWARN[39m: [36mVAPID keys not set — web push notifications disabled[39m
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  19:50:28
+   Duration  2.46s (transform 1.16s, setup 0ms, import 2.34s, tests 33ms, environment 0ms)
+

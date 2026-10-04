@@ -172,7 +172,7 @@ export function aliaNativeAgentBootstrapManifest(): Readonly<{
  * minted for, and the only application allowed to introspect (and consume) one.
  * Pinned beside the seed spec's `ALIA_APPLICATION_ID`; a test compares them.
  */
-export const ALIA_RESOURCE_SERVER_APPLICATION_ID = '6a2f851751b784a86fd0e934';
+export { OXY_ALIA_RESOURCE_APPLICATION_ID as ALIA_RESOURCE_SERVER_APPLICATION_ID } from '@oxy.so/core/server';
 
 /** The `aud` of a present-requester assertion. */
 export const REQUESTER_ASSERTION_AUDIENCE = 'alia';

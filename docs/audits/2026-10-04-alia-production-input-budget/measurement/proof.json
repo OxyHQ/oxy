@@ -1,0 +1,123 @@
+{
+  "kind": "alia-controlled-input-measurement-proof-v1",
+  "inputs": [
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/src/lib/tool-pipeline.ts",
+      "sha256": "c8dc057aa1df79729c2079feb59be468cf1ae99beed20f4c33b303a5ca2b92c2",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/src/lib/system-prompt-builder.ts",
+      "sha256": "ecd7c98f213cf1eafe4596b4fedad86f8b7992ad4fe61ec3a09e2bbfdf3ffede",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/src/lib/prompt-loader.ts",
+      "sha256": "7c24ece4daca0a8f661c26f1bb6a4e84e45e81734c381cce846c592d8ff0daaa",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/src/lib/inference/kaana-language-model.ts",
+      "sha256": "ada997d324bfee5715195402c20a8548d26d14a7b004628cc1874f3831807a8d",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/src/lib/tool-budget.ts",
+      "sha256": "0f12c692bc2fcb554f324fa41337a01f19dcfcfbff245091794002c370227b83",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/src/routes/v1/chat-completions.ts",
+      "sha256": "9968253a3db1b27caca273d1585c17b03f29bbc3b05bbfd4a1a877603f0015fc",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/prompts/base.md",
+      "sha256": "a02504936387013a8ed21bcfca783a98a2c42f437381a880032fe772bc78e69f",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/prompts/general.md",
+      "sha256": "0f5d0fc683086b5b8dcfe70a32bd500b4ec6d1af34a37255ab9834014fdbf8fe",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/prompts/codea.md",
+      "sha256": "a833c6ff5664b29444344a58d2f3a610884b387197727893a25431c9c96492b2",
+      "gitEqual": true
+    },
+    {
+      "repo": "Alia",
+      "sourceSha": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "path": "packages/api/prompts/cowork.md",
+      "sha256": "24f76e3eff203dc77efadec778f1e2fdaaa3cdb7275448b1c5a894430eab5e38",
+      "gitEqual": true
+    },
+    {
+      "repo": "oxy",
+      "sourceSha": "9579fa3132c23428d519029f5015b3664c0c738e",
+      "path": "packages/api/src/schemas/inferenceEdge.schemas.ts",
+      "sha256": "522b452d2c237b531a74af1b24dc3d4ba95ff66f5f4499efac3377a716002204",
+      "gitEqual": true
+    },
+    {
+      "repo": "oxy",
+      "sourceSha": "9579fa3132c23428d519029f5015b3664c0c738e",
+      "path": "packages/api/src/services/inferenceInternalPilot.ts",
+      "sha256": "9f51b3cc662edfe057d4f58eeb82b0f29de83007a26f8fa13905437409b53d34",
+      "gitEqual": true
+    },
+    {
+      "repo": "oxy",
+      "sourceSha": "9579fa3132c23428d519029f5015b3664c0c738e",
+      "path": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sha256": "da6ae5038f825f726b2994dab73cf3d17adff552c8e4bee6f009ae7d4d7e6d5a",
+      "gitEqual": true
+    }
+  ],
+  "records": [
+    {
+      "path": "measurement.json",
+      "sha256": "bd874ff4149cab597f22408034b648b2e117f94a692ae45fc059a53cb6a2e98f"
+    },
+    {
+      "path": "measurement.log",
+      "sha256": "a4879d736637725d14a2430ece94390fa10179af7e43100be08750fdb3961b86"
+    },
+    {
+      "path": "measurement.test.ts",
+      "sha256": "8f4864bb9315cf71e97140ce022667a73a671df9656bb754ac50c8241172418e"
+    }
+  ],
+  "checks": {
+    "realAliaToolAndSystemBuilders": true,
+    "realAiSdkProviderTranslation": true,
+    "realOxyNormalizationAndBudget": true,
+    "allThreeMeasuredBaselinesAbove8192Below126976": true
+  },
+  "limits": [
+    "No incident prompt or private history read",
+    "Synthetic direct-session turns without external connector sources",
+    "21 built-in tool schemas; no tool execution",
+    "Measurement does not promise all histories fit126976",
+    "Byte budget is not actual provider token usage or certified billing ceiling"
+  ]
+}

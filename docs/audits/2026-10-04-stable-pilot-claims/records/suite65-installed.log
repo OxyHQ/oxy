@@ -1,0 +1,7 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/config/__tests__/inferenceEconomicPolicy.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       65 passed, 65 total
+Snapshots:   0 total
+Time:        10.134 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts|src/config/__tests__/inferenceEconomicPolicy.test.ts.

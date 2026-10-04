@@ -57,20 +57,34 @@ Measured from production `inference_usage_events`, Alia, 2026-09-02..10-02
 
 Approved pilot: 32 in flight and 5,000 admissions per UTC day. These are
 configured limits with historical headroom, not measurements of current capacity.
-Version `oxy-inference-economics/2026-10-03.3` additionally restricts every signed
+Version `oxy-inference-economics/2026-10-04.2` restricts every signed
 route (including failovers) to the exact deployment/model/provider tuples in
-`config/inferenceEconomicPolicy.ts`, all at
+`config/inferenceEconomicPolicy.ts`. The existing three tuples remain at
 `openai/gpt-oss-120b@observed-2026-09-01`:
 
 - `dep_cerebras_gpt_oss_120b_observed_2026_09_01` / `cerebras`;
 - `dep_groq_openai_gpt_oss_120b_observed_2026_09_01` / `groq`;
 - `dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01` / `openrouter`.
 
+One existing reviewed High route is additionally admitted:
+`dep_openrouter_deepseek_deepseek_v4_flash_0731_observed_2026_09_01` /
+`deepseek/deepseek-v4-flash-0731@observed-2026-09-01` / `openrouter`.
+The 2026-10-04 read-only catalogue and signed Kaana inventory identified this
+exact tuple. It retains its `platform_internal`, `standard_application_use`
+permission and serving-provider terms; `commercialUseAllowed` remains false.
+An explicit policy requiring commercial-use rights still excludes it. No model
+class, Auto rule, permission, privacy field or catalogue row changes here.
+
 This is exact identity matching; publication, signed fresh attestation, ordinary
 model/provider/privacy gates and permission checks still apply. The pilot does
-not open decisions, Jev, Auto or a provider outside that set.
+not open an unapproved provider or authorize a scoped decisions audience. Auto
+can now admit its existing High class under the exact tuple; it still climbs
+only upward from its classified level and never drops tools or falls back to
+an Instant model to fit the pilot.
 
-The controlled-input budget is at most **8192**: UTF-8 serialized normalized
+The controlled-input budget is at most **126976** for text completions;
+decisions retain their **8192** base ceiling and independent scoped authority.
+It counts UTF-8 serialized normalized
 input, tools, tool choice and response format, plus explicit local allowances
 of 256 base, 32 per message and 32 per tool. It includes roles, tool arguments
 and schemas. Only text completions can satisfy this guard; unsupported modalities
@@ -86,6 +100,17 @@ capacity, price quotation and the signed attempt. An older Alia client requestin
 callers retain existing behavior. Real usage and cost provenance remain measured
 separately; these controls do not establish a monetary provider-spend ceiling or
 approve a tariff.
+
+Before any durable admission claim, every candidate quote and the final signed
+route set must be in USD and at most **0.05 USD**, compared with exact decimal
+arithmetic. A tighter application or classifier ceiling still wins. The readback
+tariff for the added High tuple was $0.0152 per million input/cached-input units
+and $1.28 per million output/reasoning units, with zero per-request amount. At
+126976 controlled-input units plus the shared 2048 output/reasoning ceiling,
+its quote is $0.0045514752. This is a tariff quotation, not an upstream invoice
+or retry-spend guarantee; unknown provider costs remain unknown. Source and
+HTTP/SQL fixtures qualify admission, while production readiness and a real
+reply still require the operator's exact image, signed route and live receipt.
 
 ### Deployment order and reversal
 

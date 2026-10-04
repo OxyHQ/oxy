@@ -29,8 +29,9 @@
  * production. That is not an oversight to be tidied away by wiring it to the
  * nearest plausible endpoint.
  *
- * It deliberately authenticates only the metered `/v1` inference edge. Product
- * agent and voice APIs are not infrastructure inference surfaces.
+ * The Alia-only introspection endpoint also reuses this resolver, requiring
+ * explicit alia:chat AND inference:invoke and the exact resource server.
+ * This does not mount machine auth globally on product-agent or voice APIs.
  *
  * ## Its own lane, and its own request property
  *

@@ -1,0 +1,6 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts -t "serves the intact real Hello"
+Test Suites: 1 passed, 1 total
+Tests:       46 skipped, 1 passed, 47 total
+Snapshots:   0 total
+Time:        0.945 s, estimated 1 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts with tests matching "serves the intact real Hello".

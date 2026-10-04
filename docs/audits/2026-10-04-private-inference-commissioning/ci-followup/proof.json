@@ -1,0 +1,92 @@
+{
+  "kind": "private-commissioning-clean-ci-proof-v1",
+  "sourceCommit": "2fb7391f7f60ad3e98516d62a7ed1f203dc3cd7c",
+  "sources": [
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "bc2debbbc4a75e10dc29935cd5ded5d2656f8dfcc37957a0d9230075d8f72b80"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/privateCommissioning.test.ts",
+      "sha256": "df2f8bd721faf4a8edb3ad0026592c25e3a80e196db49144f90958b466076e4e"
+    },
+    {
+      "path": "packages/api/src/db/schema/__tests__/routingScoreEconomicsCallsites.test.ts",
+      "sha256": "72215e6c4ea0825761e935224703df647c4d71624745fbe9f4dbcc0d652d2c14"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/owned-pg.py",
+      "sha256": "6d5f009e9f7f600a36c793ea08f57b6bd2b2e8a7aa7d2d928f304205e9526519"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/owned-run.log",
+      "sha256": "d1197983d98f6530bddad98b6ef8ea3a1480ae3b13fd6c1d3c1a17949bfb416d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/biome-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/focused.txt",
+      "sha256": "bce169938e81f64867f597db7cdeaf34be781c0be00d4d33a43f8f31583e1d12"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/migrate-fresh.txt",
+      "sha256": "313830820180e31d4efc9652521698874cf7f459c5466efc9757053a543f10eb"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/migrate-repeat.txt",
+      "sha256": "df26aedcbb91d3ab48bbd404958f453232eb45aa5c37fec133793f90248b67c9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/ci-job111490066816.log",
+      "sha256": "bf6b1b0761726f4e14eacabe7167305df0a3df685e3ad62dd892b301de1eedba"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/ci-job111490066845.log",
+      "sha256": "f4bd3f8fa9b680d4e44543f599b45386f88171b014969a3c5bda7d6fdf7827d2"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/compiled/kaanaCatalogueSync.service.js",
+      "sha256": "05defd629d16e1c573ed463e711591c3729b5179d15d35d5d49a4b330ddbc246"
+    }
+  ],
+  "historicalCi": {
+    "runId": 37220618287,
+    "sourceCommit": "50de3e65e187f3b46dc7cfc1017710fd22091dc4",
+    "failedJobs": [
+      111490066816,
+      111490066845
+    ],
+    "causes": [
+      "implicit protected deployment projections",
+      "new explicit synthetic funding insert increases reviewed callsite count to 18",
+      "test assumed prebuilt API dist absent from test shards"
+    ]
+  },
+  "finalLocal": {
+    "suites": 4,
+    "passed": 83,
+    "failed": 0,
+    "freshMigration": true,
+    "repeatMigration": true,
+    "apiBuildExit": 0,
+    "biomeExit": 0,
+    "cliBuild": "Node TypeScript compiler with canonical API tsconfig into unique temporary tree; actual dry-run and apply against owned SQL",
+    "cliHasNoPrebuiltDistDependency": true
+  },
+  "cleanup": {
+    "postgresPid": 1838958,
+    "pidAbsent": true,
+    "noProductionAccess": true
+  },
+  "remoteCi": "pending new source push"
+}

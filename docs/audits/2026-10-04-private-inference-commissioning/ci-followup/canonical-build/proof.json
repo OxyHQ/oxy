@@ -1,0 +1,95 @@
+{
+  "kind": "commissioning-canonical-build-proof-v1",
+  "sourceCommit": "87777a08e71b62c08416f4952a29a742ba1486b5",
+  "sources": [
+    {
+      "path": "packages/api/src/services/__tests__/privateCommissioning.test.ts",
+      "sha256": "124182ae41741290183be54772f996f4c1a8f78b9548981223ce2198358a4af5"
+    }
+  ],
+  "unchangedInputs": [
+    {
+      "path": "packages/api/package.json",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510"
+    },
+    {
+      "path": "packages/api/tsconfig.json",
+      "sha256": "9d081671d3910679ab2abd9a4e87c9002a4beaad4cfce749ce55f6260de63299"
+    },
+    {
+      "path": "packages/core/scripts/build-workspace-deps.mjs",
+      "sha256": "2e6a9d5a171a20027c29a82532d14a469b9813588cf1f87153dbe98e1223dafe"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "1c624a98c57fb80d6ea88fa0595f2beb517c65a80a82fee0cd5aab4eb0ba01a9"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/ci-job111494231643.log",
+      "sha256": "349835b1c1a6b6ae0a0e268efff883e61ecac5e7c77798efac846e74af03717e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/ci-37222049463-jobs.json",
+      "sha256": "e6ec9cb4dc8bb90d3cbdf1c84105b76f6a724e4f30b583cd72e3509f34654364"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/ci-missing-deps-reproduction.log",
+      "sha256": "b4b21de5d90561680a591733d94b42cc1c41dc104f4899bd9815d74f26b24dda"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/missing-deps-owned-run.log",
+      "sha256": "0054d7852a9862d49577d4c358cbd4ee43cf2cb8eba3f37c960c88933911845e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/owned-missing-deps.py",
+      "sha256": "198d7eeb5fcaffb022c102c4bd372687a520a92ea84c858541137cac70ab9eb7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/biome-canonical-build.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/focused.txt",
+      "sha256": "fb0855bbf7a947f2aac5f20f85a3c93a3d242356b3e8cbe0281fec8d8fcdc906"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/migrate-fresh.txt",
+      "sha256": "adb8554dd4b48a03e1d08b262be88fc63c5dd5b86369b36eccda57d797b7fdd5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-private-inference-commissioning/ci-followup/canonical-build/migrate-repeat.txt",
+      "sha256": "1cb1b690b5696579d6ca504cfdaad386055b68b61de361be87891f49490c8214"
+    }
+  ],
+  "historicalCi": {
+    "runId": 37222049463,
+    "jobId": 111494231643,
+    "sourceCommit": "ab0419920ee84792ea7354df0fcabb0c5f1d4139",
+    "result": "all API test shards except shard1 passed; shard1 failed direct tsc build exit2"
+  },
+  "rootCause": {
+    "localReproduction": "temporarily removing only owned worktree telemetry and utils dist causes direct tsc exit2 and nine dependency/implicit-any errors",
+    "canonicalApiBuild": "build-workspace-deps builds both packages before tsc; test shard subset did not",
+    "change": "test now invokes unmodified canonical package build with fresh outDir and dotenv disabled"
+  },
+  "positiveControl": {
+    "initiallyMissingOwnedDist": [
+      "packages/telemetry/dist",
+      "packages/utils/dist"
+    ],
+    "ownedTestPass": 1,
+    "skippedOtherFixtureTests": 20,
+    "freshAndRepeatMigrations": true,
+    "compiledNodeDryRunAndApply": true,
+    "originalOwnedDistRestoredInFinally": true,
+    "noTestAssertionWeakening": true
+  },
+  "cleanup": {
+    "postgresPid": 1857263,
+    "pidAbsent": true,
+    "productionAccess": false
+  },
+  "remoteCi": "pending new source push"
+}

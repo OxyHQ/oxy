@@ -1,0 +1,56 @@
+{
+  "source": "723839290d1828074e7911fe0dd6bc5ab9e03819",
+  "base": "1789185c84678887bec84b8f0b7bb8b6e76d55eb",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "81db6470a9d9e2ae0254ac08ea589b4b00a49d46933aff3b7d4c0dafee9d30e2",
+      "source": "723839290d1828074e7911fe0dd6bc5ab9e03819"
+    },
+    {
+      "path": "packages/api/src/config/__tests__/inferenceEconomicPolicy.test.ts",
+      "sha256": "e3807cf331568dddb632b3616f72066a0703b2e557805ff0f08bd3d1f29c4ec6",
+      "source": "723839290d1828074e7911fe0dd6bc5ab9e03819"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-stable-pilot-claims/records/pg-cleanup.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-stable-pilot-claims/records/queue-failure-excerpt.txt",
+      "sha256": "525b113ab1384864af01f1757fdd7210f5bbbc4e9ec3bf1cd11667227622fc8e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-stable-pilot-claims/records/suite65-installed.log",
+      "sha256": "57b153919267ade55f9693694b039595975a5b9f7ea8622568a7d6f04949e92f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-stable-pilot-claims/records/suite65.log",
+      "sha256": "fb1762fa8cda5938beec22d7df8e07bebef148f2bb3ce16700f78683082fe647"
+    }
+  ],
+  "historicalCi": {
+    "job": 111509770779,
+    "logPath": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-machine-review/queue-8b2-shard4.log",
+    "sha256": "95082af0561151c87bf4654a03fd6963f12f02728c624b71b4cdf2deffbe1d4e",
+    "finding": "Same claim IDs in different result order; HTTP503/executions0 preceding assertions passed."
+  },
+  "validation": {
+    "command": "TEST_DATABASE_URL=postgres://nate@127.0.0.1:18631/postgres DATABASE_URL=postgres://nate@127.0.0.1:18631/postgres OXY_JEST_MAX_WORKERS=1 bun run test --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/config/__tests__/inferenceEconomicPolicy.test.ts",
+    "cwd": "packages/api",
+    "suites": 2,
+    "testsPassed": 65,
+    "ownPostgresStopped": true,
+    "setupFailureRetained": "First run lacked contracts package node_modules/zod; 8 policy tests passed and HTTP suite did not load. Local dependency links corrected, no source/lock mutation."
+  },
+  "limits": [
+    "Test-only SQL snapshot order. All original claim/cardinality and zero-effect assertions preserved.",
+    "Real own Postgres/canonical migrations and loopback HTTP; data plane is the existing fake Kaana fixture. No production or provider calls.",
+    "Existing CI failure is the RED evidence; no artificial production failure or new sorting-only test.",
+    "Dependencies linked read-only from machine-principal WT; Jest canonical workspace source mappings apply. No install, version or shipping-source edits."
+  ],
+  "testedSource": "cab35978cf11cf645829464405311432bbc8835d",
+  "integration": "Root cherry-pick has byte-identical full source tree to testedSource; source refs below use reachable PR lineage."
+}

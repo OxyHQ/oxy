@@ -59,6 +59,7 @@ import {
   type VerifyAccountEventOptions,
 } from './middleware';
 import {
+  ServerAppsApi,
   ServerAgencyApi,
   ServerAssetsApi,
   ServerLinkedAccountsApi,
@@ -217,6 +218,7 @@ export class OxyServer extends OxyServices {
   private _serverNotifications?: ServerNotificationsApi;
   private _serverLinkedAccounts?: ServerLinkedAccountsApi;
   private _serverAgency?: ServerAgencyApi;
+  private _serverApps?: ServerAppsApi;
   private _serverReputation?: ServerReputationApi;
 
   /** Files, plus the service-only metadata and linked-URL lookups. */
@@ -238,6 +240,11 @@ export class OxyServer extends OxyServices {
   override get agency(): ServerAgencyApi {
     if (!this._serverAgency) this._serverAgency = new ServerAgencyApi(this.context);
     return this._serverAgency;
+  }
+  /** Application management, plus the receiver-bound Alia machine-key lookup. */
+  override get apps(): ServerAppsApi {
+    if (!this._serverApps) this._serverApps = new ServerAppsApi(this.context);
+    return this._serverApps;
   }
   /** Reputation reads, plus `award`. */
   override get reputation(): ServerReputationApi {
@@ -695,4 +702,3 @@ export class OxyServer extends OxyServices {
     return appId;
   }
 }
-

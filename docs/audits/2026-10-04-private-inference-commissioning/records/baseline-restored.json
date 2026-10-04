@@ -1,0 +1,8 @@
+{
+  "base": "28d90e4f2c9143253843725aa361975ec951c6cd",
+  "path": "packages/api/src/services/inferenceCatalogue.service.ts",
+  "baseSha256": "c333ca7f07469491c99e61b6d06eeba8981fd0b0ea986af623507a0a4094449d",
+  "restoredSha256": "2449c8b45cb72e02dd5df2c9e9fb1e240a207c335d996f2cc5c3cb5684b638d7",
+  "baselineExit": 1,
+  "restoredByteExact": true
+}

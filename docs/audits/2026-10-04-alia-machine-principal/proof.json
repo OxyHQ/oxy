@@ -1,0 +1,349 @@
+{
+  "kind": "alia-app-only-machine-contract-local-review-v1",
+  "sources": {
+    "oxy": {
+      "sourceHead": "c8f60f2aa7e96f354b159fb2e99b1f3dd72d600b",
+      "baseMain": "28d90e4f2c9143253843725aa361975ec951c6cd",
+      "records": [
+        {
+          "path": "docs/adr/0035-alia-app-only-machine-chat.md",
+          "sha256": "5ed515ae07f53068d8e9782b64fd9244c84bb066b2bf5d602da4ea8aa3620be3"
+        },
+        {
+          "path": "docs/adr/README.md",
+          "sha256": "fef79ee884249a7b3f592338f0b4554fab417107b8d572ec24937626905a1d4b"
+        },
+        {
+          "path": "packages/api/drizzle/0143_sour_dark_phoenix.sql",
+          "sha256": "97be8790170ae47852f7ea195833133869d0c941c4ea5449b62bae39fc831754"
+        },
+        {
+          "path": "packages/api/drizzle/meta/0143_snapshot.json",
+          "sha256": "f124c889b5cef672bd94bc0d2ec675692fda96703cdfbdac2152de753e19a6e9"
+        },
+        {
+          "path": "packages/api/drizzle/meta/_journal.json",
+          "sha256": "9de1b5f813fe46ee4b4e48720c800ff7a66025fa9aeade011ae58f79ac302a9c"
+        },
+        {
+          "path": "packages/api/src/config/nativeProductAgents.ts",
+          "sha256": "61c328da7a8e18db24aacf3fcded7d203a62b910924d96075bd29e3c63c4005c"
+        },
+        {
+          "path": "packages/api/src/middleware/machineCredential.ts",
+          "sha256": "77713e5099c915d55e89a4e6bb2c6faa9069a65edf0f6e22ff6ec18160fc879c"
+        },
+        {
+          "path": "packages/api/src/routes/__tests__/aliaMachineCredential.test.ts",
+          "sha256": "b1924e9815ee0d5105fe5803d7611e0bd8563279aa1388284b0f0d79a78d6602"
+        },
+        {
+          "path": "packages/api/src/routes/__tests__/applicationPermissionOverrides.test.ts",
+          "sha256": "602a0b2c4e3b8af683babe36d38bbc3c8da9a74a4f5098b10148040389581d45"
+        },
+        {
+          "path": "packages/api/src/routes/internal.ts",
+          "sha256": "b0db498c92ac1d8f37036a5084d867e28f7fad9a85d3df619f76f6d904228fc2"
+        },
+        {
+          "path": "packages/api/src/services/__tests__/aliaMachineCredential.test.ts",
+          "sha256": "6245ab7fcfe2f9d1ac8de5d46cbb0855a3313f7621e0fd8114b42988422a2882"
+        },
+        {
+          "path": "packages/api/src/services/aliaMachineCredential.service.ts",
+          "sha256": "680d171d8f5adaf9ef2cd98b2fd0f1bd909ebb1130cb4b3c4fcfe42d6cad294f"
+        },
+        {
+          "path": "packages/api/src/utils/__tests__/applicationScopes.test.ts",
+          "sha256": "dc0f9f1619c6136ab0298b9f60c1d635e656ff22af80950819aa4bd475b4f590"
+        },
+        {
+          "path": "packages/api/src/utils/applicationScopes.ts",
+          "sha256": "c277afc6ff5564ee3e41102bd1cfa9efd43023ca487ec0458aef2ebdd92dfdd5"
+        },
+        {
+          "path": "packages/console/src/components/apps/__tests__/alia-machine-opt-in.test.tsx",
+          "sha256": "773b7160c15cf2d42888a428ed8c8587e01745aed1709c3a060d98913eab81bf"
+        },
+        {
+          "path": "packages/console/src/components/apps/general-section.tsx",
+          "sha256": "6987cb05adc7989acb4a8305314a940e79eeb71b8549b659c2ce8f4242792840"
+        },
+        {
+          "path": "packages/console/src/lib/application-scopes.ts",
+          "sha256": "b22412a0cc0087a9838693f966a9009c8d753bc2c4878109726436735d69219a"
+        },
+        {
+          "path": "packages/core/src/server/OxyServer.ts",
+          "sha256": "246fa030e77df87480327cbc857fdfb69c32595afdece9353b1a11df208b02cf"
+        },
+        {
+          "path": "packages/core/src/server/__tests__/aliaMachineCredential.test.ts",
+          "sha256": "4f80b23fc8e0e5aabd11adba8ce49187a5a1969c614cf2aaebdc7541e4efdb19"
+        },
+        {
+          "path": "packages/core/src/server/aliaMachineCredential.ts",
+          "sha256": "ab2df2356f25c7862694e05764c7881c61b5eeb2eb222e2848bc362ed25cd27c"
+        },
+        {
+          "path": "packages/core/src/server/index.ts",
+          "sha256": "1d31559b1a9da5658028169e21603404ac2cafb9f34448a861cf5063d2565a1b"
+        },
+        {
+          "path": "packages/core/src/server/namespaces.ts",
+          "sha256": "9867a18e843c4826221c817b3bc880c657a91572d48a7dc27f5c7238bd1f5347"
+        }
+      ]
+    },
+    "alia": {
+      "sourceHead": "69e0d85a865f7aaf035a3b71b382a3e7007f99f8",
+      "baseMain": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "records": [
+        {
+          "path": "AGENTS.md",
+          "sha256": "d636830433af4d81f6ae62ffde79432c59d31265e83add3a2b57f32f479fe277"
+        },
+        {
+          "path": "docs/adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md",
+          "sha256": "98e1a482660af23267bcbd28ca9bc0ef37f68d9d32d05a120408d597e1c656ee"
+        },
+        {
+          "path": "docs/developers-portal.md",
+          "sha256": "4728496f813d4bf58992189069cf280cb5dc83cf40d78dbf0ee080b098758660"
+        },
+        {
+          "path": "docs/machine-chat-contract.md",
+          "sha256": "d0137d01426780ed727802859baade728229c23784520d91e6e46baa7ab2aa18"
+        },
+        {
+          "path": "packages/api/src/__tests__/mocks/oxy-core-server.ts",
+          "sha256": "2a4df99f79f10bf4038a5537f3e493d093647120829042d63fb0efd516d1e4b8"
+        },
+        {
+          "path": "packages/api/src/lib/__tests__/machine-tool-pipeline.test.ts",
+          "sha256": "8cf1366a4a9af69d4daa356d4af4b863307f3ba2a5f91648dd46dfea92411c9f"
+        },
+        {
+          "path": "packages/api/src/lib/chat/__tests__/request-context-model-selection.test.ts",
+          "sha256": "aa5e30a72642ea24dd9405f15bc9bea63cf3e12c11a86d82d9c1b2b02d0345f8"
+        },
+        {
+          "path": "packages/api/src/lib/chat/machine-turn.ts",
+          "sha256": "b295ba8795ddd74aef83385740ee5ef07003e04660ba3446dba986374d7d1fe0"
+        },
+        {
+          "path": "packages/api/src/lib/chat/request-context.ts",
+          "sha256": "34df40a9e67f16bf17ebc86dc3682063528f6e78718448681db97bf0a1534cae"
+        },
+        {
+          "path": "packages/api/src/lib/inference/__tests__/oxy-inference.test.ts",
+          "sha256": "a4f20af6458d9e5e4424ecebc18ee6d503309e9ee569bf30e56ecb34ff8621d9"
+        },
+        {
+          "path": "packages/api/src/lib/tool-pipeline.ts",
+          "sha256": "aea34cd1237ff9d6396e7c5cfe0088c3d95e7ce7ddb50473055156e379859b96"
+        },
+        {
+          "path": "packages/api/src/middleware/__tests__/console-machine-key-entry.test.ts",
+          "sha256": "401399d541b5e30853e780b0778c90a120dbcf710c9af8c84f4f881f85806f0c"
+        },
+        {
+          "path": "packages/api/src/middleware/auth.ts",
+          "sha256": "4922e7c3c4da1e832a08dc45a342ef9ff8aaaee85b48d9936c40e94b60676e4f"
+        },
+        {
+          "path": "packages/api/src/routes/v1/chat-completions.ts",
+          "sha256": "7358ab9c2b025af230fd087c42034884e03c595e2999df9ba7094e6348746da8"
+        }
+      ]
+    }
+  },
+  "checks": {
+    "coreHttpAndReceipt": {
+      "tests": 14,
+      "passed": true
+    },
+    "oxyIntrospectionAndScopes": {
+      "suites": 3,
+      "tests": 60,
+      "passed": true,
+      "realHttpSqlCases": 11
+    },
+    "consoleMembershipHttpSql": {
+      "tests": 7,
+      "passed": true,
+      "authIdentityStubbed": true,
+      "membershipServiceAndSqlReal": true
+    },
+    "consoleUi": {
+      "tests": 6,
+      "passed": true,
+      "edgeNodeControls": 2
+    },
+    "aliaFocused": {
+      "suites": 8,
+      "tests": 112,
+      "passed": true
+    },
+    "desiredEntryRegression": {
+      "frozenOldAuthGit": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+      "redFailed": 7,
+      "redPassed": 3,
+      "newAuthCasesPassed": 10
+    },
+    "builds": [
+      "core",
+      "Oxy API",
+      "Alia API",
+      "Console"
+    ],
+    "typechecks": [
+      "Alia API",
+      "Console"
+    ],
+    "lintErrors": 0,
+    "lintWarnings": 0,
+    "scopeMigration": {
+      "phase": "pre",
+      "changedCheckConstraints": 3,
+      "grantsOrRowsUpdated": false,
+      "snapshotSyncPassed": true
+    }
+  },
+  "candidateCorePackage": {
+    "memberCount": 585,
+    "archiveSha256": "992a337a4a1deb6f1436093e63b1f6885c5557f06cf3ca74ae73ed7cd96bbbe6",
+    "nominalVersion": "4.3.0",
+    "registryReleaseClaim": false,
+    "allInstalledMembersEqual": true
+  },
+  "limits": [
+    "Local owned loopback HTTP and SQL only; no production, provider or live inference calls.",
+    "Receiver service-token exchange is stubbed, but receiver EdDSA authentication, JWT verifier, trusted-app gate, canonical machine resolver and SQL are real in Oxy route tests.",
+    "Alia tests install an unpublished source-built core fixture; current published core does not expose the new API. Coordinated root-owned release and registry adoption remain required.",
+    "No default grants, credentials, user attribution, versions, manifest/lock dependency references or production mutations.",
+    "This recipient-specific chat contract does not close generic service-access issues #873/#874."
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/core-focused.log",
+      "sha256": "abb4a789662cb98ac86589e89d0e787936a94c58c9a5198638af0bd5dcf9e7ac",
+      "bytes": 278
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/core-build.log",
+      "sha256": "3140bf4725be8f3f7253967aeffe0f163dc2e339aebb38e8a99ef745cf0768fc",
+      "bytes": 570
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/core-biome.log",
+      "sha256": "0f941b4890ab88e7e2ecefdce61c5c07886c48a00102631bc54a09c266db8977",
+      "bytes": 42
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/core-pack-final.log",
+      "sha256": "c4685b4e40dd0f0f032f37a54d1d548211096eec5df35035a031ec17742a9540",
+      "bytes": 96
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/oxy-focused.log",
+      "sha256": "029f72d6aa5c8b4fdc5251458a99819b6cb1e5234317bafc06685e9c7c8d091d",
+      "bytes": 456
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/oxy-api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "bytes": 4358
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/oxy-api-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/migration-sync.log",
+      "sha256": "b6ab8a8bb0f1c5854b5d2a14d86b6bde73dcbdd1554bcc237901e2c2527d8883",
+      "bytes": 85
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/migration-delta.json",
+      "sha256": "8bffc922251190557f485d35197a39942cfa7c09de12e90c037cc147b8e2198e",
+      "bytes": 666
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/console-focused.log",
+      "sha256": "808d4b33236a1fcc7bfb2e9af76c3575e703e12c0eed9ede5251c16e3ea40078",
+      "bytes": 687
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/console-membership-sql.log",
+      "sha256": "50ac371bac76b285752a9c83d864c96b8d46afa69dcc6eec4500c87d75748915",
+      "bytes": 273
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/console-build.log",
+      "sha256": "c7587f33ae3f207d157641446a0cda9984aa7c795d25a75fe8f4d5768e561f3f",
+      "bytes": 47853
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/console-typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/console-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/alia-focused.log",
+      "sha256": "02c5ccd9c643977f44de948398b135773a736b047f19ba6ae30f1b16f4c75408",
+      "bytes": 792
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/alia-typecheck.log",
+      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+      "bytes": 15
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/alia-build.log",
+      "sha256": "e5fe5deb659685349416b46c59507eab0bc9591c94250ff8b5035fec60ea9ed8",
+      "bytes": 381
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/alia-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/desired-entry-red.log",
+      "sha256": "986ebcabfcdd8090548dc572f5c879b7c8629a2828d4a8f1730217f982d0ffe0",
+      "bytes": 11024
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/desired-entry-red.test.ts",
+      "sha256": "8336170f6bcebaf16f10e877d7689e20b95ac125f840ae3732c435482be5fc9b",
+      "bytes": 5061
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/auth-baseline-b2bc57.ts",
+      "sha256": "2711ad24ed9cf82a05a52c2552aeb614761094fac5db6e478122a76822034bae",
+      "bytes": 19690
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/owned-pg-cleanup.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d",
+      "bytes": 56
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/owned-db-cleanup.json",
+      "sha256": "6ff4e8b7088d081adbc66b1d2bdc3867d714cc1bd927d4592e7595cb499895db",
+      "bytes": 162
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-machine-principal/candidate-package-equality.json",
+      "sha256": "1aec2ffa23ce58052bc4b3949e90e60abee60ab399f626f0255aebb026ed63d8",
+      "bytes": 96676
+    }
+  ]
+}

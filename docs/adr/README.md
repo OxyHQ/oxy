@@ -49,6 +49,8 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 
 | [0034](0034-present-requester-profile-capabilities.md) | #1523, Alia#659 | Present requester read-only profile tools reuse the common signed capability contract, with live session authority, verified application ranking and shared HTTP/MCP handlers. |
 
+| [0035](0035-alia-app-only-machine-chat.md) | #1571 | Proposed: explicit Alia recipient and `alia:chat` + `inference:invoke` machine scopes, separate app principal and caller payer; no user, tools or default grants. |
+
 ## Related
 
 - [`../architecture/inference-responsibility-matrix.md`](../architecture/inference-responsibility-matrix.md)
