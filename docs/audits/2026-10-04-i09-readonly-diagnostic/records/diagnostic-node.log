@@ -1,0 +1,12 @@
+✔ diagnoses exact empty SQL vs existing feed without writing (1.274624ms)
+✔ distinguishes exact route metadata and money fingerprints without monetary values (0.264565ms)
+✔ unexpected SQL errors are sanitized and prevent feed access (0.12854ms)
+✔ known readonly refusal remains explicit (0.089513ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 37.221872

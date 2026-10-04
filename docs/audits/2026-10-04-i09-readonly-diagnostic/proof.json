@@ -1,0 +1,90 @@
+{
+  "sourceHead": "166ddbefd2b2444c2fca98310b57ec85d772dde4",
+  "sources": [
+    {
+      "path": "scripts/operations/i09-live/diagnose-exact-operation.mjs",
+      "sha256": "4c9781fcb45a8ae11c2ce96c77db9b8c4bb2dc842b8244209765f7628ea9a9c3"
+    },
+    {
+      "path": "scripts/operations/i09-live/diagnose-exact-operation.test.mjs",
+      "sha256": "4400ce6eee55e547f9991f5af45912d9e3d6d1b20bbc6289d6099adc49be8855"
+    },
+    {
+      "path": "scripts/operations/i09-live/diagnostic-ecs.py",
+      "sha256": "d2a5dfb0a2315d7da527bc4537827b906c129b166b5c073d0e840d38cbbdc17d"
+    },
+    {
+      "path": "scripts/operations/i09-live/diagnostic-ecs.test.py",
+      "sha256": "b6ebe8ab2683603d2a5fe1681010cedc617e9729be0ac75ae6b3a49bde370d45"
+    },
+    {
+      "path": "scripts/operations/i09-live/operation-ecs.py",
+      "sha256": "af1a79f1f2504717e74e2d1943ded3b379917ccb72274dd71eef6295dfa6be70"
+    },
+    {
+      "path": "scripts/operations/i09-live/canary-reconciliation.mjs",
+      "sha256": "ed28197861dac118908e187bf5706aecab10238839adbc13b67ff6af6384099a"
+    },
+    {
+      "path": "scripts/operations/i09-live/read-canary-observation.mjs",
+      "sha256": "7ce99cbb63e28a3aaba5ce1be19e35afc5944015d38aa30b156d2bbaf25c4fcf"
+    },
+    {
+      "path": "scripts/operations/i09-live/decode-i09-result.py",
+      "sha256": "fbf971c59110fd85c5bb76fa62955b3dfb7db5989e0a7150ab5a053ffeaf9b63"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i09-readonly-diagnostic/records/invocation-syntax.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-readonly-diagnostic/records/diagnostic-python.log",
+      "sha256": "1f11b6e880045ee35de832b81b45d06257342e13b5c79bbf0034379d4ca220b9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-readonly-diagnostic/records/diagnostic-node.log",
+      "sha256": "e3350ce3945a773b21f8b78c498d87d01fac9160b4c0235afd6af5776bf2affa"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-readonly-diagnostic/records/prepare.log",
+      "sha256": "eac3d5270bcd5f538f4b1e64e17e46bc4b88dee98ef1aafa8c8acbf84154e59c"
+    }
+  ],
+  "privateBindings": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-v1/dispatch-plan.json",
+      "sha256": "df6f8a1b0fffc71c46981508c717a982f22c2b07524046f733030d4329f3559f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-v1/post-plan.json",
+      "sha256": "98234bf63f1ba655d75593a01a0a93b81699f694f0a1fe5653602c79ca31d932"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-v1/post-definition.json",
+      "sha256": "bdbcf3d5faa47225e47316cadd8010c0d4cd0492ffde7530c0fc9ccc9e07e86b"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-v1/diagnostic-binding.json",
+      "sha256": "3e93e7882e120560c287886c104b68fc7760baa4fe584bb88563e0950af9701e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-v1/invocation.mjs",
+      "sha256": "b90faee38dbbf1ff6c3e1ef876f694ea396fd55a51a608bbd3e15191f13bdd2f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-attempt2-diagnosis/original-events.private.json",
+      "sha256": "e42a8443d689cae8aec799c2d9d919d63b05b31ddbca8d4a764c21e3c2ef5d3c"
+    }
+  ],
+  "tests": {
+    "diagnostic": 4,
+    "strictDecoderAndSource": 5,
+    "generatedSyntax": true
+  },
+  "definitionCompactBytes": 28906,
+  "scope": "Exact existing inference intent only. Readonly repeatable-read SQL plus signed feed GET. No writer, no inference, no database/schema/credential change.",
+  "execution": "prepared_not_executed",
+  "historicalFailure": "Original postattempt2 task0d0b8ae937bb486da194f2c5e8d52413 emitted only exact_reconciliation_failed_no_inference_retry; cause remains unknown until diagnostic."
+}
