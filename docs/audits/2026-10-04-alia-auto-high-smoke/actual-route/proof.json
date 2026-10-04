@@ -1,0 +1,61 @@
+{
+  "kind": "alia-high-actual-metadata-preparation",
+  "sourceCommit": "dc7a56ca0f197792dfcecb6d2080c665233d6033",
+  "previousProof": "5aa78f1c4",
+  "source": [
+    {
+      "path": "scripts/operations/alia-budget-smoke/README.md",
+      "sha256": "abe0f9478cf656dfd5f7b15f7183f8470459c8b9394e56c03fccc9e49fbf00fe",
+      "bytes": 11522
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.mjs",
+      "sha256": "6271ca0694474134a25d78637f0106b33206fb35735fb34cfc58271852bb08d8",
+      "bytes": 14138
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.test.mjs",
+      "sha256": "484f152fd42f136b1bace203a498894cee0e1fd9f3dbc5ec763dd43c80a52515",
+      "bytes": 17730
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-smoke/actual-route/arithmetic-input.json",
+      "sha256": "e3bded87cf5601447340f5132bec3c60401fb086dbca20ac8c49d25abf3143b5",
+      "bytes": 4622
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-smoke/actual-route/node-47.log",
+      "sha256": "9a9e3edf3ece4d9bbaee4b38d74918dd473ee08694b6f003e4fa72dad0409093",
+      "bytes": 3683
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-smoke/actual-route/quote-arithmetic.log",
+      "sha256": "e4265557b3f70002b8efacebe9c8eea9109b72365516065c1decc38a96a73e19",
+      "bytes": 1021
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-smoke/actual-route/review-metadata.json",
+      "sha256": "93440c194fad18abcd38312f8a955d1b84f2644e1c5e96615fafb3e925872236",
+      "bytes": 4006
+    }
+  ],
+  "validation": {
+    "nodeControlsPassed": 47,
+    "transportControlsPreviouslyPassed": 13,
+    "transportChanged": false,
+    "quoteArithmetic": "exact Decimal tariffs from retained root rows; all four < USD0.02"
+  },
+  "notExecutionReady": true,
+  "pending": [
+    "accepted new runtime image and policy module hash",
+    "fresh canonical inventory including platform fee binding and SQL observation timestamp",
+    "root execution review"
+  ],
+  "effects": {
+    "aws": 0,
+    "realPost": 0,
+    "providerCalls": 0
+  }
+}

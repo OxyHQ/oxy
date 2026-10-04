@@ -1,0 +1,150 @@
+{
+  "kind": "historical-tariff-arithmetic-only",
+  "executionReady": false,
+  "rows": [
+    {
+      "deploymentId": "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+      "priceVersionId": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+      "units": [
+        {
+          "price_version_id": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+          "per": "1000000",
+          "unit": "cached_input_tokens",
+          "amount": "0.350000000000"
+        },
+        {
+          "price_version_id": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+          "per": "1000000",
+          "unit": "input_tokens",
+          "amount": "0.350000000000"
+        },
+        {
+          "price_version_id": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+          "per": "1000000",
+          "unit": "output_tokens",
+          "amount": "0.750000000000"
+        },
+        {
+          "price_version_id": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+          "per": "1000000",
+          "unit": "reasoning_tokens",
+          "amount": "0.750000000000"
+        },
+        {
+          "price_version_id": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+          "per": "1",
+          "unit": "requests",
+          "amount": "0.000000000000"
+        }
+      ]
+    },
+    {
+      "deploymentId": "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+      "priceVersionId": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+      "units": [
+        {
+          "price_version_id": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+          "per": "1000000",
+          "unit": "cached_input_tokens",
+          "amount": "0.075000000000"
+        },
+        {
+          "price_version_id": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+          "per": "1000000",
+          "unit": "input_tokens",
+          "amount": "0.150000000000"
+        },
+        {
+          "price_version_id": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+          "per": "1000000",
+          "unit": "output_tokens",
+          "amount": "0.600000000000"
+        },
+        {
+          "price_version_id": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+          "per": "1000000",
+          "unit": "reasoning_tokens",
+          "amount": "0.600000000000"
+        },
+        {
+          "price_version_id": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+          "per": "1",
+          "unit": "requests",
+          "amount": "0.000000000000"
+        }
+      ]
+    },
+    {
+      "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+      "priceVersionId": "01a096a6-6f15-74b2-aaf3-931763417c04",
+      "units": [
+        {
+          "price_version_id": "01a096a6-6f15-74b2-aaf3-931763417c04",
+          "per": "1000000",
+          "unit": "cached_input_tokens",
+          "amount": "0.030000000000"
+        },
+        {
+          "price_version_id": "01a096a6-6f15-74b2-aaf3-931763417c04",
+          "per": "1000000",
+          "unit": "input_tokens",
+          "amount": "0.030000000000"
+        },
+        {
+          "price_version_id": "01a096a6-6f15-74b2-aaf3-931763417c04",
+          "per": "1000000",
+          "unit": "output_tokens",
+          "amount": "0.170000000000"
+        },
+        {
+          "price_version_id": "01a096a6-6f15-74b2-aaf3-931763417c04",
+          "per": "1000000",
+          "unit": "reasoning_tokens",
+          "amount": "0.170000000000"
+        },
+        {
+          "price_version_id": "01a096a6-6f15-74b2-aaf3-931763417c04",
+          "per": "1",
+          "unit": "requests",
+          "amount": "0.000000000000"
+        }
+      ]
+    },
+    {
+      "deploymentId": "dep_openrouter_deepseek_deepseek_v4_flash_0731_observed_2026_09_01",
+      "priceVersionId": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+      "units": [
+        {
+          "price_version_id": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+          "per": "1000000",
+          "unit": "cached_input_tokens",
+          "amount": "0.015200000000"
+        },
+        {
+          "price_version_id": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+          "per": "1000000",
+          "unit": "input_tokens",
+          "amount": "0.015200000000"
+        },
+        {
+          "price_version_id": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+          "per": "1000000",
+          "unit": "output_tokens",
+          "amount": "1.280000000000"
+        },
+        {
+          "price_version_id": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+          "per": "1000000",
+          "unit": "reasoning_tokens",
+          "amount": "1.280000000000"
+        },
+        {
+          "price_version_id": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+          "per": "1",
+          "unit": "requests",
+          "amount": "0.000000000000"
+        }
+      ]
+    }
+  ]
+}

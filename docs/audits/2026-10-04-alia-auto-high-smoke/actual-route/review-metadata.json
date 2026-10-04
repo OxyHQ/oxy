@@ -1,0 +1,109 @@
+{
+  "kind": "reviewed-route-metadata-only",
+  "executionReady": false,
+  "routeReview": {
+    "policyVersion": "oxy-inference-economics/2026-10-04.2",
+    "maxQuotePicos": "20000000000",
+    "routes": [
+      {
+        "deploymentId": "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
+        "provider": "cerebras",
+        "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+        "priceVersionId": "01a083c2-a8f1-72dd-9276-c053c1cae762",
+        "availabilityScope": "internal_alia",
+        "privacy": {
+          "retainsPayloads": false,
+          "retentionDays": 0,
+          "trainsOnCustomerData": false,
+          "zeroDataRetentionAvailable": true
+        }
+      },
+      {
+        "deploymentId": "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
+        "provider": "groq",
+        "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+        "priceVersionId": "01a083c2-a955-704e-ab8e-88fb25cbd44f",
+        "availabilityScope": "internal_alia",
+        "privacy": {
+          "retainsPayloads": true,
+          "retentionDays": 30,
+          "trainsOnCustomerData": false,
+          "zeroDataRetentionAvailable": true
+        }
+      },
+      {
+        "deploymentId": "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
+        "provider": "openrouter",
+        "modelReference": "openai/gpt-oss-120b@observed-2026-09-01",
+        "priceVersionId": "01a096a6-6f15-74b2-aaf3-931763417c04",
+        "availabilityScope": "internal_alia",
+        "privacy": {
+          "retainsPayloads": false,
+          "retentionDays": 0,
+          "trainsOnCustomerData": false,
+          "zeroDataRetentionAvailable": true
+        }
+      },
+      {
+        "deploymentId": "dep_openrouter_deepseek_deepseek_v4_flash_0731_observed_2026_09_01",
+        "provider": "openrouter",
+        "modelReference": "deepseek/deepseek-v4-flash-0731@observed-2026-09-01",
+        "priceVersionId": "01a103d8-89ff-77f3-9591-9dcfa7dd5f7e",
+        "availabilityScope": "platform_internal",
+        "privacy": {
+          "retainsPayloads": false,
+          "retentionDays": 0,
+          "trainsOnCustomerData": false,
+          "zeroDataRetentionAvailable": true
+        }
+      }
+    ]
+  },
+  "expectedPilotMaxPricePerRequestUsd": "0.05",
+  "policyModuleSha256": null,
+  "acceptedRuntimeImage": null,
+  "sourceRefs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-auto-route-readback-2/root-early-result.private.json",
+      "sha256": "ffa2aa188a054a9975f6ac21daba3fad8e51598650929a424c9c1808625a7843"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-auto-route-readback-2/root-reconciled-acceptance.json",
+      "sha256": "1ec43b01852f3fb3651bfb25f7a1134fefe9aef5a4f3e0da5bd8030a11a6346d"
+    }
+  ],
+  "highCapabilities": {
+    "power_class": "high",
+    "max_context_tokens": 1048576,
+    "max_output_tokens": 943718,
+    "supports_tools": true,
+    "supports_parallel_tool_calls": false,
+    "supports_reasoning": true,
+    "reasoning_efforts": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "accepted_parameters": [
+      "maxOutputTokens",
+      "reasoning.effort",
+      "responseFormat",
+      "sampling.frequencyPenalty",
+      "sampling.presencePenalty",
+      "sampling.seed",
+      "sampling.stopSequences",
+      "sampling.temperature",
+      "sampling.topP",
+      "toolChoice",
+      "tools"
+    ],
+    "regions": []
+  },
+  "limits": [
+    "Policy version .2 is intended source, not a deployed runtime claim.",
+    "Not an execution inventory: original SQL snapshot time and platform_fee_price_version_id were not supplied by this reader; no substitute values are assigned.",
+    "Projection is for arithmetic/local verification only; new canonical price reader must supply exact fee binding and actual snapshot time before invoke.",
+    "No locality claim; regions empty.",
+    "No legal authority created; this is metadata readback and scoped root source choice."
+  ]
+}
