@@ -9,6 +9,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { randomUUID } from 'node:crypto';
+import { privateAutoOperationId } from '@oxy.so/contracts';
 import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
@@ -193,6 +194,64 @@ describe('idempotency without a hold', () => {
     await markMeteredAdmissionRefused(first.meteredUsageId);
     expect((await claimMeteredAdmission(admission(fixture, commercial, key))).status).toBe('claimed');
     expect((await row(first.meteredUsageId)).status).toBe('refused');
+  });
+});
+
+describe('private Auto child claims against an actual durable parent', () => {
+  async function fixtureWithParent(capacity = { maxConcurrentRequests: 100, maxRequestsPerUtcDay: 1000 }) {
+    const fixture = await makeFixture();
+    const economics = internal(capacity, fixture.applicationId);
+    const input = admission(fixture, economics);
+    const parent = await claimMeteredAdmission(input);
+    if (parent.status !== 'claimed') throw new Error('fixture parent not admitted');
+    const childId = privateAutoOperationId(parent.meteredUsageId);
+    const child: MeteredAdmissionInput = { ...input, requestId: childId, idempotencyKey: childId,
+      parentRequestId: input.requestId, endpoint: '/internal/auto-classification',
+      privateAutoParent: { meteredUsageId: parent.meteredUsageId, requestId: input.requestId } };
+    return { fixture, parent, child };
+  }
+
+  it('claims exactly one child under concurrent requests, even after the child is refused', async () => {
+    const { child } = await fixtureWithParent();
+    const results = await Promise.all(Array.from({ length: 12 }, () => claimMeteredAdmission(child)));
+    const won = results.filter((value) => value.status === 'claimed');
+    expect(won).toHaveLength(1);
+    expect(results.filter((value) => value.status === 'duplicate')).toHaveLength(11);
+    if (won[0].status !== 'claimed') throw new Error('fixture child not admitted');
+    await markMeteredAdmissionRefused(won[0].meteredUsageId);
+    // The stable request-id unique key remains, unlike the ordinary partial key.
+    expect(await claimMeteredAdmission(child)).toEqual({ status: 'duplicate' });
+  });
+
+  it('counts parent and child independently under the existing atomic technical budget', async () => {
+    const { child } = await fixtureWithParent({ maxConcurrentRequests: 1, maxRequestsPerUtcDay: 1000 });
+    expect(await claimMeteredAdmission(child)).toMatchObject({ status: 'capacity-exceeded', limit: 'concurrency' });
+    const daily = await fixtureWithParent({ maxConcurrentRequests: 100, maxRequestsPerUtcDay: 1 });
+    expect(await claimMeteredAdmission(daily.child)).toMatchObject({ status: 'capacity-exceeded', limit: 'daily' });
+  });
+
+  it.each(['missing', 'other-principal', 'settled', 'expired', 'final-dispatch', 'nested'])('refuses %s parent before claiming a child', async (kind) => {
+    const { fixture, parent, child } = await fixtureWithParent();
+    let input = child;
+    if (kind === 'missing') {
+      const missing = randomUUID();
+      const requestId = privateAutoOperationId(missing);
+      input = { ...child, requestId, idempotencyKey: requestId, privateAutoParent: { requestId: child.parentRequestId ?? '', meteredUsageId: missing } };
+    } else if (kind === 'other-principal') {
+      input = { ...child, accountId: 'foreign-account' };
+    } else if (kind === 'settled') {
+      await settle(fixture, parent.meteredUsageId);
+    } else {
+      const delta = kind === 'expired' ? { expiresAt: new Date(Date.now() - 1000) } :
+        kind === 'nested' ? { parentRequestId: 'another-parent' } :
+        { finalAuthorizedModelReference: 'synthetic/model@final', finalAuthorizedProvider: 'synthetic',
+          finalAuthorizedDeploymentId: 'final-dispatched', finalAuthorizedCeilingAmount: '0.001', finalAuthorizedCeilingCurrency: 'USD' };
+      await getDb().update(inferenceMeteredUsage).set(delta).where(eq(inferenceMeteredUsage.id, parent.meteredUsageId));
+    }
+    expect(await claimMeteredAdmission(input)).toEqual({ status: 'parent-unavailable' });
+    const childRows = await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+      .where(eq(inferenceMeteredUsage.requestId, input.requestId));
+    expect(childRows).toHaveLength(0);
   });
 });
 

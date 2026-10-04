@@ -1978,6 +1978,9 @@ async function admitWithAutoDecision(
       { param: 'Idempotency-Key' }
     );
   }
+  if (claim.status === 'parent-unavailable') {
+    return refuse('policy_violation', 'Private Auto requires its retained active parent admission.');
+  }
   if (claim.status === 'capacity-exceeded') {
     await recordEdgeTelemetry(context, {
       requestedModelReference,

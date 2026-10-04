@@ -1490,6 +1490,16 @@ export { scopedInferenceRequestSchema } from './inference/request';
 export type { ScopedInferenceRequest } from './inference/request';
 
 export {
+    PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION, PRIVATE_AUTO_REQUEST_ENVELOPE_VERSION,
+    PRIVATE_AUTO_LIMITS, PRIVATE_AUTO_INSTRUCTIONS, PRIVATE_AUTO_QUESTION,
+    privateAutoPrincipalSchema, privateAutoSourceApprovalSchema, privateAutoExecutionSchema,
+    privateAutoInputSchema, privateAutoOperationId,
+} from './inference/privateAutoExecution';
+export type { PrivateAutoPrincipal, PrivateAutoSourceApproval, PrivateAutoExecution } from './inference/privateAutoExecution';
+export { privateAutoInferenceRequestSchema } from './inference/request';
+export type { PrivateAutoInferenceRequest } from './inference/request';
+
+export {
     productDefinitionSchema,
     subjectProductAccessQuerySchema,
     productBenefitSchema,

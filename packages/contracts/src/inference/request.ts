@@ -28,6 +28,7 @@ import { decisionInputSchema } from './decisions';
 
 import { z } from "zod";
 import { scopedExecutionSchema, SCOPED_REQUEST_ENVELOPE_VERSION } from "./scopedExecution";
+import { privateAutoExecutionSchema, privateAutoInputSchema, PRIVATE_AUTO_REQUEST_ENVELOPE_VERSION } from "./privateAutoExecution";
 import { inferenceAttributionSchema } from "./attribution";
 import {
   inferenceApiFormatSchema,
@@ -624,6 +625,38 @@ export const scopedInferenceRequestSchema = inferenceRequestSchema.innerType()
   });
 
 export type ScopedInferenceRequest = z.infer<typeof scopedInferenceRequestSchema>;
+
+/** Private repeated Auto is independently negotiated, never a v3 fixture renewal. */
+export const privateAutoInferenceRequestSchema = inferenceRequestSchema.innerType()
+  .omit({ scopedExecution: true })
+  .extend({ schemaVersion: z.literal(PRIVATE_AUTO_REQUEST_ENVELOPE_VERSION), privateAutoExecution: privateAutoExecutionSchema })
+  .strict()
+  .superRefine((request, ctx) => {
+    const { privateAutoExecution: permit, ...base } = request;
+    const legacy = inferenceRequestSchema.safeParse({ ...base, schemaVersion: 2 });
+    if (!legacy.success) for (const issue of legacy.error.issues) ctx.addIssue(issue);
+    const input = privateAutoInputSchema.safeParse(request.input);
+    if (!input.success) for (const issue of input.error.issues) ctx.addIssue({ ...issue, path: ['input', ...issue.path] });
+    const principal = request.attribution.principal;
+    const route = request.authorizedRoutes?.[0];
+    if (request.client.apiFormat !== 'decisions' || permit.requestId !== request.attribution.requestId ||
+      permit.operationId !== request.idempotencyKey ||
+      permit.principal.accountId !== principal.billing.accountId ||
+      permit.principal.applicationId !== principal.applicationId ||
+      permit.principal.credentialId !== principal.credentialId || permit.principal.environment !== principal.environment ||
+      !principal.inferenceScopes.includes('inference:invoke') || request.client.endpoint !== '/internal/auto-classification' ||
+      permit.policy.routingPolicyId !== request.routingPolicy.routingPolicyId || permit.policy.policyVersion !== request.routingPolicy.policyVersion ||
+      request.authorizedRoutes?.length !== 1 || route?.customerProviderCredential !== undefined ||
+      route?.deploymentId !== permit.deploymentId || route?.provider !== permit.provider || route?.modelReference !== permit.modelReference ||
+      request.target.kind !== 'model' || request.target.modelReference !== permit.modelReference ||
+      route.regions.length !== permit.regions.length || route.regions.some((region) => !permit.regions.includes(region)) ||
+      Date.parse(permit.runtimeExpiresAt) <= Date.parse(request.client.receivedAt) ||
+      Date.parse(permit.runtimeExpiresAt) > Date.parse(request.client.receivedAt) + 1000) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privateAutoExecution'], message: 'Private Auto must bind one exact attributed decisions child and platform route.' });
+    }
+  });
+
+export type PrivateAutoInferenceRequest = z.infer<typeof privateAutoInferenceRequestSchema>;
 
 export type InferenceContentSource = z.infer<
   typeof inferenceContentSourceSchema
