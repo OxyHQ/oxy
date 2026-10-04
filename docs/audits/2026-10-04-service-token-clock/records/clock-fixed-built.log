@@ -1,0 +1,33 @@
+$ jest --runInBand --runTestsByPath "src/middleware/__tests__/serviceTokenEd25519.test.ts"
+{"level":40,"time":1791120000000,"pid":1385120,"hostname":"SuperPC","kid":"dev-ephemeral-68122f2b4774","msg":"[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key"}
+PASS src/middleware/__tests__/serviceTokenEd25519.test.ts
+  Oxy API Ed25519 service tokens
+    ✓ the common issuer produces exactly a five-minute credential or workload token (4 ms)
+    ✓ mints a kid-bound token and verifies its whole service principal (7 ms)
+    ✓ publishes active and pre-published rotation keys without private material (1 ms)
+    ✓ rejects duplicate kids, including a public copy of the active key (7 ms)
+    ✓ rejects legacy hour lifetime (1 ms)
+    ✓ rejects over ceiling (1 ms)
+    ✓ rejects missing issued-at
+    ✓ rejects future issued-at (1 ms)
+    ✓ rejects wrong issuer (1 ms)
+    ✓ rejects wrong audience
+    ✓ rejects future nbf
+    ✓ rejects whitespace scope (1 ms)
+    ✓ rejects duplicate scopes
+    ✓ rejects application id leading whitespace (1 ms)
+    ✓ rejects application id trailing whitespace
+    ✓ rejects credential id leading whitespace (1 ms)
+    ✓ rejects credential id trailing whitespace
+    ✓ rejects owner id leading whitespace (1 ms)
+    ✓ rejects owner id trailing whitespace
+  with no signing key configured
+    ✓ refuses to produce a signer in production — there is no HS256 fallback to fall to (2 ms)
+    ✓ outside production, mints with one per-process ephemeral key that the JWKS publishes (1 ms)
+    ✓ a token from the ephemeral key stops verifying once a real key is configured (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       22 passed, 22 total
+Snapshots:   0 total
+Time:        0.27 s, estimated 1 s
+Ran all test suites within paths "src/middleware/__tests__/serviceTokenEd25519.test.ts".
