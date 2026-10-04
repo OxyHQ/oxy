@@ -46,7 +46,7 @@ import type { InferenceEnvironment, InferenceEconomicTreatment } from '@oxy.so/c
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-03.3';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-04.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -64,6 +64,8 @@ export interface InternalMeteredCapacity {
 
 export interface InternalMeteredPilot {
   readonly maxControlledInputBudget: number;
+  /** Optional text-completion ceiling; decisions retain the base ceiling. */
+  readonly maxControlledCompletionInputBudget?: number;
   readonly maxOutputTokens: number;
   readonly deployments: readonly {
     readonly deploymentId: string;
@@ -116,6 +118,12 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     },
     pilot: {
       maxControlledInputBudget: 8192,
+      // Production chat includes system context, history and tool schemas. The
+      // retired 8KiB synthetic pilot rejected those before provider dispatch.
+      // This is a UTF-8/framing ceiling, not a provider token/cost guarantee.
+      // Keep 4KiB below the reviewed 128Ki context; each route still qualifies
+      // against its own context, output and quote. Decisions retain 8KiB.
+      maxControlledCompletionInputBudget: 126_976,
       maxOutputTokens: 2048,
       deployments: ['cerebras', 'groq', 'openrouter'].map((provider) => ({
         deploymentId: provider === 'cerebras'
