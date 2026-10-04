@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "kind": "alia-high-smoke-tool-call-acceptance-followup",
+  "sourceCommit": "fea15a8f2bd53cfda821e85b50cccf6e4b7be4ab",
+  "executedBaselineCommit": "202416b1e209fd5563caa43a8bf31098eb4cd087",
+  "source": [
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.mjs",
+      "sha256": "c5ec67877dab538288997e0c6dee8b532c7f23bc07db8b1f943af0a0fa30ed66",
+      "bytes": 14155
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.test.mjs",
+      "sha256": "dd9de204cfe02fb258b0970cc89ecc72964ea627f189bee4e4b4354adb6dd7ad",
+      "bytes": 18632
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-high-smoke-tool-calls/records/green.txt",
+      "sha256": "65bead062cc3d8accc50e51772dd6a1c95b1baeadfe47fb04d63b5b71b96859e",
+      "bytes": 538
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-high-smoke-tool-calls/records/red.txt",
+      "sha256": "c226271cee67d53554b9a9908239e97cd3d92b4be8b19b86dd5dde1299f3ce09",
+      "bytes": 970
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-high-smoke-tool-calls/records/sdk-binding.json",
+      "sha256": "900ba983a25cac634f9dfcd3f8ee8bab555fc9d2ac6820c80e3a9b41dbffe922",
+      "bytes": 454
+    }
+  ],
+  "validation": {
+    "baselineRegression": {
+      "passed": 0,
+      "failed": 1,
+      "cause": "ok:true for text+finishReason:stop+toolCalls despite completed matching record",
+      "command": "node --test --test-name-pattern 'high text with stop and a tool call' scripts/operations/alia-budget-smoke/smoke.test.mjs"
+    },
+    "finalFocal": {
+      "passed": 5,
+      "failed": 0,
+      "command": "node --test --test-name-pattern 'high text with stop and a tool call|synthetic fourth high route works|high (empty|length|tool_calls) remains failed' scripts/operations/alia-budget-smoke/smoke.test.mjs"
+    },
+    "syntax": [
+      "node --check scripts/operations/alia-budget-smoke/smoke.mjs",
+      "node --check scripts/operations/alia-budget-smoke/smoke.test.mjs"
+    ],
+    "diffCheck": 0
+  },
+  "behavior": "Require nonempty text, no tool calls, stop, and completed original-key matching record. Rejected mixed responses retain answer hash and usage without tool execution or retry.",
+  "unchanged": [
+    {
+      "path": "scripts/operations/alia-budget-smoke/prepare.py",
+      "sha256": "2b3b35b5731945d786eac95374a09e76ba70889f9a96002b80bffce7cfc66efd",
+      "bytes": 12575
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/dispatch.py",
+      "sha256": "6439464550bf499e8683024f0fad5eb207de7d924c150ad7311651d184e8e7df",
+      "bytes": 11179
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/wire-fixture.mjs",
+      "sha256": "7b3c248ba07049d85d429080043c3ec508fc32c82122f3c43d6f1707c4c895be",
+      "bytes": 42948
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/verify-credential.mjs",
+      "sha256": "136e5ca222260fa98b2ec7cd17288c752052a7fd796eac1de00846b76fc4b79c",
+      "bytes": 3956
+    }
+  ],
+  "effects": {
+    "awsCalls": 0,
+    "productionHttpCalls": 0,
+    "providerCalls": 0,
+    "toolsExecuted": 0,
+    "pushes": 0
+  },
+  "limits": [
+    "Tests use real installed core4.3 SDK with synthetic HTTP/JWKS transport. No actual provider response is attributed to these tests.",
+    "No rerun of previously accepted 47 Node/13 transport controls. Only 5 meaningful response-acceptance controls were executed.",
+    "Original executed operator worktree and source hashes are unchanged. The separate live execution receipt remains owned by root."
+  ]
+}

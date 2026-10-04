@@ -1,0 +1,13 @@
+✔ synthetic fourth high route works through published SDK without replacing Auto or tools (18.602139ms)
+✔ high empty remains failed despite completed receipt (2.852346ms)
+✔ high length remains failed despite completed receipt (2.523877ms)
+✔ high tool_calls remains failed despite completed receipt (2.196545ms)
+✔ high text with stop and a tool call is incomplete despite a completed matching receipt (4.232513ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 120.120391

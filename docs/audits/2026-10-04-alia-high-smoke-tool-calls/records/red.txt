@@ -1,0 +1,28 @@
+✖ high text with stop and a tool call is incomplete despite a completed matching receipt (21.319242ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 120.408152
+
+✖ failing tests:
+
+test at scripts/operations/alia-budget-smoke/smoke.test.mjs:120:1
+✖ high text with stop and a tool call is incomplete despite a completed matching receipt (21.319242ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/alia-high-smoke-tool-calls-20261004/scripts/operations/alia-budget-smoke/smoke.test.mjs:130:52)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

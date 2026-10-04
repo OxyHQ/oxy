@@ -1,0 +1,8 @@
+{
+  "package": "@oxy.so/core",
+  "version": "4.3.0",
+  "entry": "/home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/@oxy.so/core/dist/cjs/inference/index.js",
+  "inferenceModule": "/home/nate/Oxy/Mention/.worktrees/jev-receipt-recovery-20261004/node_modules/@oxy.so/core/dist/cjs/inference/OxyInferenceClient.js",
+  "sha256": "82948cfb580242f2aedbb9438fb6fcb920cd51c4da1de79eadbf7ab08fdeac9b",
+  "transport": "synthetic only"
+}
