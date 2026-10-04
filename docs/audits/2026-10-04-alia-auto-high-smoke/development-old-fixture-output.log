@@ -1,0 +1,60 @@
+✖ published SDK sends exactly one synthetic POST then original-key GET, no credential/answer logged (18.452004ms)
+✔ unknown never repeats POST; settled record does not restore missing answer (2.866955ms)
+✔ refused never repeats POST; settled record does not restore missing answer (2.4237ms)
+✔ 404 remains unknown, not zero cost and not retry permission (2.165704ms)
+✔ separate reconcile mode makes only original-key GET (1.540849ms)
+✔ wrong owner refuses before any request (1.236464ms)
+✔ wrong app refuses before any request (0.763462ms)
+✔ wrong credential refuses before any request (2.741193ms)
+✔ wrong environment refuses before any request (0.855014ms)
+✔ missing usage scope refuses before any request (0.763839ms)
+✔ insufficient TTL refuses before any request (0.671678ms)
+✔ stale inventory blocks POST (0.381008ms)
+✔ partial inventory blocks POST (0.29595ms)
+✔ foreign deployment inventory blocks POST (0.298124ms)
+✔ unreviewed inventory blocks POST (0.36425ms)
+✔ Cerebras retention changed inventory blocks POST (0.295037ms)
+✔ Groq retention days changed inventory blocks POST (0.273657ms)
+✔ Groq privacy snapshot changed inventory blocks POST (0.323347ms)
+✔ OpenRouter retention days changed inventory blocks POST (0.343353ms)
+✔ expired price inventory blocks POST (0.287755ms)
+✔ expensive inventory blocks POST (0.273927ms)
+✔ duplicate unit inventory blocks POST (0.267861ms)
+✔ JWT wait crossing inventory deadline prevents late POST (0.813312ms)
+✔ foreign receipt is rejected even after a successful response (1.574507ms)
+✔ payload is deterministic and request intent format is closed (0.466993ms)
+✔ actual compiled accepted policy preserves exact three-route execution set for auto (0.54022ms)
+✔ actual Oxy normalization confirms canonical Hello exceeds old cap and fits preflight ceiling (41.480265ms)
+✔ reviewed Groq30-day retention is reported separately from ZDR availability (0.421803ms)
+✔ diagnostic verifies signed exact authority, reports missing usage, no SDK construction or API request (0.704382ms)
+✔ diagnostic permits stale price observation only because no response or generation read can occur (0.387884ms)
+✔ diagnostic still refuses foreign or expired signed identity {"ownerAccountId":"foreign"} (0.382701ms)
+✔ diagnostic still refuses foreign or expired signed identity {"credentialId":"foreign"} (0.305888ms)
+✔ diagnostic still refuses foreign or expired signed identity {"exp":1791139999} (0.305059ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 32
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 179.143746
+
+✖ failing tests:
+
+test at scripts/operations/alia-budget-smoke/smoke.test.mjs:39:1
+✖ published SDK sends exactly one synthetic POST then original-key GET, no credential/answer logged (18.452004ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/alia-auto-high-smoke-20261004/scripts/operations/alia-budget-smoke/smoke.test.mjs:40:58)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

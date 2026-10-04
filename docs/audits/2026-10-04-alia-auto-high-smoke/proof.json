@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "kind": "alia-auto-high-smoke-preparation-proof",
+  "sourceCommit": "d9ab17f35868618d7079b954c77366bf5c8106e8",
+  "baseCommit": "53dfb5d5aed7e4a8265aa0602c5f2442de6d2764",
+  "source": [
+    {
+      "path": "scripts/operations/alia-budget-smoke/README.md",
+      "sha256": "4838fe45d35469f8f7098e9daacbca430d87a8bd9372e545e518183308f83d26",
+      "bytes": 9936
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/prepare.py",
+      "sha256": "2b3b35b5731945d786eac95374a09e76ba70889f9a96002b80bffce7cfc66efd",
+      "bytes": 12575
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/read-internal-pilot-readiness.mjs",
+      "sha256": "3fc9066f1d7bb4c5bff2975703fd1cc9884e1fd1c1b53dc711790e5f39ea379a",
+      "bytes": 12969
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.mjs",
+      "sha256": "c9c89a65819de2f083fe4506417eef9e31543dfa7a7d7578905ef6ff042fb5ce",
+      "bytes": 13912
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.test.mjs",
+      "sha256": "4285624f15786cce436e582272a4334a99129f44487351179fdb9d91ffe2ecc2",
+      "bytes": 16078
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/test-transport.py",
+      "sha256": "0a5bfcf4c23770d7b506f7ee0ffaae4c82113364df15d7e01ef314cc1ebacfc8",
+      "bytes": 8797
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-smoke/development-old-fixture-output.log",
+      "sha256": "46fa0a20e09d9fd0ee80537f327cbc07f0827b207fa138c8f74ba00d0ca4188e",
+      "bytes": 3371
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-smoke/node-45.log",
+      "sha256": "e194985a08b779fc070ccdecd3ba28beb5643fb309cee4547351a9fb34252340",
+      "bytes": 3487
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-smoke/transport-13.log",
+      "sha256": "b547959503842b6ea20374f7044b563fd1032cc6b5b64b570057db481b4f5e85",
+      "bytes": 2337
+    }
+  ],
+  "validation": {
+    "nodeControls": {
+      "passed": 45,
+      "failed": 0,
+      "command": "node --test scripts/operations/alia-budget-smoke/smoke.test.mjs"
+    },
+    "transportControls": {
+      "passed": 13,
+      "failed": 0,
+      "command": "python3 scripts/operations/alia-budget-smoke/test-transport.py"
+    },
+    "syntax": [
+      "node --check scripts/operations/alia-budget-smoke/read-internal-pilot-readiness.mjs",
+      "python3 -m py_compile scripts/operations/alia-budget-smoke/prepare.py"
+    ]
+  },
+  "developmentFailure": "Initial old positive fixture still asserted 128 after source restored 2048; corrected fixture assertion. Not a product regression claim. Original output retained.",
+  "actualEffects": {
+    "awsCalls": 0,
+    "providerCalls": 0,
+    "realInferencePosts": 0,
+    "productionMutations": 0
+  },
+  "remaining": [
+    "Actual high route reader is not included; fourth tuple and its tariff are synthetic only.",
+    "No current production binding/plan has been created or updated.",
+    "New accepted runtime image/TD/policy hash and exact price/privacy tuple must be reviewed before root preparation/execution.",
+    "SQL reader tuple selection changed locally; no new PostgreSQL execution is attributed to this preparation.",
+    "Canonical request retains Auto/full21tools and2048; no personal frontend conversation proof.",
+    "Successful text/stop plus same-key receipt remains required; no invoice guarantee or inferred provider-attempt count."
+  ]
+}
