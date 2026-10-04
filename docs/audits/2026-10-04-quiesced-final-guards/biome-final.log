@@ -1,0 +1,28 @@
+scripts/test-quiesced-retirement.mjs:453:3 lint/performance/noDelete  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━
+
+  × Avoid the delete operator which can impact performance.
+  
+    451 │ 	},
+    452 │ 	(s) => {
+  > 453 │ 		delete s.runningCount;
+        │ 		^^^^^^^^^^^^^^^^^^^^^
+    454 │ 	},
+    455 │ ]) {
+  
+  i Unsafe fix: Use an undefined assignment instead.
+  
+    451 451 │   	},
+    452 452 │   	(s) => {
+    453     │ - → → delete·s.runningCount;
+        453 │ + → → s.runningCount·=·undefined;
+    454 454 │   	},
+    455 455 │   ]) {
+  
+
+Checked 3 files in 9ms. No fixes applied.
+Found 1 error.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
