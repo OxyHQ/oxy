@@ -197,6 +197,25 @@ describe('idempotency without a hold', () => {
 });
 
 describe('technical capacity for internal_metered', () => {
+  it('isolates a feature relationship from commercial traffic and enforces one concurrent and daily claim', async () => {
+    const fixture = await makeFixture();
+    const ordinary = await claimMeteredAdmission(admission(fixture, commercial));
+    expect(ordinary.status).toBe('claimed');
+    const economics = internal({ maxConcurrentRequests: 1, maxRequestsPerUtcDay: 1, scope: 'relationship' }, fixture.applicationId);
+    if (economics.treatment !== 'internal_metered') throw new Error('fixture');
+    const own = { ...economics, relationship: { ...economics.relationship, relationshipId: 'mention-jev-kaana' } };
+    const results = await Promise.all(Array.from({ length: 8 }, () => claimMeteredAdmission(admission(fixture, own))));
+    const winners = results.filter((result) => result.status === 'claimed');
+    expect(winners).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'capacity-exceeded')).toHaveLength(7);
+    const winner = winners[0];
+    if (winner.status !== 'claimed') throw new Error('fixture');
+    await settle(fixture, winner.meteredUsageId);
+    expect(await claimMeteredAdmission(admission(fixture, own))).toMatchObject({ status: 'capacity-exceeded', limit: 'daily' });
+    // Internal capacity does not become a global stop for the app's normal commercial traffic.
+    expect((await claimMeteredAdmission(admission(fixture, commercial))).status).toBe('claimed');
+  });
+
   it('admits exactly the concurrency budget under a burst, and refuses the rest as capacity — never money', async () => {
     const fixture = await makeFixture();
     const economics = internal({ maxConcurrentRequests: 3, maxRequestsPerUtcDay: 1000 }, fixture.applicationId);

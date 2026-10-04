@@ -111,7 +111,7 @@ function capacityLockKey(applicationId: string, environment: string): bigint {
 
 /** Read the exact admission population; the caller decides whether to lock it. */
 export async function readMeteredCapacity(
-  executor: SqlExecutor, applicationId: string, environment: InferenceEnvironment
+  executor: SqlExecutor, applicationId: string, environment: InferenceEnvironment, relationshipId?: string
 ): Promise<{ activeAdmissions: number; dailyAdmissions: number }> {
   const [counts] = await executeRows<{ in_flight: string; today: string }>(
     executor,
@@ -124,6 +124,7 @@ export async function readMeteredCapacity(
       from ${inferenceMeteredUsage}
       where ${inferenceMeteredUsage.applicationId} = ${applicationId}
         and ${inferenceMeteredUsage.environment} = ${environment}
+        and ${relationshipId === undefined ? sql`true` : sql`${inferenceMeteredUsage.economicRelationshipId} = ${relationshipId}`}
         and ${inferenceMeteredUsage.status} <> 'refused'
         and ${inferenceMeteredUsage.createdAt} >= now() - interval '2 days'
     `
@@ -169,7 +170,8 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
       await tx.execute(
         sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`
       );
-      const counts = await readMeteredCapacity(tx, input.applicationId, input.environment);
+      const counts = await readMeteredCapacity(tx, input.applicationId, input.environment,
+        capacity.scope === 'relationship' ? input.economics.relationship.relationshipId : undefined);
       if (counts.activeAdmissions >= capacity.maxConcurrentRequests) {
         return { status: 'capacity-exceeded', limit: 'concurrency', capacity };
       }

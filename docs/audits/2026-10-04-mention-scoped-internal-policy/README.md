@@ -1,0 +1,13 @@
+# Mention classifier economic relationship — inactive preparation
+
+This implements a separate reviewed relationship for Mention's own classifier. It does not mark Mention internal, alter application trust, borrow Alia authority, grant scopes or create funds. `mentionClassifierApproval()` returns undefined, so current production treatment is unchanged.
+
+The selector requires Mention's pinned application, owner and API workload credential, production, the typed decisions operation and exact revision-pinned model. The edge keeps its normal availability, catalogue/legal/privacy qualification and deployment attestation. Only after the resolved single deployment, price version, routing-policy version and exact USD quote match the reviewed approval may it select internal metering. The quote must be at most USD0.01; controlled UTF-8 input plus framing allowance must be at most8192 bytes. That controlled budget is not a claim about undisclosed provider framing or invoice cost.
+
+The existing canonical live workload resolver checks active application and owner, trust, closure fence, binding expiry and scopes. This feature additionally requires the exact reviewed binding ID, live materialized workload credential, environment and both invoke/usage-read scopes. It rechecks live authority, retained metered admission, current approval and expiry immediately before dispatch, including after asynchronous database reads.
+
+The SQL capacity limit is one concurrent request and one admission per UTC day for this economic relationship. Other commercial Mention traffic neither consumes that feature budget nor acquires an exemption. The existing Alia relationship retains its default application-wide capacity semantics. Normal metering/idempotency and v1/v2 receipt distinctions remain unchanged.
+
+Validation uses synthetic admission collaborators and independently owned PostgreSQL. Real SQL covers lifecycle/scope revocations with the exact identity tuple in a disposable database, plus concurrent capacity claims and commercial-traffic isolation. A retained dispatch-expiry race test demonstrates the initial local implementation could cross expiry while awaiting authority; the same fixture passes after moving the expiry/source-approval check after both awaits. This was found in the new, unpublished work, not an observed production incident.
+
+Activation remains a separate reviewed source decision: exact deployment/price/policy/privacy evidence, bounded provider accounting and explicit Mention authority must be available. No live provider request, runtime rollout, database update, SDK version or public availability change is included. Integration's private Alia commissioning work is separate and does not confer Mention authority.
