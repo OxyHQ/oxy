@@ -1,0 +1,11 @@
+{
+  "oldFirstPartyChildrenStopped": true,
+  "protectedProcessesUnchanged": true,
+  "protectedPids": [
+    3816918,
+    3816958,
+    3816959,
+    3816960,
+    3816897
+  ]
+}

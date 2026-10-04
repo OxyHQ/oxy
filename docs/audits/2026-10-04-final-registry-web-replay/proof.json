@@ -1,0 +1,122 @@
+{
+  "sourceHead": "af4dd1748681bea1099aad0dd6489379471be037",
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-final-registry-web-replay/run.mjs",
+      "sha256": "7b19a26b24f4cee187f61fadd92bcc664d5687456bf4213a63156774610d61d9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-web-replay/transcript.log",
+      "sha256": "5f851d6c1fdb2cab2950b8e53b3760299f060892f4248b6f4e6e021926987748"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-web-replay/network.jsonl",
+      "sha256": "631671ae759f6e9e297499cd55cf9d1ced867561f20605f3285e378b7e747b4d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-web-replay/handover-intent.json",
+      "sha256": "715c58d56464c7a3744692595144da04f47cd6deb8a8d7ed29a2b6eb7eac48f3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-web-replay/handover-complete.json",
+      "sha256": "82d957f8974d886847fde618893ae9cb1e8fa96431eb66e5fcc3422262d40f45"
+    },
+    {
+      "path": "docs/audits/2026-10-04-final-registry-web-replay/runtime-module-graph.json",
+      "sha256": "e1d1f09637239d26ee8fd7967b48198d1e7eafd6c77b9689da2e23a277bc0bf6"
+    }
+  ],
+  "preservedInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-first/main.tsx",
+      "sha256": "36a045f4d7218f02d8a873dc9f203c1791095091bf6a7ed98178cf9638b8b9a4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-first/vite.config.ts",
+      "sha256": "0512d38e3654a0b31efe05a933a0a9cb4cf84096d717fe08a934b6bff4140c48"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-first/package.json",
+      "sha256": "e8d4fd55a68ddebd430ee5f7a6dc59dc76ae8694326be1f202a324c71e905f9d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-first/bun.lock",
+      "sha256": "04065836508e01ad26c444b32bfe4833752b0f2130ce00a29990f4fc884d417d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-first/dist/registry-modules.json",
+      "sha256": "c261ccad8aca5cb749a5f581a404961746423fabba63a506ae427a3f4f0970b9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-registry-fixture-installs/web-first/verified.json",
+      "sha256": "2ceb9f7e4ff5ed04c5c9bb7cb11c040e2823a7e9c9560ec4ae02f7dcd2d60d1e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-registry-web-replay-20261004/web-first-launch/intent.json",
+      "sha256": "f8d8a6250ae5131aab43122a165be5f020afc3c9bd545d37d6208cb6c2db2808"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-registry-web-replay-20261004/web-first-launch/started.json",
+      "sha256": "abc34740546a0afd8ee8fb1a22fb459ce4a9d3a416b36c3568d6da311252413e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-second/main.tsx",
+      "sha256": "36a045f4d7218f02d8a873dc9f203c1791095091bf6a7ed98178cf9638b8b9a4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-second/vite.config.ts",
+      "sha256": "0512d38e3654a0b31efe05a933a0a9cb4cf84096d717fe08a934b6bff4140c48"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-second/package.json",
+      "sha256": "e8d4fd55a68ddebd430ee5f7a6dc59dc76ae8694326be1f202a324c71e905f9d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-second/bun.lock",
+      "sha256": "04065836508e01ad26c444b32bfe4833752b0f2130ce00a29990f4fc884d417d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-final-registry-fixtures/web-second/dist/registry-modules.json",
+      "sha256": "7b89c4ea877aa824308e39dc906b461090bae2f9e584f88e2339f050bd8ddcfc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-registry-fixture-installs/web-second/verified.json",
+      "sha256": "2ff4718c6811367b217572845b46654f4cf8fb98d4147bfdeb7146a439aec7ca"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-registry-web-replay-20261004/web-second-launch/intent.json",
+      "sha256": "a4193e36174e048200e0d3e43d58a0a7a1df6acb3751ec8db5efe8a7c055a56f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-registry-web-replay-20261004/web-second-launch/started.json",
+      "sha256": "cf38ad9bd9f413554835a6f6f6c4f763759a688a4b2123d642c616604f9e3f2f"
+    }
+  ],
+  "result": "PASS",
+  "sdkVersions": {
+    "contracts": "4.9.0",
+    "protocol": "1.2.2",
+    "core": "4.2.0",
+    "services": "11.1.0",
+    "bloom": "6.2.1"
+  },
+  "assertions": {
+    "realPasswordSignIn": true,
+    "explicitSecondHolderJoin": true,
+    "orgSwitchBothFreshProfiles": true,
+    "partialLogoutPersonFallbackWithoutReload": true,
+    "fullLogoutBothAndReloadSignedOut": true,
+    "explicitFreshProfileReads": 6,
+    "observedSuccessfulUsersMeGets": 8,
+    "cookies": 0,
+    "postLogoutAutomaticChallengeVerify": 0,
+    "browserClosed": true,
+    "thirdPartySharedListenersUntouched": true
+  },
+  "limits": [
+    "Synthetic owned local API/IdP authority, not production client acceptance.",
+    "First-party registry browser replay only; third-party callback replay pending safe listener handover.",
+    "Native build/export is separate; root device replay pending.",
+    "Preserved fixture clears the SDK response cache before profile reads; six explicit reads require actual HTTP responses."
+  ]
+}

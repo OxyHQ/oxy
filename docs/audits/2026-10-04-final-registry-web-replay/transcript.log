@@ -1,0 +1,15 @@
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+{"label":"A-real-password-person","states":[{"page":0,"text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}],"cookies":0,"at":"2026-10-04T02:53:47.092Z"}
+{"label":"B-explicit-SDK-join-person","states":[{"page":0,"text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"},{"page":1,"text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}],"cookies":0,"at":"2026-10-04T02:53:48.577Z"}
+{"label":"org-both-1","states":[{"page":0,"text":"Signed in as group14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45fa-7422-93b5-69855a040250 (group14560d051a)"},{"page":1,"text":"Signed in as group14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45fa-7422-93b5-69855a040250 (group14560d051a)"}],"cookies":0,"at":"2026-10-04T02:53:49.859Z"}
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+{"label":"person-fallback-both-no-reload-1","states":[{"page":0,"text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"},{"page":1,"text":"Signed in as browser14560d051a\n\nChoose account\nSign out\nGrant user read\nRevoke this app grant\nRead API subject\n\nAPI subject: 01a100f9-45f0-70b1-9a52-a35bbad8c3b7 (browser14560d051a)"}],"cookies":0,"at":"2026-10-04T02:53:50.058Z"}
+{"label":"final-signout-both","states":[{"page":0,"text":"Signed out\n\nSign in with Oxy"},{"page":1,"text":"Signed out\n\nSign in with Oxy"}],"cookies":0,"at":"2026-10-04T02:53:50.124Z"}
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+{"console":"Failed to load resource: the server responded with a status of 401 (Unauthorized)"}
+{"label":"final-reload-both","states":[{"page":0,"text":"Signed out\n\nSign in with Oxy"},{"page":1,"text":"Signed out\n\nSign in with Oxy"}],"cookies":0,"at":"2026-10-04T02:53:50.677Z"}
+{"result":"PASS","orgFallbackCyclesWithoutReload":1,"cookies":0,"fixtureOnly":true,"registrySdk":true}
