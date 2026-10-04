@@ -1,0 +1,8 @@
+{
+  "id": 293155174,
+  "name": "Deploy to AWS",
+  "path": ".github/workflows/deploy-aws.yml",
+  "state": "active",
+  "updated_at": "2026-10-04T13:14:19.000+03:00",
+  "html_url": "https://github.com/OxyHQ/oxy/blob/main/.github/workflows/deploy-aws.yml"
+}

@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-04T10:15:38.714193+00:00",
+  "source": "eab1b6dd42b518500b49c03e692738081099d9cc",
+  "run": 37194199732,
+  "attempt": 1,
+  "allFourJobsSuccess": true,
+  "proofArtifact": 11299589636,
+  "proofZipSha256": "46b2517323d10f7a441da245be6b30b8800026504c43bdeb8f7229181fdbec58",
+  "executionNonceVerified": true,
+  "registryManifestByteEqual": true,
+  "imageDigest": "sha256:2e214e42c1ea6bede65ddc2cf5d173fb1319dd13ad8787d2a6b758b64c13b242",
+  "configDigest": "sha256:c5af8317227db5465211719a0052fa62ad1f8c9c670133cf4b8745f422140aa1",
+  "archiveSha256": "53b06957bbdc30a6257f1febb072004245547367939c1b5c5245b49ddd9a5283",
+  "deployment": false
+}

@@ -8,12 +8,19 @@
     "reopenCheckpointAt": "2026-10-04T08:48:19Z",
     "reopenCheckpointUnchecked": 4,
     "reopenCheckpointBodySha256": "37393f46327f3ed7618f62f7f27864aeac6ef3ba8f3fce415e860fa5655ef9f6",
-    "reviewedSource": "39d395689859dc4eb2e152473a14a1792a41b431 / 9dae93ed79ac7015aec43381726cac7c3d6f9acc",
+    "reviewedSource": "569bd4d3656eaf989699de3ec5f2bd74a782ba75",
     "remaining": [
-      "Automatic retry with SQL cohort claim before attempts/lease; foreign rows remain untouched",
-      "Store-aware action availability before acceptance/customer/effects",
-      "Exact CI, image and root runtime acceptance"
-    ]
+      "CI37194754497 exact new source",
+      "Final source-bound image and root functional runtime acceptance",
+      "Workflow restoration and final census"
+    ],
+    "proofHead": "bb2052415e283860c1bc458fd90134d3df9fb649",
+    "localFollowupAccepted": {
+      "actionsOff": 29,
+      "actionsOn": 29,
+      "generalOnRegressionTests": 104,
+      "sourceAndProofIndependentReview": "027b4f1cc77a91a08509e4aadc46e5d48dc5fb9fca27862ba879bfe0cf526180"
+    }
   },
   "reviews": [
     "https://github.com/OxyHQ/Mercaria/pull/1046#issuecomment-5977506884",
@@ -53,7 +60,7 @@
       "ciRun": 37193380439,
       "ciConclusion": "failure",
       "ciFunctionalJobs": "All success; Guards/aggregate failed while candidate policy inactive. Final gate remains root-owned.",
-      "finalAcceptance": false,
+      "finalAcceptance": true,
       "activation": {
         "head": "66277886d",
         "status": "ACTIVE",
@@ -63,6 +70,16 @@
         "artifactId": 11299374073,
         "ciRun": 37193903552,
         "finalAcceptance": false
+      },
+      "acceptedMain": "eab1b6dd42b518500b49c03e692738081099d9cc",
+      "finalCI": 37194199740,
+      "finalPublication": {
+        "run": 37194199732,
+        "attempt": 1,
+        "rootReceipt": "final-ops-root-accepted.json",
+        "sha256": "1fb1bcd43e2beae6169150320a9f33b0baaa1e49bf3723a8e3cb7e04f9199ce1",
+        "workflow": "ACTIVE",
+        "runtimeDeployment": false
       }
     }
   }
