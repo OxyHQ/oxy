@@ -1,0 +1,2 @@
+{"level":30,"time":1791100508728,"pid":934421,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+Canonical image693 SQL 4 controls PASS: direct claim/settlement NULL; partial NULL constraint; explicit finalization full tuple. No external inference.

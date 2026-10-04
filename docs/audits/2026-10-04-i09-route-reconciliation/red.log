@@ -1,0 +1,77 @@
+✖ explicit canonical direct admission uses the complete admitted tuple when final tuple is all NULL (0.609137ms)
+✔ complete approved final authorization remains accepted (0.19923ms)
+✔ partial NULL or omitted final authorization is refused (0.440324ms)
+✖ foreign requested/admitted/resolved routes are refused even with complete valid final tuple (0.358498ms)
+✔ serving provider must match the effective authorization and the caller (0.125615ms)
+✖ exact authorized served attempt is required, unknown cost stays NULL (0.297194ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 3
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 44.76422
+
+✖ failing tests:
+
+test at scripts/operations/i09-live/route-reconciliation.test.mjs:12:1
+✖ explicit canonical direct admission uses the complete admitted tuple when final tuple is all NULL (0.609137ms)
+  Error: final_route_differs
+      at requireValue (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/canary-reconciliation.mjs:4:51)
+      at requireSettledOperation (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/canary-reconciliation.mjs:24:2)
+      at run (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/route-reconciliation.test.mjs:11:14)
+      at TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/route-reconciliation.test.mjs:12:142)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at scripts/operations/i09-live/route-reconciliation.test.mjs:15:1
+✖ foreign requested/admitted/resolved routes are refused even with complete valid final tuple (0.358498ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/route-reconciliation.test.mjs:15:427)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /final_route_differs/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at scripts/operations/i09-live/route-reconciliation.test.mjs:17:1
+✖ exact authorized served attempt is required, unknown cost stays NULL (0.297194ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /exact_attempts_missing_or_foreign/. Input:
+  
+  'Error: final_route_differs'
+  
+      at TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/route-reconciliation.test.mjs:17:298)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: Error: final_route_differs
+        at requireValue (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/canary-reconciliation.mjs:4:51)
+        at requireSettledOperation (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/canary-reconciliation.mjs:24:2)
+        at run (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/route-reconciliation.test.mjs:11:14)
+        at file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/route-reconciliation.test.mjs:17:309
+        at getActual (node:assert:611:5)
+        at strict.throws (node:assert:759:24)
+        at TestContext.<anonymous> (file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/route-reconciliation.test.mjs:17:298)
+        at Test.runInAsyncScope (node:async_hooks:227:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:974:18),
+    expected: /exact_attempts_missing_or_foreign/,
+    operator: 'throws',
+    diff: 'simple'
+  }

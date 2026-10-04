@@ -1,0 +1,31 @@
+{"level":30,"time":1791100454715,"pid":932116,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+PostgresError: null value in column "id" of relation "users" violates not-null constraint
+    at ErrorResponse (/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:815:30)
+    at handle (/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:489:6)
+    at Socket.data (/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/connection.js:324:9)
+    at Socket.emit (node:events:514:28)
+    at addChunk (node:internal/streams/readable:568:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:519:3)
+    at Readable.push (node:internal/streams/readable:399:5)
+    at TCP.onStreamRead (node:internal/stream_base_commons:189:23)
+    at cachedError (/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:170:23)
+    at new Query (/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/query.js:36:24)
+    at sql (/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/node_modules/.bun/postgres@3.4.9/node_modules/postgres/cjs/src/index.js:112:11)
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/route-canonical-sql.test.mjs:13:24 {
+  severity_local: 'ERROR',
+  severity: 'ERROR',
+  code: '23502',
+  detail: 'Failing row contains (null, i09-own-sql-route, null, null, null, null, null, null, null, null, personal, null, null, null, active, local, null, null, null, null, null, null, null, null, null, null, f, 0.1, new, f, f, f, {en-US}, null, null, null, null, null, null, null, null, f, f, f, t, t, f, t, f, t, t, t, f, t, t, f, t, f, t, f, f, f, t, null, f, null, null, null, null, null, t, t, t, t, f, null, system, f, null, null, null, 2026-10-04 10:54:14.721+03, 2026-10-04 10:54:14.721+03, null, {}, {}, null, null, 0, null).',
+  schema_name: 'public',
+  table_name: 'users',
+  column_name: 'id',
+  file: 'execMain.c',
+  line: '2022',
+  routine: 'ExecConstraints'
+}
+
+Node.js v24.21.0

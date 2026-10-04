@@ -1,0 +1,213 @@
+E.E.EE.EFEEEE
+======================================================================
+ERROR: test_aws_reordered_named_inputs (__main__.T.test_aws_reordered_named_inputs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 19, in test_aws_reordered_named_inputs
+    a,d=self.registration();a['containerDefinitions'][0]['environment'].reverse();a['containerDefinitions'][0]['secrets'].reverse();m.verify_registered(a,d)
+        ~~~~~~~~~~~~~~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 17, in registration
+    d=m.build_definition(plan());a=copy.deepcopy(d);a.update(taskDefinitionArn='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-i09-inference-canary:1',status='ACTIVE');return a,d
+                         ~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+ERROR: test_baseline_tamper_rejected (__main__.T.test_baseline_tamper_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 29, in test_baseline_tamper_rejected
+    p=plan();p['baselineHashes']['result']='0'*64
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+ERROR: test_dispatch_unknown (__main__.T.test_dispatch_unknown)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 73, in test_dispatch_unknown
+    def test_dispatch_unknown(self):self.execute('dispatch')
+                                    ~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 46, in execute
+    p=plan();d=m.build_definition(p);td='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-i09-inference-canary:1';task='arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/'+'b'*32;calls=[]
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+ERROR: test_duplicate_named_input_rejected (__main__.T.test_duplicate_named_input_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 26, in test_duplicate_named_input_rejected
+    a,d=self.registration();a['containerDefinitions'][0][field]=[{'name':'duplicate','value':'x'},{'name':'duplicate','value':'x'}]
+        ~~~~~~~~~~~~~~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 17, in registration
+    d=m.build_definition(plan());a=copy.deepcopy(d);a.update(taskDefinitionArn='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-i09-inference-canary:1',status='ACTIVE');return a,d
+                         ~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+ERROR: test_named_input_changed_value_rejected (__main__.T.test_named_input_changed_value_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 22, in test_named_input_changed_value_rejected
+    a,d=self.registration();a['containerDefinitions'][0][field]=[{'name':'foreign',attr:'changed'}]
+        ~~~~~~~~~~~~~~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 17, in registration
+    d=m.build_definition(plan());a=copy.deepcopy(d);a.update(taskDefinitionArn='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-i09-inference-canary:1',status='ACTIVE');return a,d
+                         ~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+ERROR: test_registration_unknown (__main__.T.test_registration_unknown)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 72, in test_registration_unknown
+    def test_registration_unknown(self):self.execute('registration')
+                                        ~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 46, in execute
+    p=plan();d=m.build_definition(p);td='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-i09-inference-canary:1';task='arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/'+'b'*32;calls=[]
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+ERROR: test_shape (__main__.T.test_shape)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 11, in test_shape
+    d=m.build_definition(plan());self.assertLess(len(json.dumps(d,separators=(',',':'))),60000);self.assertEqual(d['taskRoleArn'],'arn:aws:iam::237343248947:role/oxy-alia-task')
+                         ~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+ERROR: test_stop_failure_still_deregisters (__main__.T.test_stop_failure_still_deregisters)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 74, in test_stop_failure_still_deregisters
+    def test_stop_failure_still_deregisters(self):self.execute('stop')
+                                                  ~~~~~~~~~~~~^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 46, in execute
+    p=plan();d=m.build_definition(p);td='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-i09-inference-canary:1';task='arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/'+'b'*32;calls=[]
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+ERROR: test_success (__main__.T.test_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 71, in test_success
+    def test_success(self):self.execute()
+                           ~~~~~~~~~~~~^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 46, in execute
+    p=plan();d=m.build_definition(p);td='arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-alia-i09-inference-canary:1';task='arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/'+'b'*32;calls=[]
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 8, in plan
+    p={'schemaVersion':1,'profile':'caller','nonce':'a'*32,'preparedAt':int(time.time()),'baselineFiles':paths,'baselineHashes':{name:hashlib.sha256(Path(path).read_bytes()).hexdigest()for name,path in paths.items()},'definitionPath':str(m.CALLER_DEFINITION),'definitionFileSha256':m.CALLER_SHA,'decoderSha256':hashlib.sha256(m.DECODER.read_bytes()).hexdigest(),'launcherSha256':hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest(),'live':LIVE};p['taskDefinitionSha256']=m.digest(m.build_definition(p));return p
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ~~~~~~~~~~~~~~~~~~^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 129, in build_definition
+    phase=plan['profile'];baseline_inputs(plan)
+                          ~~~~~~~~~~~~~~~^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 125, in baseline_inputs
+    require(0<=age<=1800,'Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically')
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/operation-ecs.py", line 59, in require
+    raise RuntimeError(message)
+RuntimeError: Baseline older than 30 minutes; repeat readonly baseline, never retry inference automatically
+
+======================================================================
+FAIL: test_post_generated_definition_and_binding (__main__.T.test_post_generated_definition_and_binding)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/test-operation-ecs.py", line 35, in test_post_generated_definition_and_binding
+    gen.prepare_post(root/'post',m.EVIDENCE/'operation-v3',m.EVIDENCE/'baseline-run/result.private.json',canary)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004/scripts/operations/i09-live/prepare-observation.py", line 43, in prepare_post
+    assert all(sha((P/name).read_bytes())==digest for name,digest in plan['inputs'].items())
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.007s
+
+FAILED (failures=1, errors=9)

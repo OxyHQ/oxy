@@ -1,0 +1,146 @@
+{
+  "kind": "i09-explicit-route-reconciliation-proof",
+  "sourceHead": "509723a92eabfa76fc476d1d2793c7d5ec689e48",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/i09-live/canary-reconciliation.mjs",
+      "sha256": "861e8ce222c178cf333dfbbbe96f0ac72ebe1ad20954a62506614a87c40703cf"
+    },
+    {
+      "path": "scripts/operations/i09-live/canary-reconciliation.test.mjs",
+      "sha256": "4e1ecc1eb1aa43f9a96b7852c244094ee4088449aa4fad1fd22936027a9df9cd"
+    },
+    {
+      "path": "scripts/operations/i09-live/route-reconciliation.test.mjs",
+      "sha256": "40cc1b6f187d2ed359d5b8331711f18425c71c57187c3196475d08fd9dd83940"
+    },
+    {
+      "path": "scripts/operations/i09-live/route-canonical-sql.test.mjs",
+      "sha256": "89197d6e0eec8d4c5ccb3549d8d46ad310e0002d1be98d0cdd14be6b4a5c93fa"
+    }
+  ],
+  "preservedProductionSource": [
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "6dc3c28ebe75aea9ed7c78f5acb9f2451661a933be625db1cbd546b70b29c569"
+    },
+    {
+      "path": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "sha256": "436a38f3e709b1b66188b25e49cdf030ace68bb64f9f40f9d02e617460c9ffdd"
+    },
+    {
+      "path": "packages/api/src/db/schema/inferenceMeteredUsage.ts",
+      "sha256": "56ffa38db14db7871c49c9215d22c5bdfd5d09ecab5ff811bda22b979eecac38"
+    },
+    {
+      "path": "packages/api/src/db/schema/deferredForeignKeys.ts",
+      "sha256": "265ccdbb43fa55ddf1de1d8825db01939369a2bd2dfdfca53d055af232a53568"
+    }
+  ],
+  "actualImageCompiledInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/image-base-api/dist/services/inferenceMeteredUsage.service.js",
+      "sha256": "717ebd69390a0318406eca31f4951a0f47b49e8851a972e47146262e6548a292"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/image-base-api/dist/config/postgres.js",
+      "sha256": "d71c6f13be5ef0c6c9aa9d7b9878a1488dd5a85523755243aaf0972b6480cea2"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/image-base-api/dist/db/schema/inferenceMeteredUsage.js",
+      "sha256": "96bb1eb962e3fe42eab61adc1ce40efd77914ed5aa76bcac77af1b078b1bec12"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/red.log",
+      "sha256": "df523b008fc0753a5f111acde0dea3b20755df9ae57bf03454a3ad0bd57fc904"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/green.log",
+      "sha256": "2bc64a286ceabda8184c782b4d258cf4336b546ae30018248a2fc9d5261f5272"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/route-sql.log",
+      "sha256": "a6e11abfb5b46a4d841ad8876fef0d7f2e2a5e5e74c94a082d9f095c0c98e403"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/sql-wrapper.log",
+      "sha256": "c6010a35916d25f9c7dcb507ec97c9da20648dd06257e868221c36c64fb13407"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/route-migration.log",
+      "sha256": "7e2270313b581cf340997a9c1b58633b17d7afb24c39f2cf33c6aaa750f655a7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/sql-wrapper-initial-socket-path.log",
+      "sha256": "93dffc35e37553554ef4e91cf9aaa4d3262d7d7e69eaf8bbe02a8b6a5af399d3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/sql-wrapper-initial-fixture-id.log",
+      "sha256": "6a4c19114ac218c9308fc3f9a1b78f2a4ac724445b30e355e79455994c479784"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/route-sql-initial-fixture-id.log",
+      "sha256": "58ec0bf25b9c342eda54b572e48948a389c36f763d9db40ba91f8869d04e29f0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/transport-tests.log",
+      "sha256": "15299601a5c18fb39af1d248d7a275751f819cb88cedc54cf5de4f0de1cdd79f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/invocation-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/frozen-route-reconciliation.test.mjs",
+      "sha256": "40cc1b6f187d2ed359d5b8331711f18425c71c57187c3196475d08fd9dd83940"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/run-route-sql.py",
+      "sha256": "8b434b4c73cfef0d16bcb46c093b2a7d03113b2392e569dbc5ab8e02e557ee82"
+    }
+  ],
+  "privateReferences": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-run/result.private.json",
+      "sha256": "0bedb905201b0c3dd7f175969859481ff898fe6dedb9bbd49c052aa997a95419"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-run/receipt.json",
+      "sha256": "e0dff61be96445a335c15bd6859e5d5f858c142d0e22ee391799f334ea45d8db"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-run/cleanup.json",
+      "sha256": "ab6af429f26c82d4812449925726a7283d9fbd99bbaa656f831efcff5b37914f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-route-v3/source-rebinding.json",
+      "sha256": "a909947ca73696d18066b84d4dbb60d729b78cccce2815ac30666eb631b8b15d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-route-v3/post/post-definition.json",
+      "sha256": "9d973e7d365e9ce56b64821c2bf0736f5dac55feb7b0c45dbadbea669e11655f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-route-v3/post/post-plan.json",
+      "sha256": "e26649ef989aebc1a05fe1d7081f99bbd0188eeb5f4e083df92b6b7e0583a3bf"
+    }
+  ],
+  "checks": {
+    "frozenRouteTestsIdentical": true,
+    "red": {
+      "pass": 3,
+      "fail": 3
+    },
+    "green": {
+      "pass": 13,
+      "fail": 0
+    },
+    "canonicalImageSQL": 4,
+    "transport": 13,
+    "ownedPostgresStopped": true,
+    "newInference": false,
+    "productionPostExecuted": false
+  }
+}

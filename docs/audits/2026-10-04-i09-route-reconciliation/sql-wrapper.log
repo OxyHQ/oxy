@@ -1,0 +1,41 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default database encoding has accordingly been set to "SQL_ASCII".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/route-reconciliation-proof/i09-route-3a14jzh4/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/route-reconciliation-proof/i09-route-3a14jzh4/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+CREATE DATABASE
+
+0088_rainy_vertigo, 0089_panoramic_lord_tyger, 0090_awesome_marvel_apes, 0091_identity_web_envelopes, 0092_identity_moves, 0093_identity_root_authority, 0094_identity_recovery_attempts, 0095_identity_move_commitment, 0096_identity_single_scheme, 0097_drop_device_pairing_sessions, 0098_drop_identity_move_protocol_version, 0099_application_workload_identities, 0100_people_search_trigram_index, 0101_email_suppressions, 0102_workload_identity_scopes, 0103_workload_attribution_identities, 0104_kaana_catalogue_sync, 0105_linked_accounts, 0106_account_events, 0107_retire_oxy_identity_app, 0108_drop_browser_hub_handle, 0109_instance_fetch_scope, 0110_email_verifications, 0111_identity_link_requests, 0112_drop_web_identity_carrier, 0113_device_credentials, 0114_drop_device_session_secret, 0115_device_join_codes, 0116_email_password_signin, 0117_storage_object_deletions, 0118_drop_passkeys, 0119_reputation_rules_in_code, 0120_file_storage_deletions, 0121_email_relay_message_id, 0122_federated_avatar_retry, 0123_stickers, 0124_files_per_owner_live_key, 0125_audio_token_units, 0126_inference_model_capability_declarations, 0127_session_milliseconds_unit, 0128_inference_deployment_accepted_parameters, 0129_power_routing_profiles, 0130_decisions_api_format, 0131_scoped_execution_audience, 0132_billing_stripe_event_ledger, 0133_inference_metered_usage, 0134_inference_auto_lineage, 0135_i07_product_access, 0136_i07_provider_evidence, 0137_public_albert_cleary, 0138_eminent_hulk, 0139_condemned_cloak, 0140_billing_sandbox_namespace, 0141_i05_foreground_requester, 0142_melodic_sister_grimm"}
+
+{"level":30,"time":1791100508728,"pid":934421,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+Canonical image693 SQL 4 controls PASS: direct claim/settlement NULL; partial NULL constraint; explicit finalization full tuple. No external inference.
+
+DROP DATABASE
+
+waiting for server to shut down.... done
+server stopped
+
+OWNED_PG_STOPPED 934363

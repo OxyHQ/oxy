@@ -1,0 +1,21 @@
+✔ canonical exact attestation keeps missing parameter declaration unknown (1.263744ms)
+✔ attestation refuses missing/duplicate/foreign identities and contract (0.402318ms)
+✔ feed reads bounded pages with exact request filtering (0.213549ms)
+✔ feed refuses nonadvancing cursor and bounded absence (0.265234ms)
+✔ settled exact operation rejects duplicate key, wrong authority, money changes (0.458627ms)
+✔ replay calls canonical writer once only after exact authenticated facts match (0.320284ms)
+✔ foreign or altered feed cannot write, unexpected insert cannot pass (0.185253ms)
+✔ explicit canonical direct admission uses the complete admitted tuple when final tuple is all NULL (0.661837ms)
+✔ complete approved final authorization remains accepted (0.15062ms)
+✔ partial NULL or omitted final authorization is refused (0.750063ms)
+✔ foreign requested/admitted/resolved routes are refused even with complete valid final tuple (0.204802ms)
+✔ serving provider must match the effective authorization and the caller (0.122374ms)
+✔ exact authorized served attempt is required, unknown cost stays NULL (0.307025ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 43.420089
