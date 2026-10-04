@@ -983,15 +983,36 @@ async function applyPlannedModel(
       bump(counts.deploymentSkips, 'unknown_provider');
       continue;
     }
+    const deploymentFacts = {
+      id: inferenceDeployments.id,
+      modelRevisionId: inferenceDeployments.modelRevisionId,
+      providerSlug: inferenceDeployments.providerSlug,
+      autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
+      scopedExecution: inferenceDeployments.scopedExecution,
+      availabilityScope: inferenceDeployments.availabilityScope,
+      permissionState: inferenceDeployments.permissionState,
+      status: inferenceDeployments.status,
+      regions: inferenceDeployments.regions,
+      retainsPayloads: inferenceDeployments.retainsPayloads,
+      retentionDays: inferenceDeployments.retentionDays,
+      trainsOnCustomerData: inferenceDeployments.trainsOnCustomerData,
+      zeroDataRetentionAvailable: inferenceDeployments.zeroDataRetentionAvailable,
+      subprocessors: inferenceDeployments.subprocessors,
+      policyUrl: inferenceDeployments.policyUrl,
+      priceVersionId: inferenceDeployments.priceVersionId,
+      internalRouteId: inferenceDeployments.internalRouteId,
+      acceptedParameters: inferenceDeployments.acceptedParameters,
+    };
+    type DeploymentFacts = Pick<typeof inferenceDeployments.$inferSelect, keyof typeof deploymentFacts>;
     const byId = await tx
-      .select()
+      .select(deploymentFacts)
       .from(inferenceDeployments)
       .where(eq(inferenceDeployments.internalRouteId, route.deploymentId))
       .for('update');
     const reviewedAudience = route.scopedExecution === undefined ? undefined : sourceReviewedScopedAudience(now.getTime());
     const reviewedPrivateImport = reviewedAudience !== undefined &&
       canonicalScopedExecutionJson(reviewedAudience) === canonicalScopedExecutionJson(route.scopedExecution);
-    const managedPrivate = (row: typeof inferenceDeployments.$inferSelect) => reviewedPrivateImport &&
+    const managedPrivate = (row: DeploymentFacts) => reviewedPrivateImport &&
       row.autoApprovalPolicyId === null && row.scopedExecution !== null &&
       row.availabilityScope === 'platform_internal' && row.permissionState === 'pending_review' && row.status === 'disabled';
     if (byId.some((row) => row.autoApprovalPolicyId === null && !managedPrivate(row))) {
@@ -999,7 +1020,7 @@ async function applyPlannedModel(
       continue;
     }
     const [byRoute] = await tx
-      .select()
+      .select(deploymentFacts)
       .from(inferenceDeployments)
       .where(
         and(
@@ -1028,7 +1049,7 @@ async function applyPlannedModel(
       priceVersionId: route.scopedExecution?.priceVersionId, internalRouteId: route.deploymentId,
       acceptedParameters: route.acceptedParameters === null ? null : [...route.acceptedParameters],
     };
-    const samePrivateFacts = (row: typeof inferenceDeployments.$inferSelect) => modelFactsUnchanged &&
+    const samePrivateFacts = (row: DeploymentFacts) => modelFactsUnchanged &&
       managedPrivate(row) && Object.entries(privateFacts).every(([key, value]) =>
         isDeepStrictEqual(row[key as keyof typeof privateFacts], value));
     let preservePrivateReview = byRoute !== undefined && samePrivateFacts(byRoute);
