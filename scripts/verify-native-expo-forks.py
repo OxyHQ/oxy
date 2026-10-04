@@ -33,7 +33,7 @@ def verify(include_installed=False):
     assert identity['size'] == len(upstream)
     old = files(VENDOR / 'expo-cli-57.0.23-upstream.tgz')
     cli = files(VENDOR / 'oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz')
-    native = files(VENDOR / 'oxy.so-expo-code-signing-native-0.1.1.tgz')
+    native = files(VENDOR / 'oxy.so-expo-code-signing-native-0.1.2.tgz')
     modified = sorted(name for name in old.keys() | cli.keys() if old.get(name) != cli.get(name))
     expected = sorted(['build/src/run/ios/codeSigning/Security.js', 'package.json', 'build/src/start/server/metro/externals.js', 'build/src/prebuild/resolveLocalTemplate.js', 'build/src/start/server/metro/withMetroMultiPlatform.js', 'build/src/start/server/metro/MetroBundlerDevServer.js', 'build/src/start/server/metro/createServerRouteMiddleware.js', 'build/src/lint/ESlintPrerequisite.js', 'build/src/customize/templates.js', 'build/src/run/ios/codeSigning/Security.js.map', 'build/src/start/server/metro/externals.js.map', 'build/src/prebuild/resolveLocalTemplate.js.map', 'build/src/start/server/metro/withMetroMultiPlatform.js.map', 'build/src/start/server/metro/MetroBundlerDevServer.js.map', 'build/src/start/server/metro/createServerRouteMiddleware.js.map', 'build/src/lint/ESlintPrerequisite.js.map', 'build/src/customize/templates.js.map'])
     assert modified == expected, f'Unreviewed CLI delta: {modified}'
@@ -83,7 +83,7 @@ def verify(include_installed=False):
     assert not list((ROOT / 'node_modules/.bun').glob('node-forge@*')), 'An installed Forge copy remains'
     root = json.loads((ROOT / 'package.json').read_text())
     assert 'patchedDependencies' not in root, 'Temporary Forge patch still active'
-    for package, archive in [('@expo/cli', 'oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz'), ('@expo/code-signing-certificates', 'oxy.so-expo-code-signing-native-0.1.1.tgz')]:
+    for package, archive in [('@expo/cli', 'oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz'), ('@expo/code-signing-certificates', 'oxy.so-expo-code-signing-native-0.1.2.tgz')]:
         assert root['overrides'][package] == 'file:./vendor/expo-native/' + archive
     for package in ['core', 'contracts', 'services', 'protocol', 'mcp', 'db']:
         manifest = json.loads((ROOT / 'packages' / package / 'package.json').read_text())

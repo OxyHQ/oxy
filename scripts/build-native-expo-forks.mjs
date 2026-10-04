@@ -126,9 +126,9 @@ try {
 		cwd: native,
 		stdio: ["ignore", "pipe", "pipe"],
 	});
-	const adapterArchive = "oxy.so-expo-code-signing-native-0.1.1.tgz";
+	const adapterArchive = "oxy.so-expo-code-signing-native-0.1.2.tgz";
 	// Bun archive headers/compression may vary across invocations. Validate
-	// contents exactly (manifest formatting semantically), never overwrite v0.1.1.
+	// contents exactly (manifest formatting semantically), never overwrite an existing adapter version.
 	execFileSync(
 		"python3",
 		[

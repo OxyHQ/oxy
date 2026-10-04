@@ -1,6 +1,6 @@
 {
 	"name": "@oxy.so/expo-code-signing-native",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"private": true,
 	"description": "Expo tooling certificate API implemented with Node/OpenSSL and strict ASN.1 schemas",
 	"main": "index.cjs",
