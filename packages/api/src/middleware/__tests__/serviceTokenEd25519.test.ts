@@ -10,6 +10,8 @@ import {
 import { verifyServiceToken } from '../serviceToken';
 import { mintServiceToken } from '../../services/serviceTokenMint.service';
 
+// Boundary cases must share one instant at registration and execution.
+const testNowMs = 1_791_120_000_000;
 const keyPair = generateKeyPairSync('ed25519');
 const privatePem = keyPair.privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
 const names = [
@@ -20,6 +22,7 @@ const names = [
 const original = Object.fromEntries(names.map((name) => [name, process.env[name]]));
 
 beforeEach(() => {
+  jest.spyOn(Date, 'now').mockReturnValue(testNowMs);
   process.env[SERVICE_TOKEN_PRIVATE_KEY_VARIABLE] = privatePem;
   process.env[SERVICE_TOKEN_SIGNING_KEY_ID_VARIABLE] = 'service-2026-09-a';
   delete process.env[SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE];
@@ -28,6 +31,7 @@ beforeEach(() => {
 const originalNodeEnv = process.env.NODE_ENV;
 
 afterEach(() => {
+  jest.restoreAllMocks();
   process.env.NODE_ENV = originalNodeEnv;
 });
 
@@ -98,13 +102,13 @@ describe('Oxy API Ed25519 service tokens', () => {
   });
 
   it.each([
-    ['legacy hour lifetime', { exp: Math.floor(Date.now() / 1000) + 3600 }],
-    ['over ceiling', { exp: Math.floor(Date.now() / 1000) + 301 }],
+    ['legacy hour lifetime', { exp: Math.floor(testNowMs / 1000) + 3600 }],
+    ['over ceiling', { exp: Math.floor(testNowMs / 1000) + 301 }],
     ['missing issued-at', { iat: undefined }],
-    ['future issued-at', { iat: Math.floor(Date.now() / 1000) + 1 }],
+    ['future issued-at', { iat: Math.floor(testNowMs / 1000) + 1 }],
     ['wrong issuer', { iss: 'attacker' }],
     ['wrong audience', { aud: 'attacker' }],
-    ['future nbf', { nbf: Math.floor(Date.now() / 1_000) + 600 }],
+    ['future nbf', { nbf: Math.floor(testNowMs / 1_000) + 600 }],
     ['whitespace scope', { scopes: [' inference:invoke'] }],
     ['duplicate scopes', { scopes: ['inference:invoke', 'inference:invoke'] }],
     ['application id leading whitespace', { appId: ' app-exact' }],
