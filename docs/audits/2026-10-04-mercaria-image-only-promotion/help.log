@@ -1,0 +1,7 @@
+usage: mercaria-image-only-promotion.py [-h] {prepare,execute} ...
+
+positional arguments:
+  {prepare,execute}
+
+options:
+  -h, --help         show this help message and exit
