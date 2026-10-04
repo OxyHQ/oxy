@@ -420,6 +420,9 @@ export const SEED_APPS: SeedAppSpec[] = [
     // intersection drops it.
     scopes: [
       'user:read',
+      // Own bounded classifier authority; no internal trust/funding or routing administration.
+      'inference:invoke',
+      'inference:usage:read',
       'files:read',
       'files:write',
       'federation:write',

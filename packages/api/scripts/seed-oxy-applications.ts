@@ -32,6 +32,11 @@
  *   ONLY_APPS='CrowdSource' bun run packages/api/scripts/seed-oxy-applications.ts
  *   ONLY_APP_IDS='68b7c4e19f2a6d0e3c8b5174' bun run packages/api/scripts/seed-oxy-applications.ts
  *
+ * Scopes only, existing exact IDs, no metadata/client reconciliation:
+ *   SCOPES_ONLY=true ONLY_APP_IDS=<id> DRY_RUN=true node packages/api/dist/scripts/seedOxyApplicationScopes.js
+ *   Repeat with DRY_RUN=false EXPECTED_PLAN_SHA256=<reviewed-hash> to apply.
+ *   The Bun wrapper delegates to that same implementation when SCOPES_ONLY is set.
+ *
  * Env:
  *   DATABASE_URL  required (injected by ECS from SSM)
  *   OXY_USERNAME  owner username to resolve (default 'oxy')
@@ -51,6 +56,7 @@
  */
 
 import crypto from 'crypto';
+import { scopeSeedMain } from '../src/scripts/seedOxyApplicationScopes';
 import { and, count, eq, inArray, ne, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import {
@@ -477,6 +483,10 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  if (process.env.SCOPES_ONLY !== undefined) {
+    await scopeSeedMain();
+    return;
+  }
   const onlyApps = process.env.ONLY_APPS;
   const onlyAppIds = process.env.ONLY_APP_IDS;
   if (onlyApps !== undefined && onlyAppIds !== undefined) {

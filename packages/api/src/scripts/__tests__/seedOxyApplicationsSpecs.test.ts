@@ -533,9 +533,11 @@ describe('the canonical official-application registry', () => {
       expect(MENTION_APPLICATION_ID).toBe('6a2f851751b784a86fd0e916');
     });
 
-    it('preserves Mention authority and adds only explicit foreground coordination', () => {
+    it('preserves Mention authority and adds only explicit foreground coordination and own inference read/invoke', () => {
       expect(specNamed('Mention').scopes).toEqual([
         'user:read',
+        'inference:invoke',
+        'inference:usage:read',
         'files:read',
         'files:write',
         'federation:write',
