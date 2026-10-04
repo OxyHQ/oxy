@@ -1,0 +1,33 @@
+{
+  "kind": "retained-auth-only-artifact-disposition",
+  "historicalPr": "https://github.com/OxyHQ/oxy/pull/1566",
+  "retainedBranchHead": "e774d9bf262f7f6479fb3c439bc4926961fb35e5",
+  "mustNotMergeIntoBusinessRuntime": true,
+  "artifact": {
+    "source": "28e3d3d755199c977d3992e9479e1321cf60083b",
+    "registryManifestDigest": "sha256:b67f5e93de5b845804ece97a3965b95af7255f9cbcd5756d7969ee811546f684",
+    "imageConfigId": "sha256:fa729d4f1760d3aaeb938d01755da93636502a89cdd5cecf8a39d090a87b402c",
+    "archiveSha256": "aa538a3ce9b174d958bf4fc143e110f8516e0e86395bae256ca75c5ff14fdda0",
+    "configAndRootfsEqualReviewedArchive": true
+  },
+  "acceptedIsolatedCanary": {
+    "liveCanaryPassed": true,
+    "allContainersStoppedExit0": true,
+    "definitionInactive": true,
+    "schemaMigrationCount": 142,
+    "financialTablesUnchanged": 14,
+    "serviceJwtEdDSATTL": 300,
+    "denials503": 18,
+    "limits": [
+      "isolated task; no ALB restore",
+      "one existing app credential; lastUsedAt/rate counters permitted",
+      "no user authentication exercised live",
+      "financial 14-table digest window; requires parent quiescence"
+    ]
+  },
+  "rootReceiptHashes": {
+    "ecr-retention-receipt.json": "3edd3a9854254a1f110e309121f5e3172aaf2d9bf7cb44956b363cc60a3b8225",
+    "root-complete.json": "e6c88b3177367113b62e8026b72c957be9a9ca5ea34704b50c281d64f167637c"
+  },
+  "noNewRuntimeOperation": true
+}

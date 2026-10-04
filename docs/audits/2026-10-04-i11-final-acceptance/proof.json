@@ -123,6 +123,10 @@
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/closed-historical-drafts.json",
       "sha256": "840ee61babaad54b1be1ab260a8176c813ec42c50e0490da4f8fc9f0ef46f9fc"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/retained-auth-only-artifact.json",
+      "sha256": "3f6d6e78d2fce1f2b455387ead0006ae280621729ce99e787d5a65f31c63458d"
     }
   ],
   "pending": [
