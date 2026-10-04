@@ -1,0 +1,23 @@
+[96mpackages/api/src/db/testDatabase.ts[0m:[93m67[0m:[93m11[0m - [91merror[0m[90m TS2339: [0mProperty 'on' does not exist on type 'ChildProcessByStdio<null, Readable, Readable>'.
+
+[7m67[0m     child.on('error', (error) => {
+[7m  [0m [91m          ~~[0m
+[96mpackages/api/src/db/testDatabase.ts[0m:[93m67[0m:[93m24[0m - [91merror[0m[90m TS7006: [0mParameter 'error' implicitly has an 'any' type.
+
+[7m67[0m     child.on('error', (error) => {
+[7m  [0m [91m                       ~~~~~[0m
+[96mpackages/api/src/db/testDatabase.ts[0m:[93m71[0m:[93m11[0m - [91merror[0m[90m TS2339: [0mProperty 'on' does not exist on type 'ChildProcessByStdio<null, Readable, Readable>'.
+
+[7m71[0m     child.on('close', (code) => {
+[7m  [0m [91m          ~~[0m
+[96mpackages/api/src/db/testDatabase.ts[0m:[93m71[0m:[93m24[0m - [91merror[0m[90m TS7006: [0mParameter 'code' implicitly has an 'any' type.
+
+[7m71[0m     child.on('close', (code) => {
+[7m  [0m [91m                       ~~~~[0m
+[96mpackages/api/src/server.ts[0m:[93m336[0m:[93m20[0m - [91merror[0m[90m TS2345: [0mArgument of type 'import("http").Server<typeof import("http").IncomingMessage, typeof import("http").ServerResponse>' is not assignable to parameter of type 'import("node:http").Server<typeof import("node:http").IncomingMessage, typeof import("node:http").ServerResponse>'.
+  Type 'Server<typeof IncomingMessage, typeof ServerResponse>' is missing the following properties from type 'Server<typeof IncomingMessage, typeof ServerResponse>': listenerCount, listeners, off, rawListeners, and 2 more.
+
+[7m336[0m attachRealtimeEdge(server, {
+[7m   [0m [91m                   ~~~~~~[0m
+
+DIAGNOSTICS 5
