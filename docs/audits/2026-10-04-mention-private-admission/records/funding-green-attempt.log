@@ -1,0 +1,46 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1854983, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-d94crkf9/data", "port": 5598, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/routes/__tests__/mentionPrivateCommissioning.test.ts
+FAIL src/routes/__tests__/mentionPrivateCommissioning.test.ts (5.908 s)
+  ✕ admits the own-role privately reviewed classifier with charging off, no funds or hold (177 ms)
+
+  ● admits the own-role privately reviewed classifier with charging off, no funds or hold
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 409
+    Received: 429
+
+      85 |
+      86 |
+    > 87 | it('admits the own-role privately reviewed classifier with charging off, no funds or hold',async()=>{const f=await authorizedFixture();jest.spyOn(rollout,'isChargingAuthorized').mockReturnValue(false);const result=await post(f);if(result.status!==200)throw new Error(JSON.stringify(result));expect(result).toMatchObject({status:200});expect(executions).toBe(1);const rows=await getDb().select().from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.applicationId,identity.applicationId));expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({economicTreatment:'internal_metered',economicRelationshipId:'mention-jev-kaana',applicationCredentialId:identity.credentialId});expect(await getDb().select().from(usageReservations).where(eq(usageReservations.applicationId,identity.applicationId))).toHaveLength(0);expect(await getDb().select().from(usageReceipts).where(eq(usageReceipts.applicationId,identity.applicationId))).toHaveLength(0);expect((await post(f)).status).toBe(409);expect(executions).toBe(1);});
+         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ^
+      88 |
+
+      at src/routes/__tests__/mentionPrivateCommissioning.test.ts:87:979
+      at fulfilled (src/routes/__tests__/mentionPrivateCommissioning.test.ts:38:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        5.935 s, estimated 6 s
+Ran all test suites within paths "src/routes/__tests__/mentionPrivateCommissioning.test.ts".
+error: script "test" exited with code 1
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-d94crkf9"}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 59, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 50, in main
+    run(['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__tests__/mentionPrivateCommissioning.test.ts'], cwd=ROOT / 'packages/api')
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/i04-mention-private-composition-20261004/owned-pg.py", line 22, in run
+    return subprocess.run([str(x) for x in argv], env=env, text=True, check=True, **kw)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/routes/__tests__/mentionPrivateCommissioning.test.ts']' returned non-zero exit status 1.

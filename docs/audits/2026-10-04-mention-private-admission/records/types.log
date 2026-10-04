@@ -1,0 +1,56 @@
+[96mpackages/api/src/db/testDatabase.ts[0m:[93m67[0m:[93m11[0m - [91merror[0m[90m TS2339: [0mProperty 'on' does not exist on type 'ChildProcessByStdio<null, Readable, Readable>'.
+
+[7m67[0m     child.on('error', (error) => {
+[7m  [0m [91m          ~~[0m
+[96mpackages/api/src/db/testDatabase.ts[0m:[93m67[0m:[93m24[0m - [91merror[0m[90m TS7006: [0mParameter 'error' implicitly has an 'any' type.
+
+[7m67[0m     child.on('error', (error) => {
+[7m  [0m [91m                       ~~~~~[0m
+[96mpackages/api/src/db/testDatabase.ts[0m:[93m71[0m:[93m11[0m - [91merror[0m[90m TS2339: [0mProperty 'on' does not exist on type 'ChildProcessByStdio<null, Readable, Readable>'.
+
+[7m71[0m     child.on('close', (code) => {
+[7m  [0m [91m          ~~[0m
+[96mpackages/api/src/db/testDatabase.ts[0m:[93m71[0m:[93m24[0m - [91merror[0m[90m TS7006: [0mParameter 'code' implicitly has an 'any' type.
+
+[7m71[0m     child.on('close', (code) => {
+[7m  [0m [91m                       ~~~~[0m
+[96mpackages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts[0m:[93m33[0m:[93m7[0m - [91merror[0m[90m TS2741: [0mProperty 'stream' is missing in type '{ attestDeployments: () => Promise<{ snapshotId: string; scopedExecutionContractVersion: "3.6.0"; deployments: { regions: never[]; scopedExecution: { expiresAt: string; keyId: string; idempotencyKey: string; ... 11 more ...; maxCostUsd: string & BRAND<"ExactDecimal">; }; ... 14 more ...; maxCostUsd: string & BRAND<"...' but required in type 'KaanaClient'.
+
+[7m33[0m const client: KaanaClient = { attestDeployments: async () => ({ snapshotId: 'synthetic-reviewed', scopedExecutionContractVersion: '3.6.0', deployments: [{ ...audience, regions: [], scopedExecution: audience }] }), execute: async (envelope: InferenceRequest) => { executions++; const route = envelope.authorizedRoutes[0]; const now = new Date().toISOString(); return { generationId: randomUUID(), output: [], finishReason: 'stop', decisions: [{ id: 'q', kind: 'noul', probability: 1 }], usage: { schemaVersion: 2, requestId: envelope.attribution.requestId, attribution: envelope.attribution, outcome: 'completed', units: [{ unit: 'requests', quantity: 1 }, { unit: 'input_tokens', quantity: 10 }, { unit: 'output_tokens', quantity: 0 }], usageSource: 'provider_reported', resolvedModelReference: route.modelReference, servingProvider: route.provider, deploymentId: route.deploymentId, routeSwitches: 0, startedAt: now, completedAt: now } }; } };
+[7m  [0m [91m      ~~~~~~[0m
+
+  [96mpackages/api/src/services/kaanaClient.ts[0m:[93m246[0m:[93m3[0m
+    [7m246[0m   stream(
+    [7m   [0m [96m  ~~~~~~~[0m
+    [7m247[0m     envelope: InferenceRequest | ScopedInferenceRequest,
+    [7m   [0m [96m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    [7m248[0m     options: KaanaExecuteOptions
+    [7m   [0m [96m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    [7m249[0m   ): AsyncIterable<KaanaStreamFrame>;
+    [7m   [0m [96m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    'stream' is declared here.
+[96mpackages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts[0m:[93m33[0m:[93m292[0m - [91merror[0m[90m TS18048: [0m'envelope.authorizedRoutes' is possibly 'undefined'.
+
+[7m33[0m const client: KaanaClient = { attestDeployments: async () => ({ snapshotId: 'synthetic-reviewed', scopedExecutionContractVersion: '3.6.0', deployments: [{ ...audience, regions: [], scopedExecution: audience }] }), execute: async (envelope: InferenceRequest) => { executions++; const route = envelope.authorizedRoutes[0]; const now = new Date().toISOString(); return { generationId: randomUUID(), output: [], finishReason: 'stop', decisions: [{ id: 'q', kind: 'noul', probability: 1 }], usage: { schemaVersion: 2, requestId: envelope.attribution.requestId, attribution: envelope.attribution, outcome: 'completed', units: [{ unit: 'requests', quantity: 1 }, { unit: 'input_tokens', quantity: 10 }, { unit: 'output_tokens', quantity: 0 }], usageSource: 'provider_reported', resolvedModelReference: route.modelReference, servingProvider: route.provider, deploymentId: route.deploymentId, routeSwitches: 0, startedAt: now, completedAt: now } }; } };
+[7m  [0m [91m                                                                                                                                                                                                                                                                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[96mpackages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts[0m:[93m35[0m:[93m1330[0m - [91merror[0m[90m TS2740: [0mType 'Server<typeof IncomingMessage, typeof ServerResponse>' is missing the following properties from type 'Server<typeof IncomingMessage, typeof ServerResponse>': listenerCount, listeners, off, rawListeners, and 2 more.
+
+[7m35[0m beforeAll(async () => { Object.assign(process.env, EDGE_ROLLOUT_ENVIRONMENT); ownUrl = await createTestDatabase(); await connectPostgres(); await getDb().insert(users).values({ id: identity.ownerAccountId, username: 'synthetic-mention' }); await getDb().insert(applications).values({ id: identity.applicationId, ownerAccountId: identity.ownerAccountId, createdByUserId: identity.ownerAccountId, name: 'Synthetic Mention', type: 'first_party', isOfficial: true, isInternal: false, status: 'active', scopes }); await getDb().insert(applicationWorkloadIdentities).values({ id: identity.bindingId, applicationId: identity.applicationId, provider: 'aws-iam', subject: identity.subject, scopes }); await getDb().insert(applicationCredentials).values({ id: identity.credentialId, applicationId: identity.applicationId, type: 'workload', name: 'Synthetic own workload', environment: 'production', workloadIdentityId: identity.bindingId, status: 'active', scopes: [] }); await createNeutralRoutingPolicy({ accountId: identity.ownerAccountId, applicationId: identity.applicationId, overrides: { optimiseFor: 'price', requireZeroDataRetention: true, prohibitTrainingOnCustomerData: true } }); const app = express(); app.use(express.json()); app.use('/v1', createInferenceEdgeRouter({ kaanaClient: client })); await new Promise<void>(r => { server = app.listen(0, '127.0.0.1', r); }); });
+[7m  [0m [91m                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ~~~~~~[0m
+[96mpackages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts[0m:[93m81[0m:[93m91[0m - [91merror[0m[90m TS2322: [0mType 'string' is not assignable to type 'string & BRAND<"ExactDecimal">'.
+  Type 'string' is not assignable to type 'BRAND<"ExactDecimal">'.
+
+[7m81[0m         providerRateCardVersionId: `card-${key}`, providerSourceVersion: `source-${key}`, maxCostUsd: '0.01' };
+[7m  [0m [91m                                                                                          ~~~~~~~~~~[0m
+
+  [96mpackages/contracts/dist/types/inference/scopedExecution.d.ts[0m:[93m70[0m:[93m5[0m
+    [7m70[0m     maxCostUsd: string & z.BRAND<"ExactDecimal">;
+    [7m  [0m [96m    ~~~~~~~~~~[0m
+    The expected type comes from property 'maxCostUsd' which is declared here on type '{ expiresAt: string; keyId: string; idempotencyKey: string; principal: { environment: "development" | "production" | "staging"; accountId: string; applicationId: string; credentialId: string; }; ... 10 more ...; maxCostUsd: string & BRAND<...>; }'
+[96mpackages/api/src/server.ts[0m:[93m336[0m:[93m20[0m - [91merror[0m[90m TS2345: [0mArgument of type 'import("http").Server<typeof import("http").IncomingMessage, typeof import("http").ServerResponse>' is not assignable to parameter of type 'import("node:http").Server<typeof import("node:http").IncomingMessage, typeof import("node:http").ServerResponse>'.
+  Type 'Server<typeof IncomingMessage, typeof ServerResponse>' is missing the following properties from type 'Server<typeof IncomingMessage, typeof ServerResponse>': listenerCount, listeners, off, rawListeners, and 2 more.
+
+[7m336[0m attachRealtimeEdge(server, {
+[7m   [0m [91m                   ~~~~~~[0m
+
+DIAGNOSTICS 9

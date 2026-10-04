@@ -1,0 +1,31 @@
+{
+  "source": "c210180fd5626d51036c4cad88e1ce7bad0fb3d6",
+  "testedComposition": "5ef76601481fb82e5f8b500eacf75cd8a36577b0",
+  "mappedTreesAndManifests": [
+    {
+      "path": "packages",
+      "gitObject": "858730911c93950d8944cda9eda4a7c6d6fe3132",
+      "byteEqual": true
+    },
+    {
+      "path": "scripts",
+      "gitObject": "50dddfc8ce2113f770e2ba88972dcc353fc9bd06",
+      "byteEqual": true
+    },
+    {
+      "path": "package.json",
+      "gitObject": "a31bcd8ceac14037e77008b5a846e05aad78097d",
+      "byteEqual": true
+    },
+    {
+      "path": "bun.lock",
+      "gitObject": "1239958f245a54a555977fbf10baa6d1e4355c4a",
+      "byteEqual": true
+    }
+  ],
+  "originalProofSha256": "6bc64ff8bcc537255d1c5c84bf76dcffd586c7a3a076f2c6b62f9c0c69ea38fb",
+  "rootVerifiedOriginalReferences": 52,
+  "approvalGetters": "undefined",
+  "productionActivation": false,
+  "validation": "Canonical build; six runtime/census passed; corrected machine fixture117tests/4suites; complete source trees byte-identical to reviewed tested composition; final CI required"
+}
