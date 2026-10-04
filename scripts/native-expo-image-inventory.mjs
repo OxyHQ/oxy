@@ -1,9 +1,52 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+/** Host-only: select the exact archives Docker installs, never historical siblings. */
+export function readDeclaredNativePackageInventory(root) {
+	const manifest = JSON.parse(
+		fs.readFileSync(path.join(root, "package.json"), "utf8"),
+	);
+	const selections = [
+		["@expo/cli", "@oxy.so/expo-cli-native"],
+		["@expo/code-signing-certificates", "@oxy.so/expo-code-signing-native"],
+	].map(([alias, identity]) => {
+		const specifier = manifest.overrides?.[alias];
+		assert.equal(typeof specifier, "string");
+		assert.match(
+			specifier,
+			/^file:\.\/vendor\/expo-native\/oxy\.so-[A-Za-z0-9.+-]+\.tgz$/,
+		);
+		return {
+			archive: path.join(root, specifier.slice("file:./".length)),
+			identity,
+		};
+	});
+	return JSON.parse(
+		execFileSync(
+			"python3",
+			[
+				"-c",
+				`
+import hashlib,json,sys,tarfile
+expected={}
+for selection in json.loads(sys.argv[1]):
+ with tarfile.open(selection['archive']) as source:
+  files={m.name.removeprefix('package/'):source.extractfile(m).read() for m in source.getmembers() if m.isfile()}
+  package=json.loads(files['package.json'])
+  assert package['name']==selection['identity']
+  expected[package['name']]={'version':package['version'],'files':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()}}
+print(json.dumps(expected))
+`,
+				JSON.stringify(selections),
+			],
+			{ encoding: "utf8", timeout: 30_000 },
+		),
+	);
+}
 export function inspectImage(root, expected) {
 	const packages = [];
 	const forbidden = [];

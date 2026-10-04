@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "cliUpstream": "57.0.23",
+  "cliFork": "@oxy.so/expo-cli-native",
+  "changedUpstreamFiles": [
+    "build/src/customize/templates.js",
+    "build/src/customize/templates.js.map",
+    "build/src/lint/ESlintPrerequisite.js",
+    "build/src/lint/ESlintPrerequisite.js.map",
+    "build/src/prebuild/resolveLocalTemplate.js",
+    "build/src/prebuild/resolveLocalTemplate.js.map",
+    "build/src/run/ios/codeSigning/Security.js",
+    "build/src/run/ios/codeSigning/Security.js.map",
+    "build/src/start/server/metro/MetroBundlerDevServer.js",
+    "build/src/start/server/metro/MetroBundlerDevServer.js.map",
+    "build/src/start/server/metro/createServerRouteMiddleware.js",
+    "build/src/start/server/metro/createServerRouteMiddleware.js.map",
+    "build/src/start/server/metro/externals.js",
+    "build/src/start/server/metro/externals.js.map",
+    "build/src/start/server/metro/withMetroMultiPlatform.js",
+    "build/src/start/server/metro/withMetroMultiPlatform.js.map",
+    "package.json"
+  ],
+  "unchangedUpstreamFiles": 781,
+  "adapterFiles": 5,
+  "forgeInLock": false,
+  "installedValidation": {
+    "comparedFiles": {
+      "cli": 790,
+      "adapter": 5,
+      "cliAdapter": 5
+    },
+    "forgeResolvableFromAPIOrCLI": false
+  },
+  "publishedManifestLocalReferences": false,
+  "archives": {
+    "oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz": "e5735f981844667d962870d4c3597655069f6b4202a981333962de9b9bf42eb1",
+    "oxy.so-expo-code-signing-native-0.1.2.tgz": "15b8669a1e6a2273ceae261cb5baedfdf21a0cb7e789283728c4e970d02a990a",
+    "oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz": "2a33f912050a067fbdf627b217a048bb8e19de7b8239e195eac2e5a064bde53c",
+    "expo-cli-57.0.23-upstream.tgz": "a767f4d0abe78ba7a5f12d873d5e7e05872a24531a9601cebcdbe52e901eec8c",
+    "oxy.so-expo-code-signing-native-0.1.1.tgz": "051e4b5266378caff00bc4ce369686ead6f1c4961b13579bcd5aa25131f4fb51"
+  }
+}

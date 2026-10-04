@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { inventory } from './forge-remediation-proof-proposal.mjs';
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import {inspectImage} from './native-expo-image-inventory.mjs';
+import {inspectImage, readDeclaredNativePackageInventory} from './native-expo-image-inventory.mjs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,16 +63,7 @@ try {
     console.log('Required database peers load from the frozen production graph without connecting.');
   `], { cwd: fixture, stdio: 'inherit', timeout: 30_000 });
   assert.equal(inventory(fixture).length, 0, 'The actual production graph must contain no Forge copies');
-  const expected = JSON.parse(execFileSync('python3', ['-c', `
-import hashlib,json,pathlib,tarfile
-expected={}
-for archive in pathlib.Path('vendor/expo-native').glob('oxy.so-*.tgz'):
- with tarfile.open(archive) as source:
-  files={m.name.removeprefix('package/'):source.extractfile(m).read() for m in source.getmembers() if m.isfile()}
-  p=json.loads(files['package.json'])
-  expected[p['name']]={'version':p['version'],'files':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()}}
-print(json.dumps(expected))
-`], {cwd:root,encoding:'utf8'}));
+  const expected = readDeclaredNativePackageInventory(root);
   const packages = inspectImage(fixture, expected);
   const adapter = packages.find(pkg => pkg.name === '@oxy.so/expo-code-signing-native');
   assert.ok(adapter.root.startsWith(fixture + '/'), 'Native package escaped isolated production graph');

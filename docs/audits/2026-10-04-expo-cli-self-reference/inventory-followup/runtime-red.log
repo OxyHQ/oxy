@@ -1,0 +1,38 @@
+bun install v1.4.2 (744846f84)
+
++ @expo/metro-runtime@57.0.15
++ is-arrayish@0.3.4
++ react-native-worklets@0.10.0
+
+1086 packages installed [338.00ms]
+Required database peers load from the frozen production graph without connecting.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ '57.0.23+oxy.native.3'
+- '57.0.23+oxy.native.1'
+                      ^
+
+    at walk (file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/native-expo-image-inventory.mjs:27:13)
+    at walk (file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/native-expo-image-inventory.mjs:21:6)
+    at walk (file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/native-expo-image-inventory.mjs:21:6)
+    at walk (file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/native-expo-image-inventory.mjs:21:6)
+    at walk (file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/native-expo-image-inventory.mjs:21:6)
+    at walk (file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/native-expo-image-inventory.mjs:21:6)
+    at walk (file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/native-expo-image-inventory.mjs:21:6)
+    at inspectImage (file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/native-expo-image-inventory.mjs:52:2)
+    at file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/scripts/test-api-runtime-dependencies.mjs:76:20
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: '57.0.23+oxy.native.3',
+  expected: '57.0.23+oxy.native.1',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

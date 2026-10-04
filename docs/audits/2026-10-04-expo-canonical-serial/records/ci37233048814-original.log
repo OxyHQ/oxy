@@ -1,0 +1,559 @@
+Guards	Native Expo crypto: sealed fork and compatibility checks	﻿2026-10-04T20:41:57.3816952Z ##[group]Run python3 scripts/verify-native-expo-forks.py
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3817626Z [36;1mpython3 scripts/verify-native-expo-forks.py[0m
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3818154Z [36;1mPYTHONDONTWRITEBYTECODE=1 python3 scripts/test-verify-native-expo-forks.py[0m
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3818725Z [36;1mnode --test scripts/test-native-expo-image-inventory.mjs[0m
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3819212Z [36;1mnode --test scripts/test-native-expo-self-reference.cjs[0m
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3820479Z [36;1mbun install --cwd tooling/expo-code-signing-native --frozen-lockfile --minimum-release-age=0 --ignore-scripts[0m
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3821164Z [36;1mbun run --cwd tooling/expo-code-signing-native test[0m
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3821653Z [36;1mnode scripts/forge-independent-expo-compat.cjs packages/api[0m
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3883403Z shell: /usr/bin/bash -e {0}
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.3883706Z ##[endgroup]
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6316761Z {
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6317197Z   "schemaVersion": 1,
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6317622Z   "cliUpstream": "57.0.23",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6318120Z   "cliFork": "@oxy.so/expo-cli-native",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6318638Z   "changedUpstreamFiles": [
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6319072Z     "build/src/customize/templates.js",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6319779Z     "build/src/customize/templates.js.map",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6320285Z     "build/src/lint/ESlintPrerequisite.js",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6320802Z     "build/src/lint/ESlintPrerequisite.js.map",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6321365Z     "build/src/prebuild/resolveLocalTemplate.js",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6321952Z     "build/src/prebuild/resolveLocalTemplate.js.map",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6322507Z     "build/src/run/ios/codeSigning/Security.js",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6323036Z     "build/src/run/ios/codeSigning/Security.js.map",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6323629Z     "build/src/start/server/metro/MetroBundlerDevServer.js",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6324300Z     "build/src/start/server/metro/MetroBundlerDevServer.js.map",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6324997Z     "build/src/start/server/metro/createServerRouteMiddleware.js",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6325730Z     "build/src/start/server/metro/createServerRouteMiddleware.js.map",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6326381Z     "build/src/start/server/metro/externals.js",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6326920Z     "build/src/start/server/metro/externals.js.map",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6327503Z     "build/src/start/server/metro/withMetroMultiPlatform.js",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6328176Z     "build/src/start/server/metro/withMetroMultiPlatform.js.map",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6328842Z     "package.json"
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6329242Z   ],
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6329778Z   "unchangedUpstreamFiles": 781,
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6330245Z   "adapterFiles": 5,
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6330636Z   "forgeInLock": false,
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6331048Z   "installedValidation": {
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6331474Z     "comparedFiles": {
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6331857Z       "cli": 790,
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6332214Z       "adapter": 5,
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6332585Z       "cliAdapter": 5
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6332967Z     },
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6333327Z     "forgeResolvableFromAPIOrCLI": false
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6333822Z   },
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6334218Z   "publishedManifestLocalReferences": false,
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6334723Z   "archives": {
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6335379Z     "expo-cli-57.0.23-upstream.tgz": "a767f4d0abe78ba7a5f12d873d5e7e05872a24531a9601cebcdbe52e901eec8c",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6336715Z     "oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz": "e5735f981844667d962870d4c3597655069f6b4202a981333962de9b9bf42eb1",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6338181Z     "oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz": "2a33f912050a067fbdf627b217a048bb8e19de7b8239e195eac2e5a064bde53c",
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6339833Z     "oxy.so-expo-code-signing-native-0.1.1.tgz": "051e4b5266378caff00bc4ce369686ead6f1c4961b13579bcd5aa25131f4fb51"
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6340779Z   }
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:41:57.6341090Z }
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.2447269Z .........
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.2447903Z ----------------------------------------------------------------------
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.2448479Z Ran 9 tests in 2.555s
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.2449598Z 
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.2449987Z OK
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.2987866Z TAP version 13
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5632342Z # Traceback (most recent call last):
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5633715Z #   File "<string>", line 5, in <module>
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5640439Z #   File "/usr/lib/python3.12/tarfile.py", line 1882, in open
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5641436Z #     return func(name, "r", fileobj, **kwargs)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5642168Z #            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5642891Z #   File "/usr/lib/python3.12/tarfile.py", line 1950, in gzopen
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5644081Z #     fileobj = GzipFile(name, mode + "b", compresslevel, fileobj)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5647701Z #               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5650057Z #   File "/usr/lib/python3.12/gzip.py", line 192, in __init__
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5662843Z #     fileobj = self.myfileobj = builtins.open(filename, mode or 'rb')
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5663685Z #                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.5690613Z # FileNotFoundError: [Errno 2] No such file or directory: '/tmp/native-declared-KrvGes/vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6690586Z # Traceback (most recent call last):
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6691347Z #   File "<string>", line 8, in <module>
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6694284Z # AssertionError
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6765373Z # Subtest: actual native files and two identities are required
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6776254Z ok 1 - actual native files and two identities are required
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6776985Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6777448Z   duration_ms: 4.510348
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6778032Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6778470Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6781574Z # Subtest: cached unreachable Forge path is rejected
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6783444Z ok 2 - cached unreachable Forge path is rejected
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6784325Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6784559Z   duration_ms: 4.21714
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6784846Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6785102Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6786601Z # Subtest: renamed Forge package identity is rejected
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6788338Z ok 3 - renamed Forge package identity is rejected
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6789128Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6789711Z   duration_ms: 3.370956
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6790036Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6790464Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6805802Z # Subtest: tampered native code fails byte integrity
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6806832Z ok 4 - tampered native code fails byte integrity
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6807443Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6807678Z   duration_ms: 1.676967
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6807944Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6808179Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6809250Z # Subtest: missing native package fails even when Forge is absent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6811091Z ok 5 - missing native package fails even when Forge is absent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6811754Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6812100Z   duration_ms: 1.311053
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6812501Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6812844Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6814099Z # Subtest: native file symlink cannot substitute mounted proof bytes
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6816627Z ok 6 - native file symlink cannot substitute mounted proof bytes
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6817356Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6817559Z   duration_ms: 1.243766
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6817792Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6817986Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6819642Z # Subtest: historical archive cannot override the exact manifest selection
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6821336Z ok 7 - historical archive cannot override the exact manifest selection
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6821930Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6822389Z   duration_ms: 98.084159
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6822887Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6823319Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6823949Z # Subtest: declared archive must be local, present and have the exact package identity
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6830522Z ok 8 - declared archive must be local, present and have the exact package identity
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6831497Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6832440Z   duration_ms: 221.476203
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6833395Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6833947Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6835522Z # Subtest: old declared version cannot accept newly installed CLI bytes
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6837670Z ok 9 - old declared version cannot accept newly installed CLI bytes
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6838447Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6838659Z   duration_ms: 1.561091
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6838889Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6839080Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6920743Z 1..9
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6921122Z # tests 9
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6921812Z # suites 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6922451Z # pass 9
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6923236Z # fail 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6923692Z # cancelled 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6924290Z # skipped 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6924741Z # todo 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.6925272Z # duration_ms 406.5293
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.7365608Z TAP version 13
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8103753Z # Subtest: Metro externals imports without @expo/cli self alias and resolves own shim bytes
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8112887Z ok 1 - Metro externals imports without @expo/cli self alias and resolves own shim bytes
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8114093Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8114488Z   duration_ms: 3.209985
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8114906Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8115288Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8121862Z # Subtest: Polyfill resolver points at own real Metro require module without self alias
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8123788Z ok 2 - Polyfill resolver points at own real Metro require module without self alias
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8125228Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8125640Z   duration_ms: 1.700341
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8126066Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8126442Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8127607Z # Subtest: All remaining own template resolvers target packaged files; project lookup preserved
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8132567Z ok 3 - All remaining own template resolvers target packaged files; project lookup preserved
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8137179Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8137554Z   duration_ms: 1.273293
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8137819Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8138045Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8508978Z 1..3
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8509613Z # tests 3
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8509941Z # suites 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8511658Z # pass 3
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8513316Z # fail 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8513639Z # cancelled 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8520267Z # skipped 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8520478Z # todo 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8520816Z # duration_ms 126.495209
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8617791Z bun install v1.4.2 (744846f84)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8675795Z 
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8676354Z + @peculiar/asn1-csr@2.10.0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8677144Z + @peculiar/asn1-schema@2.10.0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8677877Z + @peculiar/asn1-x509@2.10.0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8678202Z 
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8678383Z 8 packages installed [9.00ms]
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.8712252Z $ node --test test/*.cjs
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:00.9180449Z TAP version 13
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1731120Z # Subtest: RSA pair has the default 2048-bit modulus and matching public exponent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1755566Z ok 1 - RSA pair has the default 2048-bit modulus and matching public exponent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1770543Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1771221Z   duration_ms: 1.077205
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1777260Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1777906Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1778514Z # Subtest: key-pair PEM round trip preserves both moduli
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1779264Z ok 2 - key-pair PEM round trip preserves both moduli
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1780275Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1780669Z   duration_ms: 0.692656
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1781106Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1781468Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1781991Z # Subtest: public-key PEM round trip preserves exponent and modulus
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1782833Z ok 3 - public-key PEM round trip preserves exponent and modulus
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1783450Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1783813Z   duration_ms: 0.194814
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1784205Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1784538Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1785021Z # Subtest: private-key PEM round trip preserves private exponent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1786302Z ok 4 - private-key PEM round trip preserves private exponent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1786882Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1787208Z   duration_ms: 0.237665
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1787593Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1787932Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1788523Z # Subtest: certificate PEM round trip verifies its self-signature
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1789569Z ok 5 - certificate PEM round trip verifies its self-signature
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1790198Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1790544Z   duration_ms: 0.410247
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1790959Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1791311Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1793522Z # Subtest: valid certificate and corresponding pair satisfy Expo validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1794807Z ok 6 - valid certificate and corresponding pair satisfy Expo validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1795969Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1796665Z   duration_ms: 1.132639
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1797356Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1797977Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1798846Z # Subtest: Expo manifest signature verifies with independent Node/OpenSSL SHA256
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1800433Z ok 7 - Expo manifest signature verifies with independent Node/OpenSSL SHA256
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1801572Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1802198Z   duration_ms: 0.283871
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1802872Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1803483Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1804316Z # Subtest: altered manifest bytes fail independent Node/OpenSSL verification
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1805548Z ok 8 - altered manifest bytes fail independent Node/OpenSSL verification
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1806533Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1807098Z   duration_ms: 0.232926
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1807773Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1808365Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1809215Z # Subtest: private key from another pair is rejected by Expo signing verification
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1810882Z ok 9 - private key from another pair is rejected by Expo signing verification
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1811883Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1812509Z   duration_ms: 1.442589
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1813197Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1813823Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1814672Z # Subtest: reversed certificate validity interval is rejected
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1815714Z ok 10 - reversed certificate validity interval is rejected
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1816618Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1817228Z   duration_ms: 0.932074
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1817964Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1818570Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1819592Z # Subtest: expired certificate is rejected by Expo validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1820660Z ok 11 - expired certificate is rejected by Expo validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1821518Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1822122Z   duration_ms: 7.005736
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1822791Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1823340Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1824070Z # Subtest: CSR PEM round trip verifies its signature and requested identity
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1825096Z ok 12 - CSR PEM round trip verifies its signature and requested identity
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1825884Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1826378Z   duration_ms: 1.668712
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1827017Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1827562Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1828467Z # Subtest: development certificate verifies its issuer and contains requested project scope
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1830011Z ok 13 - development certificate verifies its issuer and contains requested project scope
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1830921Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1831450Z   duration_ms: 4.321664
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1832019Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1832526Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1833262Z # Subtest: tampered CSR signature is rejected before development certificate issuance
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1834426Z ok 14 - tampered CSR signature is rejected before development certificate issuance
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1835321Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1835820Z   duration_ms: 2.033514
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1836377Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.1836874Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2164066Z # Subtest: native CSR verifies using system OpenSSL independently
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2172083Z ok 15 - native CSR verifies using system OpenSSL independently
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2173025Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2173388Z   duration_ms: 7.008531
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2173801Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2174152Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2174776Z # Subtest: system OpenSSL CSR retains CN/O/OU and verifies using native implementation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2178583Z ok 16 - system OpenSSL CSR retains CN/O/OU and verifies using native implementation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2179689Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2180183Z   duration_ms: 10.103545
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2180726Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2181155Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2181896Z # Subtest: system OpenSSL reads native certificate code-signing critical extensions
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2183077Z ok 17 - system OpenSSL reads native certificate code-signing critical extensions
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2184276Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2184784Z   duration_ms: 21.121092
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2185324Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2185797Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2186559Z # Subtest: native certificate is accepted as its exact self-signed OpenSSL trust anchor
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2187777Z ok 18 - native certificate is accepted as its exact self-signed OpenSSL trust anchor
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2188663Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2191460Z   duration_ms: 5.337896
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2191884Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2192231Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2192925Z # Subtest: trailing CSR ASN1 value is refused before signature validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2193886Z ok 19 - trailing CSR ASN1 value is refused before signature validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2194601Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2194946Z   duration_ms: 2.285095
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2195323Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2195639Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2196199Z # Subtest: nested extra CSR signature algorithm field is refused
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2196876Z ok 20 - nested extra CSR signature algorithm field is refused
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2197451Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2198319Z   duration_ms: 2.972631
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2198716Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2199153Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2199928Z # Subtest: nonempty NULL CSR algorithm parameter is refused on actual DER bytes
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2200924Z ok 21 - nonempty NULL CSR algorithm parameter is refused on actual DER bytes
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2201663Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2202019Z   duration_ms: 1.70483
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2202555Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2203031Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2203677Z # Subtest: unknown CSR algorithm is refused even with unchanged signature
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2204823Z ok 22 - unknown CSR algorithm is refused even with unchanged signature
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2205649Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2206114Z   duration_ms: 1.538709
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2206636Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2207097Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2208681Z # Subtest: CSR signature bit mutation stays denied before issuance
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2210070Z ok 23 - CSR signature bit mutation stays denied before issuance
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2210727Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2220546Z   duration_ms: 2.98799
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2221120Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2221480Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2221897Z # Subtest: PEM with a second object is refused
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2222494Z ok 24 - PEM with a second object is refused
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2222990Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2223334Z   duration_ms: 0.458818
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2223740Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2224080Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2224482Z # Subtest: invalid base64 padding is refused
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2225126Z ok 25 - invalid base64 padding is refused
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2225620Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2225971Z   duration_ms: 0.177472
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2226370Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2226788Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2227283Z # Subtest: wrong public/private key pair is refused by validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2228102Z ok 26 - wrong public/private key pair is refused by validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2228979Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2229780Z   duration_ms: 52.927272
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2230194Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2230550Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2231089Z # Subtest: OpenSSL RSA verifier accepts known-key canonical DigestInfo
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2231944Z ok 27 - OpenSSL RSA verifier accepts known-key canonical DigestInfo
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2232588Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2232943Z   duration_ms: 1.220814
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2233336Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2233680Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2234279Z # Subtest: OpenSSL RSA verifier rejects known-key extra-nested DigestInfo
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2250113Z ok 28 - OpenSSL RSA verifier rejects known-key extra-nested DigestInfo
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2269710Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2270101Z   duration_ms: 1.260869
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2270522Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2270868Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2271416Z # Subtest: OpenSSL RSA verifier rejects known-key nonempty-null DigestInfo
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2272304Z ok 29 - OpenSSL RSA verifier rejects known-key nonempty-null DigestInfo
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2272943Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2273271Z   duration_ms: 1.17593
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2273645Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2273980Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2274480Z # Subtest: OpenSSL RSA verifier rejects known-key trailing DigestInfo
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2275307Z ok 30 - OpenSSL RSA verifier rejects known-key trailing DigestInfo
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2275940Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2276298Z   duration_ms: 1.134472
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2276704Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2277057Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2277623Z # Subtest: certificate trailing DER cannot influence its parsed subject
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2278522Z ok 31 - certificate trailing DER cannot influence its parsed subject
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2279190Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2279816Z   duration_ms: 1.524873
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2280250Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2280612Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2281196Z # Subtest: mutated certificate signature cannot pass self-signed validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2282159Z ok 32 - mutated certificate signature cannot pass self-signed validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2282849Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2283216Z   duration_ms: 2.640629
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2283626Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2283978Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2284546Z # Subtest: unpaired UTF16 common name is refused before certificate issuance
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2285468Z ok 33 - unpaired UTF16 common name is refused before certificate issuance
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2286140Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2286501Z   duration_ms: 0.194393
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2286927Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2287294Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2287861Z # Subtest: actual forked Expo Security.js reads an OpenSSL EC certificate DN
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2288795Z ok 34 - actual forked Expo Security.js reads an OpenSSL EC certificate DN
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2289755Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2290136Z   duration_ms: 46.5544
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2290552Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2290954Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2291487Z # Subtest: oversized or non-string PEM is refused before DER parsing
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2292342Z ok 35 - oversized or non-string PEM is refused before DER parsing
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2292978Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2293326Z   duration_ms: 0.360975
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2293740Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2294096Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2294593Z # Subtest: EC PEM cannot be presented as an RSA code-signing key
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2295357Z ok 36 - EC PEM cannot be presented as an RSA code-signing key
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2295956Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2296313Z   duration_ms: 0.888543
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2296723Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2297080Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2370678Z 1..36
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2371402Z # tests 36
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2371882Z # suites 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2372245Z # pass 36
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2372808Z # fail 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2373311Z # cancelled 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2373933Z # skipped 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2381118Z # todo 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.2381635Z # duration_ms 335.384375
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4575648Z TAP version 13
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4592674Z # Subtest: RSA pair has the default 2048-bit modulus and matching public exponent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4597576Z ok 1 - RSA pair has the default 2048-bit modulus and matching public exponent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4598263Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4598614Z   duration_ms: 1.0799
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4599148Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4599662Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4601078Z # Subtest: key-pair PEM round trip preserves both moduli
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4602928Z ok 2 - key-pair PEM round trip preserves both moduli
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4603647Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4603867Z   duration_ms: 0.695642
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4604195Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4604433Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4605527Z # Subtest: public-key PEM round trip preserves exponent and modulus
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4607503Z ok 3 - public-key PEM round trip preserves exponent and modulus
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4608995Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4609202Z   duration_ms: 0.188593
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4609844Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4610176Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4611330Z # Subtest: private-key PEM round trip preserves private exponent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4612630Z ok 4 - private-key PEM round trip preserves private exponent
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4613477Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4613799Z   duration_ms: 0.26752
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4614165Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4614424Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4614863Z # Subtest: certificate PEM round trip verifies its self-signature
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4616037Z ok 5 - certificate PEM round trip verifies its self-signature
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4616704Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4617030Z   duration_ms: 0.305862
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4617396Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4617644Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4618288Z # Subtest: valid certificate and corresponding pair satisfy Expo validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4619719Z ok 6 - valid certificate and corresponding pair satisfy Expo validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4620717Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4620909Z   duration_ms: 1.09571
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4621207Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4621573Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4622614Z # Subtest: Expo manifest signature verifies with independent Node/OpenSSL SHA256
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4623594Z ok 7 - Expo manifest signature verifies with independent Node/OpenSSL SHA256
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4624132Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4624346Z   duration_ms: 0.319818
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4624654Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4624887Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4625895Z # Subtest: altered manifest bytes fail independent Node/OpenSSL verification
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4626892Z ok 8 - altered manifest bytes fail independent Node/OpenSSL verification
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4627395Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4627598Z   duration_ms: 0.232024
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4627845Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4628045Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4629830Z # Subtest: private key from another pair is rejected by Expo signing verification
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4630997Z ok 9 - private key from another pair is rejected by Expo signing verification
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4631776Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4632148Z   duration_ms: 1.402063
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4632545Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4633016Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4633511Z # Subtest: reversed certificate validity interval is rejected
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4634557Z ok 10 - reversed certificate validity interval is rejected
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4635102Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4635326Z   duration_ms: 1.01026
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4635657Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4635882Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4636758Z # Subtest: expired certificate is rejected by Expo validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4637873Z ok 11 - expired certificate is rejected by Expo validation
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4638413Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4638638Z   duration_ms: 6.848172
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4638956Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4640120Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4640839Z # Subtest: CSR PEM round trip verifies its signature and requested identity
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4641776Z ok 12 - CSR PEM round trip verifies its signature and requested identity
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4642399Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4642721Z   duration_ms: 1.621173
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4643105Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4643454Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4644094Z # Subtest: development certificate verifies its issuer and contains requested project scope
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4647187Z not ok 13 - development certificate verifies its issuer and contains requested project scope
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4647982Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4648305Z   duration_ms: 4.21204
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4648652Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4649459Z   location: '/home/runner/work/oxy/oxy/scripts/forge-independent-expo-compat.cjs:77:1'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4650302Z   failureType: 'testCodeFailure'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4654196Z   error: 'error:0480006C:PEM routines::no start line'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4654608Z   code: 'ERR_OSSL_PEM_NO_START_LINE'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4654918Z   stack: |-
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4655208Z     new X509Certificate (node:internal/crypto/x509:119:21)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4656284Z     certificateView (/home/runner/work/oxy/oxy/node_modules/.bun/@oxy.so+expo-code-signing-native@.+vendor+expo-native+oxy.so-expo-code-signing-native-0.1.1.tgz/node_modules/@oxy.so/expo-code-signing-native/index.cjs:195:17)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4657902Z     issue (/home/runner/work/oxy/oxy/node_modules/.bun/@oxy.so+expo-code-signing-native@.+vendor+expo-native+oxy.so-expo-code-signing-native-0.1.1.tgz/node_modules/@oxy.so/expo-code-signing-native/index.cjs:287:9)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4659935Z     Object.generateDevelopmentCertificateFromCSR (/home/runner/work/oxy/oxy/node_modules/.bun/@oxy.so+expo-code-signing-native@.+vendor+expo-native+oxy.so-expo-code-signing-native-0.1.1.tgz/node_modules/@oxy.so/expo-code-signing-native/index.cjs:432:9)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4661358Z     TestContext.<anonymous> (/home/runner/work/oxy/oxy/scripts/forge-independent-expo-compat.cjs:78:20)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4661949Z     Test.runInAsyncScope (node:async_hooks:214:14)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4662578Z     Test.run (node:internal/test_runner/test:1047:25)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4663313Z     Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4664062Z     Test.postRun (node:internal/test_runner/test:1173:19)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4664682Z     Test.run (node:internal/test_runner/test:1101:12)
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4665195Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4665801Z # Subtest: tampered CSR signature is rejected before development certificate issuance
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4666785Z ok 14 - tampered CSR signature is rejected before development certificate issuance
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4667482Z   ---
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4667813Z   duration_ms: 1.473938
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4668190Z   type: 'test'
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4668513Z   ...
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4668793Z 1..14
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4669001Z # tests 14
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4669217Z # suites 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4669684Z # pass 13
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4669903Z # fail 1
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4670117Z # cancelled 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4670338Z # skipped 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4670553Z # todo 0
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4670766Z # duration_ms 35.156849
+Guards	Native Expo crypto: sealed fork and compatibility checks	2026-10-04T20:42:01.4745405Z ##[error]Process completed with exit code 1.
+CI complete	Require every CI job to have passed	﻿2026-10-04T20:47:53.1745515Z ##[group]Run bun scripts/check-ci-complete.mjs
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.1745967Z [36;1mbun scripts/check-ci-complete.mjs[0m
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.1810705Z shell: /usr/bin/bash -e {0}
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.1811011Z env:
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.1812636Z   NEEDS_JSON: {
+CI complete	Require every CI job to have passed	  "scope": {
+CI complete	Require every CI job to have passed	    "result": "success",
+CI complete	Require every CI job to have passed	    "outputs": {
+CI complete	Require every CI job to have passed	      "api": "true",
+CI complete	Require every CI job to have passed	      "platform": "true",
+CI complete	Require every CI job to have passed	      "apps": "true"
+CI complete	Require every CI job to have passed	    }
+CI complete	Require every CI job to have passed	  },
+CI complete	Require every CI job to have passed	  "guards": {
+CI complete	Require every CI job to have passed	    "result": "failure",
+CI complete	Require every CI job to have passed	    "outputs": {}
+CI complete	Require every CI job to have passed	  },
+CI complete	Require every CI job to have passed	  "api-test": {
+CI complete	Require every CI job to have passed	    "result": "success",
+CI complete	Require every CI job to have passed	    "outputs": {}
+CI complete	Require every CI job to have passed	  },
+CI complete	Require every CI job to have passed	  "api-coverage": {
+CI complete	Require every CI job to have passed	    "result": "success",
+CI complete	Require every CI job to have passed	    "outputs": {}
+CI complete	Require every CI job to have passed	  },
+CI complete	Require every CI job to have passed	  "api-build": {
+CI complete	Require every CI job to have passed	    "result": "success",
+CI complete	Require every CI job to have passed	    "outputs": {}
+CI complete	Require every CI job to have passed	  },
+CI complete	Require every CI job to have passed	  "packages-platform": {
+CI complete	Require every CI job to have passed	    "result": "success",
+CI complete	Require every CI job to have passed	    "outputs": {}
+CI complete	Require every CI job to have passed	  },
+CI complete	Require every CI job to have passed	  "packages-apps": {
+CI complete	Require every CI job to have passed	    "result": "success",
+CI complete	Require every CI job to have passed	    "outputs": {}
+CI complete	Require every CI job to have passed	  },
+CI complete	Require every CI job to have passed	  "android-kotlin": {
+CI complete	Require every CI job to have passed	    "result": "success",
+CI complete	Require every CI job to have passed	    "outputs": {}
+CI complete	Require every CI job to have passed	  }
+CI complete	Require every CI job to have passed	}
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.1814819Z   EVENT_NAME: pull_request
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.1815088Z ##[endgroup]
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.2012823Z CI is NOT complete:
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.2013592Z 
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.2014024Z - `guards` failed.
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.2014459Z 
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.2015018Z `CI complete` is the only status check `main` requires. It is red, so this pull request
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.2016416Z cannot merge — which is the mechanism working, not a flake to re-run around.
+CI complete	Require every CI job to have passed	2026-10-04T20:47:53.2039918Z ##[error]Process completed with exit code 1.

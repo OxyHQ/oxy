@@ -1,0 +1,110 @@
+• turbo 2.10.12
+
+   • Packages in scope: accounts
+   • Running build in 1 packages
+   • Remote caching disabled, using shared worktree cache
+
+@oxy.so/telemetry:build: cache miss, executing 004df5d4e5e5ba62
+@oxy.so/expo-splash:build: cache miss, executing 4a7d0e2d239f5503
+@oxy.so/contracts:build: cache miss, executing 16062417437a46b1
+@oxy.so/telemetry:build: $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/contracts:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/expo-splash:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/contracts:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/telemetry:build: $ rm -rf dist
+@oxy.so/telemetry:build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/telemetry:build: $ tsc -p tsconfig.esm.json
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/telemetry:build: $ tsc -p tsconfig.types.json
+@oxy.so/expo-splash:build: ESM imports fixed
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.types.json
+@oxy.so/contracts:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/contracts:build: ESM imports fixed
+@oxy.so/contracts:build: $ tsc -p tsconfig.types.json
+@oxy.so/protocol:build: cache miss, executing 0efda94c23dd556c
+@oxy.so/protocol:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/protocol:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/protocol:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/protocol:build: ESM imports fixed
+@oxy.so/protocol:build: $ tsc -p tsconfig.types.json
+@oxy.so/core:build: cache miss, executing ab7a23d1f6ac315b
+@oxy.so/core:build: $ node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs
+@oxy.so/core:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/core:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/core:build: ESM imports fixed
+@oxy.so/core:build: $ tsc -p tsconfig.types.json
+@oxy.so/services:build: cache miss, executing bc91057c11b92404
+@oxy.so/services:build: $ bun run check:icon-fonts && bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view
+@oxy.so/services:build: $ node scripts/check-icon-font-subsets.mjs
+@oxy.so/services:build: Services icon subsets match source usage, package version and recorded hashes.
+@oxy.so/services:build: ℹ [commonjs] Cleaning up previous build at lib/commonjs
+@oxy.so/services:build: ℹ [commonjs] Compiling 277 files in src with babel
+@oxy.so/services:build: ✔ [commonjs] Wrote files to lib/commonjs
+@oxy.so/services:build: ℹ [module] Cleaning up previous build at lib/module
+@oxy.so/services:build: ℹ [module] Compiling 277 files in src with babel
+@oxy.so/services:build: ✔ [module] Wrote files to lib/module
+@oxy.so/services:build: ℹ [typescript] Cleaning up previous build at lib/typescript
+@oxy.so/services:build: ℹ [typescript] Generating type definitions with tsc
+@oxy.so/services:build: ✔ [typescript] Wrote definition files to lib/typescript
+@oxy.so/services:build: $ copyfiles -u 1 "src/assets/**/*" lib/commonjs/assets && copyfiles -u 1 "src/assets/**/*" lib/module/assets
+@oxy.so/services:build: $ copyfiles -u 1 "src/**/*.d.ts" lib/typescript
+@oxy.so/services:build: $ find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete
+@oxy.so/services:build: $ rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true
+@oxy.so/services:build: $ node scripts/verify-package.mjs
+@oxy.so/services:build: [verify-package] ok — @oxy.so/services@11.1.0 packs 2418 files (2084 under lib/), all 33 exports targets resolve, every module declared (251 in lib/commonjs/, 251 in lib/module/), no unsubstituted dependency protocol
+accounts:build: cache miss, executing 9e5b97a93a7d6d9e
+accounts:build: $ node scripts/export-web.js && bun ../core/scripts/writePagesHeaders.ts dist
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: React Compiler enabled
+accounts:build: Expo Autolinking module resolution enabled
+accounts:build: Error: Cannot find module '@expo/cli/build/metro-require/require'
+accounts:build: Require stack:
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/withMetroMultiPlatform.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/instantiateMetro.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/MetroBundlerDevServer.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/exportApp.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/exportAsync.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/index.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/bin/cli
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/expo@57.0.21/node_modules/expo/bin/cli
+accounts:build: Error: Cannot find module '@expo/cli/build/metro-require/require'
+accounts:build: Require stack:
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/withMetroMultiPlatform.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/instantiateMetro.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/MetroBundlerDevServer.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/exportApp.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/exportAsync.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/index.js
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/bin/cli
+accounts:build: - /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/expo@57.0.21/node_modules/expo/bin/cli
+accounts:build:     at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+accounts:build:     at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+accounts:build:     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+accounts:build:     at require.resolve (node:internal/modules/helpers:175:31)
+accounts:build:     at withMetroMultiPlatformAsync (/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/withMetroMultiPlatform.js:798:42)
+accounts:build:     at loadMetroConfigAsync (/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/instantiateMetro.js:286:76)
+accounts:build:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+accounts:build:     at async instantiateMetroAsync (/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/instantiateMetro.js:324:65)
+accounts:build:     at async MetroBundlerDevServer.startImplementationAsync (/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/MetroBundlerDevServer.js:930:82)
+accounts:build:     at async MetroBundlerDevServer.startAsync (/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.2.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/BundlerDevServer.js:124:24)
+accounts:build: 
+accounts:build: Export failed with exit code 1
+accounts:build: error: script "build" exited with code 1
+accounts#build:  ERROR  command (/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/packages/accounts) /home/nate/.bun/bin/bun run build exited (1)
+
+ Tasks:    6 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    30.68s 
+Failed:    accounts#build
+
+ ERROR  run failed: command  exited (1)

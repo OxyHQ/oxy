@@ -1,0 +1,38 @@
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+    with tarfile.open(selection['archive']) as source:
+         ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/tarfile.py", line 1905, in open
+    return func(name, "r", fileobj, **kwargs)
+  File "/usr/lib/python3.13/tarfile.py", line 1973, in gzopen
+    fileobj = GzipFile(name, mode + "b", compresslevel, fileobj)
+  File "/usr/lib/python3.13/gzip.py", line 203, in __init__
+    fileobj = self.myfileobj = builtins.open(filename, mode or 'rb')
+                               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/native-declared-iCdwza/vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz'
+Traceback (most recent call last):
+  File "<string>", line 8, in <module>
+    assert package['name']==selection['identity']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+✔ actual native files and two identities are required (2.449895ms)
+✔ cached unreachable Forge path is rejected (2.406918ms)
+✔ renamed Forge package identity is rejected (0.675469ms)
+✔ tampered native code fails byte integrity (0.620454ms)
+✔ missing native package fails even when Forge is absent (0.441481ms)
+✔ native file symlink cannot substitute mounted proof bytes (0.408441ms)
+✔ historical archive cannot override the exact manifest selection (62.343197ms)
+✔ declared archive must be local, present and have the exact package identity (46.380843ms)
+✔ old declared version cannot accept newly installed CLI bytes (0.539613ms)
+✔ each file-install Docker stage receives both declared native archives (0.493533ms)
+✔ Metro externals imports without @expo/cli self alias and resolves own shim bytes (1.66866ms)
+✔ Polyfill resolver points at own real Metro require module without self alias (1.123937ms)
+✔ All remaining own template resolvers target packaged files; project lookup preserved (0.554212ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 159.348692

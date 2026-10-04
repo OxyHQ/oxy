@@ -1,0 +1,241 @@
+• turbo 2.10.12
+
+   • Packages in scope: accounts
+   • Running build in 1 packages
+   • Remote caching disabled, using shared worktree cache
+
+@oxy.so/telemetry:build: cache miss, executing 188d96eb732f9210
+@oxy.so/expo-splash:build: cache miss, executing e96eeaeb461e88a7
+@oxy.so/contracts:build: cache miss, executing 56169ff32e1041fd
+@oxy.so/telemetry:build: $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/expo-splash:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/contracts:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/telemetry:build: $ rm -rf dist
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/contracts:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/telemetry:build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/contracts:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/telemetry:build: $ tsc -p tsconfig.esm.json
+@oxy.so/contracts:build: ESM imports fixed
+@oxy.so/contracts:build: $ tsc -p tsconfig.types.json
+@oxy.so/expo-splash:build: ESM imports fixed
+@oxy.so/expo-splash:build: $ tsc -p tsconfig.types.json
+@oxy.so/telemetry:build: $ tsc -p tsconfig.types.json
+@oxy.so/protocol:build: cache miss, executing 860d352622114049
+@oxy.so/protocol:build: $ bun run build:cjs && bun run build:esm && bun run build:types
+@oxy.so/protocol:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/protocol:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/protocol:build: ESM imports fixed
+@oxy.so/protocol:build: $ tsc -p tsconfig.types.json
+@oxy.so/core:build: cache miss, executing 778d9e0f78344fa4
+@oxy.so/core:build: $ node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs
+@oxy.so/core:build: $ tsc -p tsconfig.cjs.json
+@oxy.so/core:build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/core:build: ESM imports fixed
+@oxy.so/core:build: $ tsc -p tsconfig.types.json
+@oxy.so/services:build: cache miss, executing d3e8e184d00d5535
+@oxy.so/services:build: $ bun run check:icon-fonts && bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view
+@oxy.so/services:build: $ node scripts/check-icon-font-subsets.mjs
+@oxy.so/services:build: Services icon subsets match source usage, package version and recorded hashes.
+@oxy.so/services:build: ℹ [commonjs] Cleaning up previous build at lib/commonjs
+@oxy.so/services:build: ℹ [commonjs] Compiling 277 files in src with babel
+@oxy.so/services:build: ✔ [commonjs] Wrote files to lib/commonjs
+@oxy.so/services:build: ℹ [module] Cleaning up previous build at lib/module
+@oxy.so/services:build: ℹ [module] Compiling 277 files in src with babel
+@oxy.so/services:build: ✔ [module] Wrote files to lib/module
+@oxy.so/services:build: ℹ [typescript] Cleaning up previous build at lib/typescript
+@oxy.so/services:build: ℹ [typescript] Generating type definitions with tsc
+@oxy.so/services:build: ✔ [typescript] Wrote definition files to lib/typescript
+@oxy.so/services:build: $ copyfiles -u 1 "src/assets/**/*" lib/commonjs/assets && copyfiles -u 1 "src/assets/**/*" lib/module/assets
+@oxy.so/services:build: $ copyfiles -u 1 "src/**/*.d.ts" lib/typescript
+@oxy.so/services:build: $ find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete
+@oxy.so/services:build: $ rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true
+@oxy.so/services:build: $ node scripts/verify-package.mjs
+@oxy.so/services:build: [verify-package] ok — @oxy.so/services@11.1.0 packs 2418 files (2084 under lib/), all 33 exports targets resolve, every module declared (251 in lib/commonjs/, 251 in lib/module/), no unsubstituted dependency protocol
+accounts:build: cache miss, executing d3f2a53e82dddb2d
+accounts:build: $ node scripts/export-web.js && bun ../core/scripts/writePagesHeaders.ts dist
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: React Compiler enabled
+accounts:build: Expo Autolinking module resolution enabled
+accounts:build: Starting Metro Bundler
+accounts:build: 
+accounts:build: Static rendering is enabled. Learn more: https://docs.expo.dev/router/web/static-rendering/
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | (node:1942455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+accounts:build: | (Use `node --trace-warnings ...` to show where the warning was created)
+accounts:build: | [33m» [1mandroid[22m: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".[39m
+accounts:build: | [33m» [1mios[22m: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".[39m
+accounts:build: | [33m» [1mandroid[22m: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".[39m
+accounts:build: | [33m» [1mios[22m: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".[39m
+accounts:build:  WARN  Attempted to import the module "/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@noble+hashes@1.8.0/node_modules/@noble/hashes/crypto.js" which is not listed in the "exports" of "/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@noble+hashes@1.8.0/node_modules/@noble/hashes" under the requested subpath "./crypto.js". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+accounts:build: λ Bundled 32621ms node_modules/.bun/@expo+router-server@57.0.9/node_modules/@expo/router-server/node/render.js (4631 modules)
+accounts:build: » android: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: » ios: @oxy.so/app-preset/plugin/withOxyUpdates: The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in at build time). Do not ship this binary to a store. See the app-preset README, section "Oxy Updates (OTA)".
+accounts:build: Web Bundled 33749ms node_modules/.bun/expo-router@57.0.20/node_modules/expo-router/entry.js (4232 modules)
+accounts:build: 
+accounts:build: › web bundles (75):
+accounts:build: _expo/static/css/global-6da08a638ccf36bf408868d103e4c7be.css (52KB)
+accounts:build: _expo/static/js/web/__common-63e34ef6cfdbec8faa6590b118e8b25e.js (13KB)
+accounts:build: _expo/static/js/web/__expo-metro-runtime-beff96064147bde5b1983fe629d44cbe.js (3.8KB)
+accounts:build: _expo/static/js/web/AccountMembersScreen-9c9229d2c821e89ba20100a9162124b3.js (14KB)
+accounts:build: _expo/static/js/web/AccountSettingsScreen-9656afeebf71641372dc48f208fb1158.js (8.2KB)
+accounts:build: _expo/static/js/web/AccountVerificationScreen-c654687f2bc85d528bc3d34ea30d1339.js (4.9KB)
+accounts:build: _expo/static/js/web/AppInfoScreen-ef991f1eefdac9d40ba765b503a9c96b.js (12KB)
+accounts:build: _expo/static/js/web/ar-8970672313956903b8bcec42633e2a65.js (178KB)
+accounts:build: _expo/static/js/web/ar-SA-f187eae4c889ea74c4c6895663dac974.js (35KB)
+accounts:build: _expo/static/js/web/AvatarCropScreen-9d65d431740c036de47561e5d86db446.js (21KB)
+accounts:build: _expo/static/js/web/bn-1583b714c2a8e3a5958ee1eaa5e95c06.js (173KB)
+accounts:build: _expo/static/js/web/ca-ES-4f826b19fcc94afcbe45b3e58dad2505.js (13KB)
+accounts:build: _expo/static/js/web/ca-fd3fb68a378339eb2092530b267483a0.js (67KB)
+accounts:build: _expo/static/js/web/ChangeAvatarScreen-61328d9a4ab0e43c62b723aaeb008c35.js (4.3KB)
+accounts:build: _expo/static/js/web/ConnectedAppsScreen-11d4fcd4e2432659d34e97e20ab2ba5b.js (3.1KB)
+accounts:build: _expo/static/js/web/CreateAccountScreen-1100c4310d79e0908ebd679e59bf85a0.js (7.5KB)
+accounts:build: _expo/static/js/web/de-96c43d6daa83441e4492398deb485d3e.js (66KB)
+accounts:build: _expo/static/js/web/de-DE-294732f9cb097d6d7e63c811e2b3679e.js (14KB)
+accounts:build: _expo/static/js/web/DeleteAccountScreen-60a2c69cc7f8f2d1e7bc0ecac1f7904c.js (348B)
+accounts:build: _expo/static/js/web/DomainsScreen-bcf10bc4f649601e76ae3c2a88822d71.js (5.9KB)
+accounts:build: _expo/static/js/web/EditProfileFieldScreen-57580c69505eb9220bb2b01a07710309.js (16KB)
+accounts:build: _expo/static/js/web/EditProfileScreen-465f625d92edd17e8777832f7fb6e596.js (3.5KB)
+accounts:build: _expo/static/js/web/entry-d6de1968867b1aa902b912913db7102a.js (8.5MB)
+accounts:build: _expo/static/js/web/es-20a76c214430de5ee5aa745f8477873c.js (67KB)
+accounts:build: _expo/static/js/web/es-ES-9a1b4d6cb703484a2a36e779d9927e10.js (67KB)
+accounts:build: _expo/static/js/web/FileManagementScreen-1cb4755c9711037599c0e256230e639c.js (107KB)
+accounts:build: _expo/static/js/web/FollowersListScreen-554b7724141a07f7815fc53025c9106a.js (312B)
+accounts:build: _expo/static/js/web/FollowingListScreen-5cce3950c31cfd1994905dde62de453e.js (312B)
+accounts:build: _expo/static/js/web/fr-5043f43efb84d7ea58d748001ef6f0e3.js (70KB)
+accounts:build: _expo/static/js/web/fr-FR-51fc9936702c906610b0ccdf796947f1.js (14KB)
+accounts:build: _expo/static/js/web/HelpSupportScreen-badd97768609ef0f84a63d77a01cce35.js (3.5KB)
+accounts:build: _expo/static/js/web/hi-1b3bbbb4a7efc32787e685468fad8135.js (168KB)
+accounts:build: _expo/static/js/web/HistoryViewScreen-0d3c363ef3071ce783b9f1918507ca44.js (3.9KB)
+accounts:build: _expo/static/js/web/id-171b117c13bb27d26146906f1c55d9b3.js (61KB)
+accounts:build: _expo/static/js/web/ImagePicker-9f1d988df823bf172aaf0fb9b0fc409c.js (8.6KB)
+accounts:build: _expo/static/js/web/index-14857a964b5085ad5e9c7bd6377f0ab5.js (45KB)
+accounts:build: _expo/static/js/web/index-460f132032ebd7c5413399fc332160bd.js (54KB)
+accounts:build: _expo/static/js/web/index-660c1b8dccc40701e8f8e48619d45948.js (2.1KB)
+accounts:build: _expo/static/js/web/index-b00a5e32f93a3c7f32c50ab0d23a4add.js (13KB)
+accounts:build: _expo/static/js/web/internal-43b3cfdc66d9d8a58a834a81ed000882.js (2.4KB)
+accounts:build: _expo/static/js/web/it-f6bf8046a428e3f66ac5315794f0a864.js (65KB)
+accounts:build: _expo/static/js/web/it-IT-575afe25abc35bd7d8822fea000268f1.js (13KB)
+accounts:build: _expo/static/js/web/ja-4a38d1930d8ff9d90e4c00ffc9606f4e.js (104KB)
+accounts:build: _expo/static/js/web/ja-JP-d3ac94230d86b97e8f0448bea19c790e.js (26KB)
+accounts:build: _expo/static/js/web/ko-KR-91f360825ff1e15815201e6f9cd1f532.js (21KB)
+accounts:build: _expo/static/js/web/LanguageSelectorScreen-cbaaa7fa5392448b9bdb9b8dd6fa8d18.js (3.6KB)
+accounts:build: _expo/static/js/web/LearnMoreUsernamesScreen-1ef664c37a44c8a033ee931ca87fe079.js (2.9KB)
+accounts:build: _expo/static/js/web/LegalDocumentsScreen-0e69c10c9a993a05085df0eb57233ce9.js (4.4KB)
+accounts:build: _expo/static/js/web/LinkCommonsScreen-21c3ee14a3d53c3eb77a92c90ca4b3e9.js (313B)
+accounts:build: _expo/static/js/web/ManageAccountScreen-b2b53d6c675e832837b85522a9d4fbab.js (21KB)
+accounts:build: _expo/static/js/web/NotificationsScreen-f7fdccfdc4c6d95204a566905e4be760.js (4.2KB)
+accounts:build: _expo/static/js/web/OxyAccountDialogScreen-e274047d611ef3cfa4e4eb75a8a90785.js (25KB)
+accounts:build: _expo/static/js/web/PaymentGatewayScreen-23731297a85681da982c08a50178bb64.js (35KB)
+accounts:build: _expo/static/js/web/PreferencesScreen-f6be1261ae3ca8b72cad9fbab72a1f10.js (3.4KB)
+accounts:build: _expo/static/js/web/PrivacySettingsScreen-2f589184c59d6b3b309079fef8356b7c.js (12KB)
+accounts:build: _expo/static/js/web/ProfileScreen-fe05d25c947092fb32cad3da8eb31680.js (9KB)
+accounts:build: _expo/static/js/web/pt-b8f279b9458810e24160aa28490cd8a5.js (67KB)
+accounts:build: _expo/static/js/web/pt-PT-9794b1b9350d354e86b3426ae36a4ffe.js (14KB)
+accounts:build: _expo/static/js/web/ru-4c6634b312c56b59608b3976e06a4dbf.js (199KB)
+accounts:build: _expo/static/js/web/SearchSettingsScreen-b75b9cd786ececd3f40a9a3d180f4ef1.js (3.4KB)
+accounts:build: _expo/static/js/web/SecureStore-946450eead3ad6d146416b16e5d480a3.js (2.4KB)
+accounts:build: _expo/static/js/web/SignInAuthenticatorScreen-0b9734bfc9772a4852ad56697f6b2996.js (315B)
+accounts:build: _expo/static/js/web/SignInPasswordScreen-aea6b2c5ba2f1aa9012df63b77949067.js (355B)
+accounts:build: _expo/static/js/web/tr-e4eac2afd661340c24941479055e7ac4.js (71KB)
+accounts:build: _expo/static/js/web/TrustAboutScreen-10a567548ac92df468722f18c83ca0c2.js (2.8KB)
+accounts:build: _expo/static/js/web/TrustCenterScreen-4be2b276f4ed892aa728dd017fa71a7c.js (5.1KB)
+accounts:build: _expo/static/js/web/TrustFAQScreen-f1d25d1dbf2b96e7b23cce2e2e3c6980.js (2.3KB)
+accounts:build: _expo/static/js/web/TrustLeaderboardScreen-ea50b5b1d6cd6478cc8d90c5ba6f2a39.js (5.2KB)
+accounts:build: _expo/static/js/web/TrustRewardsScreen-f819eca7695ceb5d8e6ee67c59a7f37b.js (13KB)
+accounts:build: _expo/static/js/web/TrustRulesScreen-f4d90dc13e859336b9a1c17dce645347.js (2.7KB)
+accounts:build: _expo/static/js/web/UserLinksScreen-d1e1622834c9d19d2a253b8c872c4ff6.js (1.1KB)
+accounts:build: _expo/static/js/web/WebBrowser-93052aea902e4f0285686ac21479bed8.js (8.3KB)
+accounts:build: _expo/static/js/web/WelcomeNewUserScreen-c43d0f6e2b9577f3d12871553c3d91c2.js (8.6KB)
+accounts:build: _expo/static/js/web/zh-c23844856c29fead46b3b6f28d53181f.js (81KB)
+accounts:build: _expo/static/js/web/zh-CN-a8c1317b8524cbcd67f715a092a751d6.js (18KB)
+accounts:build: 
+accounts:build: › Static routes (37):
+accounts:build: /data (43KB)
+accounts:build: / (index) (43KB)
+accounts:build: /agency (43KB)
+accounts:build: /family (43KB)
+accounts:build: /search (43KB)
+accounts:build: /scan-qr (43KB)
+accounts:build: /sharing (43KB)
+accounts:build: /storage (43KB)
+accounts:build: /_sitemap (31KB)
+accounts:build: /activity (43KB)
+accounts:build: /payments (43KB)
+accounts:build: /security (43KB)
+accounts:build: /sessions (43KB)
+accounts:build: /authorize (43KB)
+accounts:build: /+not-found (31KB)
+accounts:build: /(tabs)/data (43KB)
+accounts:build: /(auth) (43KB)
+accounts:build: /(tabs) (43KB)
+accounts:build: /(tabs)/agency (43KB)
+accounts:build: /(tabs)/family (43KB)
+accounts:build: /personal-info (43KB)
+accounts:build: /(tabs)/search (43KB)
+accounts:build: /devices (43KB)
+accounts:build: /(tabs)/scan-qr (43KB)
+accounts:build: /(tabs)/sharing (43KB)
+accounts:build: /(tabs)/storage (43KB)
+accounts:build: /(tabs)/activity (43KB)
+accounts:build: /(tabs)/payments (43KB)
+accounts:build: /(tabs)/security (43KB)
+accounts:build: /(tabs)/sessions (43KB)
+accounts:build: /(tabs)/authorize (43KB)
+accounts:build: /managed-accounts (43KB)
+accounts:build: /devices/[deviceId] (43KB)
+accounts:build: /(tabs)/personal-info (43KB)
+accounts:build: /(tabs)/devices (43KB)
+accounts:build: /(tabs)/managed-accounts (43KB)
+accounts:build: /(tabs)/devices/[deviceId] (43KB)
+accounts:build: 
+accounts:build: Exported: dist
+accounts:build: 
+accounts:build: Export completed. Killing hung process group.
+accounts:build: Wrote /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/packages/accounts/dist/_headers (scanned 37 HTML file(s))
+
+ Tasks:    7 successful, 7 total
+Cached:    0 cached, 7 total
+  Time:    54.734s 
+

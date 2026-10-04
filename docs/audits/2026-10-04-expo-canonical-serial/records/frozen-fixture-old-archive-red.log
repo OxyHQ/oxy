@@ -1,0 +1,70 @@
+✖ both certificate issuers encode a canonical positive serial: redundant leading zero (4.850082ms)
+✖ both certificate issuers encode a canonical positive serial: multiple leading zeros (2.660041ms)
+✔ both certificate issuers encode a canonical positive serial: required sign padding (4.473382ms)
+✖ both certificate issuers encode a canonical positive serial: all-zero entropy remains nonzero (2.270971ms)
+✔ both certificate issuers encode a canonical positive serial: high entropy remains positive (4.096072ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 2
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 112.174388
+
+✖ failing tests:
+
+test at test/serial-canonical.cjs:21:3
+✖ both certificate issuers encode a canonical positive serial: redundant leading zero (4.850082ms)
+  Error: error:0480006C:PEM routines::no start line
+      at new X509Certificate (node:internal/crypto/x509:121:21)
+      at certificateView (/tmp/expo-serial-old-ip9yf09e/index.cjs:195:17)
+      at issue (/tmp/expo-serial-old-ip9yf09e/index.cjs:287:9)
+      at Object.generateSelfSignedCodeSigningCertificate (/tmp/expo-serial-old-ip9yf09e/index.cjs:296:9)
+      at TestContext.<anonymous> (/tmp/expo-serial-old-ip9yf09e/test/serial-canonical.cjs:26:24)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    library: 'PEM routines',
+    reason: 'no start line',
+    code: 'ERR_OSSL_PEM_NO_START_LINE'
+  }
+
+test at test/serial-canonical.cjs:21:3
+✖ both certificate issuers encode a canonical positive serial: multiple leading zeros (2.660041ms)
+  Error: error:0480006C:PEM routines::no start line
+      at new X509Certificate (node:internal/crypto/x509:121:21)
+      at certificateView (/tmp/expo-serial-old-ip9yf09e/index.cjs:195:17)
+      at issue (/tmp/expo-serial-old-ip9yf09e/index.cjs:287:9)
+      at Object.generateSelfSignedCodeSigningCertificate (/tmp/expo-serial-old-ip9yf09e/index.cjs:296:9)
+      at TestContext.<anonymous> (/tmp/expo-serial-old-ip9yf09e/test/serial-canonical.cjs:26:24)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12) {
+    library: 'PEM routines',
+    reason: 'no start line',
+    code: 'ERR_OSSL_PEM_NO_START_LINE'
+  }
+
+test at test/serial-canonical.cjs:21:3
+✖ both certificate issuers encode a canonical positive serial: all-zero entropy remains nonzero (2.270971ms)
+  Error: error:0480006C:PEM routines::no start line
+      at new X509Certificate (node:internal/crypto/x509:121:21)
+      at certificateView (/tmp/expo-serial-old-ip9yf09e/index.cjs:195:17)
+      at issue (/tmp/expo-serial-old-ip9yf09e/index.cjs:287:9)
+      at Object.generateSelfSignedCodeSigningCertificate (/tmp/expo-serial-old-ip9yf09e/index.cjs:296:9)
+      at TestContext.<anonymous> (/tmp/expo-serial-old-ip9yf09e/test/serial-canonical.cjs:26:24)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12) {
+    library: 'PEM routines',
+    reason: 'no start line',
+    code: 'ERR_OSSL_PEM_NO_START_LINE'
+  }
+$ node --test test/serial-canonical.cjs
+error: script "test" exited with code 1

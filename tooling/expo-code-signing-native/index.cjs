@@ -262,9 +262,12 @@ function issue({
 		notAfter > notBefore,
 		"validityNotAfter must be later than validityNotBefore",
 	);
-	const serial = crypto.randomBytes(9);
+	let serial = crypto.randomBytes(9);
 	serial[0] &= 0x7f;
 	if (serial.every((v) => v === 0)) serial[8] = 1;
+	// DER INTEGER is minimally encoded: retain a zero only as a sign octet.
+	while (serial.length > 1 && serial[0] === 0 && (serial[1] & 0x80) === 0)
+		serial = serial.subarray(1);
 	const tbs = new x.TBSCertificate({
 		version: 2,
 		serialNumber: serial,

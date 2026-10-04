@@ -1,0 +1,9 @@
+# Expo certificate serial canonicalization
+
+Source `3f2d0dcf5f9de462a8783b261cfbe010153c2e9f` fixes the actual sporadic Guards failure in CI37233048814: the nine-byte random serial cleared its sign bit but could retain redundant leading zero bytes. The ASN.1 serializer preserved those bytes, so Node/OpenSSL rejected the DER certificate with `ERR_OSSL_PEM_NO_START_LINE`. This affects both self-signed and development certificate issuance; it is not a missing PEM input or Accounts Docker resolution failure.
+
+The fix removes only redundant leading zeros, retains the sign octet when required, and preserves the existing nonzero fallback. RSA/signature/issuer/scope validation is unchanged. Five deterministic entropy boundaries exercise both emitters and verify certificates through independent Node/OpenSSL. The exact final fixture against unchanged archived0.1.1 gives 3 failures/2 passes; final full native suite gives41 passes. The original CI and earlier full local RED38/3 are retained separately.
+
+The new private archive0.1.2 was built and packed together;0.1.1 remains byte-identical. Root override and Bun-generated lock change only the adapter references/integrity. Both API and data-node Docker contexts now copy the declared adapter; the node Dockerfile also retained obsolete CLI.native.1 COPY inputs, corrected to already-declared.native.3. A context assertion covers the three COPY locations. No SDK version/runtime change, publication, AWS operation or new Docker-image acceptance is claimed.
+
+Installed archive/source validation,14 independent installed Expo checks,9 verifier controls,13 inventory/self-reference controls, frozen install and isolated production dependency/compatibility checks pass. Existing malformed CSR/signature/issuer and RSA controls remain in the41-test suite. Root must push and run fresh remote CI; previous CI failure remains historical.

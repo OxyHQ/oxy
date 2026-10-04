@@ -52,17 +52,7 @@ jobs:
           set -euo pipefail
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
             --entrypoint node "$IMAGE_ID" -e 'try{require("node:fs").lstatSync("/native-expo-proof");process.exit(1)}catch(e){if(e.code!=="ENOENT")throw e}'
-          PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' > "$RUNNER_TEMP/native-expo/expected-files.json"
-          import hashlib,json,pathlib,tarfile
-          result={}
-          for archive in pathlib.Path('vendor/expo-native').glob('oxy.so-*.tgz'):
-              with tarfile.open(archive) as source:
-                  files={m.name.removeprefix('package/'):source.extractfile(m).read() for m in source.getmembers() if m.isfile()}
-                  p=json.loads(files['package.json'])
-                  result[p['name']]={'version':p['version'],'files':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()}}
-          assert set(result)=={'@oxy.so/expo-cli-native','@oxy.so/expo-code-signing-native'}
-          print(json.dumps(result))
-          PY
+          node --input-type=module -e 'import {readDeclaredNativePackageInventory} from "./scripts/native-expo-image-inventory.mjs"; console.log(JSON.stringify(readDeclaredNativePackageInventory(process.cwd())))' > "$RUNNER_TEMP/native-expo/expected-files.json"
           docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --mount "type=bind,src=$PWD/scripts,dst=/native-expo-proof/scripts,readonly" \
             --mount "type=bind,src=$RUNNER_TEMP/native-expo/expected-files.json,dst=/native-expo-proof/expected-files.json,readonly" \

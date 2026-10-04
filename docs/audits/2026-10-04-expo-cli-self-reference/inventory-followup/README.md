@@ -1,0 +1,3 @@
+The production dependency inventory and ARM inventory now select the exact two archives declared in package.json overrides. A historical sibling archive cannot overwrite the currently installed version. Installed-file integrity and image-wide Forge absence remain strict.
+
+The original CLI .1 archive is retained as historical evidence. The active .3 tarball and bun.lock are unchanged. The preserved canonical production-fixture RED version mismatch becomes GREEN; nine inventory controls and fourteen actual Expo compatibility controls pass. The earlier Accounts export is not repeated or reattributed to this guard-only change.

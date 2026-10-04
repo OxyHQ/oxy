@@ -1,0 +1,14 @@
+✔ actual native files and two identities are required (1.842401ms)
+✔ cached unreachable Forge path is rejected (1.116871ms)
+✔ renamed Forge package identity is rejected (1.165931ms)
+✔ tampered native code fails byte integrity (0.482914ms)
+✔ missing native package fails even when Forge is absent (0.506943ms)
+✔ native file symlink cannot substitute mounted proof bytes (0.466518ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 49.170745

@@ -1,0 +1,277 @@
+{
+  "kind": "oxy-expo-cli-self-reference-proof-v1",
+  "base": "0c6dec1331e9ea237b73c02e8e4c679a338d70bb",
+  "source": "b68565a2083d2fe5a5491da9f79701398a13337b",
+  "inputs": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "cf03fc5ecbdc6ee66c22ec1871a5b59b4af044f9299915c22e9e11fcd8b4180b",
+      "gitBlob": "1809e203773b6b162bfd9bfc45445db190ed6126"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "908022a8e899c7c3179501f67d35c38738d9f1674654caf292b12d9e9b04cd3d",
+      "gitBlob": "ec09c46230a2541bb45f16c760fea4a98f2698cf"
+    },
+    {
+      "path": "package.json",
+      "sha256": "74b2f74d85c5555ca0c33add5142ae55399f37396c5e5d2eb0bedc2cb1cb60f7",
+      "gitBlob": "0679a35942e8b3583c20bfd4c0887389fa4fa7fc"
+    },
+    {
+      "path": "scripts/build-native-expo-forks.mjs",
+      "sha256": "5ed2e25078fc13c6364d5bcf46ce1bd9009dc6b577eca7150c56ac7b824a2274",
+      "gitBlob": "eec4e08ef0191c78fdad331d6733ceb5fbfacccf"
+    },
+    {
+      "path": "scripts/test-native-expo-self-reference.cjs",
+      "sha256": "549712a87ac74c21158329caf9c35c2345cbbb6775fb35cfbf0ad4920e2f6fdf",
+      "gitBlob": "06c74e8d6292aa8e42a1188ae3d23b69192adcf8"
+    },
+    {
+      "path": "scripts/test-verify-native-expo-forks.py",
+      "sha256": "f608fa6af276f68a1c0c9779c9e6ef22c376e8d3843892442106ae55e0a1c1ab",
+      "gitBlob": "568ce47748d901a892ac37531995013f4c514cb3"
+    },
+    {
+      "path": "scripts/verify-native-expo-forks.py",
+      "sha256": "606d5f8a7ccfbbda3a8bdd2d39d19f4dbb0120d0f1467b77bce575e4300c458e",
+      "gitBlob": "79452b6a69d098a41dda969c66eaf0f8069ac985"
+    },
+    {
+      "path": "tooling/expo-code-signing-native/test/native-standards.cjs",
+      "sha256": "d53ad08d72e45664f4795b7540b0c872c03482bf886ab252c1914f8906c4b18c",
+      "gitBlob": "2946faf1fb8bd087967d58dc02b221344db78840"
+    },
+    {
+      "path": "vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz",
+      "sha256": "e5735f981844667d962870d4c3597655069f6b4202a981333962de9b9bf42eb1",
+      "gitBlob": "55bf04431ef0e4947f43a5d34b1af42814ad962f"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/accounts-red.txt",
+      "sha256": "d65dbd4978fdfc770df6db0c24a90ac834aa474c1d32da85d6e4e05db9a6a1d3",
+      "bytes": 5834
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/accounts-green.txt",
+      "sha256": "a2f7933fa0c2c30cf8f6bca957512fc9323561fd0af3ef2f61558341b43956af",
+      "bytes": 14918
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/accounts-final-green.txt",
+      "sha256": "4f1b941bdf329fe3445a3ac7a83aa533dd58ddf2bd5a851d824b002461f05c01",
+      "bytes": 23488
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/self-reference-red.txt",
+      "sha256": "13101835d2d491203aebe17444af34e4efa1f367f3e445afe02398aec2d79efc",
+      "bytes": 4061
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/self-reference-final-green.txt",
+      "sha256": "6dfed498e363f8b7e29e69293f2769d9130bd8e45ce5c79b0fbb22214a5b4433",
+      "bytes": 407
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/archive-final-controls.txt",
+      "sha256": "0073f48c330b4b62ad132253755bf6c03f56cf365d329492875ecce1b9d27722",
+      "bytes": 107
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/installed-final-verification.txt",
+      "sha256": "dbbf36a5ede065a108458fbeea23acf500a72471aceb549e57d169a83cba69dc",
+      "bytes": 1795
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/native-tests-final.txt",
+      "sha256": "0a26a5fa9060e93e4805ad5a47edfffae1badcd84dd2cbee45442412f491410d",
+      "bytes": 2956
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/accounts-tests.txt",
+      "sha256": "1192bb9713050c99c2447f6e1de2f8f8ef8d489d8ad8298da708f4e550c57e6a",
+      "bytes": 1051
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/expo-compat.txt",
+      "sha256": "b227b405a59c4cceb899e977f7f470dd4e0ae6ba19ab4b0bddff3f05084082fc",
+      "bytes": 1230
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/image-inventory-controls.txt",
+      "sha256": "9fb3a78d87a29e7d39b1ea152c9226c97e8a01e9f216350b92244c56b4e1af16",
+      "bytes": 508
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/biome-final.txt",
+      "sha256": "2da747d3f669e92026c1ee66c469df054276c8f3e4ccb6be41e3f5334b5db9df",
+      "bytes": 42
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/build-fork-final.txt",
+      "sha256": "eafe92a556e8d2f7eba4fb3f21fbc6f7aba299bb594dc336d3e2f71f1a34bee1",
+      "bytes": 97
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-cli-self-reference/records/install-final-frozen.txt",
+      "sha256": "6fa6893fbe81832892720d351492e364ccb00c319c92764c394a3b6330aa0e55",
+      "bytes": 98
+    }
+  ],
+  "preservedExternalHistory": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-1577-queue-monitor-20261004/accounts-build-failed.log",
+      "sha256": "668fcd6ca674053243da1d51b525b40da8e8dba7b2803a7814319161da465e16",
+      "bytes": 31059,
+      "role": "Preserved failure/history, not an accepted final artifact"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-expo-cli-self-reference-20261004/build-fork.log",
+      "sha256": "a5180967f46b1b56ff5b06e43d9fe9f770753d8db0c5552c116a0226601b8fb7",
+      "bytes": 95360,
+      "role": "Preserved failure/history, not an accepted final artifact"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-expo-cli-self-reference-20261004/self-reference-red-command-invalid.log",
+      "sha256": "c1eaa64f891781de7d4be9fb277e58aa360f1c398b4bbae3e59e3a1704632905",
+      "bytes": 1487,
+      "role": "Preserved failure/history, not an accepted final artifact"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-expo-cli-self-reference-20261004/native-tests.log",
+      "sha256": "f5b1f2d1d8a132d3f29ab368b7803a8574cd6d6ea9137c954f7da0f8050c7e88",
+      "bytes": 3125,
+      "role": "Preserved failure/history, not an accepted final artifact"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-expo-cli-self-reference-20261004/adapter-install.log",
+      "sha256": "ccf28110b2d3ea38460c4208fc9699d7d84afe9838508c7fafd4d268a5184913",
+      "bytes": 80,
+      "role": "Preserved failure/history, not an accepted final artifact"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-expo-cli-self-reference-20261004/intermediate-cli-native.2.tgz",
+      "sha256": "01d7da41a98602372716cc1e357e38e7a614500ed2413ae92d0a05128885ed6d",
+      "bytes": 1138284,
+      "role": "Preserved failure/history, not an accepted final artifact"
+    }
+  ],
+  "shippingTrees": [
+    {
+      "package": "core",
+      "baseTree": "daccfeb9aecc80ef5ca36808d2dbafb5da931179",
+      "sourceTree": "daccfeb9aecc80ef5ca36808d2dbafb5da931179",
+      "unchanged": true
+    },
+    {
+      "package": "contracts",
+      "baseTree": "a1e7574df5a39b9eade9d0d6de73ae13554085fa",
+      "sourceTree": "a1e7574df5a39b9eade9d0d6de73ae13554085fa",
+      "unchanged": true
+    },
+    {
+      "package": "services",
+      "baseTree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+      "sourceTree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+      "unchanged": true
+    },
+    {
+      "package": "protocol",
+      "baseTree": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "sourceTree": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "unchanged": true
+    },
+    {
+      "package": "db",
+      "baseTree": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+      "sourceTree": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+      "unchanged": true
+    },
+    {
+      "package": "mcp",
+      "baseTree": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+      "sourceTree": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+      "unchanged": true
+    },
+    {
+      "package": "telemetry",
+      "baseTree": "4a8f21d125797d5560ff18a22f237c5b2aa04f54",
+      "sourceTree": "4a8f21d125797d5560ff18a22f237c5b2aa04f54",
+      "unchanged": true
+    },
+    {
+      "package": "utils",
+      "baseTree": "8c1c3ae56dc9a8ab0d7038971631d20f50b42068",
+      "sourceTree": "8c1c3ae56dc9a8ab0d7038971631d20f50b42068",
+      "unchanged": true
+    }
+  ],
+  "cli": {
+    "upstream": "57.0.23",
+    "privateVersion": "57.0.23+oxy.native.3",
+    "sha256": "e5735f981844667d962870d4c3597655069f6b4202a981333962de9b9bf42eb1",
+    "bunIntegrity": "sha512-82i2DZw5XNrqNkj8hvqYkaiCBBnFAz9tiDwzVdv0OYcCQPbZnYYOlEI1YPcauEur88NaI8yAnYwj8AYAc7+8Cg==",
+    "immutableAdapterUnchanged": true
+  },
+  "installedVerification": {
+    "schemaVersion": 1,
+    "cliUpstream": "57.0.23",
+    "cliFork": "@oxy.so/expo-cli-native",
+    "changedUpstreamFiles": [
+      "build/src/customize/templates.js",
+      "build/src/customize/templates.js.map",
+      "build/src/lint/ESlintPrerequisite.js",
+      "build/src/lint/ESlintPrerequisite.js.map",
+      "build/src/prebuild/resolveLocalTemplate.js",
+      "build/src/prebuild/resolveLocalTemplate.js.map",
+      "build/src/run/ios/codeSigning/Security.js",
+      "build/src/run/ios/codeSigning/Security.js.map",
+      "build/src/start/server/metro/MetroBundlerDevServer.js",
+      "build/src/start/server/metro/MetroBundlerDevServer.js.map",
+      "build/src/start/server/metro/createServerRouteMiddleware.js",
+      "build/src/start/server/metro/createServerRouteMiddleware.js.map",
+      "build/src/start/server/metro/externals.js",
+      "build/src/start/server/metro/externals.js.map",
+      "build/src/start/server/metro/withMetroMultiPlatform.js",
+      "build/src/start/server/metro/withMetroMultiPlatform.js.map",
+      "package.json"
+    ],
+    "unchangedUpstreamFiles": 781,
+    "adapterFiles": 5,
+    "forgeInLock": false,
+    "installedValidation": {
+      "comparedFiles": {
+        "cli": 790,
+        "adapter": 5,
+        "cliAdapter": 5
+      },
+      "forgeResolvableFromAPIOrCLI": false
+    },
+    "publishedManifestLocalReferences": false,
+    "archives": {
+      "oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz": "e5735f981844667d962870d4c3597655069f6b4202a981333962de9b9bf42eb1",
+      "oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz": "2a33f912050a067fbdf627b217a048bb8e19de7b8239e195eac2e5a064bde53c",
+      "expo-cli-57.0.23-upstream.tgz": "a767f4d0abe78ba7a5f12d873d5e7e05872a24531a9601cebcdbe52e901eec8c",
+      "oxy.so-expo-code-signing-native-0.1.1.tgz": "051e4b5266378caff00bc4ce369686ead6f1c4961b13579bcd5aa25131f4fb51"
+    }
+  },
+  "tests": {
+    "realAccountsBuild": "7/7 SUCCESS,0 cache,37 HTML,54.734s",
+    "accounts": "149/18 Jest plus edge checks PASS",
+    "nativePublicAPIAndStandards": 36,
+    "installedExpoCompatibility": 14,
+    "archiveControls": 9,
+    "selfReferenceControls": 3,
+    "imageInventoryControls": 6,
+    "BiomeErrorOnWarnings": "PASS"
+  },
+  "limits": [
+    "Local source/installed packages/export only; no AWS, publication, push or deploy.",
+    "RED self-reference harness assertions were recorded before formatting; no byte-identical frozen harness claim.",
+    "Intermediate native.2 and local setup/command errors preserved separately, not admitted as final artifact.",
+    "No old Forge exception reactivation or expiry extension; no runtime SDK/API source changes."
+  ]
+}

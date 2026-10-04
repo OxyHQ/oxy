@@ -1,0 +1,132 @@
+{
+  "sourceCommit": "3f2d0dcf5f9de462a8783b261cfbe010153c2e9f",
+  "baselineCommit": "d45a7f355534c7db05f845422b19a8e2db33ffce",
+  "sources": [
+    {
+      "path": "Dockerfile",
+      "sha256": "ecfde2e9f992af862ca7f0acc238241cdbf5bd2afd3814f39b125cd990967023"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "9bc39101c505e1c6542c912aa747e3e770e1cce9d7b00feb4fa25c9e498d3e8a"
+    },
+    {
+      "path": "package.json",
+      "sha256": "d5320dd4162359ec4449bf33203af84a77fa67e581f6226f3e22e558378e6b9f"
+    },
+    {
+      "path": "packages/node/Dockerfile",
+      "sha256": "2751099ea086cca5330b09cb3ebb19997da7b2b462eef4e2ec9eb152c9149dbd"
+    },
+    {
+      "path": "scripts/build-native-expo-forks.mjs",
+      "sha256": "f2683357dc3197815f1d66a3bcdf39fe2a0a057502764f57d562f587d0a22a69"
+    },
+    {
+      "path": "scripts/test-native-expo-image-inventory.mjs",
+      "sha256": "328a38d269d93e27810ed559b1961c1b352c3a4586a633f7e18f7076e747f875"
+    },
+    {
+      "path": "scripts/test-verify-native-expo-forks.py",
+      "sha256": "73f7cea12875a07662496e3b389c979e3026fd975d8615955718b6a2ebea1916"
+    },
+    {
+      "path": "scripts/verify-native-expo-forks.py",
+      "sha256": "1c1e6c99ce21cab9edc17131a6fff813f810c6898eeeb593ff8b1f33c41c87e1"
+    },
+    {
+      "path": "tooling/expo-code-signing-native/index.cjs",
+      "sha256": "9fed0d90984192f0e61517e1f10ddf4d057e1f801e4b89f9de22e208f45203be"
+    },
+    {
+      "path": "tooling/expo-code-signing-native/package.json",
+      "sha256": "4ffa30ed5f9c7ff5452be3c42c3fc67898a3fe497f3c22c8c14fe2f773c106ae"
+    },
+    {
+      "path": "tooling/expo-code-signing-native/test/serial-canonical.cjs",
+      "sha256": "176cf3c68c79d31524f6350c9d31e2a9a5ceb6098ae42d197ffc3ecaa2430999"
+    },
+    {
+      "path": "vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz",
+      "sha256": "15b8669a1e6a2273ceae261cb5baedfdf21a0cb7e789283728c4e970d02a990a"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/archive-binding.json",
+      "sha256": "b59a46c43592b4a0d9e0bb332a41fa84bb39d9a66673f7cfb4f66b152f78afaa"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/biome-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/ci37233048814-original.log",
+      "sha256": "ae897fe18e5a86dd9c34db1f76da1968c9029e42dda6d86ab1e98dd8842e6bc6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/frozen-fixture-comparison.json",
+      "sha256": "778dd10fd02ce055d95b447e51f03f1574b7b19b091b83dd668ed37e751a4298"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/frozen-fixture-old-archive-red.log",
+      "sha256": "cedc07a3cd3706d8766783705f541d39a2a38d740a15835d2758dbce9d9d553d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/frozen-install.log",
+      "sha256": "6fa6893fbe81832892720d351492e364ccb00c319c92764c394a3b6330aa0e55"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/install.log",
+      "sha256": "e169f8b309e99815a18f89c57f2d7ac8df65920e48614e11c760ece60b08c81c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/installed-compat.log",
+      "sha256": "f5865ea88c67a968a72f410aa776076d6073344c72759e266402733395b2356a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/installed-verifier.json",
+      "sha256": "1964836409f6615c81253ac747d12ea66eade602ef7511242f48e41f7a2fff2a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/inventory-self-reference-final.log",
+      "sha256": "66496fc8d913180b18509e4a77c83078f8605169860f8edb9abe68c3141b483c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/leading-zero-red.log",
+      "sha256": "6bc1fa0fffe461b630035dad25125528bc1ad93c7e059888e9380e9bd1a18db4"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/production-install.log",
+      "sha256": "9fadcd6026241de153ede6e321a389ea466256f210bcb15d762884b2a1bf0639"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/serial-baseline-red.log",
+      "sha256": "56390a41ff7f34e850322f01a3943764f378fca56be4a7781d815c43ad791434"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/serial-green.log",
+      "sha256": "41c6dcd1421b265cd53cdb0e0936bafeece506a53327c0840e3b925259d88aa5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-expo-canonical-serial/records/verifier-tests.log",
+      "sha256": "cbe60c1415ac3a234888b9ab632f298ac1fa09955b9aea8716410ca01c8c907f"
+    }
+  ],
+  "validation": {
+    "nativeFull": 41,
+    "frozenSerialOldArchive": {
+      "pass": 2,
+      "fail": 3
+    },
+    "installedExpoCompatibility": 14,
+    "archiveVerifierControls": 9,
+    "inventoryAndSelfReference": 13,
+    "isolatedProductionInstall": "PASS",
+    "frozenInstall": "PASS",
+    "biome": "PASS",
+    "AWS": false,
+    "publication": false,
+    "newDockerImage": false
+  }
+}

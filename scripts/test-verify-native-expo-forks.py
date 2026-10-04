@@ -45,12 +45,22 @@ class NativeForkSeal(unittest.TestCase):
         self.assertFalse(verifier.verify()['forgeInLock'])
 
     def test_cli_extra_compiled_statement_is_denied(self):
-        self.mutate_archive('oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz', 'build/src/run/ios/codeSigning/Security.js', lambda value: value + b'\nexports.injected = true;\n')
+        self.mutate_archive('oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz', 'build/src/run/ios/codeSigning/Security.js', lambda value: value + b'\nexports.injected = true;\n')
+        with self.assertRaises(AssertionError):
+            verifier.verify()
+
+    def test_upstream_package_self_lookup_is_denied(self):
+        self.mutate_archive('oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz', 'build/src/start/server/metro/externals.js', lambda value: value.replace(b"_path().default.resolve(__dirname, '../../../../../static/shims')", b"_path().default.join(require.resolve('@expo/cli/package.json'), '../static/shims')"))
+        with self.assertRaises(AssertionError):
+            verifier.verify()
+
+    def test_wrong_relative_polyfill_target_is_denied(self):
+        self.mutate_archive('oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz', 'build/src/start/server/metro/withMetroMultiPlatform.js', lambda value: value.replace(b"../../../../metro-require/require", b"../../../metro-require/require"))
         with self.assertRaises(AssertionError):
             verifier.verify()
 
     def test_adapter_archive_drift_is_denied(self):
-        self.mutate_archive('oxy.so-expo-code-signing-native-0.1.1.tgz', 'index.cjs', lambda value: value + b'\nexports.injected = true;\n')
+        self.mutate_archive('oxy.so-expo-code-signing-native-0.1.2.tgz', 'index.cjs', lambda value: value + b'\nexports.injected = true;\n')
         with self.assertRaises(AssertionError):
             verifier.verify()
 
