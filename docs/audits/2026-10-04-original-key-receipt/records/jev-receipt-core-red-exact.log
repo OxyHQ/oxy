@@ -1,0 +1,22 @@
+$ jest --passWithNoTests src/inference/__tests__/OxyInferenceClient.test.ts
+FAIL src/inference/__tests__/OxyInferenceClient.test.ts
+  ● financial and internal generation records › recovers by original key with GET only, attribution and abort
+
+    TypeError: client.getGenerationRecordByIdempotencyKey is not a function
+
+      965 |     const client = new OxyInferenceClient({ credential: 'synthetic', baseURL: 'http://test.invalid', fetch: impl });
+      966 |     const signal = new AbortController().signal;
+    > 967 |     expect(await client.getGenerationRecordByIdempotencyKey('original-key', { delegatedUserId: 'user-1', signal })).toEqual(internal);
+          |                         ^
+      968 |     expect(calls).toHaveLength(1);
+      969 |     expect(calls[0].url).toBe('http://test.invalid/v1/generations/by-idempotency-key');
+      970 |     expect(calls[0].init?.method).toBe('GET');
+
+      at Object.<anonymous> (src/inference/__tests__/OxyInferenceClient.test.ts:967:25)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 52 passed, 53 total
+Snapshots:   0 total
+Time:        0.463 s, estimated 1 s
+Ran all test suites matching src/inference/__tests__/OxyInferenceClient.test.ts.
+error: script "test" exited with code 1

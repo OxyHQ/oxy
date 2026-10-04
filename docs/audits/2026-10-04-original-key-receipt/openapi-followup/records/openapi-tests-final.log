@@ -1,0 +1,11 @@
+OpenAPI freshness check tests failed:
+
+- complete: output does not contain "is fresh, describes 12 named inference path(s)".
+packages/api/openapi.json is fresh, describes 13 named inference path(s), 15 credentialled inference operation-path(s) and 21 /v1 operation payload(s).
+
+- expected-list-shrunk: expected exit 1, got 0.
+packages/api/openapi.json is fresh, describes 12 named inference path(s), 15 credentialled inference operation-path(s) and 21 /v1 operation payload(s).
+
+- payload-list-shrunk: expected exit 1, got 0.
+packages/api/openapi.json is fresh, describes 13 named inference path(s), 15 credentialled inference operation-path(s) and 20 /v1 operation payload(s).
+

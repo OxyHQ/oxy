@@ -1,0 +1,72 @@
+{
+  "sourceHead": "b3fa68a5c4cd0acb986cfbdaa33b19520428cc31",
+  "openapiSource": "8d8903a4f",
+  "mainComposed": "844b4bdc3dd72c5ddd432b390456ffdce7584b8e",
+  "sources": [
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "97f17f9866c3698066237509b8a912d61bec799ccba89962228ee9a983142749"
+    },
+    {
+      "path": "scripts/check-openapi-fresh.mjs",
+      "sha256": "eb2f438023fde59905d14f32350e9b9c498f55e4a42f92e3e50737d423243ad9"
+    },
+    {
+      "path": "scripts/test-check-openapi-fresh.mjs",
+      "sha256": "da0e329736f5437edb2cd9644b96c2c763529c7eb0aa4844da80c43e76fe3852"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/guards-ci.log",
+      "sha256": "12de65daa3fcd121eb91f021fbbca37b4546df16822ae727c1af3e7801445f6a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/openapi-generate.log",
+      "sha256": "7baaf8b7a9d0ce66497b96358d352335f545561773111d6c37e26f0b20c4de99"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/openapi-tests-final.log",
+      "sha256": "8f7658b45f6c79e1158142db692ede63c64566dd5b551b108cdc1dc6fe72ff7b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/openapi-tests-green.log",
+      "sha256": "19eba1a8e847a1f60ede0b3c3f79e1efd1a6fbbc802da0377b5e1ba40a1ebf4e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/openapi-check-green.log",
+      "sha256": "748bcd2622eb0de46ea075319779818ed02162b305195ca0032cac60da61cbf9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/openapi-check-committed.log",
+      "sha256": "781eef042c93ebd487839332b004e5376a98abdd75e99cfb2d5cbbfb3cfc73e3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/composed-contracts-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/openapi-composed-tests.log",
+      "sha256": "19eba1a8e847a1f60ede0b3c3f79e1efd1a6fbbc802da0377b5e1ba40a1ebf4e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/openapi-followup/records/openapi-composed-check.log",
+      "sha256": "781eef042c93ebd487839332b004e5376a98abdd75e99cfb2d5cbbfb3cfc73e3"
+    }
+  ],
+  "result": {
+    "fixtures": 38,
+    "freshness": "PASS",
+    "namedInferencePaths": 13,
+    "credentialledOperationPaths": 56,
+    "payloadOperations": 21,
+    "contractsBuildExit": 0
+  },
+  "limits": [
+    "CI37208336612 at e856d5092 correctly rejected the missing generated route; this followup fixes the omission.",
+    "Intermediate fixture census expectations needed incrementing; the guard also correctly refused an uncommitted generated document until source was committed.",
+    "No API runtime, package version, security policy or source-pin edits in this followup.",
+    "Merged Unicode main preserves its security evidence as history; it is not approval of this changed receipt runtime.",
+    "The existing generator documents the original Idempotency-Key requirement in route description; it does not emit typed header parameters."
+  ]
+}

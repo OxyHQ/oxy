@@ -1,0 +1,15 @@
+$ bun scripts/generate-openapi.ts
+
+[generate-openapi] REFUSING TO WRITE: 1 schema reference(s) could not be resolved, so their operations would be published as taking
+no body and no parameters:
+
+  src/routes/inferenceEdge.ts → originalGenerationReceiptHeadersSchema
+    not imported by this route file.
+
+  Schemas are resolved through the route file's OWN import statements, from
+  ../schemas/* or @oxy.so/contracts. Nothing else is imported, because a route file
+  also imports its services and middleware.
+
+  /home/nate/Oxy/oxy/.worktrees/jev-receipt-recovery-20261004/packages/api/openapi.json is UNCHANGED.
+
+error: script "openapi:generate" exited with code 1

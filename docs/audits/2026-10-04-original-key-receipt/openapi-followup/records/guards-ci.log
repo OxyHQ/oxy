@@ -1,0 +1,2120 @@
+﻿2026-10-04T14:11:28.3841365Z Current runner version: '2.337.0'
+2026-10-04T14:11:28.3877460Z ##[group]Runner Image Provisioner
+2026-10-04T14:11:28.3878955Z Hosted Compute Agent
+2026-10-04T14:11:28.3879909Z Version: 20260901.588
+2026-10-04T14:11:28.3880930Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-04T14:11:28.3882247Z Build Date: 2026-09-01T19:56:44Z
+2026-10-04T14:11:28.3883363Z Worker ID: {9fb69d8e-084e-465a-ac78-6ce1b2d897ce}
+2026-10-04T14:11:28.3884891Z Azure Region: eastus2
+2026-10-04T14:11:28.3885894Z ##[endgroup]
+2026-10-04T14:11:28.3887987Z ##[group]Operating System
+2026-10-04T14:11:28.3889216Z Ubuntu
+2026-10-04T14:11:28.3890155Z 24.04.5
+2026-10-04T14:11:28.3891025Z LTS
+2026-10-04T14:11:28.3891876Z ##[endgroup]
+2026-10-04T14:11:28.3892885Z ##[group]Runner Image
+2026-10-04T14:11:28.3894027Z Image: ubuntu-24.04
+2026-10-04T14:11:28.3895318Z Version: 20260927.320.1
+2026-10-04T14:11:28.3897524Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-04T14:11:28.3900295Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260927.320
+2026-10-04T14:11:28.3902020Z ##[endgroup]
+2026-10-04T14:11:28.3904083Z ##[group]GITHUB_TOKEN Permissions
+2026-10-04T14:11:28.3907155Z Actions: read
+2026-10-04T14:11:28.3908137Z Contents: read
+2026-10-04T14:11:28.3909231Z Metadata: read
+2026-10-04T14:11:28.3910164Z ##[endgroup]
+2026-10-04T14:11:28.3913354Z Secret source: Actions
+2026-10-04T14:11:28.3915108Z Cache mode: write
+2026-10-04T14:11:28.3916361Z Prepare workflow directory
+2026-10-04T14:11:28.4403805Z Prepare all required actions
+2026-10-04T14:11:28.4477861Z Getting action download info
+2026-10-04T14:11:28.6650527Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-04T14:11:28.7726208Z Download action repository 'oven-sh/setup-bun@v2' (SHA:0c5077e51419868618aeaa5fe8019c62421857d6)
+2026-10-04T14:11:28.9518962Z Download action repository 'actions/setup-node@v7' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+2026-10-04T14:11:29.0311890Z Download action repository 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9' (SHA:55cc8345863c7cc4c66a329aec7e433d2d1c52a9)
+2026-10-04T14:11:29.2503415Z Complete job name: Guards
+2026-10-04T14:11:29.3555842Z ##[group]Run actions/checkout@v7
+2026-10-04T14:11:29.3556921Z with:
+2026-10-04T14:11:29.3557350Z   fetch-depth: 0
+2026-10-04T14:11:29.3557801Z   repository: OxyHQ/oxy
+2026-10-04T14:11:29.3561751Z   token: ***
+2026-10-04T14:11:29.3562175Z   ssh-strict: true
+2026-10-04T14:11:29.3562605Z   ssh-user: git
+2026-10-04T14:11:29.3563040Z   persist-credentials: true
+2026-10-04T14:11:29.3563523Z   clean: true
+2026-10-04T14:11:29.3563961Z   sparse-checkout-cone-mode: true
+2026-10-04T14:11:29.3564476Z   fetch-tags: false
+2026-10-04T14:11:29.3565277Z   show-progress: true
+2026-10-04T14:11:29.3565728Z   lfs: false
+2026-10-04T14:11:29.3566130Z   submodules: false
+2026-10-04T14:11:29.3566570Z   set-safe-directory: true
+2026-10-04T14:11:29.3567068Z   allow-unsafe-pr-checkout: false
+2026-10-04T14:11:29.3567900Z ##[endgroup]
+2026-10-04T14:11:29.4686390Z Syncing repository: OxyHQ/oxy
+2026-10-04T14:11:29.4688800Z ##[group]Getting Git version info
+2026-10-04T14:11:29.4689590Z Working directory is '/home/runner/work/oxy/oxy'
+2026-10-04T14:11:29.4690562Z [command]/usr/bin/git version
+2026-10-04T14:11:29.4807421Z git version 2.55.0
+2026-10-04T14:11:29.4836050Z ##[endgroup]
+2026-10-04T14:11:29.4844389Z Temporarily overriding HOME='/home/runner/work/_temp/7b4a5012-51f3-4068-801f-a07dc84a8d33' before making global git config changes
+2026-10-04T14:11:29.4847600Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-04T14:11:29.4850826Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/oxy/oxy
+2026-10-04T14:11:29.4914110Z Deleting the contents of '/home/runner/work/oxy/oxy'
+2026-10-04T14:11:29.4916460Z ##[group]Determining repository object format
+2026-10-04T14:11:29.4918079Z ##[endgroup]
+2026-10-04T14:11:29.4919319Z ##[group]Initializing the repository
+2026-10-04T14:11:29.4922612Z [command]/usr/bin/git init /home/runner/work/oxy/oxy
+2026-10-04T14:11:29.5065267Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-04T14:11:29.5067461Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-04T14:11:29.5069727Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-04T14:11:29.5071207Z hint: call:
+2026-10-04T14:11:29.5072137Z hint:
+2026-10-04T14:11:29.5073454Z hint: 	git config --global init.defaultBranch <name>
+2026-10-04T14:11:29.5074833Z hint:
+2026-10-04T14:11:29.5075907Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-04T14:11:29.5077551Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-04T14:11:29.5078898Z hint:
+2026-10-04T14:11:29.5079812Z hint: 	git branch -m <name>
+2026-10-04T14:11:29.5080862Z hint:
+2026-10-04T14:11:29.5082112Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-04T14:11:29.5085228Z Initialized empty Git repository in /home/runner/work/oxy/oxy/.git/
+2026-10-04T14:11:29.5089521Z [command]/usr/bin/git remote add origin https://github.com/OxyHQ/oxy
+2026-10-04T14:11:29.5147413Z ##[endgroup]
+2026-10-04T14:11:29.5148752Z ##[group]Disabling automatic garbage collection
+2026-10-04T14:11:29.5152274Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-04T14:11:29.5192576Z ##[endgroup]
+2026-10-04T14:11:29.5194942Z ##[group]Setting up auth
+2026-10-04T14:11:29.5196467Z Removing SSH command configuration
+2026-10-04T14:11:29.5207854Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-04T14:11:29.5247348Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-04T14:11:29.5632310Z Removing HTTP extra header
+2026-10-04T14:11:29.5638596Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-04T14:11:29.5678813Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-04T14:11:29.5898770Z Removing includeIf entries pointing to credentials config files
+2026-10-04T14:11:29.5925870Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-04T14:11:29.5940766Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-04T14:11:29.6169981Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-04T14:11:29.6212751Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/oxy/oxy/.git.path /home/runner/work/_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config
+2026-10-04T14:11:29.6249236Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/oxy/oxy/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config
+2026-10-04T14:11:29.6288290Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config
+2026-10-04T14:11:29.6323760Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config
+2026-10-04T14:11:29.6355932Z ##[endgroup]
+2026-10-04T14:11:29.6356685Z ##[group]Fetching the repository
+2026-10-04T14:11:29.6362965Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +fd5139a029f41b5bc996165ee9cbd31cf5e97da9:refs/remotes/pull/1574/merge
+2026-10-04T14:11:33.7416472Z From https://github.com/OxyHQ/oxy
+2026-10-04T14:11:33.7418402Z  * [new branch]          candidate/forge-provenance-claude-20261002 -> origin/candidate/forge-provenance-claude-20261002
+2026-10-04T14:11:33.7431577Z  * [new branch]          candidate/forge-remediation-review-20261002 -> origin/candidate/forge-remediation-review-20261002
+2026-10-04T14:11:33.7432904Z  * [new branch]          codex/fix-database-connection-pool-exhaustion-vulnerability -> origin/codex/fix-database-connection-pool-exhaustion-vulnerability
+2026-10-04T14:11:33.7434030Z  * [new branch]          codex/fix-device-context-race-condition -> origin/codex/fix-device-context-race-condition
+2026-10-04T14:11:33.7435698Z  * [new branch]          codex/fix-family-management-vulnerability -> origin/codex/fix-family-management-vulnerability
+2026-10-04T14:11:33.7437766Z  * [new branch]          codex/fix-oauth-session-finalization-vulnerability -> origin/codex/fix-oauth-session-finalization-vulnerability
+2026-10-04T14:11:33.7439867Z  * [new branch]          codex/fix-realtime-output-reservation-vulnerability -> origin/codex/fix-realtime-output-reservation-vulnerability
+2026-10-04T14:11:33.7441809Z  * [new branch]          codex/fix-sns-topic-confusion-vulnerability -> origin/codex/fix-sns-topic-confusion-vulnerability
+2026-10-04T14:11:33.7443867Z  * [new branch]          codex/propose-fix-for-telemetry-credentials-exposure -> origin/codex/propose-fix-for-telemetry-credentials-exposure
+2026-10-04T14:11:33.7446177Z  * [new branch]          dependabot/github_actions/actions/setup-java-6 -> origin/dependabot/github_actions/actions/setup-java-6
+2026-10-04T14:11:33.7448227Z  * [new branch]          dependabot/github_actions/actions/setup-node-7 -> origin/dependabot/github_actions/actions/setup-node-7
+2026-10-04T14:11:33.7449471Z  * [new branch]          dependabot/github_actions/actions/upload-artifact-7 -> origin/dependabot/github_actions/actions/upload-artifact-7
+2026-10-04T14:11:33.7450664Z  * [new branch]          dependabot/github_actions/gradle/actions-6 -> origin/dependabot/github_actions/gradle/actions-6
+2026-10-04T14:11:33.7452026Z  * [new branch]          docs/1519-consumer-rollout-preflight-20261003 -> origin/docs/1519-consumer-rollout-preflight-20261003
+2026-10-04T14:11:33.7452979Z  * [new branch]          docs/i11-coverage-20261002 -> origin/docs/i11-coverage-20261002
+2026-10-04T14:11:33.7453845Z  * [new branch]          evidence/1519-final-forge-source-841c72da -> origin/evidence/1519-final-forge-source-841c72da
+2026-10-04T14:11:33.7455021Z  * [new branch]          evidence/1519-forge-final-27b96e9d6 -> origin/evidence/1519-forge-final-27b96e9d6
+2026-10-04T14:11:33.7455895Z  * [new branch]          evidence/1519-forge-final-8c8163755 -> origin/evidence/1519-forge-final-8c8163755
+2026-10-04T14:11:33.7456975Z  * [new branch]          evidence/1519-forge-issuer-c06a24d4 -> origin/evidence/1519-forge-issuer-c06a24d4
+2026-10-04T14:11:33.7458702Z  * [new branch]          evidence/1519-i07-final-acceptance-20261004 -> origin/evidence/1519-i07-final-acceptance-20261004
+2026-10-04T14:11:33.7459883Z  * [new branch]          feat/1519-billing-completion-20261003 -> origin/feat/1519-billing-completion-20261003
+2026-10-04T14:11:33.7460919Z  * [new branch]          feat/1519-billing-sandbox-20261003 -> origin/feat/1519-billing-sandbox-20261003
+2026-10-04T14:11:33.7462005Z  * [new branch]          feat/1519-i05-foreground-capability-20261003 -> origin/feat/1519-i05-foreground-capability-20261003
+2026-10-04T14:11:33.7463038Z  * [new branch]          feat/i01-bot-account-subject -> origin/feat/i01-bot-account-subject
+2026-10-04T14:11:33.7464065Z  * [new branch]          feat/i07-product-access-contracts-20261002 -> origin/feat/i07-product-access-contracts-20261002
+2026-10-04T14:11:33.7465701Z  * [new branch]          feat/i07-product-access-persistence-20261002 -> origin/feat/i07-product-access-persistence-20261002
+2026-10-04T14:11:33.7466829Z  * [new branch]          feat/i07-provider-evidence-20261003 -> origin/feat/i07-provider-evidence-20261003
+2026-10-04T14:11:33.7468030Z  * [new branch]          feat/i09-internal-metered -> origin/feat/i09-internal-metered
+2026-10-04T14:11:33.7469104Z  * [new branch]          feat/jev-receipt-recovery-20261004 -> origin/feat/jev-receipt-recovery-20261004
+2026-10-04T14:11:33.7470268Z  * [new branch]          feat/jev-scoped-api-20261002 -> origin/feat/jev-scoped-api-20261002
+2026-10-04T14:11:33.7471283Z  * [new branch]          fix/1519-agent-device-regressions-20261003 -> origin/fix/1519-agent-device-regressions-20261003
+2026-10-04T14:11:33.7472543Z  * [new branch]          fix/1519-i03-result-expiry-decoder-20261004 -> origin/fix/1519-i03-result-expiry-decoder-20261004
+2026-10-04T14:11:33.7473696Z  * [new branch]          fix/1519-i09-route-reconciliation-20261004 -> origin/fix/1519-i09-route-reconciliation-20261004
+2026-10-04T14:11:33.7475084Z  * [new branch]          fix/1519-quiesced-final-guards-20261004 -> origin/fix/1519-quiesced-final-guards-20261004
+2026-10-04T14:11:33.7476180Z  * [new branch]          fix/1519-quiesced-two-stage-20261004 -> origin/fix/1519-quiesced-two-stage-20261004
+2026-10-04T14:11:33.7477236Z  * [new branch]          fix/1571-sdk-resolution-graph -> origin/fix/1571-sdk-resolution-graph
+2026-10-04T14:11:33.7478381Z  * [new branch]          fix/i01-i03-operator-authority -> origin/fix/i01-i03-operator-authority
+2026-10-04T14:11:33.7479291Z  * [new branch]          fix/i02-consent-persistence -> origin/fix/i02-consent-persistence
+2026-10-04T14:11:33.7480311Z  * [new branch]          fix/i04-internal-invocation-context-20261002 -> origin/fix/i04-internal-invocation-context-20261002
+2026-10-04T14:11:33.7481287Z  * [new branch]          fix/i06-durable-renewals -> origin/fix/i06-durable-renewals
+2026-10-04T14:11:33.7482352Z  * [new branch]          fix/i06-invoice-reconciliation-20261002 -> origin/fix/i06-invoice-reconciliation-20261002
+2026-10-04T14:11:33.7483602Z  * [new branch]          fix/i11-isolated-oauth-lifecycle-20261002 -> origin/fix/i11-isolated-oauth-lifecycle-20261002
+2026-10-04T14:11:33.7485097Z  * [new branch]          fix/kaana-readiness-price-only -> origin/fix/kaana-readiness-price-only
+2026-10-04T14:11:33.7486651Z  * [new branch]          fix/mcp-connection-viewer-graph -> origin/fix/mcp-connection-viewer-graph
+2026-10-04T14:11:33.7488622Z  * [new branch]          fix/workspace-billing-operator-20261002 -> origin/fix/workspace-billing-operator-20261002
+2026-10-04T14:11:33.7491147Z  * [new branch]          gh-readonly-queue/main/pr-1487-1dcee48413ca0df765d69074069cbe495861d03a -> origin/gh-readonly-queue/main/pr-1487-1dcee48413ca0df765d69074069cbe495861d03a
+2026-10-04T14:11:33.7493506Z  * [new branch]          integration/i01-i02-foundation-1519 -> origin/integration/i01-i02-foundation-1519
+2026-10-04T14:11:33.7495483Z  * [new branch]          main                    -> origin/main
+2026-10-04T14:11:33.7497393Z  * [new branch]          ops/1519-i09-exact-readonly-diagnostic-20261004 -> origin/ops/1519-i09-exact-readonly-diagnostic-20261004
+2026-10-04T14:11:33.7499460Z  * [new branch]          ops/1519-i09-live-reconciliation-20261004 -> origin/ops/1519-i09-live-reconciliation-20261004
+2026-10-04T14:11:33.7501033Z  * [new branch]          rehearsal/i09-on-i06    -> origin/rehearsal/i09-on-i06
+2026-10-04T14:11:33.7502412Z  * [new branch]          rehearsal/i09-on-main-1516-1529 -> origin/rehearsal/i09-on-main-1516-1529
+2026-10-04T14:11:33.7503763Z  * [new branch]          rehearsal/main-1516     -> origin/rehearsal/main-1516
+2026-10-04T14:11:33.7505333Z  * [new branch]          rehearsal/main-1516-1529 -> origin/rehearsal/main-1516-1529
+2026-10-04T14:11:33.7506709Z  * [new branch]          release/core-1.18.x     -> origin/release/core-1.18.x
+2026-10-04T14:11:33.7507481Z  * [new branch]          release/services-4.x    -> origin/release/services-4.x
+2026-10-04T14:11:33.7508367Z  * [new branch]          review/1519-background-context-20261002 -> origin/review/1519-background-context-20261002
+2026-10-04T14:11:33.7509327Z  * [new branch]          review/1519-forge-final-20261003 -> origin/review/1519-forge-final-20261003
+2026-10-04T14:11:33.7510461Z  * [new branch]          review/1519-forge-gate-20261002 -> origin/review/1519-forge-gate-20261002
+2026-10-04T14:11:33.7511346Z  * [new branch]          review/1519-integration-20261002 -> origin/review/1519-integration-20261002
+2026-10-04T14:11:33.7512279Z  * [new branch]          review/1519-old-auth-only-20261003 -> origin/review/1519-old-auth-only-20261003
+2026-10-04T14:11:33.7513343Z  * [new branch]          task/1519-mercaria-authority-transport-20261003 -> origin/task/1519-mercaria-authority-transport-20261003
+2026-10-04T14:11:33.7515190Z  * [new branch]          task/1519-mercaria-billing-authority-20261003 -> origin/task/1519-mercaria-billing-authority-20261003
+2026-10-04T14:11:33.7517115Z  * [new branch]          task/1519-mercaria-cohort-promotion-20261004 -> origin/task/1519-mercaria-cohort-promotion-20261004
+2026-10-04T14:11:33.7518332Z  * [new branch]          task/1519-mercaria-ephemeral-credential-20261003 -> origin/task/1519-mercaria-ephemeral-credential-20261003
+2026-10-04T14:11:33.7519449Z  * [new branch]          task/1519-mercaria-image-only-20261004 -> origin/task/1519-mercaria-image-only-20261004
+2026-10-04T14:11:33.7520482Z  * [new branch]          task/1519-native-device-proof-20261003 -> origin/task/1519-native-device-proof-20261003
+2026-10-04T14:11:33.7521463Z  * [new branch]          task/1519-raw-response-sdk-20261003 -> origin/task/1519-raw-response-sdk-20261003
+2026-10-04T14:11:33.7522458Z  * [new branch]          task/1519-services-bloom7-compat-20261003 -> origin/task/1519-services-bloom7-compat-20261003
+2026-10-04T14:11:33.7523466Z  * [new branch]          task/full-cut-jev-contract-20261004 -> origin/task/full-cut-jev-contract-20261004
+2026-10-04T14:11:33.7524416Z  * [new branch]          task/i01-i03-bot-authority-20261003 -> origin/task/i01-i03-bot-authority-20261003
+2026-10-04T14:11:33.7525983Z  * [new branch]          task/i02-approved-consent-20261003 -> origin/task/i02-approved-consent-20261003
+2026-10-04T14:11:33.7527011Z  * [new branch]          task/i03-live-canary-20261003 -> origin/task/i03-live-canary-20261003
+2026-10-04T14:11:33.7528971Z  * [new branch]          task/i04-common-agency-20261002 -> origin/task/i04-common-agency-20261002
+2026-10-04T14:11:33.7530748Z  * [new branch]          task/i04-handoff-1544-20261002 -> origin/task/i04-handoff-1544-20261002
+2026-10-04T14:11:33.7532524Z  * [new branch]          task/i04-handoff-inbox-20261002 -> origin/task/i04-handoff-inbox-20261002
+2026-10-04T14:11:33.7534326Z  * [new branch]          task/i04-handoff-sdk-p2-20261002 -> origin/task/i04-handoff-sdk-p2-20261002
+2026-10-04T14:11:33.7536177Z  * [new branch]          task/i09-i10-20261002   -> origin/task/i09-i10-20261002
+2026-10-04T14:11:33.7538049Z  * [new branch]          test/1519-stripe-billing-rehearsal-20261003 -> origin/test/1519-stripe-billing-rehearsal-20261003
+2026-10-04T14:11:33.7539916Z  * [new tag]             6.9.45                  -> 6.9.45
+2026-10-04T14:11:33.7541178Z  * [new tag]             @oxy.so/core@1.13.0     -> @oxy.so/core@1.13.0
+2026-10-04T14:11:33.7542289Z  * [new tag]             @oxy.so/core@1.18.1     -> @oxy.so/core@1.18.1
+2026-10-04T14:11:33.7543381Z  * [new tag]             @oxy.so/core@1.2.0      -> @oxy.so/core@1.2.0
+2026-10-04T14:11:33.7544452Z  * [new tag]             @oxy.so/core@1.2.1      -> @oxy.so/core@1.2.1
+2026-10-04T14:11:33.7545744Z  * [new tag]             @oxy.so/core@1.4.0      -> @oxy.so/core@1.4.0
+2026-10-04T14:11:33.7546776Z  * [new tag]             @oxy.so/core@1.5.0      -> @oxy.so/core@1.5.0
+2026-10-04T14:11:33.7547815Z  * [new tag]             @oxy.so/core@1.5.1      -> @oxy.so/core@1.5.1
+2026-10-04T14:11:33.7549153Z  * [new tag]             @oxy.so/services@1.1.0  -> @oxy.so/services@1.1.0
+2026-10-04T14:11:33.7549849Z  * [new tag]             @oxy.so/services@4.0.6  -> @oxy.so/services@4.0.6
+2026-10-04T14:11:33.7550483Z  * [new tag]             @oxyhq/api@1.0.0        -> @oxyhq/api@1.0.0
+2026-10-04T14:11:33.7551295Z  * [new tag]             @oxyhq/api@1.0.1        -> @oxyhq/api@1.0.1
+2026-10-04T14:11:33.7551907Z  * [new tag]             @oxyhq/api@1.0.2        -> @oxyhq/api@1.0.2
+2026-10-04T14:11:33.7552517Z  * [new tag]             @oxyhq/auth@1.0.0       -> @oxyhq/auth@1.0.0
+2026-10-04T14:11:33.7553126Z  * [new tag]             @oxyhq/auth@1.1.0       -> @oxyhq/auth@1.1.0
+2026-10-04T14:11:33.7553720Z  * [new tag]             @oxyhq/auth@1.1.1       -> @oxyhq/auth@1.1.1
+2026-10-04T14:11:33.7554305Z  * [new tag]             @oxyhq/auth@1.1.2       -> @oxyhq/auth@1.1.2
+2026-10-04T14:11:33.7555165Z  * [new tag]             @oxyhq/auth@1.1.3       -> @oxyhq/auth@1.1.3
+2026-10-04T14:11:33.7555820Z  * [new tag]             @oxyhq/auth@1.1.4       -> @oxyhq/auth@1.1.4
+2026-10-04T14:11:33.7556401Z  * [new tag]             @oxyhq/auth@1.2.0       -> @oxyhq/auth@1.2.0
+2026-10-04T14:11:33.7557060Z  * [new tag]             @oxyhq/auth@2.0.1       -> @oxyhq/auth@2.0.1
+2026-10-04T14:11:33.7558156Z  * [new tag]             @oxyhq/auth@2.0.2       -> @oxyhq/auth@2.0.2
+2026-10-04T14:11:33.7559330Z  * [new tag]             @oxyhq/auth@2.0.3       -> @oxyhq/auth@2.0.3
+2026-10-04T14:11:33.7560214Z  * [new tag]             @oxyhq/auth@2.0.4       -> @oxyhq/auth@2.0.4
+2026-10-04T14:11:33.7560828Z  * [new tag]             @oxyhq/auth@3.0.0       -> @oxyhq/auth@3.0.0
+2026-10-04T14:11:33.7561411Z  * [new tag]             @oxyhq/core@1.0.0       -> @oxyhq/core@1.0.0
+2026-10-04T14:11:33.7562004Z  * [new tag]             @oxyhq/core@1.0.1       -> @oxyhq/core@1.0.1
+2026-10-04T14:11:33.7562579Z  * [new tag]             @oxyhq/core@1.0.2       -> @oxyhq/core@1.0.2
+2026-10-04T14:11:33.7563153Z  * [new tag]             @oxyhq/core@1.1.0       -> @oxyhq/core@1.1.0
+2026-10-04T14:11:33.7563754Z  * [new tag]             @oxyhq/core@1.10.0      -> @oxyhq/core@1.10.0
+2026-10-04T14:11:33.7564350Z  * [new tag]             @oxyhq/core@1.11.0      -> @oxyhq/core@1.11.0
+2026-10-04T14:11:33.7565342Z  * [new tag]             @oxyhq/core@1.11.1      -> @oxyhq/core@1.11.1
+2026-10-04T14:11:33.7565964Z  * [new tag]             @oxyhq/core@1.11.10     -> @oxyhq/core@1.11.10
+2026-10-04T14:11:33.7566562Z  * [new tag]             @oxyhq/core@1.11.11     -> @oxyhq/core@1.11.11
+2026-10-04T14:11:33.7567364Z  * [new tag]             @oxyhq/core@1.11.12     -> @oxyhq/core@1.11.12
+2026-10-04T14:11:33.7567990Z  * [new tag]             @oxyhq/core@1.11.13     -> @oxyhq/core@1.11.13
+2026-10-04T14:11:33.7568593Z  * [new tag]             @oxyhq/core@1.11.2      -> @oxyhq/core@1.11.2
+2026-10-04T14:11:33.7569235Z  * [new tag]             @oxyhq/core@1.11.23     -> @oxyhq/core@1.11.23
+2026-10-04T14:11:33.7569829Z  * [new tag]             @oxyhq/core@1.11.3      -> @oxyhq/core@1.11.3
+2026-10-04T14:11:33.7570417Z  * [new tag]             @oxyhq/core@1.11.4      -> @oxyhq/core@1.11.4
+2026-10-04T14:11:33.7571001Z  * [new tag]             @oxyhq/core@1.11.5      -> @oxyhq/core@1.11.5
+2026-10-04T14:11:33.7571587Z  * [new tag]             @oxyhq/core@1.11.6      -> @oxyhq/core@1.11.6
+2026-10-04T14:11:33.7572183Z  * [new tag]             @oxyhq/core@1.11.7      -> @oxyhq/core@1.11.7
+2026-10-04T14:11:33.7572892Z  * [new tag]             @oxyhq/core@1.11.9      -> @oxyhq/core@1.11.9
+2026-10-04T14:11:33.7573531Z  * [new tag]             @oxyhq/core@1.2.0       -> @oxyhq/core@1.2.0
+2026-10-04T14:11:33.7574124Z  * [new tag]             @oxyhq/core@1.2.1       -> @oxyhq/core@1.2.1
+2026-10-04T14:11:33.7574929Z  * [new tag]             @oxyhq/core@1.2.2       -> @oxyhq/core@1.2.2
+2026-10-04T14:11:33.7575646Z  * [new tag]             @oxyhq/core@1.2.3       -> @oxyhq/core@1.2.3
+2026-10-04T14:11:33.7576247Z  * [new tag]             @oxyhq/core@1.2.4       -> @oxyhq/core@1.2.4
+2026-10-04T14:11:33.7576821Z  * [new tag]             @oxyhq/core@1.2.5       -> @oxyhq/core@1.2.5
+2026-10-04T14:11:33.7577400Z  * [new tag]             @oxyhq/core@1.3.0       -> @oxyhq/core@1.3.0
+2026-10-04T14:11:33.7577987Z  * [new tag]             @oxyhq/core@1.4.0       -> @oxyhq/core@1.4.0
+2026-10-04T14:11:33.7578558Z  * [new tag]             @oxyhq/core@1.5.0       -> @oxyhq/core@1.5.0
+2026-10-04T14:11:33.7579352Z  * [new tag]             @oxyhq/core@1.6.0       -> @oxyhq/core@1.6.0
+2026-10-04T14:11:33.7579937Z  * [new tag]             @oxyhq/core@1.6.1       -> @oxyhq/core@1.6.1
+2026-10-04T14:11:33.7580523Z  * [new tag]             @oxyhq/core@1.6.6       -> @oxyhq/core@1.6.6
+2026-10-04T14:11:33.7581102Z  * [new tag]             @oxyhq/core@1.7.0       -> @oxyhq/core@1.7.0
+2026-10-04T14:11:33.7581675Z  * [new tag]             @oxyhq/core@1.8.0       -> @oxyhq/core@1.8.0
+2026-10-04T14:11:33.7582252Z  * [new tag]             @oxyhq/core@1.8.1       -> @oxyhq/core@1.8.1
+2026-10-04T14:11:33.7582826Z  * [new tag]             @oxyhq/core@1.9.0       -> @oxyhq/core@1.9.0
+2026-10-04T14:11:33.7583398Z  * [new tag]             @oxyhq/core@2.0.0       -> @oxyhq/core@2.0.0
+2026-10-04T14:11:33.7584001Z  * [new tag]             @oxyhq/services@5.10.14 -> @oxyhq/services@5.10.14
+2026-10-04T14:11:33.7584834Z  * [new tag]             @oxyhq/services@5.10.15 -> @oxyhq/services@5.10.15
+2026-10-04T14:11:33.7585492Z  * [new tag]             @oxyhq/services@5.10.16 -> @oxyhq/services@5.10.16
+2026-10-04T14:11:33.7586113Z  * [new tag]             @oxyhq/services@5.10.4  -> @oxyhq/services@5.10.4
+2026-10-04T14:11:33.7586743Z  * [new tag]             @oxyhq/services@5.11.1  -> @oxyhq/services@5.11.1
+2026-10-04T14:11:33.7587372Z  * [new tag]             @oxyhq/services@5.11.10 -> @oxyhq/services@5.11.10
+2026-10-04T14:11:33.7587984Z  * [new tag]             @oxyhq/services@5.11.13 -> @oxyhq/services@5.11.13
+2026-10-04T14:11:33.7588595Z  * [new tag]             @oxyhq/services@5.11.9  -> @oxyhq/services@5.11.9
+2026-10-04T14:11:33.7589210Z  * [new tag]             @oxyhq/services@5.12.10 -> @oxyhq/services@5.12.10
+2026-10-04T14:11:33.7589829Z  * [new tag]             @oxyhq/services@5.12.11 -> @oxyhq/services@5.12.11
+2026-10-04T14:11:33.7590442Z  * [new tag]             @oxyhq/services@5.12.4  -> @oxyhq/services@5.12.4
+2026-10-04T14:11:33.7591055Z  * [new tag]             @oxyhq/services@5.12.5  -> @oxyhq/services@5.12.5
+2026-10-04T14:11:33.7591673Z  * [new tag]             @oxyhq/services@5.12.6  -> @oxyhq/services@5.12.6
+2026-10-04T14:11:33.7592427Z  * [new tag]             @oxyhq/services@5.12.9  -> @oxyhq/services@5.12.9
+2026-10-04T14:11:33.7593052Z  * [new tag]             @oxyhq/services@5.13.0  -> @oxyhq/services@5.13.0
+2026-10-04T14:11:33.7593662Z  * [new tag]             @oxyhq/services@5.13.1  -> @oxyhq/services@5.13.1
+2026-10-04T14:11:33.7594279Z  * [new tag]             @oxyhq/services@5.13.10 -> @oxyhq/services@5.13.10
+2026-10-04T14:11:33.7595117Z  * [new tag]             @oxyhq/services@5.13.12 -> @oxyhq/services@5.13.12
+2026-10-04T14:11:33.7595735Z  * [new tag]             @oxyhq/services@5.13.15 -> @oxyhq/services@5.13.15
+2026-10-04T14:11:33.7596350Z  * [new tag]             @oxyhq/services@5.13.16 -> @oxyhq/services@5.13.16
+2026-10-04T14:11:33.7596968Z  * [new tag]             @oxyhq/services@5.13.18 -> @oxyhq/services@5.13.18
+2026-10-04T14:11:33.7597604Z  * [new tag]             @oxyhq/services@5.13.19 -> @oxyhq/services@5.13.19
+2026-10-04T14:11:33.7598209Z  * [new tag]             @oxyhq/services@5.13.21 -> @oxyhq/services@5.13.21
+2026-10-04T14:11:33.7598826Z  * [new tag]             @oxyhq/services@5.13.22 -> @oxyhq/services@5.13.22
+2026-10-04T14:11:33.7599438Z  * [new tag]             @oxyhq/services@5.13.23 -> @oxyhq/services@5.13.23
+2026-10-04T14:11:33.7600044Z  * [new tag]             @oxyhq/services@5.13.24 -> @oxyhq/services@5.13.24
+2026-10-04T14:11:33.7600666Z  * [new tag]             @oxyhq/services@5.13.25 -> @oxyhq/services@5.13.25
+2026-10-04T14:11:33.7601312Z  * [new tag]             @oxyhq/services@5.13.26 -> @oxyhq/services@5.13.26
+2026-10-04T14:11:33.7601953Z  * [new tag]             @oxyhq/services@5.13.27 -> @oxyhq/services@5.13.27
+2026-10-04T14:11:33.7602634Z  * [new tag]             @oxyhq/services@5.13.28 -> @oxyhq/services@5.13.28
+2026-10-04T14:11:33.7603290Z  * [new tag]             @oxyhq/services@5.13.31 -> @oxyhq/services@5.13.31
+2026-10-04T14:11:33.7604080Z  * [new tag]             @oxyhq/services@5.13.32 -> @oxyhq/services@5.13.32
+2026-10-04T14:11:33.7604998Z  * [new tag]             @oxyhq/services@5.13.9  -> @oxyhq/services@5.13.9
+2026-10-04T14:11:33.7605678Z  * [new tag]             @oxyhq/services@5.14.0  -> @oxyhq/services@5.14.0
+2026-10-04T14:11:33.7606314Z  * [new tag]             @oxyhq/services@5.15.9  -> @oxyhq/services@5.15.9
+2026-10-04T14:11:33.7606947Z  * [new tag]             @oxyhq/services@5.16.0  -> @oxyhq/services@5.16.0
+2026-10-04T14:11:33.7607582Z  * [new tag]             @oxyhq/services@5.16.1  -> @oxyhq/services@5.16.1
+2026-10-04T14:11:33.7608218Z  * [new tag]             @oxyhq/services@5.16.10 -> @oxyhq/services@5.16.10
+2026-10-04T14:11:33.7608865Z  * [new tag]             @oxyhq/services@5.16.12 -> @oxyhq/services@5.16.12
+2026-10-04T14:11:33.7609496Z  * [new tag]             @oxyhq/services@5.16.13 -> @oxyhq/services@5.16.13
+2026-10-04T14:11:33.7610130Z  * [new tag]             @oxyhq/services@5.16.14 -> @oxyhq/services@5.16.14
+2026-10-04T14:11:33.7610770Z  * [new tag]             @oxyhq/services@5.16.15 -> @oxyhq/services@5.16.15
+2026-10-04T14:11:33.7611403Z  * [new tag]             @oxyhq/services@5.16.16 -> @oxyhq/services@5.16.16
+2026-10-04T14:11:33.7612037Z  * [new tag]             @oxyhq/services@5.16.17 -> @oxyhq/services@5.16.17
+2026-10-04T14:11:33.7612688Z  * [new tag]             @oxyhq/services@5.16.19 -> @oxyhq/services@5.16.19
+2026-10-04T14:11:33.7613321Z  * [new tag]             @oxyhq/services@5.16.7  -> @oxyhq/services@5.16.7
+2026-10-04T14:11:33.7613959Z  * [new tag]             @oxyhq/services@5.16.8  -> @oxyhq/services@5.16.8
+2026-10-04T14:11:33.7614878Z  * [new tag]             @oxyhq/services@5.17.18 -> @oxyhq/services@5.17.18
+2026-10-04T14:11:33.7615567Z  * [new tag]             @oxyhq/services@5.18.0  -> @oxyhq/services@5.18.0
+2026-10-04T14:11:33.7616215Z  * [new tag]             @oxyhq/services@5.18.1  -> @oxyhq/services@5.18.1
+2026-10-04T14:11:33.7616853Z  * [new tag]             @oxyhq/services@5.18.2  -> @oxyhq/services@5.18.2
+2026-10-04T14:11:33.7617510Z  * [new tag]             @oxyhq/services@5.18.3  -> @oxyhq/services@5.18.3
+2026-10-04T14:11:33.7618324Z  * [new tag]             @oxyhq/services@5.18.4  -> @oxyhq/services@5.18.4
+2026-10-04T14:11:33.7619026Z  * [new tag]             @oxyhq/services@5.19.0  -> @oxyhq/services@5.19.0
+2026-10-04T14:11:33.7619673Z  * [new tag]             @oxyhq/services@5.20.1  -> @oxyhq/services@5.20.1
+2026-10-04T14:11:33.7620311Z  * [new tag]             @oxyhq/services@5.20.2  -> @oxyhq/services@5.20.2
+2026-10-04T14:11:33.7620951Z  * [new tag]             @oxyhq/services@5.20.3  -> @oxyhq/services@5.20.3
+2026-10-04T14:11:33.7621579Z  * [new tag]             @oxyhq/services@5.21.0  -> @oxyhq/services@5.21.0
+2026-10-04T14:11:33.7622218Z  * [new tag]             @oxyhq/services@5.21.4  -> @oxyhq/services@5.21.4
+2026-10-04T14:11:33.7622861Z  * [new tag]             @oxyhq/services@5.21.5  -> @oxyhq/services@5.21.5
+2026-10-04T14:11:33.7623493Z  * [new tag]             @oxyhq/services@5.21.6  -> @oxyhq/services@5.21.6
+2026-10-04T14:11:33.7624135Z  * [new tag]             @oxyhq/services@5.21.7  -> @oxyhq/services@5.21.7
+2026-10-04T14:11:33.7625005Z  * [new tag]             @oxyhq/services@5.23.0  -> @oxyhq/services@5.23.0
+2026-10-04T14:11:33.7625651Z  * [new tag]             @oxyhq/services@5.24.0  -> @oxyhq/services@5.24.0
+2026-10-04T14:11:33.7626304Z  * [new tag]             @oxyhq/services@5.26.1  -> @oxyhq/services@5.26.1
+2026-10-04T14:11:33.7626941Z  * [new tag]             @oxyhq/services@5.3.10  -> @oxyhq/services@5.3.10
+2026-10-04T14:11:33.7627585Z  * [new tag]             @oxyhq/services@5.4.0   -> @oxyhq/services@5.4.0
+2026-10-04T14:11:33.7628212Z  * [new tag]             @oxyhq/services@5.4.1   -> @oxyhq/services@5.4.1
+2026-10-04T14:11:33.7628838Z  * [new tag]             @oxyhq/services@5.4.4   -> @oxyhq/services@5.4.4
+2026-10-04T14:11:33.7629478Z  * [new tag]             @oxyhq/services@5.4.5   -> @oxyhq/services@5.4.5
+2026-10-04T14:11:33.7630107Z  * [new tag]             @oxyhq/services@5.5.0   -> @oxyhq/services@5.5.0
+2026-10-04T14:11:33.7630882Z  * [new tag]             @oxyhq/services@5.5.4   -> @oxyhq/services@5.5.4
+2026-10-04T14:11:33.7631531Z  * [new tag]             @oxyhq/services@5.6.0   -> @oxyhq/services@5.6.0
+2026-10-04T14:11:33.7632161Z  * [new tag]             @oxyhq/services@5.7.3   -> @oxyhq/services@5.7.3
+2026-10-04T14:11:33.7632791Z  * [new tag]             @oxyhq/services@5.8.6   -> @oxyhq/services@5.8.6
+2026-10-04T14:11:33.7633425Z  * [new tag]             @oxyhq/services@5.9.10  -> @oxyhq/services@5.9.10
+2026-10-04T14:11:33.7634057Z  * [new tag]             @oxyhq/services@5.9.11  -> @oxyhq/services@5.9.11
+2026-10-04T14:11:33.7634916Z  * [new tag]             @oxyhq/services@5.9.12  -> @oxyhq/services@5.9.12
+2026-10-04T14:11:33.7635562Z  * [new tag]             @oxyhq/services@5.9.13  -> @oxyhq/services@5.9.13
+2026-10-04T14:11:33.7636200Z  * [new tag]             @oxyhq/services@5.9.2   -> @oxyhq/services@5.9.2
+2026-10-04T14:11:33.7636837Z  * [new tag]             @oxyhq/services@5.9.7   -> @oxyhq/services@5.9.7
+2026-10-04T14:11:33.7637461Z  * [new tag]             @oxyhq/services@6.0.0   -> @oxyhq/services@6.0.0
+2026-10-04T14:11:33.7638265Z  * [new tag]             @oxyhq/services@6.0.1   -> @oxyhq/services@6.0.1
+2026-10-04T14:11:33.7638910Z  * [new tag]             @oxyhq/services@6.1.0   -> @oxyhq/services@6.1.0
+2026-10-04T14:11:33.7639540Z  * [new tag]             @oxyhq/services@6.1.1   -> @oxyhq/services@6.1.1
+2026-10-04T14:11:33.7640167Z  * [new tag]             @oxyhq/services@6.1.2   -> @oxyhq/services@6.1.2
+2026-10-04T14:11:33.7640794Z  * [new tag]             @oxyhq/services@6.1.3   -> @oxyhq/services@6.1.3
+2026-10-04T14:11:33.7641426Z  * [new tag]             @oxyhq/services@6.1.4   -> @oxyhq/services@6.1.4
+2026-10-04T14:11:33.7642054Z  * [new tag]             @oxyhq/services@6.1.5   -> @oxyhq/services@6.1.5
+2026-10-04T14:11:33.7642677Z  * [new tag]             @oxyhq/services@6.1.6   -> @oxyhq/services@6.1.6
+2026-10-04T14:11:33.7643311Z  * [new tag]             @oxyhq/services@6.10.7  -> @oxyhq/services@6.10.7
+2026-10-04T14:11:33.7643942Z  * [new tag]             @oxyhq/services@6.2.0   -> @oxyhq/services@6.2.0
+2026-10-04T14:11:33.7645036Z  * [new tag]             @oxyhq/services@6.3.0   -> @oxyhq/services@6.3.0
+2026-10-04T14:11:33.7645781Z  * [new tag]             @oxyhq/services@6.3.1   -> @oxyhq/services@6.3.1
+2026-10-04T14:11:33.7646434Z  * [new tag]             @oxyhq/services@6.4.0   -> @oxyhq/services@6.4.0
+2026-10-04T14:11:33.7647075Z  * [new tag]             @oxyhq/services@6.4.1   -> @oxyhq/services@6.4.1
+2026-10-04T14:11:33.7647712Z  * [new tag]             @oxyhq/services@6.5.0   -> @oxyhq/services@6.5.0
+2026-10-04T14:11:33.7648352Z  * [new tag]             @oxyhq/services@6.6.1   -> @oxyhq/services@6.6.1
+2026-10-04T14:11:33.7648983Z  * [new tag]             @oxyhq/services@6.6.2   -> @oxyhq/services@6.6.2
+2026-10-04T14:11:33.7675058Z  * [new tag]             @oxyhq/services@6.7.0   -> @oxyhq/services@6.7.0
+2026-10-04T14:11:33.7676250Z  * [new tag]             @oxyhq/services@6.8.0   -> @oxyhq/services@6.8.0
+2026-10-04T14:11:33.7677348Z  * [new tag]             @oxyhq/services@6.9.0   -> @oxyhq/services@6.9.0
+2026-10-04T14:11:33.7678462Z  * [new tag]             @oxyhq/services@6.9.1   -> @oxyhq/services@6.9.1
+2026-10-04T14:11:33.7679621Z  * [new tag]             @oxyhq/services@6.9.10  -> @oxyhq/services@6.9.10
+2026-10-04T14:11:33.7680862Z  * [new tag]             @oxyhq/services@6.9.11  -> @oxyhq/services@6.9.11
+2026-10-04T14:11:33.7682030Z  * [new tag]             @oxyhq/services@6.9.12  -> @oxyhq/services@6.9.12
+2026-10-04T14:11:33.7683274Z  * [new tag]             @oxyhq/services@6.9.13  -> @oxyhq/services@6.9.13
+2026-10-04T14:11:33.7684447Z  * [new tag]             @oxyhq/services@6.9.14  -> @oxyhq/services@6.9.14
+2026-10-04T14:11:33.7686001Z  * [new tag]             @oxyhq/services@6.9.19  -> @oxyhq/services@6.9.19
+2026-10-04T14:11:33.7687186Z  * [new tag]             @oxyhq/services@6.9.2   -> @oxyhq/services@6.9.2
+2026-10-04T14:11:33.7688727Z  * [new tag]             @oxyhq/services@6.9.20  -> @oxyhq/services@6.9.20
+2026-10-04T14:11:33.7689938Z  * [new tag]             @oxyhq/services@6.9.21  -> @oxyhq/services@6.9.21
+2026-10-04T14:11:33.7691098Z  * [new tag]             @oxyhq/services@6.9.26  -> @oxyhq/services@6.9.26
+2026-10-04T14:11:33.7691790Z  * [new tag]             @oxyhq/services@6.9.27  -> @oxyhq/services@6.9.27
+2026-10-04T14:11:33.7692464Z  * [new tag]             @oxyhq/services@6.9.28  -> @oxyhq/services@6.9.28
+2026-10-04T14:11:33.7693113Z  * [new tag]             @oxyhq/services@6.9.29  -> @oxyhq/services@6.9.29
+2026-10-04T14:11:33.7693755Z  * [new tag]             @oxyhq/services@6.9.3   -> @oxyhq/services@6.9.3
+2026-10-04T14:11:33.7694393Z  * [new tag]             @oxyhq/services@6.9.30  -> @oxyhq/services@6.9.30
+2026-10-04T14:11:33.7695435Z  * [new tag]             @oxyhq/services@6.9.33  -> @oxyhq/services@6.9.33
+2026-10-04T14:11:33.7696109Z  * [new tag]             @oxyhq/services@6.9.4   -> @oxyhq/services@6.9.4
+2026-10-04T14:11:33.7696784Z  * [new tag]             @oxyhq/services@6.9.41  -> @oxyhq/services@6.9.41
+2026-10-04T14:11:33.7697431Z  * [new tag]             @oxyhq/services@6.9.42  -> @oxyhq/services@6.9.42
+2026-10-04T14:11:33.7698076Z  * [new tag]             @oxyhq/services@6.9.43  -> @oxyhq/services@6.9.43
+2026-10-04T14:11:33.7698720Z  * [new tag]             @oxyhq/services@6.9.44  -> @oxyhq/services@6.9.44
+2026-10-04T14:11:33.7699373Z  * [new tag]             @oxyhq/services@6.9.45  -> @oxyhq/services@6.9.45
+2026-10-04T14:11:33.7700008Z  * [new tag]             @oxyhq/services@6.9.46  -> @oxyhq/services@6.9.46
+2026-10-04T14:11:33.7700646Z  * [new tag]             @oxyhq/services@6.9.5   -> @oxyhq/services@6.9.5
+2026-10-04T14:11:33.7701292Z  * [new tag]             @oxyhq/services@6.9.6   -> @oxyhq/services@6.9.6
+2026-10-04T14:11:33.7701923Z  * [new tag]             @oxyhq/services@6.9.7   -> @oxyhq/services@6.9.7
+2026-10-04T14:11:33.7702548Z  * [new tag]             @oxyhq/services@6.9.8   -> @oxyhq/services@6.9.8
+2026-10-04T14:11:33.7703180Z  * [new tag]             @oxyhq/services@6.9.9   -> @oxyhq/services@6.9.9
+2026-10-04T14:11:33.7704013Z  * [new tag]             @oxyhq/services@7.0.0   -> @oxyhq/services@7.0.0
+2026-10-04T14:11:33.7704903Z  * [new tag]             oxy-id-v1.0             -> oxy-id-v1.0
+2026-10-04T14:11:33.7705597Z  * [new ref]             fd5139a029f41b5bc996165ee9cbd31cf5e97da9 -> pull/1574/merge
+2026-10-04T14:11:33.7707264Z ##[endgroup]
+2026-10-04T14:11:33.7707967Z ##[group]Determining the checkout info
+2026-10-04T14:11:33.7708693Z ##[endgroup]
+2026-10-04T14:11:33.7709252Z [command]/usr/bin/git sparse-checkout disable
+2026-10-04T14:11:33.7710412Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-04T14:11:33.7711840Z ##[group]Checking out the ref
+2026-10-04T14:11:33.7712454Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/1574/merge
+2026-10-04T14:11:34.3273686Z Note: switching to 'refs/remotes/pull/1574/merge'.
+2026-10-04T14:11:34.3275302Z 
+2026-10-04T14:11:34.3275573Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-04T14:11:34.3276138Z changes and commit them, and you can discard any commits you make in this
+2026-10-04T14:11:34.3276697Z state without impacting any branches by switching back to a branch.
+2026-10-04T14:11:34.3277015Z 
+2026-10-04T14:11:34.3277241Z If you want to create a new branch to retain commits you create, you may
+2026-10-04T14:11:34.3277759Z do so (now or later) by using -c with the switch command. Example:
+2026-10-04T14:11:34.3278048Z 
+2026-10-04T14:11:34.3278197Z   git switch -c <new-branch-name>
+2026-10-04T14:11:34.3278404Z 
+2026-10-04T14:11:34.3278538Z Or undo this operation with:
+2026-10-04T14:11:34.3278731Z 
+2026-10-04T14:11:34.3278847Z   git switch -
+2026-10-04T14:11:34.3279032Z 
+2026-10-04T14:11:34.3279416Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-04T14:11:34.3279764Z 
+2026-10-04T14:11:34.3280157Z HEAD is now at fd5139a02 Merge e856d50928c4561a0fb51772b09b1fc6f5a397d5 into eab1b6dd42b518500b49c03e692738081099d9cc
+2026-10-04T14:11:34.3353885Z ##[endgroup]
+2026-10-04T14:11:34.3406073Z [command]/usr/bin/git log -1 --format=%H
+2026-10-04T14:11:34.3435365Z fd5139a029f41b5bc996165ee9cbd31cf5e97da9
+2026-10-04T14:11:34.3699200Z ##[group]Run oven-sh/setup-bun@v2
+2026-10-04T14:11:34.3699738Z with:
+2026-10-04T14:11:34.3700008Z   bun-version-file: package.json
+2026-10-04T14:11:34.3700306Z   no-cache: false
+2026-10-04T14:11:34.3702913Z   token: ***
+2026-10-04T14:11:34.3703163Z ##[endgroup]
+2026-10-04T14:11:34.5412830Z Obtained version 1.4.2 from package.json
+2026-10-04T14:11:34.6229304Z Cache hit for: bun-gmoqYqdUbaYsI0KujeXt7Zg/p0I=
+2026-10-04T14:11:35.0071412Z Received 35684133 of 35684133 (100.0%), 109.8 MBs/sec
+2026-10-04T14:11:35.0072401Z Cache Size: ~34 MB (35684133 B)
+2026-10-04T14:11:35.0107925Z [command]/usr/bin/tar -xf /home/runner/work/_temp/99bdc95f-b08d-4e39-9e32-75a9813fe24b/cache.tzst -P -C /home/runner/work/oxy/oxy --use-compress-program unzstd
+2026-10-04T14:11:35.1606141Z Cache restored successfully
+2026-10-04T14:11:35.1629508Z [command]/home/runner/.bun/bin/bun --revision
+2026-10-04T14:11:35.1677981Z 1.4.2+744846f84
+2026-10-04T14:11:35.1684460Z Using a cached version of Bun: 1.4.2+744846f84
+2026-10-04T14:11:35.1870234Z ##[group]Run bun scripts/test-check-lockfile-sync.mjs
+2026-10-04T14:11:35.1870775Z [36;1mbun scripts/test-check-lockfile-sync.mjs[0m
+2026-10-04T14:11:35.2119712Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:11:35.2120039Z ##[endgroup]
+2026-10-04T14:11:35.5261848Z Lockfile sync check discriminated 8 fixture case(s).
+2026-10-04T14:11:35.5333551Z ##[group]Run bun scripts/check-lockfile-sync.mjs
+2026-10-04T14:11:35.5333962Z [36;1mbun scripts/check-lockfile-sync.mjs[0m
+2026-10-04T14:11:35.5398688Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:11:35.5398948Z ##[endgroup]
+2026-10-04T14:11:35.5918914Z Resolving dependencies
+2026-10-04T14:11:35.5932135Z Resolved, downloaded and extracted [1]
+2026-10-04T14:11:50.6779336Z bun.lock is in sync with every package.json.
+2026-10-04T14:11:50.6842834Z ##[group]Run bun scripts/test-ci-scope.mjs
+2026-10-04T14:11:50.6843212Z [36;1mbun scripts/test-ci-scope.mjs[0m
+2026-10-04T14:11:50.6909369Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:11:50.6909629Z ##[endgroup]
+2026-10-04T14:11:59.1299313Z ci-scope.mjs behaves: 39 cases — each suite alone, must-run paths, workflow-derived roots, lockfile walk (direct, transitive, phantom, global sections), fail-toward-run, merge-commit base, and the closure census per suite.
+2026-10-04T14:11:59.1412347Z ##[group]Run bun scripts/test-check-ci-build-cache.mjs
+2026-10-04T14:11:59.1412814Z [36;1mbun scripts/test-check-ci-build-cache.mjs[0m
+2026-10-04T14:11:59.1477415Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:11:59.1477688Z ##[endgroup]
+2026-10-04T14:11:59.6855513Z check-ci-build-cache.mjs behaves: 28 cases — cacheable tasks, hash inputs, env mode, every ci.yml write path, the writer's triggers, permissions and fresh build, and the restore/save wiring.
+2026-10-04T14:11:59.6935635Z ##[group]Run bun scripts/check-ci-build-cache.mjs
+2026-10-04T14:11:59.6936054Z [36;1mbun scripts/check-ci-build-cache.mjs[0m
+2026-10-04T14:11:59.6998625Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:11:59.6998890Z ##[endgroup]
+2026-10-04T14:11:59.7194893Z Turbo build cache: only `build` is cacheable, 4 global inputs hashed, 8 ci.yml step(s) run Turbo after a read-only restore, and .github/workflows/ci-build-cache.yml (push to main only) builds all 8 of their targets.
+2026-10-04T14:11:59.7245207Z ##[group]Run bun scripts/test-deploy-image-scope.mjs
+2026-10-04T14:11:59.7245664Z [36;1mbun scripts/test-deploy-image-scope.mjs[0m
+2026-10-04T14:11:59.7308110Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:11:59.7308371Z ##[endgroup]
+2026-10-04T14:11:59.7494257Z deploy-image-scope: all cases pass (18 deploy paths)
+2026-10-04T14:11:59.7541470Z ##[group]Run bun scripts/test-check-deploy-secrets-sync.mjs
+2026-10-04T14:11:59.7541957Z [36;1mbun scripts/test-check-deploy-secrets-sync.mjs[0m
+2026-10-04T14:11:59.7604278Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:11:59.7604846Z ##[endgroup]
+2026-10-04T14:12:00.4060843Z Deploy secret sync check discriminated 19 fixture case(s).
+2026-10-04T14:12:00.4118821Z ##[group]Run bun scripts/check-deploy-secrets-sync.mjs
+2026-10-04T14:12:00.4119249Z [36;1mbun scripts/check-deploy-secrets-sync.mjs[0m
+2026-10-04T14:12:00.4181380Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:00.4181649Z ##[endgroup]
+2026-10-04T14:12:00.4346312Z Deploy secret sync is consistent: 25 SYNC_* entries match 25 listed secrets, all 7 boot-required env vars are accounted for, all 1 production-mandatory secrets are synced, all 4 SSM-only secret bindings have no GitHub copy channel, all 2 bound GitHub secrets are refused when empty and bound by exact ARN, and none of the 5 oxy-infra-owned /oxy/_shared/ parameters is written.
+2026-10-04T14:12:00.4392313Z ##[group]Run bun scripts/test-check-secret-scan.mjs
+2026-10-04T14:12:00.4392799Z [36;1mbun scripts/test-check-secret-scan.mjs[0m
+2026-10-04T14:12:00.4453815Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:00.4454085Z ##[endgroup]
+2026-10-04T14:12:00.5038088Z ok   a tree with no issued credential material passes
+2026-10-04T14:12:00.5281289Z ok   openai-family-key is detected
+2026-10-04T14:12:00.5528422Z ok   stripe-key is detected
+2026-10-04T14:12:00.5782831Z ok   aws-access-key-id is detected
+2026-10-04T14:12:00.6024110Z ok   google-api-key is detected
+2026-10-04T14:12:00.6243880Z ok   github-token is detected
+2026-10-04T14:12:00.6464934Z ok   github-fine-grained-pat is detected
+2026-10-04T14:12:00.6702768Z ok   slack-token is detected
+2026-10-04T14:12:00.6925383Z ok   gitlab-pat is detected
+2026-10-04T14:12:00.7168531Z ok   npm-token is detected
+2026-10-04T14:12:00.7425229Z ok   signed-jwt is detected
+2026-10-04T14:12:00.7673814Z ok   oxy-machine-credential is detected
+2026-10-04T14:12:00.7926828Z ok   private-key-body is detected
+2026-10-04T14:12:00.8183630Z ok   a finding never prints the matched material
+2026-10-04T14:12:00.8428605Z ok   a tracked .env file is refused on its path alone
+2026-10-04T14:12:00.8693804Z ok   a tracked .env in a package is refused too
+2026-10-04T14:12:00.8946068Z ok   .env.example, .env.sample and .env.template pass
+2026-10-04T14:12:00.9169340Z ok   a placeholder-marked AWS key id in a contracts test does NOT fire
+2026-10-04T14:12:00.9401361Z ok   a Stripe TEST-mode key is reported, not excused as a placeholder
+2026-10-04T14:12:00.9646443Z ok   the tree's short sk- fixtures do NOT fire
+2026-10-04T14:12:00.9898447Z ok   two short PEM placeholders in one file do NOT fire
+2026-10-04T14:12:01.0142394Z ok   the public oxy_dk_ client id does NOT fire
+2026-10-04T14:12:01.0381361Z ok   a token inside a file with a NUL byte is still found
+2026-10-04T14:12:01.0592266Z ok   an allow-list entry that matches nothing FAILS the run
+2026-10-04T14:12:01.0821122Z ok   one more finding than the entry excuses FAILS the run
+2026-10-04T14:12:01.1056070Z ok   an excused file still fails on a rule the entry does not cover
+2026-10-04T14:12:01.1272419Z ok   a listing that found almost nothing cannot pass silently
+2026-10-04T14:12:01.1272931Z 
+2026-10-04T14:12:01.1273737Z All 27 secret-scan cases passed — 12 rules and 2 allow-list entries, taken from the gate itself.
+2026-10-04T14:12:01.1338009Z ##[group]Run bun scripts/check-secret-scan.mjs
+2026-10-04T14:12:01.1338415Z [36;1mbun scripts/check-secret-scan.mjs[0m
+2026-10-04T14:12:01.1402293Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:01.1402553Z ##[endgroup]
+2026-10-04T14:12:02.3618262Z Secret scan passed — 6237 file(s) / 158.7 MiB read (64 binary, scanned as bytes); 12 rules each verified against their own sample; 2 allow-list entries matched their exact declared counts.
+2026-10-04T14:12:02.3705411Z ##[group]Run bun scripts/test-check-migration-phases.mjs
+2026-10-04T14:12:02.3705882Z [36;1mbun scripts/test-check-migration-phases.mjs[0m
+2026-10-04T14:12:02.3767465Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:02.3767743Z ##[endgroup]
+2026-10-04T14:12:03.4781598Z Migration phase check discriminated 13 fixture case(s).
+2026-10-04T14:12:03.4846584Z ##[group]Run bun scripts/check-migration-phases.mjs
+2026-10-04T14:12:03.4847027Z [36;1mbun scripts/check-migration-phases.mjs[0m
+2026-10-04T14:12:03.4909753Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:03.4910018Z ##[endgroup]
+2026-10-04T14:12:03.5110965Z Migration deploy phases are sound: all 142 migration(s) declare a phase (124 pre, 18 post), deploy-aws.yml applies them before its rollout, and its post-rollout grep matches the marker syntax the migrator reads.
+2026-10-04T14:12:03.5983469Z ##[group]Run bun scripts/test-check-migration-journal-order.mjs
+2026-10-04T14:12:03.5984415Z [36;1mbun scripts/test-check-migration-journal-order.mjs[0m
+2026-10-04T14:12:03.6046768Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:03.6047037Z ##[endgroup]
+2026-10-04T14:12:04.3451698Z Migration journal order check discriminated 10 fixture case(s).
+2026-10-04T14:12:04.6029528Z ##[group]Run bun scripts/check-migration-journal-order.mjs
+2026-10-04T14:12:04.6030210Z [36;1mbun scripts/check-migration-journal-order.mjs[0m
+2026-10-04T14:12:04.6092847Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:04.6093121Z ##[endgroup]
+2026-10-04T14:12:04.6266345Z Migration journal order is sound: 142 entr(y/ies) ascend strictly by `when`, and the journal and packages/api/drizzle name the same 142 migration(s).
+2026-10-04T14:12:04.6511385Z ##[group]Run bun scripts/test-check-dependency-audit.mjs
+2026-10-04T14:12:04.6511970Z [36;1mbun scripts/test-check-dependency-audit.mjs[0m
+2026-10-04T14:12:04.6512469Z [36;1mbun scripts/test-forge-audit-policy.mjs[0m
+2026-10-04T14:12:04.6575246Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:04.6575507Z ##[endgroup]
+2026-10-04T14:12:04.7582017Z ok   a new high advisory in exactly constrained braces fails
+2026-10-04T14:12:04.7856395Z ok   a payload holding exactly the acknowledged advisories passes
+2026-10-04T14:12:04.8125055Z ok   a high advisory in a package nobody acknowledged FAILS
+2026-10-04T14:12:04.8385118Z ok   a moderate advisory in an unacknowledged package passes
+2026-10-04T14:12:04.8653185Z ok   a NEW critical inside an acknowledged package FAILS
+2026-10-04T14:12:04.8931152Z ok   an acknowledged package with no live advisory FAILS as stale
+2026-10-04T14:12:04.9204866Z ok   an acknowledged package left with only a moderate advisory FAILS as stale
+2026-10-04T14:12:04.9483619Z ok   an empty audit payload FAILS rather than reading as a clean tree
+2026-10-04T14:12:04.9720574Z ok   an unparseable payload FAILS
+2026-10-04T14:12:04.9945183Z ok   a payload that is not an object of arrays FAILS
+2026-10-04T14:12:04.9945642Z 
+2026-10-04T14:12:04.9946333Z All 10 dependency-audit cases passed — 2 acknowledged packages and 0 acknowledged criticals, taken from the gate itself.
+2026-10-04T14:12:06.0728856Z Reproduced legacy local Git failure: historical commit exit=128, historical packages exit=128; both absent after squash clone.
+2026-10-04T14:12:06.0729952Z Historical independent inputs: 43 assertions passed; clean squash clone lacks historical commit; synthetic GitHub responses do not authorize policy.
+2026-10-04T14:12:06.1698848Z 24 real Git SQUASH source-binding assertions pass; metadata is explicitly synthetic, no live approval.
+2026-10-04T14:12:06.1974763Z 43 synthetic final-image binding assertions pass; no real image, publication or approval claimed.
+2026-10-04T14:12:06.2682585Z 68 final-image collector/real-scan-content assertions pass on DERIVED SYNTHETIC queue context; no authenticated queue or publication claimed.
+2026-10-04T14:12:06.9315629Z 86 committed DAG/resolver assertions pass in synthetic owned Git only; authorized:false.
+2026-10-04T14:12:07.4765646Z 30 isolated real-collector clock/layout assertions pass; stale-clock mutation accepts expired facts and corrected collector rejects. No live API, authority or publication.
+2026-10-04T14:12:07.6258773Z .............
+2026-10-04T14:12:07.6259475Z ----------------------------------------------------------------------
+2026-10-04T14:12:07.6260198Z Ran 13 tests in 0.044s
+2026-10-04T14:12:07.6260489Z 
+2026-10-04T14:12:07.6261093Z OK
+2026-10-04T14:12:07.6262002Z Forge audit policy: 144 structural and isolated policy assertions passed; no live or human authorization claimed.
+2026-10-04T14:12:07.6339305Z ##[group]Run set -euo pipefail
+2026-10-04T14:12:07.6339642Z [36;1mset -euo pipefail[0m
+2026-10-04T14:12:07.6339975Z [36;1mtest "$(git rev-parse HEAD)" = "$EXPECTED_AUDIT_HEAD"[0m
+2026-10-04T14:12:07.6340844Z [36;1mbun -e 'import { readCommittedPolicyStatus } from "./scripts/forge-audit-policy.mjs"; console.log("active=" + (readCommittedPolicyStatus() === "ACTIVE"));' >> "$GITHUB_OUTPUT"[0m
+2026-10-04T14:12:07.6404375Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:07.6404911Z env:
+2026-10-04T14:12:07.6405211Z   EXPECTED_AUDIT_HEAD: fd5139a029f41b5bc996165ee9cbd31cf5e97da9
+2026-10-04T14:12:07.6405578Z ##[endgroup]
+2026-10-04T14:12:07.6841131Z ##[group]Run bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+2026-10-04T14:12:07.6841772Z [36;1mbun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts[0m
+2026-10-04T14:12:07.6904278Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:07.6904875Z ##[endgroup]
+2026-10-04T14:12:07.7012013Z bun install v1.4.2 (744846f84)
+2026-10-04T14:12:07.7213185Z Resolving dependencies
+2026-10-04T14:12:07.7227049Z Resolved, downloaded and extracted [1]
+2026-10-04T14:12:07.7822264Z 
+2026-10-04T14:12:07.7822695Z Checked 2300 installs across 2490 packages (no changes) [82.00ms]
+2026-10-04T14:12:07.7879308Z ##[group]Run set -euo pipefail
+2026-10-04T14:12:07.7879649Z [36;1mset -euo pipefail[0m
+2026-10-04T14:12:07.7880071Z [36;1mforge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"[0m
+2026-10-04T14:12:07.7880467Z [36;1mtest -n "$forge_runner_home"[0m
+2026-10-04T14:12:07.7881180Z [36;1mprintf '%s' "$FORGE_PROVENANCE_READ_TOKEN" | env -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth login --hostname github.com --with-token[0m
+2026-10-04T14:12:07.7946417Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:07.7946677Z env:
+2026-10-04T14:12:07.7949655Z   FORGE_PROVENANCE_READ_TOKEN: ***
+2026-10-04T14:12:07.7949941Z ##[endgroup]
+2026-10-04T14:12:08.3756828Z ##[group]Run bun scripts/check-dependency-audit.mjs
+2026-10-04T14:12:08.3757599Z [36;1mbun scripts/check-dependency-audit.mjs[0m
+2026-10-04T14:12:08.3843988Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:08.3844414Z ##[endgroup]
+2026-10-04T14:12:17.2097738Z Dependency audit FAILED:
+2026-10-04T14:12:17.2098129Z 
+2026-10-04T14:12:17.2098994Z   - Scoped Forge policy fails closed: Strict policy validation failed: Execution does not bind this repository/checkout
+2026-10-04T14:12:17.2099971Z 
+2026-10-04T14:12:17.2101753Z   - node-forge carries a high advisory nobody has acknowledged: GHSA-86w9-cpqp-85rv — node-forge RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements.
+2026-10-04T14:12:17.2102811Z 
+2026-10-04T14:12:17.2103116Z   Audit reported 7 advisories at high or above (7 high, 3 low, 15 moderate in total).
+2026-10-04T14:12:17.2103569Z 
+2026-10-04T14:12:17.2103898Z   If a dependency you added or widened is named above: raise it past the advisory, or
+2026-10-04T14:12:17.2104929Z   drop it. If it cannot be raised from here, add an ACKNOWLEDGED_PACKAGES entry stating
+2026-10-04T14:12:17.2105800Z   the `bun why` path and why the advisory does not reach a served request — in the same
+2026-10-04T14:12:17.2106356Z   commit as the dependency change.
+2026-10-04T14:12:17.2106588Z 
+2026-10-04T14:12:17.2149164Z ##[error]Process completed with exit code 1.
+2026-10-04T14:12:17.2205632Z ##[group]Run forge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+2026-10-04T14:12:17.2206203Z [36;1mforge_runner_home="$(getent passwd "$(id -u)" | cut -d: -f6)"[0m
+2026-10-04T14:12:17.2206840Z [36;1menv -u GH_TOKEN -u GITHUB_TOKEN -u GH_CONFIG_DIR HOME="$forge_runner_home" gh auth logout --hostname github.com[0m
+2026-10-04T14:12:17.2269102Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:17.2269364Z ##[endgroup]
+2026-10-04T14:12:17.2987019Z ✓ Logged out of github.com account github-actions[bot]
+2026-10-04T14:12:17.3041293Z ##[group]Run bash -n .github/scripts/*.sh
+2026-10-04T14:12:17.3041683Z [36;1mbash -n .github/scripts/*.sh[0m
+2026-10-04T14:12:17.3042015Z [36;1mbash .github/scripts/test-deploy-ecs-image.sh[0m
+2026-10-04T14:12:17.3042390Z [36;1mnode scripts/test-quiesced-deploy.mjs[0m
+2026-10-04T14:12:17.3042752Z [36;1mnode scripts/test-quiesced-deploy-shell.mjs[0m
+2026-10-04T14:12:17.3043110Z [36;1mnode scripts/test-quiesced-retirement.mjs[0m
+2026-10-04T14:12:17.3043472Z [36;1mnode scripts/test-quiesced-cold-scheduler.mjs[0m
+2026-10-04T14:12:17.3043848Z [36;1mbash .github/scripts/test-resolve-queue-image.sh[0m
+2026-10-04T14:12:17.3044287Z [36;1mbash .github/scripts/test-verify-reused-service-credential.sh[0m
+2026-10-04T14:12:17.3045074Z [36;1mbash .github/scripts/test-put-secure-parameter.sh[0m
+2026-10-04T14:12:17.3045561Z [36;1mbash .github/scripts/test-run-native-product-agent-bootstrap.sh[0m
+2026-10-04T14:12:17.3046149Z [36;1mbash .github/scripts/test-report-native-product-agent-task-failure.sh[0m
+2026-10-04T14:12:17.3046628Z [36;1mbash .github/scripts/test-smoke-inbox-mcp.sh[0m
+2026-10-04T14:12:17.3047019Z [36;1mbash .github/scripts/test-smoke-service-token-jwks.sh[0m
+2026-10-04T14:12:17.3047463Z [36;1mbash .github/scripts/test-attest-kaana-catalogue-rollout.sh[0m
+2026-10-04T14:12:17.3047985Z [36;1mnode --test .github/scripts/release-external-identity-packages.test.mjs[0m
+2026-10-04T14:12:17.3048550Z [36;1mnode --test .github/scripts/release-external-identity-publication.test.mjs[0m
+2026-10-04T14:12:17.3049080Z [36;1mnode --test .github/scripts/release-decisions-packages.test.mjs[0m
+2026-10-04T14:12:17.3049585Z [36;1mbash .github/scripts/test-run-external-identity-reconciliation.sh[0m
+2026-10-04T14:12:17.3050071Z [36;1mbash .github/scripts/test-collect-external-identity-task.sh[0m
+2026-10-04T14:12:17.3050552Z [36;1mpython3 .github/scripts/test-read-external-identity-api-logs.py[0m
+2026-10-04T14:12:17.3051095Z [36;1mPYTHONDONTWRITEBYTECODE=1 python3 .github/scripts/test-read-redis-capacity.py[0m
+2026-10-04T14:12:17.3051633Z [36;1mnode scripts/test-check-external-identity-operations.mjs[0m
+2026-10-04T14:12:17.3052067Z [36;1mnode scripts/check-external-identity-operations.mjs[0m
+2026-10-04T14:12:17.3052467Z [36;1mnode scripts/test-check-asset-worker-rollout.mjs[0m
+2026-10-04T14:12:17.3052842Z [36;1mnode scripts/check-asset-worker-rollout.mjs[0m
+2026-10-04T14:12:17.3053204Z [36;1mnode scripts/test-check-kaana-dns-boundary.mjs[0m
+2026-10-04T14:12:17.3053567Z [36;1mnode scripts/check-kaana-dns-boundary.mjs[0m
+2026-10-04T14:12:17.3053906Z [36;1mnode scripts/test-check-kaana-identity.mjs[0m
+2026-10-04T14:12:17.3054247Z [36;1mnode scripts/check-kaana-identity.mjs[0m
+2026-10-04T14:12:17.3055041Z [36;1mnode scripts/test-service-credential-workflow-ids.mjs[0m
+2026-10-04T14:12:17.3055489Z [36;1mnode scripts/test-service-credential-handoff.mjs[0m
+2026-10-04T14:12:17.3055902Z [36;1mnode scripts/test-service-credential-two-phase.mjs[0m
+2026-10-04T14:12:17.3056335Z [36;1mnode scripts/test-seed-oxy-applications-workflow.mjs[0m
+2026-10-04T14:12:17.3056803Z [36;1mnode scripts/test-native-product-agent-bootstrap-workflow.mjs[0m
+2026-10-04T14:12:17.3057283Z [36;1mnode scripts/test-kaana-catalogue-bootstrap-workflow.mjs[0m
+2026-10-04T14:12:17.3057715Z [36;1mnode scripts/test-check-kaana-request-v2-rollout.mjs[0m
+2026-10-04T14:12:17.3058118Z [36;1mnode scripts/check-kaana-request-v2-rollout.mjs[0m
+2026-10-04T14:12:17.3058498Z [36;1mnode scripts/test-check-kaana-signed-canary.mjs[0m
+2026-10-04T14:12:17.3058860Z [36;1mnode scripts/check-kaana-signed-canary.mjs[0m
+2026-10-04T14:12:17.3059306Z [36;1mnode --test packages/api/scripts/run-kaana-signed-canary.test.mjs[0m
+2026-10-04T14:12:17.3059827Z [36;1mnode scripts/test-check-inbox-routing-profile-readback.mjs[0m
+2026-10-04T14:12:17.3060290Z [36;1mnode scripts/check-inbox-routing-profile-readback.mjs[0m
+2026-10-04T14:12:17.3060954Z [36;1mnode scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs[0m
+2026-10-04T14:12:17.3061568Z [36;1mnode scripts/check-kaana-catalogue-bootstrap-workflow.mjs[0m
+2026-10-04T14:12:17.3123665Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:12:17.3123932Z ##[endgroup]
+2026-10-04T14:12:45.8936466Z Deployment script transaction tests passed.
+2026-10-04T14:12:45.9607710Z Quiesced deployment preflight/recovery: 61 checks PASS (synthetic AWS responses; no live mutation).
+2026-10-04T14:12:56.0407258Z Final interleaving final-main-rejection: PASS
+2026-10-04T14:12:58.6811180Z Final interleaving final-retired-drift: PASS
+2026-10-04T14:13:03.5911380Z Final interleaving shutdown-unconfirmed: PASS
+2026-10-04T14:13:09.1093888Z Final interleaving stale-steady: PASS
+2026-10-04T14:13:13.1400220Z Final interleaving eventual-steady: PASS
+2026-10-04T14:13:13.1401717Z Quiesced canonical shell: 16 checks PASS (mock AWS CLI; real shell, migration/worker/update ordering, failure stopped).
+2026-10-04T14:13:13.2045866Z Maintenance final retirement/admission: 45 checks PASS (synthetic AWS; no mutation).
+2026-10-04T14:13:13.2070500Z Maintenance pending-vs-fatal: 10 checks PASS.
+2026-10-04T14:13:13.2110113Z Latest validated admitted observation: 13 checks PASS (synthetic AWS; no mutation).
+2026-10-04T14:13:15.7823217Z Cold ECS scheduler: old deployment not launched; install0 then count-only2 PASS.
+2026-10-04T14:13:15.8573699Z ok   reuses-a-green-queue-image
+2026-10-04T14:13:15.9241359Z ok   waits-for-a-running-queue-job
+2026-10-04T14:13:15.9683284Z ok   green-after-an-earlier-failed-attempt
+2026-10-04T14:13:16.0022410Z ok   no-queue-run
+2026-10-04T14:13:16.0413048Z ok   failed-queue-run
+2026-10-04T14:13:16.0804474Z ok   cancelled-queue-run
+2026-10-04T14:13:16.1232653Z ok   green-run-built-nothing
+2026-10-04T14:13:16.1581009Z ok   other-repository
+2026-10-04T14:13:16.1929101Z ok   other-workflow
+2026-10-04T14:13:16.2279307Z ok   not-merge-group
+2026-10-04T14:13:16.2628059Z ok   other-sha
+2026-10-04T14:13:16.3008069Z ok   wait-runs-out
+2026-10-04T14:13:16.3361006Z ok   github-down
+2026-10-04T14:13:16.3771790Z ok   ecr-down
+2026-10-04T14:13:16.3772252Z resolve-queue-image: all cases pass
+2026-10-04T14:13:16.4480690Z Reused service credential verification tests passed.
+2026-10-04T14:13:19.9557897Z Secure SSM parameter stdin and argv tests passed.
+2026-10-04T14:13:20.0050997Z NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+2026-10-04T14:13:20.0170599Z NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+2026-10-04T14:13:20.0925558Z Native product agent secret-file wrapper tests passed.
+2026-10-04T14:13:20.4078688Z Native product-agent failure reporting allowlist and mutation tests passed.
+2026-10-04T14:13:20.5553132Z Inbox MCP smoke gate fixture tests passed.
+2026-10-04T14:13:20.5822398Z ok: the live shape: one Ed25519 signing key
+2026-10-04T14:13:20.5985042Z ok: a rotation window: two keys
+2026-10-04T14:13:20.6131232Z ok: an empty key set
+2026-10-04T14:13:20.6265005Z ok: no keys member
+2026-10-04T14:13:20.6398397Z ok: not JSON
+2026-10-04T14:13:20.6532514Z ok: a private member (d)
+2026-10-04T14:13:20.6666689Z ok: an extra member
+2026-10-04T14:13:20.6799924Z ok: a symmetric key
+2026-10-04T14:13:20.6933903Z ok: the wrong algorithm
+2026-10-04T14:13:20.7067557Z ok: the wrong use
+2026-10-04T14:13:20.7202789Z ok: a short public key
+2026-10-04T14:13:20.7336411Z ok: a duplicate kid
+2026-10-04T14:13:20.7478358Z ok: a kid with unsafe characters
+2026-10-04T14:13:20.7563980Z ok: an HTTP 503
+2026-10-04T14:13:20.7676334Z ok: a non-cacheable response
+2026-10-04T14:13:20.7676949Z smoke-service-token-jwks: all cases passed
+2026-10-04T14:13:21.3586072Z Kaana catalogue rollout attestation tests passed
+2026-10-04T14:13:21.4015445Z TAP version 13
+2026-10-04T14:13:21.4455303Z # Subtest: release scope is the exact dependency-ordered pair
+2026-10-04T14:13:21.4466441Z ok 1 - release scope is the exact dependency-ordered pair
+2026-10-04T14:13:21.4475623Z   ---
+2026-10-04T14:13:21.4485611Z   duration_ms: 1.379155
+2026-10-04T14:13:21.4486211Z   type: 'test'
+2026-10-04T14:13:21.4486718Z   ...
+2026-10-04T14:13:21.4487516Z # Subtest: source guard rejects branch execution, stale SHA and unspecified write mode
+2026-10-04T14:13:21.4488784Z ok 2 - source guard rejects branch execution, stale SHA and unspecified write mode
+2026-10-04T14:13:21.4489708Z   ---
+2026-10-04T14:13:21.4490196Z   duration_ms: 0.442938
+2026-10-04T14:13:21.4490730Z   type: 'test'
+2026-10-04T14:13:21.4491245Z   ...
+2026-10-04T14:13:21.4491965Z # Subtest: immutable publication is idempotent only for identical artifact bytes
+2026-10-04T14:13:21.4492959Z ok 3 - immutable publication is idempotent only for identical artifact bytes
+2026-10-04T14:13:21.4493619Z   ---
+2026-10-04T14:13:21.4493997Z   duration_ms: 0.755531
+2026-10-04T14:13:21.4494400Z   type: 'test'
+2026-10-04T14:13:21.4495090Z   ...
+2026-10-04T14:13:21.4495820Z # Subtest: artifact verification rejects missing exports and unresolved workspace manifests
+2026-10-04T14:13:21.4496958Z ok 4 - artifact verification rejects missing exports and unresolved workspace manifests
+2026-10-04T14:13:21.4497743Z   ---
+2026-10-04T14:13:21.4498090Z   duration_ms: 0.511655
+2026-10-04T14:13:21.4498501Z   type: 'test'
+2026-10-04T14:13:21.4498853Z   ...
+2026-10-04T14:13:21.4557675Z 1..4
+2026-10-04T14:13:21.4559007Z # tests 4
+2026-10-04T14:13:21.4559569Z # suites 0
+2026-10-04T14:13:21.4560098Z # pass 4
+2026-10-04T14:13:21.4560668Z # fail 0
+2026-10-04T14:13:21.4561278Z # cancelled 0
+2026-10-04T14:13:21.4561821Z # skipped 0
+2026-10-04T14:13:21.4562404Z # todo 0
+2026-10-04T14:13:21.4562972Z # duration_ms 66.982471
+2026-10-04T14:13:21.5011883Z TAP version 13
+2026-10-04T14:13:22.6020898Z # Subtest: dry-run does not publish; apply publishes exact pair in order and retry is idempotent
+2026-10-04T14:13:22.6029964Z ok 1 - dry-run does not publish; apply publishes exact pair in order and retry is idempotent
+2026-10-04T14:13:22.6031145Z   ---
+2026-10-04T14:13:22.6032067Z   duration_ms: 856.576006
+2026-10-04T14:13:22.6032917Z   type: 'test'
+2026-10-04T14:13:22.6033568Z   ...
+2026-10-04T14:13:22.6044947Z # Subtest: a conflicting second version blocks both publications during preflight
+2026-10-04T14:13:22.6046351Z ok 2 - a conflicting second version blocks both publications during preflight
+2026-10-04T14:13:22.6047255Z   ---
+2026-10-04T14:13:22.6047755Z   duration_ms: 205.434307
+2026-10-04T14:13:22.6048326Z   type: 'test'
+2026-10-04T14:13:22.6048804Z   ...
+2026-10-04T14:13:22.6162455Z 1..2
+2026-10-04T14:13:22.6178009Z # tests 2
+2026-10-04T14:13:22.6195340Z # suites 0
+2026-10-04T14:13:22.6195705Z # pass 2
+2026-10-04T14:13:22.6196028Z # fail 0
+2026-10-04T14:13:22.6196349Z # cancelled 0
+2026-10-04T14:13:22.6196690Z # skipped 0
+2026-10-04T14:13:22.6197006Z # todo 0
+2026-10-04T14:13:22.6197331Z # duration_ms 1125.354628
+2026-10-04T14:13:22.6626472Z TAP version 13
+2026-10-04T14:13:25.9465355Z # Subtest: release scope is contracts only; published SDK floors cannot be republished
+2026-10-04T14:13:25.9472660Z ok 1 - release scope is contracts only; published SDK floors cannot be republished
+2026-10-04T14:13:25.9473642Z   ---
+2026-10-04T14:13:25.9474027Z   duration_ms: 2.529443
+2026-10-04T14:13:25.9474711Z   type: 'test'
+2026-10-04T14:13:25.9475104Z   ...
+2026-10-04T14:13:25.9479114Z # Subtest: both actual consumer entry points strictly require the contracts release version
+2026-10-04T14:13:25.9481416Z ok 2 - both actual consumer entry points strictly require the contracts release version
+2026-10-04T14:13:25.9482230Z   ---
+2026-10-04T14:13:25.9482619Z   duration_ms: 0.479495
+2026-10-04T14:13:25.9483024Z   type: 'test'
+2026-10-04T14:13:25.9483315Z   ...
+2026-10-04T14:13:25.9485099Z # Subtest: core keeps its contracts workspace dependency for pack-time rewriting
+2026-10-04T14:13:25.9488144Z ok 3 - core keeps its contracts workspace dependency for pack-time rewriting
+2026-10-04T14:13:25.9488891Z   ---
+2026-10-04T14:13:25.9489242Z   duration_ms: 0.277568
+2026-10-04T14:13:25.9495868Z   type: 'test'
+2026-10-04T14:13:25.9496259Z   ...
+2026-10-04T14:13:25.9496809Z # Subtest: prepare accepts only the fixed source release before entering build
+2026-10-04T14:13:25.9497504Z ok 4 - prepare accepts only the fixed source release before entering build
+2026-10-04T14:13:25.9497883Z   ---
+2026-10-04T14:13:25.9498080Z   duration_ms: 173.280678
+2026-10-04T14:13:25.9498304Z   type: 'test'
+2026-10-04T14:13:25.9498495Z   ...
+2026-10-04T14:13:25.9501227Z # Subtest: prepare refuses @oxy.so/contracts@4.9.0 before build or publication
+2026-10-04T14:13:25.9502847Z ok 5 - prepare refuses @oxy.so/contracts@4.9.0 before build or publication
+2026-10-04T14:13:25.9514053Z   ---
+2026-10-04T14:13:25.9514348Z   duration_ms: 145.910448
+2026-10-04T14:13:25.9515460Z   type: 'test'
+2026-10-04T14:13:25.9515808Z   ...
+2026-10-04T14:13:25.9516148Z # Subtest: prepare refuses @oxy.so/contracts@4.7.0 before build or publication
+2026-10-04T14:13:25.9517370Z ok 6 - prepare refuses @oxy.so/contracts@4.7.0 before build or publication
+2026-10-04T14:13:25.9518050Z   ---
+2026-10-04T14:13:25.9518251Z   duration_ms: 142.87869
+2026-10-04T14:13:25.9518484Z   type: 'test'
+2026-10-04T14:13:25.9518673Z   ...
+2026-10-04T14:13:25.9520143Z # Subtest: prepare refuses @oxy.so/another-package@4.8.0 before build or publication
+2026-10-04T14:13:25.9521626Z ok 7 - prepare refuses @oxy.so/another-package@4.8.0 before build or publication
+2026-10-04T14:13:25.9537043Z   ---
+2026-10-04T14:13:25.9537464Z   duration_ms: 143.165701
+2026-10-04T14:13:25.9537878Z   type: 'test'
+2026-10-04T14:13:25.9538217Z   ...
+2026-10-04T14:13:25.9538770Z # Subtest: prepare refuses @oxy.so/contracts@null before build or publication
+2026-10-04T14:13:25.9539661Z ok 8 - prepare refuses @oxy.so/contracts@null before build or publication
+2026-10-04T14:13:25.9540301Z   ---
+2026-10-04T14:13:25.9540631Z   duration_ms: 143.910136
+2026-10-04T14:13:25.9541019Z   type: 'test'
+2026-10-04T14:13:25.9541383Z   ...
+2026-10-04T14:13:25.9542074Z # Subtest: any future paired artifact must pin released contracts and published first-party floors
+2026-10-04T14:13:25.9543338Z ok 9 - any future paired artifact must pin released contracts and published first-party floors
+2026-10-04T14:13:25.9565397Z   ---
+2026-10-04T14:13:25.9595498Z   duration_ms: 1.23186
+2026-10-04T14:13:25.9609790Z   type: 'test'
+2026-10-04T14:13:25.9618335Z   ...
+2026-10-04T14:13:25.9618921Z # Subtest: a consumer sees no runner file commands, tokens, NODE_OPTIONS or npm auth
+2026-10-04T14:13:25.9619753Z ok 10 - a consumer sees no runner file commands, tokens, NODE_OPTIONS or npm auth
+2026-10-04T14:13:25.9620164Z   ---
+2026-10-04T14:13:25.9620354Z   duration_ms: 0.558823
+2026-10-04T14:13:25.9620575Z   type: 'test'
+2026-10-04T14:13:25.9620767Z   ...
+2026-10-04T14:13:25.9621121Z # Subtest: rebuilt artifacts must equal the trusted build byte for byte and commit for commit
+2026-10-04T14:13:25.9621722Z ok 11 - rebuilt artifacts must equal the trusted build byte for byte and commit for commit
+2026-10-04T14:13:25.9622131Z   ---
+2026-10-04T14:13:25.9622333Z   duration_ms: 0.497529
+2026-10-04T14:13:25.9622559Z   type: 'test'
+2026-10-04T14:13:25.9622757Z   ...
+2026-10-04T14:13:25.9623154Z # Subtest: workflow: only the apply step holds NPM_TOKEN, dry run never does, permissions stay read-only
+2026-10-04T14:13:25.9623813Z ok 12 - workflow: only the apply step holds NPM_TOKEN, dry run never does, permissions stay read-only
+2026-10-04T14:13:25.9624253Z   ---
+2026-10-04T14:13:25.9624437Z   duration_ms: 0.450772
+2026-10-04T14:13:25.9624918Z   type: 'test'
+2026-10-04T14:13:25.9625107Z   ...
+2026-10-04T14:13:25.9625422Z # Subtest: verify needs no token, calls no npm, and reports the release anonymously
+2026-10-04T14:13:25.9625948Z ok 13 - verify needs no token, calls no npm, and reports the release anonymously
+2026-10-04T14:13:25.9626315Z   ---
+2026-10-04T14:13:25.9626497Z   duration_ms: 172.145975
+2026-10-04T14:13:25.9626716Z   type: 'test'
+2026-10-04T14:13:25.9626903Z   ...
+2026-10-04T14:13:25.9627170Z # Subtest: publish refuses a dry run even when a token is present
+2026-10-04T14:13:25.9627925Z ok 14 - publish refuses a dry run even when a token is present
+2026-10-04T14:13:25.9628247Z   ---
+2026-10-04T14:13:25.9628425Z   duration_ms: 56.028622
+2026-10-04T14:13:25.9628646Z   type: 'test'
+2026-10-04T14:13:25.9628830Z   ...
+2026-10-04T14:13:25.9629161Z # Subtest: apply publishes only its own contracts, never core, and a retry is idempotent
+2026-10-04T14:13:25.9629710Z ok 15 - apply publishes only its own contracts, never core, and a retry is idempotent
+2026-10-04T14:13:25.9630101Z   ---
+2026-10-04T14:13:25.9630277Z   duration_ms: 508.594837
+2026-10-04T14:13:25.9630494Z   type: 'test'
+2026-10-04T14:13:25.9630671Z   ...
+2026-10-04T14:13:25.9631026Z # Subtest: a rebuild that differs from the trusted bytes publishes nothing and verifies nothing
+2026-10-04T14:13:25.9631612Z ok 16 - a rebuild that differs from the trusted bytes publishes nothing and verifies nothing
+2026-10-04T14:13:25.9632018Z   ---
+2026-10-04T14:13:25.9632197Z   duration_ms: 278.72221
+2026-10-04T14:13:25.9632428Z   type: 'test'
+2026-10-04T14:13:25.9632618Z   ...
+2026-10-04T14:13:25.9632943Z # Subtest: a different published contracts version blocks overwrite during preflight
+2026-10-04T14:13:25.9633514Z ok 17 - a different published contracts version blocks overwrite during preflight
+2026-10-04T14:13:25.9633921Z   ---
+2026-10-04T14:13:25.9634119Z   duration_ms: 170.639726
+2026-10-04T14:13:25.9634343Z   type: 'test'
+2026-10-04T14:13:25.9634801Z   ...
+2026-10-04T14:13:25.9635253Z # Subtest: a branch or unprotected ref, another SHA, an advanced main or a missing token publishes nothing
+2026-10-04T14:13:25.9635985Z ok 18 - a branch or unprotected ref, another SHA, an advanced main or a missing token publishes nothing
+2026-10-04T14:13:25.9636456Z   ---
+2026-10-04T14:13:25.9636668Z   duration_ms: 474.406299
+2026-10-04T14:13:25.9636918Z   type: 'test'
+2026-10-04T14:13:25.9637111Z   ...
+2026-10-04T14:13:25.9637562Z # Subtest: smoke installs the trusted bytes outside the repo with a clean env, real minimum age and exact cases
+2026-10-04T14:13:25.9638319Z ok 19 - smoke installs the trusted bytes outside the repo with a clean env, real minimum age and exact cases
+2026-10-04T14:13:25.9638805Z   ---
+2026-10-04T14:13:25.9639018Z   duration_ms: 361.212524
+2026-10-04T14:13:25.9639256Z   type: 'test'
+2026-10-04T14:13:25.9639443Z   ...
+2026-10-04T14:13:25.9639755Z # Subtest: smoke refuses tampered trusted bytes before installing anything
+2026-10-04T14:13:25.9640291Z ok 20 - smoke refuses tampered trusted bytes before installing anything
+2026-10-04T14:13:25.9640671Z   ---
+2026-10-04T14:13:25.9640854Z   duration_ms: 59.828736
+2026-10-04T14:13:25.9641088Z   type: 'test'
+2026-10-04T14:13:25.9641292Z   ...
+2026-10-04T14:13:25.9641494Z # Subtest: only the fixed phases exist
+2026-10-04T14:13:25.9641795Z ok 21 - only the fixed phases exist
+2026-10-04T14:13:25.9642075Z   ---
+2026-10-04T14:13:25.9642273Z   duration_ms: 121.967672
+2026-10-04T14:13:25.9642493Z   type: 'test'
+2026-10-04T14:13:25.9642695Z   ...
+2026-10-04T14:13:25.9643045Z # Subtest: smoke refuses first-party floor bytes that differ from the trusted record
+2026-10-04T14:13:25.9643628Z ok 22 - smoke refuses first-party floor bytes that differ from the trusted record
+2026-10-04T14:13:25.9644032Z   ---
+2026-10-04T14:13:25.9644230Z   duration_ms: 87.619308
+2026-10-04T14:13:25.9644459Z   type: 'test'
+2026-10-04T14:13:25.9644850Z   ...
+2026-10-04T14:13:25.9645227Z # Subtest: a first-party floor is pinned only to a registry tarball and sha512 integrity
+2026-10-04T14:13:25.9645812Z ok 23 - a first-party floor is pinned only to a registry tarball and sha512 integrity
+2026-10-04T14:13:25.9646237Z   ---
+2026-10-04T14:13:25.9646418Z   duration_ms: 0.468816
+2026-10-04T14:13:25.9646649Z   type: 'test'
+2026-10-04T14:13:25.9646856Z   ...
+2026-10-04T14:13:25.9647117Z # Subtest: floors are part of the trusted-build comparison
+2026-10-04T14:13:25.9647511Z ok 24 - floors are part of the trusted-build comparison
+2026-10-04T14:13:25.9647830Z   ---
+2026-10-04T14:13:25.9648014Z   duration_ms: 0.21437
+2026-10-04T14:13:25.9648472Z   type: 'test'
+2026-10-04T14:13:25.9648679Z   ...
+2026-10-04T14:13:25.9649039Z # Subtest: smoke refuses missing or changed published SDK floors before any consumer runs
+2026-10-04T14:13:25.9649630Z ok 25 - smoke refuses missing or changed published SDK floors before any consumer runs
+2026-10-04T14:13:25.9650024Z   ---
+2026-10-04T14:13:25.9650202Z   duration_ms: 189.310547
+2026-10-04T14:13:25.9650542Z   type: 'test'
+2026-10-04T14:13:25.9650822Z   ...
+2026-10-04T14:13:25.9704402Z 1..25
+2026-10-04T14:13:25.9705038Z # tests 25
+2026-10-04T14:13:25.9706067Z # suites 0
+2026-10-04T14:13:25.9706753Z # pass 25
+2026-10-04T14:13:25.9707208Z # fail 0
+2026-10-04T14:13:25.9707821Z # cancelled 0
+2026-10-04T14:13:25.9708325Z # skipped 0
+2026-10-04T14:13:25.9708836Z # todo 0
+2026-10-04T14:13:25.9709416Z # duration_ms 3319.832759
+2026-10-04T14:13:25.9840134Z Protected main required
+2026-10-04T14:13:25.9873409Z Protected ref required
+2026-10-04T14:13:25.9908475Z Workflow source must match deployed source
+2026-10-04T14:13:25.9941957Z Expected full source SHA required
+2026-10-04T14:13:26.0010757Z Invalid source cursor
+2026-10-04T14:13:26.8120074Z Inspection cannot apply or use a reconciliation cursor
+2026-10-04T14:13:26.8156578Z Inspection cannot apply or use a reconciliation cursor
+2026-10-04T14:13:26.8192205Z Unknown fixed operation
+2026-10-04T14:13:26.8228968Z Invalid inspection actor URI
+2026-10-04T14:13:26.9257352Z Missing reconciliation summary in task logs
+2026-10-04T14:13:26.9277257Z Identity ECS reconciliation guards and lifecycle: passed
+2026-10-04T14:13:27.0413103Z Meta inspection cannot apply, resume or override source URLs
+2026-10-04T14:13:27.0449977Z Meta inspection cannot apply, resume or override source URLs
+2026-10-04T14:13:27.0488244Z Invalid Meta account
+2026-10-04T14:13:27.0527305Z Invalid Meta account
+2026-10-04T14:13:27.0563739Z Meta inspection cannot apply, resume or override source URLs
+2026-10-04T14:13:27.0601043Z Meta inspection cannot apply, resume or override source URLs
+2026-10-04T14:13:27.1597999Z Missing reconciliation summary in task logs
+2026-10-04T14:13:27.1616207Z Fixed Meta read-only source diagnostics and report discrimination: passed
+2026-10-04T14:13:27.2721459Z Profile inspection cannot apply, resume or override accounts
+2026-10-04T14:13:27.2758844Z Profile inspection cannot apply, resume or override accounts
+2026-10-04T14:13:27.2795073Z Profile inspection cannot apply, resume or override accounts
+2026-10-04T14:13:27.2831743Z Invalid reviewed profile actor
+2026-10-04T14:13:27.2868845Z Invalid reviewed profile actor
+2026-10-04T14:13:27.3845399Z Missing reconciliation summary in task logs
+2026-10-04T14:13:27.3863178Z Fixed read-only profile inspection guards: passed
+2026-10-04T14:13:27.8944224Z Task is still running; snapshot is not completion evidence.
+2026-10-04T14:13:28.1765564Z Missing completion summary
+2026-10-04T14:13:28.1807374Z Identity recovery provenance, bounded polling, full logs and read-only controls: passed
+2026-10-04T14:13:28.8893024Z Exact completed-task stop guards: passed
+2026-10-04T14:13:29.3679123Z Stop requested, but STOPPED not observed within two minutes; recover another snapshot.
+2026-10-04T14:13:29.7374400Z Missing completion summary
+2026-10-04T14:13:29.7389894Z Meta diagnostic recovery and cross-operation rejection: passed
+2026-10-04T14:13:30.1038613Z Missing completion summary
+2026-10-04T14:13:30.1054103Z Profile diagnostic cannot authorize apply/stop: passed
+2026-10-04T14:13:30.1632567Z ........
+2026-10-04T14:13:30.1633065Z ----------------------------------------------------------------------
+2026-10-04T14:13:30.1633698Z Ran 8 tests in 0.003s
+2026-10-04T14:13:30.1633945Z 
+2026-10-04T14:13:30.1634077Z OK
+2026-10-04T14:13:30.2211776Z .....
+2026-10-04T14:13:30.2212262Z ----------------------------------------------------------------------
+2026-10-04T14:13:30.2212857Z Ran 5 tests in 0.003s
+2026-10-04T14:13:30.2213098Z 
+2026-10-04T14:13:30.2213232Z OK
+2026-10-04T14:13:30.6276632Z External identity operations guard: clean fixture and ten unsafe mutations checked
+2026-10-04T14:13:30.6610087Z External identity operations guard passed
+2026-10-04T14:13:30.9110110Z OK: asset worker rollout gate rejects fixed-capacity and ordering regressions
+2026-10-04T14:13:30.9419903Z OK: asset worker rollout preserves and verifies autoscaled capacity
+2026-10-04T14:13:31.1279298Z Kaana DNS boundary check discriminated 5 fixture cases.
+2026-10-04T14:13:31.1577981Z Kaana DNS boundary is exact: validation is DNS-only and the dedicated kaana.ai apex stays proxied through Cloudflare.
+2026-10-04T14:13:31.6329326Z Kaana identity guard discriminated 13 fixture cases.
+2026-10-04T14:13:35.1642876Z Kaana identity is exact across 4439 text files; only approved removal receipts and unrelated relay roles remain.
+2026-10-04T14:13:35.3149820Z Service credential workflows bind exact app/credential IDs, scopes, and SSM destinations.
+2026-10-04T14:13:36.6693585Z Partial service-credential handoff is repaired by exact package replay.
+2026-10-04T14:13:36.7038111Z Two-phase credential handoff is safe at every task, package, and finalize crash boundary.
+2026-10-04T14:13:36.7361304Z Application seed workflow preserves the exact-id boundary through ECS.
+2026-10-04T14:13:36.7676020Z Native product-agent workflow pins exact IDs and protects create/reuse/dry-run/rollback secret handling.
+2026-10-04T14:13:36.7997832Z Kaana catalogue workflow binds live ECS proofs to the dedicated one-shot and its PostgreSQL commit.
+2026-10-04T14:13:37.1585085Z Kaana request-v2 rollout gate mutation tests passed.
+2026-10-04T14:13:37.1895693Z Kaana request-v2 producer is exact-ID only and enabled after the recorded signed canary.
+2026-10-04T14:13:38.7925312Z Kaana signed-canary gate mutation tests passed.
+2026-10-04T14:13:38.8277760Z Kaana signed readback and canary stay live-snapshot-bound, exact-ID, isolated and secret-minimized.
+2026-10-04T14:13:38.8705050Z TAP version 13
+2026-10-04T14:13:39.1449598Z # Subtest: candidate origin accepts only an exact RFC1918 HTTP endpoint on port 8080
+2026-10-04T14:13:39.1454786Z ok 1 - candidate origin accepts only an exact RFC1918 HTTP endpoint on port 8080
+2026-10-04T14:13:39.1455731Z   ---
+2026-10-04T14:13:39.1456197Z   duration_ms: 4.7059
+2026-10-04T14:13:39.1456691Z   type: 'test'
+2026-10-04T14:13:39.1457190Z   ...
+2026-10-04T14:13:39.1458441Z # Subtest: runs every closed negative before exactly two one-token positive probes
+2026-10-04T14:13:39.1465782Z ok 2 - runs every closed negative before exactly two one-token positive probes
+2026-10-04T14:13:39.1485383Z   ---
+2026-10-04T14:13:39.1495791Z   duration_ms: 14.766401
+2026-10-04T14:13:39.1496387Z   type: 'test'
+2026-10-04T14:13:39.1496909Z   ...
+2026-10-04T14:13:39.1497585Z # Subtest: stops before either provider probe if a slug arm is unexpectedly accepted
+2026-10-04T14:13:39.1498809Z ok 3 - stops before either provider probe if a slug arm is unexpectedly accepted
+2026-10-04T14:13:39.1499689Z   ---
+2026-10-04T14:13:39.1508348Z   duration_ms: 4.18161
+2026-10-04T14:13:39.1508920Z   type: 'test'
+2026-10-04T14:13:39.1509410Z   ...
+2026-10-04T14:13:39.1510089Z # Subtest: refuses noncanonical origins and fuzzy exact IDs before fetch
+2026-10-04T14:13:39.1511130Z ok 4 - refuses noncanonical origins and fuzzy exact IDs before fetch
+2026-10-04T14:13:39.1511927Z   ---
+2026-10-04T14:13:39.1512309Z   duration_ms: 1.260444
+2026-10-04T14:13:39.1512728Z   type: 'test'
+2026-10-04T14:13:39.1513217Z   ...
+2026-10-04T14:13:39.1513882Z # Subtest: does not reinterpret a provider-credential UUID as a deployment identity
+2026-10-04T14:13:39.1515341Z ok 5 - does not reinterpret a provider-credential UUID as a deployment identity
+2026-10-04T14:13:39.1516095Z   ---
+2026-10-04T14:13:39.1516443Z   duration_ms: 1.823546
+2026-10-04T14:13:39.1517029Z   type: 'test'
+2026-10-04T14:13:39.1517385Z   ...
+2026-10-04T14:13:39.1517950Z # Subtest: refuses every start event field outside the exact contract shape
+2026-10-04T14:13:39.1518680Z     # Subtest: deploymentId
+2026-10-04T14:13:39.1519123Z     ok 1 - deploymentId
+2026-10-04T14:13:39.1519515Z       ---
+2026-10-04T14:13:39.1520816Z       duration_ms: 4.403355
+2026-10-04T14:13:39.1521417Z       type: 'test'
+2026-10-04T14:13:39.1521822Z       ...
+2026-10-04T14:13:39.1522163Z     # Subtest: routeId
+2026-10-04T14:13:39.1522717Z     ok 2 - routeId
+2026-10-04T14:13:39.1523081Z       ---
+2026-10-04T14:13:39.1523429Z       duration_ms: 4.607937
+2026-10-04T14:13:39.1523847Z       type: 'test'
+2026-10-04T14:13:39.1524348Z       ...
+2026-10-04T14:13:39.1525077Z     # Subtest: providerDetail
+2026-10-04T14:13:39.1525680Z     ok 3 - providerDetail
+2026-10-04T14:13:39.1526174Z       ---
+2026-10-04T14:13:39.1526559Z       duration_ms: 3.80648
+2026-10-04T14:13:39.1526976Z       type: 'test'
+2026-10-04T14:13:39.1527476Z       ...
+2026-10-04T14:13:39.1527843Z     1..3
+2026-10-04T14:13:39.1528453Z ok 6 - refuses every start event field outside the exact contract shape
+2026-10-04T14:13:39.1529254Z   ---
+2026-10-04T14:13:39.1529636Z   duration_ms: 13.498453
+2026-10-04T14:13:39.1530175Z   type: 'test'
+2026-10-04T14:13:39.1530567Z   ...
+2026-10-04T14:13:39.1531234Z # Subtest: accepts the exact start shape when optional generationId is absent
+2026-10-04T14:13:39.1532302Z ok 7 - accepts the exact start shape when optional generationId is absent
+2026-10-04T14:13:39.1533114Z   ---
+2026-10-04T14:13:39.1533490Z   duration_ms: 4.61
+2026-10-04T14:13:39.1535260Z   type: 'test'
+2026-10-04T14:13:39.1537157Z   ...
+2026-10-04T14:13:39.1537664Z # Subtest: refuses every invalid contractual start-event value
+2026-10-04T14:13:39.1538337Z     # Subtest: schema version
+2026-10-04T14:13:39.1538788Z     ok 1 - schema version
+2026-10-04T14:13:39.1539271Z       ---
+2026-10-04T14:13:39.1539619Z       duration_ms: 3.639027
+2026-10-04T14:13:39.1540051Z       type: 'test'
+2026-10-04T14:13:39.1540410Z       ...
+2026-10-04T14:13:39.1540760Z     # Subtest: request identity
+2026-10-04T14:13:39.1541215Z     ok 2 - request identity
+2026-10-04T14:13:39.1541631Z       ---
+2026-10-04T14:13:39.1541987Z       duration_ms: 4.450132
+2026-10-04T14:13:39.1542395Z       type: 'test'
+2026-10-04T14:13:39.1542779Z       ...
+2026-10-04T14:13:39.1543217Z     # Subtest: sequence -1
+2026-10-04T14:13:39.1543662Z     ok 3 - sequence -1
+2026-10-04T14:13:39.1544042Z       ---
+2026-10-04T14:13:39.1544387Z       duration_ms: 3.561422
+2026-10-04T14:13:39.1545049Z       type: 'test'
+2026-10-04T14:13:39.1545410Z       ...
+2026-10-04T14:13:39.1545764Z     # Subtest: sequence 0.5
+2026-10-04T14:13:39.1546189Z     ok 4 - sequence 0.5
+2026-10-04T14:13:39.1546583Z       ---
+2026-10-04T14:13:39.1546929Z       duration_ms: 3.152278
+2026-10-04T14:13:39.1547347Z       type: 'test'
+2026-10-04T14:13:39.1547707Z       ...
+2026-10-04T14:13:39.1548050Z     # Subtest: sequence 1
+2026-10-04T14:13:39.1548490Z     ok 5 - sequence 1
+2026-10-04T14:13:39.1548874Z       ---
+2026-10-04T14:13:39.1549214Z       duration_ms: 3.142519
+2026-10-04T14:13:39.1549629Z       type: 'test'
+2026-10-04T14:13:39.1549985Z       ...
+2026-10-04T14:13:39.1550349Z     # Subtest: sequence 9007199254740992
+2026-10-04T14:13:39.1550849Z     ok 6 - sequence 9007199254740992
+2026-10-04T14:13:39.1551324Z       ---
+2026-10-04T14:13:39.1551672Z       duration_ms: 3.116341
+2026-10-04T14:13:39.1552081Z       type: 'test'
+2026-10-04T14:13:39.1552443Z       ...
+2026-10-04T14:13:39.1552801Z     # Subtest: empty generation id
+2026-10-04T14:13:39.1553285Z     ok 7 - empty generation id
+2026-10-04T14:13:39.1553720Z       ---
+2026-10-04T14:13:39.1554160Z       duration_ms: 3.134395
+2026-10-04T14:13:39.1554809Z       type: 'test'
+2026-10-04T14:13:39.1555177Z       ...
+2026-10-04T14:13:39.1555544Z     # Subtest: oversized generation id
+2026-10-04T14:13:39.1556055Z     ok 8 - oversized generation id
+2026-10-04T14:13:39.1556523Z       ---
+2026-10-04T14:13:39.1556866Z       duration_ms: 4.571179
+2026-10-04T14:13:39.1557274Z       type: 'test'
+2026-10-04T14:13:39.1557631Z       ...
+2026-10-04T14:13:39.1558005Z     # Subtest: non-string generation id
+2026-10-04T14:13:39.1558512Z     ok 9 - non-string generation id
+2026-10-04T14:13:39.1558974Z       ---
+2026-10-04T14:13:39.1559554Z       duration_ms: 3.953435
+2026-10-04T14:13:39.1560183Z       type: 'test'
+2026-10-04T14:13:39.1560551Z       ...
+2026-10-04T14:13:39.1560912Z     # Subtest: null generation id
+2026-10-04T14:13:39.1561389Z     ok 10 - null generation id
+2026-10-04T14:13:39.1561823Z       ---
+2026-10-04T14:13:39.1562177Z       duration_ms: 3.903801
+2026-10-04T14:13:39.1562597Z       type: 'test'
+2026-10-04T14:13:39.1562955Z       ...
+2026-10-04T14:13:39.1563303Z     # Subtest: offset timestamp
+2026-10-04T14:13:39.1563771Z     ok 11 - offset timestamp
+2026-10-04T14:13:39.1564191Z       ---
+2026-10-04T14:13:39.1564985Z       duration_ms: 3.349627
+2026-10-04T14:13:39.1565444Z       type: 'test'
+2026-10-04T14:13:39.1565812Z       ...
+2026-10-04T14:13:39.1566213Z     # Subtest: impossible calendar date
+2026-10-04T14:13:39.1566738Z     ok 12 - impossible calendar date
+2026-10-04T14:13:39.1567205Z       ---
+2026-10-04T14:13:39.1567551Z       duration_ms: 3.191882
+2026-10-04T14:13:39.1567978Z       type: 'test'
+2026-10-04T14:13:39.1568334Z       ...
+2026-10-04T14:13:39.1568716Z     # Subtest: lowercase UTC marker
+2026-10-04T14:13:39.1569213Z     ok 13 - lowercase UTC marker
+2026-10-04T14:13:39.1569667Z       ---
+2026-10-04T14:13:39.1570014Z       duration_ms: 3.211127
+2026-10-04T14:13:39.1570433Z       type: 'test'
+2026-10-04T14:13:39.1570789Z       ...
+2026-10-04T14:13:39.1571110Z     1..13
+2026-10-04T14:13:39.1571573Z ok 8 - refuses every invalid contractual start-event value
+2026-10-04T14:13:39.1572156Z   ---
+2026-10-04T14:13:39.1572507Z   duration_ms: 47.60651
+2026-10-04T14:13:39.1572910Z   type: 'test'
+2026-10-04T14:13:39.1573261Z   ...
+2026-10-04T14:13:39.1573855Z # Subtest: projects only a closed inference error code from execution error events
+2026-10-04T14:13:39.1575104Z ok 9 - projects only a closed inference error code from execution error events
+2026-10-04T14:13:39.1575816Z   ---
+2026-10-04T14:13:39.1576163Z   duration_ms: 7.314642
+2026-10-04T14:13:39.1576561Z   type: 'test'
+2026-10-04T14:13:39.1576909Z   ...
+2026-10-04T14:13:39.1577530Z # Subtest: reports the exact safe stage for every positive response-contract failure
+2026-10-04T14:13:39.1578338Z     # Subtest: HTTP status
+2026-10-04T14:13:39.1578782Z     ok 1 - HTTP status
+2026-10-04T14:13:39.1579167Z       ---
+2026-10-04T14:13:39.1579514Z       duration_ms: 3.060367
+2026-10-04T14:13:39.1579929Z       type: 'test'
+2026-10-04T14:13:39.1580297Z       ...
+2026-10-04T14:13:39.1580684Z     # Subtest: provider execution error event
+2026-10-04T14:13:39.1581242Z     ok 2 - provider execution error event
+2026-10-04T14:13:39.1581733Z       ---
+2026-10-04T14:13:39.1582083Z       duration_ms: 2.979335
+2026-10-04T14:13:39.1582510Z       type: 'test'
+2026-10-04T14:13:39.1582864Z       ...
+2026-10-04T14:13:39.1583271Z     # Subtest: start event count
+2026-10-04T14:13:39.1605414Z     ok 3 - start event count
+2026-10-04T14:13:39.1610660Z       ---
+2026-10-04T14:13:39.1611430Z       duration_ms: 3.037173
+2026-10-04T14:13:39.1611869Z       type: 'test'
+2026-10-04T14:13:39.1612215Z       ...
+2026-10-04T14:13:39.1612579Z     # Subtest: start event position
+2026-10-04T14:13:39.1613042Z     ok 4 - start event position
+2026-10-04T14:13:39.1613457Z       ---
+2026-10-04T14:13:39.1613778Z       duration_ms: 3.024148
+2026-10-04T14:13:39.1614162Z       type: 'test'
+2026-10-04T14:13:39.1614750Z       ...
+2026-10-04T14:13:39.1615109Z     # Subtest: start model identity
+2026-10-04T14:13:39.1615591Z     ok 5 - start model identity
+2026-10-04T14:13:39.1616000Z       ---
+2026-10-04T14:13:39.1616330Z       duration_ms: 3.023116
+2026-10-04T14:13:39.1616730Z       type: 'test'
+2026-10-04T14:13:39.1617051Z       ...
+2026-10-04T14:13:39.1617372Z     # Subtest: start provider identity
+2026-10-04T14:13:39.1617830Z     ok 6 - start provider identity
+2026-10-04T14:13:39.1618246Z       ---
+2026-10-04T14:13:39.1618554Z       duration_ms: 3.052782
+2026-10-04T14:13:39.1618927Z       type: 'test'
+2026-10-04T14:13:39.1619239Z       ...
+2026-10-04T14:13:39.1619551Z     # Subtest: done event count
+2026-10-04T14:13:39.1619958Z     ok 7 - done event count
+2026-10-04T14:13:39.1620718Z       ---
+2026-10-04T14:13:39.1621086Z       duration_ms: 3.30884
+2026-10-04T14:13:39.1621506Z       type: 'test'
+2026-10-04T14:13:39.1621874Z       ...
+2026-10-04T14:13:39.1622252Z     # Subtest: done event position
+2026-10-04T14:13:39.1622738Z     ok 8 - done event position
+2026-10-04T14:13:39.1623167Z       ---
+2026-10-04T14:13:39.1623528Z       duration_ms: 3.491912
+2026-10-04T14:13:39.1623951Z       type: 'test'
+2026-10-04T14:13:39.1624318Z       ...
+2026-10-04T14:13:39.1624929Z     # Subtest: receipt ownership
+2026-10-04T14:13:39.1625418Z     ok 9 - receipt ownership
+2026-10-04T14:13:39.1625860Z       ---
+2026-10-04T14:13:39.1626209Z       duration_ms: 3.921725
+2026-10-04T14:13:39.1626645Z       type: 'test'
+2026-10-04T14:13:39.1627067Z       ...
+2026-10-04T14:13:39.1627448Z     # Subtest: usage report count
+2026-10-04T14:13:39.1627930Z     ok 10 - usage report count
+2026-10-04T14:13:39.1628361Z       ---
+2026-10-04T14:13:39.1628707Z       duration_ms: 3.175622
+2026-10-04T14:13:39.1629152Z       type: 'test'
+2026-10-04T14:13:39.1629512Z       ...
+2026-10-04T14:13:39.1629862Z     # Subtest: usage schema
+2026-10-04T14:13:39.1630305Z     ok 11 - usage schema
+2026-10-04T14:13:39.1630710Z       ---
+2026-10-04T14:13:39.1631062Z       duration_ms: 3.541795
+2026-10-04T14:13:39.1631473Z       type: 'test'
+2026-10-04T14:13:39.1631829Z       ...
+2026-10-04T14:13:39.1632190Z     # Subtest: usage request identity
+2026-10-04T14:13:39.1632714Z     ok 12 - usage request identity
+2026-10-04T14:13:39.1633168Z       ---
+2026-10-04T14:13:39.1633516Z       duration_ms: 3.391845
+2026-10-04T14:13:39.1633932Z       type: 'test'
+2026-10-04T14:13:39.1634291Z       ...
+2026-10-04T14:13:39.1635022Z     # Subtest: usage outcome
+2026-10-04T14:13:39.1635489Z     ok 13 - usage outcome
+2026-10-04T14:13:39.1635902Z       ---
+2026-10-04T14:13:39.1636261Z       duration_ms: 3.149342
+2026-10-04T14:13:39.1636684Z       type: 'test'
+2026-10-04T14:13:39.1637050Z       ...
+2026-10-04T14:13:39.1642173Z     # Subtest: usage deployment identity
+2026-10-04T14:13:39.1642857Z     ok 14 - usage deployment identity
+2026-10-04T14:13:39.1643692Z       ---
+2026-10-04T14:13:39.1644073Z       duration_ms: 4.259306
+2026-10-04T14:13:39.1644746Z       type: 'test'
+2026-10-04T14:13:39.1645137Z       ...
+2026-10-04T14:13:39.1645513Z     # Subtest: usage model identity
+2026-10-04T14:13:39.1649726Z     ok 15 - usage model identity
+2026-10-04T14:13:39.1650551Z       ---
+2026-10-04T14:13:39.1651146Z       duration_ms: 3.049176
+2026-10-04T14:13:39.1651599Z       type: 'test'
+2026-10-04T14:13:39.1651972Z       ...
+2026-10-04T14:13:39.1652348Z     # Subtest: usage provider identity
+2026-10-04T14:13:39.1652893Z     ok 16 - usage provider identity
+2026-10-04T14:13:39.1653361Z       ---
+2026-10-04T14:13:39.1653719Z       duration_ms: 3.002668
+2026-10-04T14:13:39.1654206Z       type: 'test'
+2026-10-04T14:13:39.1654810Z       ...
+2026-10-04T14:13:39.1655172Z     # Subtest: usage units
+2026-10-04T14:13:39.1655606Z     ok 17 - usage units
+2026-10-04T14:13:39.1656029Z       ---
+2026-10-04T14:13:39.1656375Z       duration_ms: 3.382428
+2026-10-04T14:13:39.1656802Z       type: 'test'
+2026-10-04T14:13:39.1657161Z       ...
+2026-10-04T14:13:39.1657483Z     1..17
+2026-10-04T14:13:39.1686968Z ok 10 - reports the exact safe stage for every positive response-contract failure
+2026-10-04T14:13:39.1687819Z   ---
+2026-10-04T14:13:39.1688183Z   duration_ms: 57.143273
+2026-10-04T14:13:39.1688586Z   type: 'test'
+2026-10-04T14:13:39.1688883Z   ...
+2026-10-04T14:13:39.1689522Z # Subtest: lists the complete signed safe deployment projection without selecting or executing
+2026-10-04T14:13:39.1690619Z ok 11 - lists the complete signed safe deployment projection without selecting or executing
+2026-10-04T14:13:39.1691384Z   ---
+2026-10-04T14:13:39.1691709Z   duration_ms: 1.432526
+2026-10-04T14:13:39.1692094Z   type: 'test'
+2026-10-04T14:13:39.1692418Z   ...
+2026-10-04T14:13:39.1693051Z # Subtest: refuses a readback descriptor that exposes any field outside the safe projection
+2026-10-04T14:13:39.1694837Z ok 12 - refuses a readback descriptor that exposes any field outside the safe projection
+2026-10-04T14:13:39.1695631Z   ---
+2026-10-04T14:13:39.1696001Z   duration_ms: 1.283847
+2026-10-04T14:13:39.1696387Z   type: 'test'
+2026-10-04T14:13:39.1696847Z   ...
+2026-10-04T14:13:39.1715583Z # Subtest: readback accepts the server-shaped acceptedParameters and projects only identity
+2026-10-04T14:13:39.1716670Z     # Subtest: absent (unknown)
+2026-10-04T14:13:39.1727262Z     ok 1 - absent (unknown)
+2026-10-04T14:13:39.1727898Z       ---
+2026-10-04T14:13:39.1728383Z       duration_ms: 1.21001
+2026-10-04T14:13:39.1728936Z       type: 'test'
+2026-10-04T14:13:39.1729428Z       ...
+2026-10-04T14:13:39.1729909Z     # Subtest: empty (takes none)
+2026-10-04T14:13:39.1730513Z     ok 2 - empty (takes none)
+2026-10-04T14:13:39.1731078Z       ---
+2026-10-04T14:13:39.1731556Z       duration_ms: 1.115443
+2026-10-04T14:13:39.1732137Z       type: 'test'
+2026-10-04T14:13:39.1732721Z       ...
+2026-10-04T14:13:39.1733294Z     # Subtest: one control
+2026-10-04T14:13:39.1733912Z     ok 3 - one control
+2026-10-04T14:13:39.1734480Z       ---
+2026-10-04T14:13:39.1735309Z       duration_ms: 1.069518
+2026-10-04T14:13:39.1735922Z       type: 'test'
+2026-10-04T14:13:39.1736462Z       ...
+2026-10-04T14:13:39.1737016Z     # Subtest: the full sorted vocabulary
+2026-10-04T14:13:39.1737736Z     ok 4 - the full sorted vocabulary
+2026-10-04T14:13:39.1738399Z       ---
+2026-10-04T14:13:39.1738958Z       duration_ms: 1.069067
+2026-10-04T14:13:39.1739625Z       type: 'test'
+2026-10-04T14:13:39.1740177Z       ...
+2026-10-04T14:13:39.1740675Z     1..4
+2026-10-04T14:13:39.1741502Z ok 13 - readback accepts the server-shaped acceptedParameters and projects only identity
+2026-10-04T14:13:39.1742495Z   ---
+2026-10-04T14:13:39.1743047Z   duration_ms: 4.855198
+2026-10-04T14:13:39.1743680Z   type: 'test'
+2026-10-04T14:13:39.1744272Z   ...
+2026-10-04T14:13:39.1745309Z # Subtest: readback refuses every acceptedParameters the server could not have written
+2026-10-04T14:13:39.1746111Z     # Subtest: null
+2026-10-04T14:13:39.1746472Z     ok 1 - null
+2026-10-04T14:13:39.1746830Z       ---
+2026-10-04T14:13:39.1747168Z       duration_ms: 1.191605
+2026-10-04T14:13:39.1747558Z       type: 'test'
+2026-10-04T14:13:39.1747894Z       ...
+2026-10-04T14:13:39.1748215Z     # Subtest: a string
+2026-10-04T14:13:39.1748579Z     ok 2 - a string
+2026-10-04T14:13:39.1748899Z       ---
+2026-10-04T14:13:39.1749271Z       duration_ms: 1.016408
+2026-10-04T14:13:39.1749671Z       type: 'test'
+2026-10-04T14:13:39.1750015Z       ...
+2026-10-04T14:13:39.1750349Z     # Subtest: an object
+2026-10-04T14:13:39.1750716Z     ok 3 - an object
+2026-10-04T14:13:39.1760656Z       ---
+2026-10-04T14:13:39.1761096Z       duration_ms: 1.10284
+2026-10-04T14:13:39.1761550Z       type: 'test'
+2026-10-04T14:13:39.1761917Z       ...
+2026-10-04T14:13:39.1762293Z     # Subtest: a number entry
+2026-10-04T14:13:39.1762751Z     ok 4 - a number entry
+2026-10-04T14:13:39.1763140Z       ---
+2026-10-04T14:13:39.1763494Z       duration_ms: 1.026688
+2026-10-04T14:13:39.1763956Z       type: 'test'
+2026-10-04T14:13:39.1764353Z       ...
+2026-10-04T14:13:39.1765594Z     # Subtest: a null entry
+2026-10-04T14:13:39.1766059Z     ok 5 - a null entry
+2026-10-04T14:13:39.1766848Z       ---
+2026-10-04T14:13:39.1767205Z       duration_ms: 1.005539
+2026-10-04T14:13:39.1767820Z       type: 'test'
+2026-10-04T14:13:39.1768185Z       ...
+2026-10-04T14:13:39.1768589Z     # Subtest: a word outside the server vocabulary
+2026-10-04T14:13:39.1769208Z     ok 6 - a word outside the server vocabulary
+2026-10-04T14:13:39.1769759Z       ---
+2026-10-04T14:13:39.1770119Z       duration_ms: 1.310738
+2026-10-04T14:13:39.1770540Z       type: 'test'
+2026-10-04T14:13:39.1770907Z       ...
+2026-10-04T14:13:39.1771329Z     # Subtest: a provider spelling
+2026-10-04T14:13:39.1771803Z     ok 7 - a provider spelling
+2026-10-04T14:13:39.1772234Z       ---
+2026-10-04T14:13:39.1772575Z       duration_ms: 1.03301
+2026-10-04T14:13:39.1773252Z       type: 'test'
+2026-10-04T14:13:39.1773809Z       ...
+2026-10-04T14:13:39.1774162Z     # Subtest: a case variant
+2026-10-04T14:13:39.1774859Z     ok 8 - a case variant
+2026-10-04T14:13:39.1775285Z       ---
+2026-10-04T14:13:39.1775644Z       duration_ms: 1.077993
+2026-10-04T14:13:39.1776065Z       type: 'test'
+2026-10-04T14:13:39.1776408Z       ...
+2026-10-04T14:13:39.1777391Z     # Subtest: a padded word
+2026-10-04T14:13:39.1777873Z     ok 9 - a padded word
+2026-10-04T14:13:39.1778300Z       ---
+2026-10-04T14:13:39.1778675Z       duration_ms: 1.061423
+2026-10-04T14:13:39.1779158Z       type: 'test'
+2026-10-04T14:13:39.1779520Z       ...
+2026-10-04T14:13:39.1779886Z     # Subtest: a duplicate
+2026-10-04T14:13:39.1780365Z     ok 10 - a duplicate
+2026-10-04T14:13:39.1780757Z       ---
+2026-10-04T14:13:39.1781088Z       duration_ms: 1.058918
+2026-10-04T14:13:39.1781500Z       type: 'test'
+2026-10-04T14:13:39.1781875Z       ...
+2026-10-04T14:13:39.1782220Z     # Subtest: an unsorted set
+2026-10-04T14:13:39.1782739Z     ok 11 - an unsorted set
+2026-10-04T14:13:39.1811396Z       ---
+2026-10-04T14:13:39.1835291Z       duration_ms: 1.044651
+2026-10-04T14:13:39.1865563Z       type: 'test'
+2026-10-04T14:13:39.1948981Z       ...
+2026-10-04T14:13:39.1957641Z     # Subtest: the full set reversed
+2026-10-04T14:13:39.1961785Z     ok 12 - the full set reversed
+2026-10-04T14:13:39.1962256Z       ---
+2026-10-04T14:13:39.1962596Z       duration_ms: 1.141212
+2026-10-04T14:13:39.1963002Z       type: 'test'
+2026-10-04T14:13:39.1963346Z       ...
+2026-10-04T14:13:39.1963657Z     1..12
+2026-10-04T14:13:39.1964260Z ok 14 - readback refuses every acceptedParameters the server could not have written
+2026-10-04T14:13:39.1965289Z   ---
+2026-10-04T14:13:39.1965625Z   duration_ms: 13.959414
+2026-10-04T14:13:39.1966026Z   type: 'test'
+2026-10-04T14:13:39.1966355Z   ...
+2026-10-04T14:13:39.1966973Z # Subtest: readback still refuses an unknown extra field next to a valid acceptedParameters
+2026-10-04T14:13:39.1967762Z     # Subtest: upstreamModelId
+2026-10-04T14:13:39.1968254Z     ok 1 - upstreamModelId
+2026-10-04T14:13:39.1968647Z       ---
+2026-10-04T14:13:39.1968984Z       duration_ms: 1.165698
+2026-10-04T14:13:39.1969391Z       type: 'test'
+2026-10-04T14:13:39.1969780Z       ...
+2026-10-04T14:13:39.1970170Z     # Subtest: AcceptedParameters
+2026-10-04T14:13:39.1970621Z     ok 2 - AcceptedParameters
+2026-10-04T14:13:39.1971056Z       ---
+2026-10-04T14:13:39.1971407Z       duration_ms: 1.075088
+2026-10-04T14:13:39.1971834Z       type: 'test'
+2026-10-04T14:13:39.1972196Z       ...
+2026-10-04T14:13:39.1972557Z     # Subtest: acceptedParams
+2026-10-04T14:13:39.1973027Z     ok 3 - acceptedParams
+2026-10-04T14:13:39.1973433Z       ---
+2026-10-04T14:13:39.1973753Z       duration_ms: 1.066351
+2026-10-04T14:13:39.1974135Z       type: 'test'
+2026-10-04T14:13:39.1974467Z       ...
+2026-10-04T14:13:39.1975040Z     # Subtest: observed
+2026-10-04T14:13:39.1975417Z     ok 4 - observed
+2026-10-04T14:13:39.1975752Z       ---
+2026-10-04T14:13:39.1976070Z       duration_ms: 1.072223
+2026-10-04T14:13:39.1976476Z       type: 'test'
+2026-10-04T14:13:39.1976804Z       ...
+2026-10-04T14:13:39.1977104Z     1..4
+2026-10-04T14:13:39.1977696Z ok 15 - readback still refuses an unknown extra field next to a valid acceptedParameters
+2026-10-04T14:13:39.1978441Z   ---
+2026-10-04T14:13:39.1978773Z   duration_ms: 4.743611
+2026-10-04T14:13:39.1979265Z   type: 'test'
+2026-10-04T14:13:39.1979591Z   ...
+2026-10-04T14:13:39.1980177Z # Subtest: selected route reads acceptedParameters but signs only the route identity
+2026-10-04T14:13:39.1981195Z ok 16 - selected route reads acceptedParameters but signs only the route identity
+2026-10-04T14:13:39.1981927Z   ---
+2026-10-04T14:13:39.1982255Z   duration_ms: 3.945599
+2026-10-04T14:13:39.1982646Z   type: 'test'
+2026-10-04T14:13:39.1982987Z   ...
+2026-10-04T14:13:39.1983733Z # Subtest: selected route refuses an invalid acceptedParameters before any inference probe
+2026-10-04T14:13:39.1984968Z     # Subtest: null
+2026-10-04T14:13:39.1985333Z     ok 1 - null
+2026-10-04T14:13:39.1986356Z       ---
+2026-10-04T14:13:39.1986726Z       duration_ms: 1.230609
+2026-10-04T14:13:39.1987137Z       type: 'test'
+2026-10-04T14:13:39.1987489Z       ...
+2026-10-04T14:13:39.1987830Z     # Subtest: a string
+2026-10-04T14:13:39.1988243Z     ok 2 - a string
+2026-10-04T14:13:39.1988597Z       ---
+2026-10-04T14:13:39.1988923Z       duration_ms: 1.113981
+2026-10-04T14:13:39.1989348Z       type: 'test'
+2026-10-04T14:13:39.1989718Z       ...
+2026-10-04T14:13:39.1991079Z     # Subtest: an object
+2026-10-04T14:13:39.1991468Z     ok 3 - an object
+2026-10-04T14:13:39.1991823Z       ---
+2026-10-04T14:13:39.1992180Z       duration_ms: 1.096468
+2026-10-04T14:13:39.1992623Z       type: 'test'
+2026-10-04T14:13:39.1992982Z       ...
+2026-10-04T14:13:39.1993342Z     # Subtest: a number entry
+2026-10-04T14:13:39.1993783Z     ok 4 - a number entry
+2026-10-04T14:13:39.1994179Z       ---
+2026-10-04T14:13:39.1994801Z       duration_ms: 1.0763
+2026-10-04T14:13:39.1995250Z       type: 'test'
+2026-10-04T14:13:39.1995702Z       ...
+2026-10-04T14:13:39.1996055Z     # Subtest: a null entry
+2026-10-04T14:13:39.1996483Z     ok 5 - a null entry
+2026-10-04T14:13:39.1996864Z       ---
+2026-10-04T14:13:39.1997201Z       duration_ms: 1.058236
+2026-10-04T14:13:39.1997605Z       type: 'test'
+2026-10-04T14:13:39.1997976Z       ...
+2026-10-04T14:13:39.1998383Z     # Subtest: a word outside the server vocabulary
+2026-10-04T14:13:39.1998984Z     ok 6 - a word outside the server vocabulary
+2026-10-04T14:13:39.1999508Z       ---
+2026-10-04T14:13:39.1999859Z       duration_ms: 1.063667
+2026-10-04T14:13:39.2000289Z       type: 'test'
+2026-10-04T14:13:39.2000653Z       ...
+2026-10-04T14:13:39.2001023Z     # Subtest: a provider spelling
+2026-10-04T14:13:39.2001528Z     ok 7 - a provider spelling
+2026-10-04T14:13:39.2001991Z       ---
+2026-10-04T14:13:39.2002313Z       duration_ms: 1.061983
+2026-10-04T14:13:39.2002702Z       type: 'test'
+2026-10-04T14:13:39.2003059Z       ...
+2026-10-04T14:13:39.2003418Z     # Subtest: a case variant
+2026-10-04T14:13:39.2003887Z     ok 8 - a case variant
+2026-10-04T14:13:39.2004277Z       ---
+2026-10-04T14:13:39.2004947Z       duration_ms: 1.08668
+2026-10-04T14:13:39.2005384Z       type: 'test'
+2026-10-04T14:13:39.2005755Z       ...
+2026-10-04T14:13:39.2006139Z     # Subtest: a padded word
+2026-10-04T14:13:39.2006565Z     ok 9 - a padded word
+2026-10-04T14:13:39.2006942Z       ---
+2026-10-04T14:13:39.2007290Z       duration_ms: 1.272947
+2026-10-04T14:13:39.2007702Z       type: 'test'
+2026-10-04T14:13:39.2008069Z       ...
+2026-10-04T14:13:39.2008376Z     # Subtest: a duplicate
+2026-10-04T14:13:39.2008770Z     ok 10 - a duplicate
+2026-10-04T14:13:39.2009113Z       ---
+2026-10-04T14:13:39.2009417Z       duration_ms: 1.284369
+2026-10-04T14:13:39.2009802Z       type: 'test'
+2026-10-04T14:13:39.2010115Z       ...
+2026-10-04T14:13:39.2010431Z     # Subtest: an unsorted set
+2026-10-04T14:13:39.2010848Z     ok 11 - an unsorted set
+2026-10-04T14:13:39.2011186Z       ---
+2026-10-04T14:13:39.2011488Z       duration_ms: 1.084846
+2026-10-04T14:13:39.2011838Z       type: 'test'
+2026-10-04T14:13:39.2012125Z       ...
+2026-10-04T14:13:39.2012421Z     # Subtest: the full set reversed
+2026-10-04T14:13:39.2012826Z     ok 12 - the full set reversed
+2026-10-04T14:13:39.2013208Z       ---
+2026-10-04T14:13:39.2013519Z       duration_ms: 1.094905
+2026-10-04T14:13:39.2013893Z       type: 'test'
+2026-10-04T14:13:39.2014219Z       ...
+2026-10-04T14:13:39.2014885Z     1..12
+2026-10-04T14:13:39.2015555Z ok 17 - selected route refuses an invalid acceptedParameters before any inference probe
+2026-10-04T14:13:39.2016357Z   ---
+2026-10-04T14:13:39.2016725Z   duration_ms: 14.406439
+2026-10-04T14:13:39.2017148Z   type: 'test'
+2026-10-04T14:13:39.2017508Z   ...
+2026-10-04T14:13:39.2018032Z # Subtest: refuses a changed serving snapshot before any inference probe
+2026-10-04T14:13:39.2018855Z ok 18 - refuses a changed serving snapshot before any inference probe
+2026-10-04T14:13:39.2019468Z   ---
+2026-10-04T14:13:39.2020014Z   duration_ms: 1.249514
+2026-10-04T14:13:39.2020713Z   type: 'test'
+2026-10-04T14:13:39.2021037Z   ...
+2026-10-04T14:13:39.2021759Z # Subtest: realtime: refuses an unknown route, then runs ONE signed push-to-talk text session and settles it
+2026-10-04T14:13:39.2023126Z ok 19 - realtime: refuses an unknown route, then runs ONE signed push-to-talk text session and settles it
+2026-10-04T14:13:39.2024160Z   ---
+2026-10-04T14:13:39.2024839Z   duration_ms: 65.557089
+2026-10-04T14:13:39.2025359Z   type: 'test'
+2026-10-04T14:13:39.2025809Z   ...
+2026-10-04T14:13:39.2079570Z # Subtest: realtime: a session that opens for an unknown deployment fails before the provider session
+2026-10-04T14:13:39.2082014Z ok 20 - realtime: a session that opens for an unknown deployment fails before the provider session
+2026-10-04T14:13:39.2083055Z   ---
+2026-10-04T14:13:39.2083674Z   duration_ms: 10.575032
+2026-10-04T14:13:39.2084236Z   type: 'test'
+2026-10-04T14:13:39.2084919Z   ...
+2026-10-04T14:13:39.2140635Z # Subtest: realtime: refuses a session.created that names another serving provider
+2026-10-04T14:13:39.2148530Z ok 21 - realtime: refuses a session.created that names another serving provider
+2026-10-04T14:13:39.2149390Z   ---
+2026-10-04T14:13:39.2149908Z   duration_ms: 6.534772
+2026-10-04T14:13:39.2150513Z   type: 'test'
+2026-10-04T14:13:39.2150893Z   ...
+2026-10-04T14:13:39.2200151Z # Subtest: realtime: projects only a closed error code when the session reports an error
+2026-10-04T14:13:39.2202048Z ok 22 - realtime: projects only a closed error code when the session reports an error
+2026-10-04T14:13:39.2202854Z   ---
+2026-10-04T14:13:39.2203178Z   duration_ms: 6.309255
+2026-10-04T14:13:39.2203589Z   type: 'test'
+2026-10-04T14:13:39.2204034Z   ...
+2026-10-04T14:13:39.2240205Z # Subtest: realtime: a changed snapshot or a refused upgrade fails without a provider session
+2026-10-04T14:13:39.2241530Z ok 23 - realtime: a changed snapshot or a refused upgrade fails without a provider session
+2026-10-04T14:13:39.2242484Z   ---
+2026-10-04T14:13:39.2242982Z   duration_ms: 4.566569
+2026-10-04T14:13:39.2243484Z   type: 'test'
+2026-10-04T14:13:39.2243936Z   ...
+2026-10-04T14:13:39.2245177Z # Subtest: realtime: reads no routing profile and still refuses fuzzy inputs before any request
+2026-10-04T14:13:39.2253080Z ok 24 - realtime: reads no routing profile and still refuses fuzzy inputs before any request
+2026-10-04T14:13:39.2254151Z   ---
+2026-10-04T14:13:39.2254841Z   duration_ms: 0.652529
+2026-10-04T14:13:39.2255366Z   type: 'test'
+2026-10-04T14:13:39.2255868Z   ...
+2026-10-04T14:13:39.2401265Z 1..24
+2026-10-04T14:13:39.2401663Z # tests 89
+2026-10-04T14:13:39.2401976Z # suites 0
+2026-10-04T14:13:39.2402293Z # pass 89
+2026-10-04T14:13:39.2402612Z # fail 0
+2026-10-04T14:13:39.2402925Z # cancelled 0
+2026-10-04T14:13:39.2403275Z # skipped 0
+2026-10-04T14:13:39.2403838Z # todo 0
+2026-10-04T14:13:39.2404266Z # duration_ms 381.396472
+2026-10-04T14:13:39.6631668Z Inbox routing-profile readback gate mutation tests passed.
+2026-10-04T14:13:39.6931233Z Inbox routing-profile readback stays exact-PK, PostgreSQL READ ONLY, live-image-bound and DATABASE_URL-only.
+2026-10-04T14:13:40.5965926Z Kaana catalogue bootstrap gate mutation tests passed.
+2026-10-04T14:13:40.6295024Z Kaana catalogue bootstrap stays dry-run-first, exact-ID, plan-bound, PostgreSQL-only and result-allowlisted.
+2026-10-04T14:13:40.6441031Z ##[group]Run actions/setup-node@v7
+2026-10-04T14:13:40.6441547Z with:
+2026-10-04T14:13:40.6441910Z   node-version: 24.x
+2026-10-04T14:13:40.6442312Z   check-latest: false
+2026-10-04T14:13:40.6447728Z   token: ***
+2026-10-04T14:13:40.6448154Z   package-manager-cache: true
+2026-10-04T14:13:40.6448617Z ##[endgroup]
+2026-10-04T14:13:40.7743967Z Found in cache @ /opt/hostedtoolcache/node/24.21.0/x64
+2026-10-04T14:13:40.7745483Z ##[group]Environment details
+2026-10-04T14:13:41.1856754Z node: v24.21.0
+2026-10-04T14:13:41.1857140Z npm: 11.19.0
+2026-10-04T14:13:41.1857502Z yarn: 1.22.22
+2026-10-04T14:13:41.1858139Z ##[endgroup]
+2026-10-04T14:13:41.1977478Z ##[group]Run bun install --frozen-lockfile --minimum-release-age=0
+2026-10-04T14:13:41.1978145Z [36;1mbun install --frozen-lockfile --minimum-release-age=0[0m
+2026-10-04T14:13:41.2046059Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:41.2046332Z ##[endgroup]
+2026-10-04T14:13:41.2152989Z bun install v1.4.2 (744846f84)
+2026-10-04T14:13:41.2355137Z Resolving dependencies
+2026-10-04T14:13:41.2367309Z Resolved, downloaded and extracted [1]
+2026-10-04T14:13:41.2912970Z 
+2026-10-04T14:13:41.2915457Z Checked 2300 installs across 2490 packages (no changes) [77.00ms]
+2026-10-04T14:13:41.2966414Z ##[group]Run node scripts/test-api-runtime-dependencies.mjs
+2026-10-04T14:13:41.2966886Z [36;1mnode scripts/test-api-runtime-dependencies.mjs[0m
+2026-10-04T14:13:41.3029685Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:41.3029961Z ##[endgroup]
+2026-10-04T14:13:41.3588158Z bun install v1.4.2 (744846f84)
+2026-10-04T14:13:41.3813978Z Resolving dependencies
+2026-10-04T14:13:41.3825127Z Resolved, downloaded and extracted [1]
+2026-10-04T14:13:42.1671615Z 
+2026-10-04T14:13:42.1672075Z + @expo/metro-runtime@57.0.15
+2026-10-04T14:13:42.1672794Z + is-arrayish@0.3.4
+2026-10-04T14:13:42.1673135Z + react-native-worklets@0.10.0
+2026-10-04T14:13:42.1673316Z 
+2026-10-04T14:13:42.1673483Z 1080 packages installed [809.00ms]
+2026-10-04T14:13:42.2462004Z Required database peers load from the frozen production graph without connecting.
+2026-10-04T14:13:44.2167980Z Complete production fixture inventory matches pinned Forge library/bundle/map bytes.
+2026-10-04T14:13:45.4467745Z ##[group]Run bun run validate:no-mongo
+2026-10-04T14:13:45.4468084Z [36;1mbun run validate:no-mongo[0m
+2026-10-04T14:13:45.4531924Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:45.4532193Z ##[endgroup]
+2026-10-04T14:13:45.4634442Z $ bun ./scripts/validate-no-mongo.mjs && bun ./scripts/test-validate-no-mongo.mjs
+2026-10-04T14:13:45.9117788Z MongoDB reintroduction guard passed — 25 manifests, 3511 source files, 72 config files and 2941 lockfile resolutions scanned; 7 of 7 known exceptions honoured.
+2026-10-04T14:13:45.9544818Z ok   a clean PostgreSQL-only tree passes
+2026-10-04T14:13:45.9796761Z ok   a dependency on mongoose is rejected
+2026-10-04T14:13:46.0079402Z ok   a devDependency on mongodb-memory-server is rejected
+2026-10-04T14:13:46.0338167Z ok   a catalog entry is rejected
+2026-10-04T14:13:46.0617648Z ok   an override is rejected
+2026-10-04T14:13:46.0870805Z ok   a description claiming Mongoose is rejected
+2026-10-04T14:13:46.1129337Z ok   a keyword claiming MongoDB is rejected
+2026-10-04T14:13:46.1378299Z ok   a description containing mongo inside another word passes
+2026-10-04T14:13:46.1629848Z ok   a lockfile resolution is rejected even with clean manifests
+2026-10-04T14:13:46.1900637Z ok   a NESTED lockfile resolution is rejected too
+2026-10-04T14:13:46.2169613Z ok   a package whose NAME merely contains a banned one is not rejected
+2026-10-04T14:13:46.2429847Z ok   an import statement is rejected
+2026-10-04T14:13:46.2691333Z ok   a require call is rejected
+2026-10-04T14:13:46.2946838Z ok   a dynamic import is rejected
+2026-10-04T14:13:46.3211956Z ok   a subpath import is rejected
+2026-10-04T14:13:46.3475013Z ok   MONGODB_URI in a workflow is rejected
+2026-10-04T14:13:46.3735326Z ok   MONGODB_URI in an env template is rejected
+2026-10-04T14:13:46.3990302Z ok   MONGODB_URI in a .github shell script is rejected
+2026-10-04T14:13:46.4252863Z ok   a lowercased mongodb_uri config key is rejected
+2026-10-04T14:13:46.4499883Z ok   a suffixed MONGODB_URI_LEGACY is rejected
+2026-10-04T14:13:46.4751190Z ok   a mongodb:// connection string in a source file is rejected
+2026-10-04T14:13:46.4997453Z ok   a mongodb+srv:// connection string in a compose file is rejected
+2026-10-04T14:13:46.5259371Z ok   backticked prose about Mongo does NOT fire
+2026-10-04T14:13:46.5501329Z ok   a QUOTED module name that is not an import does NOT fire
+2026-10-04T14:13:46.5768112Z ok   the guard's own source and self-test are not their own subject
+2026-10-04T14:13:46.6027277Z ok   the loggers' Mongo-URI REDACTION pattern does NOT fire
+2026-10-04T14:13:46.6295681Z ok   a markdown file describing the migration does NOT fire
+2026-10-04T14:13:46.6558296Z ok   the retired removal directive is now an ordinary finding
+2026-10-04T14:13:46.6823511Z ok   the deploy workflow FAILS on an SSM ARN for the parameter
+2026-10-04T14:13:46.7071575Z ok   a tracked file missing from the working tree fails loudly, not with a stack trace
+2026-10-04T14:13:46.7338846Z ok   an excused file still fails on a line the exceptions do not cover
+2026-10-04T14:13:46.7554070Z ok   a broken file listing cannot pass silently (vacuity floors)
+2026-10-04T14:13:46.7790657Z ok   a KNOWN_EXCEPTIONS entry that matches nothing FAILS the run
+2026-10-04T14:13:46.8055135Z ok   the no-DB spelling MONGO_URI is caught too, and reported as itself
+2026-10-04T14:13:46.8055513Z 
+2026-10-04T14:13:46.8055664Z All 34 guard cases passed.
+2026-10-04T14:13:46.8108019Z ##[group]Run bun run validate:no-flat-account-list
+2026-10-04T14:13:46.8108418Z [36;1mbun run validate:no-flat-account-list[0m
+2026-10-04T14:13:46.8171376Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:46.8171637Z ##[endgroup]
+2026-10-04T14:13:46.8286446Z $ bun ./scripts/validate-no-flat-account-list.mjs && bun ./scripts/test-validate-no-flat-account-list.mjs
+2026-10-04T14:13:47.6545182Z Flat account-list guard passed — 3511 source files scanned; 11 retired identifiers and 2 scoped bans absent; 1 of 1 known exceptions honoured; sentinels present (activateContext×115, useDeviceSwitcher×25, buildSwitcherRows×7, DeviceDirectory×55).
+2026-10-04T14:13:47.6963990Z ok   a tree on the device directory passes
+2026-10-04T14:13:47.7233635Z ok   SwitchableAccount coming back is rejected
+2026-10-04T14:13:47.7492838Z ok   SwitchableAccountUser coming back is rejected
+2026-10-04T14:13:47.7755884Z ok   ProjectSwitchableAccountsInput coming back is rejected
+2026-10-04T14:13:47.8001331Z ok   projectSwitchableAccounts coming back is rejected
+2026-10-04T14:13:47.8252366Z ok   switchableAccountIds coming back is rejected
+2026-10-04T14:13:47.8495169Z ok   useSwitchableAccounts coming back is rejected
+2026-10-04T14:13:47.8750227Z ok   UseSwitchableAccountsResult coming back is rejected
+2026-10-04T14:13:47.9012448Z ok   useAccountStore coming back is rejected
+2026-10-04T14:13:47.9256061Z ok   switchTo coming back is rejected
+2026-10-04T14:13:47.9501252Z ok   session/accountProjection coming back is rejected
+2026-10-04T14:13:47.9750665Z ok   stores/accountStore coming back is rejected
+2026-10-04T14:13:48.0003787Z ok   the hook does NOT also report itself as the row type
+2026-10-04T14:13:48.0252409Z ok   the live switchToAccount is not mistaken for the retired switchTo
+2026-10-04T14:13:48.0510823Z ok   the past-tense docblock explaining what was removed does NOT fire
+2026-10-04T14:13:48.0765620Z ok   a line comment naming a retired identifier does NOT fire
+2026-10-04T14:13:48.1022968Z ok   a trailing comment on a code line does NOT fire
+2026-10-04T14:13:48.1276470Z ok   an unprefixed line inside a block comment does NOT fire
+2026-10-04T14:13:48.1524450Z ok   code after the end of a block comment IS still scanned
+2026-10-04T14:13:48.1774210Z ok   markdown describing the retired mechanism does NOT fire
+2026-10-04T14:13:48.2055673Z ok   the guard's own source and self-test are not their own subject
+2026-10-04T14:13:48.2292475Z ok   listAccounts inside the dialog controller is rejected
+2026-10-04T14:13:48.2540183Z ok   getUsersByIds inside the dialog controller is rejected
+2026-10-04T14:13:48.2806166Z ok   listAccounts outside the dialog controller passes
+2026-10-04T14:13:48.3043046Z ok   a scoped ban whose file is gone FAILS the run
+2026-10-04T14:13:48.3289787Z ok   an excused file still fails on a line the exception does not cover
+2026-10-04T14:13:48.3529723Z ok   a KNOWN_EXCEPTIONS entry that matches nothing FAILS the run
+2026-10-04T14:13:48.3739903Z ok   a tree with none of the replacement mechanism FAILS as vacuous
+2026-10-04T14:13:48.3945973Z ok   sentinels that exist only in comments do NOT satisfy the floor
+2026-10-04T14:13:48.4213662Z ok   a broken file listing cannot pass silently (source-file floor)
+2026-10-04T14:13:48.4461654Z ok   a tracked file missing from the working tree fails loudly, not with a stack trace
+2026-10-04T14:13:48.4462062Z 
+2026-10-04T14:13:48.4462205Z All 31 guard cases passed.
+2026-10-04T14:13:48.4513527Z ##[group]Run bun run validate:agents-md
+2026-10-04T14:13:48.4513882Z [36;1mbun run validate:agents-md[0m
+2026-10-04T14:13:48.4579384Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:48.4579646Z ##[endgroup]
+2026-10-04T14:13:48.4681356Z $ bun ./scripts/check-agents-md-size.mjs && bun ./scripts/test-check-agents-md-size.mjs
+2026-10-04T14:13:48.4875427Z AGENTS.md budget check passed (2 file(s): AGENTS.md, packages/create-oxy-app/templates/base/AGENTS.md).
+2026-10-04T14:13:48.5003999Z check-agents-md-size self-test
+2026-10-04T14:13:48.5004277Z 
+2026-10-04T14:13:48.5182208Z   ok   floor: a tree with no AGENTS.md is a FAILURE, not a clean scan
+2026-10-04T14:13:48.5259665Z   ok   floor: a tree whose ROOT AGENTS.md is missing is a FAILURE
+2026-10-04T14:13:48.5340993Z   ok   a small root AGENTS.md passes
+2026-10-04T14:13:48.5418251Z   ok   an over-budget root AGENTS.md fails, naming the budget
+2026-10-04T14:13:48.5502130Z   ok   a nested AGENTS.md is held to the SMALLER budget
+2026-10-04T14:13:48.5576670Z   ok   control: the same 10 KB passes at the ROOT path
+2026-10-04T14:13:48.5651157Z   ok   a per-issue HEADING fails and says where it goes
+2026-10-04T14:13:48.5725062Z   ok   an issue number in BODY prose passes
+2026-10-04T14:13:48.5725539Z   ok   a one-digit '#1' in a heading does not fire; '#57' does
+2026-10-04T14:13:48.5762351Z   ok   the real repository is within budget
+2026-10-04T14:13:48.5762741Z 
+2026-10-04T14:13:48.5762960Z All self-test cases passed.
+2026-10-04T14:13:48.5830734Z ##[group]Run node scripts/test-check-inbox-daily-brief.mjs
+2026-10-04T14:13:48.5831548Z [36;1mnode scripts/test-check-inbox-daily-brief.mjs[0m
+2026-10-04T14:13:48.5832241Z [36;1mnode scripts/check-inbox-daily-brief.mjs[0m
+2026-10-04T14:13:48.5902000Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:48.5902291Z ##[endgroup]
+2026-10-04T14:13:48.8809396Z Inbox Daily Brief gate mutation tests passed.
+2026-10-04T14:13:48.9110188Z Inbox Daily Brief stays client-day-bounded, exact-count, account-scoped and metadata-only.
+2026-10-04T14:13:48.9179421Z ##[group]Run bun scripts/test-check-permission-vocabulary.mjs
+2026-10-04T14:13:48.9179904Z [36;1mbun scripts/test-check-permission-vocabulary.mjs[0m
+2026-10-04T14:13:48.9243773Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:48.9244038Z ##[endgroup]
+2026-10-04T14:13:51.9930651Z Permission vocabulary check discriminated 16 fixture case(s), including both directions of drift and a permission named only in a comment.
+2026-10-04T14:13:51.9989805Z ##[group]Run bun scripts/check-permission-vocabulary.mjs
+2026-10-04T14:13:51.9990257Z [36;1mbun scripts/check-permission-vocabulary.mjs[0m
+2026-10-04T14:13:52.0052780Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:52.0053047Z ##[endgroup]
+2026-10-04T14:13:52.2255366Z Permission vocabulary matches between packages/api/src/utils/accountRoles.ts and packages/console (2 lane(s), by name in both directions: account 30, application 23).
+2026-10-04T14:13:52.2335558Z ##[group]Run bun scripts/test-check-no-raw-ip-keys.mjs
+2026-10-04T14:13:52.2336010Z [36;1mbun scripts/test-check-no-raw-ip-keys.mjs[0m
+2026-10-04T14:13:52.2398913Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:52.2399177Z ##[endgroup]
+2026-10-04T14:13:57.8277277Z Raw-client-IP check discriminated 29 fixture case(s), including the original store.ts keyGenerator verbatim, every banned member and header, both directions of allow-list drift, and a file naming every one of them only in comments.
+2026-10-04T14:13:57.8325010Z ##[group]Run bun scripts/check-no-raw-ip-keys.mjs
+2026-10-04T14:13:57.8325587Z [36;1mbun scripts/check-no-raw-ip-keys.mjs[0m
+2026-10-04T14:13:57.8389081Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:13:57.8389345Z ##[endgroup]
+2026-10-04T14:14:00.0472293Z Raw-client-IP guard passed — 1484 files over 19 package source roots, 94948 property accesses walked, 144 rate-limiter calls and 87 keyGenerator options inspected with no client address inside any of them; 5 allowed IP sources all still present at their stated counts.
+2026-10-04T14:14:00.0627828Z ##[group]Run bunx jest src/__tests__/usernamePolicySingleSource.test.ts
+2026-10-04T14:14:00.0628362Z [36;1mbunx jest src/__tests__/usernamePolicySingleSource.test.ts[0m
+2026-10-04T14:14:00.0690662Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:14:00.0690933Z ##[endgroup]
+2026-10-04T14:14:01.3329363Z PASS src/__tests__/usernamePolicySingleSource.test.ts
+2026-10-04T14:14:01.3332411Z   the username policy is declared once
+2026-10-04T14:14:01.3335066Z     ✓ the scan reaches the repository (3 ms)
+2026-10-04T14:14:01.3336565Z     ✓ declares the handle character class only in the owner or an allow-listed namespace (1 ms)
+2026-10-04T14:14:01.3337973Z     ✓ every allow-list entry still names a file that carries a handle rule
+2026-10-04T14:14:01.3339037Z   every documented username pattern quotes the enforced one
+2026-10-04T14:14:01.3340047Z     ✓ finds the OpenAPI docblocks that publish the rule
+2026-10-04T14:14:01.3340920Z     ✓ and none of them has drifted from it (1 ms)
+2026-10-04T14:14:01.3341975Z 
+2026-10-04T14:14:01.3365439Z Test Suites: 1 passed, 1 total
+2026-10-04T14:14:01.3366152Z Tests:       5 passed, 5 total
+2026-10-04T14:14:01.3366733Z Snapshots:   0 total
+2026-10-04T14:14:01.3367230Z Time:        0.967 s
+2026-10-04T14:14:01.3368193Z Ran all test suites matching src/__tests__/usernamePolicySingleSource.test.ts.
+2026-10-04T14:14:01.3791985Z ##[group]Run actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+2026-10-04T14:14:01.3792405Z with:
+2026-10-04T14:14:01.3792602Z   path: .turbo/cache
+2026-10-04T14:14:01.3792941Z   key: turbo-build-Linux-X64-fd5139a029f41b5bc996165ee9cbd31cf5e97da9
+2026-10-04T14:14:01.3793343Z   restore-keys: turbo-build-Linux-X64-
+2026-10-04T14:14:01.3793628Z   enableCrossOsArchive: false
+2026-10-04T14:14:01.3793881Z   fail-on-cache-miss: false
+2026-10-04T14:14:01.3794137Z   lookup-only: false
+2026-10-04T14:14:01.3794345Z ##[endgroup]
+2026-10-04T14:14:01.5768622Z Cache hit for restore-key: turbo-build-Linux-X64-eab1b6dd42b518500b49c03e692738081099d9cc
+2026-10-04T14:14:01.8311478Z Received 10979332 of 10979332 (100.0%), 56.3 MBs/sec
+2026-10-04T14:14:01.8312364Z Cache Size: ~10 MB (10979332 B)
+2026-10-04T14:14:01.8421088Z [command]/usr/bin/tar -xf /home/runner/work/_temp/e2f848db-32eb-4f0e-abd1-ae423f73a8c5/cache.tzst -P -C /home/runner/work/oxy/oxy --use-compress-program unzstd
+2026-10-04T14:14:01.8661636Z Cache restored successfully
+2026-10-04T14:14:01.8745209Z Cache restored from key: turbo-build-Linux-X64-eab1b6dd42b518500b49c03e692738081099d9cc
+2026-10-04T14:14:01.8856115Z ##[group]Run bunx turbo run build --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core --filter=@oxy.so/federation --filter=@oxy.so/mcp --filter=@oxy.so/db
+2026-10-04T14:14:01.8857318Z [36;1mbunx turbo run build --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core --filter=@oxy.so/federation --filter=@oxy.so/mcp --filter=@oxy.so/db[0m
+2026-10-04T14:14:01.8921095Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:14:01.8921372Z ##[endgroup]
+2026-10-04T14:14:01.9419591Z 
+2026-10-04T14:14:01.9420056Z Attention:
+2026-10-04T14:14:01.9420775Z Turborepo now collects completely anonymous telemetry regarding usage.
+2026-10-04T14:14:01.9421486Z This information is used to shape the Turborepo roadmap and prioritize features.
+2026-10-04T14:14:01.9422450Z You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+2026-10-04T14:14:01.9423176Z https://turborepo.dev/docs/telemetry
+2026-10-04T14:14:01.9423455Z 
+2026-10-04T14:14:02.0493530Z 
+2026-10-04T14:14:02.0506170Z    • Packages in scope: @oxy.so/contracts, @oxy.so/core, @oxy.so/db, @oxy.so/federation, @oxy.so/mcp, @oxy.so/protocol
+2026-10-04T14:14:02.0507130Z    • Running build in 6 packages
+2026-10-04T14:14:02.0507702Z    • Remote caching disabled
+2026-10-04T14:14:02.0508422Z 
+2026-10-04T14:14:02.0583994Z ##[group]@oxy.so/telemetry:build
+2026-10-04T14:14:02.0585259Z cache hit, replaying logs 7b56e87853496c60
+2026-10-04T14:14:02.0586531Z $ bun run clean && bun run build:cjs && bun run build:esm && bun run build:types
+2026-10-04T14:14:02.0587525Z $ rm -rf dist
+2026-10-04T14:14:02.0588475Z $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+2026-10-04T14:14:02.0589474Z $ tsc -p tsconfig.esm.json
+2026-10-04T14:14:02.0590320Z $ tsc -p tsconfig.types.json
+2026-10-04T14:14:02.0591462Z ##[endgroup]
+2026-10-04T14:14:02.0625139Z ##[group]@oxy.so/db:build
+2026-10-04T14:14:02.0626195Z cache hit, replaying logs 7bce3c1e6ec9981b
+2026-10-04T14:14:02.0627388Z $ bun run build:cjs && bun run build:esm && bun run build:types
+2026-10-04T14:14:02.0628326Z $ tsc -p tsconfig.cjs.json
+2026-10-04T14:14:02.0629378Z $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+2026-10-04T14:14:02.0630428Z ESM imports fixed
+2026-10-04T14:14:02.0631207Z $ tsc -p tsconfig.types.json
+2026-10-04T14:14:02.0632175Z ##[endgroup]
+2026-10-04T14:14:02.0722280Z ##[group]@oxy.so/contracts:build
+2026-10-04T14:14:02.0724088Z cache hit, replaying logs 00575ab4a9637faf
+2026-10-04T14:14:02.0725406Z $ bun run build:cjs && bun run build:esm && bun run build:types
+2026-10-04T14:14:02.0726359Z $ tsc -p tsconfig.cjs.json
+2026-10-04T14:14:02.0727356Z $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+2026-10-04T14:14:02.0728211Z ESM imports fixed
+2026-10-04T14:14:02.0728941Z $ tsc -p tsconfig.types.json
+2026-10-04T14:14:02.0730010Z ##[endgroup]
+2026-10-04T14:14:02.0757935Z ##[group]@oxy.so/mcp:build
+2026-10-04T14:14:02.0758655Z cache hit, replaying logs c6fbbd5895dae32e
+2026-10-04T14:14:02.0759321Z $ bun run build:cjs && bun run build:esm && bun run build:types
+2026-10-04T14:14:02.0759805Z $ tsc -p tsconfig.cjs.json
+2026-10-04T14:14:02.0760227Z $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+2026-10-04T14:14:02.0769633Z $ tsc -p tsconfig.types.json
+2026-10-04T14:14:02.0770422Z ##[endgroup]
+2026-10-04T14:14:02.0799242Z ##[group]@oxy.so/protocol:build
+2026-10-04T14:14:02.0801431Z cache hit, replaying logs c17246c2ddb0baee
+2026-10-04T14:14:02.0802472Z $ bun run build:cjs && bun run build:esm && bun run build:types
+2026-10-04T14:14:02.0803295Z $ tsc -p tsconfig.cjs.json
+2026-10-04T14:14:02.0804030Z $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+2026-10-04T14:14:02.0804915Z ESM imports fixed
+2026-10-04T14:14:02.0805364Z $ tsc -p tsconfig.types.json
+2026-10-04T14:14:02.0806060Z ##[endgroup]
+2026-10-04T14:14:14.9468132Z ##[group]@oxy.so/core:build
+2026-10-04T14:14:14.9468681Z cache miss, executing a8b6da6c49ca16c3
+2026-10-04T14:14:14.9470209Z $ node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs
+2026-10-04T14:14:14.9471240Z $ tsc -p tsconfig.cjs.json
+2026-10-04T14:14:14.9471823Z $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+2026-10-04T14:14:14.9472332Z ESM imports fixed
+2026-10-04T14:14:14.9472681Z $ tsc -p tsconfig.types.json
+2026-10-04T14:14:14.9473231Z ##[endgroup]
+2026-10-04T14:14:20.3201836Z ##[group]@oxy.so/federation:build
+2026-10-04T14:14:20.3202596Z cache miss, executing 81245509db53182e
+2026-10-04T14:14:20.3204255Z $ node ../core/scripts/build-workspace-deps.mjs @oxy.so/contracts @oxy.so/protocol @oxy.so/core && bun run build:cjs && bun run build:esm && bun run build:types
+2026-10-04T14:14:20.3205804Z $ tsc -p tsconfig.cjs.json
+2026-10-04T14:14:20.3206251Z $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+2026-10-04T14:14:20.3206637Z ESM imports fixed
+2026-10-04T14:14:20.3206925Z $ tsc -p tsconfig.types.json
+2026-10-04T14:14:20.3207486Z ##[endgroup]
+2026-10-04T14:14:20.3209940Z 
+2026-10-04T14:14:20.3210203Z  Tasks:    7 successful, 7 total
+2026-10-04T14:14:20.3210793Z Cached:    5 cached, 7 total
+2026-10-04T14:14:20.3211204Z   Time:    18.378s 
+2026-10-04T14:14:20.3211411Z 
+2026-10-04T14:14:20.3378186Z ##[group]Run bun run lint
+2026-10-04T14:14:20.3378687Z [36;1mbun run lint[0m
+2026-10-04T14:14:20.3441324Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:14:20.3441591Z ##[endgroup]
+2026-10-04T14:14:20.3556186Z $ eslint .
+2026-10-04T14:14:42.6930222Z 
+2026-10-04T14:14:42.6931285Z /home/runner/work/oxy/oxy/packages/api/src/capabilities/__tests__/inbox-mcp-postgres.test.ts
+2026-10-04T14:14:42.6954110Z ##[warning]  62:3  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+2026-10-04T14:14:42.6955395Z 
+2026-10-04T14:14:42.6955750Z /home/runner/work/oxy/oxy/packages/api/src/controllers/email.controller.ts
+2026-10-04T14:14:42.6956884Z ##[warning]  1016:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.6957669Z 
+2026-10-04T14:14:42.6958003Z /home/runner/work/oxy/oxy/packages/api/src/controllers/storage.controller.ts
+2026-10-04T14:14:42.6959346Z ##[warning]  9:7  warning  'STORAGE_CATEGORIES' is assigned a value but only used as a type. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6960297Z 
+2026-10-04T14:14:42.6960612Z /home/runner/work/oxy/oxy/packages/api/src/controllers/users.controller.ts
+2026-10-04T14:14:42.6961660Z ##[warning]  32:50  warning  'next' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6962481Z 
+2026-10-04T14:14:42.6962823Z /home/runner/work/oxy/oxy/packages/api/src/db/schema/__tests__/appUpdates.test.ts
+2026-10-04T14:14:42.6964256Z ##[warning]  21:10  warning  'APP_UPDATE_STATUSES' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6966459Z ##[warning]  24:3   warning  'UPDATE_ASSET_STATUSES' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6968289Z ##[warning]  28:10  warning  'UPDATE_PLATFORMS' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6969228Z 
+2026-10-04T14:14:42.6969586Z /home/runner/work/oxy/oxy/packages/api/src/db/schema/__tests__/applications.test.ts
+2026-10-04T14:14:42.6970873Z ##[warning]  22:10  warning  'ACCOUNT_MEMBER_STATUSES' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6972806Z ##[warning]  28:3   warning  'APPLICATION_CREDENTIAL_ENVIRONMENTS' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6974949Z ##[warning]  29:3   warning  'APPLICATION_CREDENTIAL_STATUSES' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6976885Z ##[warning]  30:3   warning  'APPLICATION_CREDENTIAL_TYPES' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6978783Z ##[warning]  34:10  warning  'APPLICATION_STATUSES' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6980638Z ##[warning]  34:32  warning  'APPLICATION_TYPES' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6981580Z 
+2026-10-04T14:14:42.6981930Z /home/runner/work/oxy/oxy/packages/api/src/db/schema/__tests__/authSession.test.ts
+2026-10-04T14:14:42.6983153Z ##[warning]  35:3  warning  'SECURITY_EVENT_SEVERITIES' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6985249Z ##[warning]  36:3  warning  'SECURITY_EVENT_SEVERITY_MAP' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6987410Z ##[warning]  37:3  warning  'SECURITY_EVENT_TYPES' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6988554Z 
+2026-10-04T14:14:42.6988924Z /home/runner/work/oxy/oxy/packages/api/src/db/schema/__tests__/reputationCivic.test.ts
+2026-10-04T14:14:42.6990087Z ##[warning]  95:10  warning  'pgMessage' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6990977Z 
+2026-10-04T14:14:42.6991378Z /home/runner/work/oxy/oxy/packages/api/src/db/schema/__tests__/transparencyCheckpoints.test.ts
+2026-10-04T14:14:42.6992576Z ##[warning]  76:10  warning  'pgConstraint' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6993481Z 
+2026-10-04T14:14:42.6993827Z /home/runner/work/oxy/oxy/packages/api/src/db/schema/__tests__/users.test.ts
+2026-10-04T14:14:42.6995191Z ##[warning]  18:3  warning  'ACCOUNT_KINDS' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6996920Z ##[warning]  19:3  warning  'ACCOUNT_STATUSES' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.6997840Z 
+2026-10-04T14:14:42.6998188Z /home/runner/work/oxy/oxy/packages/api/src/middleware/__tests__/errorHandler.test.ts
+2026-10-04T14:14:42.6999423Z ##[warning]   2:10  warning  'ApiError' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7000998Z ##[warning]   5:14  warning  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7002524Z ##[warning]  12:21  warning  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7003414Z 
+2026-10-04T14:14:42.7003665Z /home/runner/work/oxy/oxy/packages/api/src/middleware/auth.ts
+2026-10-04T14:14:42.7005150Z ##[warning]  10:3  warning  'extractTokenFromRequest' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7007043Z ##[warning]  12:3  warning  'validateSessionToken' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7007983Z 
+2026-10-04T14:14:42.7008265Z /home/runner/work/oxy/oxy/packages/api/src/middleware/authUtils.ts
+2026-10-04T14:14:42.7009257Z ##[warning]   96:12  warning  'error' is defined but never used                                                       @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7010880Z ##[warning]  128:16  warning  'id' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7012591Z ##[warning]  161:3   warning  'requireAuth' is assigned a value but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7013544Z 
+2026-10-04T14:14:42.7013839Z /home/runner/work/oxy/oxy/packages/api/src/middleware/requireStaff.ts
+2026-10-04T14:14:42.7015240Z ##[warning]  4:10  warning  'STAFF_CAPABILITIES' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7016203Z 
+2026-10-04T14:14:42.7016594Z /home/runner/work/oxy/oxy/packages/api/src/routes/__tests__/assetsServiceLinkedUrl.test.ts
+2026-10-04T14:14:42.7017789Z ##[warning]  182:78  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7018585Z 
+2026-10-04T14:14:42.7018979Z /home/runner/work/oxy/oxy/packages/api/src/routes/__tests__/authLinking.reversibility.test.ts
+2026-10-04T14:14:42.7020100Z ##[warning]  65:42  warning  'OXY_DID' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7020977Z 
+2026-10-04T14:14:42.7021320Z /home/runner/work/oxy/oxy/packages/api/src/routes/__tests__/emailProxy.route.test.ts
+2026-10-04T14:14:42.7022577Z ##[warning]  7:10  warning  'rateLimit' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7023606Z 
+2026-10-04T14:14:42.7023974Z /home/runner/work/oxy/oxy/packages/api/src/routes/__tests__/isolatedOAuthLogout.test.ts
+2026-10-04T14:14:42.7025622Z ##[warning]  61:10  warning  'deviceAccountContexts' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7027454Z ##[warning]  62:10  warning  'deviceSessions' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7029225Z ##[warning]  65:8   warning  'deviceSessionService' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7030154Z 
+2026-10-04T14:14:42.7030504Z /home/runner/work/oxy/oxy/packages/api/src/routes/__tests__/linkedAccounts.test.ts
+2026-10-04T14:14:42.7031411Z ##[warning]  224:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7032752Z ##[warning]  240:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7033546Z 
+2026-10-04T14:14:42.7033918Z /home/runner/work/oxy/oxy/packages/api/src/routes/__tests__/sessionAuthorizeCode.test.ts
+2026-10-04T14:14:42.7035521Z ##[warning]  23:7  warning  'mockAuthSessionFindOne' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7037504Z ##[warning]  24:7  warning  'mockApplicationFindOne' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7039477Z ##[warning]  25:7  warning  'mockApplicationCredentialFindOne' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7041410Z ##[warning]  26:7  warning  'mockAuthCodeCreate' is assigned a value but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7042378Z 
+2026-10-04T14:14:42.7042632Z /home/runner/work/oxy/oxy/packages/api/src/routes/accounts.ts
+2026-10-04T14:14:42.7043746Z ##[warning]  11:3   warning  'serviceAuthMiddleware' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7045939Z ##[warning]  13:8   warning  'ServiceAuthRequest' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7047716Z ##[warning]  27:15  warning  'ApplicationScope' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7049439Z ##[warning]  42:10  warning  'accountMembers' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7050356Z 
+2026-10-04T14:14:42.7050608Z /home/runner/work/oxy/oxy/packages/api/src/routes/assets.ts
+2026-10-04T14:14:42.7051726Z ##[warning]    22:3   warning  'updateVisibilitySchema' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7053406Z ##[warning]    56:20  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7055276Z ##[warning]   317:19  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7056917Z ##[warning]   409:19  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7058508Z ##[warning]  1731:19  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7060288Z ##[warning]  2060:17  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7062002Z ##[warning]  2089:21  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7062873Z 
+2026-10-04T14:14:42.7063126Z /home/runner/work/oxy/oxy/packages/api/src/routes/billing.ts
+2026-10-04T14:14:42.7064412Z ##[warning]  29:35   warning  'namedProductCancellationResponseSchema' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7066805Z ##[warning]  29:75   warning  'pendingProductCancellationResponseSchema' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7068934Z ##[warning]  29:117  warning  'creditSubscriptionsResponseSchema' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7070955Z ##[warning]  29:152  warning  'namedCreditCancellationResponseSchema' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7071979Z 
+2026-10-04T14:14:42.7072246Z /home/runner/work/oxy/oxy/packages/api/src/routes/capabilities.ts
+2026-10-04T14:14:42.7073330Z ##[warning]  287:9  warning  'userId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7074229Z 
+2026-10-04T14:14:42.7074686Z /home/runner/work/oxy/oxy/packages/api/src/routes/civic.ts
+2026-10-04T14:14:42.7075829Z ##[warning]  45:3  warning  'recomputePersonhood' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7076809Z 
+2026-10-04T14:14:42.7077136Z /home/runner/work/oxy/oxy/packages/api/src/scripts/foregroundPilotExecutor.ts
+2026-10-04T14:14:42.7078288Z ##[warning]  157:3  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+2026-10-04T14:14:42.7079138Z 
+2026-10-04T14:14:42.7079348Z /home/runner/work/oxy/oxy/packages/api/src/server.ts
+2026-10-04T14:14:42.7080142Z ##[warning]   374:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7081466Z ##[warning]   479:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7082769Z ##[warning]   966:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7084063Z ##[warning]   978:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7085859Z ##[warning]  1008:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7087182Z ##[warning]  1015:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7088498Z ##[warning]  1026:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7089343Z 
+2026-10-04T14:14:42.7089784Z /home/runner/work/oxy/oxy/packages/api/src/services/__tests__/emailSuppression.service.test.ts
+2026-10-04T14:14:42.7091189Z ##[warning]  117:11  warning  'userId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7092104Z 
+2026-10-04T14:14:42.7092496Z /home/runner/work/oxy/oxy/packages/api/src/services/__tests__/inferenceLedger.service.test.ts
+2026-10-04T14:14:42.7093677Z ##[warning]  35:10  warning  'accountBalances' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7094865Z 
+2026-10-04T14:14:42.7095298Z /home/runner/work/oxy/oxy/packages/api/src/services/__tests__/variantService.imageVariants.test.ts
+2026-10-04T14:14:42.7096642Z ##[warning]  184:11  warning  'w128' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7097687Z 
+2026-10-04T14:14:42.7098013Z /home/runner/work/oxy/oxy/packages/api/src/services/inferenceLedger.service.ts
+2026-10-04T14:14:42.7099196Z ##[warning]  63:3  warning  'RESERVATION_DRAW_ORDER' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7100122Z 
+2026-10-04T14:14:42.7100478Z /home/runner/work/oxy/oxy/packages/api/src/services/moderationReputation.service.ts
+2026-10-04T14:14:42.7101554Z ##[warning]  50:29  warning  'inArray' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7102425Z 
+2026-10-04T14:14:42.7102684Z /home/runner/work/oxy/oxy/packages/api/src/services/s3Service.ts
+2026-10-04T14:14:42.7103739Z ##[warning]   44:25  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7106005Z ##[warning]  106:13  warning  'response' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7107732Z ##[warning]  447:21  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7109323Z ##[warning]  478:21  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7110901Z ##[warning]  508:21  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7111748Z 
+2026-10-04T14:14:42.7112042Z /home/runner/work/oxy/oxy/packages/api/src/services/session.service.ts
+2026-10-04T14:14:42.7113181Z ##[warning]    25:3   warning  'DeviceFingerprint' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7115061Z ##[warning]  1332:16  warning  'tokenError' is defined but never used                                               @typescript-eslint/no-unused-vars
+2026-10-04T14:14:42.7115939Z 
+2026-10-04T14:14:42.7116338Z /home/runner/work/oxy/oxy/packages/api/src/utils/__tests__/userIdentityBase.contract.test.ts
+2026-10-04T14:14:42.7117274Z   41:3  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+2026-10-04T14:14:42.7117735Z 
+2026-10-04T14:14:42.7118006Z /home/runner/work/oxy/oxy/packages/api/src/utils/locationCache.ts
+2026-10-04T14:14:42.7118972Z ##[warning]   5:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7120336Z ##[warning]  44:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7121632Z ##[warning]  65:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7122413Z 
+2026-10-04T14:14:42.7122711Z /home/runner/work/oxy/oxy/packages/api/src/utils/performanceMonitor.ts
+2026-10-04T14:14:42.7123535Z ##[warning]  50:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+2026-10-04T14:14:42.7124306Z 
+2026-10-04T14:14:42.7125021Z ✖ 83 problems (0 errors, 83 warnings)
+2026-10-04T14:14:42.7125494Z   0 errors and 1 warning potentially fixable with the `--fix` option.
+2026-10-04T14:14:42.7125781Z 
+2026-10-04T14:14:43.0711609Z ##[group]Run bun run test:coverage-merge
+2026-10-04T14:14:43.0711961Z [36;1mbun run test:coverage-merge[0m
+2026-10-04T14:14:43.0774803Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:14:43.0775084Z ##[endgroup]
+2026-10-04T14:14:43.0877673Z $ node --test scripts/merge-coverage.test.mjs scripts/check-shard-partition.test.mjs
+2026-10-04T14:14:43.1961487Z ✔ the sequencer partitions every real test file exactly once, for every shard count CI could use (9.054739ms)
+2026-10-04T14:14:43.1963621Z ✔ the sequencer is deterministic regardless of input order (1.966292ms)
+2026-10-04T14:14:43.1996287Z ✔ a complete, disjoint partition passes and records durations minus each shard's first file (1.782328ms)
+2026-10-04T14:14:43.1998656Z ✔ the in-process perfStats shape measures too (0.354472ms)
+2026-10-04T14:14:43.2000975Z ✔ an interrupted shard or a suite count mismatch fails (0.447555ms)
+2026-10-04T14:14:43.2002055Z ✔ a file that ran nowhere fails (0.194995ms)
+2026-10-04T14:14:43.2003060Z ✔ a file that ran twice fails (0.281856ms)
+2026-10-04T14:14:43.2004009Z ✔ a missing shard, an empty shard, a failed shard and an empty listing all fail (0.298157ms)
+2026-10-04T14:14:43.2005020Z ✔ paths outside packages/api are refused rather than mis-keyed (0.59429ms)
+2026-10-04T14:14:43.2148809Z Merged 6 API coverage shards:
+2026-10-04T14:14:43.2151099Z   statements: 100% (2/2), floor 100%
+2026-10-04T14:14:43.2152385Z   branches: 100% (2/2), floor 100%
+2026-10-04T14:14:43.2152699Z   functions: 100% (1/1), floor 100%
+2026-10-04T14:14:43.2153003Z   lines: 100% (2/2), floor 100%
+2026-10-04T14:14:43.3613305Z Merged 3 API coverage shards:
+2026-10-04T14:14:43.3614739Z   statements: 100% (2/2), floor 100%
+2026-10-04T14:14:43.3615306Z   branches: 100% (2/2), floor 100%
+2026-10-04T14:14:43.3615870Z   functions: 100% (1/1), floor 100%
+2026-10-04T14:14:43.3616217Z   lines: 100% (2/2), floor 100%
+2026-10-04T14:14:43.3650445Z Merged 3 API coverage shards:
+2026-10-04T14:14:43.3651516Z   statements: 50% (1/2), floor 51%
+2026-10-04T14:14:43.3651883Z   branches: 50% (1/2), floor 0%
+2026-10-04T14:14:43.3652208Z   functions: 100% (1/1), floor 0%
+2026-10-04T14:14:43.3652500Z   lines: 50% (1/2), floor 0%
+2026-10-04T14:14:43.3695490Z ✔ fails when one of the three shard reports is missing (4.269243ms)
+2026-10-04T14:14:43.3721323Z ✔ fails when fewer reports arrive than the suite was sharded into (1.266816ms)
+2026-10-04T14:14:43.3722570Z ✔ refuses to infer the shard count (1.52595ms)
+2026-10-04T14:14:43.3725533Z ✔ merges any declared number of shards, as the CI matrix produces (17.971561ms)
+2026-10-04T14:14:43.3728143Z ✔ fails when a shard directory exists beyond the declared count (1.343138ms)
+2026-10-04T14:14:43.3736829Z ✔ the CLI requires --shards (138.820465ms)
+2026-10-04T14:14:43.3737731Z ✔ fails when a shard report is empty (1.104021ms)
+2026-10-04T14:14:43.3739086Z ✔ writes merged reports, including HTML and text, when floors pass (4.599669ms)
+2026-10-04T14:14:43.3741127Z ✔ fails after writing reports when merged coverage regresses below a floor (3.532667ms)
+2026-10-04T14:14:43.3813228Z ℹ tests 18
+2026-10-04T14:14:43.3813851Z ℹ suites 0
+2026-10-04T14:14:43.3814296Z ℹ pass 18
+2026-10-04T14:14:43.3814978Z ℹ fail 0
+2026-10-04T14:14:43.3815409Z ℹ cancelled 0
+2026-10-04T14:14:43.3815924Z ℹ skipped 0
+2026-10-04T14:14:43.3816316Z ℹ todo 0
+2026-10-04T14:14:43.3816804Z ℹ duration_ms 262.422171
+2026-10-04T14:14:43.3921374Z ##[group]Run bun scripts/test-check-no-payload-persistence.mjs
+2026-10-04T14:14:43.3921870Z [36;1mbun scripts/test-check-no-payload-persistence.mjs[0m
+2026-10-04T14:14:43.3985148Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:14:43.3985438Z ##[endgroup]
+2026-10-04T14:14:43.4754826Z ok   a schema with no payload column passes
+2026-10-04T14:14:43.5072279Z ok   a promptText column is flagged
+2026-10-04T14:14:43.5367589Z ok   a systemPrompt column is flagged
+2026-10-04T14:14:43.5673679Z ok   a completionText column is flagged
+2026-10-04T14:14:43.5985030Z ok   a debugPayload column is flagged
+2026-10-04T14:14:43.6275275Z ok   a conversationTranscript column is flagged
+2026-10-04T14:14:43.6568954Z ok   a chatLog column is flagged
+2026-10-04T14:14:43.6878645Z ok   a toolArguments column is flagged
+2026-10-04T14:14:43.7171379Z ok   a toolCallResult column is flagged
+2026-10-04T14:14:43.7463567Z ok   a rawRequest column is flagged
+2026-10-04T14:14:43.7765897Z ok   a requestBody column is flagged
+2026-10-04T14:14:43.8055804Z ok   a rawResponse column is flagged
+2026-10-04T14:14:43.8351793Z ok   a responseBody column is flagged
+2026-10-04T14:14:43.8679018Z ok   a messageBody column is flagged
+2026-10-04T14:14:43.8972511Z ok   a messages column is flagged
+2026-10-04T14:14:43.9274736Z ok   a modelOutput column is flagged
+2026-10-04T14:14:43.9582696Z ok   a generatedText column is flagged
+2026-10-04T14:14:43.9877476Z ok   a debugCapture column is flagged
+2026-10-04T14:14:44.0167862Z ok   a capturedBody column is flagged
+2026-10-04T14:14:44.0479718Z ok   an undeclared jsonb column with an innocuous name is flagged
+2026-10-04T14:14:44.0774232Z ok   an undeclared jsonb column called `d` is flagged
+2026-10-04T14:14:44.1071287Z ok   a payload-named text[] column is flagged
+2026-10-04T14:14:44.1380626Z ok   an undeclared jsonb[] column is flagged
+2026-10-04T14:14:44.1677769Z ok   an integer[] column does NOT fire
+2026-10-04T14:14:44.1986484Z ok   boolean flags whose names contain banned words do NOT fire
+2026-10-04T14:14:44.2293430Z ok   the product's own free-text columns do NOT fire
+2026-10-04T14:14:44.2588230Z ok   a declared column that no longer exists FAILS the run
+2026-10-04T14:14:44.2884126Z ok   a declared column narrowed to a boolean FAILS as stale
+2026-10-04T14:14:44.3191268Z ok   a schema missing a required table FAILS
+2026-10-04T14:14:44.3451588Z ok   a schema module that exports no table FAILS the floor
+2026-10-04T14:14:44.3749226Z ok   a schema far smaller than the real one cannot pass silently
+2026-10-04T14:14:44.4012231Z ok   a schema module that throws on import FAILS loudly
+2026-10-04T14:14:44.4012553Z 
+2026-10-04T14:14:44.4013631Z All 32 payload-persistence cases passed — 10 banned patterns each covered by a planted column, 45 declared columns and 4 required tables, taken from the guard itself.
+2026-10-04T14:14:44.4063910Z ##[group]Run bun scripts/check-no-payload-persistence.mjs
+2026-10-04T14:14:44.4064363Z [36;1mbun scripts/check-no-payload-persistence.mjs[0m
+2026-10-04T14:14:44.4131863Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:14:44.4132135Z ##[endgroup]
+2026-10-04T14:14:44.5869193Z Payload-persistence guard passed — 223 tables / 2635 columns inspected, 1598 of them free-shaped; 45 declared open-shaped or payload-named columns all still present; 4 required tables reached.
+2026-10-04T14:14:44.5949622Z ##[group]Run bun scripts/test-check-openapi-fresh.mjs
+2026-10-04T14:14:44.5950043Z [36;1mbun scripts/test-check-openapi-fresh.mjs[0m
+2026-10-04T14:14:44.6012891Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:14:44.6013166Z ##[endgroup]
+2026-10-04T14:14:46.1353914Z OpenAPI freshness check discriminated 37 fixture case(s).
+2026-10-04T14:14:46.1411768Z ##[group]Run bun scripts/check-openapi-fresh.mjs
+2026-10-04T14:14:46.1412249Z [36;1mbun scripts/check-openapi-fresh.mjs[0m
+2026-10-04T14:14:46.1477346Z shell: /usr/bin/bash -e {0}
+2026-10-04T14:14:46.1477640Z ##[endgroup]
+2026-10-04T14:14:46.6979065Z [generate-openapi] wrote /home/runner/work/oxy/oxy/packages/api/openapi.json with 368 paths, 423 operations.
+2026-10-04T14:14:46.7334790Z 
+2026-10-04T14:14:46.7335377Z packages/api/openapi.json is STALE.
+2026-10-04T14:14:46.7335675Z 
+2026-10-04T14:14:46.7336077Z Regenerating it changed the committed file, which means the published contract does
+2026-10-04T14:14:46.7336693Z not describe the routes as they are now.
+2026-10-04T14:14:46.7336924Z 
+2026-10-04T14:14:46.7337265Z   - /v1/generations/by-idempotency-key is served but NOT in the committed document.
+2026-10-04T14:14:46.7337657Z 
+2026-10-04T14:14:46.7338019Z Fix: run `bun run openapi:generate` in packages/api and commit the result in the
+2026-10-04T14:14:46.7338583Z SAME commit as the route change.
+2026-10-04T14:14:46.7338776Z 
+2026-10-04T14:14:46.7512790Z  packages/api/openapi.json | 456 ++++++++++++++++++++++++++++++++++++++++++++++
+2026-10-04T14:14:46.7513430Z  1 file changed, 456 insertions(+)
+2026-10-04T14:14:46.7513678Z 
+2026-10-04T14:14:46.7554746Z ##[error]Process completed with exit code 1.
+2026-10-04T14:14:46.7654294Z Post job cleanup.
+2026-10-04T14:14:46.8530694Z [command]/usr/bin/git version
+2026-10-04T14:14:46.8573380Z git version 2.55.0
+2026-10-04T14:14:46.8611556Z Temporarily overriding HOME='/home/runner/work/_temp/d11d0805-35e2-4084-a544-639aba47ebcd' before making global git config changes
+2026-10-04T14:14:46.8613515Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-04T14:14:46.8617412Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/oxy/oxy
+2026-10-04T14:14:46.8649299Z Removing SSH command configuration
+2026-10-04T14:14:46.8656295Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-04T14:14:46.8693013Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-04T14:14:46.8939713Z Removing HTTP extra header
+2026-10-04T14:14:46.8945477Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-04T14:14:46.8981800Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-04T14:14:46.9232739Z Removing includeIf entries pointing to credentials config files
+2026-10-04T14:14:46.9239416Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-04T14:14:46.9269479Z includeif.gitdir:/home/runner/work/oxy/oxy/.git.path
+2026-10-04T14:14:46.9270556Z includeif.gitdir:/home/runner/work/oxy/oxy/.git/worktrees/*.path
+2026-10-04T14:14:46.9271796Z includeif.gitdir:/github/workspace/.git.path
+2026-10-04T14:14:46.9273101Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-04T14:14:46.9279708Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/oxy/oxy/.git.path
+2026-10-04T14:14:46.9307022Z /home/runner/work/_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config
+2026-10-04T14:14:46.9317251Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/oxy/oxy/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-a709a767\-c874\-4f07\-bb35\-6f309d509cef\.config
+2026-10-04T14:14:46.9373458Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/oxy/oxy/.git/worktrees/*.path
+2026-10-04T14:14:46.9408135Z /home/runner/work/_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config
+2026-10-04T14:14:46.9418243Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/oxy/oxy/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-a709a767\-c874\-4f07\-bb35\-6f309d509cef\.config
+2026-10-04T14:14:46.9459736Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-04T14:14:46.9488237Z /github/runner_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config
+2026-10-04T14:14:46.9496958Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-a709a767\-c874\-4f07\-bb35\-6f309d509cef\.config
+2026-10-04T14:14:46.9535342Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-04T14:14:46.9563502Z /github/runner_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config
+2026-10-04T14:14:46.9572854Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-a709a767\-c874\-4f07\-bb35\-6f309d509cef\.config
+2026-10-04T14:14:46.9616036Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-04T14:14:46.9873751Z Removing credentials config '/home/runner/work/_temp/git-credentials-a709a767-c874-4f07-bb35-6f309d509cef.config'
+2026-10-04T14:14:47.0013178Z Cleaning up orphan processes

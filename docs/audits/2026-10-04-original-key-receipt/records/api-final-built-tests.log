@@ -1,0 +1,93 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/inferenceEdgeGateCoverage.test.ts
+FAIL src/routes/__tests__/inferenceEdgeGateCoverage.test.ts
+  ● the discovered route set › is exactly the endpoints this edge serves
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 1
+
+    @@ -1,7 +1,8 @@
+      Array [
+        "GET /generations/:id",
+    +   "GET /generations/by-idempotency-key",
+        "POST /audio/speech",
+        "POST /chat/completions",
+        "POST /decisions",
+        "POST /images/generations",
+        "POST /responses",
+
+      296 |     // than a clean pass over an empty sweep, and a new endpoint has to be
+      297 |     // acknowledged here before the assertions below can claim to cover it.
+    > 298 |     expect(routes.map((route) => route.name).sort()).toEqual([...EXPECTED_ROUTES].sort());
+          |                                                      ^
+      299 |
+      300 |     // Each chain is the gate, the three limiters and the handler. An exact length
+      301 |     // rather than a floor: a chain that grew or shrank is a change to the thing
+
+      at Object.<anonymous> (src/routes/__tests__/inferenceEdgeGateCoverage.test.ts:298:54)
+
+  ● every registered route runs the gate › refuses an unauthenticated request with a typed, traceable 401
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 6
+    Received length: 7
+    Received array:  [{"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /decisions", "path": "/decisions"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /responses", "path": "/responses"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /chat/completions", "path": "/chat/completions"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /audio/speech", "path": "/audio/speech"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /images/generations", "path": "/images/generations"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "GET", "name": "GET /generations/by-idempotency-key", "path": "/generations/by-idempotency-key"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "GET", "name": "GET /generations/:id", "path": "/generations/:id"}]
+
+      314 |   it('refuses an unauthenticated request with a typed, traceable 401', async () => {
+      315 |     const routes = discoverRoutes(createInferenceEdgeRouter());
+    > 316 |     expect(routes).toHaveLength(EXPECTED_ROUTES.length);
+          |                    ^
+      317 |
+      318 |     await withServer(async (request) => {
+      319 |       for (const route of routes) {
+
+      at src/routes/__tests__/inferenceEdgeGateCoverage.test.ts:316:20
+      at src/routes/__tests__/inferenceEdgeGateCoverage.test.ts:46:71
+      at __awaiter (src/routes/__tests__/inferenceEdgeGateCoverage.test.ts:42:12)
+      at Object.<anonymous> (src/routes/__tests__/inferenceEdgeGateCoverage.test.ts:314:83)
+
+  ● every registered route runs the gate › refuses an AUTHENTICATED request outside this deployment’s audience
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 6
+    Received length: 7
+    Received array:  [{"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /decisions", "path": "/decisions"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /responses", "path": "/responses"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /chat/completions", "path": "/chat/completions"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /audio/speech", "path": "/audio/speech"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /images/generations", "path": "/images/generations"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "GET", "name": "GET /generations/by-idempotency-key", "path": "/generations/by-idempotency-key"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "GET", "name": "GET /generations/:id", "path": "/generations/:id"}]
+
+      362 |     const credential = await makeCredential();
+      363 |     const routes = discoverRoutes(createInferenceEdgeRouter());
+    > 364 |     expect(routes).toHaveLength(EXPECTED_ROUTES.length);
+          |                    ^
+      365 |
+      366 |     await withServer(async (request) => {
+      367 |       for (const route of routes) {
+
+      at src/routes/__tests__/inferenceEdgeGateCoverage.test.ts:364:20
+      at fulfilled (src/routes/__tests__/inferenceEdgeGateCoverage.test.ts:43:58)
+
+  ● every registered route mounts all three rate limiters › carries them by identity, after the gate and before the handler
+
+    expect(received).toHaveLength(expected)
+
+    Expected length: 6
+    Received length: 7
+    Received array:  [{"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /decisions", "path": "/decisions"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /responses", "path": "/responses"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /chat/completions", "path": "/chat/completions"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /audio/speech", "path": "/audio/speech"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "POST", "name": "POST /images/generations", "path": "/images/generations"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "GET", "name": "GET /generations/by-idempotency-key", "path": "/generations/by-idempotency-key"}, {"handles": [[Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous], [Function anonymous]], "method": "GET", "name": "GET /generations/:id", "path": "/generations/:id"}]
+
+      392 |   it('carries them by identity, after the gate and before the handler', () => {
+      393 |     const routes = discoverRoutes(createInferenceEdgeRouter());
+    > 394 |     expect(routes).toHaveLength(EXPECTED_ROUTES.length);
+          |                    ^
+      395 |
+      396 |     const limiters = [
+      397 |       ['machineCredentialLimiter', machineCredentialLimiter],
+
+      at Object.<anonymous> (src/routes/__tests__/inferenceEdgeGateCoverage.test.ts:394:20)
+
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       4 failed, 36 passed, 40 total
+Snapshots:   0 total
+Time:        8.108 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts|src/routes/__tests__/inferenceEdgeGateCoverage.test.ts.
+error: script "test" exited with code 1

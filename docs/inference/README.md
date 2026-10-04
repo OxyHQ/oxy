@@ -241,7 +241,7 @@ share one status). The full rules are in [streaming.md](./streaming.md#retries).
 | `insufficient_balance`, `spending_limit_exceeded`, `quota_exceeded` | money or quota on **your** account | tell the user or the account owner |
 | `rate_limited`, `deployment_unavailable`, `provider_error`, `provider_timeout`, `provider_overloaded` (`retryable: true`) | the platform retried and every authorized route is still failing | show "try again later". A background job may be rescheduled after `retryAfterMs`. Don't loop |
 | `no_route_available`, `service_unavailable`, `provider_credential_invalid`, `provider_billing_refused`, `internal_error` | a platform-side problem, not yours | report it with the `requestId` |
-| `idempotency_conflict` (409) | an earlier request with that `Idempotency-Key` was accepted | read its result from `GET /v1/generations/:id`. Don't resend |
+| `idempotency_conflict` (409) | an earlier request with that `Idempotency-Key` was accepted | read its usage record from `GET /v1/generations/:id`, or recover it by the original key below. Don't resend |
 | `cancelled` (499) | you cancelled the request | normal. Only the units already produced are billed |
 
 ---
@@ -351,3 +351,25 @@ table, event and API has an owner listed in
 The Oxy-wide rules page is `~/Oxy/docs/kaana-inference.md`.
 
 Typed nonstreaming classifications: [Decisions](decisions.md) (implemented, provider access gated).
+
+
+### Recovering usage after a lost response
+
+`OxyInferenceClient.getGenerationRecordByIdempotencyKey(originalKey)` makes only
+`GET /v1/generations/by-idempotency-key`, carrying the original key in the
+`Idempotency-Key` header. Use the same credential and delegated-user selector as
+the original request, with `inference:usage:read`. Authentication still checks
+current expiry and revocation. The lookup is bound to the original credential,
+application, account and environment; credential rotation does not turn an
+opaque original key into a cross-credential selector. If the request ID was
+already durably recorded, the existing `getGenerationRecord(requestId)` remains
+the application-authorized read across credential rotation.
+
+A 404 means no settled record is available to this caller. It does not prove
+that nothing was executed or charged, and never authorizes a fresh inference.
+A returned v1 record describes a customer charge; v2 describes internal technical
+usage with no customer charge. Its tariff is separate from provider cost, which
+may remain unknown. Neither record contains the lost decision answers. Apps must
+keep usage reconciliation separate from successful result delivery and retain the
+original claim/idempotency identity. No provider call or new financial effect is
+performed by this GET.

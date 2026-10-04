@@ -1,0 +1,2 @@
+$ bun scripts/generate-openapi.ts
+[generate-openapi] wrote /home/nate/Oxy/oxy/.worktrees/jev-receipt-recovery-20261004/packages/api/openapi.json with 368 paths, 423 operations.

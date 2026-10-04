@@ -1,0 +1,2 @@
+packages/api/openapi.json already has uncommitted changes, so this check cannot attribute
+what a fresh generation would alter. Commit or revert it, then re-run.

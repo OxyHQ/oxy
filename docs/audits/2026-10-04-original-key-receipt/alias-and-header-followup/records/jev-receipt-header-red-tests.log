@@ -1,0 +1,43 @@
+$ jest --runInBand --runTestsByPath src/__tests__/openapiRouteWalker.test.ts
+FAIL src/__tests__/openapiRouteWalker.test.ts
+  ● published original-key receipt contract › requires the original key in a header only and declares optional delegation attribution
+
+    expect(received).toContainEqual(expected) // deep equality
+
+    Expected value: ObjectContaining {"in": "header", "name": "Idempotency-Key", "required": true, "schema": ObjectContaining {"maxLength": 128, "minLength": 1, "type": "string"}}
+    Received array: []
+
+      274 |   const operation = spec.paths['/v1/generations/by-idempotency-key'].get;
+      275 |   it('requires the original key in a header only and declares optional delegation attribution', () => {
+    > 276 |     expect(operation.parameters).toContainEqual(expect.objectContaining({ name: 'Idempotency-Key', in: 'header', required: true,
+          |                                  ^
+      277 |       schema: expect.objectContaining({ type: 'string', minLength: 1, maxLength: 128 }) }));
+      278 |     expect(operation.parameters).toContainEqual(expect.objectContaining({ name: 'X-Oxy-User-Id', in: 'header', required: false,
+      279 |       schema: expect.objectContaining({ type: 'string', maxLength: 64 }) }));
+
+      at Object.<anonymous> (src/__tests__/openapiRouteWalker.test.ts:276:34)
+
+  ● published original-key receipt contract › declares malformed-key and unknown/pending receipt errors using the real inference envelope
+
+    expect(received).toMatchObject(expected)
+
+    Matcher error: received value must be a non-null object
+
+    Received has value: undefined
+
+      284 |   it('declares malformed-key and unknown/pending receipt errors using the real inference envelope', () => {
+      285 |     for (const status of ['400', '404']) {
+    > 286 |       expect(operation.responses[status]).toMatchObject({ content: { 'application/json': { schema: {
+          |                                           ^
+      287 |         type: 'object', required: expect.arrayContaining(['code', 'message', 'requestId', 'retryable']),
+      288 |       } } } });
+      289 |     }
+
+      at Object.<anonymous> (src/__tests__/openapiRouteWalker.test.ts:286:43)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 16 passed, 18 total
+Snapshots:   0 total
+Time:        0.433 s
+Ran all test suites within paths "src/__tests__/openapiRouteWalker.test.ts".
+error: script "test" exited with code 1

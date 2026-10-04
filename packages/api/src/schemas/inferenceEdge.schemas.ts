@@ -572,6 +572,12 @@ export const generationReceiptSchema = z.union([commercialGenerationReceiptSchem
 
 export type GenerationReceipt = z.infer<typeof generationReceiptSchema>;
 
+/** Header contract for original-key recovery; no key is carried in the URL. */
+export const originalGenerationReceiptHeadersSchema = z.object({
+  'Idempotency-Key': z.string().min(1).max(128).describe('The exact original admission key. Required; not a new request identity.'),
+  'X-Oxy-User-Id': z.string().max(64).optional().describe('Optional original delegated attribution. Omission matches only an undelegated original record.'),
+});
+
 /** `GET /v1/generations/{id}` — the receipt in the platform's read envelope. */
 export const generationReceiptResponseSchema = z
   .object({ data: generationReceiptSchema })

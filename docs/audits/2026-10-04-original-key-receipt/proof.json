@@ -1,0 +1,127 @@
+{
+  "sourceHead": "1dd665784ff4903d1dd996c0caddc1e355c5596e",
+  "sources": [
+    {
+      "path": "docs/inference/README.md",
+      "sha256": "aae7211e5b2b243cb6c4378e16d0c7804a57ffb13b4fef82a2469eb617c56e5d"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeGateCoverage.test.ts",
+      "sha256": "43e43f338ca9fec728bce1c90719ea1fdca918def03c2573280ec9b295a57bd8"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "55992e6e3a30e96df47bf9c93da2a3c92d276c991c09c81c2fd534afeae1ce96"
+    },
+    {
+      "path": "packages/api/src/routes/inferenceEdge.ts",
+      "sha256": "375c7605b31a8abf4d720141074eec146a14b7cdad371a3ee6615a1d2a24c5de"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "c7aae2cabde6118f52db58dd1ef0eaa7fcfdcf351fb6db15e9741502d8ffc6c2"
+    },
+    {
+      "path": "packages/core/src/inference/OxyInferenceClient.ts",
+      "sha256": "7671e446b9ccc9c158e107d17580a22b42adaf7008c58278602d437d5d9cf214"
+    },
+    {
+      "path": "packages/core/src/inference/__tests__/OxyInferenceClient.test.ts",
+      "sha256": "8d4a425ece4b1e89e3126f324ada975fe8dec9b5748dd2f0c6f4c3ea7213bc46"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-final-built-receipt.json",
+      "sha256": "d5b97a5b0450d76b5bc6f57de5da4b93d22bd9e0efebb7a53c7e71022b9625de"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-final-built-tests.log",
+      "sha256": "45684030d0cde5e72cb5dd7403c121b5536389dc8a0f838030913f27aa84ddf8"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-final-census-receipt.json",
+      "sha256": "cf20e7346b4a363686285ec26c9a8f3d5a04f123ec7645980a10614fe524eee5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-final-census-tests.log",
+      "sha256": "b4c68a1700214d5ee9635b2c9e3211a022faee1835e644d0970dcfb6c9abf158"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-final-receipt.json",
+      "sha256": "c91cfce327af6f7af4b41a1350b36d06c3e2b22cdcd2c0dfe5c67897db420910"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-final-tests.log",
+      "sha256": "aa478662d8f9ab8cd0809316dadaebf9af79843853e75e4597f33c67d8b3d47f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-green-receipt.json",
+      "sha256": "2e7b477bba48249780c88aa6c7a8033de7dbecccd1ff5f83c3394e5ed3e5da75"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-green-tests.log",
+      "sha256": "07fda8b98b84b6829bf531c2053b2993853d5d0749caabda98cc1dc577f737f3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-red-receipt.json",
+      "sha256": "ae5074111adde105f1a66175b557ff1a1a07cc6559ca4d644fad2aa4b9516365"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/api-red-tests.log",
+      "sha256": "7b2d9fe5ce905ebc5736daf70950acd6af51e85630ed08e2b84e34e89a423e42"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/frozen-OxyInferenceClient.test.ts",
+      "sha256": "ec3d15fba6b0e97c078e3930f58cd30a549bdb8faca003c3937a57c1618ad68e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/frozen-inferenceEdgeInternalMetered.test.ts",
+      "sha256": "5f08e8fa853e531cde8dd3ce31103acb09f1359cd01c77132a2fbaf145d5c58c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/jev-receipt-api-lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/jev-receipt-core-final.log",
+      "sha256": "9102071bad1bd99550fa61c13c804491a486996e92565fb72eceabe7acc91668"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/jev-receipt-core-green.log",
+      "sha256": "a197b0f69fb83f83f4355c1f276381aaf665f78da45eff1f12b9e4cacced5c92"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/jev-receipt-core-lint.log",
+      "sha256": "5d01e71c42c16dde3c6e5a457a8e7c426db406c1a70e66089536f5d948392af2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/jev-receipt-core-red-exact.log",
+      "sha256": "50736de09d0b59e24ac37b202f764d334069590fd218f80e32c4eb26c93d4168"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/jev-receipt-final-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/records/jev-receipt-install.log",
+      "sha256": "41576b8c1e6a7304f855610e5e4d7f37f1675d25cc933fc062fa3fa6f2c31611"
+    }
+  ],
+  "results": {
+    "frozenCore": "1 FAIL/52 PASS \u219253 PASS",
+    "frozenApi": "4 FAIL\u21924 PASS, original POST succeeded and old GET was404",
+    "extendedCore": "54 PASS",
+    "extendedApiAndGateCensus": "40 PASS",
+    "canonicalApiDependencyBuild": 0,
+    "apiEslint": 0,
+    "coreBiomeLint": 0
+  },
+  "limits": [
+    "Synthetic data plane; actual owned PostgreSQL, canonical migrations, actual HTTP authentication and credential rows.",
+    "No live/provider/registry execution; no version bump.",
+    "One test attempt collided with dependency build cleanup; 0 tests, preserved as setup failure.",
+    "Existing route census initially rejected seventh route; extended census now enforces gate/limiters on all seven.",
+    "Frozen fixtures are preserved; final fixtures add separate pending/internal/principal and missing-record cases."
+  ]
+}

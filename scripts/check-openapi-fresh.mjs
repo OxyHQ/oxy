@@ -91,6 +91,7 @@ const EXPECTED_PATHS = [
   '/v1/decisions',
   '/v1/chat/completions',
   '/v1/generations/{id}',
+  '/v1/generations/by-idempotency-key',
   '/v1/models',
   '/v1/models/stats',
   '/v1/models/routing-profiles',
@@ -164,6 +165,7 @@ const EXPECTED_PAYLOAD_OPERATIONS = [
   { method: 'post', path: '/v1/audio/speech', requestBody: true },
   { method: 'post', path: '/v1/images/generations', requestBody: true },
   { method: 'get', path: '/v1/generations/{id}', requestBody: false },
+  { method: 'get', path: '/v1/generations/by-idempotency-key', requestBody: false },
   { method: 'get', path: '/v1/models', requestBody: false },
   { method: 'get', path: '/v1/models/stats', requestBody: false },
   { method: 'get', path: '/v1/models/routing-profiles', requestBody: false },
@@ -187,9 +189,9 @@ const FORBIDDEN_30_KEYWORDS = {
 };
 
 /** Vacuity floors. A layer that examines nothing must fail, not pass. */
-const MINIMUM_EXPECTED_PATHS = 12;
+const MINIMUM_EXPECTED_PATHS = 13;
 const MINIMUM_EXPECTED_PREFIXES = 4;
-const MINIMUM_PAYLOAD_OPERATIONS = 20;
+const MINIMUM_PAYLOAD_OPERATIONS = 21;
 /**
  * The floor on schema nodes the empty-schema walk must actually visit.
  *
