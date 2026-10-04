@@ -38,6 +38,11 @@ try {
   const roleSteps = pipeline.jobs.publish.steps.filter(step => step.uses?.startsWith('aws-actions/'));
   check(roleSteps.length, 1, 'No additional AWS credential path');
   check(roleSteps[0].with['role-to-assume'], 'arn:aws:iam::237343248947:role/oxy-github-queue-image-oxy', 'Existing queue role only');
+  const uploads = pipeline.jobs.inspection.steps.filter(step => step.uses?.startsWith('actions/upload-artifact')).map(step => step.with.name);
+  const downloads = pipeline.jobs.publish.steps.filter(step => step.uses?.startsWith('actions/download-artifact')).map(step => step.with.name);
+  check(JSON.stringify(uploads), JSON.stringify(downloads), 'Publisher requires the producing attempt transport names');
+  check(uploads.length, 2);
+  for (const name of uploads) check(name.endsWith('-${{ github.run_attempt }}'), true, 'Each full retry preserves prior immutable transport artifacts');
   check(pipeline.jobs.publish.permissions.actions, 'read');
   check(pipeline.jobs.authorize.permissions.actions, 'read');
   check(pipeline.jobs.inspection.steps.some(step => /(?:--push|aws-actions\/|aws ecr)/.test(JSON.stringify(step))), false, 'Inspection cannot publish or assume AWS');

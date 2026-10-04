@@ -12,7 +12,7 @@ function fixture(phase = 'prepublish') {
     producer: { run: { id: 123, run_attempt: 1, event: 'merge_group', head_sha: head, repository: { id: 973881060, full_name: 'OxyHQ/oxy' }, head_repository: { full_name: 'OxyHQ/oxy' }, path: '.github/workflows/forge-queue-image-inspection.yml' },
       job: { run_id: 123, run_attempt: 1, head_sha: head, name: 'inspection', status: 'completed', conclusion: 'success', labels: ['ubuntu-24.04-arm'] },
       executedBlobs: { source: Object.fromEntries(FINAL_IMAGE_EXECUTED_PATHS.map(path => [path, 'b'.repeat(40)])), current: Object.fromEntries(FINAL_IMAGE_EXECUTED_PATHS.map(path => [path, 'b'.repeat(40)])) } },
-    artifact: { workflow_run: { id: 123, head_sha: head, repository_id: 973881060 }, expired: false, expires_at: '2026-10-09T12:00:00Z', digest: `sha256:${sha256(proofZipBytes)}`, size_in_bytes: proofZipBytes.length },
+    artifact: { name: `forge-queue-proof-${head}-123-1`, workflow_run: { id: 123, head_sha: head, repository_id: 973881060 }, expired: false, expires_at: '2026-10-09T12:00:00Z', digest: `sha256:${sha256(proofZipBytes)}`, size_in_bytes: proofZipBytes.length },
     receipt: { schemaVersion: 1, sourceSha: head, runId: '123', archiveSha256: sha256(archiveBytes), manifestDigest: digest, approval: false },
     archiveBytes, manifestBytes, configBytes, proofZipBytes,
     inspected: Object.fromEntries(['dockerConfigId', 'mountProofImageId', 'rootScanImageId', 'regressionImageId'].map(key => [key, `sha256:${sha256(configBytes)}`])),
