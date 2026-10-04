@@ -382,7 +382,22 @@ export async function applyForegroundPilotConfiguration(
 			.from(applications)
 			.where(eq(applications.id, MENTION_APPLICATION_ID))
 			.for("update");
-		exact(app, [plan.expectedApplication], "application");
+		// Activity writes can advance xmin without changing reviewed authority.
+		// Refresh only that revision while holding the row lock; every authority
+		// field must still equal the approved before-state, including scopes.
+		const lockedApplication = app[0];
+		if (!lockedApplication || app.length !== 1)
+			throw new Error("I05 application changed; fresh plan required");
+		exact(
+			app,
+			[
+				{
+					...plan.expectedApplication,
+					row_revision: lockedApplication.row_revision,
+				},
+			],
+			"application",
+		);
 		const bindings = await tx
 			.select({
 				id: applicationWorkloadIdentities.id,
@@ -464,7 +479,7 @@ export async function applyForegroundPilotConfiguration(
 			.where(
 				and(
 					eq(applications.id, MENTION_APPLICATION_ID),
-					sql`xmin::text = ${plan.expectedApplication.row_revision}`,
+					sql`xmin::text = ${lockedApplication.row_revision}`,
 				),
 			)
 			.returning({ id: applications.id });

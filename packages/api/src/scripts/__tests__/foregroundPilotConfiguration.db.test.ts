@@ -228,12 +228,16 @@ it("applies only the reviewed delta, rejects drift/fences, rolls back partial SQ
 	let plan = await fresh();
 	await getDb()
 		.update(applications)
-		.set({ updatedAt: new Date() })
+		.set({ status: "suspended" })
 		.where(eq(applications.id, MENTION_APPLICATION_ID));
 	await expect(applyForegroundPilotConfiguration(plan)).rejects.toThrow(
 		"application changed",
 	);
 	await absentRegistrar();
+	await getDb()
+		.update(applications)
+		.set({ status: "active" })
+		.where(eq(applications.id, MENTION_APPLICATION_ID));
 	plan = await fresh();
 	await getDb().insert(accountClosureFences).values({ accountId: owner.id });
 	await expect(applyForegroundPilotConfiguration(plan)).rejects.toThrow(
@@ -650,3 +654,24 @@ it.each([false, true])(
 		).toEqual(restored.mention.tables);
 	},
 );
+
+it("refreshes only activity xmin under the application lock while preserving reviewed authority", async () => {
+	const plan = await baselineFixture(false, false);
+	await getDb()
+		.update(applications)
+		.set({ updatedAt: new Date() })
+		.where(eq(applications.id, MENTION_APPLICATION_ID));
+	const before = await snapshots(plan.expectedApplication.owner_account_id);
+	expect(before.mention.tables.applications.rows[0].row_revision).not.toBe(
+		plan.expectedApplication.row_revision,
+	);
+	await applyForegroundPilotConfiguration(plan);
+	const applied = await snapshots(plan.expectedApplication.owner_account_id);
+	expect(applied.mention.tables.applications.rows[0].scopes).toEqual(
+		plan.afterScopes,
+	);
+	expect(applied.mention.tables.applications.rows[0].capabilities).toEqual(
+		plan.afterCapabilities,
+	);
+	await rollbackForegroundPilotConfiguration(plan);
+});
