@@ -57,7 +57,7 @@ async function fixture(controls: Partial<RoutingPolicyControls> = {}, options: {
   const higher = options.higher === false ? undefined : await insertCatalogueRoute({ tag: 'auto-high', availabilityScope: 'public_payg' });
   if (higher !== undefined) await setPowerClass(higher.modelId, 'high');
   const child = await insertCatalogueRoute({ tag: 'auto-child', availabilityScope: 'public_payg', evidence: { inputPerMillion: '0.01', outputPerMillion: options.childOutputPerMillion ?? '0' } });
-  await db.update(inferenceModels).set({ apiFormats: ['decisions'] }).where(eq(inferenceModels.id, child.modelRowId));
+  await db.update(inferenceModels).set({ apiFormats: ['decisions'], outputModalities: ['decisions'] }).where(eq(inferenceModels.id, child.modelRowId));
   const policy = await resolveEffectiveRoutingPolicy(app.id);
   if (policy.status !== 'resolved') throw new Error('Missing synthetic policy');
   const approval: autoConfig.AutoClassifierApproval = {

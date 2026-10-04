@@ -302,7 +302,7 @@ async function fixture() {
       supportsPromptCaching: false,
       apiFormats: ["decisions"],
       inputModalities: ["text"],
-      outputModalities: ["text"],
+      outputModalities: ["decisions"],
       maxContextTokens: 32000,
       maxOutputTokens: 8192,
       licenseId: "synthetic-reviewed",
