@@ -413,7 +413,7 @@ wait_for_service_rollout() {
   local label="$2"
   local elapsed=0
   local deployment_json="$service_json"
-  local ours rollout_state running desired state service_desired
+  local ours rollout_state running desired state service_desired admitted_observation
 
   while (( elapsed < MAX_WAIT_SECS )); do
     if ! deployment_json="$(aws ecs describe-services \
@@ -431,7 +431,15 @@ wait_for_service_rollout() {
       continue
     fi
     if [[ "$quiesced_deploy" == true ]]; then
-      node .github/scripts/guard-quiesced-deploy.mjs --assert-admitted "$new_task_definition" "$deployment_id" "$maintenance_tasks_file" "$deployment_surge_percent" || return 1
+      # The guard re-reads service state after validating tasks/config/scalers.
+      # Only its latest validated observation can authorize steady acceptance.
+      if ! admitted_observation="$(node .github/scripts/guard-quiesced-deploy.mjs --assert-admitted "$new_task_definition" "$deployment_id" "$maintenance_tasks_file" "$deployment_surge_percent")"; then return 1; fi
+      if ! jq -e --arg id "$deployment_id" 'keys == ["deploymentId", "kind", "steady"] and .kind == "quiesced-admitted-observation-v1" and .deploymentId == $id and (.steady | type == "boolean")' <<<"$admitted_observation" >/dev/null; then return 1; fi
+      if [[ "$(jq -r '.steady' <<<"$admitted_observation")" == true ]]; then return 0; fi
+      echo "($elapsed s) $label latest validated admission remains in progress."
+      sleep "$POLL_INTERVAL"
+      elapsed=$((elapsed + POLL_INTERVAL))
+      continue
     fi
 
     ours="$(jq -c --arg id "$deployment_id" '
@@ -1029,9 +1037,17 @@ if [[ "$quiesced_deploy" == true ]]; then
     sleep "$POLL_INTERVAL"
     retirement_elapsed=$((retirement_elapsed + POLL_INTERVAL))
   done
-  if [[ -n "${DEPLOY_SHA:-}" ]]; then bash "$DEPLOY_HEAD_GUARD_SCRIPT"; fi
-  node .github/scripts/guard-quiesced-deploy.mjs --assert-retired \
-    "$new_task_definition" "$deploy_deployment_id" "$maintenance_tasks_file" "$deployment_surge_percent"
+  if [[ -n "${DEPLOY_SHA:-}" ]] && ! bash "$DEPLOY_HEAD_GUARD_SCRIPT"; then
+    echo "::error::Final current-main guard failed; holding maintenance at zero."
+    rollback_service || echo "::error::Maintenance shutdown is not confirmed; root reconciliation required."
+    exit 1
+  fi
+  if ! node .github/scripts/guard-quiesced-deploy.mjs --assert-retired \
+    "$new_task_definition" "$deploy_deployment_id" "$maintenance_tasks_file" "$deployment_surge_percent"; then
+    echo "::error::Final retirement guard failed; holding maintenance at zero."
+    rollback_service || echo "::error::Maintenance shutdown is not confirmed; root reconciliation required."
+    exit 1
+  fi
   # Count-only restore after the old deployment has disappeared; never pair a
   # cold positive count with task-definition replacement on ECS.
   if ! restore_update_json="$(aws ecs update-service --cluster "$CLUSTER" --service "$APP" \
