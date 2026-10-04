@@ -1,0 +1,67 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1741816, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-o_0e60b1/data", "port": 5597, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/services/__tests__/mentionClassifierEconomics.test.ts src/services/__tests__/mentionClassifierAuthority.db.test.ts src/services/__tests__/mentionClassifierAdmission.test.ts src/services/__tests__/inferenceMeteredUsage.service.test.ts src/config/__tests__/inferenceEconomicPolicy.test.ts
+{"level":30,"time":1791131755199,"pid":1741825,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/mentionClassifierAuthority.db.test.ts (5.836 s)
+FAIL src/services/__tests__/mentionClassifierAdmission.test.ts
+  ● admits only after the canonical route and USD quote, with own metering and no monetary hold
+
+    {"status":"refused","error":{"schemaVersion":1,"code":"policy_violation","message":"Mention classifier relationship is not eligible.","retryable":false,"requestId":"req-synthetic-scoped"}}
+
+      72 |   const kaanaClient = client();
+      73 |   const result = await admitRequest({ ...context, kaanaClient });
+    > 74 |   if (result.status !== 'admitted') throw new Error(JSON.stringify(result));
+         |                                           ^
+      75 |   expect(result.admitted.economics).toMatchObject({ treatment: 'internal_metered', policyVersion: approval.economicPolicyVersion });
+      76 |   expect(metered.claimMeteredAdmission).toHaveBeenCalledWith(expect.objectContaining({ applicationId: context.principal.applicationId,
+      77 |     applicationCredentialId: context.principal.credentialId, admittedDeploymentId: approval.deploymentId,
+
+      at src/services/__tests__/mentionClassifierAdmission.test.ts:74:43
+      at fulfilled (src/services/__tests__/mentionClassifierAdmission.test.ts:38:58)
+
+  ● rechecks live authority after claim and never dispatches after revocation
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 1
+    Received number of calls: 0
+
+       98 |   const kaanaClient = client();
+       99 |   await executeInferenceRequest({ ...context, kaanaClient });
+    > 100 |   expect(metered.claimMeteredAdmission).toHaveBeenCalledTimes(1);
+          |                                         ^
+      101 |   expect(mentionEconomics.mentionClassifierAuthorityActive).toHaveBeenCalledTimes(2);
+      102 |   expect(kaanaClient.execute).not.toHaveBeenCalled();
+      103 | });
+
+      at src/services/__tests__/mentionClassifierAdmission.test.ts:100:41
+      at fulfilled (src/services/__tests__/mentionClassifierAdmission.test.ts:38:58)
+
+PASS src/services/__tests__/inferenceMeteredUsage.service.test.ts
+PASS src/services/__tests__/mentionClassifierEconomics.test.ts
+PASS src/config/__tests__/inferenceEconomicPolicy.test.ts
+
+Test Suites: 1 failed, 4 passed, 5 total
+Tests:       2 failed, 65 passed, 67 total
+Snapshots:   0 total
+Time:        8.596 s, estimated 10 s
+Ran all test suites within paths "src/services/__tests__/mentionClassifierEconomics.test.ts", "src/services/__tests__/mentionClassifierAuthority.db.test.ts", "src/services/__tests__/mentionClassifierAdmission.test.ts", "src/services/__tests__/inferenceMeteredUsage.service.test.ts", "src/config/__tests__/inferenceEconomicPolicy.test.ts".
+error: script "test" exited with code 1
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-o_0e60b1"}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/mention-own-inference-plan-20261004/owned-pg.py", line 59, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/mention-own-inference-plan-20261004/owned-pg.py", line 50, in main
+    run(['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/services/__tests__/mentionClassifierEconomics.test.ts', 'src/services/__tests__/mentionClassifierAuthority.db.test.ts', 'src/services/__tests__/mentionClassifierAdmission.test.ts', 'src/services/__tests__/inferenceMeteredUsage.service.test.ts', 'src/config/__tests__/inferenceEconomicPolicy.test.ts'], cwd=ROOT / 'packages/api')
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/mention-own-inference-plan-20261004/owned-pg.py", line 22, in run
+    return subprocess.run([str(x) for x in argv], env=env, text=True, check=True, **kw)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/services/__tests__/mentionClassifierEconomics.test.ts', 'src/services/__tests__/mentionClassifierAuthority.db.test.ts', 'src/services/__tests__/mentionClassifierAdmission.test.ts', 'src/services/__tests__/inferenceMeteredUsage.service.test.ts', 'src/config/__tests__/inferenceEconomicPolicy.test.ts']' returned non-zero exit status 1.

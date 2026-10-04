@@ -1,0 +1,50 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1746194, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-2o8ynap_/data", "port": 5597, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/services/__tests__/mentionClassifierEconomics.test.ts src/services/__tests__/mentionClassifierAuthority.db.test.ts src/services/__tests__/mentionClassifierAdmission.test.ts src/services/__tests__/inferenceMeteredUsage.service.test.ts src/config/__tests__/inferenceEconomicPolicy.test.ts
+{"level":30,"time":1791131961895,"pid":1746220,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/mentionClassifierAuthority.db.test.ts (6.286 s)
+PASS src/services/__tests__/inferenceMeteredUsage.service.test.ts
+FAIL src/services/__tests__/mentionClassifierAdmission.test.ts
+  ● checks expiry again after the dispatch-time authority read resolves
+
+    TypeError: Cannot read properties of undefined (reading 'decisions')
+
+      3406 |   request: NormalizedEdgeRequest
+      3407 | ): CompletionValidation {
+    > 3408 |   if (request.input.format === 'decisions' && (!completion.decisions || !decisionAnswersMatch(request.input.decisions, completion.decisions) || completion.output.length !== 0)) {
+           |                                                            ^
+      3409 |     return { status: 'invalid', code: 'internal_error', message: 'The data plane returned invalid decisions.', reason: 'decisions-invalid' };
+      3410 |   }
+      3411 |   const report = normalizedUsageReportSchema.safeParse(completion.usage);
+
+      at validateCompletion (src/services/inferenceEdge.service.ts:3408:60)
+      at src/services/inferenceEdge.service.ts:2224:22
+      at fulfilled (src/services/inferenceEdge.service.ts:109:58)
+
+PASS src/services/__tests__/mentionClassifierEconomics.test.ts
+PASS src/config/__tests__/inferenceEconomicPolicy.test.ts
+
+Test Suites: 1 failed, 4 passed, 5 total
+Tests:       1 failed, 69 passed, 70 total
+Snapshots:   0 total
+Time:        8.872 s, estimated 9 s
+Ran all test suites within paths "src/services/__tests__/mentionClassifierEconomics.test.ts", "src/services/__tests__/mentionClassifierAuthority.db.test.ts", "src/services/__tests__/mentionClassifierAdmission.test.ts", "src/services/__tests__/inferenceMeteredUsage.service.test.ts", "src/config/__tests__/inferenceEconomicPolicy.test.ts".
+error: script "test" exited with code 1
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-2o8ynap_"}
+Traceback (most recent call last):
+  File "/home/nate/Oxy/.agent-evidence/mention-own-inference-plan-20261004/owned-pg.py", line 59, in <module>
+    main()
+    ~~~~^^
+  File "/home/nate/Oxy/.agent-evidence/mention-own-inference-plan-20261004/owned-pg.py", line 50, in main
+    run(['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/services/__tests__/mentionClassifierEconomics.test.ts', 'src/services/__tests__/mentionClassifierAuthority.db.test.ts', 'src/services/__tests__/mentionClassifierAdmission.test.ts', 'src/services/__tests__/inferenceMeteredUsage.service.test.ts', 'src/config/__tests__/inferenceEconomicPolicy.test.ts'], cwd=ROOT / 'packages/api')
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nate/Oxy/.agent-evidence/mention-own-inference-plan-20261004/owned-pg.py", line 22, in run
+    return subprocess.run([str(x) for x in argv], env=env, text=True, check=True, **kw)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bun', 'run', 'test', '--runInBand', '--runTestsByPath', 'src/services/__tests__/mentionClassifierEconomics.test.ts', 'src/services/__tests__/mentionClassifierAuthority.db.test.ts', 'src/services/__tests__/mentionClassifierAdmission.test.ts', 'src/services/__tests__/inferenceMeteredUsage.service.test.ts', 'src/config/__tests__/inferenceEconomicPolicy.test.ts']' returned non-zero exit status 1.

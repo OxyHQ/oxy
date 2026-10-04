@@ -1,0 +1,19 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1747263, "dataDirectory": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-oweck7zy/data", "port": 5597, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/services/__tests__/mentionClassifierEconomics.test.ts src/services/__tests__/mentionClassifierAuthority.db.test.ts src/services/__tests__/mentionClassifierAdmission.test.ts src/services/__tests__/inferenceMeteredUsage.service.test.ts src/config/__tests__/inferenceEconomicPolicy.test.ts
+PASS src/services/__tests__/mentionClassifierAdmission.test.ts
+{"level":30,"time":1791132007473,"pid":1747273,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/mentionClassifierAuthority.db.test.ts (5.687 s)
+PASS src/services/__tests__/inferenceMeteredUsage.service.test.ts
+PASS src/services/__tests__/mentionClassifierEconomics.test.ts
+PASS src/config/__tests__/inferenceEconomicPolicy.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       70 passed, 70 total
+Snapshots:   0 total
+Time:        8.496 s, estimated 9 s
+Ran all test suites within paths "src/services/__tests__/mentionClassifierEconomics.test.ts", "src/services/__tests__/mentionClassifierAuthority.db.test.ts", "src/services/__tests__/mentionClassifierAdmission.test.ts", "src/services/__tests__/inferenceMeteredUsage.service.test.ts", "src/config/__tests__/inferenceEconomicPolicy.test.ts".
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/mention-registry-pg-oweck7zy"}
