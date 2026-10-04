@@ -1,0 +1,27 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/kaanaCatalogueSync.test.ts src/services/__tests__/inferenceInternalPilot.test.ts src/services/__tests__/scopedCataloguePublication.test.ts
+FAIL src/services/__tests__/kaanaCatalogueSync.test.ts
+  ● source-reviewed scoped price bootstrap › creates the exact reviewed price from the signed list price but leaves execution disabled
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: ArrayContaining [ObjectContaining {"amount": "0.072", "per": 1000000, "unit": "input_tokens"}, ObjectContaining {"amount": "0.28", "per": 1000000, "unit": "output_tokens"}]
+    Received: [{"amount": "0.072000000000", "createdAt": 2026-10-04T14:29:10.458Z, "per": 1000000, "priceVersionId": "c0067d1a-fdae-45d8-a00b-e1724b1d2a15", "unit": "cached_input_tokens"}, {"amount": "0.072000000000", "createdAt": 2026-10-04T14:29:10.458Z, "per": 1000000, "priceVersionId": "c0067d1a-fdae-45d8-a00b-e1724b1d2a15", "unit": "input_tokens"}, {"amount": "0.280000000000", "createdAt": 2026-10-04T14:29:10.458Z, "per": 1000000, "priceVersionId": "c0067d1a-fdae-45d8-a00b-e1724b1d2a15", "unit": "output_tokens"}, {"amount": "0.280000000000", "createdAt": 2026-10-04T14:29:10.458Z, "per": 1000000, "priceVersionId": "c0067d1a-fdae-45d8-a00b-e1724b1d2a15", "unit": "reasoning_tokens"}, {"amount": "0.000000000000", "createdAt": 2026-10-04T14:29:10.458Z, "per": 1, "priceVersionId": "c0067d1a-fdae-45d8-a00b-e1724b1d2a15", "unit": "requests"}]
+
+      763 |     expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, currency: 'USD', status: 'active' })]);
+      764 |     const units = await getDb().select().from(priceVersionUnitPrices).where(eq(priceVersionUnitPrices.priceVersionId, f.scope.priceVersionId));
+    > 765 |     expect(units).toEqual(expect.arrayContaining([
+          |                   ^
+      766 |       expect.objectContaining({ unit: 'input_tokens', amount: '0.072', per: 1000000 }),
+      767 |       expect.objectContaining({ unit: 'output_tokens', amount: '0.28', per: 1000000 }),
+      768 |     ]));
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:765:19
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+
+Test Suites: 1 failed, 2 passed, 3 total
+Tests:       1 failed, 41 passed, 42 total
+Snapshots:   0 total
+Time:        2.486 s
+Ran all test suites within paths "src/services/__tests__/kaanaCatalogueSync.test.ts", "src/services/__tests__/inferenceInternalPilot.test.ts", "src/services/__tests__/scopedCataloguePublication.test.ts".
+error: script "test" exited with code 1

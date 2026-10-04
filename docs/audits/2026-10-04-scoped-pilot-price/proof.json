@@ -1,0 +1,63 @@
+{
+  "sourceHead": "fbf106022c2290e0fbcb064dc6d60b8e297053be",
+  "source": [
+    {
+      "path": "packages/api/src/services/__tests__/inferenceInternalPilot.test.ts",
+      "sha256": "0d8d629f086442557d479964f0b6c3f27107cc8f51b25615fbd438f8b4c151ab"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "sha256": "2dfcc3521e880387d91a36e622aed7b06d07b465e7e8391de427ad18ca551993"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "bd8775280ee30c1e03019d6ceebb01915cf54f7f695885f8930a455708c17dbf"
+    },
+    {
+      "path": "packages/api/src/services/inferenceInternalPilot.ts",
+      "sha256": "a4657e47e07c10b90408d01ed5acce66a6c8268781f20a380f738eb7be9b0ab0"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "203956f5a6f4977d495b8aa4b1f076f657aa3fdf587ddb901d01c90c82fbe3f5"
+    },
+    {
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "94fe71fa6274c3266bb0a5e27ef1952c067c4a1974ca2cf5ce32884c2b915348"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/records/tests-first.log",
+      "sha256": "31b58a29ddd6f615b6ee16be3be320ff242c1e79a4dcce4fdc6f20590f898076"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/records/tests-second.log",
+      "sha256": "71a27998ac2427c2d2db453ec15b37b3e79a17245cf12c71416de675db041bee"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/records/build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/records/lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "result": {
+    "tests": 46,
+    "suites": 3,
+    "buildExit": 0,
+    "lintExit": 0
+  },
+  "limitations": [
+    "Source authorization remains undefined. No activation, provider operation or production data write.",
+    "First run had one fixture assertion failure due to PostgreSQL decimal scale; not a baseline regression. Preserved.",
+    "Normal eligibility, privacy, legal review, immutable policy, funding and signed attestation remain required."
+  ],
+  "postgres": {
+    "owned": true,
+    "port": 5583,
+    "stopped": true
+  }
+}

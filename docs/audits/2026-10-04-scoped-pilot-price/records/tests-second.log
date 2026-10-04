@@ -1,0 +1,7 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/kaanaCatalogueSync.test.ts src/services/__tests__/inferenceInternalPilot.test.ts src/services/__tests__/scopedCataloguePublication.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       46 passed, 46 total
+Snapshots:   0 total
+Time:        1.546 s, estimated 3 s
+Ran all test suites within paths "src/services/__tests__/kaanaCatalogueSync.test.ts", "src/services/__tests__/inferenceInternalPilot.test.ts", "src/services/__tests__/scopedCataloguePublication.test.ts".
