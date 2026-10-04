@@ -1,0 +1,49 @@
+{
+  "sourceHead": "c9dccc1eb3a2d3e22830c6a3d74b12031029384a",
+  "sources": [
+    {
+      "path": "scripts/agency/alia-revocation-canary-ecs.py",
+      "sha256": "f0fc20980fab167fe9df3130996cab01b81be1410ede7431e3821de7504409e4"
+    },
+    {
+      "path": "scripts/agency/tests/fixtures/canary-expiry-result.json",
+      "sha256": "324b5b1b341725933d54fe1bcb7adbe3f08b57b072484f6c019e78685a32a2b0"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-result-decoder.py",
+      "sha256": "83b8af900050dfcafcbbe47be9c5f4aaa95a96a770f47754c3ef130e9a0c1400"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i03-result-reconciliation/green.log",
+      "sha256": "0f7e4b97443e54aca647179972594d13bb587afcbf151fab8228148587ea844a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-result-reconciliation/protocol.log",
+      "sha256": "e0eb9940d6afeaec3b652a595b89a70bb9100100961ce33fc59a620c5faa11d5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-result-reconciliation/reconciliation-selected.json",
+      "sha256": "b01ba37d0bbe73dccd0476674435285b2e014a41a545717bd1669bbb324274a7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-result-reconciliation/red.log",
+      "sha256": "e9e6135a7fc948ffc5f1749c9166dc96e7f8a8414ea0b2fa82bb957fd346fbca"
+    }
+  ],
+  "originalReceipt": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt3/execute-forensics/reconciliation-prepared.json",
+    "sha256": "b01ba37d0bbe73dccd0476674435285b2e014a41a545717bd1669bbb324274a7"
+  },
+  "validation": {
+    "decoderTests": 5,
+    "protocolTests": 16,
+    "historicalRed": {
+      "completeFourCheckResultRejected": true,
+      "threeCheckIncompleteSuccessAccepted": true
+    },
+    "actualOriginalPacketAcceptedWithExactContext": true,
+    "mutations": 0
+  }
+}

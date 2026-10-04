@@ -1,0 +1,51 @@
+{
+  "kind": "i03-original-task-result-reconciliation-prepared",
+  "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/c4432425e3bb48488ce4e0b1a14ccf04",
+  "definitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-i03-alia-revocation-canary:7",
+  "resultSha256": "4e5183ebf7bccb90e4e09aa11dd999fbf856a1a965328fdafc96c3bee236b0ca",
+  "correctedDecoderSha256": "f0fc20980fab167fe9df3130996cab01b81be1410ede7431e3821de7504409e4",
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt3/execute-dispatch.json",
+      "sha256": "aa13dfe2aec4f791594b63ed32aac83414fd15cb74c0f07a21a2cbd28ff33aef"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt3/canary-plan.json",
+      "sha256": "4c8fba9a2bb7e2288669a608f6b6f5c26916edfb877f4818960ba6098a40ffbc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt3/execute-run/dispatch-intent.json",
+      "sha256": "c2c1a6369ae8db28ad957d4b88534ffedf21648288a59ca8ff309cd48cd835da"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt3/execute-run/cleanup.json",
+      "sha256": "cb35c745197119b93dcde5d6298fe22eaa4e7da67043298ed503357b9b597213"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt3/execute-forensics/logs.private.json",
+      "sha256": "f8c013cc354c48e1ee1597123aa8262f801730e406c719fd9ea8df9149f75225"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt3/execute-forensics/task.private.json",
+      "sha256": "da2d149e4d03e9a02bc4a744f8be86710dcac11ea498b2c50480e79d3c445ff4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt3/execute-forensics/definition-status.private.json",
+      "sha256": "e5bc8e069380d340adac696020eaa3f937e3fdea95c70df557109c1b1f28e8ae"
+    }
+  ],
+  "verified": {
+    "exactOriginalNonceAndCredential": true,
+    "taskStoppedExit0": true,
+    "definitionInactive": true,
+    "fourCheckSchema": true,
+    "measured": true,
+    "cleanupConfirmed": true,
+    "authorityUnchanged": true,
+    "noRecoveryNeededFromOriginalResult": true
+  },
+  "limits": [
+    "Original transport failure retained unchanged; corrected decoder applied to original authenticated log packet.",
+    "No new credential, recovery, provider effect or AWS mutation was performed during reconciliation."
+  ]
+}
