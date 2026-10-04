@@ -61,3 +61,25 @@ it('does not publish any private deployment in the ordinary liveness view', asyn
   if (publication.status !== 'observed') throw new Error('Missing synthetic observation');
   expect([...publication.deploymentIds]).toEqual(['ordinary']);
 });
+
+it('preserves provider-reported decisions and derives capability only from the exact private contract', () => {
+  const source = require('../scopedExecution.service') as typeof import('../scopedExecution.service');
+  const spy = jest.spyOn(source, 'sourceReviewedScopedAudience').mockReturnValue(first);
+  try {
+    const body = { ...payload, deployments: [deployments[1]], models: [{ ...payload.models[0], outputModalities: ['decisions'],
+      listPrices: [{ deploymentId: first.deploymentId, provider: first.provider, currency: 'USD', input: '0.001', output: '0' }] }] };
+    const parsed = parseKaanaCatalogue(body).models[0];
+    const plan = planKaanaModel(parsed, planning([deployments[1]]));
+    expect(plan).toMatchObject({ status: 'planned', model: { outputModalities: ['decisions'], apiFormats: ['decisions'] } });
+    spy.mockReturnValue(undefined);
+    expect(planKaanaModel(parsed, planning([deployments[1]])).status).toBe('skipped');
+    spy.mockReturnValue({ ...first, expiresAt: '2000-01-01T00:00:00.000Z' });
+    expect(planKaanaModel(parsed, planning([deployments[1]])).status).toBe('skipped');
+    spy.mockReturnValue(first);
+    for (const outputs of [['decisions', 'text'], ['decisions', 'unknown'], ['image']]) {
+      expect(planKaanaModel({ ...parsed, outputModalities: outputs }, planning([deployments[1]])).status).toBe('skipped');
+    }
+    const ordinaryBody = { ...body, deployments: [deployments[0]], models: [{ ...body.models[0], listPrices: [payload.models[0].listPrices[0]] }] };
+    expect(planKaanaModel(parseKaanaCatalogue(ordinaryBody).models[0], planning([deployments[0]])).status).toBe('skipped');
+  } finally { spy.mockRestore(); }
+});

@@ -22,10 +22,11 @@
  *   NULL`) keep every reviewed fact. The one exception is `reasoning_efforts`
  *   (and the provider's release date), which is a serving capability Kaana
  *   owns, not a legal fact.
- * - **Describe non-text output.** A model producing images, audio, video or
+ * - **Invent media-output safety metadata.** A model producing images, audio, video or
  *   embeddings must declare a content-provenance marking (migration 0050), and
  *   Kaana does not report one. Such lines are skipped; the reviewed speech route
- *   stays reviewed.
+ *   stays reviewed. Exact private decisions-only contracts may import actual
+ *   decisions output without claiming a media marking or a public offer.
  * - **Serve `alia/*`.** That namespace is reserved for first-party releases.
  *
  * ## Retirement
@@ -65,6 +66,7 @@ import { validatePrivateAutoAttestation } from './privateAutoAttestation.service
 import {
   DEPLOYMENT_REQUEST_PARAMETERS,
   INFERENCE_MODALITIES,
+  INFERENCE_OUTPUT_MODALITIES,
   KAANA_SYNC_AUTO_APPROVAL_POLICY_ID,
   LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
   MODEL_REASONING_EFFORTS,
@@ -82,6 +84,7 @@ import {
   priceVersions,
   type DeploymentRequestParameter,
   type InferenceModalityValue,
+  type InferenceOutputModalityValue,
 } from '../db/schema';
 import { logger } from '../utils/logger';
 import { createHttpKaanaCatalogueReader, type KaanaCatalogueReader } from './httpKaanaClient';
@@ -396,7 +399,9 @@ export interface PlannedModel {
   readonly maxContextTokens: number;
   readonly maxOutputTokens: number;
   readonly inputModalities: readonly InferenceModalityValue[];
-  readonly outputModalities: readonly InferenceModalityValue[];
+  readonly outputModalities: readonly InferenceOutputModalityValue[];
+  /** Capability derived from the negotiated private decisions-only contract, not provider metadata. */
+  readonly apiFormats: readonly ['decisions'] | null;
   readonly supportsTools: boolean;
   readonly reasoningEfforts: readonly (typeof MODEL_REASONING_EFFORTS)[number][];
   readonly routes: readonly PlannedRoute[];
@@ -480,11 +485,13 @@ export function planKaanaModel(
   if (entry.contextTokens === undefined) return { status: 'skipped', reason: 'missing_context_tokens' };
   if (entry.maxOutputTokens === undefined) return { status: 'skipped', reason: 'missing_max_output_tokens' };
   const inputModalities = knownModalities(entry.inputModalities);
-  const outputModalities = knownModalities(entry.outputModalities);
+  const typedDecisions = entry.outputModalities?.length === 1 && entry.outputModalities[0] === 'decisions';
+  const outputModalities = [...new Set((entry.outputModalities ?? []).filter(value =>
+    (INFERENCE_OUTPUT_MODALITIES as readonly string[]).includes(value)))].sort() as InferenceOutputModalityValue[];
   if (inputModalities.length === 0 || outputModalities.length === 0) {
     return { status: 'skipped', reason: 'missing_modalities' };
   }
-  if (outputModalities.some((modality) => modality !== 'text')) {
+  if (!typedDecisions && outputModalities.some((modality) => modality !== 'text')) {
     return { status: 'skipped', reason: 'non_text_output_unreviewed' };
   }
   if (entry.listPrices.length === 0 && entry.invalidDeployments === 0) {
@@ -539,6 +546,19 @@ export function planKaanaModel(
       try { validatePrivateAutoAttestation({ snapshotId: 'planning-exact-descriptor', privateAutoExecutionContractVersion: '3.7.0', deployments: [deployment] }, '3.7.0'); }
       catch { routeSkips.push('unattested_route'); continue; }
     }
+    if (typedDecisions) {
+      // 3.6/v3 and 3.7/v4 accept decisions exclusively. Only an exact local,
+      // unexpired approval plus its signed descriptor can establish this
+      // capability; output modality alone never authorizes an ordinary route.
+      const restriction = deployment.privateAutoSourceApproval ?? deployment.scopedExecution;
+      const reviewed = deployment.privateAutoSourceApproval !== undefined
+        ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now())
+        : sourceReviewedScopedAudience(Date.now());
+      if (restriction === undefined || reviewed === undefined ||
+        canonicalScopedExecutionJson(restriction) !== canonicalScopedExecutionJson(reviewed)) {
+        routeSkips.push('unattested_route'); continue;
+      }
+    }
     const price = priced.price;
     if (price === 'invalid') {
       routeSkips.push('invalid_list_price');
@@ -585,6 +605,7 @@ export function planKaanaModel(
       maxOutputTokens: Math.min(entry.maxOutputTokens, entry.contextTokens),
       inputModalities,
       outputModalities,
+      apiFormats: typedDecisions ? ['decisions'] : null,
       supportsTools: entry.supportsTools ?? false,
       reasoningEfforts,
       routes,
@@ -931,6 +952,9 @@ async function applyPlannedModel(
     displayName: planned.displayName,
     inputModalities: [...planned.inputModalities],
     outputModalities: [...planned.outputModalities],
+    ...(planned.apiFormats !== null ? { apiFormats: [...planned.apiFormats] } :
+      existing?.outputModalities.length === 1 && existing.outputModalities[0] === 'decisions' &&
+      existing.apiFormats?.length === 1 && existing.apiFormats[0] === 'decisions' ? { apiFormats: null } : {}),
     supportsTools: planned.supportsTools,
     supportsParallelToolCalls: false,
     supportsStructuredOutput: false,
@@ -938,7 +962,7 @@ async function applyPlannedModel(
     supportsReasoning: planned.reasoningEfforts.length > 0,
     // Every text route Kaana executes streams: its adapters emit the normalized
     // event stream whatever the envelope's `stream` flag says.
-    supportsStreaming: true,
+    supportsStreaming: planned.apiFormats === null,
     supportsPromptCaching: false,
     maxContextTokens: planned.maxContextTokens,
     maxOutputTokens: planned.maxOutputTokens,

@@ -444,7 +444,7 @@ answers `400 invalid_request` with `param` naming the control
   skipped and counted in the summary (`models.skipped`,
   `deployments.skipped`, first 200 names in `skippedModels`).
 - **Describe non-text output.** Migration 0050 requires a reviewed provenance
-  marking; image/audio/video/embedding lines are skipped
+  marking for media; image/audio/video/embedding lines are skipped
   (`non_text_output_unreviewed`). Alia's speech route stays reviewed.
 - **Touch a reviewed row.** Rows with `catalogue_source = 'reviewed'` or
   `auto_approval_policy_id IS NULL` keep every reviewed fact; only
@@ -479,3 +479,20 @@ latency, throughput or balanced finds no score on a synced route and refuses
 with `no_route_available` (`routing_evidence:missing-score`) until measured
 scores exist.
 
+
+### Private structured decisions output
+
+Model output vocabulary includes `decisions`; request and input modalities retain
+the existing five values. A signed observation with exactly `outputModalities:
+['decisions']` is imported only through exact, locally reviewed, unexpired private
+3.6/v3 or 3.7/v4 deployment authority and its matching attestation. Oxy derives
+`apiFormats: ['decisions']` from that negotiated decisions-only contract, rather
+than claiming the provider or catalogue returned an `apiFormats` field.
+
+The importer preserves `disabled`, `pending_review` and the separate legal gate.
+It grants no public offer or execution authority. Ordinary and mixed media
+outputs remain excluded. A genuine subsequent text-only observation removes
+only the previously derived decisions-only capability; other declared formats
+and reviewed model facts remain untouched. Migration 0145 permits structured
+decisions without invented filtering or watermark metadata in both provenance
+trigger directions; image/audio/video/embedding still require marking.

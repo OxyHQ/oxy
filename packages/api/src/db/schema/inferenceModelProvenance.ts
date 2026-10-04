@@ -31,7 +31,7 @@
  * anybody string-matching a message.
  *
  * The DDL is authoritative HERE rather than only in
- * `0050_inference_model_provenance_marking.sql`, for the reason every trigger in
+ * `0145_private_decisions_output.sql` (0050 retains historical trigger registration), for the reason every trigger in
  * this schema is: drizzle-kit emits tables, constraints and indexes from a schema
  * file and CANNOT emit a trigger, so regenerating a table migration would
  * silently drop it. `schema/__tests__/inferenceCatalogue.test.ts` fails naming
@@ -55,17 +55,12 @@
  * two, the invariant is inductive — every transition into "an unmarked revision
  * under a non-text model" is refused, so the state is unreachable.
  *
- * ## `text` is the only exemption, and `embedding` is deliberately NOT one
+ * ## Text and structured decisions are the explicit exemptions
  *
- * The test is `output_modalities <@ array['text']` — text-only passes, anything
- * else must declare. An embedding-output model is therefore inside the rule, which
- * is a deliberate call and worth stating: an embedding is not perceptible content
- * and cannot carry a watermark, but `none` IS a declaration and the vocabulary
- * exists to record it. The burden is one field saying "this model marks nothing",
- * not a capability. The alternative — a second modality taxonomy naming
- * image/audio/video as "the marked ones" — would be a list to keep in agreement
- * with `INFERENCE_MODALITIES` and a judgement to re-make every time a modality is
- * added, and the default it implies is the permissive one.
+ * Migration 0145 adds typed decisions output, which contains no generated media.
+ * It does not invent a provider filtering or watermark declaration. Image,
+ * audio, video and embedding still require a complete safety declaration.
+ * Unknown output modalities remain rejected by the model output CHECK.
  *
  * ## What is NOT here
  *
@@ -78,13 +73,13 @@
 import { textArrayLiteral } from '@oxy.so/db';
 
 /**
- * The output modalities that need no marking declared. ONE member, and the tuple
+ * The output modalities that need no marking declared. The tuple
  * exists so the DDL below and this reasoning cannot drift apart — the emitted SQL
  * renders from it.
  */
-export const PROVENANCE_EXEMPT_OUTPUT_MODALITIES = ['text'] as const;
+export const PROVENANCE_EXEMPT_OUTPUT_MODALITIES = ['text', 'decisions'] as const;
 
-/** `array['text']::text[]`, as the DDL spells it. */
+/** The exact output-only exemption shared by both triggers. */
 const EXEMPT_MODALITIES_SQL = textArrayLiteral(PROVENANCE_EXEMPT_OUTPUT_MODALITIES);
 
 /**

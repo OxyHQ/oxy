@@ -53,6 +53,9 @@ import { MODEL_REFERENCE_CHECK_PATTERN, SLUG_CHECK_PATTERN } from './inferenceSl
  */
 export const INFERENCE_MODALITIES = ['text', 'image', 'audio', 'video', 'embedding'] as const;
 
+export const INFERENCE_OUTPUT_MODALITIES = [...INFERENCE_MODALITIES, 'decisions'] as const;
+export type InferenceOutputModalityValue = (typeof INFERENCE_OUTPUT_MODALITIES)[number];
+
 export type InferenceModalityValue = (typeof INFERENCE_MODALITIES)[number];
 
 /**
@@ -308,7 +311,7 @@ export const inferenceModels = pgTable(
     ),
     check(
       'inference_models_output_modalities_check',
-      sql`cardinality(${t.outputModalities}) >= 1 and ${t.outputModalities} <@ ${sql.raw(textArrayLiteral(INFERENCE_MODALITIES))}`
+      sql`cardinality(${t.outputModalities}) >= 1 and ${t.outputModalities} <@ ${sql.raw(textArrayLiteral(INFERENCE_OUTPUT_MODALITIES))}`
     ),
     check(
       'inference_models_reasoning_efforts_check',

@@ -744,7 +744,7 @@ describe('independent private Auto catalogue import', () => {
       currency: 'USD', input: '0.072', output: '0.28' }));
     const payload = { scopedExecutionContractVersion: '3.6.0', privateAutoExecutionContractVersion: '3.7.0',
       configuration: { snapshotId: 'snap_test' }, deployments: descriptors,
-      models: [world.entry('privateauto', { listPrices: prices })] };
+      models: [world.entry('privateauto', { listPrices: prices, outputModalities: includeOrdinary ? ['text'] : ['decisions'] })] };
     const privateReader: KaanaCatalogueReader = {
       listModels: async () => payload,
       attestDeployments: async () => ({ snapshotId: 'snap_test', scopedExecutionContractVersion: '3.6.0', privateAutoExecutionContractVersion: '3.7.0',
@@ -780,7 +780,7 @@ describe('independent private Auto catalogue import', () => {
     const context = { applicationId: f.approval.principal.applicationId, environment: f.approval.principal.environment,
       privateAuto: { approval: f.approval, principal: f.approval.principal } };
     const resolve = (constraints = UNCONSTRAINED_ROUTING, actualContext = context) => resolveEdgeRoute(INTERNAL_VIEWER,
-      f.approval.modelReference, constraints, TEXT_COMPLETION_MODALITY, 'price', UNCONSTRAINED_EDGE_CAPACITY, actualContext);
+      f.approval.modelReference, constraints, { input: 'text', output: 'decisions', apiFormat: 'decisions', requiresDeclaredApiFormat: true }, 'price', UNCONSTRAINED_EDGE_CAPACITY, actualContext);
     return { ...f, row, plan, resolve, context };
   }
   it('reviews only internal use, then selects exact source/price without claiming commercial rights or public permission', async () => {
@@ -917,7 +917,7 @@ describe('source-reviewed scoped price bootstrap', () => {
     const descriptor = { ...route, regions: route.regions ?? [], scopedExecution: scope,
       keyId: scope.keyId, upstreamModelId: scope.upstreamModelId,
       providerRateCardVersionId: scope.providerRateCardVersionId, providerSourceVersion: scope.providerSourceVersion };
-    const base = reader([world.entry('private')], [route]);
+    const base = reader([world.entry('private', { inputModalities: ['text'], outputModalities: ['decisions'] })], [route]);
     const scopedReader: KaanaCatalogueReader = { ...base,
       listModels: async () => ({ ...await base.listModels(), scopedExecutionContractVersion: '3.6.0', deployments: [descriptor] }),
       attestDeployments: async () => ({ snapshotId: 'snap_test', scopedExecutionContractVersion: '3.6.0', deployments: [descriptor] }),
@@ -950,6 +950,38 @@ describe('source-reviewed scoped price bootstrap', () => {
     expect(await deploymentsOf(f.world.line('private'))).toEqual([expect.objectContaining({
       status: 'disabled', permissionState: 'pending_review', autoApprovalPolicyId: null, priceVersionId: f.scope.priceVersionId,
     })]);
+  });
+
+  it('imports genuine decisions with contract capability, then resolves only exact private reviewed authority', async () => {
+    const f = await fixture();
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockReturnValue(f.scope);
+    await runKaanaCatalogueSync({ reader: f.scopedReader });
+    const [model] = await getDb().select().from(inferenceModels).where(eq(inferenceModels.modelId, f.world.line('private')));
+    expect(model).toMatchObject({ inputModalities: ['text'], outputModalities: ['decisions'], apiFormats: ['decisions'], supportsStreaming: false });
+    const [row] = await deploymentsOf(f.world.line('private'));
+    if (!row) throw new Error('Private import missing');
+    expect(row).toMatchObject({ status: 'disabled', permissionState: 'pending_review', legalReviewStatus: 'not_started' });
+    const required = { input: 'text' as const, output: 'decisions' as const, apiFormat: 'decisions' as const, requiresDeclaredApiFormat: true };
+    const resolve = () => resolveEdgeRoute(INTERNAL_VIEWER, f.route.modelReference, UNCONSTRAINED_ROUTING, required, 'price', UNCONSTRAINED_EDGE_CAPACITY,
+      { applicationId: f.scope.principal.applicationId, environment: 'production', scopedExecution: f.scope });
+    expect((await resolve()).status).not.toBe('resolved');
+    jest.spyOn(scopedSource, 'privateCommissioningAudience').mockReturnValue(f.scope);
+    await getDb().update(inferenceDeployments).set({ legalReviewStatus: 'approved', legalReviewEvidenceRef: 'synthetic-specific-review' }).where(eq(inferenceDeployments.id, row.id));
+    expect(await resolve()).toMatchObject({ status: 'resolved', route: { outputModalities: ['decisions'], apiFormats: ['decisions'] } });
+    expect((await resolveEdgeRoute(INTERNAL_VIEWER, f.route.modelReference, UNCONSTRAINED_ROUTING, required)).status).not.toBe('resolved');
+    expect((await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).some(entry => entry.modelId === f.world.line('private'))).toBe(false);
+    // A genuine output transition must remove only our derived contract capability.
+    const body = await f.scopedReader.listModels() as { models: Record<string, unknown>[] };
+    await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => ({ ...body, models: body.models.map(entry => ({ ...entry, outputModalities: ['text'] })) }) } });
+    expect((await getDb().select().from(inferenceModels).where(eq(inferenceModels.id, model.id)))[0]).toMatchObject({ outputModalities: ['text'], apiFormats: null });
+    await getDb().update(inferenceModels).set({ apiFormats: ['responses'] }).where(eq(inferenceModels.id, model.id));
+    await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => ({ ...body, models: body.models.map(entry => ({ ...entry, outputModalities: ['text'] })) }) } });
+    expect((await getDb().select().from(inferenceModels).where(eq(inferenceModels.id, model.id)))[0].apiFormats).toEqual(['responses']);
+    expect(await resolve()).toMatchObject({ status: 'modality-unsupported' });
+    await expect(getDb().update(inferenceModels).set({ inputModalities: ['decisions'] }).where(eq(inferenceModels.id, model.id))).rejects.toThrow();
+    await expect(getDb().update(inferenceModels).set({ outputModalities: ['image'] }).where(eq(inferenceModels.id, model.id))).rejects.toThrow();
+    await expect(getDb().update(inferenceModels).set({ outputModalities: ['unknown'] }).where(eq(inferenceModels.id, model.id))).rejects.toThrow();
+    await expect(getDb().update(inferenceModels).set({ outputModalities: [] }).where(eq(inferenceModels.id, model.id))).rejects.toThrow();
   });
 
   it('rejects an audience different from the source review without creating a price', async () => {

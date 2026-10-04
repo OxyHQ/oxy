@@ -86,6 +86,7 @@ import {
 import type {
   InferenceApiFormatValue,
   InferenceModalityValue,
+  InferenceOutputModalityValue,
   REALTIME_SESSION_KINDS,
   REALTIME_SESSION_TRANSPORTS,
 } from '../db/schema/inferenceModels';
@@ -1968,7 +1969,7 @@ export function firstUnacceptedParameter(
  */
 export interface EdgeModalityRequirement {
   readonly input: InferenceModalityValue;
-  readonly output?: InferenceModalityValue;
+  readonly output?: InferenceOutputModalityValue;
   /**
    * The public dialect the request arrived in (`client.apiFormat` on the
    * envelope). A model that DECLARES `apiFormats` serves only the dialects it

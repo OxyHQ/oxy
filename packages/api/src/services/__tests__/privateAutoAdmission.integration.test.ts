@@ -52,7 +52,7 @@ async function fixture() {
   const higher = await insertCatalogueRoute({ tag: 'private-high', availabilityScope: 'platform_internal' });
   await setPowerClass(parent.modelId, 'instant'); await setPowerClass(higher.modelId, 'high');
   const child = await insertCatalogueRoute({ tag: 'private-child', availabilityScope: 'platform_internal', evidence: { inputPerMillion: '0.01', outputPerMillion: '0' } });
-  await db.update(inferenceModels).set({ apiFormats: ['decisions'], commercialUseAllowed: false }).where(eq(inferenceModels.id,child.modelRowId));
+  await db.update(inferenceModels).set({ apiFormats: ['decisions'], outputModalities: ['decisions'], commercialUseAllowed: false }).where(eq(inferenceModels.id,child.modelRowId));
   const [childRow] = await db.select().from(inferenceDeployments).where(eq(inferenceDeployments.internalRouteId,child.internalRouteId));
   if (!childRow?.priceVersionId) throw new Error('Synthetic child price missing');
   const policy = await resolveEffectiveRoutingPolicy(app.id);

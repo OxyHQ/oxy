@@ -282,7 +282,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       slug: modelSlug,
       displayName: `Model ${tag}`,
       inputModalities: ['text'],
-      outputModalities: ['text'],
+      outputModalities: options.apiFormats?.includes('decisions') ? ['decisions'] : ['text'],
       ...(options.apiFormats === undefined ? {} : { apiFormats: options.apiFormats }),
       supportsTools: true,
       supportsParallelToolCalls: false,

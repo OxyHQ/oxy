@@ -3820,6 +3820,7 @@ export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequ
     case 'embeddings':
       return { input: 'text', output: 'embedding' };
     case 'decisions':
+      return { input: 'text', output: 'decisions' };
     case 'rerank':
       // Input only. `INFERENCE_MODALITIES` has no member for a ranking, and
       // claiming `text` output would assert something false about the model.
