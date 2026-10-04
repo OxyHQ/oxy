@@ -1,0 +1,75 @@
+{
+  "kind": "mercaria-closed-cohort-rolling-operator-preparation-v1",
+  "sourceCommit": "7e6419b69bace0773edaf634acbc7297453541c3",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/mercaria-cohort-promotion.py",
+      "bytes": 17782,
+      "sha256": "ba255c29a3618a3b695652ad2b9cf9e1a83baf99ee3fcb9e4353c7a7239a54b8"
+    },
+    {
+      "path": "scripts/operations/__tests__/mercaria-cohort-promotion.test.py",
+      "bytes": 11134,
+      "sha256": "6374aa3e4ab96919e27bb667fbae7aa0284aaef83335c90a4d777067cc6f4adb"
+    },
+    {
+      "path": "scripts/operations/consumer-promotion.py",
+      "bytes": 37409,
+      "sha256": "6498df2458bfa407c3905e0ebd824c766b7af1beecc3d1b1a0d5770be9dca83b"
+    },
+    {
+      "path": "scripts/operations/fleet-quiescence.py",
+      "bytes": 38160,
+      "sha256": "56fbe998fc58f2fc473f0622e5b06693f88b75942020f25001bf409d24852959"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mercaria-cohort-rolling-operator/README.md",
+      "bytes": 5144,
+      "sha256": "22f2fa86c2600ee052b27d6b63783b635a7a692fc8328eccc029e4a0093efe7a"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-mercaria-cohort-rolling-operator/promotion-offline.log",
+      "bytes": 113,
+      "sha256": "b8164992b80b4034d70a8db0895142d1bb3fd7fdba2757ad51203cb1361e9d63"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mercaria-cohort-rolling-operator/promotion-help.log",
+      "bytes": 169,
+      "sha256": "c8d2ca35549a05bce8b36e72445c1be72a6a91d5b36e893788555caa052afa50"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mercaria-cohort-rolling-operator/promotion-fake-shape-failure.log",
+      "bytes": 7176,
+      "sha256": "c539f06b7322cd9addd1a4d82a4ae68ca0f6aad8014330f3eec9d98dd5c13413"
+    }
+  ],
+  "tests": {
+    "offlineCases": 14,
+    "exitCode": 0,
+    "awsHttpMocked": true,
+    "intentFilesystemReal": true
+  },
+  "operationalBindings": {
+    "service": "mercaria",
+    "baselineDefinition": "oxy-mercaria:60",
+    "newSourceExpected": "80291a89328f999aa1c3ed4241ba0f6f84b0c687",
+    "servingRegistrationSha256": "a7ed9819eb8aa2e8360a430c907092e0af2059a8f9539bafc8eb780771046ed3",
+    "baselineCountsPreserved": true,
+    "minimumHealthyPercent": 100,
+    "maximumPercent": 200,
+    "noDesiredCountWrites": true,
+    "noScalerWrites": true,
+    "noAutomaticOldImageRollback": true,
+    "newImagePending": true
+  },
+  "limits": {
+    "awsReadsOrWritesExecuted": false,
+    "providerRequestsExecuted": false,
+    "livePlanCreated": false,
+    "preparedRootInputsRequired": "actual image+migration+merchant/Portal/store/Peable/SDK receipts before prepare",
+    "unknownAck": "stop and root-reconcile intents before another mutation",
+    "confirmedFailure": "preserve count/scalers; root fresh-read and explicit rollback decision, never automatic hold0"
+  }
+}
