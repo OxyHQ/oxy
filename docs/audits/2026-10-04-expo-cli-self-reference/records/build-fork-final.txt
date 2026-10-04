@@ -1,0 +1,1 @@
+Verified upstream archive; built private native adapter and explicitly identified Expo CLI fork.

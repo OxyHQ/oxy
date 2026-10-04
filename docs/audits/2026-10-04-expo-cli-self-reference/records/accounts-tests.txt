@@ -1,0 +1,21 @@
+$ node --test worker/edge-checks.mjs && jest --passWithNoTests
+(node:1944621) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/packages/accounts/worker/index.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/packages/accounts/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ frontend keeps asset streams, headers and errors when telemetry is disabled (15.222392ms)
+✔ enabled edge producer publishes actual media operations without a dashboard viewer (3.023199ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 56.242282
+
+Test Suites: 18 passed, 18 total
+Tests:       149 passed, 149 total
+Snapshots:   0 total
+Time:        2.469 s
+Ran all test suites.

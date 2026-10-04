@@ -1,0 +1,3 @@
+bun install v1.4.2 (744846f84)
+
+Checked 2306 installs across 2496 packages (no changes) [40.00ms]

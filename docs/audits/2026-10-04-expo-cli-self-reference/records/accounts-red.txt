@@ -1,0 +1,44 @@
+$ node scripts/export-web.js && bun ../core/scripts/writePagesHeaders.ts dist
+/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/utils/errors.js:130
+    throw error;
+    ^
+
+Error: Cannot find module '@expo/cli/package.json'
+Require stack:
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/externals.js
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/MetroTerminalReporter.js
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/instantiateMetro.js
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/MetroBundlerDevServer.js
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/exportApp.js
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/exportAsync.js
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/index.js
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/bin/cli
+- /home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/expo@57.0.21/node_modules/expo/bin/cli
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1564:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1118:27)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1169:12)
+    at require.resolve (node:internal/modules/helpers:175:31)
+    at Object.<anonymous> (/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/externals.js:73:50)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/externals.js',
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/MetroTerminalReporter.js',
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/instantiateMetro.js',
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/start/server/metro/MetroBundlerDevServer.js',
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/exportApp.js',
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/exportAsync.js',
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/src/export/index.js',
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/@oxy.so+expo-cli-native@.+vendor+expo-native+oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz/node_modules/@oxy.so/expo-cli-native/build/bin/cli',
+    '/home/nate/Oxy/oxy/.worktrees/1571-expo-cli-self-reference-20261004/node_modules/.bun/expo@57.0.21/node_modules/expo/bin/cli'
+  ]
+}
+
+Node.js v24.21.0
+
+Export failed with exit code 7
+error: script "build" exited with code 1

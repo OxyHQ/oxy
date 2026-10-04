@@ -1,0 +1,11 @@
+✔ Metro externals imports without @expo/cli self alias and resolves own shim bytes (1.621198ms)
+✔ Polyfill resolver points at own real Metro require module without self alias (1.036316ms)
+✔ All remaining own template resolvers target packaged files; project lookup preserved (0.56034ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.519323
