@@ -70,7 +70,7 @@ const omittedArn=p.previousTasks[0].replace('a'.repeat(32),'e'.repeat(32));
 const service=()=>({failures:[],services:[{serviceName:p.service,status:'ACTIVE',taskDefinition:s.td,
 desiredCount:s.count,runningCount:s.count,pendingCount:0,loadBalancers:[{targetGroupArn:p.targetGroups[0]}],
 networkConfiguration:{awsvpcConfiguration:{subnets:['fixture'],securityGroups:['fixture'],assignPublicIp:'DISABLED'}},
-launchType:'FARGATE',deployments:[{id:'new-deploy',status:'PRIMARY',taskDefinition:s.td,
+launchType:'FARGATE',deploymentConfiguration:s.config,deployments:[{id:'new-deploy',status:'PRIMARY',taskDefinition:s.td,
 rolloutState:s.started&&process.env.FIXTURE_FAIL==='true'?'FAILED':'COMPLETED',desiredCount:s.count,runningCount:s.count,pendingCount:0}]}]});
 switch(args[0]+' '+args[1]) {
 case 'ecs describe-services':emit(service());break;
@@ -82,7 +82,7 @@ case 'ecs list-tasks':emit({taskArns:value('--desired-status')==='RUNNING'?(s.co
 case 'ecs describe-tasks':{
  const ids=args.slice(args.indexOf('--tasks')+1).filter(x=>x.startsWith('arn:'));
  emit({failures:[],tasks:ids.map(arn=>({taskArn:arn,group:'service:'+p.service,
- taskDefinitionArn:arn===newArn?next:p.previousTaskDefinition,lastStatus:arn===omittedArn?'STOPPING':arn===newArn&&s.count?'RUNNING':'STOPPED',
+ taskDefinitionArn:arn===newArn?next:p.previousTaskDefinition,startedBy:'new-deploy',desiredStatus:arn===newArn&&s.count?'RUNNING':'STOPPED',lastStatus:arn===omittedArn?'STOPPING':arn===newArn&&s.count?'RUNNING':'STOPPED',
  containers:[{name:p.container,lastStatus:'STOPPED',exitCode:0}]}))});break;}
 case 'elbv2 describe-target-health':emit({TargetHealthDescriptions:[]});break;
 case 'application-autoscaling describe-scalable-targets':emit({ScalableTargets:[]});break;
@@ -95,7 +95,9 @@ case 'ecs run-task':event({op:'migration'});emit({failures:[],tasks:[{taskArn:p.
 case 'ecs update-service':{
  const td=value('--task-definition'),count=Number(value('--desired-count'));
  const config=args.includes('--deployment-configuration')?JSON.parse(value('--deployment-configuration')):null;
- if(td){s.td=td;s.started=true;} s.count=count;save();event({op:'update',td:td||null,count,autoRollback:config?.deploymentCircuitBreaker.rollback});emit({service:service().services[0]});break;}
+ if(td){s.td=td;s.started=true;} if(config)s.config=config; s.count=count;save();event({op:'update',td:td||null,count,autoRollback:config?.deploymentCircuitBreaker.rollback});
+ const response=service().services[0];if(!td&&count>0&&process.env.FIXTURE_BAD_RESTORE_ACK==='true')response.deployments=[];
+ emit({service:response});break;}
 default:process.stderr.write('Unexpected fixture request');process.exit(3);
 }
 `,
@@ -111,6 +113,7 @@ function run(
 		failure = false,
 		drift = false,
 		omittedStopping = false,
+		badRestoreAck = false,
 	} = {},
 ) {
 	const dir = join(scratch, name);
@@ -138,6 +141,7 @@ function run(
 		FIXTURE_DIR: dir,
 		FIXTURE_FAIL: String(failure),
 		FIXTURE_OLD_STOPPING: String(omittedStopping),
+		FIXTURE_BAD_RESTORE_ACK: String(badRestoreAck),
 		MAX_WAIT_SECS: "2",
 		POLL_INTERVAL: "1",
 		RUN_MIGRATIONS: "true",
@@ -172,12 +176,14 @@ try {
 	count++;
 	assert.deepEqual(
 		good.events.map((x) => x.op),
-		["register", "migration", "worker", "update"],
+		["register", "migration", "worker", "update", "update"],
 	);
 	count++;
-	assert.equal(good.events.at(-1).td, next);
+	assert.equal(good.events.at(-2).td, next);
+	assert.equal(good.events.at(-2).count, 0);
+	assert.equal(good.events.at(-1).td, null);
 	assert.equal(good.events.at(-1).count, 2);
-	assert.equal(good.events.at(-1).autoRollback, false);
+	assert.equal(good.events.at(-2).autoRollback, false);
 	count++;
 	const failure = run("failure", { failure: true });
 	assert.notEqual(failure.result.status, 0);
@@ -198,6 +204,15 @@ try {
 	assert.notEqual(omitted.result.status, 0);
 	assert.deepEqual(omitted.events, []);
 	assert.equal(omitted.final.count, 0);
+	count++;
+	const badAck = run("bad-restore-ack", { badRestoreAck: true });
+	assert.notEqual(badAck.result.status, 0);
+	assert.equal(badAck.final.count, 0);
+	assert.equal(badAck.final.td, next);
+	assert.ok(
+		badAck.events.some((event) => event.op === "update" && event.count === 2),
+	);
+	assert.equal(badAck.events.at(-1).count, 0);
 	count++;
 	const normal = run("normal0", { maintenance: false });
 	assert.notEqual(normal.result.status, 0);

@@ -1,0 +1,142 @@
+{
+  "sourceHead": "66ddf83cd8389acd970c26f8ac6804b278e5c42e",
+  "baselineMain": "85dad68e5685413740a4a3fd52afee5bd724bed1",
+  "inputs": [
+    {
+      "path": "scripts/forge-source-topology.mjs",
+      "sha256": "5778f2ddaf6210f4b6e816e9936787c3c5949787e3d8d8073dedfefb0ab06458",
+      "gitObject": "372d3744e91ea881bf0e258835b9deef8f62bea2"
+    },
+    {
+      "path": "scripts/test-forge-source-topology.mjs",
+      "sha256": "e1647f464ad669545b47319e41eed3d963e8bed16cf3bf7fe3e399060b166af0",
+      "gitObject": "8d0a6ce41ac3c55ade7fc4945030e089a2028f16"
+    },
+    {
+      "path": ".github/workflows/forge-candidate-image-proof.yml",
+      "sha256": "65babf0de20a0239ccf4306f279addd4eeff1a990fab451f59c21b9a00212778",
+      "gitObject": "f2f3bbe06a3cae1eb2a5bca2b65e85aa85daac68"
+    },
+    {
+      "path": "docs/security/forge-candidate/provenance/audit-policy-decision.json",
+      "sha256": "1f6548d819af8f247cf599b3c6cbbab98f5fcaad3a911a28d9fa13e6562a518e",
+      "gitObject": "84a8c9afe0ccfe84e8cc0a7489bfbd341c105f43"
+    },
+    {
+      "path": "packages/api/src/scripts/foregroundPilotConfiguration.ts",
+      "sha256": "d54565c08575b93286baa811dc08108b629c02b85dffeb8911dde4d6c4bdd08a",
+      "gitObject": "7ca4cc6bfba9e95a67d590bf60e973ea14859460"
+    },
+    {
+      "path": "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts",
+      "sha256": "5ff33f8ea4eb05daaa2275692752e4afc65efe98422e80c3209ba3de6013cf2b",
+      "gitObject": "92197e1a30cb8af8e27630506c50ea95f1392427"
+    }
+  ],
+  "records": [
+    {
+      "file": "frozen-test.mjs",
+      "sha256": "e1647f464ad669545b47319e41eed3d963e8bed16cf3bf7fe3e399060b166af0"
+    },
+    {
+      "file": "topology-final-GREEN.log",
+      "sha256": "d1596d9050309b129557027be3e17789e0615f1db0f719683e67759f15bc9365"
+    },
+    {
+      "file": "proposal-green.log",
+      "sha256": "b46f4bc183bf111c7ed20a81bb3596bb7676d63f53bece4dbe4c567a7f8d1a52"
+    },
+    {
+      "file": "inputs.log",
+      "sha256": "3a423fcce474396301801c157043b9780360b41ffbfbd26f164512df081499dd"
+    },
+    {
+      "file": "policy.log",
+      "sha256": "588d9bed291ec65447cd46499101da04ef3840e9e06ccefdd059f38e3900172d"
+    },
+    {
+      "file": "resolver.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
+    },
+    {
+      "file": "owned-oxy34-temp-safe.py",
+      "sha256": "5703061be8cda291f90a9dcb624cf1b68360e1ad20529b3538001e10913e1578"
+    },
+    {
+      "file": "audit-fixtures.log",
+      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce"
+    },
+    {
+      "file": "binding.log",
+      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4"
+    },
+    {
+      "file": "scope-green.log",
+      "sha256": "6319566864eeb67678ec006c29ff58a798dba5d168da26b377536e25b0048eed"
+    },
+    {
+      "file": "collector.log",
+      "sha256": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95"
+    },
+    {
+      "file": "topology-final-frozen-RED.log",
+      "sha256": "aef753df0f6f5d7a51044a383ea7b57796582bbf502482d9a13b8025a5539f39"
+    },
+    {
+      "file": "dag-green.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
+    },
+    {
+      "file": "migrate-fresh.txt",
+      "sha256": "f7236a584ca29725afa2adb29bb2369424bdc5cae75660561cc8030fc7c8576f"
+    },
+    {
+      "file": "migrate-repeat.txt",
+      "sha256": "f1a5e482b6773cda78fc93a1dc719dd89679fb9a5f03e7d7a9de3f86e86c0ad8"
+    },
+    {
+      "file": "oxy-harness-final.log",
+      "sha256": "19a7b796d99829f5127166849b350ad7416297679e08890b40d136bf99089986"
+    }
+  ],
+  "independentProofSha256": "25b40aa89111dba8ea3ed7532f0d538c19a5837f1bdfbfc52a24c01d30d08301",
+  "inputTrees": {
+    "packages": "fd531a1f891bc8bdb02b00eb5c0ffcdbf29bb7b7",
+    "bun.lock": "b3a19f253e2a9f1944ca373f1866507d8130be17",
+    "package.json": "81684a59a64778423aa390dcd748b771d581c96e",
+    "bunfig.toml": "3ee0467a05783f56afc2a57f0d0b73ed999ce8c8",
+    "tsconfig.json": "18262dc38216ff1c43d2ae3a6d2d436f67d379e6",
+    "turbo.json": "c8107e13fea5f8c5f4909298b893f99c7ca3df53",
+    "patches/node-forge@1.4.0.patch": "b037fdf33071904943aba0a67bff16a48cae6571",
+    "docs/security/forge-candidate/toolchain.bun.lock": "b9654e7dcea881ebcc83460a643377c5307e46c1",
+    "scripts/rehearsal/test-forge-final-input-1519.py": "f16e16d751bcf074d979e6dc9552182da9150204",
+    "scripts/forge-independent-expo-compat.cjs": "384e1862e54d2bda1a79b0415909ca4341ed5bbb"
+  },
+  "existingOpsProof": "docs/audits/2026-10-04-i05-full-credential-census/proof.json",
+  "oldCryptoRecordReuse": 15,
+  "freshOxyTests": 34,
+  "freshExpoChecks": 14,
+  "ownedPostgres": {
+    "pid": 937112,
+    "pidAbsent": true,
+    "postmasterAbsent": true
+  },
+  "limits": [
+    "Own ARM/fullgate required. No publication or deployment.",
+    "Expiry2026-10-09T22:00Z retained when root proposes ACTIVE.",
+    "Current synthetic topology24 bound to actual main85; no authentication claimed by mocks.",
+    "Full /tmp first attempts preserved privately; final fixed TMPDIR harness preserves original database/test assertions."
+  ],
+  "unchangedShippingTrees": {
+    "packages/contracts": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+    "packages/core": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+    "packages/services": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+    "packages/protocol": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+    "packages/mcp": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+    "packages/db": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c"
+  },
+  "packageDiffFromMain": [
+    "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts",
+    "packages/api/src/scripts/foregroundPilotConfiguration.ts"
+  ]
+}

@@ -1,0 +1,2 @@
+{"level":30,"time":1791095923531,"pid":690232,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+{"kind":"i05-compiled-owned-fixture","checks":3,"runtime":"v24.21.0","environmentKeys":["DATABASE_URL","NODE_ENV","OXY_API_URL"],"compiledCliRetire":true,"compiledCliRollback":true,"expiredExecuteBeforeEffect":true,"externalHttpRequests":0,"secretInOutput":false}

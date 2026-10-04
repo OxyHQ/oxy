@@ -1,0 +1,29 @@
+$ jest --runInBand --runTestsByPath src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts src/scripts/__tests__/foregroundPilotHttps.test.ts src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+PASS src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts
+{"level":30,"time":1791095757535,"pid":687502,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts (10.714 s)
+  ● refreshes only activity xmin under the application lock while preserving reviewed authority
+
+    I05 application changed; fresh plan required
+
+      162 | function exact(actual: unknown, expected: unknown, name: string) {
+      163 | 	if (canonicalCapabilityJson(actual) !== canonicalCapabilityJson(expected))
+    > 164 | 		throw new Error(`I05 ${name} changed; fresh plan required`);
+          | 		      ^
+      165 | }
+      166 | function append(values: string[], item: string) {
+      167 | 	return values.includes(item) ? [...values] : [...values, item];
+
+      at exact (src/scripts/foregroundPilotConfiguration.ts:164:9)
+      at src/scripts/foregroundPilotConfiguration.ts:385:3
+      at fulfilled (src/scripts/foregroundPilotConfiguration.ts:5:58)
+
+PASS src/scripts/__tests__/seedOxyApplicationsPlan.test.ts
+PASS src/scripts/__tests__/foregroundPilotHttps.test.ts
+
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       1 failed, 77 passed, 78 total
+Snapshots:   0 total
+Time:        12.337 s
+Ran all test suites within paths "src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts", "src/scripts/__tests__/foregroundPilotHttps.test.ts", "src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts", "src/scripts/__tests__/seedOxyApplicationsPlan.test.ts".
+error: script "test" exited with code 1

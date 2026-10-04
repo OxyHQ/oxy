@@ -13,6 +13,8 @@ import { applications } from "../db/schema/applications";
 import { users } from "../db/schema/users";
 import { recordCredentialLifecycleEvent } from "../services/applicationCredentialAudit.service";
 import { digestCatalog } from "../services/capabilityCatalog.service";
+import { intersectScopes, isPrivilegedScope } from "../utils/applicationScopes";
+import { isCredentialUsable } from "../utils/credentialUsability";
 import { computeSeedApplicationPlan } from "./seedOxyApplicationsPlan";
 import {
 	MENTION_APPLICATION_ID,
@@ -59,7 +61,7 @@ const workload = z
 		row_revision: revision,
 	})
 	.strict();
-const credential = z
+const workloadCredential = z
 	.object({
 		id: z.string().startsWith("wl_"),
 		application_id: z.literal(MENTION_APPLICATION_ID),
@@ -72,6 +74,31 @@ const credential = z
 		row_revision: revision,
 	})
 	.strict();
+// Existing OAuth identities participate in the complete CAS census.
+// Their rows stay unchanged; the app ceiling must not widen usable authority.
+const retainedCredential = z
+	.object({
+		id: z
+			.string()
+			.min(1)
+			.refine((id) => !id.startsWith("wl_")),
+		application_id: z.literal(MENTION_APPLICATION_ID),
+		type: z.enum(["public", "service"]),
+		environment: z.literal("production"),
+		status: z.enum(["active", "deprecated", "revoked"]),
+		expires_at: z.string().datetime().nullable(),
+		scopes: strings,
+		workload_identity_id: z.null(),
+		row_revision: revision,
+	})
+	.strict();
+const credential = z.union([workloadCredential, retainedCredential]);
+const credentialCensus = z
+	.array(credential)
+	.min(2)
+	.max(20)
+	.refine((rows) => new Set(rows.map((row) => row.id)).size === rows.length)
+	.refine((rows) => rows.filter((row) => row.type === "workload").length === 2);
 const table = z
 	.object({
 		status: z.literal("complete"),
@@ -149,7 +176,7 @@ const planSchema = z
 		expiresAt: z.string(),
 		expectedApplication: application,
 		expectedWorkloads: z.array(workload).length(2),
-		expectedCredentials: z.array(credential).length(2),
+		expectedCredentials: credentialCensus,
 		expectedOwners: z.array(account.strict()).min(1).max(2),
 		registrarOwner: rootAccount,
 		afterScopes: strings,
@@ -198,15 +225,15 @@ export function prepareForegroundPilotPlan(
 	const expectedWorkloads = mention.tables.application_workload_identities.rows
 		.map((row) => workload.parse(row))
 		.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-	const expectedCredentials = mention.tables.application_credentials.rows
-		.map((row) => credential.parse(row))
+	const expectedCredentials = credentialCensus
+		.parse(mention.tables.application_credentials.rows)
 		.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 	const owner = account.strict().parse(mention.tables.users.rows[0]);
 	const registrarOwner = rootAccount.parse(registrar.tables.users.rows[0]);
 	if (
 		owner.id !== expectedApplication.owner_account_id ||
 		expectedWorkloads.length !== 2 ||
-		expectedCredentials.length !== 2 ||
+		expectedCredentials.filter((row) => row.type === "workload").length !== 2 ||
 		new Set(expectedWorkloads.map((row) => row.subject)).size !== 2
 	)
 		throw new Error("I05 binding/owner census mismatch");
@@ -234,7 +261,7 @@ export function prepareForegroundPilotPlan(
 			? [owner]
 			: [owner, account.parse(registrarOwner)];
 	const now = new Date();
-	return {
+	const plan: ForegroundPilotPlan = {
 		schemaVersion: 1,
 		kind: "i05-foreground-configuration",
 		nonce: randomBytes(16).toString("hex"),
@@ -250,11 +277,32 @@ export function prepareForegroundPilotPlan(
 		backendWorkloadId: backend.id,
 		afterBackendScopes: append(backend.scopes, TICKET_SCOPE),
 	};
+	validateForegroundPilotDefinition(plan);
+	return plan;
 }
 
 /** Must be called before a fresh database read and again under the configuration locks. */
 function validateForegroundPilotDefinition(plan: ForegroundPilotPlan) {
 	planSchema.parse(plan);
+	for (const row of plan.expectedCredentials) {
+		if (
+			row.type === "workload" ||
+			!isCredentialUsable({
+				status: row.status,
+				expiresAt: row.expires_at ? new Date(row.expires_at) : null,
+			})
+		)
+			continue;
+		const effective = (scopes: string[]) =>
+			row.scopes.length
+				? intersectScopes(row.scopes, scopes)
+				: scopes.filter((scope) => !isPrivilegedScope(scope));
+		exact(
+			effective(plan.afterScopes),
+			effective(plan.expectedApplication.scopes),
+			"retained credential effective authority",
+		);
+	}
 	const ownerIds = [
 		...new Set([
 			plan.expectedApplication.owner_account_id,
@@ -382,7 +430,22 @@ export async function applyForegroundPilotConfiguration(
 			.from(applications)
 			.where(eq(applications.id, MENTION_APPLICATION_ID))
 			.for("update");
-		exact(app, [plan.expectedApplication], "application");
+		// Activity writes can advance xmin without changing reviewed authority.
+		// Refresh only that revision while holding the row lock; every authority
+		// field must still equal the approved before-state, including scopes.
+		const lockedApplication = app[0];
+		if (!lockedApplication || app.length !== 1)
+			throw new Error("I05 application changed; fresh plan required");
+		exact(
+			app,
+			[
+				{
+					...plan.expectedApplication,
+					row_revision: lockedApplication.row_revision,
+				},
+			],
+			"application",
+		);
 		const bindings = await tx
 			.select({
 				id: applicationWorkloadIdentities.id,
@@ -417,7 +480,10 @@ export async function applyForegroundPilotConfiguration(
 			.orderBy(applicationCredentials.id)
 			.for("update");
 		exact(
-			identities,
+			identities.map((row) => ({
+				...row,
+				expires_at: row.expires_at?.toISOString() ?? null,
+			})),
 			plan.expectedCredentials,
 			"canonical attribution identity",
 		);
@@ -464,7 +530,7 @@ export async function applyForegroundPilotConfiguration(
 			.where(
 				and(
 					eq(applications.id, MENTION_APPLICATION_ID),
-					sql`xmin::text = ${plan.expectedApplication.row_revision}`,
+					sql`xmin::text = ${lockedApplication.row_revision}`,
 				),
 			)
 			.returning({ id: applications.id });
@@ -850,7 +916,10 @@ export async function rollbackForegroundPilotConfiguration(
 			.orderBy(applicationCredentials.id)
 			.for("update");
 		exact(
-			identities.map(({ row_revision: _revision, ...row }) => row),
+			identities.map(({ row_revision: _revision, ...row }) => ({
+				...row,
+				expires_at: row.expires_at?.toISOString() ?? null,
+			})),
 			plan.expectedCredentials.map(
 				({ row_revision: _revision, ...row }) => row,
 			),

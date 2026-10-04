@@ -1,0 +1,95 @@
+$ jest --runInBand src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts
+{"level":30,"time":1791102321088,"pid":962629,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts (7.607 s)
+  ● rejects effective scope expansion for retained active service before any write
+
+    expect(received).toThrow(expected)
+
+    Expected substring: "retained credential effective authority"
+
+    Received function did not throw
+
+      784 | 		expect(() =>
+      785 | 			prepareForegroundPilotPlan(input.mention, input.registrar),
+    > 786 | 		).toThrow("retained credential effective authority");
+          | 		  ^
+      787 | 		expect(
+      788 | 			(
+      789 | 				await getDb()
+
+      at src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:786:5
+      at fulfilled (src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:5:58)
+
+  ● rejects effective scope expansion for retained deprecated service before any write
+
+    expect(received).toThrow(expected)
+
+    Expected substring: "retained credential effective authority"
+
+    Received function did not throw
+
+      784 | 		expect(() =>
+      785 | 			prepareForegroundPilotPlan(input.mention, input.registrar),
+    > 786 | 		).toThrow("retained credential effective authority");
+          | 		  ^
+      787 | 		expect(
+      788 | 			(
+      789 | 				await getDb()
+
+      at src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:786:5
+      at fulfilled (src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts:5:58)
+
+  ● preserves retained five-row census with expired explicit scope without new effective authority
+
+    I05 canonical attribution identity changed; fresh plan required
+
+      187 | function exact(actual: unknown, expected: unknown, name: string) {
+      188 | 	if (canonicalCapabilityJson(actual) !== canonicalCapabilityJson(expected))
+    > 189 | 		throw new Error(`I05 ${name} changed; fresh plan required`);
+          | 		      ^
+      190 | }
+      191 | function append(values: string[], item: string) {
+      192 | 	return values.includes(item) ? [...values] : [...values, item];
+
+      at exact (src/scripts/foregroundPilotConfiguration.ts:189:9)
+      at src/scripts/foregroundPilotConfiguration.ts:459:3
+      at fulfilled (src/scripts/foregroundPilotConfiguration.ts:5:58)
+
+  ● compares serialized dated credential exactly through apply and rollback
+
+    I05 canonical attribution identity changed; fresh plan required
+
+      187 | function exact(actual: unknown, expected: unknown, name: string) {
+      188 | 	if (canonicalCapabilityJson(actual) !== canonicalCapabilityJson(expected))
+    > 189 | 		throw new Error(`I05 ${name} changed; fresh plan required`);
+          | 		      ^
+      190 | }
+      191 | function append(values: string[], item: string) {
+      192 | 	return values.includes(item) ? [...values] : [...values, item];
+
+      at exact (src/scripts/foregroundPilotConfiguration.ts:189:9)
+      at src/scripts/foregroundPilotConfiguration.ts:459:3
+      at fulfilled (src/scripts/foregroundPilotConfiguration.ts:5:58)
+
+  ● rejects actual dated credential expiry drift during rollback
+
+    I05 canonical attribution identity changed; fresh plan required
+
+      187 | function exact(actual: unknown, expected: unknown, name: string) {
+      188 | 	if (canonicalCapabilityJson(actual) !== canonicalCapabilityJson(expected))
+    > 189 | 		throw new Error(`I05 ${name} changed; fresh plan required`);
+          | 		      ^
+      190 | }
+      191 | function append(values: string[], item: string) {
+      192 | 	return values.includes(item) ? [...values] : [...values, item];
+
+      at exact (src/scripts/foregroundPilotConfiguration.ts:189:9)
+      at src/scripts/foregroundPilotConfiguration.ts:459:3
+      at fulfilled (src/scripts/foregroundPilotConfiguration.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 9 passed, 14 total
+Snapshots:   0 total
+Time:        7.631 s
+Ran all test suites matching src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts.
+error: script "test" exited with code 1
