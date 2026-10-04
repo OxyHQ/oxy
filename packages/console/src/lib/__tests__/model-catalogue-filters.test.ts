@@ -21,7 +21,7 @@ function entry(overrides: {
   displayName?: string;
   publisherSlug?: string;
   inputModalities?: Array<'text' | 'image' | 'audio' | 'video'>;
-  outputModalities?: Array<'text' | 'image' | 'audio' | 'video' | 'embedding'>;
+  outputModalities?: ModelCatalogueEntry['capabilities']['outputModalities'];
   tools?: boolean;
   regions?: Array<string>;
   providers?: Array<string>;
@@ -349,6 +349,16 @@ describe('filterCatalogue', () => {
       outputModality: 'text',
     });
     expect(textOut.map((e) => e.modelId)).not.toContain('acme/embeddings-only');
+  });
+
+  it('preserves decisions as output while retaining text input', () => {
+    const decision = entry({ modelId: 'acme/decision-fixture', outputModalities: ['decisions'] });
+    const entries = [...CATALOGUE, decision];
+    expect(catalogueFacets(entries).outputModalities).toContain('decisions');
+    expect(catalogueFacets(entries).inputModalities).not.toContain('decisions');
+    expect(filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, outputModality: 'decisions' })).toEqual([decision]);
+    expect(filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, inputModality: 'text' })).toContain(decision);
+    expect(filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, outputModality: 'text' })).not.toContain(decision);
   });
 
   it('filters by tool support', () => {

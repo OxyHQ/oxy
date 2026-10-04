@@ -1,4 +1,4 @@
-import type { InferenceModality, ModelCatalogueEntry } from '@oxy.so/contracts';
+import type { InferenceModality, InferenceOutputModality, ModelCatalogueEntry } from '@oxy.so/contracts';
 import { isUnitPriceAtMost } from '@/lib/money';
 
 /**
@@ -30,7 +30,7 @@ export interface CatalogueFilters {
   /** An input modality the model must accept. */
   inputModality: InferenceModality | null;
   /** An output modality the model must produce. */
-  outputModality: InferenceModality | null;
+  outputModality: InferenceOutputModality | null;
   /** Only models that support tool calling. */
   toolsOnly: boolean;
   /** A region at least one serving deployment must cover. */
@@ -199,7 +199,7 @@ export function filterCatalogue(
 
 export interface CatalogueFacets {
   inputModalities: Array<InferenceModality>;
-  outputModalities: Array<InferenceModality>;
+  outputModalities: Array<InferenceOutputModality>;
   regions: Array<string>;
   providers: Array<{ slug: string; displayName: string }>;
   /**
@@ -223,7 +223,7 @@ export interface CatalogueFacets {
  */
 export function catalogueFacets(entries: ReadonlyArray<ModelCatalogueEntry>): CatalogueFacets {
   const inputModalities = new Set<InferenceModality>();
-  const outputModalities = new Set<InferenceModality>();
+  const outputModalities = new Set<InferenceOutputModality>();
   const regions = new Set<string>();
   const providers = new Map<string, string>();
   let hasInputTokenPricing = false;
