@@ -14,6 +14,16 @@ class Transport(unittest.TestCase):
   prep.prepare(self.p/'binding.json',self.p/'inventory.json',self.p/'prepared')
   self.definition=json.loads((self.p/'prepared/definition.json').read_text());self.plan=json.loads((self.p/'prepared/plan.json').read_text())
  def tearDown(self):self.temp.cleanup()
+ def test_diagnostic_plan_cannot_emit_inference_and_failure_stage_is_safe(self):
+  prep.prepare(self.p/'binding.json',self.p/'inventory.json',self.p/'diagnostic','diagnostic')
+  d=json.loads((self.p/'diagnostic/definition.json').read_text());p=json.loads((self.p/'diagnostic/plan.json').read_text())
+  self.assertEqual(p['mode'],'diagnostic');self.assertEqual(p['maxPostCount'],0);self.assertEqual(d['containerDefinitions'][0]['secrets'],[])
+  code=d['containerDefinitions'][0]['command'][-1]
+  self.assertIn('emitIntentSent=true;emit(value)',code);self.assertIn("allowed.has(error?.message)?error.message:'validation_or_operation_failed'",code);self.assertIn('code,stage,emitIntentSent',code)
+  import subprocess
+  r=subprocess.run(['node','--input-type=module','-e',code],capture_output=True,text=True)
+  decoded=dispatch.decode([{'message':x} for x in r.stdout.splitlines()],p)['result']
+  self.assertEqual(decoded['code'],'wrong_context');self.assertEqual(decoded['stage'],'context');self.assertFalse(decoded['emitIntentSent'])
  def test_inventory_has_only_db_secret_and_no_task_role(self):
   prep.prepare(self.p/'binding.json',None,self.p/'reader','inventory');d=json.loads((self.p/'reader/definition.json').read_text())
   dispatch.validate_definition(d,d);self.assertNotIn('taskRoleArn',d);self.assertEqual(d['family'],'oxy-alia-budget-smoke-readonly');self.assertEqual(d['containerDefinitions'][0]['secrets'],[{'name':'DATABASE_URL','valueFrom':'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL'}]);self.assertLess(len(json.dumps(d)),60000)

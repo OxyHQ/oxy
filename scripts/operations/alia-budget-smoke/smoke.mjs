@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { wire } from './wire-fixture.mjs';
-import { verifyAliaCredential } from './verify-credential.mjs';
+import { inspectAliaCredential, verifyAliaCredential } from './verify-credential.mjs';
 export const MODEL = 'openai/gpt-oss-120b@observed-2026-09-01';
 export const ORIGIN = 'https://api.oxy.so';
 export const DEPLOYMENTS = Object.freeze({
@@ -91,11 +91,23 @@ function safeRecord(record, completion, quote) {
     tariff:record.tariff,customerCharge:record.customerCharge};
 }
 export async function runSmoke({ credential, OxyInferenceClient, inventory, intent, fetchImpl=fetch, now=Date.now,
-  emitIntent=()=>{}, mode='invoke' }) {
-  requireValue(mode==='invoke'||mode==='reconcile','invalid_mode');
+  emitIntent=()=>{}, checkpoint=()=>{}, mode='invoke' }) {
+  requireValue(mode==='invoke'||mode==='reconcile'||mode==='diagnostic','invalid_mode');
+  if(mode==='diagnostic') {
+    checkpoint('factory_mint');
+    const token=await bounded(Promise.resolve().then(()=>credential()),15000);
+    const authority=await inspectAliaCredential(token,fetchImpl,now,checkpoint);
+    const age=now()-Date.parse(inventory?.observedAt);
+    return {kind:'alia-budget-smoke-diagnostic',ok:true,intent,authority,
+      invokeReady:authority.scopes.invoke&&authority.scopes.usageRead,
+      priceSnapshotFresh:Number.isFinite(age)&&age>=0&&age<=300000,
+      priceValidated:false,postCount:0,getCount:0,emitIntentSent:false};
+  }
+  checkpoint('price_snapshot');
   const request=requestFor(intent);const quote=inspectInventory(inventory,mode==='reconcile'?()=>Date.parse(inventory.observedAt):now);
+  checkpoint('factory_mint');
   const token=await bounded(Promise.resolve().then(()=>credential()),15000);
-  const authority=await verifyAliaCredential(token,fetchImpl,now);
+  const authority=await verifyAliaCredential(token,fetchImpl,now,checkpoint);
   let postCount=0,getCount=0;
   const transport=async(url,options={})=>{
     const method=options.method??'GET';const target=new URL(url);

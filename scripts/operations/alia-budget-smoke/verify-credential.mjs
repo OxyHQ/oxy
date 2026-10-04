@@ -29,11 +29,13 @@ function segment(value) {
   return JSON.parse(bytes.toString('utf8'));
 }
 
-export async function verifyAliaCredential(token, fetchImpl = fetch, now = Date.now) {
+export async function inspectAliaCredential(token, fetchImpl = fetch, now = Date.now, checkpoint = () => {}) {
+  checkpoint("credential_shape");
   requireValue(typeof token === 'string' && token.length <= 32768, 'missing-credential');
   const parts = token.split('.'); requireValue(parts.length === 3, 'malformed-token');
   const header = segment(parts[0]); const principal = segment(parts[1]);
   requireValue(header.alg === 'EdDSA' && header.typ === 'JWT' && typeof header.kid === 'string', 'invalid-jwt-header');
+  checkpoint("jwks");
   const response = await fetchImpl(`${ORIGIN}/.well-known/jwks.json`, { redirect: 'error', signal: AbortSignal.timeout(10000) });
   requireValue(response.status === 200, 'jwks-http-error');
   const keys = (await boundedJSON(response)).keys;
@@ -41,8 +43,10 @@ export async function verifyAliaCredential(token, fetchImpl = fetch, now = Date.
   const matches = keys.filter(key => key?.kid === header.kid); requireValue(matches.length === 1, 'nonunique-key');
   const key = matches[0];
   requireValue(key.kty === 'OKP' && key.crv === 'Ed25519' && key.alg === 'EdDSA' && key.use === 'sig' && !Object.hasOwn(key, 'd'), 'invalid-public-key');
+  checkpoint("signature");
   const signature = Buffer.from(parts[2], 'base64url');
   requireValue(signature.length === 64 && signature.toString('base64url') === parts[2] && verify(null, Buffer.from(`${parts[0]}.${parts[1]}`), createPublicKey({ key, format: 'jwk' }), signature), 'signature-rejected');
+  checkpoint("authority");
   requireValue(principal.type === 'service' && principal.iss === 'oxy-auth' && principal.aud === 'oxy-api'
     && principal.appId === APP && principal.environment === 'production'
     && Number.isSafeInteger(principal.iat) && Number.isSafeInteger(principal.exp)
@@ -50,8 +54,13 @@ export async function verifyAliaCredential(token, fetchImpl = fetch, now = Date.
     && principal.iat * 1000 <= now() + 10000
     && principal.ownerAccountId === OWNER
     && principal.credentialId === WORKLOAD_CREDENTIAL
-    && Array.isArray(principal.scopes) && principal.scopes.every(scope => typeof scope === 'string')
-    && principal.scopes.includes('inference:invoke') && principal.scopes.includes('inference:usage:read'), 'wrong-alia-authority');
-  return { appId: APP, ownerAccountId: OWNER, credentialId: WORKLOAD_CREDENTIAL, environment: principal.environment, signatureVerified: true, lifetime: 300 };
+    && Array.isArray(principal.scopes) && principal.scopes.every(scope => typeof scope === 'string'), 'wrong-alia-authority');
+  return { appId: APP, ownerAccountId: OWNER, credentialId: WORKLOAD_CREDENTIAL, environment: principal.environment, signatureVerified: true, lifetime: 300, scopes: { invoke: principal.scopes.includes("inference:invoke"), usageRead: principal.scopes.includes("inference:usage:read") } };
 }
 
+
+export async function verifyAliaCredential(token, fetchImpl = fetch, now = Date.now, checkpoint = () => {}) {
+  const authority = await inspectAliaCredential(token, fetchImpl, now, checkpoint);
+  requireValue(authority.scopes.invoke && authority.scopes.usageRead, "missing-required-scope");
+  return authority;
+}

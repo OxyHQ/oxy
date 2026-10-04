@@ -36,7 +36,7 @@ def prepare(binding_path,inventory_path,output,mode='invoke',original_plan=None)
  names=('inference_deployments','price_versions','price_version_unit_prices')
  compact={k:inventory[k]for k in ('kind','profile','readOnly','isolation','observedAt')}
  compact['tables']={k:inventory['tables'][k]for k in names}
- ensure(mode in ('inventory','invoke','reconcile'),'mode')
+ ensure(mode in ('inventory','invoke','reconcile','diagnostic'),'mode')
  if mode=='reconcile':
   ensure(original_plan is not None,'original_plan_required');old=json.loads(Path(original_plan).read_text())
   ensure(old['kind']=='alia-budget-smoke-plan-v1' and old['mode']=='invoke','original_plan_kind');intent=old['intent'];compact=old['inventory']
@@ -50,24 +50,24 @@ def prepare(binding_path,inventory_path,output,mode='invoke',original_plan=None)
 const packed=JSON.parse(inflateSync(Buffer.from('PAYLOAD','base64'),{maxOutputLength:150000}).toString());
 const hash=b=>createHash('sha256').update(b).digest('hex');const demand=(x,c)=>{if(!x)throw new Error(c)};
 const emit=result=>{const raw=JSON.stringify(result);demand(Buffer.byteLength(raw)<50000,'result_bound');console.log('OXY_ALIA_BUDGET '+JSON.stringify({nonce:packed.nonce,intent:packed.intent,sha256:hash(raw),data:Buffer.from(raw).toString('base64')}));};
-let staged;const watchdog=setTimeout(()=>{emit({kind:'alia-budget-smoke-failure',code:'process_deadline',inspectOriginalIntent:true});process.exit(1)},225000);
+let staged,stage='bootstrap',emitIntentSent=false;const checkpoint=s=>{stage=s};const watchdog=setTimeout(()=>{emit({kind:'alia-budget-smoke-failure',code:'process_deadline',stage,emitIntentSent,inspectOriginalIntent:true});process.exit(1)},225000);
 try{
- demand(process.cwd()==='/app/packages/api'&&process.env.OXY_API_URL==='https://api.oxy.so','wrong_context');
+ checkpoint('context');demand(process.cwd()==='/app/packages/api'&&process.env.OXY_API_URL==='https://api.oxy.so','wrong_context');
  demand(!process.env.DATABASE_URL&&!process.env.KAANA_EDGE_SIGNING_PRIVATE_KEY&&!process.env.OXY_SERVICE_API_KEY&&!process.env.OXY_SERVICE_API_SECRET,'unexpected_authority');
- for(const[n,s]of Object.entries(packed.sources))demand(hash(s)===packed.hashes[n],'source_changed');
- const require=createRequire('/app/packages/api/package.json');
+ checkpoint('source_hashes');for(const[n,s]of Object.entries(packed.sources))demand(hash(s)===packed.hashes[n],'source_changed');
+ checkpoint('sdk_module');const require=createRequire('/app/packages/api/package.json');
  const entry=require.resolve('@oxy.so/core/inference');
  const coreModule=join(dirname(entry),'OxyInferenceClient.js');demand(hash(readFileSync(coreModule))===packed.binding.sdkInferenceModuleSha256,'sdk_module_changed');
  const version=(entry,name)=>{let d=dirname(entry);for(let n=0;n<9;n++,d=dirname(d)){try{const p=JSON.parse(readFileSync(join(d,'package.json'),'utf8'));if(p.name===name)return p.version}catch{}}throw new Error('package_missing')};
- demand(version(entry,'@oxy.so/core')==='4.3.0'&&version(require.resolve('@oxy.so/contracts'),'@oxy.so/contracts')==='4.9.1','sdk_version_changed');
+ checkpoint('sdk_versions');demand(version(entry,'@oxy.so/core')==='4.3.0'&&version(require.resolve('@oxy.so/contracts'),'@oxy.so/contracts')==='4.9.1','sdk_version_changed');
  const data=s=>'data:text/javascript;base64,'+Buffer.from(s).toString('base64');
  const verifier=data(packed.sources['verify-credential.mjs']);const smoke=data(packed.sources['smoke.mjs'].replace("'./verify-credential.mjs'",JSON.stringify(verifier)).replace("'./wire-fixture.mjs'",JSON.stringify(data(packed.sources['wire-fixture.mjs']))));
- const stage=await import(data(packed.sources['stage-inference-credential.mjs']));
+ checkpoint('factory_stage');const stage=await import(data(packed.sources['stage-inference-credential.mjs']));
  staged=stage.stageInferenceCredential({apiPackage:'/app/packages/api/package.json',source:Buffer.from(packed.sources['oxy-inference-credential.js'])});
- const factory=require(staged.helperPath);const{OxyInferenceClient}=require('@oxy.so/core/inference');
- const{runSmoke,validatePilot}=await import(smoke);validatePilot(require('/app/packages/api/dist/config/inferenceEconomicPolicy.js'));const result=await runSmoke({credential:factory.createOxyInferenceCredential(process.env),OxyInferenceClient,inventory:packed.inventory,intent:packed.intent,mode:packed.mode,emitIntent:emit});
+ checkpoint('factory_import');const factory=require(staged.helperPath);const{OxyInferenceClient}=require('@oxy.so/core/inference');
+ const{runSmoke,validatePilot}=await import(smoke);checkpoint('policy');validatePilot(require('/app/packages/api/dist/config/inferenceEconomicPolicy.js'));const result=await runSmoke({credential:factory.createOxyInferenceCredential(process.env),OxyInferenceClient,inventory:packed.inventory,intent:packed.intent,mode:packed.mode,checkpoint,emitIntent:value=>{emitIntentSent=true;emit(value)}});
  emit(result);process.exitCode=result.ok?0:1;
-}catch{emit({kind:'alia-budget-smoke-failure',code:'validation_or_operation_failed',inspectOriginalIntent:true});process.exitCode=1;}finally{clearTimeout(watchdog);if(staged)staged.cleanup();}
+}catch(error){const allowed=new Set(['wrong_context','unexpected_authority','source_changed','sdk_module_changed','package_missing','sdk_version_changed','policy_version_changed','relationship_ambiguous','policy_bounds_changed','allowed_route_set_changed','missing-credential','malformed-token','noncanonical-jwt','invalid-jwt-header','jwks-http-error','invalid-jwks','nonunique-key','invalid-public-key','signature-rejected','wrong-alia-authority','missing-required-scope','missing-response-body','response-too-large','stale_inventory']);const code=allowed.has(error?.message)?error.message:'validation_or_operation_failed';emit({kind:'alia-budget-smoke-failure',code,stage,emitIntentSent,inspectOriginalIntent:true});process.exitCode=1;}finally{clearTimeout(watchdog);if(staged)staged.cleanup();}
 '''.replace('PAYLOAD',compressed)
  definition={'family':'oxy-alia-production-budget-smoke','taskRoleArn':ROLE,'executionRoleArn':binding['executionRoleArn'],'networkMode':'awsvpc','requiresCompatibilities':['FARGATE'],'runtimePlatform':binding['runtimePlatform'],'cpu':binding['cpu'],'memory':binding['memory'],'volumes':[], 'containerDefinitions':[{'name':'smoke','image':binding['image'],'essential':True,'workingDirectory':'/app/packages/api','entryPoint':['/usr/local/bin/node'],'command':['--input-type=module','-e',invocation],'environment':[{'name':'NODE_ENV','value':'production'},{'name':'OXY_API_URL','value':'https://api.oxy.so'}],'secrets':[],'portMappings':[],'mountPoints':[],'volumesFrom':[],'logConfiguration':{'logDriver':'awslogs','options':{'awslogs-group':binding['logGroup'],'awslogs-region':'us-west-2','awslogs-stream-prefix':binding['logStreamPrefix']}}}]}
  if mode=='inventory':
@@ -82,4 +82,4 @@ try{
  private(out/'plan.json',plan)
  print(json.dumps({'prepared':True,'plan':str(out/'plan.json'),'bytes':len(json.dumps(definition).encode()),'intent':intent}))
 if __name__=='__main__':
- a=argparse.ArgumentParser();a.add_argument('--binding',required=True);a.add_argument('--inventory');a.add_argument('--output',required=True);a.add_argument('--mode',choices=['inventory','invoke','reconcile'],default='invoke');a.add_argument('--original-plan');v=a.parse_args();prepare(v.binding,v.inventory,v.output,v.mode,v.original_plan)
+ a=argparse.ArgumentParser();a.add_argument('--binding',required=True);a.add_argument('--inventory');a.add_argument('--output',required=True);a.add_argument('--mode',choices=['inventory','invoke','reconcile','diagnostic'],default='invoke');a.add_argument('--original-plan');v=a.parse_args();prepare(v.binding,v.inventory,v.output,v.mode,v.original_plan)

@@ -44,7 +44,7 @@ def decode(events,plan):
   if not m.startswith('OXY_ALIA_BUDGET '):continue
   p=json.loads(m.split(' ',1)[1]);need(p['nonce']==plan['nonce']and p['intent']==plan['intent'],'packet_binding')
   raw=base64.b64decode(p['data'],validate=True);need(len(raw)<50000 and sha(raw)==p['sha256'],'packet_hash')
-  r=json.loads(raw);need(r['kind']in ['alia-budget-smoke-send','alia-budget-smoke-result-v1','alia-budget-smoke-failure','alia-budget-smoke-inventory'],'packet_kind')
+  r=json.loads(raw);need(r['kind']in ['alia-budget-smoke-send','alia-budget-smoke-result-v1','alia-budget-smoke-failure','alia-budget-smoke-inventory','alia-budget-smoke-diagnostic'],'packet_kind')
   results.append(r)
  final=[r for r in results if r['kind']!='alia-budget-smoke-send'];need(len(final)==1,'final_result_missing_or_duplicate')
  sends=[r for r in results if r['kind']=='alia-budget-smoke-send'];need(len(sends)<=(1 if plan['mode']=='invoke'else 0),'send_count')
@@ -74,7 +74,7 @@ def execute(plan_path,output):
   need(definition['family']=='oxy-alia-budget-smoke-readonly' and not definition.get('taskRoleArn'),'inventory_authority')
   need(definition['containerDefinitions'][0]['secrets']==[{'name':'DATABASE_URL','valueFrom':'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/DATABASE_URL'}],'inventory_secret')
  else:
-  need(plan['mode']in ['invoke','reconcile'] and definition['family']=='oxy-alia-production-budget-smoke' and definition['taskRoleArn']=='arn:aws:iam::237343248947:role/oxy-alia-task' and definition['containerDefinitions'][0]['secrets']==[],'caller_authority')
+  need(plan['mode']in ['invoke','reconcile','diagnostic'] and definition['family']=='oxy-alia-production-budget-smoke' and definition['taskRoleArn']=='arn:aws:iam::237343248947:role/oxy-alia-task' and definition['containerDefinitions'][0]['secrets']==[],'caller_authority')
  preflight(plan);write(plan_path.with_name('dispatch-once.json'),{'planSha256':sha(plan_path.read_bytes()),'intent':plan['intent'],'mode':plan['mode']});out=Path(output);out.mkdir(mode=0o700,parents=False,exist_ok=False)
  write(out/'plan.json',plan);write(out/'register-intent.json',definition)
  registered=None;task=None;register_unknown=False;dispatch_unknown=False;failures=[]

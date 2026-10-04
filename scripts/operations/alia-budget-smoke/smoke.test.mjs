@@ -81,3 +81,13 @@ test('actual Oxy normalization confirms canonical Hello exceeds old cap and fits
 });
 
 test('reviewed Groq30-day retention is reported separately from ZDR availability',()=>{const result=inspectInventory(fixture().inventory,now);assert.deepEqual(result.quotes.find(q=>q.provider==='groq').privacy,{retainsPayloads:true,retentionDays:30,trainsOnCustomerData:false,zeroDataRetentionAvailable:true});});
+
+test('diagnostic verifies signed exact authority, reports missing usage, no SDK construction or API request',async()=>{
+ const f=fixture({claims:{scopes:['inference:invoke']}});const stages=[];
+ const r=await runSmoke({...f.args,mode:'diagnostic',checkpoint:x=>stages.push(x),OxyInferenceClient:class{constructor(){throw new Error('SDK must not construct')}}});
+ assert.equal(r.authority.signatureVerified,true);assert.deepEqual(r.authority.scopes,{invoke:true,usageRead:false});assert.equal(r.invokeReady,false);assert.equal(r.postCount,0);assert.equal(r.getCount,0);assert.equal(r.emitIntentSent,false);assert.equal(f.calls.length,0);assert.equal(f.sent.length,0);assert.deepEqual(stages,['factory_mint','credential_shape','jwks','signature','authority']);assert.ok(!JSON.stringify(r).includes(f.token));
+});
+test('diagnostic permits stale price observation only because no response or generation read can occur',async()=>{
+ const f=fixture();f.inventory.observedAt=new Date(now()-600000).toISOString();const r=await runSmoke({...f.args,mode:'diagnostic'});assert.equal(r.priceSnapshotFresh,false);assert.equal(r.priceValidated,false);assert.equal(f.calls.length,0);assert.equal(f.sent.length,0);
+});
+for(const claims of [{ownerAccountId:'foreign'},{credentialId:'foreign'},{exp:now()/1000-1}])test('diagnostic still refuses foreign or expired signed identity '+JSON.stringify(claims),async()=>{const f=fixture({claims});await assert.rejects(runSmoke({...f.args,mode:'diagnostic'}));assert.equal(f.calls.length,0);});
