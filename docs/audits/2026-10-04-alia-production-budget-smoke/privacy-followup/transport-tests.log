@@ -1,0 +1,19 @@
+............
+----------------------------------------------------------------------
+Ran 12 tests in 0.046s
+
+OK
+{"prepared": true, "plan": "/tmp/tmpzomjuq7w/prepared/plan.json", "bytes": 31031, "intent": "oxy1579-alia-1791134949023-6cbbf993d3ea10c5"}
+{"prepared": true, "plan": "/tmp/tmpznh2sqxp/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949026-ef82b4968c18b2da"}
+{"prepared": true, "plan": "/tmp/tmpak8vsncd/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949030-a4c51339fa47349a"}
+{"prepared": true, "plan": "/tmp/tmp3m6n302y/prepared/plan.json", "bytes": 31023, "intent": "oxy1579-alia-1791134949033-e968bedb8d311d19"}
+{"prepared": true, "plan": "/tmp/tmpfthk98h3/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949036-b37d781366b6ed1b"}
+{"prepared": true, "plan": "/tmp/tmpmo1k0egy/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949040-e50540a0df9f5a63"}
+{"prepared": true, "plan": "/tmp/tmpq2_k7jhy/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949043-9d0d44b9af3805e9"}
+{"prepared": true, "plan": "/tmp/tmphf345stq/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949046-3d1e717b45ac0e2b"}
+{"prepared": true, "plan": "/tmp/tmphf345stq/reader/plan.json", "bytes": 17171, "intent": "oxy1579-alia-1791134949049-0d5753267697691d"}
+{"prepared": true, "plan": "/tmp/tmpo4j7b9fx/prepared/plan.json", "bytes": 31031, "intent": "oxy1579-alia-1791134949052-e950f7458bf67553"}
+{"prepared": true, "plan": "/tmp/tmpk40h_2hb/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949055-a63af51b66c8650c"}
+{"prepared": true, "plan": "/tmp/tmpk40h_2hb/reconcile/plan.json", "bytes": 31031, "intent": "oxy1579-alia-1791134949055-a63af51b66c8650c"}
+{"prepared": true, "plan": "/tmp/tmpmheg6m3d/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949062-611b223c9db8dadd"}
+{"prepared": true, "plan": "/tmp/tmpajd4z336/prepared/plan.json", "bytes": 31027, "intent": "oxy1579-alia-1791134949065-0575376718efbd7e"}

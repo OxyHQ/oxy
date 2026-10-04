@@ -1,0 +1,36 @@
+✔ published SDK sends exactly one synthetic POST then original-key GET, no credential/answer logged (18.123247ms)
+✔ unknown never repeats POST; settled record does not restore missing answer (2.296429ms)
+✔ refused never repeats POST; settled record does not restore missing answer (2.244223ms)
+✔ 404 remains unknown, not zero cost and not retry permission (2.032724ms)
+✔ separate reconcile mode makes only original-key GET (1.280913ms)
+✔ wrong owner refuses before any request (0.828978ms)
+✔ wrong app refuses before any request (0.73595ms)
+✔ wrong credential refuses before any request (2.648301ms)
+✔ wrong environment refuses before any request (0.767586ms)
+✔ missing usage scope refuses before any request (0.715623ms)
+✔ insufficient TTL refuses before any request (0.631427ms)
+✔ stale inventory blocks POST (0.420655ms)
+✔ partial inventory blocks POST (0.317972ms)
+✔ foreign deployment inventory blocks POST (0.340334ms)
+✔ unreviewed inventory blocks POST (0.287802ms)
+✔ Cerebras retention changed inventory blocks POST (0.256233ms)
+✔ Groq retention days changed inventory blocks POST (0.268162ms)
+✔ Groq privacy snapshot changed inventory blocks POST (0.321532ms)
+✔ OpenRouter retention days changed inventory blocks POST (0.277546ms)
+✔ expired price inventory blocks POST (0.275015ms)
+✔ expensive inventory blocks POST (0.260916ms)
+✔ duplicate unit inventory blocks POST (0.259687ms)
+✔ JWT wait crossing inventory deadline prevents late POST (0.70718ms)
+✔ foreign receipt is rejected even after a successful response (1.671683ms)
+✔ payload is deterministic and request intent format is closed (0.485724ms)
+✔ actual compiled accepted policy preserves exact three-route execution set for auto (0.534492ms)
+✔ actual Oxy normalization confirms canonical Hello exceeds old cap and fits preflight ceiling (40.898519ms)
+✔ reviewed Groq30-day retention is reported separately from ZDR availability (0.403966ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 28
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 169.071576
