@@ -1,0 +1,142 @@
+{
+  "kind": "quiesced-two-stage-deployment-source-proof-v1",
+  "sourceCommit": "b986f57f067ba413845200e34e8a808ad6e626ab",
+  "baseline": "85dad68e5685413740a4a3fd52afee5bd724bed1",
+  "createdAt": "2026-10-04T08:28:12.820654+00:00",
+  "sourceInputs": [
+    {
+      "path": ".github/scripts/deploy-ecs-image.sh",
+      "sha256": "e57032dcd6247ac58c3ab2b587e6924d0dcefb0a3d750d9408c5579d2197106c",
+      "bytes": 49807
+    },
+    {
+      "path": ".github/scripts/guard-quiesced-deploy.mjs",
+      "sha256": "8777f96f9e015f0d3e3bacce627b22ec67e90e83c330c3f0d66af5a3f8520bc5",
+      "bytes": 20844
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "84167ab53859fa99f0b2bf67557ff23dc03ee0b120220ac835885b02a53fefdc",
+      "bytes": 81937
+    },
+    {
+      "path": "scripts/test-quiesced-deploy-shell.mjs",
+      "sha256": "15d6147b50794287b4e52bdade3acf74a22f606cf976ba2ff47199b1eb8ee8fa",
+      "bytes": 9371
+    },
+    {
+      "path": "scripts/test-quiesced-deploy.mjs",
+      "sha256": "2f9556bdfbeceaf5806dfd3c4953fbb59bafcd9e4b3847b1a6ffd8251a2ea996",
+      "bytes": 11193
+    },
+    {
+      "path": "scripts/test-quiesced-retirement.mjs",
+      "sha256": "de66545ed8fbed65079f9c2ad3bd833a0a1178018193d9f72de017e4e2bfb756",
+      "bytes": 9215
+    },
+    {
+      "path": "scripts/test-quiesced-cold-scheduler.mjs",
+      "sha256": "a863b4058aeb84513367e502467eab3ed364e8646dfb2cb98e426f7b6f801f80",
+      "bytes": 8189
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/README.md",
+      "sha256": "c82c8a053574e21a0b9905c5846d4b1b4597ca3ae3d842be9c845f639369ed33",
+      "bytes": 2201
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/biome-final.txt",
+      "sha256": "74f98f75b8a414bb0af52833db367665a806f7270c572be5b32742ea5319a0ae",
+      "bytes": 42
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/cold-final.txt",
+      "sha256": "d67cb132fe8b071bc44cfb2aed3b55ed46d8703d0f4d29fc244a83d7a985c914",
+      "bytes": 81
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/deploy-shell-regression.txt",
+      "sha256": "64f253746ae541d5b54d717c9cbd30eaaffc9eca048dec0cbcfcff0ce8a1ccef",
+      "bytes": 44
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/frozen-cold-scheduler.mjs",
+      "sha256": "95fe906af3cd39e1ac02e10a8c26e77277237c7255c662429eb7842576f5adca",
+      "bytes": 7984
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/green-initial.txt",
+      "sha256": "d67cb132fe8b071bc44cfb2aed3b55ed46d8703d0f4d29fc244a83d7a985c914",
+      "bytes": 81
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/guard-final.log",
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca",
+      "bytes": 100
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/guard-final.txt",
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca",
+      "bytes": 100
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/guard-initial.txt",
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca",
+      "bytes": 100
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/red.txt",
+      "sha256": "c20bc987ada1aeb293efd7a6243e69e226b8bfebff8e18e18f59e82bbe982e4c",
+      "bytes": 734
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/results.json",
+      "sha256": "855ddbf53f819369f7f4e9033d8333766af7c136071d678dbd5ecb2b79c789a9",
+      "bytes": 1904
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/retirement-final.txt",
+      "sha256": "11ea460b0d28905394ade3661fb4582e08b3f91db456ed59b1ce5aa002bdb9f4",
+      "bytes": 131
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/shell-current.txt",
+      "sha256": "44ef42ef01cd322870a3bf2ea4a556b2c5088b3dc067d829f59864a7707b3fb9",
+      "bytes": 120
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/shell-final.txt",
+      "sha256": "68332c9db7c3249087bb8cf231796f2a068fd7f22d266596a1fbfb356a732c80",
+      "bytes": 120
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/shell-initial.txt",
+      "sha256": "44ef42ef01cd322870a3bf2ea4a556b2c5088b3dc067d829f59864a7707b3fb9",
+      "bytes": 120
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-two-stage/shell-syntax.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  ],
+  "checks": {
+    "frozenColdSchedulerRedThenGreen": true,
+    "existingGuardControls": 61,
+    "finalDeploymentControls": 45,
+    "pendingVersusFatalControls": 10,
+    "shellControls": 11,
+    "countRestoreMalformedAckHoldsZero": true,
+    "fullDeployShellRegression": true,
+    "biomeWarningsAsErrors": true,
+    "shellSyntax": true,
+    "newSuitesInCI": true
+  },
+  "limits": [
+    "Synthetic AWS responses and mock AWS CLI; real shell/guard execution. No AWS mutation or production rollback.",
+    "Existing source baseline and historical failed rollout remain preserved; runtime Oxy693/worker205 unchanged.",
+    "Initial formatting and wrong test-path preparation failures are not product outcomes."
+  ]
+}

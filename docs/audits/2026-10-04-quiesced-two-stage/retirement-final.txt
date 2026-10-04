@@ -1,0 +1,2 @@
+Maintenance final retirement/admission: 45 checks PASS (synthetic AWS; no mutation).
+Maintenance pending-vs-fatal: 10 checks PASS.

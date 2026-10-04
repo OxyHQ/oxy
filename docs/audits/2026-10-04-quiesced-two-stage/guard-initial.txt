@@ -1,0 +1,1 @@
+Quiesced deployment preflight/recovery: 61 checks PASS (synthetic AWS responses; no live mutation).

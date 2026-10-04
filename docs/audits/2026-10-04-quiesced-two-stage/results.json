@@ -1,0 +1,71 @@
+[
+  {
+    "name": "biome-final",
+    "command": [
+      "/home/nate/.bun/install/cache/@biomejs/cli-linux-x64@1.9.4@@@1/biome",
+      "check",
+      "--error-on-warnings",
+      ".github/scripts/guard-quiesced-deploy.mjs",
+      "scripts/test-quiesced-deploy-shell.mjs",
+      "scripts/test-quiesced-retirement.mjs",
+      "scripts/test-quiesced-cold-scheduler.mjs"
+    ],
+    "exitCode": 0,
+    "output": "Checked 4 files in 9ms. No fixes applied.\n"
+  },
+  {
+    "name": "shell-syntax",
+    "command": [
+      "bash",
+      "-n",
+      ".github/scripts/deploy-ecs-image.sh"
+    ],
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "name": "guard-final",
+    "command": [
+      "node",
+      "scripts/test-quiesced-deploy.mjs"
+    ],
+    "exitCode": 0,
+    "output": "Quiesced deployment preflight/recovery: 61 checks PASS (synthetic AWS responses; no live mutation).\n"
+  },
+  {
+    "name": "retirement-final",
+    "command": [
+      "node",
+      "scripts/test-quiesced-retirement.mjs"
+    ],
+    "exitCode": 0,
+    "output": "Maintenance final retirement/admission: 45 checks PASS (synthetic AWS; no mutation).\nMaintenance pending-vs-fatal: 10 checks PASS.\n"
+  },
+  {
+    "name": "shell-final",
+    "command": [
+      "node",
+      "scripts/test-quiesced-deploy-shell.mjs"
+    ],
+    "exitCode": 0,
+    "output": "Quiesced canonical shell: 11 checks PASS (mock AWS CLI; real shell, migration/worker/update ordering, failure stopped).\n"
+  },
+  {
+    "name": "cold-final",
+    "command": [
+      "node",
+      "scripts/test-quiesced-cold-scheduler.mjs"
+    ],
+    "exitCode": 0,
+    "output": "Cold ECS scheduler: old deployment not launched; install0 then count-only2 PASS.\n"
+  },
+  {
+    "name": "deploy-shell-regression",
+    "command": [
+      "bash",
+      ".github/scripts/test-deploy-ecs-image.sh"
+    ],
+    "exitCode": 0,
+    "output": "Deployment script transaction tests passed.\n"
+  }
+]
