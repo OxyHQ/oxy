@@ -35,9 +35,11 @@ class Fixtures(unittest.TestCase):
         script=r'''const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const source=fs.readFileSync(process.argv[1],'utf8');const dir='/owned/fixture';let target=dir+'/node_modules/@oxy.so/core/lib/index.js',records=[];
 const base={watchFolders:['/unsafe'],resolver:{nodeModulesPaths:['/unsafe/node_modules'],extraNodeModules:{'@oxy.so/core':'/unsafe/source'},resolveRequest:()=>({type:'sourceFile',filePath:target})}};
-const ctx={__dirname:dir,module:{exports:{}},Set,require:(id)=>id==='node:path'?path:id==='node:fs'?{realpathSync:p=>p,appendFileSync:(_p,s)=>records.push(s)}:{createOxyMetroConfig:()=>base}};vm.runInNewContext(source,ctx);const c=ctx.module.exports;
+const ctx={__dirname:dir,module:{exports:{}},Set,require:(id)=>id==='node:path'?path:id==='node:fs'?{realpathSync:p=>{if(p.includes(String.fromCharCode(0)))throw Error('NUL path');return p},appendFileSync:(_p,s)=>records.push(s)}:{createOxyMetroConfig:()=>base}};vm.runInNewContext(source,ctx);const c=ctx.module.exports;
 if(c.watchFolders.length||c.resolver.nodeModulesPaths.join()!==dir+'/node_modules'||Object.keys(c.resolver.extraNodeModules).length)throw Error('isolation config');
 c.resolver.resolveRequest({originModulePath:dir+'/entry.tsx'},'@oxy.so/core','android');if(records.length!==1)throw Error('missing resolver receipt');
+target=String.fromCharCode(0)+'polyfill:assets-registry';c.resolver.resolveRequest({},'@react-native/assets-registry/registry','android');
+let virtualRefused=false;try{c.resolver.resolveRequest({},'@oxy.so/core','android')}catch{virtualRefused=true}if(!virtualRefused)throw Error('unexpected virtual path');
 target='/outside/core.js';let refused=false;try{c.resolver.resolveRequest({},'@oxy.so/core','android')}catch{refused=true}if(!refused)throw Error('escaped');'''
         subprocess.run(['node','-e',script,str(ROOT/'registry-fixtures/native/metro.config.js')],check=True)
     def test_package_root_resolver_rejects_ancestor_node_modules(self):

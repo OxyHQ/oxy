@@ -1,5 +1,17 @@
 {
   "extends": "expo/tsconfig.base",
-  "compilerOptions": { "strict": true, "jsx": "react-jsx", "esModuleInterop": true, "skipLibCheck": true, "noEmit": true },
-  "include": ["acceptance/**/*.tsx"]
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": [
+      "expo/types",
+      "nativewind/types"
+    ]
+  },
+  "include": [
+    "acceptance/**/*.tsx"
+  ]
 }

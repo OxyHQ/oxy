@@ -11,6 +11,9 @@ const root = fs.realpathSync(__dirname) + path.sep;
 const seen = new Set();
 config.resolver.resolveRequest = (context, name, platform) => {
   const result = resolve(context, name, platform);
+  // Expo CLI owns this in-memory module; it is not a filesystem path.
+  if (result.type === 'sourceFile' && result.filePath === '\0polyfill:assets-registry'
+      && /^@react-native\/assets-registry\/registry(\.js)?$/.test(name)) return result;
   const files = result.type === 'sourceFile' ? [result.filePath] : result.type === 'assetFiles' ? result.filePaths : [];
   for (const file of files) {
     const actual = fs.realpathSync(file);
