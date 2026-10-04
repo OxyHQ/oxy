@@ -124,5 +124,6 @@ test('every application and script routing-score insert states reviewed economic
   // 16 -> 17: the shared servable-evidence test fixture (db/testServableEvidence.ts).
   // 17 -> 18: privateCommissioning.test.ts seeds explicit synthetic funding economics.
   // 18 -> 19: Mention private commissioning seeds its own explicit scoped funding evidence.
-  expect(callsites).toHaveLength(19);
+  // 19 -> 20: the cross-repository Mention wire fixture seeds explicit synthetic economics.
+  expect(callsites).toHaveLength(20);
 });

@@ -12,7 +12,8 @@ import { randomUUID } from "node:crypto";
 import type http from "node:http";
 import type { AddressInfo } from "node:net";
 import {
-	type InferenceRequest,
+	type ScopedInferenceRequest,
+	oxyAccountIdSchema,
 	type ScopedExecutionAudience,
 	scopedExecutionAudienceSchema,
 } from "@oxy.so/contracts";
@@ -104,7 +105,7 @@ let child: ChildProcess;
 let childDone: Promise<number | null>;
 let goLog: number;
 let audience: ScopedExecutionAudience;
-let lastEnvelope: InferenceRequest | undefined;
+let lastEnvelope: ScopedInferenceRequest | undefined;
 let sdk: InstanceType<typeof OxyInferenceClient>;
 let realClient: KaanaClient;
 const request = buildJevDecisionRequest(
@@ -259,6 +260,7 @@ beforeAll(async () => {
 	jest
 		.spyOn(realClient, "execute")
 		.mockImplementation(async (envelope, options) => {
+			if (envelope.schemaVersion !== 3) throw new Error("Expected scoped envelope v3");
 			lastEnvelope = structuredClone(envelope);
 			return execute(envelope, options);
 		});
@@ -383,7 +385,7 @@ it("actual Mention builder + packaged SDK + Oxy SQL + signed Go executor isolate
 	wrongPrincipal.attribution.principal.credentialId =
 		foreign.principal.credentialId;
 	wrongPrincipal.attribution.principal.billing.accountId =
-		foreign.principal.accountId;
+		oxyAccountIdSchema.parse(foreign.principal.accountId);
 	await expect(
 		realClient.execute?.(wrongPrincipal, {
 			signal: new AbortController().signal,
