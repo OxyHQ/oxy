@@ -126,5 +126,17 @@
     "Expiry2026-10-09T22:00Z retained when root proposes ACTIVE.",
     "Current synthetic topology24 bound to actual main85; no authentication claimed by mocks.",
     "Full /tmp first attempts preserved privately; final fixed TMPDIR harness preserves original database/test assertions."
+  ],
+  "unchangedShippingTrees": {
+    "packages/contracts": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+    "packages/core": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+    "packages/services": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+    "packages/protocol": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+    "packages/mcp": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+    "packages/db": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c"
+  },
+  "packageDiffFromMain": [
+    "packages/api/src/scripts/__tests__/foregroundPilotConfiguration.db.test.ts",
+    "packages/api/src/scripts/foregroundPilotConfiguration.ts"
   ]
 }
