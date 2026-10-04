@@ -200,8 +200,9 @@ async function snapshot(tx: Transaction, principalId: string) {
 		grantId: grant.id,
 	};
 }
-/** The canonical mint updates app.lastUsedAt (and therefore xmin). After use,
- * compare its unchanged authority fields separately from the pre-issue CAS. */
+/** Canonical mint updates app.lastUsedAt and xmin, including while prepare and
+ * issue are separate operations. Compare all authority fields under the same
+ * locks; activity-only app xmin is not an authority version. */
 function authorityDigest(value: Awaited<ReturnType<typeof snapshot>>) {
 	return digest({ ...value, app: { ...value.app, version: null } });
 }
@@ -248,9 +249,9 @@ export async function issueAliaRevocationCanary(
 		const current = await snapshot(tx, plan.principalId);
 		if (
 			current.grantId !== plan.grantId ||
-			digest(current) !== plan.baselineSha256
+			authorityDigest(current) !== plan.authoritySha256
 		)
-			fail();
+			throw new Error("alia_canary_precondition_failed:authority_snapshot_changed");
 		valid(plan, true);
 		await tx.insert(applicationCredentials).values({
 			id: plan.credentialId,

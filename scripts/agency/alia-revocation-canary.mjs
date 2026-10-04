@@ -143,7 +143,7 @@ export async function executeCanary({apiPackage,plan,operator,signal,canaryModul
       beforeDatabaseMillis:before.databaseMillis,afterDatabaseMillis:after.databaseMillis});
     checks.push({kind:'canonical_credential_revocation',commitFromT0Ms:t1-t0,receivers:denied});safe.measured=true;
   } catch (error) {
-    const known = new Set(['canary_interrupted','alia_canary_precondition_failed','service_mint_failed','service_mint_context_mismatch',
+    const known = new Set(['canary_interrupted','alia_canary_precondition_failed','alia_canary_precondition_failed:authority_snapshot_changed','service_mint_failed','service_mint_context_mismatch',
       'canary_initial_allow_failed','canary_verifier_mismatch','canary_retirement_readback_failed','canary_authoritative_denial_failed',
       'receiver_unavailable','receiver_timeout','receiver_send_failed','canary_clock_invalid','canary_lifetime_insufficient','measurement_expiry_reached']);
     primaryFailure = known.has(error?.message) ? error.message : 'canary_failed';

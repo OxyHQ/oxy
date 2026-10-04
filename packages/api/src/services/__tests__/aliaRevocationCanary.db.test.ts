@@ -383,3 +383,21 @@ it("binds the actual Alia owner and internal type, rejecting other owner/type be
 		await getDb().update(applications).set({ ownerAccountId: ALIA_OWNER_ID, type: "internal", isInternal: true, isOfficial: true }).where(eq(applications.id, I03_CANARY_APPLICATION_ID));
 	}
 });
+
+// Canonical service-token mint changes only activity metadata between prepare and issue.
+it("issues after unrelated canonical app activity changes xmin while authority stays exact", async () => {
+ const f = await fixture(); const plan = await prepare(f.principal.id, actor);
+ const material = generateCredentialMaterial();
+ await getDb().update(applications).set({ lastUsedAt: new Date() }).where(eq(applications.id, I03_CANARY_APPLICATION_ID));
+ expect(await unchanged(plan, actor)).toBe(true);
+ await issue(plan, material, actor);
+ expect((await row(plan.credentialId)).status).toBe("active");
+ await revoke(plan, material, actor);
+ expect(await unchanged(plan, actor)).toBe(true);
+});
+it("still rejects a semantic ceiling change even when required scopes remain", async () => {
+ const f = await fixture(); const plan = await prepare(f.principal.id, actor);
+ await getDb().update(applications).set({ scopes: [...I03_CANARY_SCOPES, "user:read"] }).where(eq(applications.id, I03_CANARY_APPLICATION_ID));
+ await expect(issue(plan, generateCredentialMaterial(), actor)).rejects.toThrow("precondition");
+ expect(await row(plan.credentialId)).toBeUndefined();
+});
