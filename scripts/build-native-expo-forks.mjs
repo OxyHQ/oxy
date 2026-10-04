@@ -31,7 +31,7 @@ try {
 		Object.entries(pkg.dependencies).filter(([name]) => name !== "node-forge"),
 	);
 	pkg.name = "@oxy.so/expo-cli-native";
-	pkg.version = "57.0.23+oxy.native.1";
+	pkg.version = "57.0.23+oxy.native.3";
 	pkg.oxyUpstream = {
 		name: "@expo/cli",
 		version: "57.0.23",
@@ -63,6 +63,56 @@ try {
 		security,
 		source.replace(/\n\/\/# sourceMappingURL=Security\.js\.map\s*$/, "\n"),
 	);
+	// Self lookups must remain inside this explicitly named private package.
+	// Its installed physical package has no @expo/cli self alias under Bun.
+	for (const [relative, before, after] of [
+		[
+			"build/src/start/server/metro/externals.js",
+			"_path().default.join(require.resolve('@expo/cli/package.json'), '../static/shims')",
+			"_path().default.resolve(__dirname, '../../../../../static/shims')",
+		],
+		[
+			"build/src/prebuild/resolveLocalTemplate.js",
+			"_path().default.dirname(require.resolve('@expo/cli/package.json'))",
+			"_path().default.resolve(__dirname, '../../../')",
+		],
+		[
+			"build/src/start/server/metro/withMetroMultiPlatform.js",
+			"require.resolve('@expo/cli/build/metro-require/require')",
+			"require.resolve('../../../../metro-require/require')",
+		],
+		[
+			"build/src/start/server/metro/MetroBundlerDevServer.js",
+			"require.resolve('@expo/cli/static/template/[...rsc]+api.ts')",
+			"require.resolve('../../../../../static/template/[...rsc]+api.ts')",
+		],
+		[
+			"build/src/start/server/metro/createServerRouteMiddleware.js",
+			"require.resolve('@expo/cli/static/template/[...rsc]+api.ts')",
+			"require.resolve('../../../../../static/template/[...rsc]+api.ts')",
+		],
+		[
+			"build/src/lint/ESlintPrerequisite.js",
+			"require.resolve(`@expo/cli/static/template/eslint.config.js`)",
+			"require.resolve(`../../../static/template/eslint.config.js`)",
+		],
+		[
+			"build/src/customize/templates.js",
+			"require.resolve(`@expo/cli/static/template/${moduleId}`)",
+			"require.resolve(`../../../static/template/${moduleId}`)",
+		],
+	]) {
+		const file = path.join(fork, relative);
+		const originalSource = fs.readFileSync(file, "utf8");
+		assert.equal(originalSource.split(before).length, 2);
+		fs.writeFileSync(
+			file,
+			originalSource
+				.replace(before, after)
+				.replace(/\n\/\/# sourceMappingURL=[^\n]+\s*$/, "\n"),
+		);
+		fs.rmSync(`${file}.map`);
+	}
 	execFileSync("bun", ["pm", "pack", "--destination", vendor], {
 		cwd: fork,
 		stdio: ["ignore", "pipe", "pipe"],
@@ -72,10 +122,32 @@ try {
 		cwd: native,
 		stdio: ["ignore", "pipe", "pipe"],
 	});
-	execFileSync("bun", ["pm", "pack", "--destination", vendor], {
+	execFileSync("bun", ["pm", "pack", "--destination", scratch], {
 		cwd: native,
 		stdio: ["ignore", "pipe", "pipe"],
 	});
+	const adapterArchive = "oxy.so-expo-code-signing-native-0.1.1.tgz";
+	// Bun archive headers/compression may vary across invocations. Validate
+	// contents exactly (manifest formatting semantically), never overwrite v0.1.1.
+	execFileSync(
+		"python3",
+		[
+			"-c",
+			`
+import json,tarfile,sys
+def files(path):
+ with tarfile.open(path) as archive:
+  return {m.name:archive.extractfile(m).read() for m in archive if m.isfile()}
+a,b=map(files,sys.argv[1:])
+assert a.keys()==b.keys(), 'Immutable adapter archive member set changed'
+for name in a:
+ assert (json.loads(a[name])==json.loads(b[name]) if name=='package/package.json' else a[name]==b[name]), 'Immutable adapter member changed: '+name
+`,
+			path.join(scratch, adapterArchive),
+			path.join(vendor, adapterArchive),
+		],
+		{ stdio: ["ignore", "pipe", "pipe"] },
+	);
 	console.log(
 		"Verified upstream archive; built private native adapter and explicitly identified Expo CLI fork.",
 	);

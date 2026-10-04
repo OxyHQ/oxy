@@ -32,15 +32,15 @@ def verify(include_installed=False):
     assert identity['sha256'] == hashlib.sha256(upstream).hexdigest()
     assert identity['size'] == len(upstream)
     old = files(VENDOR / 'expo-cli-57.0.23-upstream.tgz')
-    cli = files(VENDOR / 'oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz')
+    cli = files(VENDOR / 'oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz')
     native = files(VENDOR / 'oxy.so-expo-code-signing-native-0.1.1.tgz')
     modified = sorted(name for name in old.keys() | cli.keys() if old.get(name) != cli.get(name))
-    expected = ['build/src/run/ios/codeSigning/Security.js', 'build/src/run/ios/codeSigning/Security.js.map', 'package.json']
+    expected = sorted(['build/src/run/ios/codeSigning/Security.js', 'package.json', 'build/src/start/server/metro/externals.js', 'build/src/prebuild/resolveLocalTemplate.js', 'build/src/start/server/metro/withMetroMultiPlatform.js', 'build/src/start/server/metro/MetroBundlerDevServer.js', 'build/src/start/server/metro/createServerRouteMiddleware.js', 'build/src/lint/ESlintPrerequisite.js', 'build/src/customize/templates.js', 'build/src/run/ios/codeSigning/Security.js.map', 'build/src/start/server/metro/externals.js.map', 'build/src/prebuild/resolveLocalTemplate.js.map', 'build/src/start/server/metro/withMetroMultiPlatform.js.map', 'build/src/start/server/metro/MetroBundlerDevServer.js.map', 'build/src/start/server/metro/createServerRouteMiddleware.js.map', 'build/src/lint/ESlintPrerequisite.js.map', 'build/src/customize/templates.js.map'])
     assert modified == expected, f'Unreviewed CLI delta: {modified}'
     previous = json.loads(old['package.json'])
     current = json.loads(cli['package.json'])
     assert previous['name'] == '@expo/cli' and previous['version'] == '57.0.23'
-    assert current['name'] == '@oxy.so/expo-cli-native' and current['version'] == '57.0.23+oxy.native.1'
+    assert current['name'] == '@oxy.so/expo-cli-native' and current['version'] == '57.0.23+oxy.native.3'
     current_without_identity = dict(current)
     current_without_identity.pop('oxyUpstream')
     current_without_identity['name'] = previous['name']
@@ -55,6 +55,20 @@ def verify(include_installed=False):
     assert 'node-forge' not in source and 'pki.certificateFromPem' not in source
     assert 'convertCertificatePEMToCertificate(pem)' in source
     assert 'sourceMappingURL' not in source, 'Stale upstream source map retained'
+    for name, before, after in [
+        ('build/src/start/server/metro/externals.js', "_path().default.join(require.resolve('@expo/cli/package.json'), '../static/shims')", "_path().default.resolve(__dirname, '../../../../../static/shims')"),
+        ('build/src/prebuild/resolveLocalTemplate.js', "_path().default.dirname(require.resolve('@expo/cli/package.json'))", "_path().default.resolve(__dirname, '../../../')"),
+        ('build/src/start/server/metro/withMetroMultiPlatform.js', "require.resolve('@expo/cli/build/metro-require/require')", "require.resolve('../../../../metro-require/require')"),
+        ('build/src/start/server/metro/MetroBundlerDevServer.js', "require.resolve('@expo/cli/static/template/[...rsc]+api.ts')", "require.resolve('../../../../../static/template/[...rsc]+api.ts')"),
+        ('build/src/start/server/metro/createServerRouteMiddleware.js', "require.resolve('@expo/cli/static/template/[...rsc]+api.ts')", "require.resolve('../../../../../static/template/[...rsc]+api.ts')"),
+        ('build/src/lint/ESlintPrerequisite.js', "require.resolve(`@expo/cli/static/template/eslint.config.js`)", "require.resolve(`../../../static/template/eslint.config.js`)"),
+        ('build/src/customize/templates.js', "require.resolve(`@expo/cli/static/template/${moduleId}`)", "require.resolve(`../../../static/template/${moduleId}`)"),
+    ]:
+        previous_source = old[name].decode()
+        assert previous_source.count(before) == 1, 'Upstream self lookup changed'
+        expected_source = re.sub(r'\n//# sourceMappingURL=[^\n]+\s*$', '\n', previous_source.replace(before, after))
+        assert cli[name].decode() == expected_source, 'Other self-reference module bytes changed'
+        assert name + '.map' not in cli, 'Stale self-reference source map retained'
     assert sorted(native) == ['LICENSE', 'README.md', 'index.cjs', 'index.d.ts', 'package.json']
     for name, data in native.items():
         source_data = (ROOT / 'tooling/expo-code-signing-native' / name).read_bytes()
@@ -69,7 +83,7 @@ def verify(include_installed=False):
     assert not list((ROOT / 'node_modules/.bun').glob('node-forge@*')), 'An installed Forge copy remains'
     root = json.loads((ROOT / 'package.json').read_text())
     assert 'patchedDependencies' not in root, 'Temporary Forge patch still active'
-    for package, archive in [('@expo/cli', 'oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz'), ('@expo/code-signing-certificates', 'oxy.so-expo-code-signing-native-0.1.1.tgz')]:
+    for package, archive in [('@expo/cli', 'oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz'), ('@expo/code-signing-certificates', 'oxy.so-expo-code-signing-native-0.1.1.tgz')]:
         assert root['overrides'][package] == 'file:./vendor/expo-native/' + archive
     for package in ['core', 'contracts', 'services', 'protocol', 'mcp', 'db']:
         manifest = json.loads((ROOT / 'packages' / package / 'package.json').read_text())

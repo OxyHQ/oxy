@@ -257,7 +257,7 @@ test("actual forked Expo Security.js reads an OpenSSL EC certificate DN", async 
 	);
 	const archive = path.resolve(
 		__dirname,
-		"../../../vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz",
+		"../../../vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz",
 	);
 	const source = execFileSync(
 		"tar",
