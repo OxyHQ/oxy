@@ -1,0 +1,1 @@
+Read-only prepare failed before registration: Alia public API binding differs. JMESPath list-of-lists filter returned [], not the actual environment. Re-reading with an object projection returned the exact existing OXY_API_URL=https://api.oxy.so. Corrected only the query shape and expected projection. No AWS mutation.

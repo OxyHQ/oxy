@@ -1,0 +1,77 @@
+{
+  "sourceHead": "3e4e020f4fa4248c537df1c09fef5abc4c2d60f3",
+  "sources": [
+    {
+      "path": "scripts/operations/i09-live/operation-ecs.py",
+      "sha256": "af1a79f1f2504717e74e2d1943ded3b379917ccb72274dd71eef6295dfa6be70"
+    },
+    {
+      "path": "scripts/operations/i09-live/test-operation-ecs.py",
+      "sha256": "35a2ae67676d422e71020d7ae73de67b20f054dfe8180ca983fe643b989a58af"
+    },
+    {
+      "path": "scripts/operations/i09-live/prepare-observation.py",
+      "sha256": "42c587af906d87e54c82de191a6069a2cef50c9d314e0f384f90a04432aeeafe"
+    },
+    {
+      "path": "scripts/operations/i09-live/pilot-canary.mjs",
+      "sha256": "c71cf9e81edeb6c7ff254026c485afda9a56947223e75c84aad6bb62e0a95ece"
+    },
+    {
+      "path": "scripts/operations/i09-live/canary-reconciliation.mjs",
+      "sha256": "ed28197861dac118908e187bf5706aecab10238839adbc13b67ff6af6384099a"
+    },
+    {
+      "path": "scripts/operations/i09-live/decode-i09-result.py",
+      "sha256": "fbf971c59110fd85c5bb76fa62955b3dfb7db5989e0a7150ab5a053ffeaf9b63"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/operation-transport.log",
+      "sha256": "26f599755db571bd9b1e025f21092acc4379cafd3617fe7b8b69ba0155bf7fdf"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-live-preparation/caller-first-preflight.log",
+      "sha256": "7ec014193e31789b726abf60333360e0114e43e1b10557e9319948cececcbffb"
+    }
+  ],
+  "privateInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/caller-dispatch-plan.json",
+      "sha256": "ef2ed8be9314fac9642bc13a7b6a2d952133eb12357c609cde686bd25ddded53"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/operation-v3/caller-definition.json",
+      "sha256": "13bc1fd519fae212987b959fae05283de558bcaf5c39b9560bb66e63338599ad"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/baseline-run/result.private.json",
+      "sha256": "2564afe1842f259bd2682cc986492a315b420138a0e9d5da4af7e085f1f98dc9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/baseline-run/receipt.json",
+      "sha256": "176f1644710cb099a7383773f922731f9324cd0a5561f7a34d15a41b106305a5"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/baseline-run/cleanup.json",
+      "sha256": "ab6af429f26c82d4812449925726a7283d9fbd99bbaa656f831efcff5b37914f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-baseline-accepted.json",
+      "sha256": "4509e9cdaf0164281f9cfe5636d059bdbf1938d7a9a6546741aaf0ecf7724d31"
+    }
+  ],
+  "validation": {
+    "transportControls": 13,
+    "actualCallerPrepare": "readonly PASS, source/image/workload lane/API binding/baseline receipts pinned",
+    "callerCompactDefinitionBytes": 31206,
+    "generatedPostDefinition": "syntax/authority/intent binding tested before inference",
+    "liveInferenceExecuted": false
+  },
+  "limits": [
+    "First readonly preparation refused because of JMESPath projection shape; retained diagnostic distinguishes it from configuration drift.",
+    "Post definition is generated only from exact real caller result after success; current tests use a synthetic result and never invoke inference.",
+    "Unknown RunTask/registration ACK remains unknown; no retry of AWS mutation or inference."
+  ]
+}
