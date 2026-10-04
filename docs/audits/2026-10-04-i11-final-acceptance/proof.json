@@ -97,12 +97,16 @@
     {
       "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/ten-children-state-readback.json",
       "sha256": "de9ea1d87a24f07b006195cddd95f499a2c3d9e367236cfc1a3e18c07a42b5cd"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-composite-forge-publish-recovery/published82-root-readback.json",
+      "sha256": "0de7447b97939fc34ff85da761236f2578767d9a647b194d3c85c78e5dbaa2cf"
     }
   ],
   "records": [
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
-      "sha256": "a6a43abb715e0ce502c4904fab7fb039ac09026f857be169799ad7d81feda245"
+      "sha256": "d279a9f7a4d55787806b031105a98ad91b02abb4b44f2a8322207a91805417e5"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
@@ -115,6 +119,10 @@
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/status-qualification.json",
       "sha256": "49a9ef699e5432dc74cc506613f9f67679c767df4b0ba5e01ed91d6b2f3d696a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/closed-historical-drafts.json",
+      "sha256": "840ee61babaad54b1be1ab260a8176c813ec42c50e0490da4f8fc9f0ef46f9fc"
     }
   ],
   "pending": [

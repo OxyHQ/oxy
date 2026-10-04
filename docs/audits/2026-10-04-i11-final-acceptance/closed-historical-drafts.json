@@ -1,0 +1,205 @@
+{
+  "count": 18,
+  "rows": [
+    {
+      "repository": "oxy",
+      "pr": 1528,
+      "head": "b09309b62e0eb60ad9d2e43726d8fd11749180c7",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1528#issuecomment-5978598537",
+      "closedAt": "2026-10-04T09:39:59Z",
+      "disposition": "superseded-historical-composition",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1546,
+      "head": "2334a9784a7a10c860eee71e9f915aedf7e02422",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1546#issuecomment-5978599025",
+      "closedAt": "2026-10-04T09:40:04Z",
+      "disposition": "superseded-historical-composition",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1537,
+      "head": "82daafb0d63aa0596560ad7fcc081a302465c9d7",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1537#issuecomment-5978599626",
+      "closedAt": "2026-10-04T09:40:10Z",
+      "disposition": "superseded-historical-composition",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1555,
+      "head": "24653406f17289244fb3b1cecd3f548b146c40f5",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1555#issuecomment-5978600277",
+      "closedAt": "2026-10-04T09:40:15Z",
+      "disposition": "superseded-historical-composition",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1568,
+      "head": "22fc678eef27f85471978dbb217b72c68cb4a9b3",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1568#issuecomment-5978600858",
+      "closedAt": "2026-10-04T09:40:20Z",
+      "disposition": "accepted-external-operator-retained",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1567,
+      "head": "d11a99ae5aa7f2eca9abb5aaef5079b90ff30698",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1567#issuecomment-5978601458",
+      "closedAt": "2026-10-04T09:40:26Z",
+      "disposition": "composed-product-plus-accepted-external-tooling",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1566,
+      "head": "e774d9bf262f7f6479fb3c439bc4926961fb35e5",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1566#issuecomment-5978602024",
+      "closedAt": "2026-10-04T09:40:30Z",
+      "disposition": "accepted-separate-recovery-artifact-retained",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1565,
+      "head": "4bec40ee890a5732e9008bda538f546cc3fecb3a",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1565#issuecomment-5978602616",
+      "closedAt": "2026-10-04T09:40:36Z",
+      "disposition": "superseded-composed-product",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1564,
+      "head": "d6c9bd7981a14bfc00957986f01ca95be32adfaf",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1564#issuecomment-5978603243",
+      "closedAt": "2026-10-04T09:40:41Z",
+      "disposition": "composed-product-plus-retained-inventory-evidence",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1562,
+      "head": "20467e1c19367bcfcd091a53b7d4c73dfb43beed",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1562#issuecomment-5978603890",
+      "closedAt": "2026-10-04T09:40:47Z",
+      "disposition": "composed-harness-plus-retained-provider-evidence",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1561,
+      "head": "ef67bebb4282813459356b1eef6b74baf78a112f",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1561#issuecomment-5978604447",
+      "closedAt": "2026-10-04T09:40:52Z",
+      "disposition": "superseded-composed-product",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1560,
+      "head": "be781a34c6a00e517515d830257304e8fb7b6015",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1560#issuecomment-5978605059",
+      "closedAt": "2026-10-04T09:40:57Z",
+      "disposition": "superseded-composed-product",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1553,
+      "head": "a0a0e488eb4d1edb659c5b43c7fdd1677636cd20",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1553#issuecomment-5978605699",
+      "closedAt": "2026-10-04T09:41:03Z",
+      "disposition": "superseded-composed-tests",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1550,
+      "head": "acdf4e4670e5a8adf3b1b9bc641806fde7b5f9d0",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1550#issuecomment-5978606126",
+      "closedAt": "2026-10-04T09:41:07Z",
+      "disposition": "superseded-composed-product",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1547,
+      "head": "5130d8827152fa54befffa5d05f7695c7f853d57",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1547#issuecomment-5978606661",
+      "closedAt": "2026-10-04T09:41:12Z",
+      "disposition": "superseded-published-adopted-product",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "oxy",
+      "pr": 1517,
+      "head": "da4121cea3040f42d471456a703a1c32da0dba37",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/oxy/pull/1517#issuecomment-5978607156",
+      "closedAt": "2026-10-04T09:41:16Z",
+      "disposition": "superseded-security-candidate-retained",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "Mercaria",
+      "pr": 1043,
+      "head": "975e680a2bbc2fb1d49f80624b272027f4d2e254",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/Mercaria/pull/1043#issuecomment-5978607724",
+      "closedAt": "2026-10-04T09:41:21Z",
+      "disposition": "superseded-composed-product",
+      "branchesArtifactsPinsUntouched": true
+    },
+    {
+      "repository": "Mercaria",
+      "pr": 1044,
+      "head": "de871d24dd6e634989f74d3fa1a7870de77df667",
+      "state": "closed",
+      "merged": false,
+      "comment": "https://github.com/OxyHQ/Mercaria/pull/1044#issuecomment-5978608254",
+      "closedAt": "2026-10-04T09:41:26Z",
+      "disposition": "superseded-composed-product-with-open-successor-fix",
+      "branchesArtifactsPinsUntouched": true
+    }
+  ],
+  "noMergeDeployBranchDeletion": true,
+  "parentI11I08RemainOpen": true
+}
