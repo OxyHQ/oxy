@@ -1,0 +1,18 @@
+waiting for server to start.... done
+server started
+{"verifiedOwnPostgresPid": 1982662, "dataDirectory": "/home/nate/Oxy/.agent-evidence/jev-activation-pg-eq42ykq_/data", "port": 5628, "liveAccess": false}
+$ jest --runInBand --runTestsByPath src/services/__tests__/scopedSourceActivation.test.ts src/services/__tests__/scopedExecution.service.test.ts src/services/__tests__/kaanaCatalogueSync.test.ts src/services/__tests__/scopedCataloguePublication.test.ts src/routes/__tests__/mentionPrivateCommissioning.test.ts
+PASS src/services/__tests__/kaanaCatalogueSync.test.ts
+PASS src/routes/__tests__/mentionPrivateCommissioning.test.ts (7.567 s)
+PASS src/services/__tests__/scopedExecution.service.test.ts
+PASS src/services/__tests__/scopedCataloguePublication.test.ts
+PASS src/services/__tests__/scopedSourceActivation.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       70 passed, 70 total
+Snapshots:   0 total
+Time:        10.531 s
+Ran all test suites within paths "src/services/__tests__/scopedSourceActivation.test.ts", "src/services/__tests__/scopedExecution.service.test.ts", "src/services/__tests__/kaanaCatalogueSync.test.ts", "src/services/__tests__/scopedCataloguePublication.test.ts", "src/routes/__tests__/mentionPrivateCommissioning.test.ts".
+waiting for server to shut down.... done
+server stopped
+{"ownedPostgresStopped": true, "pidAbsent": true, "record": "/home/nate/Oxy/.agent-evidence/jev-activation-pg-eq42ykq_"}

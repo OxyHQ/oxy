@@ -1,0 +1,49 @@
+{
+  "kind": "root-exact-synthetic-source-freeze-v1",
+  "operator": "root",
+  "frozenAt": "2026-10-04T20:29:45.007208+00:00",
+  "sourceWindowStartsAt": "2026-10-04T20:30:00.000Z",
+  "sourceWindowExpiresAt": "2026-10-05T02:30:00.000Z",
+  "maxSourceWindowSeconds": 21600,
+  "audienceFile": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/jev-canary-v2/frozen-audience-2030.json",
+  "audienceFileSha256": "b4ba1e9df1e694872c90614f30becafb952fc31adb42522bb2b64db7aff97c56",
+  "permittedSourcePreparation": true,
+  "permittedRuntimeExecutionNow": false,
+  "sourcePreconditions": {
+    "oxyCommissioningMerged": "4c29c62d0fb40a018a3434ca08fdbdcfd5e37d07",
+    "mentionCompositionReviewed": "ee17426620675ebc6828076a7570816bf913ae66",
+    "mentionCompositionPRCI": "37231763314 SUCCESS; queue and production acceptance still required before activation execution",
+    "core44RegistryAndAliaImageAccepted": true,
+    "kaanaIndependentCardReviewed": "9482a2875853869e10ab8fbaa5a748dfdb235c58"
+  },
+  "receipts": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/jev-canary-v2/root-applicability-decision.json",
+      "sha256": "3b5a17d3b790660a7eca1815f757954e65dab5202f67bdcf8f443706a13a411d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia425-final-image/compiled-binding.json",
+      "sha256": "7a1e52293e990705f26e041b3ad7892711f5a80e940ec0fe02ae6c7406ae4da3"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-core44-promotion/accepted.json",
+      "sha256": "b5f23d8cf2a275f56f9c991eafab3fc9f27e29bb08a57cbdc02f55805fa39856"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-signed-kaana-root-review.json",
+      "sha256": "b13b2a695b6a24c9be54caa26933878da00104dad2324b524555744b71cb88d4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/jev-commissioning-promotion/accepted.json",
+      "sha256": "7041f17797d8c743649399015f490aa230b5fb09a7924f0225aae613d5305af3"
+    }
+  ],
+  "constraints": [
+    "exact principal/model/policy/card/price/key/hash/idempotency only",
+    "one provider operation maxUSD0.01; consumed history permanent",
+    "runtime window<=300s; task<=180s",
+    "expiry cannot be extended or permit reused",
+    "no public offer, no private customer data, no new funds",
+    "final Oxy+Kaana CI/images/runtime/catalogue/legal/preflight must pass before POST"
+  ]
+}

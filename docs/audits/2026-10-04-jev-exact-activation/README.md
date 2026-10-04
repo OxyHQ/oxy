@@ -1,0 +1,11 @@
+# Exact Alia Jev source preparation
+
+The two source getters now contain the root-reviewed audience b4ba1e9d, valid until 2026-10-05 02:30 UTC. Admission remains exact to Alia application, owner, workload credential, production environment, policy, provider key, model/deployment, immutable card/price/source, v2 synthetic Noul/Choice/Score input, one idempotency identity and USD 0.01 maximum. Mention and public offers remain unauthorized. This source preparation does not attest a production request.
+
+The new controls prove explicit absent authority, mismatches and expiry. Actual Kaana publication requires the matching independent Jev card and fresh key eligibility; ordinary publication remains withheld for this deployment. The xAI card and its own observation timestamps are unchanged. Oxy retains canonical legal, privacy, policy, real price and durable metering gates; Kaana retains the signed boundary and permanent SQL claim. Source lifetime is six hours, while the execution lease is at most five minutes and the task deadline is 180 seconds. Neither expiry nor an exhausted claim is renewed.
+
+The included dated interrepo proof is a pre-activation checkpoint. Its local Mention fixture is injected test authority; the new replay proves the same real SDK/Oxy SQL/signed Go executor boundary against these trees, with only the provider adapter fake. It does not activate Mention or fabricate production catalogue/legal evidence.
+
+Canonical Oxy build, five focal suites (70 controls), signed interrepo replay, four Kaana race packages, Go build/vet and focused lint pass. The initial branded-literal build errors and old nil-assumption test failure are retained before their final passing records. Owned PostgreSQL processes are stopped. Root must still review CI, exact images, both rollouts, canonical catalogue import/legal operation and fresh preflight before the single authorized POST. No AWS or provider operation was performed here.
+
+A fresh canonical deployment-to-credential binding is also required for the new Jev deployment. Historical binding inventory contained no Jev row; root will inspect and, if absent, use the canonical credential-admin bind-deployment CLI before publisher refresh. No direct SQL binding or credential creation is performed by this preparation.

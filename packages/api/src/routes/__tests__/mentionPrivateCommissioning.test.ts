@@ -595,9 +595,9 @@ it.each([
     ).toHaveLength(0);
   },
 );
-it("keeps the ordinary catalogue and production approval getters closed", async () => {
+it("keeps the ordinary catalogue and unrelated Mention approval closed", async () => {
   expect(approvalConfig.mentionClassifierApproval()).toBeUndefined();
-  expect(scoped.sourceReviewedScopedAudience()).toBeUndefined();
+  expect(scoped.sourceReviewedScopedAudience(Number.POSITIVE_INFINITY)).toBeUndefined();
   const f = await fixture();
   expect(
     await selectRouteForViewer(viewer, f.modelReference, UNCONSTRAINED_ROUTING),
