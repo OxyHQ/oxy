@@ -27,6 +27,8 @@ import {
 	revokeServiceActingAs,
 } from "../serviceActingAs.service";
 
+// Existing Alia application metadata, with synthetic local users/grant only.
+const ALIA_OWNER_ID = "01a0369b-1222-712f-8df6-f8ffeb78ccc2";
 // Explicitly synthetic AWS/session attribution, never a live operator approval.
 const actor = {
 	operatorArn: "arn:aws:sts::237343248947:assumed-role/Fixture/fixture",
@@ -37,22 +39,24 @@ afterAll(closePostgres);
 async function fixture() {
 	await getDb()
 		.insert(users)
-		.values({ id: I03_CANARY_OWNER_ID, color: "blue" })
+		.values({ id: ALIA_OWNER_ID, color: "blue" })
 		.onConflictDoNothing();
 	await getDb()
 		.insert(applications)
 		.values({
 			id: I03_CANARY_APPLICATION_ID,
-			ownerAccountId: I03_CANARY_OWNER_ID,
+			ownerAccountId: ALIA_OWNER_ID,
 			name: "Alia canary fixture",
-			type: "first_party",
+			type: "internal",
+			isOfficial: true,
+			isInternal: true,
 			status: "active",
 			scopes: [...I03_CANARY_SCOPES],
 		})
 		.onConflictDoNothing();
 	await getDb()
 		.update(applications)
-		.set({ scopes: [...I03_CANARY_SCOPES], status: "active" })
+		.set({ scopes: [...I03_CANARY_SCOPES], status: "active", ownerAccountId: ALIA_OWNER_ID, type: "internal", isOfficial: true, isInternal: true })
 		.where(eq(applications.id, I03_CANARY_APPLICATION_ID));
 	const [principal] = await getDb()
 		.insert(users)
@@ -360,4 +364,22 @@ it("allows canonical mint activity metadata but detects a changed app authority 
 	await expect(unchanged(plan, actor)).rejects.toThrow("precondition");
 	await recover(plan, actor);
 	expect((await row(plan.credentialId)).status).toBe("revoked");
+});
+
+it("binds the actual Alia owner and internal type, rejecting other owner/type before issuing any credential", async () => {
+	const f = await fixture();
+	const plan = await prepare(f.principal.id, actor);
+	expect(plan.ownerAccountId).toBe(ALIA_OWNER_ID);
+	const [foreignOwner] = await getDb().insert(users).values({ color: "blue" }).returning();
+	for (const change of [{ ownerAccountId: foreignOwner.id }, { type: "first_party" as const }, { isInternal: false }, { isOfficial: false }]) {
+		await fixtureRestore();
+		await getDb().update(applications).set(change).where(eq(applications.id, I03_CANARY_APPLICATION_ID));
+		await expect(prepare(f.principal.id, actor)).rejects.toThrow("precondition");
+		await expect(issue(plan, generateCredentialMaterial(), actor)).rejects.toThrow("precondition");
+		expect(await row(plan.credentialId)).toBeUndefined();
+	}
+	await fixtureRestore();
+	async function fixtureRestore() {
+		await getDb().update(applications).set({ ownerAccountId: ALIA_OWNER_ID, type: "internal", isInternal: true, isOfficial: true }).where(eq(applications.id, I03_CANARY_APPLICATION_ID));
+	}
 });

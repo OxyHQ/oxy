@@ -17,7 +17,8 @@ import {
 	revokeApplicationCredential,
 } from "./applicationCredentialRevocation.service";
 
-export const I03_CANARY_OWNER_ID = "69b2d3df5d12f58c9800d651";
+// Exact existing Alia application owner; no authority is inferred from branding.
+export const I03_CANARY_OWNER_ID = "01a0369b-1222-712f-8df6-f8ffeb78ccc2";
 export type CanaryOperator = {
 	operatorArn: string;
 	authorizationSha256: string;
@@ -119,6 +120,8 @@ async function snapshot(tx: Transaction, principalId: string) {
 			id: applications.id,
 			owner: applications.ownerAccountId,
 			type: applications.type,
+			isOfficial: applications.isOfficial,
+			isInternal: applications.isInternal,
 			status: applications.status,
 			scopes: applications.scopes,
 			version: sql<string>`xmin::text`,
@@ -130,7 +133,9 @@ async function snapshot(tx: Transaction, principalId: string) {
 		!app ||
 		app.owner !== I03_CANARY_OWNER_ID ||
 		app.status !== "active" ||
-		app.type !== "first_party" ||
+		app.type !== "internal" ||
+		!app.isOfficial ||
+		!app.isInternal ||
 		!I03_CANARY_SCOPES.every((scope) => app.scopes.includes(scope))
 	)
 		fail();
