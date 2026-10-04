@@ -381,7 +381,8 @@ async function withInternalDefault<T>(caller: Caller, operation: () => Promise<T
 
 async function pilotClaims(caller: Caller) {
   return getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
-    .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId));
+    .where(eq(inferenceMeteredUsage.applicationId, caller.applicationId))
+    .orderBy(inferenceMeteredUsage.id);
 }
 
 let aliaFixture: Promise<Caller> | undefined;
