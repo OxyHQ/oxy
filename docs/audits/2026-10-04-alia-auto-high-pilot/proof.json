@@ -1,0 +1,128 @@
+{
+  "kind": "alia-auto-high-pilot-source-proof-v1",
+  "sourceSha": "5909041e10d7bbd0e201931ad16ac686bcf001bf",
+  "baseSha": "f716a52734faa6e683f872802c67e9b7e419780f",
+  "policyVersion": "oxy-inference-economics/2026-10-04.2",
+  "sourceInputs": [
+    {
+      "path": "docs/inference/internal-metering.md",
+      "sourceSha": "5909041e10d7bbd0e201931ad16ac686bcf001bf",
+      "sha256": "066c5c8a79fbb0c3f8fddb3f860e806b912391d4cadb56600dc6433475f276ed"
+    },
+    {
+      "path": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sourceSha": "5909041e10d7bbd0e201931ad16ac686bcf001bf",
+      "sha256": "cc232abb2bf8e65fd196d36f97fc4e98a93e5edcd787b0f9bc4ee98f98218f0d"
+    },
+    {
+      "path": "packages/api/src/routes/__fixtures__/aliaApprovedHighRoute.json",
+      "sourceSha": "5909041e10d7bbd0e201931ad16ac686bcf001bf",
+      "sha256": "9171181814a354cc600e3a5c7e2e3522ee9632c87985be9f45816de5133696b9"
+    },
+    {
+      "path": "packages/api/src/routes/__fixtures__/aliaHello21Tools.json",
+      "sourceSha": "5909041e10d7bbd0e201931ad16ac686bcf001bf",
+      "sha256": "fd9ef8fc783425e5285b100111bfe69fb0b27dd4346e81479bd57725c2003d77"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sourceSha": "5909041e10d7bbd0e201931ad16ac686bcf001bf",
+      "sha256": "8cdf37da96f46e14fb72ea20bd3af11e5a15dc8d95d9aee00d2c1c705735b0c7"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sourceSha": "5909041e10d7bbd0e201931ad16ac686bcf001bf",
+      "sha256": "0130128954fb0dd2a344ea33371b7ff1bb50a3fe54b89488a37be2914021f018"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/quote-cap-red.txt",
+      "sha256": "30c72877f3693cd381bde96f02a622cd039bc5b6ae41b6182115f481ee36e66e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/auto-high-red-2.txt",
+      "sha256": "03e3a36d307bb408c138135fe99247459e2d3deae612dc730a27633f41ec9080"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/quote-cap-green-2.txt",
+      "sha256": "4d05bde16742fee2c71b53bd7d15b50be3a6fd60f60f3743fcecabfeaff395ed"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/auto-high-internal-default.txt",
+      "sha256": "3b4eab13ed77aa37897572de123acf9ad305bedc805f4c509f8a6cfc724f43fd"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/final-http-sql-green.txt",
+      "sha256": "cbc7247c83b0c1201c4522206f28fb3faeb58cc7c5bc02ea89c0526543de7359"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/final-pilot-controls.txt",
+      "sha256": "e293b47ebc37abb2a55ab53ede9bd6e24450944d98c7c040f53c54aa77152f28"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/api-build-final.txt",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/scoped-biome-final.txt",
+      "sha256": "6de7208f359a38e2d7f8a435becf1c5e904f0055f2111f80410ebc767f5c240d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/scoped-eslint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/pg-cleanup.txt",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    }
+  ],
+  "externalReferences": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-auto-route-readback-2/root-early-result.private.json",
+      "sha256": "ffa2aa188a054a9975f6ac21daba3fad8e51598650929a424c9c1808625a7843",
+      "copied": false
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-auto-route-readback-2/root-reconciled-acceptance.json",
+      "sha256": "1ec43b01852f3fb3651bfb25f7a1134fefe9aef5a4f3e0da5bd8030a11a6346d",
+      "copied": false
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-auto-route-readback-2/selected-high-source-review.json",
+      "sha256": "a610178ecd382dccad1f48f57e1d25f294a337fdf158974a24dfca949f4cd9be",
+      "copied": false
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/alia-auto-route-readback-2/kaana-signed-descriptors.json",
+      "sha256": "aba4b27387f56119e58b7098b9cde82a23768ec0b95e9c04fe77d0e32739c9eb",
+      "copied": false
+    }
+  ],
+  "compiledModules": [
+    {
+      "path": "packages/api/dist/config/inferenceEconomicPolicy.js",
+      "sha256": "a94e861c7fd742ab0362203b3cf9129c2f223caf3ad78dbbf14be1a0b5aea084"
+    },
+    {
+      "path": "packages/api/dist/services/inferenceEdge.service.js",
+      "sha256": "0b9a9a10b7fa696bdd6c170d7ed3c3aaf117a00e56d4f291125d5f3e3b386992"
+    }
+  ],
+  "validation": {
+    "quoteRed": "USD .050000000001 and EUR .01 returned200 before enforcement; USD .05 returned200",
+    "autoRed": "intact synthetic Hello21tools returned503 with only the previous three pilot tuples; initial RED used neutral fixture policy",
+    "green": "65 tests/two suites; final31 production-pilot controls; final full payload uses canonical internal default with no active app policy",
+    "build": "canonical API bun run build exit0",
+    "lint": "scoped ESLint max-warnings0 and Biome1.9.4 error-on-warnings exit0",
+    "cleanup": "only postgres remained in the own PG18579 before stopping; no shared PG touched"
+  },
+  "limits": [
+    "HTTP/SQL uses a local owned catalogue copy and fake Kaana data plane; no production reply or invoice claimed",
+    "Selected metadata and signed descriptors were read and accepted independently by root; no catalogue mutation",
+    "USD .05 is a tariff quote ceiling, not an upstream retry or invoice guarantee",
+    "No private conversation content; Hello fixture comes from the real Alia builder with synthetic user Hello",
+    "Existing three tuples, Auto rules/classes, source authority, 126976/8192/2048 and32/5000 limits retained",
+    "No full frozen-baseline fixture identity claim; valid RED logs preserve the original context and final controls separately"
+  ]
+}

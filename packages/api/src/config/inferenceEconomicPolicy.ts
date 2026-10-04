@@ -46,7 +46,7 @@ import type { InferenceEnvironment, InferenceEconomicTreatment } from '@oxy.so/c
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-04.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-04.2';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -67,6 +67,8 @@ export interface InternalMeteredPilot {
   /** Optional text-completion ceiling; decisions retain the base ceiling. */
   readonly maxControlledCompletionInputBudget?: number;
   readonly maxOutputTokens: number;
+  /** Exact USD tariff quote ceiling, before any claim; not an upstream invoice guarantee. */
+  readonly maxPricePerRequestUsd?: string;
   readonly deployments: readonly {
     readonly deploymentId: string;
     readonly modelReference: string;
@@ -125,13 +127,20 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       // against its own context, output and quote. Decisions retain 8KiB.
       maxControlledCompletionInputBudget: 126_976,
       maxOutputTokens: 2048,
-      deployments: ['cerebras', 'groq', 'openrouter'].map((provider) => ({
+      maxPricePerRequestUsd: '0.05',
+      deployments: [...['cerebras', 'groq', 'openrouter'].map((provider) => ({
         deploymentId: provider === 'cerebras'
           ? 'dep_cerebras_gpt_oss_120b_observed_2026_09_01'
           : `dep_${provider}_openai_gpt_oss_120b_observed_2026_09_01`,
         modelReference: 'openai/gpt-oss-120b@observed-2026-09-01',
         provider,
-      })),
+      })), {
+        // Existing reviewed High model; this adds one exact internal route,
+        // without changing Auto's capability classes or its upward-only ladder.
+        deploymentId: 'dep_openrouter_deepseek_deepseek_v4_flash_0731_observed_2026_09_01',
+        modelReference: 'deepseek/deepseek-v4-flash-0731@observed-2026-09-01',
+        provider: 'openrouter',
+      }],
     },
   },
 ];
