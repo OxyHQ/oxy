@@ -1,0 +1,88 @@
+{
+  "kind": "i11-existing-original-criteria-evidence-index",
+  "newTestsExecuted": false,
+  "newDeploymentClaimed": false,
+  "issueBodyEdited": false,
+  "sourceInputs": [
+    {
+      "repositoryRoot": "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004",
+      "head": "093713be08d99164f55a6ea18456b315d867034d",
+      "path": "packages/api/src/capabilities/inbox-mcp-http.ts",
+      "sha256": "66030bf6e9cb21f385c6813db4b4f6ee86cedda1a65503fb8cb4f09c304b0b89",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004",
+      "head": "093713be08d99164f55a6ea18456b315d867034d",
+      "path": "packages/api/src/capabilities/__tests__/inbox-mcp-http.test.ts",
+      "sha256": "6d2ed63bcbf2900d0ce02e24bf8b2212a386d906b3793f9dad1aa332c1b201bc",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004",
+      "head": "093713be08d99164f55a6ea18456b315d867034d",
+      "path": "packages/mcp/src/__tests__/consumerAccountBinding.test.ts",
+      "sha256": "db5888f7934fa2f28b9446f9140a5f7f4232860cdb8b726b77fe7058cf9f0786",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004",
+      "head": "093713be08d99164f55a6ea18456b315d867034d",
+      "path": "packages/mcp/src/__tests__/internalTransport.test.ts",
+      "sha256": "1ce080f7ce43e14764ff4ef3dc6942cccb41127f33786f2a1fcf734c78134733",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
+      "head": "0870e326f6e0db9b934e7445272920d862f4a3bf",
+      "path": "server/mcp/catalog.ts",
+      "sha256": "b86dc689d17b1ba5bcaf75c362d7adfda122e1929b1d0de5559f1cb81a2de471",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/website/.worktrees/1519-final-sdk-adoption-20261003",
+      "head": "0870e326f6e0db9b934e7445272920d862f4a3bf",
+      "path": "server/mcp/http.test.ts",
+      "sha256": "90ad52f37a02cc0a91e621cedf5e76d35264e9981153fff6f917e532616a60d8",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/Noted/.worktrees/1519-i11-effective-account",
+      "head": "0569162d338c278c55bf1c8b239efa78581dddb6",
+      "path": "docs/audits/2026-10-02-mcp-active-account/evidence.json",
+      "sha256": "4295652e006852182e5ea2ba11b10e5ff8bc2c9c0d4d12eab25b87acc77763b4",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/Mercaria/.worktrees/1519-i11-effective-account",
+      "head": "975e680a2bbc2fb1d49f80624b272027f4d2e254",
+      "path": "docs/audits/2026-10-02-mcp-active-account/evidence.json",
+      "sha256": "39047f2d3317b9a6a557a3edf14f56c87321fc2c8765a5170461f14b0dc35cc7",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/oxy/.worktrees/1519-consumer-rollout-preflight-20261003",
+      "head": "d11a99ae5aa7f2eca9abb5aaef5079b90ff30698",
+      "path": "docs/audits/2026-10-04-i04-acceptance/proof.json",
+      "sha256": "735cdc8ba5d1154ebc6c0f5a968642a5bdca313a8c9fc7911bd5f79bf117e986",
+      "gitCurrentEqual": true
+    },
+    {
+      "repositoryRoot": "/home/nate/Oxy/oxy/.worktrees/1519-i09-route-reconciliation-20261004",
+      "head": "093713be08d99164f55a6ea18456b315d867034d",
+      "path": "docs/audits/2026-10-04-i09-final-acceptance/proof.json",
+      "sha256": "46e706aa1f00544c8c5b81a71b03a2f7c57b9a896f24ed2114f4500d7ff96aba",
+      "gitCurrentEqual": true
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i11-original-criteria-index/README.md",
+      "sha256": "dadeca6e5b4e8b54da0217e5698e210a7b3e5c7196e1795e9c68506fd5a528b8"
+    }
+  ],
+  "limits": [
+    "I05 and I08 final composed acceptance remains with root.",
+    "Source callbacks, reduced SDK projections, product SQL/HTTP fixtures and production receipts retain distinct scopes."
+  ]
+}
