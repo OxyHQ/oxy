@@ -1,0 +1,2 @@
+{"level":30,"time":1791091785824,"pid":616577,"hostname":"SuperPC","maxPoolSize":20,"msg":"Connected to PostgreSQL successfully"}
+{"kind":"staged-canary-own-db-proof","originalPrepareDenied":true,"correctedPrepareIssued":true,"activityChangedBeforeIssue":true,"canonicalRevokeAndRecovery":true,"grantUnchanged":true,"changedOwnerDenied":true,"originalModuleBytesAndCachedExportsUnchanged":true,"database":"i03_staged_fe6366ba55feafd3","noExternalHTTP":true}

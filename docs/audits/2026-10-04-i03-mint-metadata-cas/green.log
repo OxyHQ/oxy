@@ -1,0 +1,22 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/aliaRevocationCanary.db.test.ts
+{"level":30,"time":1791091578443,"pid":611048,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/aliaRevocationCanary.db.test.ts
+  ✓ issues a distinct expiring key with existing grant and explicit operator audit, then canonical revoke denies without changing another key or grant (86 ms)
+  ✓ two plans from one baseline cannot issue two keys (39 ms)
+  ✓ rejects unknown operator, missing consent and withdrawn consent (39 ms)
+  ✓ rejects stale app ceilings and closure before new writes (28 ms)
+  ✓ rejects wrong app, expired plan and wrong material without issuing (18 ms)
+  ✓ cleanup rejects another key and still works after app withdrawal and expiry (41 ms)
+  ✓ the shared customer path preserves member actor and its original audit shape (15 ms)
+  ✓ issuance and shared revocation roll back if the operational audit cannot commit (57 ms)
+  ✓ recovers a task-failure credential by durable intent and immutable audit without retaining its material (52 ms)
+  ✓ allows canonical mint activity metadata but detects a changed app authority after use (54 ms)
+  ✓ binds the actual Alia owner and internal type, rejecting other owner/type before issuing any credential (75 ms)
+  ✓ issues after unrelated canonical app activity changes xmin while authority stays exact (54 ms)
+  ✓ still rejects a semantic ceiling change even when required scopes remain (33 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       13 passed, 13 total
+Snapshots:   0 total
+Time:        1.013 s, estimated 3 s
+Ran all test suites within paths "src/services/__tests__/aliaRevocationCanary.db.test.ts".

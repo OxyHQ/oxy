@@ -1,0 +1,39 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/aliaRevocationCanary.db.test.ts
+{"level":30,"time":1791091532093,"pid":610040,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/services/__tests__/aliaRevocationCanary.db.test.ts
+  ✓ issues a distinct expiring key with existing grant and explicit operator audit, then canonical revoke denies without changing another key or grant (117 ms)
+  ✓ two plans from one baseline cannot issue two keys (70 ms)
+  ✓ rejects unknown operator, missing consent and withdrawn consent (61 ms)
+  ✓ rejects stale app ceilings and closure before new writes (40 ms)
+  ✓ rejects wrong app, expired plan and wrong material without issuing (27 ms)
+  ✓ cleanup rejects another key and still works after app withdrawal and expiry (54 ms)
+  ✓ the shared customer path preserves member actor and its original audit shape (21 ms)
+  ✓ issuance and shared revocation roll back if the operational audit cannot commit (81 ms)
+  ✓ recovers a task-failure credential by durable intent and immutable audit without retaining its material (70 ms)
+  ✓ allows canonical mint activity metadata but detects a changed app authority after use (70 ms)
+  ✓ binds the actual Alia owner and internal type, rejecting other owner/type before issuing any credential (83 ms)
+  ✕ issues after unrelated canonical app activity changes xmin while authority stays exact (40 ms)
+  ✓ still rejects a semantic ceiling change even when required scopes remain (30 ms)
+
+  ● issues after unrelated canonical app activity changes xmin while authority stays exact
+
+    alia_canary_precondition_failed
+
+      39 | };
+      40 | const fail = (): never => {
+    > 41 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      42 | };
+      43 | const digest = (value: unknown) =>
+      44 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:41:8)
+      at src/services/aliaRevocationCanary.service.ts:253:4
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 12 passed, 13 total
+Snapshots:   0 total
+Time:        2.713 s
+Ran all test suites within paths "src/services/__tests__/aliaRevocationCanary.db.test.ts".
+error: script "test" exited with code 1

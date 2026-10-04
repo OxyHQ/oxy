@@ -1,0 +1,124 @@
+{
+  "sourceHead": "64c74ff63c3b82b95c2748529e5a58922206d107",
+  "base": "025a88d9a56563e64c9b0b490c7d94a2268840cf",
+  "sources": [
+    {
+      "path": "packages/api/src/services/__tests__/aliaRevocationCanary.db.test.ts",
+      "sha256": "7abf2b6b48ebcf4be523e5e4a9089460dfc845ba8afce7d82254435e1eda9163"
+    },
+    {
+      "path": "packages/api/src/services/aliaRevocationCanary.service.ts",
+      "sha256": "7f76365891683edddfeca708d8508af1c39265886c8d1085e9e7946a99fcc6fd"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary.mjs",
+      "sha256": "7c333fdca844456634d0a7ff3def5c67c5b81933c59f9ddbe7e1777e1d5f83fa"
+    },
+    {
+      "path": "scripts/agency/artifacts/alia-revocation-canary.cjs",
+      "sha256": "46c15e4b6d3492b57df3f459abd72e5193e83c61ec2ada93e0935c31dbef98a9"
+    },
+    {
+      "path": "scripts/agency/artifacts/alia-revocation-canary.json",
+      "sha256": "b4e66b0d908bfb8fa52328488ea709780e86b364c67f54835bf87fdae1b2d7b5"
+    },
+    {
+      "path": "scripts/agency/stage-alia-canary-module.mjs",
+      "sha256": "459e4ead3eae82a68c347c913c23077e0ef7ed78aa6c20e561f3cb37329bfa6d"
+    },
+    {
+      "path": "scripts/agency/tests/alia-canary-staged-db.mjs",
+      "sha256": "0f0b4cb39213c148a72561d687a56fd3f7fd664024525893f8e033a8d8a82abe"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-task-node.py",
+      "sha256": "e55f2352201a5c5174eac22bffe77cccc8d91fa190f9a2a9f1f4114cef3f5c69"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/entrypoint.log",
+      "sha256": "373de52fb304d66595c45144cf1f2e218d8ccf712709921f3bf844197d73caa5"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/frozen-red-fixture.ts",
+      "sha256": "7abf2b6b48ebcf4be523e5e4a9089460dfc845ba8afce7d82254435e1eda9163"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/green.log",
+      "sha256": "407354623b0522a4644596886af694890b5a37b831e6e00e66d0e82d86b467a7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/image-migration.log",
+      "sha256": "6fd3c30a29b1a783c2ac1748ab258d1fab27c922cdde13db34c0544d5cc5b211"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/image-staged.log",
+      "sha256": "f51594c87fcca12197b7d2b05beb9f6b290195fc134d97497869bdcdc20c1f71"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/image-test.py",
+      "sha256": "45e65d547d48f921917ca5d5c04320ed7961df734554071fa172a13a09bf7803"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/image-wrapper.log",
+      "sha256": "d406e89979cdd2c9bf4ba09df61abb0b9db497179d6eb294cc9244e7f361671e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/protocol.log",
+      "sha256": "a847800e179cc74e53e44b92da2afaee1f38384d9be418dee25ad86820cf06e9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/red.log",
+      "sha256": "0e33e8930500b469dde1ace21cf4b0a04ee44fa8ac015779f05b188a2b63d145"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/run.py",
+      "sha256": "e174a57dc2d45400d7c4a687a7b79b6d9886062f0f8b09fc8fac6bcd0c44052b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/stage.log",
+      "sha256": "b0d7329b62b5bc9cb116fa7a769509667eb5004d24f511551d078530c6438fa1"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-mint-metadata-cas/tsc.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "privateEvidence": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i03-mint-metadata-cas-20261004/task-logs.private.json",
+      "sha256": "0ff245d53af95e4b2e8646490db40bbc8e710e2b68f48c0d123d6326681fb41a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/attempt2/execute-run/result.private.json",
+      "sha256": "e3bc9472cde8ca52a20761e79b9a2e14ff61d29eaf2385acf79d63cfaa01e44b"
+    }
+  ],
+  "results": {
+    "red": {
+      "pass": 12,
+      "fail": 1,
+      "frozenFixtureSameBytesAsGreen": true
+    },
+    "green": 13,
+    "typeScriptExit": 0,
+    "staging": 6,
+    "mockAwsProtocol": 16,
+    "generatedNodeEntrypoint": 8,
+    "imageStaged": {
+      "imageDigest": "sha256:b8d0d2f2325bf6d2a5a0df0f414185dfb940c48dc528cff794fa3820a3a2c534",
+      "originalModuleUnchanged": true,
+      "activityBeforeIssue": true,
+      "canonicalRevokeRecovery": true,
+      "foreignOwnerDenied": true
+    },
+    "awsWrites": 0,
+    "providerRequests": 0
+  },
+  "limits": [
+    "Original live failure has no precise precondition reason; app xmin drift is consistent with the result and locally reproduced, not retrospectively observed.",
+    "No new credential or retry in production. Existing attempt2 failure and cleanup remain unchanged.",
+    "No API693 runtime rebuild. New standalone module requires root review and a new bounded operation."
+  ]
+}
