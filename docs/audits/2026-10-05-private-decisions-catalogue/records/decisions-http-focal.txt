@@ -1,0 +1,161 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/inferenceEdge.test.ts --testNamePattern decisions
+PASS src/routes/__tests__/inferenceEdge.test.ts
+  authentication
+    ○ skipped refuses a request with no bearer, with a traceable request id
+    ○ skipped refuses a bare oxy_dk_ public identifier presented as a bearer
+    ○ skipped refuses a machine token whose credential has been revoked
+  scope authorization
+    ○ skipped refuses a credential without inference:invoke before anything is resolved
+  no data plane configured
+    ○ skipped refuses with a typed, non-retryable service_unavailable
+    ○ skipped refuses before taking any hold or writing a receipt
+    ○ skipped never falls through to the Alia proxy
+  admission
+    ○ skipped answers model_not_found for a model that does not exist
+    ○ skipped refuses a route published with no price rather than serving it unpriced
+    ○ skipped refuses an output ceiling above the model’s own
+    ○ skipped refuses a request whose input plus maximum output exceeds the context
+    ○ skipped refuses streaming when the data plane is unavailable before opening a stream
+    ○ skipped refuses a body over the edge limit with a typed 413, not the parser’s bare one
+    ○ skipped refuses a non-text input part, so the input ceiling stays a real bound
+  spend reservation
+    ○ skipped rejects an unfundable request BEFORE it reaches the data plane
+  a served request
+    ○ skipped forwards a versioned, attributed envelope and settles the exact usage
+    ○ skipped reports its own latency on the body, on the header and on the usage row — ONE reading
+    ○ skipped renders the OpenAI shape on the compatibility surface
+    ○ skipped re-nests the partitioned units for the OpenAI dialect, and still prices them once
+    ○ skipped refuses to charge past the hold when the data plane reports more than was reserved
+    ○ skipped refuses a completion that names a model the edge did not admit
+  requestId correlation
+    ○ skipped carries one id from the response to the envelope, the reservation, the telemetry event and the receipt
+    ○ skipped refuses a usage report that answers a different request id, and keeps the money whole
+    ○ skipped refuses a usage report without the exact deployment id instead of inferring it from model and provider
+  edge timings
+    ○ skipped records its own latency, and forwards the data plane’s route switches and time to first token
+    ○ skipped leaves time to first token NULL when the data plane reported none
+  the serving provider, when the data plane failed over
+    ○ skipped names the REPORTED provider on the receipt, the event, the rollup and the response
+    ○ skipped names the ADMITTED provider when nothing served the request
+    ○ skipped names the ADMITTED provider when the completion is repudiated as a substitution
+  routing policy
+    ○ skipped refuses before reservation when no versioned policy supplies optimiseFor
+    ○ skipped pins the application’s own policy version on the envelope and the receipt
+    ○ skipped serves a request that names no model from the policy’s default target
+    ○ skipped refuses a request that names no model when no policy default exists
+    ○ skipped refuses the request when the only route violates the policy, and keeps the money whole
+    ○ skipped serves the same request when the route conforms — the control for the refusal above
+    ○ skipped serves a retaining route to an application whose policy does not forbid it
+  authenticated BYOK routing
+    ○ skipped keeps a pending unvalidated generation off the normal serving path
+    ○ skipped binds only the exact Kaana generation and settles the dedicated fee version
+    ○ skipped prefers a connected BYOK route over a higher-scored platform route
+    ○ skipped falls back to a platform route when prefer has no usable BYOK connection
+    ○ skipped never authorizes BYOK when the policy disables it, even with a valid connection
+    ○ skipped does not bypass an application-specific invalid generation to a valid account connection
+    ○ skipped does not bypass an application-specific expired generation to a valid account connection
+    ○ skipped fails closed before reservation when the BYOK route has no fee pointer
+    ○ skipped fails closed before reservation when the BYOK route points at another provider price
+    ○ skipped fails closed before reservation when the BYOK route points at an inactive fee version
+    ○ skipped settles a mixed failover against the route that actually served
+    ○ skipped settles partial BYOK usage against the same fee version and fee-only flag
+  routing evidence fail-closed before reservation and Kaana
+    ○ skipped refuses an attestation transport failure before reservation and inference
+    ○ skipped refuses when live Kaana attestation has an empty snapshot id
+    ○ skipped refuses when live Kaana attestation has a missing deployment
+    ○ skipped refuses when live Kaana attestation has an extra deployment
+    ○ skipped refuses when live Kaana attestation has a duplicate deployment
+    ○ skipped refuses when live Kaana attestation has a different model revision
+    ○ skipped refuses when live Kaana attestation has a different provider
+    ○ skipped refuses when live Kaana attestation has a different region set
+    ○ skipped attests the whole authorization set once and compares regions as a set
+    ○ skipped refuses when any survivor has no exact Kaana deployment id
+    ○ skipped refuses when any survivor has no scorecard
+    ○ skipped refuses when any survivor has no published price
+    ○ skipped refuses when a completion price omits a possible child partition
+    ○ skipped refuses before reservation and Kaana when the exact model revision does not match
+    ○ skipped refuses before reservation and Kaana when the provider does not match
+    ○ skipped refuses before reservation and Kaana when the price is draft
+    ○ skipped refuses before reservation and Kaana when the price is superseded
+    ○ skipped refuses before reservation and Kaana when the effective window starts in the future
+    ○ skipped refuses before reservation and Kaana when the effective window has expired
+    ○ skipped refuses when any survivor has stale score evidence
+    ○ skipped refuses when any survivor scorecard names the wrong price version
+    ○ skipped refuses when two profile candidates collide on the same exact deployment
+    ○ skipped resolves routingProfileId only by the exact profile primary key
+    ○ skipped refuses an existing profile whose stored candidate set cannot be converted
+  idempotency
+    ○ skipped charges once for a repeated Idempotency-Key
+    ○ skipped refuses an Idempotency-Key too long to key on rather than truncating it
+  GET /v1/generations/:id
+    ○ skipped returns the receipt to the application that spent the money
+    ○ skipped tells another application’s credential the receipt does not exist
+    ○ skipped refuses a credential without inference:usage:read
+  logging
+    ○ skipped never writes a prompt, a tool argument or an output into a log line
+  the envelope’s authorized routes
+    ○ skipped serves an unattested region set when no explicit regional control applies
+    ○ skipped carries every surviving deployment, in preference order, when the policy permits same-model failover
+    ○ skipped states "no failover" as a one-entry list rather than by omitting the field
+    ○ skipped does not authorize same-model failover the customer switched off
+    ○ skipped uses the concrete versioned policy and never a platform editorial default
+    ○ skipped never authorizes a route the customer’s own policy excluded
+    ○ skipped fails before reservation when ANY survivor is quoted in another currency
+    ○ skipped applies maxPricePerRequest to the full exact quote before selecting a deployment
+    ○ skipped fails maxPricePerRequest before reservation and Kaana when every exact quote is over it
+    ○ skipped chooses a smaller cross-model fallback under maxPricePerRequest when output is implicit
+    ○ skipped keeps a smaller fallback out after an affordable primary fixes a larger implicit ceiling
+    ○ skipped capacity-excludes a smaller lower-priority route before its incomplete evidence can refuse the primary
+    ○ skipped prices partial usage against the exact authorized deployment that produced it
+    ○ skipped refunds partial usage that names a deployment outside the signed list
+    ○ skipped refunds partial usage that names another request identity
+  the hold an authorized list is sized against
+    ○ skipped includes the exact per-request fee that Kaana reports
+    ○ skipped uses the exact maximum parent/child rates even when their per values differ
+    ○ skipped includes a dearer child partition on an authorized alternate
+    ○ skipped sizes the hold at the DEAREST authorized route, not at the admitted one
+    ○ skipped keeps the admitted route’s price version when every alternate is cheaper
+  reasoning effort
+    ○ skipped forwards an effort the model advertises, on both dialects
+    ○ skipped omits the field entirely when the caller named no effort
+    ○ skipped refuses an effort the model does not advertise with a 400 before any hold or Kaana call
+    ○ skipped refuses any effort on a model that takes no effort control
+    ○ skipped rejects an effort outside the vocabulary at the schema
+  accepted request parameters
+    ○ skipped never signs a route whose known set lacks a control the request carries
+    ○ skipped keeps every route when the request carries nothing a route refuses
+    ○ skipped treats an unknown set as accepting everything
+    ○ skipped refuses with invalid_request naming the parameter when no route accepts it, before any hold or Kaana call
+    ○ skipped does not count a text response format or an absent tool list as carried
+  the internal default routing policy
+    ○ skipped serves a concrete model to an official application that configured no policy
+    ○ skipped still refuses a third-party application with no policy
+  decisions signed execution and ledger
+    ✓ reserves once, signs exact native input, preserves real signals, settles actual classification cost and refuses replay (231 ms)
+    ✓ settles and refunds the entire hold immediately when the signed hop returns invalid decisions (149 ms)
+    ✓ admits repeated shared context within 32K without multiplying it by question count (151 ms)
+    ✓ excludes an otherwise authorized OpenRouter route whose total exceeds 32K before any hold (165 ms)
+    ✓ preserves a typed non-retryable 502 credential failure and settles nothing as measured (137 ms)
+    ✓ withholds retry on a typed retryable-code failure and settles its measured usage exactly (137 ms)
+    ✓ reports an untyped 502 as uncertain execution: provider_error, never retryable, never a measured zero (149 ms)
+    ✓ reports a typed 502 answering another request as uncertain execution: provider_error, never retryable, never a measured zero (161 ms)
+    ✓ reports a truncated 200 as uncertain execution: provider_error, never retryable, never a measured zero (139 ms)
+    ✓ reports a non-JSON 200 as uncertain execution: provider_error, never retryable, never a measured zero (136 ms)
+    ✓ reports a transport cut after signing as uncertain execution, never retryable (127 ms)
+    ✓ lets exactly one of two concurrent same-key requests reserve and execute (138 ms)
+    ✓ refuses a positive published output-token price before any hold or Kaana call (82 ms)
+    ✓ refuses a sub-micro positive published output-token price before any hold or Kaana call (76 ms)
+    ✓ refuses no published output-token price before any hold or Kaana call (82 ms)
+  private commissioning HTTP
+    ○ skipped reserves once and sends once for the legally reviewed private route; public status stays disabled
+    ○ skipped refuses no-legal with zero reservation, claim and send
+    ○ skipped refuses foreign-input with zero reservation, claim and send
+    ○ skipped refuses foreign-key with zero reservation, claim and send
+    ○ skipped refuses expired with zero reservation, claim and send
+    ○ skipped refuses missing-source with zero reservation, claim and send
+
+Test Suites: 1 passed, 1 total
+Tests:       116 skipped, 15 passed, 131 total
+Snapshots:   0 total
+Time:        2.611 s, estimated 3 s
+Ran all test suites within paths "src/routes/__tests__/inferenceEdge.test.ts".

@@ -1,0 +1,431 @@
+{
+  "kind": "private-decisions-catalogue-composition-proof-v1",
+  "sourceCommit": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+  "worktree": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005",
+  "composition": {
+    "base": "7705a8a2160c33c358528aeefb30de06c881dcaa",
+    "autoSource": "5c07a93d470632b9c7e07fa593ba32029d503756",
+    "main1584": "8a9976a67594d15c4d1738954396ed45fdbd4fe0",
+    "autoDocCorrection": "ef6873ddef00828ede6855f1fffe12181c6c8ce9",
+    "componentCommits": [
+      "d85dc5bf9",
+      "efdd513ab0f211858635d46edfd2bade5177a5c2",
+      "b3fb09a1426dfb213a8d86bb6a1ab546b585124e"
+    ]
+  },
+  "inputs": [
+    {
+      "relativePath": ".github/workflows/deploy-cloudflare.yml",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/.github/workflows/deploy-cloudflare.yml",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "222e0dee07c261d8d166bd32bd075f8c8e16c10b62eed03f477acc2a0fca6fa8"
+    },
+    {
+      "relativePath": "bun.lock",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/bun.lock",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "96e0009039603d12f84c3801ed05496fe7431a5ec4363983bad34b63e95b0024"
+    },
+    {
+      "relativePath": "docs/inference/catalogue.md",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/inference/catalogue.md",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "384c4f98ba272973cad1db03e1a88a5bef803fa5915ff068342bc7154885b132"
+    },
+    {
+      "relativePath": "docs/inference/private-auto-classification.md",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/inference/private-auto-classification.md",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "e11368212fca871e680a750ca905fe4eca6b36f180831228bf6608f4ac65d534"
+    },
+    {
+      "relativePath": "packages/api/drizzle/0144_light_colossus.sql",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/drizzle/0144_light_colossus.sql",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "e6724e59f6996e06bcfabb76d45054ca033f77ee72fc7289d8d19c73ed844f71"
+    },
+    {
+      "relativePath": "packages/api/drizzle/0145_private_decisions_output.sql",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/drizzle/0145_private_decisions_output.sql",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "6d45d898f92429c58dd97e7fd90442de14b25703d06a79b9ca79d8f529eeb8f5"
+    },
+    {
+      "relativePath": "packages/api/drizzle/meta/0145_snapshot.json",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/drizzle/meta/0145_snapshot.json",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "f6f3250565aa495eec9a0cca95edb2c684be10eb14417783bba00e4b89cff7b4"
+    },
+    {
+      "relativePath": "packages/api/drizzle/meta/_journal.json",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/drizzle/meta/_journal.json",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "03e088840c60ee5aac4e9553e7b9bdd12e5dba8d63650c010556d7adfd6bea56"
+    },
+    {
+      "relativePath": "packages/api/scripts/record-private-auto-legal-review.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/scripts/record-private-auto-legal-review.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "e1c421983ef46064dd84e8828dd474112b15864939e0f403d9ef2a8899cc232e"
+    },
+    {
+      "relativePath": "packages/api/src/config/privateAutoClassification.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/config/privateAutoClassification.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "da700a0d4c352c8458e729b267eee481ee74699f7d381296b986700b6dfba971"
+    },
+    {
+      "relativePath": "packages/api/src/db/schema/__tests__/inferenceCatalogue.test.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/db/schema/__tests__/inferenceCatalogue.test.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "709d6e614ffe6aaf87869f02165ecaab5d0e8fe91a61dae7ef31b5f318f7b182"
+    },
+    {
+      "relativePath": "packages/api/src/db/schema/inferenceDeployments.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/db/schema/inferenceDeployments.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "db43311e8965cda0130f9666fb29a721b967d8db7b231341a9414d00b2aa1712"
+    },
+    {
+      "relativePath": "packages/api/src/db/schema/inferenceModelProvenance.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/db/schema/inferenceModelProvenance.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "4ef371b65db0b2a719ca9dfa79fb6b84199555ff44e15c832ba6c3be5bb09b5b"
+    },
+    {
+      "relativePath": "packages/api/src/db/schema/inferenceModels.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/db/schema/inferenceModels.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "0528c264c78e4c1c8ed517cffb9bf7164bc05d554bc820d1cdac44d33e5222bd"
+    },
+    {
+      "relativePath": "packages/api/src/routes/__tests__/inferenceEdge.test.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/routes/__tests__/inferenceEdge.test.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "b88f346b1496fdefc7a04c54428936e3ac565f8235584689bfd9e0753427eb67"
+    },
+    {
+      "relativePath": "packages/api/src/scripts/recordPrivateAutoLegalReview.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/scripts/recordPrivateAutoLegalReview.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "a9cebf71ba91c3c5a3debfbb87e7893d218c25560312a8ab1c9083befd832b0b"
+    },
+    {
+      "relativePath": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "02f70d29997fc53deaf87f46ec2fda2716def0f2772387dde45c48839deb0ce9"
+    },
+    {
+      "relativePath": "packages/api/src/services/__tests__/mentionClassifierAdmission.test.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/__tests__/mentionClassifierAdmission.test.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "a79dbd018758861201f01a7068957fdee8d3c8366c779ca4b456be8cf90c5f93"
+    },
+    {
+      "relativePath": "packages/api/src/services/__tests__/privateAutoAdmission.integration.test.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/__tests__/privateAutoAdmission.integration.test.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "4df58efd84d6ade273ab2c9ecc42b2db52d4319a8addcd049319775cb26a4a29"
+    },
+    {
+      "relativePath": "packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "31068a156bfc43c3d71949f3f03dcdb5edbdd4548acd889d3e11d9557de88fb2"
+    },
+    {
+      "relativePath": "packages/api/src/services/__tests__/scopedCataloguePublication.test.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/__tests__/scopedCataloguePublication.test.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "6c8e0d42d331fd6914ac5b964a34bc67ac3f59350a7ce4924f738140f04da948"
+    },
+    {
+      "relativePath": "packages/api/src/services/httpKaanaClient.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/httpKaanaClient.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "9e1540f67825f53a1d8ee78af949a95f3af2976efe6fb5ddcdee623779bd2ff0"
+    },
+    {
+      "relativePath": "packages/api/src/services/inferenceAutoClassifierChild.service.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/inferenceAutoClassifierChild.service.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "b66c008db850a990e16c6a2c21398bbde2518af96d45ec8e6dc4f9211b9fa501"
+    },
+    {
+      "relativePath": "packages/api/src/services/inferenceAutoPowerLevel.service.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/inferenceAutoPowerLevel.service.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "13dfbae20d8b1ae1c5d636b2dcf8801b3a9e87f802c5890560c4b7c7392fcd21"
+    },
+    {
+      "relativePath": "packages/api/src/services/inferenceCatalogue.service.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/inferenceCatalogue.service.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "0435d19d8eb9cbe9cd2df44a2809ad07062cfe2d92234cceef0bd5fe68606c38"
+    },
+    {
+      "relativePath": "packages/api/src/services/inferenceEdge.service.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/inferenceEdge.service.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "74e5e8b69c7972983d6ef8ed3b3ef8c00486698399175ec498e076edd0d11f1f"
+    },
+    {
+      "relativePath": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "f9e7ea561bca67b9cad07f3333a372df5eefb2f8ae1b4fdc82f868275c5f13a0"
+    },
+    {
+      "relativePath": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "758b9e3fe513eab22136a22da1076d2b699182b82eb757bf2b263803a307bd81"
+    },
+    {
+      "relativePath": "packages/api/src/services/kaanaClient.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/kaanaClient.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "d09c8bcaccdb83354437e9201e56b44f20399bcc6bc85cdf857dd1459aad0623"
+    },
+    {
+      "relativePath": "packages/api/src/services/privateAutoExecution.service.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/privateAutoExecution.service.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "f30c1c98abc3d2908251429b79b79f7dc36245e260fe7604591385acb6e6c40f"
+    },
+    {
+      "relativePath": "packages/api/src/services/privateAutoLegalReviewOperation.service.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/src/services/privateAutoLegalReviewOperation.service.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "0e29ad314b80710d2c641278cf83fde7132aa2b599c9be923efa0f353425d1f6"
+    },
+    {
+      "relativePath": "packages/contracts/package.json",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/package.json",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "7113508b9386d711a897b4f3c54b604eb4b008ab27c11de611b71d45cef0baae"
+    },
+    {
+      "relativePath": "packages/contracts/src/__tests__/decisionsOutput.test.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/src/__tests__/decisionsOutput.test.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "dd5f1cabdd78c763a825ba838e79be83363bf4454623a7edd4cb4ebeff911ac0"
+    },
+    {
+      "relativePath": "packages/contracts/src/index.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/src/index.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "d1348b4784c0ecd6b59530505e2bf0dda6603b1715935c60984fca7807b7f8fd"
+    },
+    {
+      "relativePath": "packages/contracts/src/inference/catalogue.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/src/inference/catalogue.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "c8c6f2469d232be37883c891e67616aa2a381b0ca39e2d83016add3ea0f29ce2"
+    },
+    {
+      "relativePath": "packages/contracts/src/inference/privateAutoExecution.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/src/inference/privateAutoExecution.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "9894d6ca1ca457a847324f71fbcad58103730e472375f6fe88ba076c05a5a099"
+    },
+    {
+      "relativePath": "packages/contracts/src/inference/request.ts",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/src/inference/request.ts",
+      "gitSha": "b3fb09a1426dfb213a8d86bb6a1ab546b585124e",
+      "sha256": "41c78899eaa4b8cef5e4b9844620dbe07e30b4a0f8ad277ead120378e685267e"
+    }
+  ],
+  "records": [
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/baseline-product-red.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/baseline-product-red.txt",
+      "sha256": "57b2da72ded7a71f05fb42d9a77d666334ebe40cedbc3d3fecead6abfb75cb4f"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/owned-pg.py",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/owned-pg.py",
+      "sha256": "1c46d06c9c636b0544b19fa6d11e7e69ccf81c58984d468b8966609cd2f91ae3"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/freeze-validation-run.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/freeze-validation-run.txt",
+      "sha256": "cbb3ca9c2ce346c2a94c1bd23c6490d75d26d98616a716ebd07177160f6d9625"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/focused.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/focused.txt",
+      "sha256": "820534c314ec0097ded6eac261318636d2df3bbca8f887fbaf7188fa0c968044"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/migrate-fresh.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/migrate-fresh.txt",
+      "sha256": "1ff1cb8fc0c9d386651747206453d56d10a132456cfac9768ffdcc7eaa394f1c"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/migrate-repeat.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/migrate-repeat.txt",
+      "sha256": "041ea3d3bd89acd36af5247d3ddd296070c1539ad06207569ff17720cb60761c"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/decisions-http-focal.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/decisions-http-focal.txt",
+      "sha256": "ccc43329b03d77ba343a5c8236172f65616c239d357b5352820bbfb634e1733b"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/freeze-contracts.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/freeze-contracts.txt",
+      "sha256": "e1041a829be5a3c5a3e6a1d4f017ed64fb91c6fa2330850fbf60563f176cad10"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/freeze-build.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/freeze-build.txt",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/freeze-eslint.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/freeze-eslint.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/generate-0145-final.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/generate-0145-final.txt",
+      "sha256": "ff627672a0da7b34223cdcb5f7efa83f114f4a48f209d3388406416309925b3c"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/records/install-410.txt",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/records/install-410.txt",
+      "sha256": "3d176443b1408d3b4088927db87dcd3478044db94187b8f260dc1f8a75407bbb"
+    },
+    {
+      "relativePath": "docs/audits/2026-10-05-private-decisions-catalogue/candidate-receipt.json",
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/docs/audits/2026-10-05-private-decisions-catalogue/candidate-receipt.json",
+      "sha256": "ea59bbcdcd5c346564b6c13286c9e70841cf5f56bd62106acac21793580d9039"
+    }
+  ],
+  "compiledCurrent": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/dist/services/kaanaCatalogueSync.service.js",
+      "relativePath": "packages/api/dist/services/kaanaCatalogueSync.service.js",
+      "sha256": "adabef57f212a91fee88c7a19cc5d81854f7ca6db867431d2d0ec5b089208a47"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/dist/services/inferenceEdge.service.js",
+      "relativePath": "packages/api/dist/services/inferenceEdge.service.js",
+      "sha256": "6c8b9a767f33e2466fa118178317af559de3f61ff5f050d2c9fef6b87eedf279"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/dist/services/inferenceCatalogue.service.js",
+      "relativePath": "packages/api/dist/services/inferenceCatalogue.service.js",
+      "sha256": "8ad5a755bbb242bde0d247f3b00ff7d516ca18a05b55665862e176c9f9711340"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/api/dist/db/schema/inferenceModels.js",
+      "relativePath": "packages/api/dist/db/schema/inferenceModels.js",
+      "sha256": "e96d78b97600ee5e7b221109dfa32728245b570b62f0d336bf36f690a615dc3d"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/dist/cjs/inference/catalogue.js",
+      "relativePath": "packages/contracts/dist/cjs/inference/catalogue.js",
+      "sha256": "379dafc61613a8f52e2ce06ddf57cdc45108f62a9da48cf8c0037e5f3bc0f2e4"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/dist/esm/inference/catalogue.js",
+      "relativePath": "packages/contracts/dist/esm/inference/catalogue.js",
+      "sha256": "573a178a449b0c2a1ea185e7c76ac50e7ec3f1a1095da6369169879a697b2f2f"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-decisions-catalogue-output-20261005/packages/contracts/dist/types/inference/catalogue.d.ts",
+      "relativePath": "packages/contracts/dist/types/inference/catalogue.d.ts",
+      "sha256": "ddb2b618aee856542f4805d831830f5eee3b587c9bdcbb523afdcd023d51467d"
+    }
+  ],
+  "retainedAutoProof": {
+    "path": "/home/nate/Oxy/.agent-evidence/coverage-private-auto-edge-20261005/proof.json",
+    "sha256": "d43cf34dd6099fd0fe3b21f0967b4e0c87afbc093f72ff3e6746854735c1569b",
+    "scope": "historical source5c07; changed consumer compiled outputs are bound separately to current source"
+  },
+  "validation": {
+    "realProductRed": {
+      "baselineSync": "b26725db4",
+      "fixture": "same final scopedCataloguePublication test",
+      "passed": 5,
+      "failed": 1,
+      "cause": "actual decisions output discarded as missing_modalities"
+    },
+    "finalApi": {
+      "suites": 7,
+      "passed": 195,
+      "failed": 0
+    },
+    "httpDecisions": {
+      "passed": 15,
+      "failed": 0,
+      "outOfScopeSkipped": 116
+    },
+    "contracts": {
+      "suites": 2,
+      "passed": 19,
+      "failed": 0
+    },
+    "canonicalApiBuildExit": 0,
+    "apiEslintExit": 0,
+    "biomeExit": 0,
+    "freshMigrationExit": 0,
+    "repeatMigrationExit": 0,
+    "ownedPg": {
+      "pid": 2108779,
+      "pidAbsent": true,
+      "postmasterAbsent": true,
+      "port": 5813
+    }
+  },
+  "candidate": {
+    "path": "/home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005/oxy.so-contracts-4.10.0.tgz",
+    "sha256": "1c727c5e4d3cc31f5ac5988483506256b7635da6e59bc2fb0925046d06e50b53",
+    "members": 201,
+    "status": "provisional-not-published",
+    "sourceTree": "fa8fae260bad3b25b5a935d9f68cf116aa605e57"
+  },
+  "historicalFailures": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005/baseline-red.txt",
+      "sha256": "f0955ee59140886b856af52c349f34db8ae574d0a04df0ff1f1732594aca002a",
+      "scope": "historical setup/draft-fixture failure, superseded; not product RED"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005/pg1519-1xr51im3/focused.txt",
+      "sha256": "52aa0e7407a75126720a8f1e7c85dd3a5306691c8aa615814b83b4b1fc108f35",
+      "scope": "historical setup/draft-fixture failure, superseded; not product RED"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005/pg1519-d1lfz0aj/focused.txt",
+      "sha256": "7ec984fdd886e28fee38a3b8ee2c3f6c6681957fe60cf3bbd984a47b4e62715d",
+      "scope": "historical setup/draft-fixture failure, superseded; not product RED"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005/pg1519-_fetcj8z/focused.txt",
+      "sha256": "b8f35b415b3df5ea181355405e0d2fe685c2e8a220e52020c16cd0fa9aa79887",
+      "scope": "historical setup/draft-fixture failure, superseded; not product RED"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005/pg1519-270bjjue/focused.txt",
+      "sha256": "b3e57d60ec1c1c622c693ba71ad490e6fef0d5da038abf398b71a6c34e13481a",
+      "scope": "historical setup/draft-fixture failure, superseded; not product RED"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-decisions-catalogue-20261005/pg1519-xpk_msxe/focused.txt",
+      "sha256": "75e9a29b11b56c233fd1d7b202d3c20585af3b47e16f1423e2981cd55c87f93a",
+      "scope": "historical setup/draft-fixture failure, superseded; not product RED"
+    }
+  ],
+  "limits": [
+    "No AWS, production, provider or publication operations performed",
+    "Private Auto getter remains undefined; legacy one-shot scoped getter bytes retain previously reviewed source; no authority extension",
+    "Input/request modalities remain unchanged; decisions is output-only",
+    "No scores, prices, watermark/safety facts or legal authority invented",
+    "Fresh wall clock gates source authority after row locks and before transaction commit; observational timestamps retain sync capture time",
+    "Pack manifest normalization is explicit; do not claim all 201 files byteidentical to unpacked source"
+  ]
+}

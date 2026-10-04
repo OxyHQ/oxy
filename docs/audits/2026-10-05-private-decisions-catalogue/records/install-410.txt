@@ -1,0 +1,4 @@
+bun install v1.4.2 (744846f84)
+Saved lockfile
+
+Checked 2306 installs across 2496 packages (no changes) [50.00ms]
