@@ -1077,7 +1077,12 @@ async function admitWithAutoDecision(
         ? 0
         : requestedOutput ?? ('model-maximum' as const),
   };
-  if (scopedPermit !== undefined && economics.treatment === 'commercial' && (!charging || !scopedFundingIntegrationAvailable())) {
+  // Mention's exact source-reviewed classifier is still only a candidate here.
+  // Let catalogue/attestation/quote qualify it; the mandatory decision below
+  // must establish live authority and bounded internal treatment before any claim.
+  // All other commercial scoped requests retain their funding prerequisite.
+  if (scopedPermit !== undefined && economics.treatment === 'commercial'
+    && mentionClassifier === undefined && (!charging || !scopedFundingIntegrationAvailable())) {
     return refuse('service_unavailable', 'Scoped promotional funding integration is unavailable.');
   }
   const authenticatedRoutingContext = {
