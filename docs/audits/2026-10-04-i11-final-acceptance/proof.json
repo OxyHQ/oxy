@@ -1,5 +1,5 @@
 {
-  "kind": "i11-final-acceptance-index-pending-operational-tail",
+  "kind": "i11-final-acceptance-index",
   "newTestsExecuted": false,
   "newOperationsExecuted": true,
   "issueBodyEdited": true,
@@ -109,32 +109,28 @@
     {
       "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/forge-recovery-oxy-workflow-hold/restored.json",
       "sha256": "1074ae07654d035865b0537d7f7adaea5fb6426be3fa3d4a4df50101fb4e3eff"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-closure-census/accepted.json",
+      "sha256": "4fa57d9541b55296377d85546e560674e409720af8fec16646d5577335d2997c"
     }
   ],
   "records": [
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
-      "sha256": "902d6e579efcc39b7167b47f8dcbc13f8dd6ca01d8d783b22e193006d4b8df09"
+      "sha256": "0615868048b127eeebc3d65c76c47c828430187d1eebcbdf4fd1a741ed3a5c3b"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
       "sha256": "de9ea1d87a24f07b006195cddd95f499a2c3d9e367236cfc1a3e18c07a42b5cd"
     },
     {
-      "path": "docs/audits/2026-10-04-i11-final-acceptance/runtime-summary.json",
-      "sha256": "d267b8a68a92d727af4ac3432bea949f34e3d32289bdcf56c2c0919cdb243890"
-    },
-    {
-      "path": "docs/audits/2026-10-04-i11-final-acceptance/status-qualification.json",
-      "sha256": "730b95003c63140a2efd26042c800eefda60351b087ced273a1fe2b91968d1b9"
-    },
-    {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/closed-historical-drafts.json",
       "sha256": "840ee61babaad54b1be1ab260a8176c813ec42c50e0490da4f8fc9f0ef46f9fc"
     },
     {
-      "path": "docs/audits/2026-10-04-i11-final-acceptance/retained-auth-only-artifact.json",
-      "sha256": "3f6d6e78d2fce1f2b455387ead0006ae280621729ce99e787d5a65f31c63458d"
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/external-review-limits.json",
+      "sha256": "d434837996114d20e869563c28256233a2f57f8cbdf32efb5c2745894589cfa6"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/final-ops-root-accepted.json",
@@ -145,14 +141,23 @@
       "sha256": "ac6bd3a5d6b3be9be559ad17806c6ed1584bc25a3e743570cfb6bc9344ab19c2"
     },
     {
-      "path": "docs/audits/2026-10-04-i11-final-acceptance/external-review-limits.json",
-      "sha256": "d434837996114d20e869563c28256233a2f57f8cbdf32efb5c2745894589cfa6"
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/final-restoration-accepted.json",
+      "sha256": "7adf4719e81b3e13ef2dbf9702acbfdb4a43371e003082f34d35a4454d576911"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/retained-auth-only-artifact.json",
+      "sha256": "3f6d6e78d2fce1f2b455387ead0006ae280621729ce99e787d5a65f31c63458d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/runtime-summary.json",
+      "sha256": "d267b8a68a92d727af4ac3432bea949f34e3d32289bdcf56c2c0919cdb243890"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/status-qualification.json",
+      "sha256": "e2422ff8671e5fb0b3b92c69a3ed39ca938e7f5c9041c30d1baedf918f98b97d"
     }
   ],
-  "pending": [
-    "Mercaria1048 merged62aa/CI accepted; publisher37195704915/image/root functional rollout",
-    "Final workflow reconciliation after Mercaria restoration"
-  ],
+  "pending": [],
   "operationKinds": [
     "Authorized GitHub historical draft closures and issue-state documentation only"
   ],

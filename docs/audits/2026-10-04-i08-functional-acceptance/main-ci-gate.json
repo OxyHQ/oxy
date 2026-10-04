@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-04T10:47:34.455700+00:00",
+  "source": "62aa621892bda26f0f9950c6ac8c61c50c5a0a1f",
+  "command": [
+    "node",
+    ".github/scripts/require-ci-success.mjs",
+    "--repository=OxyHQ/Mercaria",
+    "--sha=62aa621892bda26f0f9950c6ac8c61c50c5a0a1f"
+  ],
+  "exitCode": 0,
+  "scope": "Canonical exact-commit read-only gate; no duplicated tests or deployment",
+  "mainRun": 37195639516
+}

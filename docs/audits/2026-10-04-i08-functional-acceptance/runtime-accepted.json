@@ -1,0 +1,36 @@
+{
+  "kind": "sanitized-root-serving-acceptance",
+  "sourceReceiptSha256": "42cb3e7794161cd310b35132fe100d89bcc0d35e27766738fd71f3b8932b33e0",
+  "source": "62aa621892bda26f0f9950c6ac8c61c50c5a0a1f",
+  "taskDefinition": "oxy-mercaria:62",
+  "imageDigest": "sha256:e749480bde897218b2fd0c8d34d088ce0b92b54804b4deee294eff07c031c027",
+  "taskIds": [
+    "214930bdb20945a6bc20331347386f74"
+  ],
+  "desiredCount": 1,
+  "runningCount": 1,
+  "pendingCount": 0,
+  "rolloutState": "COMPLETED",
+  "allTargetsHealthy": true,
+  "everyTaskRegistrationPositive": true,
+  "expectedRegistration": {
+    "msg": "Merchant billing cohort registered",
+    "cohortSha256": "a7ed9819eb8aa2e8360a430c907092e0af2059a8f9539bafc8eb780771046ed3",
+    "mode": "live",
+    "environment": "production",
+    "storeCount": 2
+  },
+  "publicSmoke": [
+    {
+      "path": "/health",
+      "status": 200,
+      "bodySha256": "f05220b60f0af0e8b9ad63533f8a7e9badf8e788d0061021cd58b7de48a919f2"
+    },
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "bodySha256": "31bf75f4c0a97cc1f7b60df824fa390b3be9ba014f29b63c87c698ba63d9a9fd"
+    }
+  ],
+  "providerOrFinancialMutations": false
+}

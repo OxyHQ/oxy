@@ -1,0 +1,26 @@
+{
+  "kind": "mercaria-unsigned-ingress-rejection-v1",
+  "accepted": true,
+  "at": "2026-10-04T10:57:56.664112+00:00",
+  "servingAcceptanceSha256": "42cb3e7794161cd310b35132fe100d89bcc0d35e27766738fd71f3b8932b33e0",
+  "probes": [
+    {
+      "path": "/webhooks/stripe",
+      "status": 400,
+      "body": "{\"received\":false,\"error\":\"missing_signature\"}",
+      "bodySha256": "e1f97479ee8ef333b73b5a6bb59b823df1b4196df1c09d51a2c58d2f964b908d",
+      "setCookie": [],
+      "location": null
+    },
+    {
+      "path": "/webhooks/stripe/connect",
+      "status": 404,
+      "body": "",
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "setCookie": [],
+      "location": null
+    }
+  ],
+  "scope": "Unsigned platform denial and disabled Connect route; source returns before event ingress/DB/provider. No signed payment or financial operation.",
+  "originalReceiptSha256": "20dca1dae6b2ad42a80e1d246b48420b9122ae013911ee8120ba053350b293d6"
+}

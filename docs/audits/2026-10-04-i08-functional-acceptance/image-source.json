@@ -1,0 +1,96 @@
+{
+  "kind": "mercaria-functional-image-source-projection",
+  "repository": "OxyHQ/Mercaria",
+  "source": "62aa621892bda26f0f9950c6ac8c61c50c5a0a1f",
+  "tree": "fa2c37a6d00b85a2b866d50bb32520208efcfcbf",
+  "imageDigest": "sha256:e749480bde897218b2fd0c8d34d088ce0b92b54804b4deee294eff07c031c027",
+  "authenticatedJob": {
+    "run": 37195704915,
+    "jobId": 111417003296,
+    "conclusion": "success",
+    "artifact": 11300972004,
+    "artifactSha256": "e9d403d7ac039d107f2de5fe7189636b43336c673be9585908df19378e31ba44"
+  },
+  "shippingTrees": [
+    {
+      "name": "canonical-compiled-dist",
+      "files": 4,
+      "allEqual": true,
+      "nonRuntimeCompilerMetadataSha256": {},
+      "metadataByteEqualityClaimed": null
+    },
+    {
+      "name": "source-drizzle",
+      "files": 317,
+      "allEqual": true,
+      "nonRuntimeCompilerMetadataSha256": {},
+      "metadataByteEqualityClaimed": null
+    },
+    {
+      "name": "source-package.json",
+      "files": 1,
+      "allEqual": true,
+      "nonRuntimeCompilerMetadataSha256": {},
+      "metadataByteEqualityClaimed": null
+    },
+    {
+      "name": "source-packages/backend/package.json",
+      "files": 1,
+      "allEqual": true,
+      "nonRuntimeCompilerMetadataSha256": {},
+      "metadataByteEqualityClaimed": null
+    }
+  ],
+  "publishedSDK": [
+    {
+      "package": "core",
+      "archiveSha256": "20fbd2e6fadd5d1e0a6ea9b6ad0ed9f65e77d5289600f6085ebfc16c224d5795",
+      "files": 581,
+      "allEqual": true
+    },
+    {
+      "package": "contracts",
+      "archiveSha256": "d495f3b1aabbfea8da57107e4f4bbee7c8d2e9e34f9e2345923e12a5c080fdaa",
+      "files": 198,
+      "allEqual": true
+    },
+    {
+      "package": "protocol",
+      "archiveSha256": "88498ab28c1aa373f6f725f1625662b47d61e50d8ae25a54c80bfb2ecb65b5db",
+      "files": 145,
+      "allEqual": true
+    },
+    {
+      "package": "mcp",
+      "archiveSha256": "db8e17f533f756574983532bcbb7c154ec618d6a476278132e31dd40adf78c27",
+      "files": 41,
+      "allEqual": true
+    },
+    {
+      "package": "peable-sdk",
+      "archiveSha256": "68687dabc8caddcdb3f60d846d720f5103d29c4d2a0eacb774ebc08ca37f4494",
+      "files": 53,
+      "allEqual": true
+    }
+  ],
+  "imageProofSha256": "a1af2c321f88833c3197ee2039c2f167021ff9b5d3ef337e692c45b4f1cac345",
+  "imageReviewOwner": "integration/root; no duplicate image extraction attributed to i04",
+  "promotionPrepared": {
+    "planSha256": "66e5596feeeae2e82c35b87340bae5cd368039834c241f2bc8a12178bf074d3b",
+    "onlyDelta": "containerDefinitions[0].image",
+    "desiredCount": 1,
+    "minimumHealthyPercent": 100,
+    "maximumPercent": 200,
+    "noMigration": true,
+    "runtimeAccepted": false
+  },
+  "limits": [
+    "Only GitHub Actions GET and ECR/blob GET; no AWS write, DB query, provider call or image execution.",
+    "All 11 compressed layer hashes/sizes and uncompressed diffIDs verified, ARM config/source/tree/runtime command and user verified.",
+    "Four compiled outputs and 317 Drizzle files match accepted source/build inputs exactly; 965 Oxy SDK files and 53 published Peable0.2.2 files match actual authenticated registry archives.",
+    "158 journal entries/canonical migrator unchanged from previously accepted live158-row reconciliation:135 historical full-line-comment-only differences and23 unchanged,0pending. No historical ledger rewriting.",
+    "Initial artifact-census rejection expected an extra config file. Preserved as setup error; corrected to the canonical three artifact files before ECR reads. Config is independently verified from OCI.",
+    "Exact-main CI37195639516 is a separate prerequisite and is not asserted complete here.",
+    "Runtime acceptance must observe positive cohort registration per serving task and the reviewed harmless unsigned ingress negative smoke. No purchase is required or performed."
+  ]
+}

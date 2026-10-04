@@ -1,0 +1,68 @@
+{
+  "kind": "root-1519-final-runtime-restoration-acceptance-v1",
+  "accepted": true,
+  "at": "2026-10-04T10:58:55.261210+00:00",
+  "mercariaSource": "62aa621892bda26f0f9950c6ac8c61c50c5a0a1f",
+  "positiveCohortPerTask": true,
+  "unsignedPlatform400": true,
+  "disabledConnect404": true,
+  "all52OriginalWorkflowsActive": true,
+  "all4HoldVariablesBaselineAbsent": true,
+  "all31ServicesSteady": true,
+  "suspendedScalers": 0,
+  "noNewFinancialOperation": true,
+  "noMigration": true,
+  "limits": [
+    "External Devin hidden flag details unavailable and Cursor no-start preserved in I11 audit; own independent review and required CI/policy accepted.",
+    "Forge exception remains fixed expiry2026-10-09T22:00:00.000Z; no extension.",
+    "Historical failures and qualified earlier acceptances remain recorded; no human-login, paid-live-purchase or global Stripe claim."
+  ],
+  "mercariaTaskDefinition": "oxy-mercaria:62",
+  "mercariaImageDigest": "sha256:e749480bde897218b2fd0c8d34d088ce0b92b54804b4deee294eff07c031c027",
+  "fleetDefinitionDeltas": [
+    {
+      "service": "mercaria",
+      "before": "oxy-mercaria:61",
+      "after": "oxy-mercaria:62"
+    }
+  ],
+  "originalReceiptSha256": "4fa57d9541b55296377d85546e560674e409720af8fec16646d5577335d2997c",
+  "evidence": [
+    {
+      "name": "mercaria-scoped-promotion/review.json",
+      "sha256": "e380bfe5e97789cacd3e89b264f52174fda47acba8efe33a00a2815a40efbc7d"
+    },
+    {
+      "name": "mercaria-scoped-promotion/plan-review.json",
+      "sha256": "b94e88daf93fc7255df99cd00d4d12b62ad3713848f31ad70791799a90a51a28"
+    },
+    {
+      "name": "mercaria-scoped-promotion/execution/accepted.json",
+      "sha256": "42cb3e7794161cd310b35132fe100d89bcc0d35e27766738fd71f3b8932b33e0"
+    },
+    {
+      "name": "mercaria-scoped-promotion/negative-ingress/accepted.json",
+      "sha256": "20dca1dae6b2ad42a80e1d246b48420b9122ae013911ee8120ba053350b293d6"
+    },
+    {
+      "name": "mercaria-scoped-promotion/workflow-restore/accepted.json",
+      "sha256": "1baeef4c11af6f63a3bd8292b70ba94ac270743c576ddf3d3b63d391d0097bc4"
+    },
+    {
+      "name": "final-closure-census/workflows.json",
+      "sha256": "67e76a63a0d2e2824f1bc6757be71e75ffe1421d53e72b346147f77ebb0d637b"
+    },
+    {
+      "name": "final-closure-census/census.json",
+      "sha256": "a17f7ffcc138b482d480c59935fad83d4a577156b5c4b78a0202a1ea31f52585"
+    },
+    {
+      "name": "mercaria-scoped-release/main-ci-final.json",
+      "sha256": "054713773f3a466d0d9b6ea2943f49c11ae50aa7da151b5ea8282c0b586b0f9e"
+    },
+    {
+      "name": "forge-recovery-queue-publication/root-accepted.json",
+      "sha256": "1fb1bcd43e2beae6169150320a9f33b0baaa1e49bf3723a8e3cb7e04f9199ce1"
+    }
+  ]
+}

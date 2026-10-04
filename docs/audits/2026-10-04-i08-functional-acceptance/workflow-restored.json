@@ -1,0 +1,9 @@
+{
+  "accepted": true,
+  "workflow": 299667145,
+  "state": "active",
+  "source": "62aa621892bda26f0f9950c6ac8c61c50c5a0a1f",
+  "dispatch": false,
+  "observedAt": "2026-10-04T10:58:12.222476+00:00",
+  "originalReceiptSha256": "1baeef4c11af6f63a3bd8292b70ba94ac270743c576ddf3d3b63d391d0097bc4"
+}

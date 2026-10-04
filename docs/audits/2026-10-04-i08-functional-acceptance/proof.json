@@ -1,0 +1,84 @@
+{
+  "kind": "i08-functional-followup-acceptance",
+  "status": "accepted",
+  "source": "62aa621892bda26f0f9950c6ac8c61c50c5a0a1f",
+  "sourceProofs": [
+    {
+      "repository": "OxyHQ/Mercaria",
+      "head": "dbb74603d29357346feb0306c40fb237cee3c754",
+      "path": "docs/audits/2026-10-04-i08-cohort-functional-followup/proof.json",
+      "sha256": "7f524cb4772ed3decbb37b292bc4a28a60e93357488a8de0c82322e8b2d951ee"
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "head": "bb2052415e283860c1bc458fd90134d3df9fb649",
+      "path": "docs/audits/2026-10-04-i08-cohort-scoped-recovery/proof.json",
+      "sha256": "72e299d492049f3cfc6a39c496143791dbf7e316d9c31d185695598eba7ba6b3"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-mercaria-scoped-image-20261004/proof.json",
+      "sha256": "a1af2c321f88833c3197ee2039c2f167021ff9b5d3ef337e692c45b4f1cac345"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mercaria-scoped-release/canonical-main-ci-gate.json",
+      "sha256": "c66b3cd03f77e75794e89aae17c334812dbee787e1908994d9a52743c91c0be6"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mercaria-scoped-promotion/plan-review.json",
+      "sha256": "b94e88daf93fc7255df99cd00d4d12b62ad3713848f31ad70791799a90a51a28"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mercaria-cohort-independent-review-20261004/final-source-receipt.json",
+      "sha256": "1e854a99dd12405e830dbb60091165340f5520051d1b08928858f428879cc63e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mercaria-cohort-independent-review-20261004/scoped-recovery-review.json",
+      "sha256": "027b4f1cc77a91a08509e4aadc46e5d48dc5fb9fca27862ba879bfe0cf526180"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mercaria-scoped-promotion/execution/accepted.json",
+      "sha256": "42cb3e7794161cd310b35132fe100d89bcc0d35e27766738fd71f3b8932b33e0"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mercaria-scoped-promotion/negative-ingress/accepted.json",
+      "sha256": "20dca1dae6b2ad42a80e1d246b48420b9122ae013911ee8120ba053350b293d6"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/mercaria-scoped-promotion/workflow-restore/accepted.json",
+      "sha256": "1baeef4c11af6f63a3bd8292b70ba94ac270743c576ddf3d3b63d391d0097bc4"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/final-closure-census/accepted.json",
+      "sha256": "4fa57d9541b55296377d85546e560674e409720af8fec16646d5577335d2997c"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i08-functional-acceptance/README.md",
+      "sha256": "c041f34ab5ab30993d044183991e111216bd029ef353d2a9d28e9d48b3ae50c6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i08-functional-acceptance/image-source.json",
+      "sha256": "56a51fbde37e1a8f2cdd9d16ba140f50e537f1ca509f7dce9202c8ea5f81c5d4"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i08-functional-acceptance/main-ci-gate.json",
+      "sha256": "c66b3cd03f77e75794e89aae17c334812dbee787e1908994d9a52743c91c0be6"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i08-functional-acceptance/negative-ingress.json",
+      "sha256": "40265181ee4bc8e0384780e0c431102166875642af9405693e2f0bc9d221367c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i08-functional-acceptance/runtime-accepted.json",
+      "sha256": "9dffb4b0513ac8f374e5ad515dad92760687757af25e578d9d6772f45a8e83dc"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i08-functional-acceptance/workflow-restored.json",
+      "sha256": "5f8d1098dbe7239524eaab5f2e7ea11fdef9d61c1b608a18789fbc75d66e2873"
+    }
+  ],
+  "newTestsOrRuntimeOperationsByAudit": false
+}
