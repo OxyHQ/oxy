@@ -1,0 +1,1 @@
+{"fixture":"two-real-sdk-processes-synthetic-oracle","assertions":12,"coreVersion":"4.2.0","processes":2,"parentForkUsed":true,"cachePrewarmed":true,"effectsBefore":[1,1],"effectsAfter":[1,1],"outageCountedAsDeny":false,"liveRevocationMeasured":false}

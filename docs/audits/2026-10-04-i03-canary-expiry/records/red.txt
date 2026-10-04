@@ -1,0 +1,60 @@
+The files belonging to this database system will be owned by user "nate".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default database encoding has accordingly been set to "SQL_ASCII".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /home/nate/Oxy/.agent-evidence/i03-canary-expiry-20261004/pg-suco9t8r/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Europe/Bucharest
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /usr/lib/postgresql/17/bin/pg_ctl -D /home/nate/Oxy/.agent-evidence/i03-canary-expiry-20261004/pg-suco9t8r/data -l logfile start
+
+
+waiting for server to start.... done
+server started
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: natural expiry must never count as measured revocation
+
+true !== false
+
+    at file:///home/nate/Oxy/oxy/.worktrees/1519-i03-canary-expiry-20261004/scripts/agency/tests/test-canary-expiry.mjs:69:8 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: true,
+  expected: false,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
+
+OWNED_DATABASE_DROPPED canary_expiry_3ddcee14e90798c9
+waiting for server to shut down.... done
+server stopped
+
+OWNED_POSTGRES_ABSENT 495224
+Traceback (most recent call last):
+  File "/home/nate/Oxy/oxy/.worktrees/1519-i03-canary-expiry-20261004/scripts/agency/tests/test-canary-expiry.py", line 22, in <module>
+    print(result.stdout);sql(f'DROP DATABASE "{name}"');print(f'OWNED_DATABASE_DROPPED {name}');result.check_returncode()
+                                                                                                ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/subprocess.py", line 508, in check_returncode
+    raise CalledProcessError(self.returncode, self.args, self.stdout,
+                             self.stderr)
+subprocess.CalledProcessError: Command '['node', '--experimental-vm-modules', '/home/nate/Oxy/oxy/.worktrees/1519-i03-canary-expiry-20261004/scripts/agency/tests/test-canary-expiry.mjs', '/home/nate/Oxy/.agent-evidence/i03-canary-expiry-20261004/parent-baseline-2237.mjs', 'red-only']' returned non-zero exit status 1.

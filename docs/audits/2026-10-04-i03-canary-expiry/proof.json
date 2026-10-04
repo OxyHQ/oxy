@@ -1,0 +1,113 @@
+{
+  "kind": "external-revocation-canary-expiry-proof-v1",
+  "sourceCommit": "8aff5ae2093281a943c8db24b2784171af80a19a",
+  "baselineCommit": "2237ee282bddfde0c27a6c6ba5e9fc88b5d1d11b",
+  "sourceInputs": [
+    {
+      "path": "scripts/agency/alia-revocation-canary.mjs",
+      "sha256": "d0e1b4299c6568e8909b5adee82a6b6616a77d03a715d6234f5041c13505c598"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary-receiver.mjs",
+      "sha256": "13ff992886c09afeaba560c6e8bd4e7873faad2fba53d2467fb800bad546c10a"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary-ecs.py",
+      "sha256": "9abc7669d99e8c0295633af84848c821a6b35fcaafdfae7fb45ce7a6d5bd4ee2"
+    },
+    {
+      "path": "scripts/agency/tests/test-alia-canary-ecs.py",
+      "sha256": "b96fbd661d4d4af45ff8de48a5ab777676dbc8f33c2eb13bc53de8324c1f485a"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-expiry.mjs",
+      "sha256": "4a445ba7300f9aab99e2c65e43a0dadf44a8608bba47a36214db44716e054935"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-expiry.py",
+      "sha256": "34ff7ee41596c66a29e05b8317d9fa104542f14dae3fc1570d3019fb5ec8a702"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/README.md",
+      "sha256": "9862cefc8e1c00f20f721b93635c44009481cecea837a3b204c6e561c81aa2eb"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/green-final.txt",
+      "bytes": 1624,
+      "sha256": "411e90bff0f2bf331010624ac4fd2f628204b069412a1b9fe4a2ad80d5a70aa4"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/protocol-final.txt",
+      "bytes": 115,
+      "sha256": "5ec16df401f49c1b89b4b6297d63df3de4ef0e0a993f67470770194b459f34db"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/receivers.txt",
+      "bytes": 252,
+      "sha256": "f88bbc7b4b3ccb9e842ad5ae634e34aca2f4f26c04ffa617655a0a4fe8b6f04e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/red.txt",
+      "bytes": 2578,
+      "sha256": "6e0d2c4e55a9f6e8a5476a995579f5aed182b8002faa84839e8d3a837eaedfb9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/protocol-exact-759.txt",
+      "bytes": 115,
+      "sha256": "697f688b19b870ef1458f3800a545ef51cd099541ad838a87a919f1080aacb9b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/receivers-exact-759.txt",
+      "bytes": 252,
+      "sha256": "f88bbc7b4b3ccb9e842ad5ae634e34aca2f4f26c04ffa617655a0a4fe8b6f04e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/green-abort-final.txt",
+      "bytes": 1625,
+      "sha256": "e7f3e28022635bb9a66af6ba707dea0da648e07b26d9a99b638eeb98bcfedc4a"
+    }
+  ],
+  "privateAuthorityReadback": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/authority-live-693/execution/result.private.json",
+      "bytes": 43209,
+      "sha256": "cc597986c2ef326a3814cc5d44227cd600196aad519e9c02198433bcc8de00b2"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/authority-live-693/execution/receipt.json",
+      "bytes": 1262,
+      "sha256": "7c0851ef342fdbaa05ca67c0ad9dc5dfaecd6053f2ca2706211aa2a76d7e469f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/authority-live-693/execution/cleanup.json",
+      "bytes": 74,
+      "sha256": "69e2970dd98151ca57d814d87dafea31a257f7cfccb8937d6241241ccaf16058"
+    }
+  ],
+  "baselineParent": {
+    "path": "/home/nate/Oxy/.agent-evidence/i03-canary-expiry-20261004/parent-baseline-2237.mjs",
+    "sha256": "cafd05c33cb57269ea6c4ba74f9d8dd8d90e39cede013360aec419b97dc5eace"
+  },
+  "validation": {
+    "sameExpiryRequirementBaseline": "FAIL actual measured=true vs expectedfalse",
+    "finalControlledSQLClockCases": 10,
+    "mockedAWSProtocolMethods": 16,
+    "realForkAndSDKControls": 12,
+    "postgresAbsentPids": [
+      493873,
+      495224,
+      497603,
+      499936,
+      523792
+    ],
+    "productionEffects": 0,
+    "exactFinalSourceProtocolAndReceiverRecheck": "16/12 exact759 checkpoint; subsequent source adds only stopIfAborted afterclock;10case full parentGREEN traverses added await; published/API image inputs unchanged"
+  },
+  "limits": [
+    "Controlled SQL clock/state fixture executes actual parent but VM-isolates API credential/mint/fork boundaries.",
+    "Two actual core4.2 receivers use signed synthetic authority, no live sample claimed.",
+    "Operational patched module staging/transport remains a separate reviewed composition prerequisite; frozen API693 image unchanged."
+  ]
+}
