@@ -1,0 +1,12 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/privateCommissioning.test.ts src/services/__tests__/scopedExecution.service.test.ts src/services/__tests__/scopedAdmission.test.ts src/routes/__tests__/inferenceEdge.test.ts --testNamePattern "^(wire audience|private source|refuses (no-legal|no-evidence|foreign-audience|expired|restricted|public-scope)|legal |compiled Node CLI|serializes |rechecks source|private commissioning HTTP|source-bound scoped execution|uses normal qualification|cannot use a permit|canonicalizes the actual|never borrows|attests the explicit|admits exact scoped|keeps the internal input)"
+{"level":30,"time":1791133350167,"pid":1791088,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+PASS src/services/__tests__/privateCommissioning.test.ts
+PASS src/routes/__tests__/inferenceEdge.test.ts
+PASS src/services/__tests__/scopedAdmission.test.ts
+PASS src/services/__tests__/scopedExecution.service.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       131 skipped, 40 passed, 171 total
+Snapshots:   0 total
+Time:        5.669 s
+Ran all test suites within paths "src/services/__tests__/privateCommissioning.test.ts", "src/services/__tests__/scopedExecution.service.test.ts", "src/services/__tests__/scopedAdmission.test.ts", "src/routes/__tests__/inferenceEdge.test.ts".

@@ -1,0 +1,771 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/kaanaCatalogueSync.test.ts --testNamePattern "preserves the exact private legal review|invalidates the prior private review"
+FAIL src/services/__tests__/kaanaCatalogueSync.test.ts
+  parsing Kaana’s catalogue
+    ○ skipped reads the exact wire shape Kaana publishes
+    ○ skipped refuses a body that is not a catalogue at all
+    ○ skipped keeps decimals exact and refuses anything that is not one
+    ○ skipped ranks cheaper routes higher
+  planning one model line
+    ○ skipped plans a describable line, keeping only known efforts in order
+    ○ skipped skips missing_context_tokens rather than inventing a value
+    ○ skipped skips missing_max_output_tokens rather than inventing a value
+    ○ skipped skips missing_modalities rather than inventing a value
+    ○ skipped skips non_text_output_unreviewed rather than inventing a value
+    ○ skipped skips no_priced_route rather than inventing a value
+    ○ skipped skips the reserved alia namespace and a blocked line
+    ○ skipped skips a route on a provider Oxy holds no data policy for, or that Kaana did not attest
+    ○ skipped refuses a non-USD price rather than converting it
+    accepted request parameters
+      ○ skipped normalizes into Oxy vocabulary order, dropping unknown words, and keeps absent as unknown
+      ○ skipped attributes a single-provider line’s set to its route
+      ○ skipped leaves the route unknown when the line reported nothing or names no providers
+      ○ skipped never pins a multi-provider intersection on any one route
+      ○ skipped prefers the deployment’s own attested set
+  syncing into the catalogue
+    ○ skipped writes a routable, internal-only, priced route for a new model line
+    ○ skipped stores a route’s accepted parameters, keeps them current and lets the edge read them
+    ○ skipped is idempotent: an unchanged report writes no new price or scorecard
+    ○ skipped supersedes a price version when the list price changes, and re-points route and scorecard
+    ○ skipped retires a route Kaana stops reporting, and withholds a mass retirement unless confirmed
+    ○ skipped refuses to sync an empty report
+    ○ skipped blocks a line immediately and brings it back only after the block is lifted
+    ○ skipped never rewrites a reviewed model, beyond keeping its efforts current
+    ○ skipped counts, and does not write, lines it cannot describe
+  source-reviewed scoped price bootstrap
+    ✕ preserves the exact private legal review across identical canonical reimport (59 ms)
+    ✕ invalidates the prior private review before reimport with changed privacy (47 ms)
+    ✕ invalidates the prior private review before reimport with changed regions (45 ms)
+    ✕ invalidates the prior private review before reimport with changed model (41 ms)
+    ✕ invalidates the prior private review before reimport with changed audience (41 ms)
+    ✕ invalidates the prior private review before reimport with changed price (42 ms)
+    ✕ invalidates the prior private review before reimport with changed parameters (44 ms)
+    ✕ invalidates the prior private review before reimport with changed route (40 ms)
+    ✕ invalidates the prior private review before reimport with changed revision (41 ms)
+    ○ skipped does not let authenticated remote metadata authorize a local price identity
+    ○ skipped creates the exact reviewed price from the signed list price but leaves execution disabled
+    ○ skipped rejects an audience different from the source review without creating a price
+    ○ skipped preserves an existing active version on other-id mismatch
+    ○ skipped preserves an existing active version on other-price mismatch
+    ○ skipped reuses an exactly matching pre-existing version without replacing it
+    ○ skipped refuses a price ID belonging to a foreign route without modifying that route
+
+  ● source-reviewed scoped price bootstrap › preserves the exact private legal review across identical canonical reimport
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      824 |     const before = await f.row();
+      825 |     const result = await runKaanaCatalogueSync({ reader: f.scopedReader });
+    > 826 |     expect(result.deployments.upserted).toBe(1);
+          |                                         ^
+      827 |     expect(result.priceVersionsCreated).toBe(0);
+      828 |     const facts = (rows: typeof before) => rows.map(({ updatedAt: _importTimestamp, ...row }) => row);
+      829 |     expect(facts(await f.row())).toEqual(facts(before));
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:826:41
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+  ● source-reviewed scoped price bootstrap › invalidates the prior private review before reimport with changed privacy
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  4
+    + Received  + 58
+
+      Array [
+    -   ObjectContaining {
+    -     "legalReviewEvidenceRef": null,
+    -     "legalReviewStatus": "not_started",
+    -     "legalReviewedAt": null,
+    +   Object {
+    +     "acceptedParameters": null,
+    +     "autoApprovalPolicyId": null,
+    +     "availabilityScope": "platform_internal",
+    +     "commercialPermission": "standard_application_use",
+    +     "createdAt": 2026-10-04T17:24:03.585Z,
+    +     "dedicatedCapacity": false,
+    +     "id": "01a107f1-b58f-763f-8494-614b952fc048",
+    +     "internalRouteId": "dep_bfb74a7378_private",
+    +     "legalReviewEvidenceRef": "synthetic-specific-private-review",
+    +     "legalReviewStatus": "approved",
+    +     "legalReviewedAt": 2026-10-04T10:00:00.000Z,
+          "legalReviewedByUserId": null,
+    +     "modelRevisionId": "01a107f1-b587-7bcd-9c08-275d0e9561fa",
+          "permissionState": "pending_review",
+    +     "permissionStateChangedAt": 2026-10-04T17:24:03.584Z,
+    +     "permissionStateChangedByUserId": null,
+    +     "permissionStateNote": "Restricted publication requires source-specific commercial and privacy review.",
+    +     "platformFeePriceVersionId": null,
+    +     "policyUrl": "https://example.test/privacy",
+    +     "priceVersionId": "bf1ff660-2c0c-4c79-b3ef-8f1d12630096",
+    +     "providerSlug": "provbfb74a7378",
+    +     "regions": Array [
+    +       "us-east-1",
+    +     ],
+    +     "retainsPayloads": true,
+    +     "retentionDays": 30,
+    +     "scopedExecution": Object {
+    +       "deploymentId": "dep_bfb74a7378_private",
+    +       "expiresAt": "2099-01-01T00:00:00.000Z",
+    +       "fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    +       "idempotencyKey": "request-bfb74a7378",
+    +       "keyId": "fixture-key",
+    +       "maxCostUsd": "0.01",
+    +       "modelReference": "pubbfb74a7378/private@observed-2026-09-25",
+    +       "permitId": "permit-bfb74a7378",
+    +       "policy": Object {
+    +         "policyVersion": 1,
+    +         "routingPolicyId": "fixture",
+    +       },
+    +       "priceVersionId": "bf1ff660-2c0c-4c79-b3ef-8f1d12630096",
+    +       "principal": Object {
+    +         "accountId": "fixture",
+    +         "applicationId": "fixture",
+    +         "credentialId": "fixture",
+    +         "environment": "production",
+    +       },
+    +       "provider": "provbfb74a7378",
+    +       "providerRateCardVersionId": "fixture-card",
+    +       "providerSourceVersion": "fixture-source",
+    +       "upstreamModelId": "fixture-dated-model",
+    +     },
+          "status": "disabled",
+    +     "subprocessors": null,
+    +     "trainsOnCustomerData": false,
+    +     "updatedAt": 2026-10-04T17:24:03.607Z,
+    +     "upstreamWholesaleCostAmount": null,
+    +     "upstreamWholesaleCostCurrency": null,
+    +     "upstreamWholesaleCostPer": null,
+    +     "upstreamWholesaleCostUnit": null,
+    +     "zeroDataRetentionAvailable": true,
+        },
+      ]
+
+      854 |       }
+      855 |       await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+    > 856 |       expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+          |                             ^
+      857 |         legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      858 |       expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+      859 |     });
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:856:29
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+  ● source-reviewed scoped price bootstrap › invalidates the prior private review before reimport with changed regions
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  4
+    + Received  + 58
+
+      Array [
+    -   ObjectContaining {
+    -     "legalReviewEvidenceRef": null,
+    -     "legalReviewStatus": "not_started",
+    -     "legalReviewedAt": null,
+    +   Object {
+    +     "acceptedParameters": null,
+    +     "autoApprovalPolicyId": null,
+    +     "availabilityScope": "platform_internal",
+    +     "commercialPermission": "standard_application_use",
+    +     "createdAt": 2026-10-04T17:24:03.632Z,
+    +     "dedicatedCapacity": false,
+    +     "id": "01a107f1-b5c0-7fd8-b9b0-137843400213",
+    +     "internalRouteId": "dep_1ba95997eb_private",
+    +     "legalReviewEvidenceRef": "synthetic-specific-private-review",
+    +     "legalReviewStatus": "approved",
+    +     "legalReviewedAt": 2026-10-04T10:00:00.000Z,
+          "legalReviewedByUserId": null,
+    +     "modelRevisionId": "01a107f1-b5b7-79c8-ae4e-1df7b9ab3b71",
+          "permissionState": "pending_review",
+    +     "permissionStateChangedAt": 2026-10-04T17:24:03.632Z,
+    +     "permissionStateChangedByUserId": null,
+    +     "permissionStateNote": "Restricted publication requires source-specific commercial and privacy review.",
+    +     "platformFeePriceVersionId": null,
+    +     "policyUrl": "https://example.test/privacy",
+    +     "priceVersionId": "a8936c3a-236b-4d71-ae84-59107bc436d1",
+    +     "providerSlug": "prov1ba95997eb",
+    +     "regions": Array [
+    +       "us-east-1",
+    +     ],
+    +     "retainsPayloads": true,
+    +     "retentionDays": 30,
+    +     "scopedExecution": Object {
+    +       "deploymentId": "dep_1ba95997eb_private",
+    +       "expiresAt": "2099-01-01T00:00:00.000Z",
+    +       "fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    +       "idempotencyKey": "request-1ba95997eb",
+    +       "keyId": "fixture-key",
+    +       "maxCostUsd": "0.01",
+    +       "modelReference": "pub1ba95997eb/private@observed-2026-09-25",
+    +       "permitId": "permit-1ba95997eb",
+    +       "policy": Object {
+    +         "policyVersion": 1,
+    +         "routingPolicyId": "fixture",
+    +       },
+    +       "priceVersionId": "a8936c3a-236b-4d71-ae84-59107bc436d1",
+    +       "principal": Object {
+    +         "accountId": "fixture",
+    +         "applicationId": "fixture",
+    +         "credentialId": "fixture",
+    +         "environment": "production",
+    +       },
+    +       "provider": "prov1ba95997eb",
+    +       "providerRateCardVersionId": "fixture-card",
+    +       "providerSourceVersion": "fixture-source",
+    +       "upstreamModelId": "fixture-dated-model",
+    +     },
+          "status": "disabled",
+    +     "subprocessors": null,
+    +     "trainsOnCustomerData": false,
+    +     "updatedAt": 2026-10-04T17:24:03.657Z,
+    +     "upstreamWholesaleCostAmount": null,
+    +     "upstreamWholesaleCostCurrency": null,
+    +     "upstreamWholesaleCostPer": null,
+    +     "upstreamWholesaleCostUnit": null,
+    +     "zeroDataRetentionAvailable": true,
+        },
+      ]
+
+      854 |       }
+      855 |       await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+    > 856 |       expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+          |                             ^
+      857 |         legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      858 |       expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+      859 |     });
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:856:29
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+  ● source-reviewed scoped price bootstrap › invalidates the prior private review before reimport with changed model
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  4
+    + Received  + 58
+
+      Array [
+    -   ObjectContaining {
+    -     "legalReviewEvidenceRef": null,
+    -     "legalReviewStatus": "not_started",
+    -     "legalReviewedAt": null,
+    +   Object {
+    +     "acceptedParameters": null,
+    +     "autoApprovalPolicyId": null,
+    +     "availabilityScope": "platform_internal",
+    +     "commercialPermission": "standard_application_use",
+    +     "createdAt": 2026-10-04T17:24:03.677Z,
+    +     "dedicatedCapacity": false,
+    +     "id": "01a107f1-b5ea-7568-97aa-27b000139c0c",
+    +     "internalRouteId": "dep_d70e103706_private",
+    +     "legalReviewEvidenceRef": "synthetic-specific-private-review",
+    +     "legalReviewStatus": "approved",
+    +     "legalReviewedAt": 2026-10-04T10:00:00.000Z,
+          "legalReviewedByUserId": null,
+    +     "modelRevisionId": "01a107f1-b5e3-7dc2-8f9a-27b63a1cc52b",
+          "permissionState": "pending_review",
+    +     "permissionStateChangedAt": 2026-10-04T17:24:03.676Z,
+    +     "permissionStateChangedByUserId": null,
+    +     "permissionStateNote": "Restricted publication requires source-specific commercial and privacy review.",
+    +     "platformFeePriceVersionId": null,
+    +     "policyUrl": "https://example.test/privacy",
+    +     "priceVersionId": "7ef748af-dd51-43f8-b3f1-f41f64ce1638",
+    +     "providerSlug": "provd70e103706",
+    +     "regions": Array [
+    +       "us-east-1",
+    +     ],
+    +     "retainsPayloads": true,
+    +     "retentionDays": 30,
+    +     "scopedExecution": Object {
+    +       "deploymentId": "dep_d70e103706_private",
+    +       "expiresAt": "2099-01-01T00:00:00.000Z",
+    +       "fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    +       "idempotencyKey": "request-d70e103706",
+    +       "keyId": "fixture-key",
+    +       "maxCostUsd": "0.01",
+    +       "modelReference": "pubd70e103706/private@observed-2026-09-25",
+    +       "permitId": "permit-d70e103706",
+    +       "policy": Object {
+    +         "policyVersion": 1,
+    +         "routingPolicyId": "fixture",
+    +       },
+    +       "priceVersionId": "7ef748af-dd51-43f8-b3f1-f41f64ce1638",
+    +       "principal": Object {
+    +         "accountId": "fixture",
+    +         "applicationId": "fixture",
+    +         "credentialId": "fixture",
+    +         "environment": "production",
+    +       },
+    +       "provider": "provd70e103706",
+    +       "providerRateCardVersionId": "fixture-card",
+    +       "providerSourceVersion": "fixture-source",
+    +       "upstreamModelId": "fixture-dated-model",
+    +     },
+          "status": "disabled",
+    +     "subprocessors": null,
+    +     "trainsOnCustomerData": false,
+    +     "updatedAt": 2026-10-04T17:24:03.698Z,
+    +     "upstreamWholesaleCostAmount": null,
+    +     "upstreamWholesaleCostCurrency": null,
+    +     "upstreamWholesaleCostPer": null,
+    +     "upstreamWholesaleCostUnit": null,
+    +     "zeroDataRetentionAvailable": true,
+        },
+      ]
+
+      854 |       }
+      855 |       await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+    > 856 |       expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+          |                             ^
+      857 |         legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      858 |       expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+      859 |     });
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:856:29
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+  ● source-reviewed scoped price bootstrap › invalidates the prior private review before reimport with changed audience
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  4
+    + Received  + 58
+
+      Array [
+    -   ObjectContaining {
+    -     "legalReviewEvidenceRef": null,
+    -     "legalReviewStatus": "not_started",
+    -     "legalReviewedAt": null,
+    +   Object {
+    +     "acceptedParameters": null,
+    +     "autoApprovalPolicyId": null,
+    +     "availabilityScope": "platform_internal",
+    +     "commercialPermission": "standard_application_use",
+    +     "createdAt": 2026-10-04T17:24:03.718Z,
+    +     "dedicatedCapacity": false,
+    +     "id": "01a107f1-b614-7665-88f5-7df8c9074bbb",
+    +     "internalRouteId": "dep_c94ad167f0_private",
+    +     "legalReviewEvidenceRef": "synthetic-specific-private-review",
+    +     "legalReviewStatus": "approved",
+    +     "legalReviewedAt": 2026-10-04T10:00:00.000Z,
+          "legalReviewedByUserId": null,
+    +     "modelRevisionId": "01a107f1-b60c-7c2a-bd56-2a3994e8773a",
+          "permissionState": "pending_review",
+    +     "permissionStateChangedAt": 2026-10-04T17:24:03.718Z,
+    +     "permissionStateChangedByUserId": null,
+    +     "permissionStateNote": "Restricted publication requires source-specific commercial and privacy review.",
+    +     "platformFeePriceVersionId": null,
+    +     "policyUrl": "https://example.test/privacy",
+    +     "priceVersionId": "b727137c-a2fc-4430-9e6c-807a95c92746",
+    +     "providerSlug": "provc94ad167f0",
+    +     "regions": Array [
+    +       "us-east-1",
+    +     ],
+    +     "retainsPayloads": true,
+    +     "retentionDays": 30,
+    +     "scopedExecution": Object {
+    +       "deploymentId": "dep_c94ad167f0_private",
+    +       "expiresAt": "2099-01-01T00:00:00.000Z",
+    +       "fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    +       "idempotencyKey": "request-c94ad167f0",
+    +       "keyId": "fixture-key",
+    +       "maxCostUsd": "0.01",
+    +       "modelReference": "pubc94ad167f0/private@observed-2026-09-25",
+    +       "permitId": "permit-c94ad167f0",
+    +       "policy": Object {
+    +         "policyVersion": 1,
+    +         "routingPolicyId": "fixture",
+    +       },
+    +       "priceVersionId": "b727137c-a2fc-4430-9e6c-807a95c92746",
+    +       "principal": Object {
+    +         "accountId": "fixture",
+    +         "applicationId": "fixture",
+    +         "credentialId": "fixture",
+    +         "environment": "production",
+    +       },
+    +       "provider": "provc94ad167f0",
+    +       "providerRateCardVersionId": "fixture-card",
+    +       "providerSourceVersion": "fixture-source",
+    +       "upstreamModelId": "fixture-dated-model",
+    +     },
+          "status": "disabled",
+    +     "subprocessors": null,
+    +     "trainsOnCustomerData": false,
+    +     "updatedAt": 2026-10-04T17:24:03.740Z,
+    +     "upstreamWholesaleCostAmount": null,
+    +     "upstreamWholesaleCostCurrency": null,
+    +     "upstreamWholesaleCostPer": null,
+    +     "upstreamWholesaleCostUnit": null,
+    +     "zeroDataRetentionAvailable": true,
+        },
+      ]
+
+      854 |       }
+      855 |       await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+    > 856 |       expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+          |                             ^
+      857 |         legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      858 |       expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+      859 |     });
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:856:29
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+  ● source-reviewed scoped price bootstrap › invalidates the prior private review before reimport with changed price
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  4
+    + Received  + 58
+
+      Array [
+    -   ObjectContaining {
+    -     "legalReviewEvidenceRef": null,
+    -     "legalReviewStatus": "not_started",
+    -     "legalReviewedAt": null,
+    +   Object {
+    +     "acceptedParameters": null,
+    +     "autoApprovalPolicyId": null,
+    +     "availabilityScope": "platform_internal",
+    +     "commercialPermission": "standard_application_use",
+    +     "createdAt": 2026-10-04T17:24:03.759Z,
+    +     "dedicatedCapacity": false,
+    +     "id": "01a107f1-b63d-7b60-be71-62a0955c9f2f",
+    +     "internalRouteId": "dep_7567cab1fc_private",
+    +     "legalReviewEvidenceRef": "synthetic-specific-private-review",
+    +     "legalReviewStatus": "approved",
+    +     "legalReviewedAt": 2026-10-04T10:00:00.000Z,
+          "legalReviewedByUserId": null,
+    +     "modelRevisionId": "01a107f1-b635-7f09-94e2-02e85a306844",
+          "permissionState": "pending_review",
+    +     "permissionStateChangedAt": 2026-10-04T17:24:03.759Z,
+    +     "permissionStateChangedByUserId": null,
+    +     "permissionStateNote": "Restricted publication requires source-specific commercial and privacy review.",
+    +     "platformFeePriceVersionId": null,
+    +     "policyUrl": "https://example.test/privacy",
+    +     "priceVersionId": "39f57873-a359-454d-9603-a5c651ef35e8",
+    +     "providerSlug": "prov7567cab1fc",
+    +     "regions": Array [
+    +       "us-east-1",
+    +     ],
+    +     "retainsPayloads": true,
+    +     "retentionDays": 30,
+    +     "scopedExecution": Object {
+    +       "deploymentId": "dep_7567cab1fc_private",
+    +       "expiresAt": "2099-01-01T00:00:00.000Z",
+    +       "fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    +       "idempotencyKey": "request-7567cab1fc",
+    +       "keyId": "fixture-key",
+    +       "maxCostUsd": "0.01",
+    +       "modelReference": "pub7567cab1fc/private@observed-2026-09-25",
+    +       "permitId": "permit-7567cab1fc",
+    +       "policy": Object {
+    +         "policyVersion": 1,
+    +         "routingPolicyId": "fixture",
+    +       },
+    +       "priceVersionId": "39f57873-a359-454d-9603-a5c651ef35e8",
+    +       "principal": Object {
+    +         "accountId": "fixture",
+    +         "applicationId": "fixture",
+    +         "credentialId": "fixture",
+    +         "environment": "production",
+    +       },
+    +       "provider": "prov7567cab1fc",
+    +       "providerRateCardVersionId": "fixture-card",
+    +       "providerSourceVersion": "fixture-source",
+    +       "upstreamModelId": "fixture-dated-model",
+    +     },
+          "status": "disabled",
+    +     "subprocessors": null,
+    +     "trainsOnCustomerData": false,
+    +     "updatedAt": 2026-10-04T17:24:03.781Z,
+    +     "upstreamWholesaleCostAmount": null,
+    +     "upstreamWholesaleCostCurrency": null,
+    +     "upstreamWholesaleCostPer": null,
+    +     "upstreamWholesaleCostUnit": null,
+    +     "zeroDataRetentionAvailable": true,
+        },
+      ]
+
+      854 |       }
+      855 |       await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+    > 856 |       expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+          |                             ^
+      857 |         legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      858 |       expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+      859 |     });
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:856:29
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+  ● source-reviewed scoped price bootstrap › invalidates the prior private review before reimport with changed parameters
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  4
+    + Received  + 58
+
+      Array [
+    -   ObjectContaining {
+    -     "legalReviewEvidenceRef": null,
+    -     "legalReviewStatus": "not_started",
+    -     "legalReviewedAt": null,
+    +   Object {
+    +     "acceptedParameters": null,
+    +     "autoApprovalPolicyId": null,
+    +     "availabilityScope": "platform_internal",
+    +     "commercialPermission": "standard_application_use",
+    +     "createdAt": 2026-10-04T17:24:03.801Z,
+    +     "dedicatedCapacity": false,
+    +     "id": "01a107f1-b668-7112-984b-f9c767276c3a",
+    +     "internalRouteId": "dep_8d63d81305_private",
+    +     "legalReviewEvidenceRef": "synthetic-specific-private-review",
+    +     "legalReviewStatus": "approved",
+    +     "legalReviewedAt": 2026-10-04T10:00:00.000Z,
+          "legalReviewedByUserId": null,
+    +     "modelRevisionId": "01a107f1-b65f-7e12-8b7f-e05ce0617a7d",
+          "permissionState": "pending_review",
+    +     "permissionStateChangedAt": 2026-10-04T17:24:03.801Z,
+    +     "permissionStateChangedByUserId": null,
+    +     "permissionStateNote": "Restricted publication requires source-specific commercial and privacy review.",
+    +     "platformFeePriceVersionId": null,
+    +     "policyUrl": "https://example.test/privacy",
+    +     "priceVersionId": "67594433-cd86-44b0-8f89-d9d6bff57970",
+    +     "providerSlug": "prov8d63d81305",
+    +     "regions": Array [
+    +       "us-east-1",
+    +     ],
+    +     "retainsPayloads": true,
+    +     "retentionDays": 30,
+    +     "scopedExecution": Object {
+    +       "deploymentId": "dep_8d63d81305_private",
+    +       "expiresAt": "2099-01-01T00:00:00.000Z",
+    +       "fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    +       "idempotencyKey": "request-8d63d81305",
+    +       "keyId": "fixture-key",
+    +       "maxCostUsd": "0.01",
+    +       "modelReference": "pub8d63d81305/private@observed-2026-09-25",
+    +       "permitId": "permit-8d63d81305",
+    +       "policy": Object {
+    +         "policyVersion": 1,
+    +         "routingPolicyId": "fixture",
+    +       },
+    +       "priceVersionId": "67594433-cd86-44b0-8f89-d9d6bff57970",
+    +       "principal": Object {
+    +         "accountId": "fixture",
+    +         "applicationId": "fixture",
+    +         "credentialId": "fixture",
+    +         "environment": "production",
+    +       },
+    +       "provider": "prov8d63d81305",
+    +       "providerRateCardVersionId": "fixture-card",
+    +       "providerSourceVersion": "fixture-source",
+    +       "upstreamModelId": "fixture-dated-model",
+    +     },
+          "status": "disabled",
+    +     "subprocessors": null,
+    +     "trainsOnCustomerData": false,
+    +     "updatedAt": 2026-10-04T17:24:03.825Z,
+    +     "upstreamWholesaleCostAmount": null,
+    +     "upstreamWholesaleCostCurrency": null,
+    +     "upstreamWholesaleCostPer": null,
+    +     "upstreamWholesaleCostUnit": null,
+    +     "zeroDataRetentionAvailable": true,
+        },
+      ]
+
+      854 |       }
+      855 |       await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+    > 856 |       expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+          |                             ^
+      857 |         legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      858 |       expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+      859 |     });
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:856:29
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+  ● source-reviewed scoped price bootstrap › invalidates the prior private review before reimport with changed route
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  4
+    + Received  + 58
+
+      Array [
+    -   ObjectContaining {
+    -     "legalReviewEvidenceRef": null,
+    -     "legalReviewStatus": "not_started",
+    -     "legalReviewedAt": null,
+    +   Object {
+    +     "acceptedParameters": null,
+    +     "autoApprovalPolicyId": null,
+    +     "availabilityScope": "platform_internal",
+    +     "commercialPermission": "standard_application_use",
+    +     "createdAt": 2026-10-04T17:24:03.845Z,
+    +     "dedicatedCapacity": false,
+    +     "id": "01a107f1-b692-70ea-b580-2669726182e7",
+    +     "internalRouteId": "dep_4815957b3d_private",
+    +     "legalReviewEvidenceRef": "synthetic-specific-private-review",
+    +     "legalReviewStatus": "approved",
+    +     "legalReviewedAt": 2026-10-04T10:00:00.000Z,
+          "legalReviewedByUserId": null,
+    +     "modelRevisionId": "01a107f1-b68b-75dc-b777-a17fbdd06dbe",
+          "permissionState": "pending_review",
+    +     "permissionStateChangedAt": 2026-10-04T17:24:03.845Z,
+    +     "permissionStateChangedByUserId": null,
+    +     "permissionStateNote": "Restricted publication requires source-specific commercial and privacy review.",
+    +     "platformFeePriceVersionId": null,
+    +     "policyUrl": "https://example.test/privacy",
+    +     "priceVersionId": "40370876-8957-4fe7-9309-da2ac079265c",
+    +     "providerSlug": "prov4815957b3d",
+    +     "regions": Array [
+    +       "us-east-1",
+    +     ],
+    +     "retainsPayloads": true,
+    +     "retentionDays": 30,
+    +     "scopedExecution": Object {
+    +       "deploymentId": "dep_4815957b3d_private",
+    +       "expiresAt": "2099-01-01T00:00:00.000Z",
+    +       "fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    +       "idempotencyKey": "request-4815957b3d",
+    +       "keyId": "fixture-key",
+    +       "maxCostUsd": "0.01",
+    +       "modelReference": "pub4815957b3d/private@observed-2026-09-25",
+    +       "permitId": "permit-4815957b3d",
+    +       "policy": Object {
+    +         "policyVersion": 1,
+    +         "routingPolicyId": "fixture",
+    +       },
+    +       "priceVersionId": "40370876-8957-4fe7-9309-da2ac079265c",
+    +       "principal": Object {
+    +         "accountId": "fixture",
+    +         "applicationId": "fixture",
+    +         "credentialId": "fixture",
+    +         "environment": "production",
+    +       },
+    +       "provider": "prov4815957b3d",
+    +       "providerRateCardVersionId": "fixture-card",
+    +       "providerSourceVersion": "fixture-source",
+    +       "upstreamModelId": "fixture-dated-model",
+    +     },
+          "status": "disabled",
+    +     "subprocessors": null,
+    +     "trainsOnCustomerData": false,
+    +     "updatedAt": 2026-10-04T17:24:03.866Z,
+    +     "upstreamWholesaleCostAmount": null,
+    +     "upstreamWholesaleCostCurrency": null,
+    +     "upstreamWholesaleCostPer": null,
+    +     "upstreamWholesaleCostUnit": null,
+    +     "zeroDataRetentionAvailable": true,
+        },
+      ]
+
+      854 |       }
+      855 |       await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+    > 856 |       expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+          |                             ^
+      857 |         legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      858 |       expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+      859 |     });
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:856:29
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+  ● source-reviewed scoped price bootstrap › invalidates the prior private review before reimport with changed revision
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  4
+    + Received  + 58
+
+      Array [
+    -   ObjectContaining {
+    -     "legalReviewEvidenceRef": null,
+    -     "legalReviewStatus": "not_started",
+    -     "legalReviewedAt": null,
+    +   Object {
+    +     "acceptedParameters": null,
+    +     "autoApprovalPolicyId": null,
+    +     "availabilityScope": "platform_internal",
+    +     "commercialPermission": "standard_application_use",
+    +     "createdAt": 2026-10-04T17:24:03.885Z,
+    +     "dedicatedCapacity": false,
+    +     "id": "01a107f1-b6ba-7ca8-a519-8a15e37fab46",
+    +     "internalRouteId": "dep_f8bf617e72_private",
+    +     "legalReviewEvidenceRef": "synthetic-specific-private-review",
+    +     "legalReviewStatus": "approved",
+    +     "legalReviewedAt": 2026-10-04T10:00:00.000Z,
+          "legalReviewedByUserId": null,
+    +     "modelRevisionId": "01a107f1-b6b3-7f57-a7eb-c8960faf27c6",
+          "permissionState": "pending_review",
+    +     "permissionStateChangedAt": 2026-10-04T17:24:03.885Z,
+    +     "permissionStateChangedByUserId": null,
+    +     "permissionStateNote": "Restricted publication requires source-specific commercial and privacy review.",
+    +     "platformFeePriceVersionId": null,
+    +     "policyUrl": "https://example.test/privacy",
+    +     "priceVersionId": "1963862a-cf67-4d62-9659-704754fa4f88",
+    +     "providerSlug": "provf8bf617e72",
+    +     "regions": Array [
+    +       "us-east-1",
+    +     ],
+    +     "retainsPayloads": true,
+    +     "retentionDays": 30,
+    +     "scopedExecution": Object {
+    +       "deploymentId": "dep_f8bf617e72_private",
+    +       "expiresAt": "2099-01-01T00:00:00.000Z",
+    +       "fixtureSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    +       "idempotencyKey": "request-f8bf617e72",
+    +       "keyId": "fixture-key",
+    +       "maxCostUsd": "0.01",
+    +       "modelReference": "pubf8bf617e72/private@observed-2026-09-25",
+    +       "permitId": "permit-f8bf617e72",
+    +       "policy": Object {
+    +         "policyVersion": 1,
+    +         "routingPolicyId": "fixture",
+    +       },
+    +       "priceVersionId": "1963862a-cf67-4d62-9659-704754fa4f88",
+    +       "principal": Object {
+    +         "accountId": "fixture",
+    +         "applicationId": "fixture",
+    +         "credentialId": "fixture",
+    +         "environment": "production",
+    +       },
+    +       "provider": "provf8bf617e72",
+    +       "providerRateCardVersionId": "fixture-card",
+    +       "providerSourceVersion": "fixture-source",
+    +       "upstreamModelId": "fixture-dated-model",
+    +     },
+          "status": "disabled",
+    +     "subprocessors": null,
+    +     "trainsOnCustomerData": false,
+    +     "updatedAt": 2026-10-04T17:24:03.906Z,
+    +     "upstreamWholesaleCostAmount": null,
+    +     "upstreamWholesaleCostCurrency": null,
+    +     "upstreamWholesaleCostPer": null,
+    +     "upstreamWholesaleCostUnit": null,
+    +     "zeroDataRetentionAvailable": true,
+        },
+      ]
+
+      854 |       }
+      855 |       await runKaanaCatalogueSync({ reader: { ...f.scopedReader, listModels: async () => body } });
+    > 856 |       expect(await f.row()).toEqual([expect.objectContaining({ status: 'disabled', permissionState: 'pending_review',
+          |                             ^
+      857 |         legalReviewStatus: 'not_started', legalReviewEvidenceRef: null, legalReviewedAt: null, legalReviewedByUserId: null })]);
+      858 |       expect(await f.prices()).toEqual([expect.objectContaining({ id: f.scope.priceVersionId, status: 'active' })]);
+      859 |     });
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:856:29
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:46:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       9 failed, 34 skipped, 43 total
+Snapshots:   0 total
+Time:        0.865 s, estimated 1 s
+Ran all test suites within paths "src/services/__tests__/kaanaCatalogueSync.test.ts".
+error: script "test" exited with code 1

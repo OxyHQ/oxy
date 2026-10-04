@@ -56,13 +56,12 @@ export function hashScopedInput(input: unknown): string {
   return createHash('sha256').update(canonicalScopedExecutionJson(input), 'utf8').digest('hex');
 }
 
-/** Must be constructed from the selected normal candidate, after all normal gates. */
-export interface ScopedCatalogueEvidence {
+/** Actual legal, privacy, policy and capability facts of the selected candidate. */
+interface ScopedCatalogueEvidenceBase {
   readonly modelRevisionId: string;
   readonly deploymentId: string;
   readonly priceVersionId: string;
   readonly commercialPermission: string;
-  readonly permissionState: 'approved';
   readonly legalReviewStatus: 'approved';
   readonly legalReviewEvidenceRef: string;
   readonly eligibility: {
@@ -80,6 +79,27 @@ export interface ScopedCatalogueEvidence {
   readonly policy: RoutingPolicyReference;
 }
 
+/** Commissioning is a private measurement, never a public permission approval. */
+export type ScopedCatalogueEvidence = ScopedCatalogueEvidenceBase & (
+  | { readonly permissionState: 'approved'; readonly admission?: 'approved_catalogue' }
+  | { readonly permissionState: 'pending_review'; readonly admission: 'private_commissioning';
+      readonly deploymentStatus: 'disabled' }
+);
+
+type WithoutPolicy<T> = T extends ScopedCatalogueEvidence ? Omit<T, 'policy'> : never;
+export type ScopedCatalogueRouteEvidence = WithoutPolicy<ScopedCatalogueEvidence>;
+
+/** Wire-supplied audience data cannot authorize a private catalogue row. */
+export function privateCommissioningAudience(
+  audience: ScopedExecutionAudience | undefined,
+  now = Date.now(),
+): ScopedExecutionAudience | undefined {
+  const reviewed = sourceReviewedScopedAudience(now);
+  return audience !== undefined && reviewed !== undefined &&
+    canonicalScopedExecutionJson(audience) === canonicalScopedExecutionJson(reviewed)
+    ? reviewed : undefined;
+}
+
 /** No snapshot id can substitute for the exact negotiated audience/card proof. */
 export function attestScopedPermit(
   permit: ScopedExecutionAudience,
@@ -90,7 +110,10 @@ export function attestScopedPermit(
   if (attestation.scopedExecutionContractVersion !== '3.6.0' || !attestation.snapshotId ||
     attestation.deployments.length !== 1 || !requestId || !evidence.modelRevisionId ||
     !evidence.legalReviewEvidenceRef.trim() || !evidence.commercialPermission ||
-    evidence.permissionState !== 'approved' || evidence.legalReviewStatus !== 'approved' ||
+    !((evidence.permissionState === 'approved' && (evidence.admission === undefined || evidence.admission === 'approved_catalogue')) ||
+      (evidence.permissionState === 'pending_review' && evidence.admission === 'private_commissioning' &&
+        evidence.deploymentStatus === 'disabled' && evidence.eligibility.availabilityScope === 'platform_internal')) ||
+    !Number.isFinite(Date.parse(permit.expiresAt)) || Date.parse(permit.expiresAt) <= Date.now() || evidence.legalReviewStatus !== 'approved' ||
     evidence.deploymentId !== permit.deploymentId || evidence.priceVersionId !== permit.priceVersionId ||
     canonicalScopedExecutionJson(evidence.policy) !== canonicalScopedExecutionJson(permit.policy) ||
     evidence.eligibility.policyAdmitted !== true || evidence.eligibility.capabilityAdmitted !== true ||
