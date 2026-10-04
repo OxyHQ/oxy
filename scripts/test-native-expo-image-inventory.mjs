@@ -4,7 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { inspectImage } from "./native-expo-image-inventory.mjs";
+import {
+	inspectImage,
+	readDeclaredNativePackageInventory,
+} from "./native-expo-image-inventory.mjs";
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function fixture(fn) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), "native-image-"));
@@ -17,13 +20,20 @@ function fixture(fn) {
 			const dir = path.join(root, name);
 			fs.mkdirSync(dir, { recursive: true });
 			const files = {
-				"package.json": JSON.stringify({ name, version: "fixture" }),
+				"package.json": JSON.stringify({
+					name,
+					version:
+						name === "@oxy.so/expo-cli-native"
+							? "57.0.23+oxy.native.3"
+							: "0.1.1",
+				}),
 				"index.cjs": "module.exports = {}",
 			};
 			for (const [file, bytes] of Object.entries(files))
 				fs.writeFileSync(path.join(dir, file), bytes);
 			expected[name] = {
-				version: "fixture",
+				version:
+					name === "@oxy.so/expo-cli-native" ? "57.0.23+oxy.native.3" : "0.1.1",
 				files: Object.fromEntries(
 					Object.entries(files).map(([file, bytes]) => [file, sha(bytes)]),
 				),
@@ -74,4 +84,62 @@ test("native file symlink cannot substitute mounted proof bytes", () =>
 		fs.renameSync(file, replacement);
 		fs.symlinkSync(replacement, file);
 		assert.throws(() => inspectImage(root, expected), /physical/);
+	}));
+
+test("historical archive cannot override the exact manifest selection", () => {
+	const root = path.resolve(import.meta.dirname, "..");
+	assert(
+		fs.existsSync(
+			path.join(
+				root,
+				"vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz",
+			),
+		),
+	);
+	const expected = readDeclaredNativePackageInventory(root);
+	assert.equal(
+		expected["@oxy.so/expo-cli-native"].version,
+		"57.0.23+oxy.native.3",
+	);
+	assert.equal(expected["@oxy.so/expo-code-signing-native"].version, "0.1.1");
+});
+
+test("declared archive must be local, present and have the exact package identity", () => {
+	const root = fs.mkdtempSync(path.join(os.tmpdir(), "native-declared-"));
+	try {
+		const manifest = JSON.parse(
+			fs.readFileSync(
+				path.resolve(import.meta.dirname, "../package.json"),
+				"utf8",
+			),
+		);
+		fs.writeFileSync(path.join(root, "package.json"), JSON.stringify(manifest));
+		assert.throws(() => readDeclaredNativePackageInventory(root));
+		// Both archives exist, but selecting the adapter as CLI must fail identity.
+		const archive =
+			"vendor/expo-native/oxy.so-expo-code-signing-native-0.1.1.tgz";
+		fs.mkdirSync(path.dirname(path.join(root, archive)), { recursive: true });
+		fs.copyFileSync(
+			path.resolve(import.meta.dirname, "..", archive),
+			path.join(root, archive),
+		);
+		manifest.overrides["@expo/cli"] = `file:./${archive}`;
+		fs.writeFileSync(path.join(root, "package.json"), JSON.stringify(manifest));
+		assert.throws(() => readDeclaredNativePackageInventory(root));
+		manifest.overrides["@expo/cli"] =
+			"file:./vendor/expo-native/../../secret.tgz";
+		fs.writeFileSync(path.join(root, "package.json"), JSON.stringify(manifest));
+		assert.throws(
+			() => readDeclaredNativePackageInventory(root),
+			/regular expression/,
+		);
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("old declared version cannot accept newly installed CLI bytes", () =>
+	fixture((root, expected) => {
+		expected["@oxy.so/expo-cli-native"].version = "57.0.23+oxy.native.1";
+		assert.throws(() => inspectImage(root, expected), /strictly equal/);
 	}));
