@@ -32,6 +32,15 @@ jobs:
         with:
           filters: |
             accounts:
+              # Shared install/build inputs also change the deployed bundle.
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'turbo.json'
+              - 'patches/**'
+              - 'vendor/expo-native/**'
+              - 'tooling/expo-code-signing-native/**'
+              - '.github/workflows/deploy-cloudflare.yml'
               - 'packages/accounts/**'
               - 'packages/app-preset/**'
               - 'packages/bloom/**'
@@ -41,6 +50,15 @@ jobs:
               - 'packages/services/**'
               - 'packages/contracts/**'
             auth:
+              # Shared install/build inputs also change the deployed bundle.
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'turbo.json'
+              - 'patches/**'
+              - 'vendor/expo-native/**'
+              - 'tooling/expo-code-signing-native/**'
+              - '.github/workflows/deploy-cloudflare.yml'
               - 'packages/auth/**'
               - 'packages/app-preset/**'
               - 'packages/bloom/**'
@@ -49,6 +67,15 @@ jobs:
               - 'packages/services/**'
               - 'packages/contracts/**'
             console:
+              # Shared install/build inputs also change the deployed bundle.
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'turbo.json'
+              - 'patches/**'
+              - 'vendor/expo-native/**'
+              - 'tooling/expo-code-signing-native/**'
+              - '.github/workflows/deploy-cloudflare.yml'
               - 'packages/console/**'
               - 'packages/app-preset/**'
               - 'packages/bloom/**'
