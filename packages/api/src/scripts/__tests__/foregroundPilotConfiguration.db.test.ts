@@ -214,6 +214,40 @@ it("applies only the reviewed delta, rejects drift/fences, rolls back partial SQ
 			Reflect.deleteProperty(process.env, "NODE_ENV");
 		else process.env.NODE_ENV = previousNodeEnv;
 	}
+	const retainedExistingCredentials = await getDb()
+		.insert(applicationCredentials)
+		.values([
+			{
+				name: "Synthetic retained identity",
+				applicationId: MENTION_APPLICATION_ID,
+				type: "public",
+				environment: "production",
+				status: "active",
+				publicKey: `synthetic_public_${randomBytes(12).toString("hex")}`,
+				scopes: ["user:read"],
+			},
+			{
+				name: "Synthetic retained identity",
+				applicationId: MENTION_APPLICATION_ID,
+				type: "service",
+				environment: "production",
+				status: "active",
+				publicKey: `synthetic_service_${randomBytes(12).toString("hex")}`,
+				secretHash: "a".repeat(64),
+				scopes: originalScopes,
+			},
+			{
+				name: "Synthetic retained identity",
+				applicationId: MENTION_APPLICATION_ID,
+				type: "public",
+				environment: "production",
+				status: "active",
+				publicKey: `synthetic_public_${randomBytes(12).toString("hex")}`,
+				scopes: ["user:read"],
+			},
+		])
+		.returning();
+
 	const fresh = async () => {
 		const input = await snapshots(owner.id);
 		return prepareForegroundPilotPlan(input.mention, input.registrar);
@@ -226,6 +260,7 @@ it("applies only the reviewed delta, rejects drift/fences, rolls back partial SQ
 				.where(eq(applications.id, OXY_PROFILE_REGISTRAR_APPLICATION_ID)),
 		).toEqual([]);
 	let plan = await fresh();
+	expect(plan.expectedCredentials).toHaveLength(5);
 	await getDb()
 		.update(applications)
 		.set({ status: "suspended" })
@@ -265,7 +300,9 @@ it("applies only the reviewed delta, rejects drift/fences, rolls back partial SQ
 		.set({ scopes: originalScopes })
 		.where(eq(applicationWorkloadIdentities.id, mcp.id));
 	plan = await fresh();
-	const identity = plan.expectedCredentials[0];
+	const identity = plan.expectedCredentials.find(
+		(row) => row.type === "workload",
+	);
 	if (!identity) throw new Error("Canonical identity fixture absent");
 	await getDb()
 		.update(applicationCredentials)
@@ -308,6 +345,18 @@ it("applies only the reviewed delta, rejects drift/fences, rolls back partial SQ
 	});
 	// The failed transaction also leaves the old revisions valid for the same CAS.
 	await applyForegroundPilotConfiguration(plan);
+
+	expect(
+		await getDb()
+			.select()
+			.from(applicationCredentials)
+			.where(
+				inArray(
+					applicationCredentials.id,
+					retainedExistingCredentials.map((row) => row.id),
+				),
+			),
+	).toEqual(retainedExistingCredentials);
 	const [machine] = await getDb()
 		.select()
 		.from(applications)

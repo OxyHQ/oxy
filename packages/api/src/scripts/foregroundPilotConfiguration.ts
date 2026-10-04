@@ -59,7 +59,7 @@ const workload = z
 		row_revision: revision,
 	})
 	.strict();
-const credential = z
+const workloadCredential = z
 	.object({
 		id: z.string().startsWith("wl_"),
 		application_id: z.literal(MENTION_APPLICATION_ID),
@@ -72,6 +72,31 @@ const credential = z
 		row_revision: revision,
 	})
 	.strict();
+// Inert existing OAuth identities participate in the complete CAS census only.
+// No writer in this configuration changes their authority or lifecycle.
+const retainedCredential = z
+	.object({
+		id: z
+			.string()
+			.min(1)
+			.refine((id) => !id.startsWith("wl_")),
+		application_id: z.literal(MENTION_APPLICATION_ID),
+		type: z.enum(["public", "service"]),
+		environment: z.literal("production"),
+		status: z.enum(["active", "deprecated", "revoked"]),
+		expires_at: z.string().datetime().nullable(),
+		scopes: strings,
+		workload_identity_id: z.null(),
+		row_revision: revision,
+	})
+	.strict();
+const credential = z.union([workloadCredential, retainedCredential]);
+const credentialCensus = z
+	.array(credential)
+	.min(2)
+	.max(20)
+	.refine((rows) => new Set(rows.map((row) => row.id)).size === rows.length)
+	.refine((rows) => rows.filter((row) => row.type === "workload").length === 2);
 const table = z
 	.object({
 		status: z.literal("complete"),
@@ -149,7 +174,7 @@ const planSchema = z
 		expiresAt: z.string(),
 		expectedApplication: application,
 		expectedWorkloads: z.array(workload).length(2),
-		expectedCredentials: z.array(credential).length(2),
+		expectedCredentials: credentialCensus,
 		expectedOwners: z.array(account.strict()).min(1).max(2),
 		registrarOwner: rootAccount,
 		afterScopes: strings,
@@ -198,15 +223,15 @@ export function prepareForegroundPilotPlan(
 	const expectedWorkloads = mention.tables.application_workload_identities.rows
 		.map((row) => workload.parse(row))
 		.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-	const expectedCredentials = mention.tables.application_credentials.rows
-		.map((row) => credential.parse(row))
+	const expectedCredentials = credentialCensus
+		.parse(mention.tables.application_credentials.rows)
 		.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 	const owner = account.strict().parse(mention.tables.users.rows[0]);
 	const registrarOwner = rootAccount.parse(registrar.tables.users.rows[0]);
 	if (
 		owner.id !== expectedApplication.owner_account_id ||
 		expectedWorkloads.length !== 2 ||
-		expectedCredentials.length !== 2 ||
+		expectedCredentials.filter((row) => row.type === "workload").length !== 2 ||
 		new Set(expectedWorkloads.map((row) => row.subject)).size !== 2
 	)
 		throw new Error("I05 binding/owner census mismatch");
