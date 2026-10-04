@@ -27,6 +27,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { executeRows, type SqlExecutor } from '@oxy.so/db';
 import {
   costCenterUsageSchema,
+  privateAutoOperationId,
   USAGE_UNITS,
   type CostCenterUsage,
   type InferenceEconomicTreatment,
@@ -52,6 +53,8 @@ import { quoteUnits } from './inferenceLedger.service';
 /* -------------------------------------------------------------------------- */
 
 export interface MeteredAdmissionInput {
+  /** Server-owned private Auto lineage; never read from a public request. */
+  readonly privateAutoParent?: { readonly meteredUsageId: string; readonly requestId: string; readonly deadlineAt: number };
   readonly requestId: string;
   readonly parentRequestId?: string;
   readonly idempotencyKey: string;
@@ -73,6 +76,7 @@ export interface MeteredAdmissionInput {
 
 export type MeteredAdmission =
   | { readonly status: 'claimed'; readonly meteredUsageId: string }
+  | { readonly status: 'parent-unavailable' }
   /** Another request already holds this idempotency key (or this request id). */
   | { readonly status: 'duplicate' }
   | {
@@ -178,6 +182,46 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
       if (counts.dailyAdmissions >= capacity.maxRequestsPerUtcDay) {
         return { status: 'capacity-exceeded', limit: 'daily', capacity };
       }
+    }
+
+    if (input.privateAutoParent !== undefined) {
+      const parent = input.privateAutoParent;
+      let stableChildId: string;
+      try { stableChildId = privateAutoOperationId(parent.meteredUsageId); }
+      catch { return { status: 'parent-unavailable' }; }
+      if (input.economics.treatment !== 'internal_metered' || input.requestId !== stableChildId ||
+        input.economics.relationship.consumerApplicationId !== input.applicationId ||
+        input.idempotencyKey !== stableChildId || input.parentRequestId !== parent.requestId ||
+        input.endpoint !== '/internal/auto-classification' || input.delegatedUserId !== undefined ||
+        !Number.isFinite(parent.deadlineAt)) return { status: 'parent-unavailable' };
+      // The parent and child share principal/economics, not a ledger row. Lock
+      // the parent while claiming the child and its independent capacity slot.
+      const eligibleParents = await tx.select({ id: inferenceMeteredUsage.id })
+        .from(inferenceMeteredUsage).where(and(
+          eq(inferenceMeteredUsage.id, parent.meteredUsageId),
+          eq(inferenceMeteredUsage.requestId, parent.requestId),
+          eq(inferenceMeteredUsage.accountId, input.accountId),
+          eq(inferenceMeteredUsage.applicationId, input.applicationId),
+          eq(inferenceMeteredUsage.applicationCredentialId, input.applicationCredentialId),
+          eq(inferenceMeteredUsage.environment, input.environment),
+          eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
+          eq(inferenceMeteredUsage.economicPolicyVersion, input.economics.policyVersion),
+          eq(inferenceMeteredUsage.economicRelationshipId, input.economics.relationship.relationshipId),
+          eq(inferenceMeteredUsage.status, 'admitted'),
+          sql`${inferenceMeteredUsage.delegatedUserId} is null`,
+          sql`${inferenceMeteredUsage.parentRequestId} is null`,
+          sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`,
+        )).for('update');
+      if (eligibleParents.length !== 1) return { status: 'parent-unavailable' };
+      // WHERE is evaluated before a row-lock wait, and now() is fixed at TX start.
+      // Re-read real DB time AFTER both locks; neither parent nor deadline can renew.
+      const stillActive = await tx.select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+        .where(and(eq(inferenceMeteredUsage.id, parent.meteredUsageId),
+          eq(inferenceMeteredUsage.status, 'admitted'),
+          sql`${inferenceMeteredUsage.expiresAt} > clock_timestamp()`,
+          sql`to_timestamp(${parent.deadlineAt} / 1000.0) > clock_timestamp()`)).limit(1);
+      if (stillActive.length !== 1) return { status: 'parent-unavailable' };
+      values.expiresAt.setTime(Math.min(values.expiresAt.getTime(), parent.deadlineAt));
     }
 
     // Any unique conflict — the idempotency key or the request id — is a

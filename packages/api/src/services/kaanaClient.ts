@@ -65,6 +65,8 @@ import type {
   InferenceMessage,
   InferenceRequest,
   ScopedInferenceRequest,
+  PrivateAutoInferenceRequest,
+  PrivateAutoSourceApproval,
   ScopedExecutionAudience,
   InferenceStreamEvent,
   InferenceStreamRouteSwitchEvent,
@@ -167,6 +169,7 @@ export interface KaanaDeploymentDescriptor {
    */
   readonly acceptedParameters?: readonly string[];
   readonly scopedExecution?: ScopedExecutionAudience;
+  readonly privateAutoSourceApproval?: PrivateAutoSourceApproval;
   readonly keyId?: string;
   readonly upstreamModelId?: string;
   readonly providerRateCardVersionId?: string;
@@ -177,6 +180,7 @@ export interface KaanaDeploymentDescriptor {
 export interface KaanaDeploymentAttestation {
   readonly snapshotId: string;
   readonly scopedExecutionContractVersion?: '3.6.0';
+  readonly privateAutoExecutionContractVersion?: '3.7.0';
   readonly deployments: readonly KaanaDeploymentDescriptor[];
 }
 
@@ -219,6 +223,7 @@ export interface KaanaExecuteOptions {
    */
   readonly signal: AbortSignal;
   readonly scopedExecutionContractVersion?: '3.6.0';
+  readonly privateAutoExecutionContractVersion?: '3.7.0';
 }
 
 /**
@@ -235,7 +240,7 @@ export interface KaanaClient {
     deploymentIds: readonly string[],
     options: KaanaExecuteOptions
   ): Promise<KaanaDeploymentAttestation>;
-  execute(envelope: InferenceRequest | ScopedInferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
+  execute(envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
   /**
    * The normalized events as they are produced, then the usage report.
    *
@@ -244,7 +249,7 @@ export interface KaanaClient {
    * runs the generator's own cleanup, which aborts the upstream hop.
    */
   stream(
-    envelope: InferenceRequest | ScopedInferenceRequest,
+    envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
     options: KaanaExecuteOptions
   ): AsyncIterable<KaanaStreamFrame>;
 }

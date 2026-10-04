@@ -1002,6 +1002,13 @@
       "when": 1791130206456,
       "tag": "0143_sour_dark_phoenix",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1791148919905,
+      "tag": "0144_light_colossus",
+      "breakpoints": true
     }
   ]
 }
