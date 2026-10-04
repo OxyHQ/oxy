@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {randomUUID} from 'node:crypto';
+import {requireSettledOperation} from './canary-reconciliation.mjs';
+const image='/home/nate/Oxy/.agent-evidence/i04-i03-live-canary-20261004/image-base-api';
+const require=createRequire(`${image}/package.json`),postgres=require('postgres');
+const url=new URL(process.env.DATABASE_URL);assert.equal(url.hostname,'127.0.0.1');assert.equal(url.port,'5635');assert.match(url.pathname,/^\/i09_route_[a-f0-9]+$/);
+const db=postgres(url.href,{max:1}),connection=require(`${image}/dist/config/postgres.js`),service=require(`${image}/dist/services/inferenceMeteredUsage.service.js`);
+const model='openai/gpt-oss-120b@observed-2026-09-01',deployment='dep_groq_openai_gpt_oss_120b_observed_2026_09_01';
+let passed=0;
+try{
+ await connection.connectPostgres();
+ const [owner]=await db`INSERT INTO users(id,username,color) VALUES (${randomUUID()},'i09-own-sql-route','blue') RETURNING id`;
+ const [app]=await db`INSERT INTO applications(id,name,owner_account_id,type,status,is_official,is_internal,scopes) VALUES (${randomUUID()},'Synthetic local I09 route',${owner.id},'internal','active',true,true,ARRAY['inference:invoke']) RETURNING id`;
+ const [credential]=await db`INSERT INTO application_credentials(id,application_id,name,type,environment,scopes,status) VALUES ('wl_i09_route_fixture',${app.id},'Synthetic attribution','workload','production',ARRAY[]::text[],'active') RETURNING id`;
+ const [price]=await db`INSERT INTO price_versions(id,model_reference,provider,status,effective_from) VALUES (${randomUUID()},${model},'groq','active',now()) RETURNING id`;
+ const makeInput=()=>{const id=randomUUID();return{requestId:id,idempotencyKey:'oxy-edge:req:'+id,economics:{treatment:'internal_metered',policyVersion:'oxy-inference-economics/2026-10-03.3',relationship:{relationshipId:'alia-kaana',capacity:{maxConcurrentRequests:10,maxRequestsPerUtcDay:10}}},accountId:owner.id,applicationId:app.id,applicationCredentialId:credential.id,environment:'production',endpoint:'/v1/responses',requestedModelReference:model,admittedModelReference:model,admittedProvider:'groq',admittedDeploymentId:deployment,ceiling:undefined,expiresInSeconds:120};};
+ const input=makeInput(),claim=await service.claimMeteredAdmission(input);assert.equal(claim.status,'claimed');
+ let [row]=await db`SELECT * FROM inference_metered_usage WHERE id=${claim.meteredUsageId}`;
+ assert.deepEqual([row.final_authorized_model_reference,row.final_authorized_provider,row.final_authorized_deployment_id],[null,null,null]);assert.equal(row.admitted_deployment_id,deployment);passed++;
+ await assert.rejects(db`UPDATE inference_metered_usage SET final_authorized_provider='groq' WHERE id=${claim.meteredUsageId}`,e=>e.code==='23514');passed++;
+ const settled=await service.settleMeteredUsage({meteredUsageId:claim.meteredUsageId,outcome:'completed',usageSource:'provider_reported',units:{output_tokens:2},resolvedModelReference:model,servingProvider:'groq',priceVersionId:price.id});assert.equal(settled.status,'settled');
+ [row]=await db`SELECT * FROM inference_metered_usage WHERE id=${claim.meteredUsageId}`;
+ assert.deepEqual([row.final_authorized_model_reference,row.final_authorized_provider,row.final_authorized_deployment_id],[null,null,null]);
+ const before={kind:'i09-exact-operation-observation-v1',intent:input.idempotencyKey,applicationId:app.id,ownerAccountId:owner.id,readOnly:true,isolation:'repeatable read',metered:[],attempts:[],money:{}};
+ const after={...before,metered:[row],attempts:[{request_id:row.request_id,attempt_index:0,served:true,deployment_id:deployment,provider:'groq',model_reference:model}]};
+ const canary={clientRequestId:input.idempotencyKey,requestId:row.request_id,ok:true,firstHttpStatus:200,retryHttpStatus:409,authority:{credentialId:credential.id},provider:'groq',usage:[{unit:'output_tokens',quantity:2}]};
+ assert.equal(requireSettledOperation(before,after,canary).request_id,row.request_id);passed++;
+ const autoInput=makeInput(),autoClaim=await service.claimMeteredAdmission(autoInput);assert.equal(autoClaim.status,'claimed');assert.equal(await service.finalizeMeteredAuthorization(autoClaim.meteredUsageId,autoInput),true);
+ const [auto]=await db`SELECT * FROM inference_metered_usage WHERE id=${autoClaim.meteredUsageId}`;assert.deepEqual([auto.final_authorized_model_reference,auto.final_authorized_provider,auto.final_authorized_deployment_id],[model,'groq',deployment]);assert.equal(auto.admitted_deployment_id,deployment);passed++;
+ console.log(`Canonical image693 SQL ${passed} controls PASS: direct claim/settlement NULL; partial NULL constraint; explicit finalization full tuple. No external inference.`);
+}finally{await connection.closePostgres();await db.end({timeout:5});}

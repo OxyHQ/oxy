@@ -21,10 +21,20 @@ export function requireSettledOperation(before,after,canary){
  const row=after.metered[0];
  requireValue(row.request_id===canary.requestId&&row.application_id===after.applicationId&&row.account_id===after.ownerAccountId&&row.application_credential_id===canary.authority.credentialId&&row.environment==='production'&&row.delegated_user_id===null,'metered_authority_differs');
  requireValue(row.status==='settled'&&row.outcome==='completed'&&row.economic_treatment==='internal_metered'&&row.economic_relationship_id==='alia-kaana'&&row.economic_policy_version==='oxy-inference-economics/2026-10-03.3'&&row.usage_receipt_id===null,'metered_economics_differs');
- requireValue(Object.hasOwn(DEPLOYMENTS,row.final_authorized_deployment_id)&&DEPLOYMENTS[row.final_authorized_deployment_id]===row.final_authorized_provider&&row.final_authorized_model_reference===MODEL&&row.serving_provider===canary.provider,'final_route_differs');
+ // Direct explicit-model claims persist only admitted_*; final_authorized_* is
+ // appended by finalizeMeteredAuthorization for preclaimed Auto authorization.
+ // This pilot is explicit-model only: requested/admitted/resolved must all agree.
+ const approved=(deployment,provider,model)=>Object.hasOwn(DEPLOYMENTS,deployment)&&DEPLOYMENTS[deployment]===provider&&model===MODEL;
+ const finalTuple=[row.final_authorized_deployment_id,row.final_authorized_provider,row.final_authorized_model_reference];
+ const direct=finalTuple.every(value=>value===null);
+ requireValue(direct||finalTuple.every(value=>typeof value==='string'&&value.length>0),'final_route_differs');
+ const deployment=direct?row.admitted_deployment_id:row.final_authorized_deployment_id;
+ const provider=direct?row.admitted_provider:row.final_authorized_provider;
+ const model=direct?row.admitted_model_reference:row.final_authorized_model_reference;
+ requireValue(row.requested_model_reference===MODEL&&row.resolved_model_reference===MODEL&&approved(row.admitted_deployment_id,row.admitted_provider,row.admitted_model_reference)&&approved(deployment,provider,model)&&row.serving_provider===provider&&row.serving_provider===canary.provider,'final_route_differs');
  requireValue(Array.isArray(canary.usage)&&canary.usage.length>0&&canary.usage.every(unit=>Object.hasOwn(row,unit.unit)&&String(row[unit.unit])===String(unit.quantity)),'metered_usage_differs');
  requireValue(JSON.stringify(before.money)===JSON.stringify(after.money),'owner_money_changed_requires_reconciliation');
- requireValue(after.attempts.length>0&&after.attempts.every(a=>a.request_id===row.request_id&&Object.hasOwn(DEPLOYMENTS,a.deployment_id)&&a.provider===DEPLOYMENTS[a.deployment_id]&&a.model_reference===MODEL),'exact_attempts_missing_or_foreign');
+ requireValue(after.attempts.length>0&&after.attempts.every(a=>a.request_id===row.request_id&&Object.hasOwn(DEPLOYMENTS,a.deployment_id)&&a.provider===DEPLOYMENTS[a.deployment_id]&&a.model_reference===MODEL)&&after.attempts.some(a=>a.served===true&&a.deployment_id===deployment&&a.provider===provider&&a.model_reference===model),'exact_attempts_missing_or_foreign');
  return row;
 }
 export async function readExactFeedEvents(reader,requestId,afterCursor){
