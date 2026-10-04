@@ -16,7 +16,7 @@ export function controlledInputBudget(request: NormalizedEdgeRequest, scopedPerm
   if (request.operation.kind === 'decisions' && request.input.format === 'decisions' &&
       scopedPermit !== undefined && Date.parse(scopedPermit.expiresAt) > Date.now() &&
       request.target?.kind === 'model' && request.target.modelReference === scopedPermit.modelReference &&
-      hashScopedInput(request.input) === scopedPermit.fixtureSha256 && !request.stream &&
+      hashScopedInput(JSON.parse(JSON.stringify(request.input))) === scopedPermit.fixtureSha256 && !request.stream &&
       request.audioOutput === undefined && request.tools.length === 0) {
     return Buffer.byteLength(JSON.stringify({ input: request.input, tools: request.tools,
       toolChoice: request.toolChoice, responseFormat: request.responseFormat }), 'utf8') + BASE_OVERHEAD;

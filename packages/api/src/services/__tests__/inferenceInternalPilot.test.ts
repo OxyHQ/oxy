@@ -68,6 +68,11 @@ describe('scoped decisions pilot budget', () => {
     const large = { ...input, decisions: { ...input.decisions, questions: [{ ...input.decisions.questions[0], question: '字'.repeat(3000) }] } };
     expect(controlledInputBudget({ ...scopedRequest, input: large }, { ...permit, fixtureSha256: hashScopedInput(large) })).toBeGreaterThan(8192);
   });
+  it('matches wire JSON when normalized optional properties are undefined', () => {
+    const withoutEffort = { ...input, decisions: { ...input.decisions, effort: undefined } };
+    const wirePermit = { ...permit, fixtureSha256: hashScopedInput(JSON.parse(JSON.stringify(withoutEffort))) };
+    expect(controlledInputBudget({ ...scopedRequest, input: withoutEffort }, wirePermit)).toBeGreaterThan(256);
+  });
   it('restricts an authenticated scoped request to its exact route instead of the other pilot routes', () => {
     const pilot = INTERNAL_METERED_RELATIONSHIPS[0].pilot;
     if (pilot === undefined) throw new Error('Missing pilot');
