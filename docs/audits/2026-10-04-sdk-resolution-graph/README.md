@@ -1,0 +1,11 @@
+# Installed SDK dependency graph verification
+
+Corrects the P2 in [review1567](https://github.com/OxyHQ/oxy/pull/1567#issuecomment-5973425909), tracked by [1571](https://github.com/OxyHQ/oxy/issues/1571). The corrected external adoption operator retains all registry-origin, five-artifact integrity/member, manifest pin and frozen-install gates. It does not publish or deploy software.
+
+The verifier starts at root/workspace dependencies and resolves each SDK using Node createRequire from that manifest. It then traverses SDK dependencies, peers and optional dependencies from each installed SDK package, recording parent/child edges and checking every resolved realpath against the reviewed registry version and archive members. Realpath deduplication and node/edge bounds stop cycles. Optional absence is explicit and never claims member equality; a present but broken optional package fails. Installed SDK development dependencies are not part of its runtime graph.
+
+The same22-case fixture fails12 assertions against the retained d11 baseline and passes all22 against the fix. It includes same-version altered nested core, wrong nested version, transitive-only contracts/protocol, peers/optional dependencies, hoisted and identical nested copies, cycles, missing required/transitive registry evidence and broken optional entrypoints. The original12 registry/preflight/private-receipt fixtures remain present.
+
+A fresh public-registry read verified all five versions' archive integrity and shipping-member equality against the previously published archives. [All18 retained adoption worktrees](consumer-graphs.json) then passed the complete graph read-only, with source/manifest/lock hashes unchanged during inspection. This closes the verifier counterexample without asserting an installed production defect or claiming that local paths are production filesystems.
+
+This branch is the maintained successor of the external tool retained when draft1567 closed. It is not a business-runtime patch and requires no SDK republish, installation, database change or production deployment. Historical receipts retain their original scope; the new graph receipts supersede their direct-import-only guarantee.

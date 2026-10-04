@@ -129,25 +129,56 @@ def importer_manifests(wt):
 
 
 def verify_installed(row, registry):
-    wt = Path(row['worktree'])
+    wt = Path(row['worktree']).resolve()
     expected = {item['name']: item for item in registry}
     importer_files = importer_manifests(wt)
     receipts = []
+    verified = {}
+    pending = [(manifest, True) for manifest in importer_files]
     resolver = """const fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module');
-const [manifest,name]=process.argv.slice(1);const req=createRequire(manifest);let p=path.dirname(req.resolve(name));
+const [manifest,name]=process.argv.slice(1);const req=createRequire(manifest);let entry;
+try{entry=req.resolve(name)}catch(e){
+ const present=(req.resolve.paths(name)||[]).some(base=>{try{fs.lstatSync(path.join(base,name));return true}catch(x){if(x.code==='ENOENT')return false;throw x}});
+ if(e.code==='MODULE_NOT_FOUND'&&!present){process.stdout.write('null');process.exit(0)}throw e;
+}
+let p=path.dirname(entry);
 while(p!=='/'&&(!fs.existsSync(path.join(p,'package.json'))||JSON.parse(fs.readFileSync(path.join(p,'package.json'))).name!==name))p=path.dirname(p);
-if(p==='/')process.exit(2);process.stdout.write(fs.realpathSync(p));"""
-    for manifest in importer_files:
+if(p==='/')process.exit(2);process.stdout.write(JSON.stringify(fs.realpathSync(p)));"""
+    while pending:
+        manifest, consumer = pending.pop(0)
         data = json.loads(manifest.read_text())
-        names = set(data.get('dependencies', {})) | set(data.get('devDependencies', {})) | set(data.get('optionalDependencies', {}))
+        sections = ['dependencies', 'peerDependencies', 'optionalDependencies']
+        if consumer:
+            sections.append('devDependencies')
+        names = set().union(*(data.get(section, {}) for section in sections))
         for name in sorted(names & SDK):
-            path = Path(command(['node', '-e', resolver, str(manifest), name], wt))
-            installed = json.loads((path / 'package.json').read_text())
-            require(installed['name'] == name and installed['version'] == expected[name]['version'], 'Installed package version differs')
-            for rel, digest in expected[name]['memberHashes'].items():
-                require(sha((path / rel).read_bytes()) == digest, 'Installed member differs from published archive')
-            receipts.append({'importer': str(manifest.relative_to(wt)), 'name': name, 'version': installed['version'], 'root': str(path), 'files': len(expected[name]['memberHashes']), 'allFilesEqual': True})
-    require(receipts, 'No SDK importer verified')
+            require(len(receipts) < 8192, 'SDK dependency edge bound exceeded')
+            require(name in expected, 'SDK dependency lacks verified registry artifact: ' + name)
+            kinds = [section for section in sections if name in data.get(section, {})]
+            optional = all(section == 'optionalDependencies' or
+                           (section == 'peerDependencies' and data.get('peerDependenciesMeta', {}).get(name, {}).get('optional') is True)
+                           for section in kinds)
+            importer = str(manifest.relative_to(wt)) if manifest.is_relative_to(wt) else str(manifest)
+            edge = {'importer': importer, 'parentPackage': data.get('name'), 'name': name, 'dependencyTypes': kinds}
+            resolved = json.loads(command(['node', '-e', resolver, str(manifest), name], wt))
+            if resolved is None:
+                require(optional, 'Required SDK dependency is absent: ' + name)
+                receipts.append(edge | {'status': 'optional-absent', 'root': None, 'files': 0})
+                continue
+            path = Path(resolved)
+            if path not in verified:
+                require(len(verified) < 1024, 'SDK package node bound exceeded')
+                installed = json.loads((path / 'package.json').read_text())
+                require(installed['name'] == name and installed['version'] == expected[name]['version'], 'Installed package version differs')
+                for rel, digest in expected[name]['memberHashes'].items():
+                    require(sha((path / rel).read_bytes()) == digest, 'Installed member differs from published archive')
+                verified[path] = installed
+                # Installed SDK development dependencies do not belong to its runtime graph.
+                pending.append((path / 'package.json', False))
+            installed = verified[path]
+            require(installed['name'] == name, 'Resolved SDK package identity differs')
+            receipts.append(edge | {'status': 'verified', 'version': installed['version'], 'root': str(path), 'files': len(expected[name]['memberHashes']), 'allFilesEqual': True})
+    require(verified, 'No SDK importer verified')
     return receipts
 
 

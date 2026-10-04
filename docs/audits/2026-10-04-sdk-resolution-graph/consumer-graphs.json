@@ -1,0 +1,325 @@
+{
+  "scope": "Current read-only verification of retained adoption worktrees; not runtime filesystem inspection or new deployment.",
+  "consumers": [
+    {
+      "repository": "OxyHQ/Alia",
+      "head": "34760e37bed353321e568bc4cbbb45db26d00dd2",
+      "manifestAndLockSha256": {
+        "package.json": "011be0c23e8eaea15b384a78e629bed11aeb5bed8df8a17dbd27f1c99641bfb0",
+        "packages/alia-canvas/package.json": "8d701385a1d719a09a5613363cbea317a5c220533b25c043d90c66cae1fc9dbc",
+        "packages/alia-chat/package.json": "370c6f83aa3466eed021d155bb83cf3e5608b7cf5fcc323463d5f2835ed98e25",
+        "packages/alia-codea/package.json": "a2b44edd18415132ac44a17c96bcba0785762b218bb13327fb0cc3346d70c2bb",
+        "packages/alia-codea/webview-ui/package.json": "78bd50e0886d10700b64331ba0c7be51528492e8da4a237fa987411c64ad9627",
+        "packages/alia-codea-cli/package.json": "485216ce6333ae4fbea98e149e843d33f5c50742f7ceb1f20dded961b315d166",
+        "packages/alia-computer-host/package.json": "f76f6c3dff0f274cc594975a8dc1360aed307951ffe05f829ef3dfcb931b6c27",
+        "packages/alia-cowork/package.json": "19ac58f6ed8426694dba64d59b371ad29eab37d22bcae1a6b07a3cfecdf6693d",
+        "packages/alia-server/package.json": "8d235b79f5122aac4c907c580415eeeb5e97b084f0312213f83579ade03874f3",
+        "packages/api/package.json": "770b0ffbc49699d0ac4939d9af6c30ed32a980fad8e194976c3935d37e1b3ef4",
+        "packages/app/package.json": "c79d52a1f3350c8bef35e9c9248bd44b73a6d4331e7757ee6a1086fc5afa26df",
+        "packages/integrations/package.json": "a1a2e34b1384ab7ea8f0985e32d90dbdd598b3ac8b27797cf374e0792607c804",
+        "bun.lock": "348799a2503bb752f097e86ce383d2cf99d38eb5a6caaa40929880c44fa4faef"
+      },
+      "accepted": true,
+      "edges": 23,
+      "distinctInstalledPackages": 5,
+      "receiptSha256": "1d9aa0913379b1d0e559515cd7989d5e2fdb2ec7bb45c023226149dd156e9489",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Allo",
+      "head": "c1a0cec2efbdaa3dc3446b965a6ce363c4513301",
+      "manifestAndLockSha256": {
+        "package.json": "e87be1546922e96df67c6bc1691ed963b7a044ff4e1c0948fa7b39d034eecbe0",
+        "packages/backend/package.json": "6710abb77ae199637d5fe12368d9511021d4a098eee7f46b8a07d5c51baccdfd",
+        "packages/core/package.json": "e9ae3e1497f68b4c8c44faeb28e291c8a96d712d7e566b725638c53f75ed383d",
+        "packages/frontend/package.json": "980f07936de6ecd259fffc4bf096487823fbc4eace66bf8d4ada1a471267505a",
+        "packages/react/package.json": "c7314d1d4a9366bc7a63ff12dd693e2dc484787db569f3a33784df59a24806f5",
+        "packages/shared-types/package.json": "3370106dfee1108eadacb38708df27cf749cf717e4ba85bc7803c804dbddec17",
+        "bun.lock": "5a6e0749d8a39c6fac94ad8102a1c1c7ca18619fdc134dc21776e2737f8e1be7"
+      },
+      "accepted": true,
+      "edges": 12,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "b320247c257ce35bd4ec12ea79a61d96f1e9f1224be05c40299467a69c83c30d",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Atlas",
+      "head": "f641f3bd3eb85552991b3ad52ff93b44f8305a5f",
+      "manifestAndLockSha256": {
+        "package.json": "0d9f6216db39eb15aa4036572e2392af2a39667e2b1a323dbb8854b044c029f2",
+        "packages/frontend/package.json": "ac90309679d777ab9209f53596d330a6479dddcb615c9e96eb2d2531a8a13f25",
+        "packages/shared-types/package.json": "24dcab5ac41d37c2ee456f476b3743b1c1e0a48673c761b3de152b65a38dd9a6",
+        "bun.lock": "bec4589a89dd672798a5cf8cfca2123a6242c0c51a094f44521c7bff0beb189c"
+      },
+      "accepted": true,
+      "edges": 7,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "ec8bbed2d9795d41fc7be1dc27a2ee1d14b074298808b066b0159a06912ae1f8",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Clarity",
+      "head": "c76a44e280d3aad2c98b6210057899415aed3287",
+      "manifestAndLockSha256": {
+        "package.json": "d7700d7e871e9157bdd7ea95ec852a6f7f4a77d39652b7fa00f785f5006188a3",
+        "packages/backend/package.json": "169288d52186a8ddf42e488b190d80e725b18cbb8476bcde0bd2db684f49c331",
+        "packages/frontend/package.json": "a24074461e270ea8a95a4b55e49771e7d5a88f42c408a80239711feadb310850",
+        "packages/sdk/package.json": "d52ed40d8752b97a0125ff807cda611bd645ee8e24686a2d51da7b60d1452a05",
+        "packages/shared-types/package.json": "210427299d396517fc36cadce1eea83e0132ed924fd28f6b5461d54a96b2216d",
+        "bun.lock": "48926393ca1ab3d1d3b91ce40d2daf162debe4581fee25664bad639228ae19fb"
+      },
+      "accepted": true,
+      "edges": 10,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "fb7bc2fce50f89a2ede9aac22aac3037d3eaa753c13d1b99f738dc77d3cdbb29",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/CrowdSource",
+      "head": "e5445b1c2b6dcb57fdfeaab6ce71801c7bb420a3",
+      "manifestAndLockSha256": {
+        "package.json": "75cbaed8a6a21618f7ccc8264320aad184af8f73b3e31da1218ae0159956252a",
+        "packages/backend/package.json": "bedf96b48d3ffac87862cfa94ad612b5ab619d0fe01e41909ad60fc089955242",
+        "packages/console/package.json": "ac8353dce1eb36d524d8e7ab70af8fe043f97b69650a90c6eb2b00e9cd389c66",
+        "packages/contracts/package.json": "957a9c9e98fe10f90b5ada265f400769d380334a8a7bd6d6df6eee9ea6f28c98",
+        "packages/core/package.json": "51de2ff9daa23353a5f4d5c7ba09832966f833a4e8f064400a3817e655584f34",
+        "packages/reviewer/package.json": "b0e4d8fcb52d9bc92b048d63583e8200c898eb08a912c0f423d4bbd1db10a5bd",
+        "bun.lock": "0d59a98cedbcb7146c814be4f3db53e442bfaf6fddcbc6cde899dcd9b14d7024"
+      },
+      "accepted": true,
+      "edges": 11,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "514770bc62b4e0f46ebc6fc0f161819efd808feecc7356240d15bf78b6e82328",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/GoWay",
+      "head": "3cb44f55cefb1e91f6c5e5bdf9f7beca459da666",
+      "manifestAndLockSha256": {
+        "package.json": "cb03265e6c865e03ca4c64edebfa1d860742b517b4eacc5fbb900d14d4e7068b",
+        "packages/backend/package.json": "dadef3cd2fcc2bd68e5d71e80b3499370d1d9b435db5ef7b4eb00cb136f8d235",
+        "packages/frontend/package.json": "2a9f7619f02a3ec90cbc8eebc6ccc1bb3ffdb8066f887ae00885352d850adc2e",
+        "packages/sdk/package.json": "c0c33950a36fc242afd81b2892d4f0167edc9f8df851e55196c6315f1a493fe1",
+        "packages/shared-types/package.json": "9ae24758ed861ee0589e7e739ce75cae131f981fbf15667d670e4e66d5facfdf",
+        "bun.lock": "6f6ad044de36230eb25a457effe00799b354001ce79a81dbc3abae7232bcdb15"
+      },
+      "accepted": true,
+      "edges": 8,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "b78a9abfb6bf2e85bdb0b75c09fa93e448aec318df5b93914a41f1a3bf74527e",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Homiio",
+      "head": "c3f12731d4504127875d2eb68765d4ffeea8207e",
+      "manifestAndLockSha256": {
+        "package.json": "05c70c5ef08d1a0f01a88d7b3709f1847826d2ca70a304e9f238a3c64572b4a6",
+        "packages/backend/package.json": "8c8cce98addacacc7564fb3f15cb1958966a90d24b6f74630a4c9b0720f03e13",
+        "packages/frontend/package.json": "a4367cc8ccb106e9da083d75b533e69d0ac2504e742348a57d82737113c9f364",
+        "packages/listing-providers/package.json": "eb2e936bf6faccd4aab36881de4920e62c20c6ce2a761eeb788d635a787acf7b",
+        "packages/shared-types/package.json": "d3820efb7cd92d708e30e6e86649c2b9a4e80a5aed50c559e28eb82c17fdbea8",
+        "bun.lock": "7ef25eaafb15a264b73659ce527fff513f35adca6a49bd7813708bcc2701fa4b"
+      },
+      "accepted": true,
+      "edges": 10,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "8feb307ecc12aa835055a98d95e0e1320f43d683e0b1bf9da426746844e0e89e",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Mention",
+      "head": "298052e58203ef321c4b63d543a6f023e7c75197",
+      "manifestAndLockSha256": {
+        "package.json": "6efb9a305136fa99ba67c7430791858c4e934b7a8a466045bbc9a6675483930f",
+        "packages/backend/package.json": "56414c79befa306f7b6ac393393c059c05e9e9e3b8599f4ff5331bd71725018e",
+        "packages/e2e/package.json": "32a808c3e22ed2aaf10a6e5629636bfa173182a3fcd07dc0839fa45bcb739c72",
+        "packages/frontend/package.json": "da186e0565f456a7a5e37c1215dd09536b7a82a18f64e4e2d6d45d806de5f416",
+        "packages/mcp/package.json": "34f21690b3e38401b9465707019665f9853d023c5de0da252a77faaefbf00972",
+        "packages/shared-types/package.json": "15b1a3521eb1e8ebc6802305abf4b46ebb2e5db1748fb3b52b3d15853a91b060",
+        "bun.lock": "95516a3b545f81e8d7d9c1779ca075212fdfb92d4c7205541700956f6ab79e5a"
+      },
+      "accepted": true,
+      "edges": 17,
+      "distinctInstalledPackages": 5,
+      "receiptSha256": "23067ff55f663cebd64e00ad871d197023f198126901d870b8ba7b02387eddee",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Mercaria",
+      "head": "3f8e2f0c8930edc5d1f1c5e61855e5295b288911",
+      "manifestAndLockSha256": {
+        "package.json": "f4baa12c8eb65b7a48f62477608815e68f3d74884002236eb1f85a30d5401a7f",
+        "packages/backend/package.json": "4e8d18ac094a03a30b4c2914d7dd7931a4b02da85bac3fbf87432afe5918690d",
+        "packages/dashboard/package.json": "7db026beefbab274149935dcce7272fbae1f62450a64547770cd3f950847c9c2",
+        "packages/frontend/package.json": "7ad0e83ebfba0d909e5eba0250104eee819903fac06550031cc8fac3e9ac17eb",
+        "packages/pos/package.json": "72445e084ae6ed991d9572a1b5792e164c358d38cf4c84d59bd984b0b3426ffc",
+        "packages/sdk/package.json": "6da20d50d9dc37233ed6a1815dd2942d89ab3230c2278df18ce27c8fa57ccf6d",
+        "packages/shared-types/package.json": "f2c74f437976fa9bfa67c5e51a4f004610da757e86dca3aa9d929529d763d822",
+        "packages/ui/package.json": "5dfd142175b3233f29b1978e0677ac4d39c2563efe2de84e2fe76a7de6d98cf9",
+        "bun.lock": "f950d4374476c27b2b957c400545aadce0880508bf4caf68422b2155756ddbb7"
+      },
+      "accepted": true,
+      "edges": 16,
+      "distinctInstalledPackages": 5,
+      "receiptSha256": "948719d108b2476b1e36117ea596b100fcaedb1ce4305a6292478506ff057858",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Moovo",
+      "head": "0000447654d1d04cdda71ed0e3ca4c3bf3502384",
+      "manifestAndLockSha256": {
+        "package.json": "3cb4883888957f63b9a1057b6c5de40dd94b74ede50cf935c123bf7becb41931",
+        "packages/backend/package.json": "cc52f40eeb7c2ad51a77d20d731b131b893fee7551b604561236c4c903560a37",
+        "packages/courier-app/package.json": "76553d0109a8a351bf94da1881e5195be64f0f20512e31882446a5c952d7ba32",
+        "packages/fleet-dashboard/package.json": "a47d9a4c70a5e68ae32db800902e7e234ffd5fc3e4e46f4e14d69942d2fc90b1",
+        "packages/frontend/package.json": "e49b959e7962e5b4b1b0431ed80ed425c5b2fa8cfa158481e436da40db83c5e3",
+        "packages/shared-types/package.json": "aba534415bd5de7567934f3f067200d7352f5be7a1746768af5296df10c37d9e",
+        "packages/tracker-app/package.json": "4c91fc9ee80b5ea403d85f2ce8a1ea7d8cabdb5b4272fc81661a6c02c8d41b37",
+        "bun.lock": "098a6557f59d124c94bd6dda739e44c9de766b51da1ac6765bef4fe563d19c4a"
+      },
+      "accepted": true,
+      "edges": 20,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "911772f3f2e6a04870e1bcb2d0b01b82c94bee315b9fe67678bc3236e0cc66a4",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Move",
+      "head": "ad3fff2994bd890779cfc2a0df3e546a02436614",
+      "manifestAndLockSha256": {
+        "package.json": "e96b7c1ce7c21c48cd69161f49ccdd353eb297d313675557a82772fc4eafc324",
+        "packages/backend/package.json": "07af8736d2243826716e081edc141da22dd84e3be40f3c23fd79a46ae1179025",
+        "packages/frontend/package.json": "6b236df4655e74dd135ced8bb50e796290cc75141ce87ac3c39ca3e7d53e52ee",
+        "packages/shared-types/package.json": "665e1d6aee76d0910ce9f6b17b9522355d5916c74374c0340a5f449afa1fc417",
+        "bun.lock": "47a6e0c11612e456a03b9f9c60be9004772265763ec604e7face56e32042fdab"
+      },
+      "accepted": true,
+      "edges": 10,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "d95986d4f12be72b6e63366db652580bedf973f56cddc2196933903d167b224b",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Nilo",
+      "head": "8adb30d26fabfbf1ea5ba5fd938962117ec10568",
+      "manifestAndLockSha256": {
+        "apps/api/package.json": "5873237d234fae2ecd58366e779e2f42404187cfdf546bae1691a5b7744f8493",
+        "apps/app/package.json": "abda1349dccc567a9cb83f83c6551a5f8cc11974350d9baf0eda975f8d0aabcd",
+        "package.json": "5894ead2556a66778aab69028c1e7a038b4551745f4197d6a3f6445f791770e5",
+        "bun.lock": "d45a8d3b707034f13468b14328fbadfbcfc1f9d7146aa83cecc771fbec7682cd"
+      },
+      "accepted": true,
+      "edges": 12,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "bb2cbdbc4d83c333ffa046448bd05c6e0421553f187a96ed8a54f79a2c8088fc",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Noted",
+      "head": "860277c3e3837178a6db1b68759d6266345e9eb8",
+      "manifestAndLockSha256": {
+        "package.json": "b0a61aef83949562cbbdea12456844d211a2350ced2b1d866f03cd72ba5c0487",
+        "packages/backend/package.json": "04df1907ba44253a6d57b43ab96e1da2b61f6e2c2e18e66639da1a9c7880e701",
+        "packages/frontend/package.json": "74d25b02f6c8fc079f284f754622c4bf4e73b971694ecb30c91025c7d02c4b2e",
+        "packages/shared-types/package.json": "90549c57fd33f0ba13eaf5ff862235cb309bdd6591409fa0fb86eb296366589a",
+        "bun.lock": "ca3a7bdc88f0cba30660e7c867a0f648f2c90484a2665760344d809a6f71218a"
+      },
+      "accepted": true,
+      "edges": 15,
+      "distinctInstalledPackages": 5,
+      "receiptSha256": "2aa2f80fface8a8c3292ddfb2e96174c2111bddb27d29cd5480c092bf5d0344a",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Peable",
+      "head": "a2f578038f6aee1c2628608a2a7b3a3b2c91ea88",
+      "manifestAndLockSha256": {
+        "package.json": "7e74951f5bb578adcde3347d629bd0c4701ca000f61dec66fedb0daff62e5faf",
+        "packages/backend/package.json": "f644f57fcaab3c1af02c5f87b0a6a5ded72e645031873e31d0cb18f1f5629ba6",
+        "packages/checkout/package.json": "e997b12708b22b9190677dde511f61bd2fb6c56a2804b222dd960068ff0b664c",
+        "packages/frontend/package.json": "5640e01a84c07532379848c489a694816b3b8b9379f400d5680e80a395ea0ba0",
+        "packages/pay/package.json": "832845d952eb4a78eb49882286f31dc2f08da2c43610449ae749c47ae8e2f935",
+        "packages/sdk/package.json": "25749946fe1e95194047da5b75c73ce98ee3676e3574a7526fa78c4015f66766",
+        "packages/shared-types/package.json": "a50225b55d452b9601884eb6638fa06c0ed4462dc6180b77a9a30609342751c0",
+        "bun.lock": "f5db0b689e2e41f9c457162d416e777ba565c8507ada01ad4ecf82222f390438"
+      },
+      "accepted": true,
+      "edges": 11,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "63d086e81f6eff0c21663f7d63594ecce32096dfa27913e256d5c11a7bfa9b0a",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Syra",
+      "head": "5af5897c7daa667b2f6715974458fb694d90110d",
+      "manifestAndLockSha256": {
+        "package.json": "bf19b3cca5d5bd502d83beff5ca995491adb2a0bcb5eb2533e133f715cc7d1f4",
+        "packages/backend/package.json": "5a4636d3349e28e904369947ba9eb06d5a01dde179b376b0b3b90f44f0157f6c",
+        "packages/frontend/package.json": "7612868354a226f65369f0807435916ce1faeb2b4dcb20e683bcec1ab9f8db69",
+        "packages/sdk/package.json": "c7ce1556050a715a2c67fd3bd4f5fe703b04d47426cd3fe05fb41ac5c16a70da",
+        "packages/shared-types/package.json": "88d72682b4700f6e69f5cb424adc14fc83b96fefcb95600fa5c052b41ec3c18c",
+        "packages/studio/package.json": "b0484ea510e66ef3a38fc6dc9c1c49317b30eb74da4a63ee2bb2cb3f289bde25",
+        "bun.lock": "f2639633b497c95f6fe1ed297307096ac8324a8406b85e268a147042dd5e483c"
+      },
+      "accepted": true,
+      "edges": 11,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "9322f99ec7ec2bae0e869b307cc4adc15b6939d0f8a5b384ce172f53df6f87fd",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/Willo",
+      "head": "0a1a1915d2178275cf171fe8546630949d5238c5",
+      "manifestAndLockSha256": {
+        "package.json": "9fb3f62ed085fec0221f698d26e2c588affc0866fb149b0cb2335731aa5d430d",
+        "packages/backend/package.json": "c1a9509ac0d2c1afabdeefc84c41ab4f49b3b1d3ddab53763a882f8cd636c9d1",
+        "packages/frontend/package.json": "c066eb67f1d56ac425c951e9d243d43aabb4029b73008f5158379d6599865424",
+        "packages/ui/package.json": "4a109765ba1de5cee24e0c84b2e909a835fa1fa19852f1edbe3e1aff6708acc3",
+        "bun.lock": "380fbee9db372061e48101ee38db437cc660a8532a8b75b32c9494ba027288b7"
+      },
+      "accepted": true,
+      "edges": 8,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "72bca6ca1d19cd9bcfd9c3fa91934ad145f0ba4c1c4fb976db7fdac8cedf382e",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/tnp",
+      "head": "8190292c8e8071136b37121e6fcfb17c48b32eda",
+      "manifestAndLockSha256": {
+        "apps/api/package.json": "721766d7b66f1bd51aebcf000bb6eedc5227fda190ba0d10d775ef1573f7dd93",
+        "apps/dns-server/package.json": "450a5259de645d9a50ca066d280279d9ce6e58f63efee11f01220961cf249362",
+        "apps/relay/package.json": "da6444b7634e5133a121e81f1d4b826ef419cfc28130e2c2e0886dd5c6056966",
+        "apps/web/package.json": "59f5b433785ead1fa12881e5826fa188b0f151a4701107ea94d737a130b069a8",
+        "package.json": "72b77317a1aba52ad8060703b09918bd645ab4ae789040546f258589a827c9f3",
+        "packages/client/package.json": "d923fdc9bcb3408dcab8650d20d13e2761dc41ca6eab9f389958710d2fcc1b65",
+        "packages/crypto/package.json": "33e0dba4c47e8fff35a8188187df4451b8ed7fc037525c5463c821d73bbd2148",
+        "packages/namespace/package.json": "58c6ec74285f175e9f5d67b62f9df62e12ed716acc85d01af4fca4b74f7f4fca",
+        "packages/protocol/package.json": "c2c80482ab5f0059181898c3d05486f4d8684a5dff9dd423fb02d2e559e33140",
+        "packages/shared-types/package.json": "deb90c8d98d9b3171f7d01fca608a9ecdd970660f27b5f2086db511860c933e3",
+        "bun.lock": "28f10df6795087c67bdbb197943f519edc6db8ed50e4c50b8068305355e8234d"
+      },
+      "accepted": true,
+      "edges": 10,
+      "distinctInstalledPackages": 4,
+      "receiptSha256": "d809c8f33c9d9c6be1bc8f83b7c19231271dc4c03f9b08e722db60198d155881",
+      "optionalAbsent": 0
+    },
+    {
+      "repository": "OxyHQ/website",
+      "head": "0870e326f6e0db9b934e7445272920d862f4a3bf",
+      "manifestAndLockSha256": {
+        "package.json": "5c762b24c46f967621180b23f71b10b7e25582e2f00853d0714434ba4a4aee38",
+        "bun.lock": "b89e15bc7b216fea5a33191fd3d1beffdbdd203295ecef02764c81d305e4c436"
+      },
+      "accepted": true,
+      "edges": 10,
+      "distinctInstalledPackages": 5,
+      "receiptSha256": "3828d3920135ce859cb1be80b9a79b51e7d6e5991fd915f60873c356d5724f24",
+      "optionalAbsent": 0
+    }
+  ],
+  "count": 18,
+  "allAccepted": true
+}

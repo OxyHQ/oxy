@@ -7,6 +7,7 @@ import io
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import tarfile
 import tempfile
 import unittest
@@ -89,6 +90,83 @@ class Fixtures(unittest.TestCase):
         nested=self.root/'packages/extension/webview-ui';nested.mkdir(parents=True)
         (nested/'package.json').write_text('{"name":"nested","dependencies":{"@oxy.so/core":"4.2.0"}}')
         self.assertIn(nested/'package.json',m.importer_manifests(self.root))
+
+    def sdk_graph(self, edge='dependencies', cycle=False):
+        names=['services','core','contracts','protocol']
+        self.sdk_files={}; registry=[]
+        for name in names:
+            manifest={'name':'@oxy.so/'+name,'version':'1.0.0','main':'index.js'}
+            children={'services':['core'],'core':['contracts','protocol']}.get(name,[])
+            if cycle and name=='protocol':children=['services']
+            if children:manifest[edge]={'@oxy.so/'+child:'1.0.0' for child in children}
+            files={'package.json':json.dumps(manifest).encode(),'index.js':b'module.exports={}'}
+            self.sdk_files[name]=files
+            self.put_sdk(self.root,name)
+            registry.append({'name':manifest['name'],'version':'1.0.0','memberHashes':{k:m.sha(v) for k,v in files.items()}})
+        (self.root/'package.json').write_text(json.dumps({'dependencies':{'@oxy.so/services':'1.0.0','@oxy.so/core':'1.0.0'}}))
+        return registry
+
+    def put_sdk(self, parent, name):
+        package=parent/'node_modules/@oxy.so'/name;package.mkdir(parents=True,exist_ok=True)
+        for rel,data in self.sdk_files[name].items():(package/rel).write_bytes(data)
+        return package
+
+    def test_nested_sdk_wrong_version_rejected(self):
+        registry=self.sdk_graph();nested=self.put_sdk(self.root/'node_modules/@oxy.so/services','core')
+        manifest=json.loads((nested/'package.json').read_text());manifest['version']='0.9.0';(nested/'package.json').write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(RuntimeError,'version differs'):m.verify_installed(self.row,registry)
+
+    def test_nested_sdk_same_version_changed_member_rejected(self):
+        registry=self.sdk_graph();nested=self.put_sdk(self.root/'node_modules/@oxy.so/services','core');(nested/'index.js').write_text('altered')
+        with self.assertRaisesRegex(RuntimeError,'member differs'):m.verify_installed(self.row,registry)
+
+    def test_transitive_only_contracts_and_protocol_are_checked(self):
+        registry=self.sdk_graph()
+        for name in ['contracts','protocol']:
+            with self.subTest(name=name):
+                member=self.root/'node_modules/@oxy.so'/name/'index.js';original=member.read_bytes();member.write_text('altered')
+                with self.assertRaisesRegex(RuntimeError,'member differs'):m.verify_installed(self.row,registry)
+                member.write_bytes(original)
+
+    def test_sdk_peer_and_optional_edges_checked(self):
+        for edge in ['peerDependencies','optionalDependencies']:
+            with self.subTest(edge=edge):
+                registry=self.sdk_graph(edge);(self.root/'node_modules/@oxy.so/protocol/index.js').write_text('altered')
+                with self.assertRaisesRegex(RuntimeError,'member differs'):m.verify_installed(self.row,registry)
+
+    def test_hoisted_graph_records_parent_child_edges(self):
+        receipts=m.verify_installed(self.row,self.sdk_graph())
+        edges={(x['importer'],x['name']) for x in receipts}
+        self.assertIn(('node_modules/@oxy.so/services/package.json','@oxy.so/core'),edges)
+        self.assertIn(('node_modules/@oxy.so/core/package.json','@oxy.so/contracts'),edges)
+        self.assertIn(('node_modules/@oxy.so/core/package.json','@oxy.so/protocol'),edges)
+
+    def test_identical_nested_copy_and_cycle_terminate(self):
+        registry=self.sdk_graph(cycle=True);self.put_sdk(self.root/'node_modules/@oxy.so/services','core')
+        receipts=m.verify_installed(self.row,registry)
+        self.assertEqual(len({x['root'] for x in receipts}),5)
+        self.assertTrue(all(x['allFilesEqual'] for x in receipts))
+        self.assertLess(len(receipts),12)
+
+    def test_required_transitive_dependency_absent_rejected(self):
+        registry=self.sdk_graph();shutil.rmtree(self.root/'node_modules/@oxy.so/protocol')
+        with self.assertRaisesRegex(RuntimeError,'Required SDK dependency is absent'):
+            m.verify_installed(self.row,registry)
+
+    def test_optional_absence_has_explicit_disposition_not_member_claim(self):
+        registry=self.sdk_graph('optionalDependencies');shutil.rmtree(self.root/'node_modules/@oxy.so/protocol')
+        rows=m.verify_installed(self.row,registry);absent=[x for x in rows if x.get('status')=='optional-absent']
+        self.assertEqual(len(absent),1);self.assertEqual(absent[0]['name'],'@oxy.so/protocol')
+        self.assertNotIn('allFilesEqual',absent[0])
+
+    def test_present_broken_optional_entrypoint_does_not_count_as_absent(self):
+        registry=self.sdk_graph('optionalDependencies');(self.root/'node_modules/@oxy.so/protocol/index.js').unlink()
+        with self.assertRaises(subprocess.CalledProcessError):m.verify_installed(self.row,registry)
+
+    def test_transitive_package_requires_verified_registry_record(self):
+        registry=self.sdk_graph();registry=[x for x in registry if x['name']!='@oxy.so/protocol']
+        with self.assertRaisesRegex(RuntimeError,'lacks verified registry artifact'):
+            m.verify_installed(self.row,registry)
 
     def test_foreign_registry_origin_refuses_before_network(self):
         with self.assertRaises(RuntimeError):m.download('https://foreign.invalid/pkg.tgz',100)
