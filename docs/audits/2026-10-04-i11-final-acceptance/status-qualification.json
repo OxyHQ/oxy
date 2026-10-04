@@ -1,0 +1,18 @@
+{
+  "kind": "i11-i08-reopened-qualification",
+  "historicalTenClosedSnapshotPreserved": "child-states.json",
+  "currentClosedDaughters": 9,
+  "I08": {
+    "url": "https://github.com/OxyHQ/Peable/issues/87",
+    "state": "open",
+    "updatedAt": "2026-10-04T08:48:19Z",
+    "unchecked": 4,
+    "bodySha256": "37393f46327f3ed7618f62f7f27864aeac6ef3ba8f3fce415e860fa5655ef9f6"
+  },
+  "reviews": [
+    "https://github.com/OxyHQ/Mercaria/pull/1046#issuecomment-5977506884",
+    "https://github.com/OxyHQ/oxy/issues/1527#issuecomment-5978157590"
+  ],
+  "authority": "Root instructed reopen after Git80291 confirmation; integration owns narrow fix; i04 owns independent review and issue synchronization.",
+  "limits": "Accepted SDK/sandbox/registered cohort observations preserved. No new live financial transaction, general Stripe enable or manufactured authority requested."
+}

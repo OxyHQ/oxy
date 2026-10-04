@@ -1,7 +1,9 @@
 # I11 final acceptance index
 
 This compact index assembles accepted evidence against the original criteria.
-It adds no runtime test or new acceptance requirement. All ten implementation daughters are closed with completed-state readbacks.
+It adds no runtime test or new acceptance requirement. Root confirmed ten closed daughters at08:31; that checkpoint is historical.
+I08 was reopened at08:48:19 after source confirmed the Stripe-off consumer P2.
+Nine daughters remain closed, and I08/I11 are open.
 I11 remains open until the outstanding operational helper/Forge review,
 final workflow reconciliation and the qualified Mercaria consumer path are accepted. Coverage alone updates the parent and I11 body.
 
@@ -17,7 +19,7 @@ final workflow reconciliation and the qualified Mercaria consumer path are accep
 
 ## Remaining closure inputs
 
-1. **Mercaria Stripe-off integration:** [review5978157590](https://github.com/OxyHQ/oxy/issues/1527#issuecomment-5978157590) identifies that accepted source80291 still gates actions/webhook mounting/settlement reads through general Stripe. Source inspection confirms these seams. Keep I08's bounded contract/sandbox/publication/cohort acceptance distinct; verify the real config/createApp and owned SQL ingress/lifecycle with synthetic transport, action flag off/on, stable retry key and denial of outsiders/legacy/Connect. Integration owns the narrow fix; no general Stripe enable, new live purchase or fabricated authority.
+1. **Mercaria Stripe-off integration:** [review5978157590](https://github.com/OxyHQ/oxy/issues/1527#issuecomment-5978157590) identifies that accepted source80291 still gates actions/webhook mounting/settlement reads through general Stripe. Source inspection confirms these seams. Preserve I08's accepted contract/sandbox/publication/cohort observations while its affected functional cutover is reopened; verify the real config/createApp and owned SQL ingress/lifecycle with synthetic transport, action flag off/on, stable retry key and denial of outsiders/legacy/Connect. Integration owns the narrow fix; no general Stripe enable, new live purchase or fabricated authority.
 2. **Operational helper/Forge:** append root's reviewed PR1569 conditional-input
    fixes, quiescence handling, exact final source/CI and bounded Forge gate receipt.
    Existing expiry remains 2026-10-09T22:00Z; this index grants no extension.
