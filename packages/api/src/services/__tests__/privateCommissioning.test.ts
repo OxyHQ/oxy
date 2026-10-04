@@ -179,7 +179,7 @@ it('rechecks source withdrawal after the final asynchronous catalogue lookup', a
   expect(await f.resolve()).toMatchObject({ status: 'unknown-model' });
 });
 
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -189,8 +189,18 @@ it('compiled Node CLI performs dry-run and explicit hash-bound apply on the same
   const file = join(folder, 'plan.json');
   writeFileSync(file, JSON.stringify(f.plan), { mode: 0o600 });
   const env = { PATH: process.env.PATH, HOME: process.env.HOME, LANG: 'C.UTF-8', NODE_ENV: 'test', DATABASE_URL: process.env.DATABASE_URL };
-  const command = join(process.cwd(), 'dist/scripts/recordScopedLegalReview.js');
+  // API test shards build workspace dependencies, not API dist. Compile the
+  // actual production sources with the canonical tsconfig into a fresh tree;
+  // neither a stale local dist nor a test double can satisfy this check.
+  const output = join(folder, 'dist');
+  const command = join(output, 'scripts/recordScopedLegalReview.js');
   try {
+    symlinkSync(join(process.cwd(), 'node_modules'), join(folder, 'node_modules'), 'dir');
+    const build = spawnSync('node', [require.resolve('typescript/bin/tsc'), '--project',
+      join(process.cwd(), 'tsconfig.json'), '--outDir', output], {
+      env, encoding: 'utf8', timeout: 120_000,
+    });
+    expect({ exit: build.status, stdout: build.stdout, stderr: build.stderr }).toMatchObject({ exit: 0 });
     const dry = spawnSync('node', [command, file], { env, encoding: 'utf8' });
     expect({ exit: dry.status, stderr: dry.stderr }).toMatchObject({ exit: 0 });
     const dryReceipt = JSON.parse(dry.stdout.split('\n').find((line) => line.includes('"kind":"scoped-legal-review-v1"'))!);
@@ -200,4 +210,4 @@ it('compiled Node CLI performs dry-run and explicit hash-bound apply on the same
     expect(JSON.parse(apply.stdout.split('\n').find((line) => line.includes('"kind":"scoped-legal-review-v1"'))!)).toMatchObject({ applied: true, planSha256: dryReceipt.planSha256 });
     expect(await getDb().select().from(securityActivities).where(eq(securityActivities.userId, f.reviewerUserId))).toHaveLength(1);
   } finally { rmSync(folder, { recursive: true }); }
-});
+}, 180_000);
