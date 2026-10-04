@@ -52,6 +52,16 @@
       "path": "docs/audits/2026-10-04-i03-canary-expiry/records/red.txt",
       "bytes": 2578,
       "sha256": "6e0d2c4e55a9f6e8a5476a995579f5aed182b8002faa84839e8d3a837eaedfb9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/protocol-exact-759.txt",
+      "bytes": 115,
+      "sha256": "697f688b19b870ef1458f3800a545ef51cd099541ad838a87a919f1080aacb9b"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i03-canary-expiry/records/receivers-exact-759.txt",
+      "bytes": 252,
+      "sha256": "f88bbc7b4b3ccb9e842ad5ae634e34aca2f4f26c04ffa617655a0a4fe8b6f04e"
     }
   ],
   "privateAuthorityReadback": [
@@ -86,7 +96,8 @@
       497603,
       499936
     ],
-    "productionEffects": 0
+    "productionEffects": 0,
+    "exactFinalSourceProtocolAndReceiverRecheck": "16 protocol +12 real SDK fork controls rechecked after optional hash-bound module path addition on7595381df"
   },
   "limits": [
     "Controlled SQL clock/state fixture executes actual parent but VM-isolates API credential/mint/fork boundaries.",
