@@ -724,3 +724,183 @@ it("refreshes only activity xmin under the application lock while preserving rev
 	);
 	await rollbackForegroundPilotConfiguration(plan);
 });
+
+async function retainedSnapshotPlan(
+	scopes: string[],
+	status: "active" | "deprecated" | "revoked",
+	expiresAt: Date | null,
+	applicationAlreadyHasGrants = false,
+) {
+	const initial = await baselineFixture(false, applicationAlreadyHasGrants);
+	await getDb()
+		.insert(applicationCredentials)
+		.values([
+			{
+				applicationId: MENTION_APPLICATION_ID,
+				name: "Synthetic retained public",
+				type: "public",
+				environment: "production",
+				status: "active",
+				publicKey: `synthetic_public_${randomBytes(12).toString("hex")}`,
+				scopes: ["user:read"],
+			},
+			{
+				applicationId: MENTION_APPLICATION_ID,
+				name: "Synthetic empty public",
+				type: "public",
+				environment: "production",
+				status: "active",
+				publicKey: `synthetic_public_${randomBytes(12).toString("hex")}`,
+				scopes: [],
+			},
+			{
+				applicationId: MENTION_APPLICATION_ID,
+				name: "Synthetic retained service",
+				type: "service",
+				environment: "production",
+				status,
+				publicKey: `synthetic_service_${randomBytes(12).toString("hex")}`,
+				secretHash: "a".repeat(64),
+				scopes,
+				expiresAt,
+			},
+		]);
+	const input = JSON.parse(
+		JSON.stringify(
+			await snapshots(initial.expectedApplication.owner_account_id),
+		),
+	);
+	return { input, initial };
+}
+
+it.each(["active", "deprecated"] as const)(
+	"rejects effective scope expansion for retained %s service before any write",
+	async (status) => {
+		const { input } = await retainedSnapshotPlan(
+			["capability-tickets:issue"],
+			status,
+			status === "deprecated" ? new Date(Date.now() + 3600000) : null,
+		);
+		expect(() =>
+			prepareForegroundPilotPlan(input.mention, input.registrar),
+		).toThrow("retained credential effective authority");
+		expect(
+			(
+				await getDb()
+					.select({ scopes: applications.scopes })
+					.from(applications)
+					.where(eq(applications.id, MENTION_APPLICATION_ID))
+			)[0].scopes,
+		).toEqual(originalScopes);
+		expect(
+			await getDb()
+				.select({ id: applications.id })
+				.from(applications)
+				.where(eq(applications.id, OXY_PROFILE_REGISTRAR_APPLICATION_ID)),
+		).toEqual([]);
+	},
+);
+
+it.each([
+	{
+		label: "empty scopes",
+		scopes: [],
+		status: "active" as const,
+		expired: false,
+	},
+	{
+		label: "revoked explicit scope",
+		scopes: ["capability-tickets:issue"],
+		status: "revoked" as const,
+		expired: false,
+	},
+	{
+		label: "expired explicit scope",
+		scopes: ["capability-tickets:issue"],
+		status: "active" as const,
+		expired: true,
+	},
+	{
+		label: "existing effective scope",
+		scopes: ["capability-tickets:issue"],
+		status: "active" as const,
+		expired: false,
+		already: true,
+	},
+])(
+	"preserves retained five-row census with $label without new effective authority",
+	async ({ scopes, status, expired, already }) => {
+		const { input } = await retainedSnapshotPlan(
+			scopes,
+			status,
+			expired ? new Date(Date.now() - 3600000) : null,
+			already,
+		);
+		const plan = prepareForegroundPilotPlan(input.mention, input.registrar);
+		expect(plan.expectedCredentials).toHaveLength(5);
+		await applyForegroundPilotConfiguration(plan);
+		await rollbackForegroundPilotConfiguration(plan);
+		const after = JSON.parse(
+			JSON.stringify(
+				await snapshots(plan.expectedApplication.owner_account_id),
+			),
+		);
+		expect(
+			after.mention.tables.application_credentials.rows.sort(
+				(a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id),
+			),
+		).toEqual(plan.expectedCredentials);
+	},
+);
+
+it("compares serialized dated credential exactly through apply and rollback", async () => {
+	const { input } = await retainedSnapshotPlan(
+		["user:read"],
+		"active",
+		new Date(Date.now() + 3600000),
+	);
+	const plan = prepareForegroundPilotPlan(input.mention, input.registrar);
+	await applyForegroundPilotConfiguration(plan);
+	await expect(rollbackForegroundPilotConfiguration(plan)).resolves.toEqual({
+		restoredMention: true,
+		registrarRetainedSuspended: true,
+	});
+	expect(
+		JSON.parse(
+			JSON.stringify(
+				(await snapshots(plan.expectedApplication.owner_account_id)).mention
+					.tables.application_credentials.rows,
+			),
+		).sort((a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id)),
+	).toEqual(plan.expectedCredentials);
+});
+
+it.each(["apply", "rollback"] as const)(
+	"rejects actual dated credential expiry drift during %s",
+	async (phase) => {
+		const { input } = await retainedSnapshotPlan(
+			["user:read"],
+			"active",
+			new Date(Date.now() + 3600000),
+		);
+		const plan = prepareForegroundPilotPlan(input.mention, input.registrar);
+		if (phase === "rollback") await applyForegroundPilotConfiguration(plan);
+		const retained = plan.expectedCredentials.find(
+			(row) => row.type === "service",
+		);
+		if (!retained) throw Error("Missing synthetic service");
+		await getDb()
+			.update(applicationCredentials)
+			.set({ expiresAt: new Date(Date.now() + 7200000) })
+			.where(eq(applicationCredentials.id, retained.id));
+		await expect(
+			phase === "apply"
+				? applyForegroundPilotConfiguration(plan)
+				: rollbackForegroundPilotConfiguration(plan),
+		).rejects.toThrow(
+			phase === "apply"
+				? "canonical attribution identity changed"
+				: "rollback canonical attribution identity changed",
+		);
+	},
+);

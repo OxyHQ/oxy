@@ -13,6 +13,8 @@ import { applications } from "../db/schema/applications";
 import { users } from "../db/schema/users";
 import { recordCredentialLifecycleEvent } from "../services/applicationCredentialAudit.service";
 import { digestCatalog } from "../services/capabilityCatalog.service";
+import { intersectScopes, isPrivilegedScope } from "../utils/applicationScopes";
+import { isCredentialUsable } from "../utils/credentialUsability";
 import { computeSeedApplicationPlan } from "./seedOxyApplicationsPlan";
 import {
 	MENTION_APPLICATION_ID,
@@ -72,8 +74,8 @@ const workloadCredential = z
 		row_revision: revision,
 	})
 	.strict();
-// Inert existing OAuth identities participate in the complete CAS census only.
-// No writer in this configuration changes their authority or lifecycle.
+// Existing OAuth identities participate in the complete CAS census.
+// Their rows stay unchanged; the app ceiling must not widen usable authority.
 const retainedCredential = z
 	.object({
 		id: z
@@ -259,7 +261,7 @@ export function prepareForegroundPilotPlan(
 			? [owner]
 			: [owner, account.parse(registrarOwner)];
 	const now = new Date();
-	return {
+	const plan: ForegroundPilotPlan = {
 		schemaVersion: 1,
 		kind: "i05-foreground-configuration",
 		nonce: randomBytes(16).toString("hex"),
@@ -275,11 +277,32 @@ export function prepareForegroundPilotPlan(
 		backendWorkloadId: backend.id,
 		afterBackendScopes: append(backend.scopes, TICKET_SCOPE),
 	};
+	validateForegroundPilotDefinition(plan);
+	return plan;
 }
 
 /** Must be called before a fresh database read and again under the configuration locks. */
 function validateForegroundPilotDefinition(plan: ForegroundPilotPlan) {
 	planSchema.parse(plan);
+	for (const row of plan.expectedCredentials) {
+		if (
+			row.type === "workload" ||
+			!isCredentialUsable({
+				status: row.status,
+				expiresAt: row.expires_at ? new Date(row.expires_at) : null,
+			})
+		)
+			continue;
+		const effective = (scopes: string[]) =>
+			row.scopes.length
+				? intersectScopes(row.scopes, scopes)
+				: scopes.filter((scope) => !isPrivilegedScope(scope));
+		exact(
+			effective(plan.afterScopes),
+			effective(plan.expectedApplication.scopes),
+			"retained credential effective authority",
+		);
+	}
 	const ownerIds = [
 		...new Set([
 			plan.expectedApplication.owner_account_id,
@@ -457,7 +480,10 @@ export async function applyForegroundPilotConfiguration(
 			.orderBy(applicationCredentials.id)
 			.for("update");
 		exact(
-			identities,
+			identities.map((row) => ({
+				...row,
+				expires_at: row.expires_at?.toISOString() ?? null,
+			})),
 			plan.expectedCredentials,
 			"canonical attribution identity",
 		);
@@ -890,7 +916,10 @@ export async function rollbackForegroundPilotConfiguration(
 			.orderBy(applicationCredentials.id)
 			.for("update");
 		exact(
-			identities.map(({ row_revision: _revision, ...row }) => row),
+			identities.map(({ row_revision: _revision, ...row }) => ({
+				...row,
+				expires_at: row.expires_at?.toISOString() ?? null,
+			})),
 			plan.expectedCredentials.map(
 				({ row_revision: _revision, ...row }) => row,
 			),
