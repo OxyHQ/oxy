@@ -1,0 +1,12 @@
+{
+  "kind": "root-accepted-original-task",
+  "sourceCommit": "c9dccc1eb",
+  "priorProofCommit": "4a4a6c2a9",
+  "receipt": "root-accepted.json",
+  "receiptSha256": "6e49f7186bb856f87b48ba704c12d4c53e6d61a06a2a57c988cca362272b2499",
+  "limits": [
+    "Two isolated prewarmed OxyServer receivers, not a fleet p99 measurement.",
+    "Original collector failure remains preserved. No new credential, retry or recovery was performed.",
+    "Expiry excluded by original signed bearer lifetime and database-clock observations."
+  ]
+}
