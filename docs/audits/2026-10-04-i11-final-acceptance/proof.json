@@ -1,8 +1,8 @@
 {
   "kind": "i11-final-acceptance-index-pending-operational-tail",
   "newTestsExecuted": false,
-  "newOperationsExecuted": false,
-  "issueBodyEdited": false,
+  "newOperationsExecuted": true,
+  "issueBodyEdited": true,
   "sourceInputs": [
     {
       "head": "4de033f4755391b422867b5d626301258f497eb2",
@@ -129,5 +129,9 @@
     "Mercaria Stripe-off consumer qualification review5978157590; narrow source fix/real app+SQL evidence pending",
     "PR1569/quiescence and bounded Forge gate",
     "Final consolidated workflow original-state reconciliation"
-  ]
+  ],
+  "operationKinds": [
+    "Authorized GitHub historical draft closures and issue-state documentation only"
+  ],
+  "newRuntimeOperationsExecuted": false
 }
