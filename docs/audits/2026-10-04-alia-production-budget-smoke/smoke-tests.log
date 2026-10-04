@@ -1,0 +1,32 @@
+✔ published SDK sends exactly one synthetic POST then original-key GET, no credential/answer logged (18.756486ms)
+✔ unknown never repeats POST; settled record does not restore missing answer (2.297072ms)
+✔ refused never repeats POST; settled record does not restore missing answer (2.428211ms)
+✔ 404 remains unknown, not zero cost and not retry permission (2.073599ms)
+✔ separate reconcile mode makes only original-key GET (1.318386ms)
+✔ wrong owner refuses before any request (0.810046ms)
+✔ wrong app refuses before any request (0.669743ms)
+✔ wrong credential refuses before any request (4.931805ms)
+✔ wrong environment refuses before any request (0.71186ms)
+✔ missing usage scope refuses before any request (0.650265ms)
+✔ insufficient TTL refuses before any request (0.652688ms)
+✔ stale inventory blocks POST (0.429669ms)
+✔ partial inventory blocks POST (0.315003ms)
+✔ foreign deployment inventory blocks POST (0.384801ms)
+✔ unreviewed inventory blocks POST (0.310466ms)
+✔ payload retained inventory blocks POST (0.267227ms)
+✔ expired price inventory blocks POST (0.261268ms)
+✔ expensive inventory blocks POST (0.399013ms)
+✔ duplicate unit inventory blocks POST (0.399357ms)
+✔ JWT wait crossing inventory deadline prevents late POST (0.833271ms)
+✔ foreign receipt is rejected even after a successful response (1.741555ms)
+✔ payload is deterministic and request intent format is closed (0.502385ms)
+✔ actual compiled accepted policy preserves exact three-route execution set for auto (0.619775ms)
+✔ actual Oxy normalization confirms canonical Hello exceeds old cap and fits preflight ceiling (39.519326ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 176.616464

@@ -1,0 +1,91 @@
+{
+  "kind": "alia-budget-smoke-source-proof-v1",
+  "sourceHead": "c266a0530c88d9235ad23aee2b6c14c0d29922df",
+  "sources": [
+    {
+      "path": "scripts/operations/alia-budget-smoke/README.md",
+      "sha256": "63b74cdd00ddc8ac997bc9611cdc52a63f6ea8a5fe062aa596083189d5147ef9"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/chat-hello-wire.json",
+      "sha256": "fd9ef8fc783425e5285b100111bfe69fb0b27dd4346e81479bd57725c2003d77"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/dispatch.py",
+      "sha256": "8b4e3d189fa0cb189982147012f4151381a220477a3678b67e39970518137311"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/oxy-inference-credential.js",
+      "sha256": "e285c443351502cd28a237fecd0d3c6e7eb672353370b5f6d691d0026ec61641"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/prepare.py",
+      "sha256": "23a63142b8f3fd4f6fcd5f7060a027906c6c260c6065f33a9a8d9cba345b040c"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/read-internal-pilot-readiness.mjs",
+      "sha256": "3e6eece065a620169199baf56dce9a3e8594785df6683f9f8ca3febe759285a1"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.mjs",
+      "sha256": "991c93aa727bb1ffdd90a876da1d342f7a31cd9a159ddd43deadfe5fe0b35c86"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/smoke.test.mjs",
+      "sha256": "60caba6ab4b42ca7ee78aaceccbcacf1fa0412e1b121b756222b193031ff1a25"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/stage-inference-credential.mjs",
+      "sha256": "d96a8248f49e5036a14f25cfe41b2397e80de695a7d00675af128554aa0b05c4"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/test-transport.py",
+      "sha256": "7ea14674d73b0708a0ba2c8375580e1c5468676b05990365f95b173ebb78628e"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/verify-credential.mjs",
+      "sha256": "69737cf70bb68a5bad6f44f5db3a0f487a990936298737a758f645d6bab7d81f"
+    },
+    {
+      "path": "scripts/operations/alia-budget-smoke/wire-fixture.mjs",
+      "sha256": "7b3c248ba07049d85d429080043c3ec508fc32c82122f3c43d6f1707c4c895be"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/smoke-tests.log",
+      "sha256": "c9424a781e37aa8c0fec985f5d7744d2887ed4aa3fcc2eda806d2bebfbf22115"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-production-budget-smoke/transport-tests.log",
+      "sha256": "a87e3d25967c84a1362eb77f834519f6a12b243b2e0a536787d77ed7fceac472"
+    }
+  ],
+  "bindings": {
+    "factorySourceAlia": "b2bc57f45d83acb53cb4d2d36a68dca9426a2788",
+    "factorySourceSha256": "d2c0b0c949afd49cffd0442c0c8b1798c64bef483bab2941492d646ccea836d7",
+    "compiledFactorySha256": "e285c443351502cd28a237fecd0d3c6e7eb672353370b5f6d691d0026ec61641",
+    "coreArchiveSha256": "047de6526c13678ff319fa519b8de5a4649178a43d93d37305e5c8fa37d47bd5",
+    "sdkInferenceMember": "package/dist/cjs/inference/OxyInferenceClient.js",
+    "sdkInferenceMemberSha256": "82948cfb580242f2aedbb9438fb6fcb920cd51c4da1de79eadbf7ab08fdeac9b",
+    "helloFixtureSha256": "fd9ef8fc783425e5285b100111bfe69fb0b27dd4346e81479bd57725c2003d77",
+    "sourceBudget": "27ebf33872c4e3c6e72e97a728f157d42a8ffaf2"
+  },
+  "validation": {
+    "sdkTests": 24,
+    "transportTests": 11,
+    "canonicalControlledBudget": 29027,
+    "outputLimit": 128,
+    "maxPostCount": 1,
+    "maxQuoteUsdPerRoute": "0.02",
+    "newAwsCalls": 0,
+    "realInferenceCalls": 0
+  },
+  "limits": [
+    "Production image/TD/price snapshot must be supplied and independently accepted by root.",
+    "No actual personal frontend, Alia serving image, provider call or original incident prompt replay.",
+    "Internal Kaana attempt count/upstream cost not constrained by one caller POST; requires exact readback.",
+    "Local SDK transport synthetic; no AWS emulator or real signal subprocess claim.",
+    "One initial test fixture clone of a function-bearing module failed; corrected to clone relationship data only."
+  ]
+}

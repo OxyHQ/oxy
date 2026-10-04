@@ -1,0 +1,18 @@
+...........
+----------------------------------------------------------------------
+Ran 11 tests in 0.042s
+
+OK
+{"prepared": true, "plan": "/tmp/tmpmjh3dom1/prepared/plan.json", "bytes": 30927, "intent": "oxy1579-alia-1791134097856-d619da4d69fc7294"}
+{"prepared": true, "plan": "/tmp/tmpyo47dmit/prepared/plan.json", "bytes": 30923, "intent": "oxy1579-alia-1791134097859-c1716df7f5cf73e9"}
+{"prepared": true, "plan": "/tmp/tmpk0l_vj49/prepared/plan.json", "bytes": 30923, "intent": "oxy1579-alia-1791134097862-2904d0f31fe0bc90"}
+{"prepared": true, "plan": "/tmp/tmpj0yyjhm8/prepared/plan.json", "bytes": 30927, "intent": "oxy1579-alia-1791134097865-de25634cb796c473"}
+{"prepared": true, "plan": "/tmp/tmpk1i2vs4m/prepared/plan.json", "bytes": 30927, "intent": "oxy1579-alia-1791134097869-9235109dcf212856"}
+{"prepared": true, "plan": "/tmp/tmpahjn6jx3/prepared/plan.json", "bytes": 30927, "intent": "oxy1579-alia-1791134097872-3d5209194a52a937"}
+{"prepared": true, "plan": "/tmp/tmp2x57jxru/prepared/plan.json", "bytes": 30927, "intent": "oxy1579-alia-1791134097876-5818442348a77bed"}
+{"prepared": true, "plan": "/tmp/tmp2x57jxru/reader/plan.json", "bytes": 17171, "intent": "oxy1579-alia-1791134097879-d4e57ae765906002"}
+{"prepared": true, "plan": "/tmp/tmpw9a83erb/prepared/plan.json", "bytes": 30927, "intent": "oxy1579-alia-1791134097882-d503069ba41a94e7"}
+{"prepared": true, "plan": "/tmp/tmpqqby8x3q/prepared/plan.json", "bytes": 30923, "intent": "oxy1579-alia-1791134097885-838d0cb9ae960cb6"}
+{"prepared": true, "plan": "/tmp/tmpqqby8x3q/reconcile/plan.json", "bytes": 30931, "intent": "oxy1579-alia-1791134097885-838d0cb9ae960cb6"}
+{"prepared": true, "plan": "/tmp/tmp8hm7ew5t/prepared/plan.json", "bytes": 30927, "intent": "oxy1579-alia-1791134097891-470835c209eaba7f"}
+{"prepared": true, "plan": "/tmp/tmp7w2yufdr/prepared/plan.json", "bytes": 30927, "intent": "oxy1579-alia-1791134097894-bd83808da010ebf1"}
