@@ -6,13 +6,13 @@
       "worktree": "/home/nate/Oxy/oxy/.worktrees/1572-mention-wire-integration-20261004",
       "path": "packages/api/src/routes/__fixtures__/mentionWire.fixture.ts",
       "sha256": "cac4abfaa591db52ac6f8929d11f49ecc19db416f487804ef5466eafe3e8d1ef",
-      "head": "5ef76601481fb82e5f8b500eacf75cd8a36577b0"
+      "head": "e3bffddaebf799969fb01a2fbe8fa2cbdffc071c"
     },
     {
       "worktree": "/home/nate/Oxy/oxy/.worktrees/1572-mention-wire-integration-20261004",
       "path": "scripts/rehearsal/test-mention-signed-kaana.py",
       "sha256": "92182c2de2f805eee2090c719c0acea85410f9c72887631b46edf945772a3eed",
-      "head": "5ef76601481fb82e5f8b500eacf75cd8a36577b0"
+      "head": "e3bffddaebf799969fb01a2fbe8fa2cbdffc071c"
     },
     {
       "worktree": "/home/nate/Oxy/Kaana/.worktrees/1572-mention-wire-integration-20261004",
