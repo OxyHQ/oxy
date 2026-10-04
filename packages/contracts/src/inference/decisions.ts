@@ -80,7 +80,45 @@ export function decisionInputBudget(payload: DecisionInput): {
 export function decisionFitsGateway(payload: DecisionInput): boolean {
   return decisionInputBudget(payload).gateway <= 32000;
 }
+/** JSON permits escaped lone UTF-16 units; Go replaces them after decoding. */
+function hasUnpairedSurrogate(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const unit = value.charCodeAt(i);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(i + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      i++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return true;
+  }
+  return false;
+}
 function validateInput(payload: DecisionInput, ctx: z.RefinementCtx): void {
+  const fields: Array<{ value: string | undefined; path: Array<string | number> }> = [
+    { value: payload.state, path: ["state"] },
+    { value: payload.instructions, path: ["instructions"] },
+  ];
+  for (const [index, question] of payload.questions.entries()) {
+    for (const field of ["id", "question", "criteria"] as const) {
+      fields.push({ value: question[field], path: ["questions", index, field] });
+    }
+    if (question.kind === "choice" || question.kind === "score") {
+      const field = question.kind === "choice" ? "options" : "levels";
+      const labels = question.kind === "choice" ? question.options : question.levels;
+      for (const [labelIndex, value] of labels.entries()) {
+        fields.push({ value, path: ["questions", index, field, labelIndex] });
+      }
+    }
+  }
+  let invalidUnicode = false;
+  for (const { value, path } of fields) {
+    if (value !== undefined && hasUnpairedSurrogate(value)) {
+      invalidUnicode = true;
+      ctx.addIssue({ code: "custom", path, message: "Decisions require paired UTF-16 surrogates." });
+    }
+  }
+  // Reject before measuring/reserving text that the execution runtime would change.
+  if (invalidUnicode) return;
+
   if (
     new Set(payload.questions.map((q) => q.id)).size !==
     payload.questions.length

@@ -1,0 +1,31 @@
+Resolving dependencies
+Resolved, downloaded and extracted [20]
+Saved lockfile
+scripts/forge-source-topology.mjs:21:7 lint/complexity/useOptionalChain  FIXABLE  ━━━━━━━━━━━━━━━━━━
+
+  ! Change to an optional chain.
+  
+    19 │   const run = context?.queueRun ?? context?.run;
+    20 │   const commit = context?.commit;
+  > 21 │   if (!run || run.repository?.id !== 973881060 || run.repository?.full_name !== 'OxyHQ/oxy'
+       │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    22 │     || run.head_repository?.full_name !== 'OxyHQ/oxy' || run.event !== 'merge_group'
+    23 │     || run.head_sha !== git?.head || !/^gh-readonly-queue\/main\/pr-\d+-[a-f0-9]{40}$/.test(run.head_branch ?? '')
+  
+  i Unsafe fix: Change to an optional chain.
+  
+    19 19 │     const run = context?.queueRun ?? context?.run;
+    20 20 │     const commit = context?.commit;
+    21    │ - ··if·(!run·||·run.repository?.id·!==·973881060·||·run.repository?.full_name·!==·'OxyHQ/oxy'
+       21 │ + ··if·(run?.repository?.id·!==·973881060·||·run.repository?.full_name·!==·'OxyHQ/oxy'
+    22 22 │       || run.head_repository?.full_name !== 'OxyHQ/oxy' || run.event !== 'merge_group'
+    23 23 │       || run.head_sha !== git?.head || !/^gh-readonly-queue\/main\/pr-\d+-[a-f0-9]{40}$/.test(run.head_branch ?? '')
+  
+
+Checked 2 files in 7ms. No fixes applied.
+Found 1 warning.
+lint ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some warnings were emitted while running checks.
+  
+

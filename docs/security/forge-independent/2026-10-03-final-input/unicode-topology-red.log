@@ -1,0 +1,21 @@
+59 |       'docs/security/forge-candidate/provenance/audit-policy-decision.json'],
+60 |     currentGithub: { run: { repository: { id: 973881060, full_name: 'OxyHQ/oxy' },
+61 |       head_repository: { full_name: 'OxyHQ/oxy' }, event: 'merge_group',
+62 |       head_sha: queueHead, head_branch: `gh-readonly-queue/main/pr-1573-${currentMain}` },
+63 |       commit: { sha: queueHead, tree: 'd'.repeat(40), parents: [currentMain] } } };
+64 |   assert.equal(checkFrozenSourceTopology(current, { sourceSha: frozenSource }).eligible, true, 'the reviewed actual main base must admit its exact squash topology'); count++;
+              ^
+AssertionError: the reviewed actual main base must admit its exact squash topology
+
+false !== true
+
+ generatedMessage: false,
+     actual: false,
+   expected: true,
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /home/nate/Oxy/oxy/.worktrees/1573-unicode-forge-evidence-20261004/scripts/test-forge-source-topology.mjs:64:10
+
+Bun v1.4.2 (Linux x64)
