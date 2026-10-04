@@ -25,6 +25,7 @@ jobs:
       - uses: docker/setup-buildx-action@v4
       - uses: crazy-max/ghaction-github-runtime@v4
       - name: Build actual ARM production image without credentials or publication
+        id: build
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/native-expo"
@@ -76,6 +77,7 @@ jobs:
           printf '%s\n' "$SOURCE_SHA" > "$RUNNER_TEMP/native-expo/source-sha.txt"
           (cd "$RUNNER_TEMP/native-expo" && sha256sum build-metadata.json image.oci.tar manifest.json config.json expected-files.json image-inventory.json image-expo-compat.log manifest-digest.txt source-sha.txt > SHA256SUMS)
       - uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
           name: native-expo-image-proof-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/native-expo/
