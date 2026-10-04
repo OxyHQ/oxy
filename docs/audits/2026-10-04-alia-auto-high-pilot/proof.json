@@ -37,43 +37,43 @@
   ],
   "records": [
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/quote-cap-red.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/quote-cap-red.txt",
       "sha256": "30c72877f3693cd381bde96f02a622cd039bc5b6ae41b6182115f481ee36e66e"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/auto-high-red-2.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/auto-high-red-2.txt",
       "sha256": "03e3a36d307bb408c138135fe99247459e2d3deae612dc730a27633f41ec9080"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/quote-cap-green-2.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/quote-cap-green-2.txt",
       "sha256": "4d05bde16742fee2c71b53bd7d15b50be3a6fd60f60f3743fcecabfeaff395ed"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/auto-high-internal-default.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/auto-high-internal-default.txt",
       "sha256": "3b4eab13ed77aa37897572de123acf9ad305bedc805f4c509f8a6cfc724f43fd"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/final-http-sql-green.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/final-http-sql-green.txt",
       "sha256": "cbc7247c83b0c1201c4522206f28fb3faeb58cc7c5bc02ea89c0526543de7359"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/final-pilot-controls.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/final-pilot-controls.txt",
       "sha256": "e293b47ebc37abb2a55ab53ede9bd6e24450944d98c7c040f53c54aa77152f28"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/api-build-final.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/api-build-final.txt",
       "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/scoped-biome-final.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/scoped-biome-final.txt",
       "sha256": "6de7208f359a38e2d7f8a435becf1c5e904f0055f2111f80410ebc767f5c240d"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/scoped-eslint.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/scoped-eslint.txt",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/logs/pg-cleanup.log",
+      "path": "docs/audits/2026-10-04-alia-auto-high-pilot/records/pg-cleanup.txt",
       "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
     }
   ],

@@ -1,0 +1,6 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts -t "approved production pilot admission"
+Test Suites: 1 passed, 1 total
+Tests:       26 skipped, 31 passed, 57 total
+Snapshots:   0 total
+Time:        2.792 s, estimated 9 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts with tests matching "approved production pilot admission".
