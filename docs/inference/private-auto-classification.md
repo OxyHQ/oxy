@@ -121,3 +121,13 @@ path. The original absolute deadline covers serialization, send and response.
 Catalogue persistence, private route selection and the parent/child classifier
 adapter remain subsequent integration steps; the transport slice alone does
 not make this a completed or activated Auto feature.
+
+The private catalogue lane stores only the closed source approval. Migration 0144
+keeps the ordinary revision/provider/scope uniqueness for all existing NULL-metadata
+rows and adds a stable private deployment identity independent of approval renewal.
+Imports require the fresh matching source getter and signed 3.7 descriptor; they
+remain `pending_review` / `disabled` / `platform_internal`, without commissioning
+metadata or an automatic legal review. The public and ordinary internal catalogue
+exclude the lane. Exact metadata changes invalidate an existing private legal
+review; identical reimports preserve it. Catalogue admission and the Edge adapter
+are separate followups and this storage/import step does not execute a classifier.

@@ -8,7 +8,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { ScopedExecutionAudience } from '@oxy.so/contracts';
+import { privateAutoSourceApprovalSchema, type ScopedExecutionAudience } from '@oxy.so/contracts';
+import { privateAutoApprovalFixture } from '../../../../contracts/src/__tests__/privateAutoExecution.fixture';
+import * as privateAutoSource from '../../config/privateAutoClassification';
 import * as scopedSource from '../scopedExecution.service';
 
 jest.mock('../../utils/logger', () => ({
@@ -720,6 +722,113 @@ describe('syncing into the catalogue', () => {
 });
 
 
+describe('independent private Auto catalogue import', () => {
+  afterEach(() => jest.restoreAllMocks());
+  async function fixture(includeOrdinary = false) {
+    const world = await makeWorld();
+    await getDb().update(inferenceProviders).set({ retainsPayloads: false, retentionDays: 0 })
+      .where(eq(inferenceProviders.slug, world.provider));
+    const ordinary = world.route('privateauto');
+    const route = { ...ordinary, deploymentId: `${ordinary.deploymentId}-auto` };
+    const approval = privateAutoSourceApprovalSchema.parse({ ...privateAutoApprovalFixture,
+      deploymentId: route.deploymentId, modelReference: route.modelReference, provider: route.provider,
+      regions: route.regions, priceVersionId: randomUUID(), approvalId: `review-${world.tag}` });
+    const descriptor = { ...route, regions: route.regions ?? [], privateAutoSourceApproval: approval,
+      keyId: approval.keyId, upstreamModelId: approval.upstreamModelId,
+      providerRateCardVersionId: approval.providerRateCardVersionId, providerSourceVersion: approval.providerSourceVersion };
+    const descriptors = includeOrdinary ? [ordinary, descriptor] : [descriptor];
+    const prices = descriptors.map(row => ({ deploymentId: row.deploymentId, provider: row.provider,
+      currency: 'USD', input: '0.072', output: '0.28' }));
+    const payload = { scopedExecutionContractVersion: '3.6.0', privateAutoExecutionContractVersion: '3.7.0',
+      configuration: { snapshotId: 'snap_test' }, deployments: descriptors,
+      models: [world.entry('privateauto', { listPrices: prices })] };
+    const privateReader: KaanaCatalogueReader = {
+      listModels: async () => payload,
+      attestDeployments: async () => ({ snapshotId: 'snap_test', scopedExecutionContractVersion: '3.6.0', privateAutoExecutionContractVersion: '3.7.0',
+        deployments: descriptors.map(row => ({ ...row, regions: row.regions ?? [] })) }),
+      listPublishedDeployments: async () => ({ snapshotId: 'snap_test', scopedExecutionContractVersion: '3.6.0', privateAutoExecutionContractVersion: '3.7.0',
+        deployments: descriptors.map(row => ({ ...row, regions: row.regions ?? [] })) }),
+    };
+    const rows = () => getDb().select({ id: inferenceDeployments.id, modelRevisionId: inferenceDeployments.modelRevisionId,
+      providerSlug: inferenceDeployments.providerSlug, regions: inferenceDeployments.regions,
+      retainsPayloads: inferenceDeployments.retainsPayloads, retentionDays: inferenceDeployments.retentionDays,
+      trainsOnCustomerData: inferenceDeployments.trainsOnCustomerData, zeroDataRetentionAvailable: inferenceDeployments.zeroDataRetentionAvailable,
+      internalRouteId: inferenceDeployments.internalRouteId, privateAutoSourceApproval: inferenceDeployments.privateAutoSourceApproval,
+      scopedExecution: inferenceDeployments.scopedExecution, priceVersionId: inferenceDeployments.priceVersionId,
+      availabilityScope: inferenceDeployments.availabilityScope, commercialPermission: inferenceDeployments.commercialPermission,
+      permissionState: inferenceDeployments.permissionState, status: inferenceDeployments.status, autoApprovalPolicyId: inferenceDeployments.autoApprovalPolicyId,
+      legalReviewStatus: inferenceDeployments.legalReviewStatus, legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef })
+      .from(inferenceDeployments).where(inArray(inferenceDeployments.internalRouteId, descriptors.map(row => row.deploymentId)));
+    return { world, approval, route, ordinary, privateReader, rows, prices, payload };
+  }
+  it('does not authorize import or allocate price from signed metadata without local source approval', async () => {
+    const f = await fixture();
+    expect(privateAutoSource.privateAutoClassifierSourceApproval()).toBeUndefined();
+    expect((await runKaanaCatalogueSync({ reader: f.privateReader })).deployments.skipped.unattested_route).toBe(1);
+    expect(await f.rows()).toEqual([]);
+    expect(await getDb().select({ id: priceVersions.id }).from(priceVersions).where(eq(priceVersions.id, f.approval.priceVersionId))).toEqual([]);
+  });
+  it('imports only exact fresh reviewed authority, retaining pending/disabled/internal and separate metadata', async () => {
+    const f = await fixture();
+    jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(f.approval);
+    await runKaanaCatalogueSync({ reader: f.privateReader });
+    expect(await f.rows()).toEqual([expect.objectContaining({ privateAutoSourceApproval: f.approval,
+      scopedExecution: null, permissionState: 'pending_review', status: 'disabled', availabilityScope: 'platform_internal',
+      autoApprovalPolicyId: null, legalReviewStatus: 'not_started', priceVersionId: f.approval.priceVersionId })]);
+    expect((await listCatalogueForViewer(INTERNAL_VIEWER, CATALOGUED)).some(model => model.modelId === f.world.line('privateauto'))).toBe(false);
+  });
+  it.each(['expired', 'changed-key'])('refuses %s source approval before allocating its price', async (kind) => {
+    const f = await fixture();
+    jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(kind === 'expired' ?
+      { ...f.approval, expiresAt: new Date(Date.now() - 1).toISOString() } : { ...f.approval, keyId: 'changed' });
+    await runKaanaCatalogueSync({ reader: f.privateReader });
+    expect(await f.rows()).toEqual([]);
+  });
+  it('preserves ordinary uniqueness and permits separate private row without duplicate private route on renewal', async () => {
+    const f = await fixture(true);
+    // Establish the immutable shared list price first, preserving all ordinary rights.
+    await getDb().insert(priceVersions).values({ id: f.approval.priceVersionId, modelReference: f.route.modelReference,
+      provider: f.route.provider, currency: 'USD', status: 'active', effectiveFrom: new Date('2020-01-01') });
+    await getDb().insert(priceVersionUnitPrices).values(syncedUnitPrices({ input: '0.072', output: '0.28' })
+      .map(unit => ({ priceVersionId: f.approval.priceVersionId, ...unit })));
+    jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(f.approval);
+    await runKaanaCatalogueSync({ reader: f.privateReader });
+    const rows = await f.rows();
+    expect(rows).toHaveLength(2);
+    const ordinary = rows.find(row => row.privateAutoSourceApproval === null);
+    const auto = rows.find(row => row.privateAutoSourceApproval !== null);
+    if (!ordinary || !auto) throw new Error('Synthetic catalogue identities missing');
+    expect(ordinary).toMatchObject({ permissionState: 'approved', status: 'active', autoApprovalPolicyId: KAANA_SYNC_AUTO_APPROVAL_POLICY_ID });
+    await expect(getDb().insert(inferenceDeployments).values({ ...ordinary, id: randomUUID(), internalRouteId: 'duplicate-ordinary' })).rejects.toThrow();
+    await expect(getDb().insert(inferenceDeployments).values({ ...auto, id: randomUUID(), privateAutoSourceApproval: { ...f.approval, approvalVersion: 2 } })).rejects.toThrow();
+    expect(await f.rows()).toEqual(rows);
+  });
+  it.each(['public', 'approved', 'active', 'mixed-commissioning'])('database rejects %s widening of a private Auto row', async (kind) => {
+    const f = await fixture();
+    jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(f.approval);
+    await runKaanaCatalogueSync({ reader: f.privateReader });
+    const [row] = await f.rows();
+    if (!row) throw new Error('Synthetic private row absent');
+    const delta = kind === 'public' ? { availabilityScope: 'public_payg' as const } : kind === 'approved' ?
+      { permissionState: 'approved' as const, legalReviewStatus: 'approved' as const, legalReviewEvidenceRef: 'synthetic' } :
+      kind === 'active' ? { status: 'active' as const } : { scopedExecution: { permitId: 'not-compatible' } as never };
+    await expect(getDb().update(inferenceDeployments).set(delta).where(eq(inferenceDeployments.id, row.id))).rejects.toThrow();
+    expect(await f.rows()).toEqual([row]);
+  });
+  it('reimports identical private metadata without rewriting its exact legal review', async () => {
+    const f = await fixture();
+    jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(f.approval);
+    await runKaanaCatalogueSync({ reader: f.privateReader });
+    const [row] = await f.rows();
+    if (!row) throw new Error('Synthetic private row absent');
+    await getDb().update(inferenceDeployments).set({ legalReviewStatus: 'approved', legalReviewEvidenceRef: f.approval.review.legalReviewEvidenceRef, legalReviewedAt: new Date() })
+      .where(eq(inferenceDeployments.id, row.id));
+    const before = await f.rows();
+    await runKaanaCatalogueSync({ reader: f.privateReader });
+    expect(await f.rows()).toEqual(before);
+  });
+});
+
 describe('source-reviewed scoped price bootstrap', () => {
   afterEach(() => jest.restoreAllMocks());
 
@@ -848,7 +957,7 @@ describe('source-reviewed scoped price bootstrap', () => {
         (model.listPrices as { deploymentId: string }[])[0].deploymentId = f.scope.deploymentId;
       }
       if (change === 'revision') {
-        f.scope.modelReference = f.world.line('private') + '@new-reviewed-revision';
+        f.scope.modelReference = `${f.world.line('private')}@new-reviewed-revision`;
         f.descriptor.modelReference = f.scope.modelReference;
         model.modelReference = f.scope.modelReference;
       }
