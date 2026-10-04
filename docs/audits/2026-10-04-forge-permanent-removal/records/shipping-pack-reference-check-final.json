@@ -1,0 +1,50 @@
+[
+  {
+    "package": "@oxy.so/contracts",
+    "version": "4.9.0",
+    "archive": "oxy.so-contracts-4.9.0.tgz",
+    "sha256": "5b9107d9f3171da1df280f54e9b0fec568d8ef8761d352182fef153dde8838e2",
+    "memberCount": 198,
+    "localToolingReferences": false
+  },
+  {
+    "package": "@oxy.so/core",
+    "version": "4.2.0",
+    "archive": "oxy.so-core-4.2.0.tgz",
+    "sha256": "46bad2ee1cef13768089a27cfc3faf152c6d9808c40cc744306bd35dc9009df2",
+    "memberCount": 581,
+    "localToolingReferences": false
+  },
+  {
+    "package": "@oxy.so/db",
+    "version": "1.0.0",
+    "archive": "oxy.so-db-1.0.0.tgz",
+    "sha256": "e58f93c8722213773fd175aa2bba39cb30c3a437ef42f50d57f8c1b3df7fb9a1",
+    "memberCount": 86,
+    "localToolingReferences": false
+  },
+  {
+    "package": "@oxy.so/mcp",
+    "version": "1.1.0",
+    "archive": "oxy.so-mcp-1.1.0.tgz",
+    "sha256": "0786c29195db2e3771bb589ae1d4c7a97cfa78d378522ed6c7594e597a0f42ef",
+    "memberCount": 41,
+    "localToolingReferences": false
+  },
+  {
+    "package": "@oxy.so/protocol",
+    "version": "1.2.2",
+    "archive": "oxy.so-protocol-1.2.2.tgz",
+    "sha256": "12a9ca4a518005748505c7712f039d7973a15c5c5bdf850b5416a4d9e082b1ba",
+    "memberCount": 145,
+    "localToolingReferences": false
+  },
+  {
+    "package": "@oxy.so/services",
+    "version": "11.1.0",
+    "archive": "oxy.so-services-11.1.0.tgz",
+    "sha256": "b8d232cb04d934ac38c8be303dbbcf9819d444bec8458628c8478cbbf2155c9c",
+    "memberCount": 2418,
+    "localToolingReferences": false
+  }
+]
