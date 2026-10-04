@@ -1,0 +1,7 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/inferenceDecisionsRoute.test.ts
+{"level":40,"time":1791120083297,"pid":1264592,"hostname":"SuperPC","requestId":"req-synthetic","code":"service_unavailable","applicationId":"fixture","reason":"decisions-review-required","msg":"inference.edge.refused"}
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        3.954 s
+Ran all test suites within paths "src/routes/__tests__/inferenceDecisionsRoute.test.ts".

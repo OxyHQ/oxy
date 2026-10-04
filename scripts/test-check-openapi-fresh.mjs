@@ -54,6 +54,7 @@ const FIXTURE_ROUTES = {
     ['post', '/audio/speech'],
     ['post', '/images/generations'],
     ['get', '/generations/{id}'],
+    ['get', '/generations/by-idempotency-key'],
   ],
   'inferenceCatalogue.ts': [
     ['get', '/'],
@@ -243,7 +244,7 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment, script = 
 }
 
 // A complete, fresh document must pass, or nothing below means anything.
-expectVerdict('complete', createFixture(), 0, 'is fresh, describes 12 named inference path(s)');
+expectVerdict('complete', createFixture(), 0, 'is fresh, describes 13 named inference path(s)');
 
 // POSITIVE CONTROL. A whole route file dropped from the map, with the artifact
 // regenerated in the same commit — so the freshness layer is green and only the
@@ -476,6 +477,19 @@ expectVerdict(
   'response 200 (application/json) has an EMPTY schema at `.properties.data.items`',
 );
 
+expectVerdict(
+  'original-key-receipt-empty-success',
+  createFixture({
+    payloadOverrides: {
+      '/v1/generations/by-idempotency-key get': {
+        responses: { 200: { description: 'ok', content: { 'application/json': { schema: {} } } } },
+      },
+    },
+  }),
+  1,
+  'GET /v1/generations/by-idempotency-key declares no 2xx response with a constrained schema',
+);
+
 // POSITIVE CONTROLS FOR THE DIALECT LAYER.
 expectVerdict(
   'operation-id-missing',
@@ -598,13 +612,13 @@ function withMutatedGate(caseName, from, to, expectedFragment) {
   expectVerdict(caseName, createFixture(), 1, expectedFragment, scriptPath);
 }
 
-withMutatedGate('expected-list-shrunk', "  '/v1/responses',\n", '', 'below the floor of 12');
+withMutatedGate('expected-list-shrunk', "  '/v1/responses',\n", '', 'below the floor of 13');
 
 withMutatedGate(
   'payload-list-shrunk',
   "  { method: 'post', path: '/v1/responses', requestBody: true },\n",
   '',
-  'below the floor of 20',
+  'below the floor of 21',
 );
 
 // The empty-schema walk going INERT, which is the one failure its own findings

@@ -1,0 +1,7 @@
+# Decisions Unicode boundary
+
+Oxy's typed decisions input accepted lone UTF-16 surrogate units, which Kaana's existing raw-envelope guard refuses because Go would replace them during JSON decoding. The contract now rejects them in every provider-visible input string, including question IDs and option/level labels, before budget measurement and reservation. Valid surrogate pairs, literal U+FFFD and composed/decomposed text remain byte-for-byte unchanged; no normalization or Hermes-incompatible regex is introduced.
+
+The preserved contract fixture failed five controls against `eab1b6dd`; the identical file passes all 18 controls after `3a8c5e0cb`. All 53 contracts suites pass (927 tests), both contracts and API canonical builds pass, and the mounted API decisions handler passes six controls including invalid state/question-ID rejection before `reserve`. Its owned Postgres was migrated through the canonical test setup and stopped afterward. Two initial API setup failures are preserved separately: missing DB URL and an unbuilt workspace dependency. They are not product RED tests.
+
+Availability, provider review, routing policy and SDK versions are unchanged. This closes only the Oxy Unicode gap; Jev deployment, actual System One policy enforcement and Mention semantic/receipt work remain tracked in #1572. Kaana already has `internal/httpapi/decision_unicode.go`; its stale decisions documentation should not be mistaken for missing code. [Proof and hashes](proof.json).

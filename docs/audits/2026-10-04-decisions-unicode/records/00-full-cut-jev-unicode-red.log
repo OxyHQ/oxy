@@ -1,0 +1,92 @@
+@oxy.so/contracts test: FAIL src/__tests__/inference.decisions.test.ts
+@oxy.so/contracts test:   ● rejects unpaired UTF-16 in every provider-visible input field ("\ud800")
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     expect(received).toBe(expected) // Object.is equality
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     Expected: false
+@oxy.so/contracts test:     Received: true
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       222 |   value => {
+@oxy.so/contracts test:       223 |     for (const input of unicodeInputs(value)) {
+@oxy.so/contracts test:     > 224 |       expect(decisionRequestSchema.safeParse(input).success).toBe(false);
+@oxy.so/contracts test:           |                                                              ^
+@oxy.so/contracts test:       225 |       const { model: _model, ...payload } = input;
+@oxy.so/contracts test:       226 |       expect(decisionInputSchema.safeParse(payload).success).toBe(false);
+@oxy.so/contracts test:       227 |     }
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       at src/__tests__/inference.decisions.test.ts:224:62
+@oxy.so/contracts test: 
+@oxy.so/contracts test:   ● rejects unpaired UTF-16 in every provider-visible input field ("\udfff")
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     expect(received).toBe(expected) // Object.is equality
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     Expected: false
+@oxy.so/contracts test:     Received: true
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       222 |   value => {
+@oxy.so/contracts test:       223 |     for (const input of unicodeInputs(value)) {
+@oxy.so/contracts test:     > 224 |       expect(decisionRequestSchema.safeParse(input).success).toBe(false);
+@oxy.so/contracts test:           |                                                              ^
+@oxy.so/contracts test:       225 |       const { model: _model, ...payload } = input;
+@oxy.so/contracts test:       226 |       expect(decisionInputSchema.safeParse(payload).success).toBe(false);
+@oxy.so/contracts test:       227 |     }
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       at src/__tests__/inference.decisions.test.ts:224:62
+@oxy.so/contracts test: 
+@oxy.so/contracts test:   ● rejects unpaired UTF-16 in every provider-visible input field ("x\ud800y")
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     expect(received).toBe(expected) // Object.is equality
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     Expected: false
+@oxy.so/contracts test:     Received: true
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       222 |   value => {
+@oxy.so/contracts test:       223 |     for (const input of unicodeInputs(value)) {
+@oxy.so/contracts test:     > 224 |       expect(decisionRequestSchema.safeParse(input).success).toBe(false);
+@oxy.so/contracts test:           |                                                              ^
+@oxy.so/contracts test:       225 |       const { model: _model, ...payload } = input;
+@oxy.so/contracts test:       226 |       expect(decisionInputSchema.safeParse(payload).success).toBe(false);
+@oxy.so/contracts test:       227 |     }
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       at src/__tests__/inference.decisions.test.ts:224:62
+@oxy.so/contracts test: 
+@oxy.so/contracts test:   ● rejects unpaired UTF-16 in every provider-visible input field ("\ud800\ud800")
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     expect(received).toBe(expected) // Object.is equality
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     Expected: false
+@oxy.so/contracts test:     Received: true
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       222 |   value => {
+@oxy.so/contracts test:       223 |     for (const input of unicodeInputs(value)) {
+@oxy.so/contracts test:     > 224 |       expect(decisionRequestSchema.safeParse(input).success).toBe(false);
+@oxy.so/contracts test:           |                                                              ^
+@oxy.so/contracts test:       225 |       const { model: _model, ...payload } = input;
+@oxy.so/contracts test:       226 |       expect(decisionInputSchema.safeParse(payload).success).toBe(false);
+@oxy.so/contracts test:       227 |     }
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       at src/__tests__/inference.decisions.test.ts:224:62
+@oxy.so/contracts test: 
+@oxy.so/contracts test:   ● rejects unpaired UTF-16 in every provider-visible input field ("\udc00\ud800")
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     expect(received).toBe(expected) // Object.is equality
+@oxy.so/contracts test: 
+@oxy.so/contracts test:     Expected: false
+@oxy.so/contracts test:     Received: true
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       222 |   value => {
+@oxy.so/contracts test:       223 |     for (const input of unicodeInputs(value)) {
+@oxy.so/contracts test:     > 224 |       expect(decisionRequestSchema.safeParse(input).success).toBe(false);
+@oxy.so/contracts test:           |                                                              ^
+@oxy.so/contracts test:       225 |       const { model: _model, ...payload } = input;
+@oxy.so/contracts test:       226 |       expect(decisionInputSchema.safeParse(payload).success).toBe(false);
+@oxy.so/contracts test:       227 |     }
+@oxy.so/contracts test: 
+@oxy.so/contracts test:       at src/__tests__/inference.decisions.test.ts:224:62
+@oxy.so/contracts test: 
+@oxy.so/contracts test: Test Suites: 1 failed, 1 total
+@oxy.so/contracts test: Tests:       5 failed, 13 passed, 18 total
+@oxy.so/contracts test: Snapshots:   0 total
+@oxy.so/contracts test: Time:        0.501 s
+@oxy.so/contracts test: Ran all test suites within paths "src/__tests__/inference.decisions.test.ts".
+@oxy.so/contracts test: Exited with code 1

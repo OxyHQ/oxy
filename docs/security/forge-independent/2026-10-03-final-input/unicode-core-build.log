@@ -1,0 +1,24 @@
+$ node scripts/build-workspace-deps.mjs @oxy.so/telemetry && bun run build:cjs && bun run build:esm && bun run build:types && node scripts/mark-module-formats.mjs
+@oxy.so/telemetry build: $ rm -rf dist
+@oxy.so/telemetry build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/telemetry build: $ tsc -p tsconfig.esm.json
+@oxy.so/telemetry build: $ tsc -p tsconfig.types.json
+@oxy.so/telemetry build: Exited with code 0
+$ tsc -p tsconfig.cjs.json
+src/HttpService.ts(21,31): error TS2307: Cannot find module '@oxy.so/protocol/random' or its corresponding type declarations.
+src/api/assets.ts(16,31): error TS2307: Cannot find module '@oxy.so/protocol/random' or its corresponding type declarations.
+src/crypto/ecdh.ts(18,45): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+src/crypto/identityDerivations.ts(21,8): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+src/crypto/identityMarker.ts(30,34): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/identityProof.ts(12,29): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/internal.ts(20,87): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/keyManager.ts(20,8): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/keyManager.ts(30,8): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+src/crypto/polyfill.ts(38,34): error TS2307: Cannot find module '@oxy.so/protocol/random' or its corresponding type declarations.
+src/crypto/registrationPow.ts(17,8): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/crypto/signatureService.ts(21,8): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/server/OxyServer.ts(40,32): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/server/agentAccount.ts(3,45): error TS2307: Cannot find module '@oxy.so/protocol/secp256k1' or its corresponding type declarations.
+src/server/middleware.ts(14,32): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/utils/deviceManager.ts(1,34): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
+src/utils/oauthPkce.ts(20,81): error TS2307: Cannot find module '@oxy.so/protocol' or its corresponding type declarations.
