@@ -19,7 +19,7 @@ export function requestFor(intent) {
 // Production preparation supplies a separately reviewed, image/policy-bound set.
 export const HISTORICAL_REVIEW = Object.freeze({
   policyVersion:'oxy-inference-economics/2026-10-04.1', maxQuotePicos:'20000000000',
-  routes:Object.entries(DEPLOYMENTS).map(([deploymentId,provider])=>({deploymentId,provider,modelReference:MODEL,
+  routes:Object.entries(DEPLOYMENTS).map(([deploymentId,provider])=>({deploymentId,provider,modelReference:MODEL,availabilityScope:'internal_alia',
     privacy:{retainsPayloads:provider==='groq',retentionDays:provider==='groq'?30:0,trainsOnCustomerData:false,zeroDataRetentionAvailable:true}})),
 });
 export function validateReview(review) {
@@ -32,6 +32,7 @@ export function validateReview(review) {
     && r.provider===provider && r.modelReference===MODEL)), 'historical_route_missing');
   for(const r of routes)requireValue(typeof r.deploymentId==='string' && /^[a-zA-Z0-9_-]+$/.test(r.deploymentId)
     && typeof r.modelReference==='string' && r.modelReference.includes('@') && typeof r.provider==='string'
+    && typeof r.availabilityScope==='string' && ['internal_alia','platform_internal','public_payg'].includes(r.availabilityScope)
     && typeof r.privacy?.retainsPayloads==='boolean' && Number.isSafeInteger(r.privacy.retentionDays)
     && r.privacy.retentionDays>=0 && r.privacy.trainsOnCustomerData===false && r.privacy.zeroDataRetentionAvailable===true,
     'review_route_invalid');
@@ -44,7 +45,7 @@ export function validatePilot(policy, review=HISTORICAL_REVIEW) {
   requireValue(rows.length===1,'relationship_ambiguous');const r=rows[0];
   requireValue(r.relationshipId==='alia-kaana' && r.lane==='service_token' && r.environments.length===1 && r.environments[0]==='production'
     && r.pilot?.maxControlledCompletionInputBudget===126976 && r.pilot.maxControlledInputBudget===8192
-    && r.pilot.maxOutputTokens===2048 && r.capacity.maxConcurrentRequests===32 && r.capacity.maxRequestsPerUtcDay===5000,'policy_bounds_changed');
+    && r.pilot.maxPricePerRequestUsd==='0.05' && r.pilot.maxOutputTokens===2048 && r.capacity.maxConcurrentRequests===32 && r.capacity.maxRequestsPerUtcDay===5000,'policy_bounds_changed');
   const allowed=r.pilot.deployments;
   requireValue(allowed.length===review.routes.length && new Set(allowed.map(x=>x.deploymentId)).size===allowed.length
     && allowed.every(x=>review.routes.some(r=>r.deploymentId===x.deploymentId && r.provider===x.provider && r.modelReference===x.modelReference)),'allowed_route_set_changed');
@@ -66,11 +67,11 @@ export function inspectInventory(inventory, now = Date.now, review=HISTORICAL_RE
   const prices = table('price_versions'), units = table('price_version_unit_prices');
   const rows = table('inference_deployments');
   requireValue(rows.length === review.routes.length && new Set(rows.map(r=>r.internal_route_id_digest)).size===rows.length, 'route_set_differs');
-  const quotes = review.routes.map(({deploymentId,provider,modelReference,privacy,priceVersionId}) => {
+  const quotes = review.routes.map(({deploymentId,provider,modelReference,privacy,priceVersionId,availabilityScope}) => {
     const matches=rows.filter(r=>r.internal_route_id_digest===hash(deploymentId));
     requireValue(matches.length===1,'deployment_binding_differs'); const route=matches[0];
     requireValue(route.provider_slug===provider && route.status==='active' && route.permission_state==='approved'
-      && route.legal_review_status==='approved' && route.availability_scope==='internal_alia'
+      && route.legal_review_status==='approved' && route.availability_scope===availabilityScope
       && route.retains_payloads===privacy.retainsPayloads
       && route.retention_days===privacy.retentionDays && route.trains_on_customer_data===false
       && route.zero_data_retention_available===true && route.platform_fee_price_version_id===null,'route_not_reviewed');
