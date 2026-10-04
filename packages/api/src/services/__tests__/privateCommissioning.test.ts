@@ -188,19 +188,18 @@ it('compiled Node CLI performs dry-run and explicit hash-bound apply on the same
   const folder = mkdtempSync(join(tmpdir(), 'oxy-legal-cli-'));
   const file = join(folder, 'plan.json');
   writeFileSync(file, JSON.stringify(f.plan), { mode: 0o600 });
-  const env = { PATH: process.env.PATH, HOME: process.env.HOME, LANG: 'C.UTF-8', NODE_ENV: 'test', DATABASE_URL: process.env.DATABASE_URL };
+  const env = { PATH: process.env.PATH, HOME: process.env.HOME, LANG: 'C.UTF-8', BUN_OPTIONS: '--no-env-file', NODE_ENV: 'test', DATABASE_URL: process.env.DATABASE_URL };
   // API test shards build workspace dependencies, not API dist. Compile the
-  // actual production sources with the canonical tsconfig into a fresh tree;
+  // actual production build, including its workspace dependencies, into a fresh tree;
   // neither a stale local dist nor a test double can satisfy this check.
   const output = join(folder, 'dist');
   const command = join(output, 'scripts/recordScopedLegalReview.js');
   try {
     symlinkSync(join(process.cwd(), 'node_modules'), join(folder, 'node_modules'), 'dir');
-    const build = spawnSync('node', [require.resolve('typescript/bin/tsc'), '--project',
-      join(process.cwd(), 'tsconfig.json'), '--outDir', output], {
+    const build = spawnSync('bun', ['--no-env-file', 'run', 'build', '--outDir', output], {
       env, encoding: 'utf8', timeout: 120_000,
     });
-    expect({ exit: build.status, stdout: build.stdout, stderr: build.stderr }).toMatchObject({ exit: 0 });
+    if (build.status !== 0) throw new Error(`Canonical CLI build failed (exit=${build.status}):\n${build.stdout}\n${build.stderr}`);
     const dry = spawnSync('node', [command, file], { env, encoding: 'utf8' });
     expect({ exit: dry.status, stderr: dry.stderr }).toMatchObject({ exit: 0 });
     const dryReceipt = JSON.parse(dry.stdout.split('\n').find((line) => line.includes('"kind":"scoped-legal-review-v1"'))!);
