@@ -1,0 +1,162 @@
+$ eslint . src/services/aliaRevocationCanary.service.ts src/services/__tests__/aliaRevocationCanary.db.test.ts
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/capabilities/__tests__/inbox-mcp-postgres.test.ts
+  62:3  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/controllers/email.controller.ts
+  1016:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/controllers/storage.controller.ts
+  9:7  warning  'STORAGE_CATEGORIES' is assigned a value but only used as a type. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/controllers/users.controller.ts
+  32:50  warning  'next' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/db/schema/__tests__/appUpdates.test.ts
+  21:10  warning  'APP_UPDATE_STATUSES' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  24:3   warning  'UPDATE_ASSET_STATUSES' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  28:10  warning  'UPDATE_PLATFORMS' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/db/schema/__tests__/applications.test.ts
+  22:10  warning  'ACCOUNT_MEMBER_STATUSES' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  28:3   warning  'APPLICATION_CREDENTIAL_ENVIRONMENTS' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  29:3   warning  'APPLICATION_CREDENTIAL_STATUSES' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  30:3   warning  'APPLICATION_CREDENTIAL_TYPES' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  34:10  warning  'APPLICATION_STATUSES' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+  34:32  warning  'APPLICATION_TYPES' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/db/schema/__tests__/authSession.test.ts
+  35:3  warning  'SECURITY_EVENT_SEVERITIES' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  36:3  warning  'SECURITY_EVENT_SEVERITY_MAP' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  37:3  warning  'SECURITY_EVENT_TYPES' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/db/schema/__tests__/reputationCivic.test.ts
+  95:10  warning  'pgMessage' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/db/schema/__tests__/transparencyCheckpoints.test.ts
+  76:10  warning  'pgConstraint' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/db/schema/__tests__/users.test.ts
+  18:3  warning  'ACCOUNT_KINDS' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  19:3  warning  'ACCOUNT_STATUSES' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/middleware/__tests__/errorHandler.test.ts
+   2:10  warning  'ApiError' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   5:14  warning  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+  12:21  warning  Unexpected any. Specify a different type                                    @typescript-eslint/no-explicit-any
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/middleware/auth.ts
+  10:3  warning  'extractTokenFromRequest' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  12:3  warning  'validateSessionToken' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/middleware/authUtils.ts
+   96:12  warning  'error' is defined but never used                                                       @typescript-eslint/no-unused-vars
+  128:16  warning  'id' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  161:3   warning  'requireAuth' is assigned a value but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/middleware/requireStaff.ts
+  4:10  warning  'STAFF_CAPABILITIES' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/__tests__/assetsServiceLinkedUrl.test.ts
+  182:78  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/__tests__/authLinking.reversibility.test.ts
+  65:42  warning  'OXY_DID' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/__tests__/emailProxy.route.test.ts
+  7:10  warning  'rateLimit' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/__tests__/isolatedOAuthLogout.test.ts
+  61:10  warning  'deviceAccountContexts' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  62:10  warning  'deviceSessions' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  65:8   warning  'deviceSessionService' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/__tests__/linkedAccounts.test.ts
+  224:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  240:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/__tests__/sessionAuthorizeCode.test.ts
+  23:7  warning  'mockAuthSessionFindOne' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  24:7  warning  'mockApplicationFindOne' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  25:7  warning  'mockApplicationCredentialFindOne' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  26:7  warning  'mockAuthCodeCreate' is assigned a value but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/accounts.ts
+  11:3   warning  'serviceAuthMiddleware' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  13:8   warning  'ServiceAuthRequest' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  27:15  warning  'ApplicationScope' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  42:10  warning  'accountMembers' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/assets.ts
+    22:3   warning  'updateVisibilitySchema' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+    56:20  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+   317:19  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+   409:19  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+  1731:19  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+  2060:17  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+  2089:21  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/billing.ts
+  29:35   warning  'namedProductCancellationResponseSchema' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  29:75   warning  'pendingProductCancellationResponseSchema' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  29:117  warning  'creditSubscriptionsResponseSchema' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  29:152  warning  'namedCreditCancellationResponseSchema' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/capabilities.ts
+  287:9  warning  'userId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/routes/civic.ts
+  45:3  warning  'recomputePersonhood' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/scripts/foregroundPilotExecutor.ts
+  157:3  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/server.ts
+   374:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   479:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   966:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   978:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1008:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1015:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1026:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/services/__tests__/emailSuppression.service.test.ts
+  117:11  warning  'userId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/services/__tests__/inferenceLedger.service.test.ts
+  35:10  warning  'accountBalances' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/services/__tests__/variantService.imageVariants.test.ts
+  184:11  warning  'w128' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/services/inferenceLedger.service.ts
+  63:3  warning  'RESERVATION_DRAW_ORDER' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/services/moderationReputation.service.ts
+  50:29  warning  'inArray' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/services/s3Service.ts
+   44:25  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+  106:13  warning  'response' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  447:21  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+  478:21  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+  508:21  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/services/session.service.ts
+    25:3   warning  'DeviceFingerprint' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  1332:16  warning  'tokenError' is defined but never used                                               @typescript-eslint/no-unused-vars
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/utils/__tests__/userIdentityBase.contract.test.ts
+  41:3  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/utils/locationCache.ts
+   5:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  44:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  65:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/nate/Oxy/oxy/.worktrees/1519-alia-canary-live-binding-20261004/packages/api/src/utils/performanceMonitor.ts
+  50:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 83 problems (0 errors, 83 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

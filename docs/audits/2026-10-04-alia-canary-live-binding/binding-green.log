@@ -1,0 +1,7 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/aliaRevocationCanary.db.test.ts
+{"level":30,"time":1791085370009,"pid":484928,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+Test Suites: 1 passed, 1 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total
+Time:        1.077 s
+Ran all test suites within paths "src/services/__tests__/aliaRevocationCanary.db.test.ts".

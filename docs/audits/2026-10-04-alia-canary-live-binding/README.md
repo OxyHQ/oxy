@@ -1,0 +1,9 @@
+# Alia canary application binding correction
+
+The deployed canary helper pins another account and `first_party`. The Alia locator instead describes its existing owner `01a0369b-1222-712f-8df6-f8ffeb78ccc2` and `internal`, with both official/internal flags true. The failed live prepare connected to PostgreSQL, returned no plan, and exited 1; its ephemeral task is STOPPED and definition INACTIVE. Its catch conceals the exact thrown precondition, so the log alone does not identify which check fired.
+
+This candidate pins that exact existing application owner and requires the recorded internal/official flags. It preserves the existing app ID, two scopes, live grant and revocation checks, owner/principal closure fences, CAS snapshot, own credential TTL and canonical revoke. It never changes the production application or grants. Production mint already derives the owner from the stored app and live grant verification compares that owner.
+
+The identical preserved fixture fails 10 tests and passes one against baseline85dad, then passes all11 against the correction. It also rejects owner, type and official/internal flag drift before prepare/issue, leaving no credential. API build/typecheck and scoped lint pass; full lint exits0 with83 pre-existing warnings. Own PostgreSQL5598 was stopped. A failed relative edit path caused one extra unchanged RED run, retained as setup history.
+
+Fresh root metadata from the prepared693 read-only inventory is still needed to accept this operational binding. The corrected compiled canary must be supplied by a reviewed API image; the other four pinned compiled modules are byte-identical to final693. This is not a production rollout or a completed≤5s revocation measurement. Integration separately fixes the canary transport's expiry margin before another live operation. No SDK/public API/authentication enforcement changed.

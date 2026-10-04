@@ -1,0 +1,169 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/aliaRevocationCanary.db.test.ts
+{"level":30,"time":1791085297193,"pid":483799,"hostname":"SuperPC","maxPoolSize":8,"msg":"Connected to PostgreSQL successfully"}
+FAIL src/services/__tests__/aliaRevocationCanary.db.test.ts
+  ● issues a distinct expiring key with existing grant and explicit operator audit, then canonical revoke denies without changing another key or grant
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● two plans from one baseline cannot issue two keys
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● rejects unknown operator, missing consent and withdrawn consent
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● rejects stale app ceilings and closure before new writes
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● rejects wrong app, expired plan and wrong material without issuing
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● cleanup rejects another key and still works after app withdrawal and expiry
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● issuance and shared revocation roll back if the operational audit cannot commit
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● recovers a task-failure credential by durable intent and immutable audit without retaining its material
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● allows canonical mint activity metadata but detects a changed app authority after use
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+  ● binds the actual Alia owner and internal type, rejecting other owner/type before issuing any credential
+
+    alia_canary_precondition_failed
+
+      38 | };
+      39 | const fail = (): never => {
+    > 40 | 	throw new Error("alia_canary_precondition_failed");
+         | 	      ^
+      41 | };
+      42 | const digest = (value: unknown) =>
+      43 | 	createHash("sha256").update(JSON.stringify(value)).digest("hex");
+
+      at fail (src/services/aliaRevocationCanary.service.ts:40:8)
+      at src/services/aliaRevocationCanary.service.ts:106:3
+      at fulfilled (src/services/aliaRevocationCanary.service.ts:5:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       10 failed, 1 passed, 11 total
+Snapshots:   0 total
+Time:        1.585 s
+Ran all test suites within paths "src/services/__tests__/aliaRevocationCanary.db.test.ts".
+error: script "test" exited with code 1

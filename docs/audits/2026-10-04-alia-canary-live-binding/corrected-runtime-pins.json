@@ -1,0 +1,7 @@
+{
+  "dist/services/aliaRevocationCanary.service.js": "2977ad4b30cd33bbce2a0a8b2faa3c3f16838d7dc06f72d8cc324a8ea64343d6",
+  "dist/services/applicationCredentialRevocation.service.js": "6dcb62483c3206888483111ad95952176945360f3fdd301f20ae202ca3bd47a4",
+  "dist/services/applicationCredentialAudit.service.js": "13f6c78be7031244712771e4801f0dce393fcf25da95381635fbee28f6c907e5",
+  "dist/config/postgres.js": "d71c6f13be5ef0c6c9aa9d7b9878a1488dd5a85523755243aaf0972b6480cea2",
+  "dist/utils/credentialMaterial.js": "dc7e7e5180223cec591ca314c3d93c85b9d0c2dd3717e584586e0b0533af19d7"
+}

@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "205565de1b1b94d1865e698598fb441e011be8cd",
+  "baseCommit": "85dad68e5685413740a4a3fd52afee5bd724bed1",
+  "sources": [
+    {
+      "path": "packages/api/src/services/aliaRevocationCanary.service.ts",
+      "sha256": "dabc54aaeeeddd29fc2fec1f7ff482b491043d1cdb5aca47f06538ef149f3c35"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/aliaRevocationCanary.db.test.ts",
+      "sha256": "aa12142ed80b1aa26f8f9645aeb632484e396e475c3d6e9f069680abbe0c52dd"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/binding-red.log",
+      "sha256": "954ddf3631bc9dccb3f273a3c7b8cbf77dd2362c73293fb75425b29733ab8b9a"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/binding-green.log",
+      "sha256": "17eeafb4067c3761df544ceb8d494330bb78ebbc767e291e6f89396927120dcf"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/binding-repeat-red-after-edit-path-error.log",
+      "sha256": "13076304845994cafd43d427ac283fc01d508ad46e3aa8a428215c2851939e49"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/correction-install.log",
+      "sha256": "1eb5666e65b3fb66024a145e58e7fe22e53992130ccf2fe0734e64fbc9f28f4c"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/db-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/lint.log",
+      "sha256": "9ae590d9221fd11850d20dd150db4db28574ea5c298dc5ece7f5b4fdf825c55f"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/lint-scoped.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/pg-init.log",
+      "sha256": "8121fea75cb06f4bc49558ec61719c07447c27c3ed3bb515e86bfdc8c8a75b26"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/pg-stop.log",
+      "sha256": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/red-fixture.ts",
+      "sha256": "aa12142ed80b1aa26f8f9645aeb632484e396e475c3d6e9f069680abbe0c52dd"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/failure-diagnosis.json",
+      "sha256": "f6a8a8ea18b423be3969665381a77206876b2bef4479a154f55e278a63e994c0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-alia-canary-live-binding/corrected-runtime-pins.json",
+      "sha256": "6bf7f39743cfb925d372d3935dce171d32748e40ea8e38a2a6ed6bd0e4db5f71"
+    }
+  ],
+  "results": {
+    "red": {
+      "passed": 1,
+      "failed": 10
+    },
+    "green": {
+      "passed": 11,
+      "failed": 0
+    },
+    "fixtureIdenticalAcrossRedGreen": true,
+    "apiBuildAndTypecheck": 0,
+    "scopedLintZeroWarnings": 0,
+    "fullLint": {
+      "exit": 0,
+      "warnings": 83
+    },
+    "ownPostgresPort": 5598,
+    "ownPostgresStopped": true
+  },
+  "limits": [
+    "Fresh root read-only metadata693 remains pending before operational acceptance;1807 is a locator only.",
+    "No AWS writes, production authority edits, canary issuance, final measurement, SDK changes or API rollout.",
+    "Source build modifies only compiled canary service among the five operational runtime pins.",
+    "A path error repeated the unchanged RED test before the successful edit; that log is preserved separately.",
+    "Expiry-margin transport correction is owned by integration and must compose before live canary."
+  ]
+}
