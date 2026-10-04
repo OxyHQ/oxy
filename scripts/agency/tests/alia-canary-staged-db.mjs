@@ -37,6 +37,8 @@ try {
   const plan = await canary.prepareAliaRevocationCanary(principalId, operator);
   assert.equal(plan.ownerAccountId, owner);
   const material = generateCredentialMaterial();
+  await db.getDb().update(applications).set({ lastUsedAt: new Date() }).where(eq(applications.id, applicationId));
+  assert.equal(await canary.verifyAliaCanaryAuthorityUnchanged(plan, operator), true);
   await canary.issueAliaRevocationCanary(plan, material, operator);
   assert.deepEqual(await canary.inspectAliaRevocationCanary(plan, material, operator), { exists: true, status: 'active' });
   await canary.revokeAliaRevocationCanary(plan, material, operator);
@@ -50,7 +52,7 @@ try {
   await assert.rejects(canary.prepareAliaRevocationCanary(principalId, operator), /precondition/);
   assert.deepEqual(readFileSync(originalPath), originalBytes);
   assert.equal(original.I03_CANARY_OWNER_ID, '69b2d3df5d12f58c9800d651');
-  console.log(JSON.stringify({ kind: 'staged-canary-own-db-proof', originalPrepareDenied: true, correctedPrepareIssued: true,
+  console.log(JSON.stringify({ kind: 'staged-canary-own-db-proof', originalPrepareDenied: true, correctedPrepareIssued: true, activityChangedBeforeIssue: true,
     canonicalRevokeAndRecovery: true, grantUnchanged: true, changedOwnerDenied: true,
     originalModuleBytesAndCachedExportsUnchanged: true, database: url.pathname.slice(1), noExternalHTTP: true }));
 } finally {

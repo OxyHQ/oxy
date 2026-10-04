@@ -35,7 +35,7 @@ function checkSamples(samples,expiry) {
     throw new Error('measurement_expiry_reached');
 }
 
-const OPERATIONAL_MODULE_SHA256='2977ad4b30cd33bbce2a0a8b2faa3c3f16838d7dc06f72d8cc324a8ea64343d6';
+const OPERATIONAL_MODULE_SHA256='46c15e4b6d3492b57df3f459abd72e5193e83c61ec2ada93e0935c31dbef98a9';
 function modules(apiPackage,canaryModulePath) {
   const require = createRequire(apiPackage);
   const root = dirname(apiPackage);

@@ -8,7 +8,7 @@ import { constants, openSync, writeFileSync, fsyncSync, closeSync, lstatSync,
   readFileSync, realpathSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-export const CANARY_MODULE_SHA256 = '2977ad4b30cd33bbce2a0a8b2faa3c3f16838d7dc06f72d8cc324a8ea64343d6';
+export const CANARY_MODULE_SHA256 = '46c15e4b6d3492b57df3f459abd72e5193e83c61ec2ada93e0935c31dbef98a9';
 export const CANARY_MODULE_FILENAME = `alia-canary-operational-${CANARY_MODULE_SHA256}.cjs`;
 const digest = value => createHash('sha256').update(value).digest('hex');
 const fail = () => { throw new Error('canary_module_staging_rejected'); };

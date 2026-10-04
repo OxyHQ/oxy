@@ -166,8 +166,9 @@ function snapshot(tx, principalId) {
         };
     });
 }
-/** The canonical mint updates app.lastUsedAt (and therefore xmin). After use,
- * compare its unchanged authority fields separately from the pre-issue CAS. */
+/** Canonical mint updates app.lastUsedAt and xmin, including while prepare and
+ * issue are separate operations. Compare all authority fields under the same
+ * locks; activity-only app xmin is not an authority version. */
 function authorityDigest(value) {
     return digest(Object.assign(Object.assign({}, value), { app: Object.assign(Object.assign({}, value.app), { version: null }) }));
 }
@@ -207,8 +208,8 @@ function issueAliaRevocationCanary(plan, material, actor) {
         return (0, postgres_1.getDb)().transaction((tx) => __awaiter(this, void 0, void 0, function* () {
             const current = yield snapshot(tx, plan.principalId);
             if (current.grantId !== plan.grantId ||
-                digest(current) !== plan.baselineSha256)
-                fail();
+                authorityDigest(current) !== plan.authoritySha256)
+                throw new Error("alia_canary_precondition_failed:authority_snapshot_changed");
             valid(plan, true);
             yield tx.insert(applicationCredentials_1.applicationCredentials).values({
                 id: plan.credentialId,

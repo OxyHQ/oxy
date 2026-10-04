@@ -55,7 +55,7 @@ def main():
         import hashlib
         runtime={p:hashlib.sha256((api/p).read_bytes()).hexdigest() for p in m.COMPILED_PATHS}
         actor=seed['canaryPlan']['operator'];results=[]
-        staged_path=api/'dist/services/alia-canary-operational-2977ad4b30cd33bbce2a0a8b2faa3c3f16838d7dc06f72d8cc324a8ea64343d6.cjs'
+        staged_path=api/'dist/services/alia-canary-operational-46c15e4b6d3492b57df3f459abd72e5193e83c61ec2ada93e0935c31dbef98a9.cjs'
         assert not staged_path.exists()
         for operation in ('prepare','recover'):
             payload={'nonce':'e'*32,'operation':operation,'operator':actor,'principalId':seed['principalId'] if operation=='prepare' else None,
