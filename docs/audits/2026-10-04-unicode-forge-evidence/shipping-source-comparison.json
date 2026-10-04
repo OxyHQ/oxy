@@ -1,0 +1,45 @@
+{
+  "sourceHead": "5d2a7c1f866eae44d9c25478248b25594b750dd9",
+  "priorSource": "eab1b6dd42b518500b49c03e692738081099d9cc",
+  "trees": [
+    {
+      "path": "packages/contracts",
+      "currentGitTree": "bae815ea31fa7745a376d3985f3e5eac3ea91dcc",
+      "acceptedMainEabGitTree": "6ff8352ea7920065590dceda3fff3ca420b94b69",
+      "equal": false
+    },
+    {
+      "path": "packages/core",
+      "currentGitTree": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+      "acceptedMainEabGitTree": "6f7773216c835ccb0978061fdbf7a614ecae79cd",
+      "equal": true
+    },
+    {
+      "path": "packages/services",
+      "currentGitTree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+      "acceptedMainEabGitTree": "9f0c5e719c8bcea54faefb37580713eb14bacf9f",
+      "equal": true
+    },
+    {
+      "path": "packages/protocol",
+      "currentGitTree": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "acceptedMainEabGitTree": "77ed4e428f59cff076fd44daf42e18a1b39f7fdb",
+      "equal": true
+    },
+    {
+      "path": "packages/mcp",
+      "currentGitTree": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+      "acceptedMainEabGitTree": "828269746b7b3ce63a80d6df0881fa4f8e2c7520",
+      "equal": true
+    },
+    {
+      "path": "packages/db",
+      "currentGitTree": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+      "acceptedMainEabGitTree": "0bab8e298a5f5b0d1f2195cf722b1e66da9ffe6c",
+      "equal": true
+    }
+  ],
+  "allTreesEqual": false,
+  "changedContractsIntentionalUnicodeFix": true,
+  "publicationOrDeployment": false
+}

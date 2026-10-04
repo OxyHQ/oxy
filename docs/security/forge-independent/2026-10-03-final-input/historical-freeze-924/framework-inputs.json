@@ -1,294 +1,276 @@
 {
-  "sourceHead": "5d2a7c1f866eae44d9c25478248b25594b750dd9",
-  "base": "eab1b6dd42b518500b49c03e692738081099d9cc",
+  "sourceHead": "96752299604be3e57772369fe0212d4d017b1e68",
+  "base": "82bca73efa870b013d7817aac7b7f9d63799963b",
   "changes": [
     {
       "file": ".github/scripts/resolve-queue-image.sh",
       "sha256": "4638574f14f78e52e87f88d416f5466c7ac494edecbe59f0cce8ad7be16a2017",
       "gitObject": "c6bacbbbaa86e9a3b53e2334ade733db9716bdb9",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": ".github/scripts/test-resolve-queue-image.sh",
       "sha256": "4e0a0eb2aed245ef17bf79d007fdc3f600918a910a514459fe0cec2d5a2f8098",
       "gitObject": "f9af7937734f5a524830df6753ae1faee2961dc7",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": ".github/workflows/ci.yml",
       "sha256": "84167ab53859fa99f0b2bf67557ff23dc03ee0b120220ac835885b02a53fefdc",
       "gitObject": "87485c79fe5b5beb26f7d94f27f3e1af5d76a3aa",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": ".github/workflows/deploy-aws.yml",
       "sha256": "0a1ca1132d65459be53a7e7d846a8dc19400d495173943474cd0f887e5556ca8",
       "gitObject": "5484a2b47536ae00781fc89ba86bb77bc13b4bec",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": ".github/workflows/forge-candidate-image-proof.yml",
-      "sha256": "6d64204487b0ff2f02e2f0f7c4d1d596988a7ae4d2150ace8768069a5050f29a",
-      "gitObject": "6a66d03d6a14ee1731b1faf399f9654cf004ed9f",
-      "sameAsMainEab": false
+      "sha256": "3556b96676741f28e1647368dac4c87aeb6fe259ae88ddf7770897eba022da15",
+      "gitObject": "595c04ef6dedcc55315e26373f5ce42e42b95d0a",
+      "sameAsMain82": false
     },
     {
       "file": ".github/workflows/forge-queue-image-inspection.yml",
       "sha256": "82c05a5a0ef79bbba2639b80406221a316104a7e5382220d4114cc0c6541a4c7",
       "gitObject": "8cdaea9f5907bc17cc9774f1148d8aeff313df28",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": ".github/workflows/merge-queue-image.yml",
       "sha256": "91c63d770ec538a2425483be93ef0e9e0ddd9ac4224cd1660c271520d3326d06",
       "gitObject": "919cb42a8a152507c7b89fd1f800620cfe79d895",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "Dockerfile",
       "sha256": "10d9955e2707296de35febb7e0083911e75184360ff99e154cc676ba2f9545f9",
       "gitObject": "a5318bfaa9c0ac12c360e5b3e43a4bdcd621c47f",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "bun.lock",
       "sha256": "729e9f5fdd43f120ca575397c41fed0881cb09e3f0001354c437790d44f0ba8e",
       "gitObject": "b3a19f253e2a9f1944ca373f1866507d8130be17",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "package.json",
       "sha256": "51034a87174ed869ec241f71feb99884565db35c3c041c64cc71194cd392d1c1",
       "gitObject": "81684a59a64778423aa390dcd748b771d581c96e",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "patches/node-forge@1.4.0.patch",
       "sha256": "6c8b35a750038ddae3b2973dd81cad4826fa31744053c878cd8959338edcd776",
       "gitObject": "b037fdf33071904943aba0a67bff16a48cae6571",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/check-dependency-audit.mjs",
       "sha256": "590879b520f27690fbb7b32602814f4261a973deeecd43658ef7d1f18a693d95",
       "gitObject": "4273e72178d4fa30bf8d0a2f6ef6ede0f09abd63",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/check-published-forge-image.mjs",
       "sha256": "a1e91f62330ca953b14e8c8465ec7a81615d78411b8bf091b1a49abe812a63d0",
       "gitObject": "2cfd554e2af8a9780be114d164d85c4152436f98",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-audit-policy.mjs",
       "sha256": "a8a983bc49caa9ad1ca12167934c5d80fffc53b70ec96f6806910b0467d2b8a4",
       "gitObject": "955d153223c8329c239876e47d29ecbe3b729ace",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-candidate-dangling-links.mjs",
       "sha256": "1d177c6953ec42ac30cf5c640e76b396efaa199ced1ea3a6bf1bc42615f85309",
       "gitObject": "4c8bc8f1ae52957d602309ba504ac12583909e47",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-candidate-image-proof.mjs",
       "sha256": "9aa068dc9d7d15f521e73f7a7ce23878a6aa6f07b122dc8abc3cae7079d74bc5",
       "gitObject": "15bf95ada17af42f7d41659938419ae7e1330ac6",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-candidate-image-roots.mjs",
       "sha256": "d69c09077d83a93bef0366443adfe67c1db5b47693439036988c27d11d13306c",
       "gitObject": "9ea6dd88afc2c6530734203f8a165e155e942567",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-candidate-regression.cjs",
       "sha256": "8aede786d60812ba23bb691832f445b209f60090ee69aeb606509f50d5f7831f",
       "gitObject": "2aac319e163384f3b224d1fd439f4782ccbde143",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-final-image-binding.mjs",
       "sha256": "42f1478fbb164886145fc3a55981517b0075d13f9240526d4a1c3c717c7987b5",
       "gitObject": "c39202b8b855e287509a2553429d290516a0c728",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/forge-final-image-collector.mjs",
       "sha256": "ab8846a052912f21b9149d67ae4ab8eb81bf9363e392162a21016b62b9492ac4",
       "gitObject": "536e9e809ce4f04d33548de73c23bec3661f64f8",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/forge-final-image-test-fixture.mjs",
       "sha256": "9e7173990d7426a569c85968c572a71230c5c393ed369281166ebb0cb62ec6e0",
       "gitObject": "3d600f804216bdfc0dcd8b50720bccdf7d375cf6",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/forge-independent-expo-compat.cjs",
       "sha256": "97bb588e63d8c47a21157c48ca39dfc203a481fb4405fd1b19b28f9599a6b8df",
       "gitObject": "384e1862e54d2bda1a79b0415909ca4341ed5bbb",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-policy-record.mjs",
       "sha256": "ef4bf4c702e4daf16eb9eff19f17d200c49484c3ac306e6be78941c70b271490",
       "gitObject": "90e3e8691b12e6ccf407ce4384426f4d202a10e4",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-policy-test-fixtures.mjs",
       "sha256": "127dc9593eaed602f8d2a9d24c2e2478ec792d20b29af25c18af1f1c40765673",
       "gitObject": "985fb1cdae1354245e68e88c73630dfeeee49f05",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/forge-remediation-proof-proposal.mjs",
       "sha256": "dd69166792573d85ac568f7eaac4f6fb7e1a315bd26e6acfff753fcd8f3eb36b",
       "gitObject": "203a38c042e30c7112298c6f61addf457fa3a049",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/forge-source-topology.mjs",
-      "sha256": "cdf8926e4288794ad0fe1ff15295b1fabed8d7f2bb66b61144cc0127edbd5259",
-      "gitObject": "9065612ef7192280e266cad666a4f89629fab02c",
-      "sameAsMainEab": false
+      "sha256": "4fc8322d4f843dded47828f405db8800b46b98b7bcb97bb5d084ce6ada0f7975",
+      "gitObject": "2915ab44031acf40213dd75b9ee728d3b7add879",
+      "sameAsMain82": false
     },
     {
       "file": "scripts/rehearsal/test-forge-final-input-1519.py",
       "sha256": "2116f8dc1a152942efd6b414f60ebc211dc97c495232fd8d489ad5c6942b0407",
       "gitObject": "f16e16d751bcf074d979e6dc9552182da9150204",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/test-check-dependency-audit.mjs",
       "sha256": "62a1e189fc3c9eff7adfe311fe9ac95f3292c9bcb75cf45982b152299576ef3e",
       "gitObject": "51da5fcc77ea5f3822c3e95b7964a70d4a62d29b",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/test-forge-audit-policy.mjs",
       "sha256": "7e254fe2d5c30fd40ff6037fe9292fd18ffc589090c757fdb84805c2a01c795b",
       "gitObject": "dc9c00e4f0fbea6968e7393bdf47686f2399ae4f",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/test-forge-final-image-binding.mjs",
       "sha256": "d15d6f8ad71c19b6ecb850cc4866f20081edb43d56efe210542fd391620ae0c5",
       "gitObject": "453df04a727347cb5d48d8bb257403e9e080768e",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/test-forge-final-image-collector.mjs",
       "sha256": "86a133f613a67aa4abc0b3b3b3e4ac7590328f398c71425bb79502215f022edc",
       "gitObject": "b14d6ca512b276dc8e62cc283f61ea370b7ddaf9",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/test-forge-final-image-live-clock.mjs",
       "sha256": "2be3ae8354272c818cf056b30b28a5cee010eed6f35cb47c3361f02df38d4a28",
       "gitObject": "e31bd29f6116a6d35422ca42a90c2c1c250402f7",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/test-forge-future-dag.mjs",
       "sha256": "cc62b4d7e0bf83577eb5bb91d54d92b50b420b686abf17824a6d95bfab012f4d",
       "gitObject": "10f603ca5854bbf23aa201cc9309fbfba4fb2eee",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/test-forge-remediation-proof-proposal.mjs",
       "sha256": "e3882401244b272eb8b86fb8aa1ff14c068c391a24d4d35a0926820988b4a999",
       "gitObject": "d1d1e302d3b3d6ec9a11ec52e9a419a999d4a26a",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/test-forge-source-topology.mjs",
-      "sha256": "c9d0a25c862318728adad653f532f2e3ce661be73a7d8c99b8dc8bded2383b07",
-      "gitObject": "f9fc125e89d6d4b96f69c120ce73fdd0faeca3ea",
-      "sameAsMainEab": false
+      "sha256": "d17cd2f038fd4e9ae3ab92fa29ed49f0fecd33864d13647d977041db2ee806b7",
+      "gitObject": "d69096884405dbca5031683c0775f0bb78588302",
+      "sameAsMain82": false
     },
     {
       "file": "scripts/test-verify-forge-oci-artifact.py",
       "sha256": "d4362504d0fbb117224ae60de73c320a15b7f515de1af58b0b3f519cac3bcdf3",
       "gitObject": "109ad327fb59981884823090fac1a90a0ec3ffea",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/verify-forge-oci-artifact.py",
       "sha256": "4a74a782d28305b2b25cbd2ac332e5633316cba3516d31383e936cc64c237af6",
       "gitObject": "58b80976ec2a7c72d53de1154772de62e3d3bd0b",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": ".github/scripts/deploy-ecs-image.sh",
       "sha256": "4e860dcab2a36ddcd0b7e1ce63563085be6ffb627a59eac3fdeb1155bfe61987",
       "gitObject": "ede64e3576bcec69b87ef8a9c6bbf8f4a9c46b80",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": ".github/scripts/deploy-quiesced-image.sh",
       "sha256": "ed41d4281583debb4b819f111f98482dc6662f930462eeb83bf9ba440219c301",
       "gitObject": "d4281701332456200a47fd3d0ec9ad847457842a",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": ".github/scripts/guard-quiesced-deploy.mjs",
       "sha256": "a88838ed71def52c8b2a58f7efe941c7328aaaf98ebf37ce7102f78f6d199e06",
       "gitObject": "629daf8baefc44ddb2fc7fb6c8edd4e5bfc3cc7b",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": ".github/scripts/require-current-main.sh",
       "sha256": "852130eba951edbd45bb78fb42a0048f5f0451ddd756d833d196ad745ca7ae56",
       "gitObject": "210ab05112d93b40f421958ead1fdb7576fcbe35",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/test-quiesced-deploy.mjs",
       "sha256": "2f9556bdfbeceaf5806dfd3c4953fbb59bafcd9e4b3847b1a6ffd8251a2ea996",
       "gitObject": "a49943eff13cc1046707cb30fa280b91bb8ed62e",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/test-quiesced-deploy-shell.mjs",
       "sha256": "f99e77cb43580b7e3b543171302524b52d1741cd0d9c81e0f43be608356ac806",
       "gitObject": "535f030c578b7246e0cb3101fefa38b8befdeb01",
-      "sameAsMainEab": true
+      "sameAsMain82": false
     },
     {
       "file": "scripts/test-quiesced-cold-scheduler.mjs",
       "sha256": "a863b4058aeb84513367e502467eab3ed364e8646dfb2cb98e426f7b6f801f80",
       "gitObject": "35e477de0f65a21ed82068bebde49fa2ea49ae2e",
-      "sameAsMainEab": true
+      "sameAsMain82": true
     },
     {
       "file": "scripts/test-quiesced-retirement.mjs",
       "sha256": "db563c5af1cd5801e6bb8ff7320c08bd0b3afff5339c4731333cd954b5cbd48c",
       "gitObject": "d003608470922040ecf55970a95c254b11cfd581",
-      "sameAsMainEab": true
-    },
-    {
-      "file": "packages/api/src/routes/__tests__/inferenceDecisionsRoute.test.ts",
-      "sha256": "f366e5c169c8c7a32f1c8ab2c8f6d3e9911a4d091186957f20b5be09ad9071c5",
-      "gitObject": "1677a0bd33dfa010a311f7c2670427bd51306702",
-      "sameAsMainEab": false
-    },
-    {
-      "file": "packages/contracts/src/__tests__/inference.decisions.test.ts",
-      "sha256": "c62bd56dc24856665626bb8eef4dc0de2a0bbdaeea3b639559eee6976b57e116",
-      "gitObject": "d847e8f5d4a6725cd98dc91c70c22bac59d5ff32",
-      "sameAsMainEab": false
-    },
-    {
-      "file": "packages/contracts/src/inference/decisions.ts",
-      "sha256": "0b49b587f26198a762dc4645935c47ba888b6163b9b0f4acdfa4f96dd7cb0866",
-      "gitObject": "807198bacfe1b136d670dcfc0be5990aa828c960",
-      "sameAsMainEab": false
+      "sameAsMain82": false
     }
   ]
 }
