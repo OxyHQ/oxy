@@ -162,6 +162,15 @@ export function assertQuiesced(plan, snapshot) {
 			assert.equal(task.taskDefinitionArn, plan.previousTaskDefinition);
 		assert.equal(task.lastStatus, "STOPPED");
 	}
+	return assertBaselineInfrastructure(plan, snapshot);
+}
+
+export function assertBaselineInfrastructure(
+	plan,
+	snapshot,
+	emptyTargets = true,
+) {
+	const service = snapshot.service.services[0];
 	assert.equal(
 		snapshot.definition.taskDefinitionArn,
 		plan.previousTaskDefinition,
@@ -179,8 +188,10 @@ export function assertQuiesced(plan, snapshot) {
 	].sort();
 	assert.deepEqual(groups, [...plan.targetGroups].sort());
 	assert.deepEqual(Object.keys(snapshot.targets).sort(), groups);
-	for (const target of Object.values(snapshot.targets))
-		assert.deepEqual(target.TargetHealthDescriptions, []);
+	for (const target of Object.values(snapshot.targets)) {
+		assert.ok(Array.isArray(target.TargetHealthDescriptions));
+		if (emptyTargets) assert.deepEqual(target.TargetHealthDescriptions, []);
+	}
 	assert.equal(snapshot.scalers.NextToken, undefined);
 	assert.equal(snapshot.scheduled.NextToken, undefined);
 	assert.deepEqual(snapshot.scheduled.ScheduledActions, []);
@@ -416,6 +427,149 @@ export function assertRecoveryStopped(
 	return true;
 }
 
+// Maintenance admission is permitted only after ECS retired every older
+// deployment at zero. A single newTD+positive-count update is unsafe on ECS.
+export class RetirementPendingError extends Error {}
+
+export function assertFinalDeployment(
+	plan,
+	newDefinition,
+	deploymentId,
+	tracked,
+	maxPercent,
+	admitted = false,
+	read = aws,
+) {
+	assert.match(deploymentId, /^[A-Za-z0-9/-]+$/);
+	assert.ok(
+		Number.isSafeInteger(maxPercent) &&
+			maxPercent >=
+				Math.ceil(((plan.restoreCount + 1) * 100) / plan.restoreCount) &&
+			maxPercent <= 200,
+	);
+	const snapshot = readSnapshot(plan, read);
+	assert.deepEqual(snapshot.service.failures, []);
+	assert.equal(snapshot.service.services.length, 1);
+	const service = snapshot.service.services[0];
+	assert.equal(service.serviceName, plan.service);
+	assert.equal(service.status, "ACTIVE");
+	assert.equal(service.taskDefinition, newDefinition);
+	const validateDeployments = (value) => {
+		assert.ok(value.deployments.length >= 1 && value.deployments.length <= 2);
+		const primary = value.deployments.filter((row) => row.status === "PRIMARY");
+		assert.equal(primary.length, 1);
+		assert.equal(primary[0].id, deploymentId);
+		assert.equal(primary[0].taskDefinition, newDefinition);
+		assert.ok(["IN_PROGRESS", "COMPLETED"].includes(primary[0].rolloutState));
+		for (const row of value.deployments) {
+			if (row.id === deploymentId) continue;
+			assert.equal(admitted, false, "Old deployment after positive admission");
+			assert.equal(row.taskDefinition, plan.previousTaskDefinition);
+			assert.equal(row.status, "ACTIVE");
+			assert.ok(["IN_PROGRESS", "COMPLETED"].includes(row.rolloutState));
+			for (const field of ["desiredCount", "runningCount", "pendingCount"])
+				assert.equal(row[field], 0);
+		}
+		return (
+			value.deployments.length !== 1 || primary[0].rolloutState !== "COMPLETED"
+		);
+	};
+	let retirementPending = validateDeployments(service);
+	const deployment = service.deployments.find((row) => row.id === deploymentId);
+	assert.equal(deployment.id, deploymentId);
+	assert.equal(deployment.status, "PRIMARY");
+	assert.equal(deployment.taskDefinition, newDefinition);
+	assert.notEqual(deployment.rolloutState, "FAILED");
+	const config = service.deploymentConfiguration;
+	assert.equal(config?.deploymentCircuitBreaker?.enable, true);
+	assert.equal(config?.deploymentCircuitBreaker?.rollback, false);
+	assert.equal(config?.minimumHealthyPercent, 100);
+	assert.equal(config?.maximumPercent, maxPercent);
+	const definition = read(
+		"ecs",
+		"describe-task-definition",
+		"--task-definition",
+		newDefinition,
+	).taskDefinition;
+	assert.equal(definition.taskDefinitionArn, newDefinition);
+	assertFinalDefinition(plan, definition);
+	assertBaselineInfrastructure(plan, snapshot, !admitted);
+	for (const task of snapshot.tasks.tasks) {
+		assert.equal(task.group, `service:${plan.service}`);
+		if (plan.previousTasks.includes(task.taskArn)) {
+			assert.equal(task.taskDefinitionArn, plan.previousTaskDefinition);
+			assert.equal(task.lastStatus, "STOPPED");
+			assert.equal(task.desiredStatus, "STOPPED");
+		}
+		if (task.lastStatus !== "STOPPED") {
+			assert.equal(
+				task.taskDefinitionArn,
+				newDefinition,
+				"Retired task alive after maintenance admission",
+			);
+			assert.equal(task.startedBy, deploymentId);
+			assert.equal(task.desiredStatus, "RUNNING");
+		}
+	}
+	if (!admitted) {
+		assertRecoveryStopped(plan, newDefinition, tracked, read);
+		for (const task of snapshot.tasks.tasks)
+			assert.equal(task.desiredStatus, "STOPPED");
+	} else {
+		assert.equal(service.desiredCount, plan.restoreCount);
+		for (const task of snapshot.tasks.tasks) {
+			if (task.taskDefinitionArn !== newDefinition)
+				assert.equal(task.lastStatus, "STOPPED");
+		}
+	}
+	// Recheck current service after the task/TD/scaler reads; a concurrent
+	// service replacement must not turn the earlier retirement into authority.
+	const latest = read(
+		"ecs",
+		"describe-services",
+		"--cluster",
+		plan.cluster,
+		"--services",
+		plan.service,
+	);
+	assert.deepEqual(latest.failures, []);
+	assert.equal(latest.services.length, 1);
+	const current = latest.services[0];
+	assert.equal(current.taskDefinition, newDefinition);
+	retirementPending = validateDeployments(current) || retirementPending;
+	assert.equal(
+		current.deployments.find((row) => row.id === deploymentId).id,
+		deploymentId,
+	);
+	assert.equal(
+		current.deployments.find((row) => row.id === deploymentId).taskDefinition,
+		newDefinition,
+	);
+	assert.equal(
+		current.deployments.find((row) => row.id === deploymentId).status,
+		"PRIMARY",
+	);
+	assert.notEqual(
+		current.deployments.find((row) => row.id === deploymentId).rolloutState,
+		"FAILED",
+	);
+	assert.equal(current.desiredCount, admitted ? plan.restoreCount : 0);
+	assert.deepEqual(
+		current.deploymentConfiguration,
+		service.deploymentConfiguration,
+	);
+	if (!admitted) {
+		for (const field of ["runningCount", "pendingCount"])
+			assert.equal(current[field], 0);
+	}
+
+	if (!admitted && retirementPending)
+		throw new RetirementPendingError(
+			"Validated zero-count final deployment is still retiring",
+		);
+	return true;
+}
+
 if (
 	process.argv[1] &&
 	import.meta.url === pathToFileURL(process.argv[1]).href
@@ -495,10 +649,34 @@ if (
 			);
 			process.exit(0);
 		}
+		if (["--assert-retired", "--assert-admitted"].includes(process.argv[2])) {
+			const tracked = recordAttemptTasks(
+				plan,
+				process.argv[3],
+				process.argv[5],
+			);
+			assertFinalDeployment(
+				plan,
+				process.argv[3],
+				process.argv[4],
+				tracked,
+				Number(process.argv[6]),
+				process.argv[2] === "--assert-admitted",
+			);
+			process.stdout.write("Final maintenance deployment checked.\n");
+			process.exit(0);
+		}
+
 		assertQuiesced(plan, readSnapshot(plan));
 		// Only the caller's public numeric count is emitted. AWS data, env and secrets never leave this guard.
 		process.stdout.write(`${plan.restoreCount}\n`);
-	} catch {
+	} catch (error) {
+		if (error instanceof RetirementPendingError) {
+			process.stderr.write(
+				"Validated retirement pending; admission remains closed.\n",
+			);
+			process.exit(2);
+		}
 		process.stderr.write(
 			"Quiesced deployment check failed; shutdown/readback is not confirmed.\n",
 		);

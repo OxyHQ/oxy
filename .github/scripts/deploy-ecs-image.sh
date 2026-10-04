@@ -431,7 +431,7 @@ wait_for_service_rollout() {
       continue
     fi
     if [[ "$quiesced_deploy" == true ]]; then
-      node .github/scripts/guard-quiesced-deploy.mjs --record-tasks "$new_task_definition" "$maintenance_tasks_file" || return 1
+      node .github/scripts/guard-quiesced-deploy.mjs --assert-admitted "$new_task_definition" "$deployment_id" "$maintenance_tasks_file" "$deployment_surge_percent" || return 1
     fi
 
     ours="$(jq -c --arg id "$deployment_id" '
@@ -971,7 +971,7 @@ fi
 
 if [[ "$quiesced_deploy" == true ]]; then
   # Migration and worker rollout may have taken minutes; reject API/scaler/TG
-  # drift before the single update that installs newTD AND restores its count.
+  # drift before installing the final definition with count zero.
   checked_restore_count="$(node .github/scripts/guard-quiesced-deploy.mjs)"
   if [[ "$checked_restore_count" != "$service_desired_count" ]]; then
     echo "::error::Maintenance restore count changed before service update."
@@ -981,12 +981,14 @@ fi
 deployment_auto_rollback=true
 if [[ "$quiesced_deploy" == true ]]; then deployment_auto_rollback=false; fi
 
+install_desired_count="$service_desired_count"
+if [[ "$quiesced_deploy" == true ]]; then install_desired_count=0; fi
 deploy_update_json=""
 if ! deploy_update_json="$(aws ecs update-service \
   --cluster "$CLUSTER" \
   --service "$APP" \
   --task-definition "$new_task_definition" \
-  --desired-count "$service_desired_count" \
+  --desired-count "$install_desired_count" \
   --deployment-configuration "$(jq -nc --argjson maxPercent "$deployment_surge_percent" \
     --argjson autoRollback "$deployment_auto_rollback" '{
     deploymentCircuitBreaker: {enable: true, rollback: $autoRollback},
@@ -1007,6 +1009,47 @@ if ! deploy_deployment_id="$(extract_primary_deployment_id "$deploy_update_json"
     echo "::error::The defensive rollback also failed; manual intervention is required."
   fi
   exit 1
+fi
+
+if [[ "$quiesced_deploy" == true ]]; then
+  retirement_elapsed=0
+  while true; do
+    if node .github/scripts/guard-quiesced-deploy.mjs --assert-retired \
+      "$new_task_definition" "$deploy_deployment_id" "$maintenance_tasks_file" "$deployment_surge_percent"; then break; else retirement_status=$?; fi
+    if [[ "$retirement_status" != 2 ]]; then
+      echo "::error::Maintenance identity/configuration/readback drift; holding immediately."
+      rollback_service || echo "::error::Maintenance shutdown is not confirmed; root reconciliation required."
+      exit 1
+    fi
+    if (( retirement_elapsed >= MAX_WAIT_SECS )); then
+      echo "::error::Final deployment did not retire all old tasks/deployments at zero; admission remains closed."
+      rollback_service || echo "::error::Maintenance shutdown is not confirmed; root reconciliation required."
+      exit 1
+    fi
+    sleep "$POLL_INTERVAL"
+    retirement_elapsed=$((retirement_elapsed + POLL_INTERVAL))
+  done
+  if [[ -n "${DEPLOY_SHA:-}" ]]; then bash "$DEPLOY_HEAD_GUARD_SCRIPT"; fi
+  node .github/scripts/guard-quiesced-deploy.mjs --assert-retired \
+    "$new_task_definition" "$deploy_deployment_id" "$maintenance_tasks_file" "$deployment_surge_percent"
+  # Count-only restore after the old deployment has disappeared; never pair a
+  # cold positive count with task-definition replacement on ECS.
+  if ! restore_update_json="$(aws ecs update-service --cluster "$CLUSTER" --service "$APP" \
+    --desired-count "$service_desired_count" --output json)"; then
+    echo "::error::Maintenance count restore failed; holding final service at zero."
+    rollback_service || echo "::error::Maintenance shutdown is not confirmed; root reconciliation required."
+    exit 1
+  fi
+  if ! restored_deployment_id="$(extract_primary_deployment_id "$restore_update_json" "maintenance count restore")"; then
+    echo "::error::Maintenance count restore acknowledgment is invalid; holding final service at zero."
+    rollback_service || echo "::error::Maintenance shutdown is not confirmed; root reconciliation required."
+    exit 1
+  fi
+  if [[ "$restored_deployment_id" != "$deploy_deployment_id" ]]; then
+    echo "::error::Final deployment changed during count-only restore."
+    rollback_service || echo "::error::Maintenance shutdown is not confirmed; root reconciliation required."
+    exit 1
+  fi
 fi
 
 echo "Deploying immutable image $IMAGE_URI with task definition $new_task_definition (deployment $deploy_deployment_id)"
