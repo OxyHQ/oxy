@@ -425,7 +425,7 @@
     "Private Auto getter remains undefined; legacy one-shot scoped getter bytes retain previously reviewed source; no authority extension",
     "Input/request modalities remain unchanged; decisions is output-only",
     "No scores, prices, watermark/safety facts or legal authority invented",
-    "Fresh wall clock gates source authority after row locks and before transaction commit; observational timestamps retain sync capture time",
+    "Fresh wall clock gates source authority after row locks and after each private model import; observational timestamps retain sync capture time",
     "Pack manifest normalization is explicit; do not claim all 201 files byteidentical to unpacked source"
   ]
 }

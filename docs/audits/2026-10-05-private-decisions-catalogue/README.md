@@ -11,7 +11,7 @@ Source `b3fb09a1426dfb213a8d86bb6a1ab546b585124e` composes inactive Private Auto
 extends the output CHECK and both provenance functions; historical 0050 remains
 byte identical. Decisions and text require no fabricated safety marking;
 image/audio/video/embedding retain their marking requirement. Fresh source
-authority is checked after model locks and before committing an import. A later
+authority is checked after model locks and after each private model import. A later
 genuine text-only import clears only the previously derived decisions format.
 
 The same final publication fixture fails against the old sync (one failure,
