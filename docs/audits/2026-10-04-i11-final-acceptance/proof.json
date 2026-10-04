@@ -114,7 +114,7 @@
   "records": [
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
-      "sha256": "0cf84cf63b36417110b320a3bec298bc13bf844be3c3e9424057bef43fea3e11"
+      "sha256": "902d6e579efcc39b7167b47f8dcbc13f8dd6ca01d8d783b22e193006d4b8df09"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
@@ -126,7 +126,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/status-qualification.json",
-      "sha256": "c0e3da099b02363ff75331ab4537525fe2e8be4ef5c1335ec087ed5c35a0b135"
+      "sha256": "730b95003c63140a2efd26042c800eefda60351b087ced273a1fe2b91968d1b9"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/closed-historical-drafts.json",
@@ -143,10 +143,14 @@
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/final-ops-workflow-restored.json",
       "sha256": "ac6bd3a5d6b3be9be559ad17806c6ed1584bc25a3e743570cfb6bc9344ab19c2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i11-final-acceptance/external-review-limits.json",
+      "sha256": "d434837996114d20e869563c28256233a2f57f8cbdf32efb5c2745894589cfa6"
     }
   ],
   "pending": [
-    "Mercaria1048 CI37194754497, final image/root functional rollout",
+    "Mercaria1048 merged62aa/CI accepted; publisher37195704915/image/root functional rollout",
     "Final workflow reconciliation after Mercaria restoration"
   ],
   "operationKinds": [

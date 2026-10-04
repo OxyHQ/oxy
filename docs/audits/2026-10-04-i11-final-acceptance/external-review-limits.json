@@ -1,0 +1,21 @@
+{
+  "kind": "external-review-observation-limit",
+  "source": "66277886dbc5ca5a6128ceaf4c2123b7411d5a1d",
+  "devin": {
+    "reviewId": 5405429372,
+    "url": "https://github.com/OxyHQ/oxy/pull/1570#pullrequestreview-5405429372",
+    "state": "COMMENTED",
+    "submittedAt": "2026-10-04T10:01:19Z",
+    "reportedFlagCount": 1,
+    "detailsAvailableInGitHub": false,
+    "meaning": "Review says one flag hidden by GitHub settings. No no-flags or resolved-hidden-finding claim."
+  },
+  "cursor": {
+    "checkId": 111411719007,
+    "name": "Cursor Security Agent: Security Reviewer",
+    "conclusion": "neutral",
+    "summary": "Security Review run failed to start: Automation GitHub integration validation failed: Free trial usage limit reached. Please upgrade to Pro to continue. See https://www.cursor.com/pricing\n\n[View agent](https://cursor.com/agents/bc-bc649daf-e53f-4293-83a5-cc63cf118360)",
+    "meaning": "Failed to start due free-trial limit; neutral is not a completed security review."
+  },
+  "acceptanceBasis": "Independent source/evidence reviews and CI/policy/security tests accepted by root. Hidden external detail unavailable; no known actionable source finding is inferred or dismissed. No new approval or paid-account gate."
+}

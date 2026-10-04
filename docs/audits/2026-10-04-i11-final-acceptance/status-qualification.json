@@ -10,8 +10,8 @@
     "reopenCheckpointBodySha256": "37393f46327f3ed7618f62f7f27864aeac6ef3ba8f3fce415e860fa5655ef9f6",
     "reviewedSource": "569bd4d3656eaf989699de3ec5f2bd74a782ba75",
     "remaining": [
-      "CI37194754497 exact new source",
-      "Final source-bound image and root functional runtime acceptance",
+      "Publisher37195704915/final source-bound image",
+      "Root functional runtime acceptance",
       "Workflow restoration and final census"
     ],
     "proofHead": "bb2052415e283860c1bc458fd90134d3df9fb649",
@@ -20,7 +20,16 @@
       "actionsOn": 29,
       "generalOnRegressionTests": 104,
       "sourceAndProofIndependentReview": "027b4f1cc77a91a08509e4aadc46e5d48dc5fb9fca27862ba879bfe0cf526180"
-    }
+    },
+    "acceptedCI": {
+      "run": 37194754497,
+      "conclusion": "success",
+      "jobs": 6,
+      "apiSuites": 783,
+      "apiTestsPassed": 12309,
+      "apiTestsSkipped": 5
+    },
+    "mergedMain": "62aa621892bda26f0f9950c6ac8c61c50c5a0a1f"
   },
   "reviews": [
     "https://github.com/OxyHQ/Mercaria/pull/1046#issuecomment-5977506884",
@@ -81,6 +90,7 @@
         "workflow": "ACTIVE",
         "runtimeDeployment": false
       }
-    }
+    },
+    "externalReviewLimits": "external-review-limits.json"
   }
 }
