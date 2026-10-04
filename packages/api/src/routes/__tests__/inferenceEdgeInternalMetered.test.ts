@@ -70,6 +70,7 @@ let server: http.Server;
 let executions = 0;
 let pilotEnvelopes: InferenceRequest[] = [];
 let behaviour: 'complete' | 'fail' = 'complete';
+let nextGenerationId: string | undefined;
 
 beforeAll(async () => {
   Object.assign(process.env, ROLLOUT_ENVIRONMENT);
@@ -95,6 +96,7 @@ beforeEach(() => {
   executions = 0;
   pilotEnvelopes = [];
   behaviour = 'complete';
+  nextGenerationId = undefined;
 });
 
 /* -------------------------------------------------------------------------- */
@@ -151,7 +153,7 @@ function completionFor(envelope: InferenceRequest): KaanaCompletion {
   const route = envelope.authorizedRoutes[0];
   const now = new Date().toISOString();
   return {
-    generationId: `gen-${randomUUID()}`,
+    generationId: nextGenerationId ?? `gen-${randomUUID()}`,
     output: [{ role: 'assistant', content: [{ type: 'text', text: 'Hello.' }] }],
     finishReason: 'stop',
     usage: {
@@ -988,6 +990,51 @@ describe('original-key receipt recovery', () => {
     expect(await readOriginal(caller, key, { 'X-Oxy-User-Id': `foreign-${tag()}` })).toMatchObject({ status: 404 });
     expect(executions).toBe(2);
   });
+  it.each([
+    ['commercial', 'commercial'], ['internal_metered', 'commercial'],
+    ['internal_metered', 'internal_metered'], ['commercial', 'internal_metered'],
+  ] as const)('keeps original %s identity when a newer %s generation alias collides', async (aKind, bKind) => {
+    useMechanismRelationship();
+    const base = await alia();
+    const scopes = ['inference:invoke', 'inference:usage:read'];
+    await getDb().update(applications).set({ scopes }).where(eq(applications.id, base.applicationId));
+    await provisionBillingProfile({ accountId: base.accountId });
+    await recordTopUp({ idempotencyKey: `alias-fund-${tag()}`, accountId: base.accountId,
+      currency: 'USD', amount: '1.000000000000', actor: { kind: 'machine' } });
+    async function identity(kind: typeof aKind) {
+      const environment = kind === 'internal_metered' ? 'production' : 'development';
+      const minted = await makeCredential(base.applicationId, base.accountId, environment, scopes);
+      const caller = { ...base, credentialId: minted.credentialId, machineToken: minted.token };
+      return { caller, environment, token: kind === 'internal_metered' ? serviceToken(caller, scopes) : minted.token };
+    }
+    const a = await identity(aKind); const b = await identity(bKind);
+    const key = `alias-original-${tag()}`;
+    const originalHeaders = { ...bearer(a.token), 'Idempotency-Key': key };
+    const first = await post(body(a.caller), originalHeaders);
+    expect(first.status).toBe(200);
+    const original = await getGeneration('by-idempotency-key', originalHeaders);
+    expect(original).toMatchObject({ status: 200, body: { data: {
+      requestId: first.body.requestId, credentialId: a.caller.credentialId, environment: a.environment,
+      schemaVersion: aKind === 'commercial' ? 1 : 2,
+    } } });
+    expect(original.body.data).not.toHaveProperty('delegatedUserId');
+    // Opaque provider ids may collide with another request id. Both records
+    // are settled through the canonical API/ledger, never hand-written receipts.
+    nextGenerationId = String(first.body.requestId);
+    const second = await post(body(b.caller), { ...bearer(b.token), 'Idempotency-Key': `alias-newer-${tag()}`,
+      'X-Oxy-User-Id': base.accountId });
+    expect(second.status).toBe(200);
+    expect(second.body.requestId).not.toBe(first.body.requestId);
+    const money = await moneyRowsFor(base.accountId);
+    const aMeter = await meteredFor(first.body.requestId); const bMeter = await meteredFor(second.body.requestId);
+    expect(bMeter).toMatchObject({ generationId: first.body.requestId, delegatedUserId: base.accountId });
+    expect(await getGeneration('by-idempotency-key', originalHeaders)).toEqual(original);
+    expect(await meteredFor(first.body.requestId)).toEqual(aMeter);
+    expect(await meteredFor(second.body.requestId)).toEqual(bMeter);
+    expect(await moneyRowsFor(base.accountId)).toEqual(money);
+    expect(executions).toBe(2);
+  });
+
   it('keeps pending and unknown usage unresolved even when an unrelated receipt exists', async () => {
     const caller = await recoveryCaller(); const key = `pending-${tag()}`;
     const first = await post(body(caller), { ...bearer(caller.machineToken), 'Idempotency-Key': key });
