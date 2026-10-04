@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "kind": "forge-recovery-contract-proof-v1",
+  "sourceCommit": "e62cf4738adcdf91915cca264e88f5ee743704e7",
+  "baselineCommit": "82bca73efa870b013d7817aac7b7f9d63799963b",
+  "sourceInputs": [
+    {
+      "path": ".github/workflows/forge-queue-image-inspection.yml",
+      "sha256": "82c05a5a0ef79bbba2639b80406221a316104a7e5382220d4114cc0c6541a4c7"
+    },
+    {
+      "path": "docs/security/forge-candidate/provenance/audit-policy-decision.json",
+      "sha256": "1f6548d819af8f247cf599b3c6cbbab98f5fcaad3a911a28d9fa13e6562a518e"
+    },
+    {
+      "path": "scripts/forge-final-image-binding.mjs",
+      "sha256": "42f1478fbb164886145fc3a55981517b0075d13f9240526d4a1c3c717c7987b5"
+    },
+    {
+      "path": "scripts/forge-final-image-collector.mjs",
+      "sha256": "ab8846a052912f21b9149d67ae4ab8eb81bf9363e392162a21016b62b9492ac4"
+    },
+    {
+      "path": "scripts/forge-final-image-test-fixture.mjs",
+      "sha256": "9e7173990d7426a569c85968c572a71230c5c393ed369281166ebb0cb62ec6e0"
+    },
+    {
+      "path": "scripts/forge-remediation-proof-proposal.mjs",
+      "sha256": "dd69166792573d85ac568f7eaac4f6fb7e1a315bd26e6acfff753fcd8f3eb36b"
+    },
+    {
+      "path": "scripts/test-forge-final-image-binding.mjs",
+      "sha256": "d15d6f8ad71c19b6ecb850cc4866f20081edb43d56efe210542fd391620ae0c5"
+    },
+    {
+      "path": "scripts/test-forge-final-image-collector.mjs",
+      "sha256": "86a133f613a67aa4abc0b3b3b3e4ac7590328f398c71425bb79502215f022edc"
+    },
+    {
+      "path": "scripts/test-forge-final-image-live-clock.mjs",
+      "sha256": "2be3ae8354272c818cf056b30b28a5cee010eed6f35cb47c3361f02df38d4a28"
+    },
+    {
+      "path": "scripts/test-forge-future-dag.mjs",
+      "sha256": "cc62b4d7e0bf83577eb5bb91d54d92b50b420b686abf17824a6d95bfab012f4d"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/0-checks.log",
+      "sha256": "a2b531e1d279184d9b0a660e48d26808c8cc408ea70e3cf85bfc5b1b8a6fca99"
+    },
+    {
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/1-checks.log",
+      "sha256": "b46f4bc183bf111c7ed20a81bb3596bb7676d63f53bece4dbe4c567a7f8d1a52"
+    },
+    {
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/2-checks.log",
+      "sha256": "7a58bf46bbdd442d52778789e68999c475f3331f64ffcd9fd526b166ab8e2bce"
+    },
+    {
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/3-checks.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/validation.json",
+      "sha256": "bb3c240df97981d3e0bfc75b36bc3a601e492ceb40751c12f9505b8a57829d00"
+    }
+  ],
+  "checks": {
+    "policyAssertions": 144,
+    "independentInputAssertions": 43,
+    "realGitTopologyAssertions": 24,
+    "bindingAssertions": 43,
+    "collectorAssertions": 68,
+    "workflowDagAssertions": 86,
+    "fullCollectorVmAssertions": 30,
+    "streamingTests": 13,
+    "proposalAssertions": 150,
+    "auditCases": 10
+  },
+  "limits": [
+    "Git clone, squash, absent objects and exact source fetch are real local Git; GitHub metadata and Bun audit transport are VM fixtures, not live authentication.",
+    "The full candidate collector from baseline82 fails its local diff without source objects; current source authenticates the source metadata before fetching and completes; wrong source/tree fail.",
+    "Prior production attempts1/2 failed before registry copy and remain archived. Attempt3 published source82, which is historical for these changed executables.",
+    "Every workflow attempt requires its own completed inspection, matching ZIP nonce and separate artifact names. A publisher-only retry cannot reuse a prior attempt. Full retry leaves prior artifacts intact.",
+    "No source policy activation, registry publication, deployment or expiry extension in this change."
+  ]
+}

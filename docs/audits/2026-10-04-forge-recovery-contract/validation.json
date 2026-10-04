@@ -1,0 +1,38 @@
+{
+  "at": "2026-10-04T09:24:38.441405+00:00",
+  "commands": [
+    {
+      "command": [
+        "bun",
+        "scripts/test-forge-audit-policy.mjs"
+      ],
+      "exitCode": 0,
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/0-checks.log"
+    },
+    {
+      "command": [
+        "bun",
+        "scripts/test-forge-remediation-proof-proposal.mjs"
+      ],
+      "exitCode": 0,
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/1-checks.log"
+    },
+    {
+      "command": [
+        "bun",
+        "scripts/test-check-dependency-audit.mjs"
+      ],
+      "exitCode": 0,
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/2-checks.log"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "path": "docs/audits/2026-10-04-forge-recovery-contract/3-checks.log"
+    }
+  ]
+}

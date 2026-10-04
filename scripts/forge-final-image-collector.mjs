@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkScopedPolicyRecord } from './forge-policy-record.mjs';
 import { checkFinalImageBinding, FINAL_IMAGE_EXECUTED_PATHS } from './forge-final-image-binding.mjs';
-import { readZip, sha256, PINS_PATH, TRUSTED_WORKFLOW, checkQueueForgeImageContent } from './forge-remediation-proof-proposal.mjs';
+import { readZip, sha256, PINS_PATH, TRUSTED_WORKFLOW, checkQueueForgeImageContent, ensurePinnedGitSource } from './forge-remediation-proof-proposal.mjs';
 const REPOSITORY = 'OxyHQ/oxy', REPOSITORY_ID = 973881060;
 const DECISION_PATH = 'docs/security/forge-candidate/provenance/audit-policy-decision.json';
 export const FINAL_PROOF_FILES = Object.freeze([...TRUSTED_WORKFLOW.artifactFiles,
@@ -38,8 +38,8 @@ export function selectFinalInspection(runs, jobs, artifacts, head) {
   }
   if (job.conclusion !== 'success') return { state: 'failed', reason: 'Inspection job did not succeed' };
   // The workflow may still be running its CI wait/publisher. Never wait for it.
-  const proofs = artifacts.filter(x => x.name === `forge-queue-proof-${head}-${run.id}` && x.workflow_run?.id === run.id);
-  const archives = artifacts.filter(x => x.name === `forge-queue-oci-${head}-${run.id}` && x.workflow_run?.id === run.id);
+  const proofs = artifacts.filter(x => x.name === `forge-queue-proof-${head}-${run.id}-${run.run_attempt}` && x.workflow_run?.id === run.id);
+  const archives = artifacts.filter(x => x.name === `forge-queue-oci-${head}-${run.id}-${run.run_attempt}` && x.workflow_run?.id === run.id);
   if (proofs.length > 1 || archives.length > 1) return { state: 'failed', reason: 'Ambiguous proof/OCI artifacts' };
   const proof = proofs[0], archive = archives[0];
   if (!proof || !archive) return { state: 'pending', reason: 'Inspection transport artifacts not yet visible' };
@@ -114,7 +114,7 @@ export function collectFinalImageProof(repositoryRoot, options = {}) {
   const published = options.published === true;
   repositoryRoot = resolve(repositoryRoot);
   const env = environment();
-  const git = (...args) => execFileSync('/usr/bin/git', ['-C', repositoryRoot, ...args], { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const git = (...args) => execFileSync('/usr/bin/git', ['-C', repositoryRoot, ...args], { env, timeout: 120000, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   const api = (path, raw = false) => {
     const data = execFileSync('/usr/bin/gh', ['api', '--hostname', 'github.com', '--method', 'GET', path], { env, timeout: 60000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
     return raw ? data : JSON.parse(data);
@@ -148,6 +148,7 @@ export function collectFinalImageProof(repositoryRoot, options = {}) {
   if (selected?.state !== 'ready') throw new Error('Bounded final-image inspection wait expired');
   const currentCommit = api(`repos/${REPOSITORY}/git/commits/${head}`);
   if (currentCommit.tree?.sha !== git('rev-parse', 'HEAD^{tree}')) throw new Error('Authenticated GitHub tree differs from checkout');
+  ensurePinnedGitSource(git, api, decision.targetSourceHead);
   const changed = git('diff', '--name-only', decision.targetSourceHead, head).split('\n').filter(Boolean);
   if (changed.some(path => ![PINS_PATH, DECISION_PATH].includes(path))) throw new Error('Final execution differs outside the exact declarative files');
   const executedBlobs = { source: {}, current: {} };

@@ -33,6 +33,27 @@ for (const [name, mutate] of [
 { const x = fixture(); x.producer.job.conclusion = 'failure'; assert.equal(state(x).state, 'failed'); count++; }
 { const x = fixture(); x.producer.run.event = 'pull_request'; assert.equal(state(x).state, 'pending'); count++; }
 { const x = fixture(); x.producer.run.status = 'completed'; assert.equal(selectFinalInspection([x.producer.run], [], [], head).state, 'failed'); count++; }
+// Actions can relabel a carried successful job with the newest attempt. The
+// old transport remains attempt1 and cannot authorize a publish-only attempt2.
+{
+  const prior = fixture(), carried = fixture();
+  carried.producer.run.run_attempt = 2; carried.producer.job.run_attempt = 2;
+  assert.equal(state(carried).state, 'pending'); count++;
+  assert.equal(inspectFinalImageFacts(carried).structurallyEligible, false); count++;
+  // Relabeling metadata alone cannot replace the producing nonce inside the ZIP.
+  carried.artifact.name = `forge-queue-proof-${head}-123-2`;
+  carried.archiveArtifact.name = `forge-queue-oci-${head}-123-2`;
+  assert.equal(inspectFinalImageFacts(carried).structurallyEligible, false); count++;
+  const entries = readZip(carried.proofZipBytes);
+  const execution = JSON.parse(entries.get('forge-queue-execution.json')); execution.runAttempt = '2';
+  entries.set('forge-queue-execution.json', Buffer.from(JSON.stringify(execution)));
+  carried.proofZipBytes = zip(entries); carried.artifact.digest = `sha256:${sha256(carried.proofZipBytes)}`; carried.artifact.size_in_bytes = carried.proofZipBytes.length;
+  assert.equal(inspectFinalImageFacts(carried).structurallyEligible, true); count++;
+  const chosen = selectFinalInspection([carried.producer.run], [carried.producer.job], [prior.artifact, prior.archiveArtifact, carried.artifact, carried.archiveArtifact], head);
+  assert.equal(chosen.state, 'ready'); assert.equal(chosen.artifact.name, carried.artifact.name); count += 2;
+  carried.archiveArtifact.name = prior.archiveArtifact.name;
+  assert.equal(inspectFinalImageFacts(carried).structurallyEligible, false); count++;
+}
 const forged = { ...fixture(), authenticatedProvenance: true, approved: true };
 assert.equal(inspectFinalImageFacts(forged).machineChecksPassed, false); count++;
 { const x = fixture(); const dup = { ...x.artifact, id: 999 }; assert.equal(selectFinalInspection([x.producer.run], [x.producer.job], [x.artifact, dup, x.archiveArtifact], head).state, 'failed'); count++; }

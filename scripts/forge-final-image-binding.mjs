@@ -33,7 +33,7 @@ export function checkFinalImageBinding(input) {
     || Object.entries(producer.executedBlobs.source).some(([path, blob]) => !commit(blob) || blob !== producer.executedBlobs.current?.[path])) fail('Frozen image workflow and every scan executable must match producer blobs');
   // The producer may still be publishing. Inspection itself must have completed;
   // waiting for the whole workflow here would create Guards -> publisher -> Guards.
-  if (!artifact || artifact.workflow_run?.id !== producer?.run?.id || artifact.workflow_run?.head_sha !== execution?.head
+  if (!artifact || artifact.name !== `forge-queue-proof-${execution?.head}-${producer?.run?.id}-${producer?.run?.run_attempt}` || artifact.workflow_run?.id !== producer?.run?.id || artifact.workflow_run?.head_sha !== execution?.head
     || artifact.workflow_run?.repository_id !== 973881060 || artifact.expired !== false
     || !sha(artifact.digest) || artifact.digest !== `sha256:${sha256(input?.proofZipBytes ?? '')}`
     || artifact.size_in_bytes !== input?.proofZipBytes?.length
@@ -47,7 +47,7 @@ export function checkFinalImageBinding(input) {
   } else {
     if (!archiveArtifact || archiveArtifact.workflow_run?.id !== producer?.run?.id
       || archiveArtifact.workflow_run?.head_sha !== execution?.head || archiveArtifact.workflow_run?.repository_id !== 973881060
-      || archiveArtifact.name !== `forge-queue-oci-${execution?.head}-${producer?.run?.id}`
+      || archiveArtifact.name !== `forge-queue-oci-${execution?.head}-${producer?.run?.id}-${producer?.run?.run_attempt}`
       || archiveArtifact.expired !== false || !sha(archiveArtifact.digest) || !(archiveArtifact.size_in_bytes > 0)
       || !(Date.parse(now) < Date.parse(archiveArtifact.expires_at))) fail('Scanned OCI transport artifact missing or unauthenticated');
     if (!exact(archiveVerification, ['schemaVersion', 'artifactId', 'zipDigest', 'zipSizeBytes', 'archiveSha256', 'archiveSizeBytes'])

@@ -439,6 +439,7 @@ export function assertFinalDeployment(
 	maxPercent,
 	admitted = false,
 	read = aws,
+	report = false,
 ) {
 	assert.match(deploymentId, /^[A-Za-z0-9/-]+$/);
 	assert.ok(
@@ -535,6 +536,9 @@ export function assertFinalDeployment(
 	assert.deepEqual(latest.failures, []);
 	assert.equal(latest.services.length, 1);
 	const current = latest.services[0];
+	assertBaselineInfrastructure(plan, { ...snapshot, service: latest }, !admitted);
+	assert.equal(current.serviceName, plan.service);
+	assert.equal(current.status, "ACTIVE");
 	assert.equal(current.taskDefinition, newDefinition);
 	retirementPending = validateDeployments(current) || retirementPending;
 	assert.equal(
@@ -567,6 +571,32 @@ export function assertFinalDeployment(
 		throw new RetirementPendingError(
 			"Validated zero-count final deployment is still retiring",
 		);
+	if (report) {
+		assert.equal(admitted, true);
+		const final = current.deployments.find((row) => row.id === deploymentId);
+		for (const value of [
+			current.runningCount,
+			current.pendingCount,
+			final.desiredCount,
+			final.runningCount,
+			final.pendingCount,
+		])
+			assert.ok(Number.isSafeInteger(value) && value >= 0);
+		return {
+			kind: "quiesced-admitted-observation-v1",
+			deploymentId,
+			steady:
+				current.deployments.length === 1 &&
+				final.status === "PRIMARY" &&
+				final.rolloutState === "COMPLETED" &&
+				current.desiredCount === plan.restoreCount &&
+				current.runningCount === plan.restoreCount &&
+				current.pendingCount === 0 &&
+				final.desiredCount === plan.restoreCount &&
+				final.runningCount === plan.restoreCount &&
+				final.pendingCount === 0,
+		};
+	}
 	return true;
 }
 
@@ -655,15 +685,22 @@ if (
 				process.argv[3],
 				process.argv[5],
 			);
-			assertFinalDeployment(
+			const admitted = process.argv[2] === "--assert-admitted";
+			const observation = assertFinalDeployment(
 				plan,
 				process.argv[3],
 				process.argv[4],
 				tracked,
 				Number(process.argv[6]),
-				process.argv[2] === "--assert-admitted",
+				admitted,
+				aws,
+				admitted,
 			);
-			process.stdout.write("Final maintenance deployment checked.\n");
+			process.stdout.write(
+				admitted
+					? `${JSON.stringify(observation)}\n`
+					: "Final maintenance deployment checked.\n",
+			);
 			process.exit(0);
 		}
 

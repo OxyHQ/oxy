@@ -33,7 +33,7 @@ try {
       for (const mutate of [
         x => { x.currentGithub.run.head_sha = 'f'.repeat(40); },
         x => { x.currentGithub.queueRun.head_sha = 'f'.repeat(40); },
-        x => { delete x.currentGithub.queueRun; },
+        x => { Reflect.deleteProperty(x.currentGithub, 'queueRun'); },
       ]) { const x = structuredClone(main); mutate(x); assert.equal(checkSourceTopologyStructure(x, { sourceSha: source }, base).eligible, false); count++; }
     }
     if (!advanced) for (const mutate of [
@@ -48,7 +48,7 @@ try {
     ]) { const x = structuredClone(facts); mutate(x); assert.equal(checkSourceTopologyStructure(x, { sourceSha: source }, base).eligible, false); count++; }
   }
   assert.equal(checkSourceTopologyStructure(undefined, undefined, base).eligible, false); count++;
-  const currentMain = '85dad68e5685413740a4a3fd52afee5bd724bed1';
+  const currentMain = '82bca73efa870b013d7817aac7b7f9d63799963b';
   const queueHead = '1'.repeat(40);
   const frozenSource = '091cb952a3fe14adae48397e373e2e1461969dc0';
   // Structurally synthetic queue metadata bound to the authenticated current main.
@@ -62,7 +62,7 @@ try {
       head_sha: queueHead, head_branch: `gh-readonly-queue/main/pr-1569-${currentMain}` },
       commit: { sha: queueHead, tree: 'd'.repeat(40), parents: [currentMain] } } };
   assert.equal(checkFrozenSourceTopology(current, { sourceSha: frozenSource }).eligible, true, 'the reviewed actual main base must admit its exact squash topology'); count++;
-  for (const wrongBase of ['67c09e853db308d102624a2ffd40db19959344f4', '73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12', 'f'.repeat(40)]) {
+  for (const wrongBase of ['85dad68e5685413740a4a3fd52afee5bd724bed1', '73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12', 'f'.repeat(40)]) {
     const wrong = structuredClone(current);
     wrong.headParents = [wrongBase]; wrong.currentGithub.commit.parents = [wrongBase];
     wrong.currentGithub.run.head_branch = `gh-readonly-queue/main/pr-1569-${wrongBase}`;

@@ -511,6 +511,24 @@ function toolEnv() {
   for (const key of Object.keys(env)) if (/^(GH_|GITHUB_|GIT_|BUN_|NPM_CONFIG_|XDG_CONFIG_HOME$)/i.test(key)) delete env[key];
   return env;
 }
+/** Fetch missing immutable Git objects from the fixed repository only after its
+ * authenticated commit identity is checked. No ref, worktree or FETCH_HEAD changes.
+ * A squash must not make local source availability depend on a retained branch.
+ * Exported for isolated Git fixtures; this helper conveys no audit authority.
+ */
+export function ensurePinnedGitSource(git, api, source) {
+  if (!/^[0-9a-f]{40}$/.test(source ?? '')) throw new Error('Pinned source is not a commit id');
+  const commit = api(`repos/${TRUSTED_WORKFLOW.repository}/git/commits/${source}`);
+  if (commit?.sha !== source || !/^[0-9a-f]{40}$/.test(commit?.tree?.sha ?? '')) throw new Error('Authenticated pinned source commit unavailable');
+  try { git('cat-file', '-e', `${source}^{commit}`); }
+  catch {
+    git('fetch', '--no-tags', '--no-write-fetch-head', `https://github.com/${TRUSTED_WORKFLOW.repository}.git`, source);
+  }
+  if (git('rev-parse', `${source}^{commit}`).toString().trim() !== source ||
+      git('rev-parse', `${source}^{tree}`).toString().trim() !== commit.tree.sha) {
+    throw new Error('Fetched pinned source differs from authenticated commit/tree');
+  }
+}
 export function collect(options = {}) {
   const overrides = Object.keys(options).filter(key => key !== 'repoRoot');
   if (overrides.length) throw new Error(`collect accepts no runtime overrides: ${overrides.join(', ')}`);
@@ -519,11 +537,17 @@ export function collect(options = {}) {
   const exec = (file, args, extra = {}) => execFileSync(BINARIES[file], args, { env, ...extra });
   BINARIES.bun = BUN_LOCATIONS.find(path => existsSync(path));
   if (!BINARIES.bun) throw new Error(`No Bun at a fixed location (${BUN_LOCATIONS.join(', ')})`);
-  const git = (...args) => exec('git', ['-C', repoRoot, ...args], { maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+  const git = (...args) => exec('git', ['-C', repoRoot, ...args], { maxBuffer: 64 * 1024 * 1024, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
   const text = (...args) => git(...args).toString('utf8').trim();
   const head = text('rev-parse', 'HEAD');
   const pins = JSON.parse(git('show', `HEAD:${PINS_PATH}`));
   const source = pins.sourceSha;
+  const R = `repos/${TRUSTED_WORKFLOW.repository}`;
+  const api = (path, raw = false) => attempt(() => {
+    const bytes = exec('gh', ['api', '--hostname', 'github.com', '--method', 'GET', path], { maxBuffer: 64 * 1024 * 1024, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
+    return raw ? bytes : JSON.parse(bytes);
+  });
+  ensurePinnedGitSource(git, api, source);
   if (!/^[0-9a-f]{40}$/.test(source ?? '')) throw new Error('Pinned source is not a commit id');
   let sourceIsAncestor = true;
   try { git('merge-base', '--is-ancestor', source, head); } catch { sourceIsAncestor = false; }
@@ -545,11 +569,6 @@ export function collect(options = {}) {
   const audit = attempt(() => {
     try { return JSON.parse(exec('bun', ['audit', '--json'], { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] })); }
     catch (error) { if (error.stdout?.length) return JSON.parse(error.stdout); throw error; }
-  });
-  const R = `repos/${TRUSTED_WORKFLOW.repository}`;
-  const api = (path, raw = false) => attempt(() => {
-    const bytes = exec('gh', ['api', '--hostname', 'github.com', '--method', 'GET', path], { maxBuffer: 64 * 1024 * 1024, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] });
-    return raw ? bytes : JSON.parse(bytes);
   });
   // Non-descendant commits require actual GitHub merge-group provenance. A ref or
   // caller object alone is not authentication; these GETs run through this collector.

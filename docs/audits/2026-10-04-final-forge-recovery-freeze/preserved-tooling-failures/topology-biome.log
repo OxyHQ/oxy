@@ -1,0 +1,311 @@
+scripts/test-forge-source-topology.mjs:36:16 lint/performance/noDelete  FIXABLE  ━━━━━━━━━━━━━━━━━━━
+
+  × Avoid the delete operator which can impact performance.
+  
+    34 │         x => { x.currentGithub.run.head_sha = 'f'.repeat(40); },
+    35 │         x => { x.currentGithub.queueRun.head_sha = 'f'.repeat(40); },
+  > 36 │         x => { delete x.currentGithub.queueRun; },
+       │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    37 │       ]) { const x = structuredClone(main); mutate(x); assert.equal(checkSourceTopologyStructure(x, { sourceSha: source }, base).eligible, false); count++; }
+    38 │     }
+  
+  i Unsafe fix: Use an undefined assignment instead.
+  
+    34 34 │           x => { x.currentGithub.run.head_sha = 'f'.repeat(40); },
+    35 35 │           x => { x.currentGithub.queueRun.head_sha = 'f'.repeat(40); },
+    36    │ - ········x·=>·{·delete·x.currentGithub.queueRun;·},
+       36 │ + ········x·=>·{·x.currentGithub.queueRun·=·undefined;·},
+    37 37 │         ]) { const x = structuredClone(main); mutate(x); assert.equal(checkSourceTopologyStructure(x, { sourceSha: source }, base).eligible, false); count++; }
+    38 38 │       }
+  
+
+scripts/forge-source-topology.mjs format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   /** Structural source binding. Authentication comes only from the live collector. */
+     2    │ - export·const·FROZEN_BASE_HEAD·=·'82bca73efa870b013d7817aac7b7f9d63799963b';
+     3    │ - const·sha·=·value·=>·typeof·value·===·'string'·&&·/^[a-f0-9]{40}$/.test(value);
+        2 │ + export·const·FROZEN_BASE_HEAD·=·"82bca73efa870b013d7817aac7b7f9d63799963b";
+        3 │ + const·sha·=·(value)·=>
+        4 │ + → typeof·value·===·"string"·&&·/^[a-f0-9]{40}$/.test(value);
+     4  5 │   export function checkSourceTopologyStructure(git, pins, frozenBaseHead) {
+     5    │ - ··const·errors·=·[];
+     6    │ - ··if·(!sha(git?.head)·||·!sha(pins?.sourceSha)·||·git.clean·!==·true)·errors.push('Clean·checkout·and·immutable·source·required');
+     7    │ - ··if·(!Array.isArray(git?.changedPaths))·errors.push('Complete·source-to-checkout·diff·required');
+     8    │ - ··const·execution·=·git?.currentGithub?.run;
+     9    │ - ··if·(execution)·{
+    10    │ - ····const·prMerge·=·execution.event·===·'pull_request'·&&·git?.headParents?.length·===·2·&&·git.headParents[1]·===·execution.head_sha;
+    11    │ - ····if·(execution.repository?.id·!==·973881060·||·execution.repository?.full_name·!==·'OxyHQ/oxy'
+    12    │ - ······||·execution.head_repository?.full_name·!==·'OxyHQ/oxy'
+    13    │ - ······||·(execution.head_sha·!==·git?.head·&&·!prMerge))·errors.push('Authenticated·execution·must·bind·the·actual·checkout,·never·an·older·run');
+    14    │ - ··}
+    15    │ - ··if·(git?.sourceIsAncestor·===·true)·return·{·eligible:·errors.length·===·0,·kind:·'descendant',·errors·};
+    16    │ - ··const·allowed·=·['docs/security/forge-candidate/provenance/pins.json',·'docs/security/forge-candidate/provenance/audit-policy-decision.json'];
+    17    │ - ··if·(git?.changedPaths?.some(path·=>·!allowed.includes(path)))·errors.push('Squash·tree·differs·outside·the·exact·two·declarative·paths');
+    18    │ - ··const·context·=·git?.currentGithub;
+    19    │ - ··const·run·=·context?.queueRun·??·context?.run;
+    20    │ - ··const·commit·=·context?.commit;
+    21    │ - ··if·(!run·||·run.repository?.id·!==·973881060·||·run.repository?.full_name·!==·'OxyHQ/oxy'
+    22    │ - ····||·run.head_repository?.full_name·!==·'OxyHQ/oxy'·||·run.event·!==·'merge_group'
+    23    │ - ····||·run.head_sha·!==·git?.head·||·!/^gh-readonly-queue\/main\/pr-\d+-[a-f0-9]{40}$/.test(run.head_branch·??·'')
+    24    │ - ····||·!run.head_branch.endsWith(`-${frozenBaseHead}`))·errors.push('Evidence·source·is·not·an·ancestor:·authenticated·same-repository·merge_group·run·and·frozen·base·required');
+    25    │ - ··if·(commit?.sha·!==·git?.head·||·commit?.parents?.length·!==·1·||·commit.parents[0]·!==·frozenBaseHead
+    26    │ - ····||·git?.headParents?.length·!==·1·||·git.headParents[0]·!==·frozenBaseHead
+    27    │ - ····||·commit?.tree·!==·git?.headTree·||·!sha(commit?.tree))·errors.push('Authenticated·squash·commit·must·match·local·tree·and·exactly·the·frozen·base');
+    28    │ - ··return·{·eligible:·errors.length·===·0,·kind:·'squash',·errors·};
+        6 │ + → const·errors·=·[];
+        7 │ + → if·(!sha(git?.head)·||·!sha(pins?.sourceSha)·||·git.clean·!==·true)
+        8 │ + → → errors.push("Clean·checkout·and·immutable·source·required");
+        9 │ + → if·(!Array.isArray(git?.changedPaths))
+       10 │ + → → errors.push("Complete·source-to-checkout·diff·required");
+       11 │ + → const·execution·=·git?.currentGithub?.run;
+       12 │ + → if·(execution)·{
+       13 │ + → → const·prMerge·=
+       14 │ + → → → execution.event·===·"pull_request"·&&
+       15 │ + → → → git?.headParents?.length·===·2·&&
+       16 │ + → → → git.headParents[1]·===·execution.head_sha;
+       17 │ + → → if·(
+       18 │ + → → → execution.repository?.id·!==·973881060·||
+       19 │ + → → → execution.repository?.full_name·!==·"OxyHQ/oxy"·||
+       20 │ + → → → execution.head_repository?.full_name·!==·"OxyHQ/oxy"·||
+       21 │ + → → → (execution.head_sha·!==·git?.head·&&·!prMerge)
+       22 │ + → → )
+       23 │ + → → → errors.push(
+       24 │ + → → → → "Authenticated·execution·must·bind·the·actual·checkout,·never·an·older·run",
+       25 │ + → → → );
+       26 │ + → }
+       27 │ + → if·(git?.sourceIsAncestor·===·true)
+       28 │ + → → return·{·eligible:·errors.length·===·0,·kind:·"descendant",·errors·};
+       29 │ + → const·allowed·=·[
+       30 │ + → → "docs/security/forge-candidate/provenance/pins.json",
+       31 │ + → → "docs/security/forge-candidate/provenance/audit-policy-decision.json",
+       32 │ + → ];
+       33 │ + → if·(git?.changedPaths?.some((path)·=>·!allowed.includes(path)))
+       34 │ + → → errors.push("Squash·tree·differs·outside·the·exact·two·declarative·paths");
+       35 │ + → const·context·=·git?.currentGithub;
+       36 │ + → const·run·=·context?.queueRun·??·context?.run;
+       37 │ + → const·commit·=·context?.commit;
+       38 │ + → if·(
+       39 │ + → → !run·||
+       40 │ + → → run.repository?.id·!==·973881060·||
+       41 │ + → → run.repository?.full_name·!==·"OxyHQ/oxy"·||
+       42 │ + → → run.head_repository?.full_name·!==·"OxyHQ/oxy"·||
+       43 │ + → → run.event·!==·"merge_group"·||
+       44 │ + → → run.head_sha·!==·git?.head·||
+       45 │ + → → !/^gh-readonly-queue\/main\/pr-\d+-[a-f0-9]{40}$/.test(
+       46 │ + → → → run.head_branch·??·"",
+       47 │ + → → )·||
+       48 │ + → → !run.head_branch.endsWith(`-${frozenBaseHead}`)
+       49 │ + → )
+       50 │ + → → errors.push(
+       51 │ + → → → "Evidence·source·is·not·an·ancestor:·authenticated·same-repository·merge_group·run·and·frozen·base·required",
+       52 │ + → → );
+       53 │ + → if·(
+       54 │ + → → commit?.sha·!==·git?.head·||
+       55 │ + → → commit?.parents?.length·!==·1·||
+       56 │ + → → commit.parents[0]·!==·frozenBaseHead·||
+       57 │ + → → git?.headParents?.length·!==·1·||
+       58 │ + → → git.headParents[0]·!==·frozenBaseHead·||
+       59 │ + → → commit?.tree·!==·git?.headTree·||
+       60 │ + → → !sha(commit?.tree)
+       61 │ + → )
+       62 │ + → → errors.push(
+       63 │ + → → → "Authenticated·squash·commit·must·match·local·tree·and·exactly·the·frozen·base",
+       64 │ + → → );
+       65 │ + → return·{·eligible:·errors.length·===·0,·kind:·"squash",·errors·};
+    29 66 │   }
+    30 67 │   
+    31 68 │   /** Runtime callers cannot select a different base. */
+    32 69 │   export function checkFrozenSourceTopology(git, pins) {
+    33    │ - ··return·checkSourceTopologyStructure(git,·pins,·FROZEN_BASE_HEAD);
+       70 │ + → return·checkSourceTopologyStructure(git,·pins,·FROZEN_BASE_HEAD);
+    34 71 │   }
+    35 72 │   
+  
+
+scripts/test-forge-source-topology.mjs organizeImports ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Import statements could be sorted:
+  
+     1  1 │   import assert from 'node:assert/strict';
+     2    │ - import·{·mkdtempSync,·mkdirSync,·writeFileSync,·rmSync·}·from·'node:fs';
+     3    │ - import·{·join,·dirname·}·from·'node:path';
+        2 │ + import·{·execFileSync·}·from·'node:child_process';
+        3 │ + import·{·mkdirSync,·mkdtempSync,·rmSync,·writeFileSync·}·from·'node:fs';
+     4  4 │   import { tmpdir } from 'node:os';
+     5    │ - import·{·execFileSync·}·from·'node:child_process';
+     6    │ - import·{·checkSourceTopologyStructure,·checkFrozenSourceTopology,·FROZEN_BASE_HEAD·}·from·'./forge-source-topology.mjs';
+        5 │ + import·{·dirname,·join·}·from·'node:path';
+        6 │ + import·{·FROZEN_BASE_HEAD,·checkFrozenSourceTopology,·checkSourceTopologyStructure·}·from·'./forge-source-topology.mjs';
+     7  7 │   const root = mkdtempSync(join(tmpdir(), 'forge-squash-git-fixture-'));
+     8  8 │   let count = 0;
+  
+
+scripts/test-forge-source-topology.mjs format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1     │ - import·assert·from·'node:assert/strict';
+     2     │ - import·{·mkdtempSync,·mkdirSync,·writeFileSync,·rmSync·}·from·'node:fs';
+     3     │ - import·{·join,·dirname·}·from·'node:path';
+     4     │ - import·{·tmpdir·}·from·'node:os';
+     5     │ - import·{·execFileSync·}·from·'node:child_process';
+     6     │ - import·{·checkSourceTopologyStructure,·checkFrozenSourceTopology,·FROZEN_BASE_HEAD·}·from·'./forge-source-topology.mjs';
+     7     │ - const·root·=·mkdtempSync(join(tmpdir(),·'forge-squash-git-fixture-'));
+         1 │ + import·assert·from·"node:assert/strict";
+         2 │ + import·{·mkdtempSync,·mkdirSync,·writeFileSync,·rmSync·}·from·"node:fs";
+         3 │ + import·{·join,·dirname·}·from·"node:path";
+         4 │ + import·{·tmpdir·}·from·"node:os";
+         5 │ + import·{·execFileSync·}·from·"node:child_process";
+         6 │ + import·{
+         7 │ + → checkSourceTopologyStructure,
+         8 │ + → checkFrozenSourceTopology,
+         9 │ + → FROZEN_BASE_HEAD,
+        10 │ + }·from·"./forge-source-topology.mjs";
+        11 │ + const·root·=·mkdtempSync(join(tmpdir(),·"forge-squash-git-fixture-"));
+     8  12 │   let count = 0;
+     9  13 │   try {
+    10     │ - ··const·git·=·(...args)·=>·execFileSync('/usr/bin/git',·['-C',·root,·'-c',·'user.name=Synthetic·Fixture',·'-c',·'user.email=fixture@example.invalid',·'-c',·'commit.gpgsign=false',·'-c',·'core.hooksPath=/dev/null',·...args],·{·encoding:·'utf8',·stdio:·['ignore',·'pipe',·'pipe']·}).trim();
+    11     │ - ··const·put·=·(path,·text)·=>·{·mkdirSync(dirname(join(root,·path)),·{·recursive:·true·});·writeFileSync(join(root,·path),·text);·git('add',·'--',·path);·};
+    12     │ - ··git('init',·'--initial-branch=main');·put('README.md',·'Synthetic·main·fixture\n');·git('commit',·'-qm',·'Synthetic·baseline');
+    13     │ - ··const·base·=·git('rev-parse',·'HEAD');
+    14     │ - ··git('checkout',·'-b',·'source');·put('scripts/frozen.mjs',·'synthetic·reviewed·executable\n');·git('commit',·'-qm',·'Synthetic·frozen·source');
+    15     │ - ··const·source·=·git('rev-parse',·'HEAD');
+    16     │ - ··git('checkout',·'-b',·'decision');·put('docs/security/forge-candidate/provenance/audit-policy-decision.json',·'{"synthetic":true}\n');·git('commit',·'-qm',·'Synthetic·declaration');
+    17     │ - ··for·(const·advanced·of·[false,·true])·{
+    18     │ - ····git('checkout',·'-b',·advanced·?·'advanced-queue'·:·'queue',·base);
+    19     │ - ····if·(advanced)·{·put('README.md',·'Unreviewed·main·advance\n');·git('commit',·'-qm',·'Synthetic·advance');·}
+    20     │ - ····git('merge',·'--squash',·'decision');·git('commit',·'-qm',·'Synthetic·SQUASH·queue');
+    21     │ - ····const·head·=·git('rev-parse',·'HEAD');·const·tree·=·git('rev-parse',·'HEAD^{tree}');·const·parents·=·git('show',·'-s',·'--format=%P').split('·');
+    22     │ - ····assert.throws(()·=>·git('merge-base',·'--is-ancestor',·source,·head));·count++;
+    23     │ - ····const·facts·=·{·head,·clean:·true,·sourceIsAncestor:·false,·headTree:·tree,·headParents:·parents,
+    24     │ - ······changedPaths:·git('diff',·'--name-only',·source,·head).split('\n').filter(Boolean),
+    25     │ - ······currentGithub:·{·run:·{·repository:·{·id:·973881060,·full_name:·'OxyHQ/oxy'·},·head_repository:·{·full_name:·'OxyHQ/oxy'·},·event:·'merge_group',·head_sha:·head,·head_branch:·`gh-readonly-queue/main/pr-1546-${base}`,·pull_requests:·[]·},·commit:·{·sha:·head,·tree,·parents·}·}·};
+    26     │ - ····assert.equal(checkSourceTopologyStructure(facts,·{·sourceSha:·source·},·base).eligible,·!advanced);·count++;
+    27     │ - ····assert.equal(checkFrozenSourceTopology(facts,·{·sourceSha:·source·}).eligible,·false,·'synthetic·base·cannot·override·frozen·runtime·base');·count++;
+    28     │ - ····if·(!advanced)·{
+    29     │ - ······const·main·=·structuredClone(facts);
+    30     │ - ······main.currentGithub.queueRun·=·structuredClone(main.currentGithub.run);
+    31     │ - ······main.currentGithub.run.event·=·'push';·main.currentGithub.run.head_branch·=·'main';
+    32     │ - ······assert.equal(checkSourceTopologyStructure(main,·{·sourceSha:·source·},·base).eligible,·true);·count++;
+    33     │ - ······for·(const·mutate·of·[
+    34     │ - ········x·=>·{·x.currentGithub.run.head_sha·=·'f'.repeat(40);·},
+    35     │ - ········x·=>·{·x.currentGithub.queueRun.head_sha·=·'f'.repeat(40);·},
+    36     │ - ········x·=>·{·delete·x.currentGithub.queueRun;·},
+    37     │ - ······])·{·const·x·=·structuredClone(main);·mutate(x);·assert.equal(checkSourceTopologyStructure(x,·{·sourceSha:·source·},·base).eligible,·false);·count++;·}
+    38     │ - ····}
+    39     │ - ····if·(!advanced)·for·(const·mutate·of·[
+    40     │ - ······x·=>·{·x.currentGithub.run.head_sha·=·'f'.repeat(40);·},
+    41     │ - ······x·=>·{·x.currentGithub.run.event·=·'pull_request';·},
+    42     │ - ······x·=>·{·x.currentGithub.run.repository.full_name·=·'foreign/repo';·},
+    43     │ - ······x·=>·{·x.currentGithub.commit.tree·=·'f'.repeat(40);·},
+    44     │ - ······x·=>·{·x.currentGithub.commit.parents.push('f'.repeat(40));·},
+    45     │ - ······x·=>·{·x.changedPaths.push('packages/api/src/server.ts');·},
+    46     │ - ······x·=>·{·x.changedPaths.push('docs/security/forge-candidate/provenance/other.json');·},
+    47     │ - ······x·=>·{·x.currentGithub.run.head_branch·=·`gh-readonly-queue/main/pr-1546-${'f'.repeat(40)}`;·},
+    48     │ - ····])·{·const·x·=·structuredClone(facts);·mutate(x);·assert.equal(checkSourceTopologyStructure(x,·{·sourceSha:·source·},·base).eligible,·false);·count++;·}
+    49     │ - ··}
+    50     │ - ··assert.equal(checkSourceTopologyStructure(undefined,·undefined,·base).eligible,·false);·count++;
+    51     │ - ··const·currentMain·=·'82bca73efa870b013d7817aac7b7f9d63799963b';
+    52     │ - ··const·queueHead·=·'1'.repeat(40);
+    53     │ - ··const·frozenSource·=·'091cb952a3fe14adae48397e373e2e1461969dc0';
+    54     │ - ··//·Structurally·synthetic·queue·metadata·bound·to·the·authenticated·current·main.
+    55     │ - ··//·Authentication·remains·the·live·collector's·responsibility.
+    56     │ - ··const·current·=·{·head:·queueHead,·clean:·true,·sourceIsAncestor:·false,
+    57     │ - ····headTree:·'d'.repeat(40),·headParents:·[currentMain],·changedPaths:·[
+    58     │ - ······'docs/security/forge-candidate/provenance/pins.json',
+    59     │ - ······'docs/security/forge-candidate/provenance/audit-policy-decision.json'],
+    60     │ - ····currentGithub:·{·run:·{·repository:·{·id:·973881060,·full_name:·'OxyHQ/oxy'·},
+    61     │ - ······head_repository:·{·full_name:·'OxyHQ/oxy'·},·event:·'merge_group',
+    62     │ - ······head_sha:·queueHead,·head_branch:·`gh-readonly-queue/main/pr-1569-${currentMain}`·},
+    63     │ - ······commit:·{·sha:·queueHead,·tree:·'d'.repeat(40),·parents:·[currentMain]·}·}·};
+    64     │ - ··assert.equal(checkFrozenSourceTopology(current,·{·sourceSha:·frozenSource·}).eligible,·true,·'the·reviewed·actual·main·base·must·admit·its·exact·squash·topology');·count++;
+    65     │ - ··for·(const·wrongBase·of·['85dad68e5685413740a4a3fd52afee5bd724bed1',·'73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12',·'f'.repeat(40)])·{
+    66     │ - ····const·wrong·=·structuredClone(current);
+    67     │ - ····wrong.headParents·=·[wrongBase];·wrong.currentGithub.commit.parents·=·[wrongBase];
+    68     │ - ····wrong.currentGithub.run.head_branch·=·`gh-readonly-queue/main/pr-1569-${wrongBase}`;
+    69     │ - ····assert.equal(checkFrozenSourceTopology(wrong,·{·sourceSha:·frozenSource·}).eligible,·false);·count++;
+    70     │ - ··}
+    71     │ - ··assert.equal(FROZEN_BASE_HEAD,·currentMain);·count++;
+    72     │ - 
+    73     │ - }·finally·{·rmSync(root,·{·recursive:·true,·force:·true·});·}
+    74     │ - console.log(`${count}·real·Git·SQUASH·source-binding·assertions·pass;·metadata·is·explicitly·synthetic,·no·live·approval.`);
+        14 │ + → const·git·=·(...args)·=>
+        15 │ + → → execFileSync(
+        16 │ + → → → "/usr/bin/git",
+        17 │ + → → → [
+        18 │ + → → → → "-C",
+        19 │ + → → → → root,
+        20 │ + → → → → "-c",
+        21 │ + → → → → "user.name=Synthetic·Fixture",
+        22 │ + → → → → "-c",
+        23 │ + → → → → "user.email=fixture@example.invalid",
+        24 │ + → → → → "-c",
+        25 │ + → → → → "commit.gpgsign=false",
+        26 │ + → → → → "-c",
+        27 │ + → → → → "core.hooksPath=/dev/null",
+        28 │ + → → → → ...args,
+        29 │ + → → → ],
+        30 │ + → → → {·encoding:·"utf8",·stdio:·["ignore",·"pipe",·"pipe"]·},
+        31 │ + → → ).trim();
+        32 │ + → const·put·=·(path,·text)·=>·{
+        33 │ + → → mkdirSync(dirname(join(root,·path)),·{·recursive:·true·});
+        34 │ + → → writeFileSync(join(root,·path),·text);
+        35 │ + → → git("add",·"--",·path);
+        36 │ + → };
+        37 │ + → git("init",·"--initial-branch=main");
+        38 │ + → put("README.md",·"Synthetic·main·fixture\n");
+        39 │ + → git("commit",·"-qm",·"Synthetic·baseline");
+        40 │ + → const·base·=·git("rev-parse",·"HEAD");
+        41 │ + → git("checkout",·"-b",·"source");
+        42 │ + → put("scripts/frozen.mjs",·"synthetic·reviewed·executable\n");
+        43 │ + → git("commit",·"-qm",·"Synthetic·frozen·source");
+        44 │ + → const·source·=·git("rev-parse",·"HEAD");
+        45 │ + → git("checkout",·"-b",·"decision");
+        46 │ + → put(
+        47 │ + → → "docs/security/forge-candidate/provenance/audit-policy-decision.json",
+        48 │ + → → '{"synthetic":true}\n',
+        49 │ + → );
+        50 │ + → git("commit",·"-qm",·"Synthetic·declaration");
+        51 │ + → for·(const·advanced·of·[false,·true])·{
+        52 │ + → → git("checkout",·"-b",·advanced·?·"advanced-queue"·:·"queue",·base);
+        53 │ + → → if·(advanced)·{
+        54 │ + → → → put("README.md",·"Unreviewed·main·advance\n");
+        55 │ + → → → git("commit",·"-qm",·"Synthetic·advance");
+        56 │ + → → }
+        57 │ + → → git("merge",·"--squash",·"decision");
+        58 │ + → → git("commit",·"-qm",·"Synthetic·SQUASH·queue");
+        59 │ + → → const·head·=·git("rev-parse",·"HEAD");
+        60 │ + → → const·tree·=·git("rev-parse",·"HEAD^{tree}");
+        61 │ + → → const·parents·=·git("show",·"-s",·"--format=%P").split("·");
+        62 │ + → → assert.throws(()·=>·git("merge-base",·"--is-ancestor",·source,·head));
+        63 │ + → → count++;
+        64 │ + → → const·facts·=·{
+        65 │ + → → → head,
+        66 │ + → → → clean:·true,
+        67 │ + → → → sourceIsAncestor:·false,
+        68 │ + → → → headTree:·tree,
+        69 │ + → → → headParents:·parents,
+        70 │ + → → → changedPaths:·git("diff",·"--name-only",·source,·head)
+        71 │ + → → → → .split("\n")
+        72 │ + → → → → .filter(Boolean),
+        73 │ + → → → currentGithub:·{
+        74 │ + → → → → run:·{
+        75 │ + → → → → → repository:·{·id:·973881060,·full_name:·"OxyHQ/oxy"·},
+        76 │ + → → → → → head_repository:·{·full_name:·"OxyHQ/oxy"·},
+        77 │ + → → → → → event:·"merge_group",
+        78 │ + → → → → → head_sha:·head,
+  147 more lines truncated
+  
+
+Skipped 1 suggested fixes.
+If you wish to apply the suggested (unsafe) fixes, use the command biome check --fix --unsafe
+
+Checked 2 files in 4ms. No fixes applied.
+Found 4 errors.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

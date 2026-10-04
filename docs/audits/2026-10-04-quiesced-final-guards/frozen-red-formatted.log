@@ -1,0 +1,176 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
++ [
++   'final-main-rejection: AssertionError [ERR_ASSERTION]: Rollout surge: 150% of 2 task(s) (one extra), wait budget 2s.\n' +
++     'Final definition preserves the reviewed configuration; only the image changes.\n' +
++     'Registered final definition readback matches the reviewed image/configuration.\n' +
++     'Running Migration with arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
++     '(0 s) Migration task status=STOPPED\n' +
++     'Migration completed successfully\n' +
++     'Running pre-rollout script /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/final-main-rejection/worker.sh\n' +
++     'Re-verifying origin/main immediately before the ECS service update.\n' +
++     'Final maintenance deployment checked.\n' +
++     '\n' +
++     '\n' +
++     '1 !== 2\n' +
++     '\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:291:11\n' +
++     '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:278:3',
++   'final-retired-drift: AssertionError [ERR_ASSERTION]: Rollout surge: 150% of 2 task(s) (one extra), wait budget 2s.\n' +
++     'Final definition preserves the reviewed configuration; only the image changes.\n' +
++     'Registered final definition readback matches the reviewed image/configuration.\n' +
++     'Running Migration with arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
++     '(0 s) Migration task status=STOPPED\n' +
++     'Migration completed successfully\n' +
++     'Running pre-rollout script /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/final-retired-drift/worker.sh\n' +
++     'Re-verifying origin/main immediately before the ECS service update.\n' +
++     'Final maintenance deployment checked.\n' +
++     'Quiesced deployment check failed; shutdown/readback is not confirmed.\n' +
++     '\n' +
++     '\n' +
++     '2 !== 0\n' +
++     '\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:285:11\n' +
++     '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:278:3',
++   'shutdown-unconfirmed: AssertionError [ERR_ASSERTION]: Rollout surge: 150% of 2 task(s) (one extra), wait budget 2s.\n' +
++     'Final definition preserves the reviewed configuration; only the image changes.\n' +
++     'Registered final definition readback matches the reviewed image/configuration.\n' +
++     'Running Migration with arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
++     '(0 s) Migration task status=STOPPED\n' +
++     'Migration completed successfully\n' +
++     'Running pre-rollout script /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/shutdown-unconfirmed/worker.sh\n' +
++     'Re-verifying origin/main immediately before the ECS service update.\n' +
++     'Final maintenance deployment checked.\n' +
++     'Quiesced deployment check failed; shutdown/readback is not confirmed.\n' +
++     '\n' +
++     '\n' +
++     '2 !== 0\n' +
++     '\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:285:11\n' +
++     '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:278:3',
++   'stale-steady: AssertionError [ERR_ASSERTION]: Rollout surge: 150% of 2 task(s) (one extra), wait budget 2s.\n' +
++     'Final definition preserves the reviewed configuration; only the image changes.\n' +
++     'Registered final definition readback matches the reviewed image/configuration.\n' +
++     'Running Migration with arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
++     '(0 s) Migration task status=STOPPED\n' +
++     'Migration completed successfully\n' +
++     'Running pre-rollout script /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/stale-steady/worker.sh\n' +
++     'Re-verifying origin/main immediately before the ECS service update.\n' +
++     'Final maintenance deployment checked.\n' +
++     'Final maintenance deployment checked.\n' +
++     'Deploying immutable image 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:2222222222222222222222222222222222222222222222222222222222222222 with task definition arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693 (deployment new-deploy)\n' +
++     'Final maintenance deployment checked.\n' +
++     '(0 s) deployment deployment=new-deploy status=PRIMARY rolloutState=COMPLETED running=2 desired=2 serviceDesired=2\n' +
++     'ECS rollout reached a healthy steady state at arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
++     'Running post-deploy smoke checks with /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/stale-steady/worker.sh\n' +
++     'Deployed oxy-api at arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
++     '\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:314:10\n' +
++     '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:312:2',
++   'eventual-steady: AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n' +
++     '\n' +
++     '  assert.ok(\n' +
++     '\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:332:10\n' +
++     '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
++     '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:324:2'
++ ]
+- []
+
+    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:345:9 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [
+    'final-main-rejection: AssertionError [ERR_ASSERTION]: Rollout surge: 150% of 2 task(s) (one extra), wait budget 2s.\n' +
+      'Final definition preserves the reviewed configuration; only the image changes.\n' +
+      'Registered final definition readback matches the reviewed image/configuration.\n' +
+      'Running Migration with arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
+      '(0 s) Migration task status=STOPPED\n' +
+      'Migration completed successfully\n' +
+      'Running pre-rollout script /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/final-main-rejection/worker.sh\n' +
+      'Re-verifying origin/main immediately before the ECS service update.\n' +
+      'Final maintenance deployment checked.\n' +
+      '\n' +
+      '\n' +
+      '1 !== 2\n' +
+      '\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:291:11\n' +
+      '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:278:3',
+    'final-retired-drift: AssertionError [ERR_ASSERTION]: Rollout surge: 150% of 2 task(s) (one extra), wait budget 2s.\n' +
+      'Final definition preserves the reviewed configuration; only the image changes.\n' +
+      'Registered final definition readback matches the reviewed image/configuration.\n' +
+      'Running Migration with arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
+      '(0 s) Migration task status=STOPPED\n' +
+      'Migration completed successfully\n' +
+      'Running pre-rollout script /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/final-retired-drift/worker.sh\n' +
+      'Re-verifying origin/main immediately before the ECS service update.\n' +
+      'Final maintenance deployment checked.\n' +
+      'Quiesced deployment check failed; shutdown/readback is not confirmed.\n' +
+      '\n' +
+      '\n' +
+      '2 !== 0\n' +
+      '\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:285:11\n' +
+      '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:278:3',
+    'shutdown-unconfirmed: AssertionError [ERR_ASSERTION]: Rollout surge: 150% of 2 task(s) (one extra), wait budget 2s.\n' +
+      'Final definition preserves the reviewed configuration; only the image changes.\n' +
+      'Registered final definition readback matches the reviewed image/configuration.\n' +
+      'Running Migration with arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
+      '(0 s) Migration task status=STOPPED\n' +
+      'Migration completed successfully\n' +
+      'Running pre-rollout script /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/shutdown-unconfirmed/worker.sh\n' +
+      'Re-verifying origin/main immediately before the ECS service update.\n' +
+      'Final maintenance deployment checked.\n' +
+      'Quiesced deployment check failed; shutdown/readback is not confirmed.\n' +
+      '\n' +
+      '\n' +
+      '2 !== 0\n' +
+      '\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:285:11\n' +
+      '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:278:3',
+    'stale-steady: AssertionError [ERR_ASSERTION]: Rollout surge: 150% of 2 task(s) (one extra), wait budget 2s.\n' +
+      'Final definition preserves the reviewed configuration; only the image changes.\n' +
+      'Registered final definition readback matches the reviewed image/configuration.\n' +
+      'Running Migration with arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
+      '(0 s) Migration task status=STOPPED\n' +
+      'Migration completed successfully\n' +
+      'Running pre-rollout script /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/stale-steady/worker.sh\n' +
+      'Re-verifying origin/main immediately before the ECS service update.\n' +
+      'Final maintenance deployment checked.\n' +
+      'Final maintenance deployment checked.\n' +
+      'Deploying immutable image 237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:2222222222222222222222222222222222222222222222222222222222222222 with task definition arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693 (deployment new-deploy)\n' +
+      'Final maintenance deployment checked.\n' +
+      '(0 s) deployment deployment=new-deploy status=PRIMARY rolloutState=COMPLETED running=2 desired=2 serviceDesired=2\n' +
+      'ECS rollout reached a healthy steady state at arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
+      'Running post-deploy smoke checks with /home/nate/Oxy/.tmp/cas/quiesced-shell-gow42z/stale-steady/worker.sh\n' +
+      'Deployed oxy-api at arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:693\n' +
+      '\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:314:10\n' +
+      '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:312:2',
+    'eventual-steady: AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n' +
+      '\n' +
+      '  assert.ok(\n' +
+      '\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:332:10\n' +
+      '    at check (file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:267:4)\n' +
+      '    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-source82/scripts/test-quiesced-deploy-shell.mjs:324:2'
+  ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

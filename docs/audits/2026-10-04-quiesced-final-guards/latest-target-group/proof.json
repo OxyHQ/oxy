@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "kind": "quiesced-final-guards-latest-target-group-proof-v1",
+  "sourceCommit": "c426b12e62d45fe841cdf1109cce4eeb282b494d",
+  "priorProof": {
+    "path": "docs/audits/2026-10-04-quiesced-final-guards/proof.json",
+    "sha256": "9504446c137d445d7a22c388a10f12de8eadf922474d13f02780c7cfdfeb9abb",
+    "sourceCommit": "21e7ab092ee587527fab278de68f27e7bf5aebd8"
+  },
+  "sourceInputs": [
+    {
+      "path": ".github/scripts/deploy-ecs-image.sh",
+      "sha256": "4e860dcab2a36ddcd0b7e1ce63563085be6ffb627a59eac3fdeb1155bfe61987"
+    },
+    {
+      "path": ".github/scripts/guard-quiesced-deploy.mjs",
+      "sha256": "a88838ed71def52c8b2a58f7efe941c7328aaaf98ebf37ce7102f78f6d199e06"
+    },
+    {
+      "path": "scripts/test-quiesced-deploy-shell.mjs",
+      "sha256": "f99e77cb43580b7e3b543171302524b52d1741cd0d9c81e0f43be608356ac806"
+    },
+    {
+      "path": "scripts/test-quiesced-retirement.mjs",
+      "sha256": "db563c5af1cd5801e6bb8ff7320c08bd0b3afff5339c4731333cd954b5cbd48c"
+    },
+    {
+      "path": "scripts/test-quiesced-deploy.mjs",
+      "sha256": "2f9556bdfbeceaf5806dfd3c4953fbb59bafcd9e4b3847b1a6ffd8251a2ea996"
+    },
+    {
+      "path": "scripts/test-quiesced-cold-scheduler.mjs",
+      "sha256": "a863b4058aeb84513367e502467eab3ed364e8646dfb2cb98e426f7b6f801f80"
+    },
+    {
+      "path": ".github/scripts/test-deploy-ecs-image.sh",
+      "sha256": "d1b043b9b901af7be746b7d36fb990887850133cdafd5fa6e0b7bc3995bc4a4b"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/latest-target-group/green-guard-final.log",
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/latest-target-group/green-retirement.log",
+      "sha256": "5cb0b00770da74cc9699862c02e55dda8083d357b51666e67bdbb7db81665a17"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/latest-target-group/green-shell-exact-final.log",
+      "sha256": "2af26075aec015531a4229e22768cc6605872c5837f5440017f782bac253a947"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/latest-target-group/green-cold-scheduler.log",
+      "sha256": "d67cb132fe8b071bc44cfb2aed3b55ed46d8703d0f4d29fc244a83d7a985c914"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/latest-target-group/biome-final.log",
+      "sha256": "b493934eff9ff1d3d4ad7b9e3717602c9431e83180ab43c34c5a8f6dcd9078ec"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/latest-target-group/frozen-latest-tg-red.log",
+      "sha256": "dac2bbd66b6d8524f84c0d8e24d34e5464f6c1a05364a01db121428d410c7b68"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/latest-target-group/frozen-guard21e7.mjs",
+      "sha256": "c0ad21ba991ba32c006a7f7048662dd2b9f999ce60ae379cf47e5f6618ecf3b4"
+    },
+    {
+      "path": "docs/audits/2026-10-04-quiesced-final-guards/latest-target-group/frozen-retirement.mjs",
+      "sha256": "db563c5af1cd5801e6bb8ff7320c08bd0b3afff5339c4731333cd954b5cbd48c"
+    }
+  ],
+  "checks": {
+    "latestTargetGroupDriftRedAgainst21e7": true,
+    "sameRetirementFixtureBytes": true,
+    "newAwsReads": 0,
+    "preflightRecovery": 61,
+    "retirementAdmission": 45,
+    "pendingVsFatal": 10,
+    "latestObservation": 13,
+    "canonicalShell": 16,
+    "coldScheduler": true,
+    "biomeExit0": true,
+    "awsCalls": 0,
+    "ordinaryTransactionShellSourceUnchangedReused": true
+  },
+  "limits": [
+    "This supersedes only prior source-input hashes for the guard and retirement fixture; the original proof and five frozen source82 RED interleavings remain unchanged.",
+    "Latest service target-group binding is checked against the earlier validated infrastructure snapshot without an additional AWS call.",
+    "All AWS is simulated. No production operation or live worker coordination is claimed.",
+    "Ordinary transaction shell result is reused from prior proof because deploy-ecs-image.sh and its normal-path fixture bytes are unchanged by this follow-up."
+  ]
+}

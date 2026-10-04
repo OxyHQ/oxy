@@ -1,0 +1,17 @@
+Maintenance final retirement/admission: 45 checks PASS (synthetic AWS; no mutation).
+Maintenance pending-vs-fatal: 10 checks PASS.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Missing expected exception.
+    at file:///home/nate/Oxy/.agent-evidence/coverage-quiesced-final-guards-20261004/frozen-latest-tg21e7/scripts/test-quiesced-retirement.mjs:459:9 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: undefined,
+  operator: 'throws',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

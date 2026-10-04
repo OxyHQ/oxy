@@ -107,7 +107,7 @@ jobs:
           node -e 'const fs=require("node:fs"),e=process.env,p=e.RUNNER_TEMP+"/"; fs.writeFileSync(p+"forge-scan-image-ids.json",JSON.stringify({dockerConfigId:e.IMAGE_ID,mountProofImageId:e.IMAGE_ID,rootScanImageId:e.IMAGE_ID,regressionImageId:e.IMAGE_ID})+"\n"); fs.writeFileSync(p+"forge-queue-execution.json",JSON.stringify({sourceSha:e.SOURCE_SHA,workflowSha:e.GITHUB_WORKFLOW_SHA,repository:e.GITHUB_REPOSITORY,repositoryId:e.GITHUB_REPOSITORY_ID,event:e.GITHUB_EVENT_NAME,runId:e.GITHUB_RUN_ID,runAttempt:e.GITHUB_RUN_ATTEMPT,job:e.GITHUB_JOB,approval:false})+"\n");'
       - uses: actions/upload-artifact@v7
         with:
-          name: forge-queue-proof-${{ github.sha }}-${{ github.run_id }}
+          name: forge-queue-proof-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/forge-build-metadata.json
             ${{ runner.temp }}/forge-image-identity.txt
@@ -124,7 +124,7 @@ jobs:
           retention-days: 7
       - uses: actions/upload-artifact@v7
         with:
-          name: forge-queue-oci-${{ github.sha }}-${{ github.run_id }}
+          name: forge-queue-oci-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/forge-image.oci.tar
           if-no-files-found: error
           retention-days: 7
@@ -157,6 +157,8 @@ jobs:
             sleep 20
           done
           [[ "${verdict:-pending}" == success ]]
+  # Recovery requires a full rerun, including inspection in this attempt. A
+  # publish-only rerun cannot consume an older attempt or overwrite its artifacts.
   publish:
     needs: [policy, inspection, authorize]
     if: needs.policy.outputs.active == 'true' && github.repository == 'OxyHQ/oxy'
@@ -180,11 +182,11 @@ jobs:
           bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
       - uses: actions/download-artifact@v8
         with:
-          name: forge-queue-proof-${{ github.sha }}-${{ github.run_id }}
+          name: forge-queue-proof-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/forge-publish-${{ github.run_id }}/proof
       - uses: actions/download-artifact@v8
         with:
-          name: forge-queue-oci-${{ github.sha }}-${{ github.run_id }}
+          name: forge-queue-oci-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/forge-publish-${{ github.run_id }}/image
       - name: Verify exact archive and source receipt
         env:

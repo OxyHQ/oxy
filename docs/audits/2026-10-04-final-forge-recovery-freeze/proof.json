@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "96752299604be3e57772369fe0212d4d017b1e68",
+  "baseHead": "82bca73efa870b013d7817aac7b7f9d63799963b",
+  "machineProof": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
+  "machineProofSha256": "a2b2d9ec6394b7e0bdb21eb86a019c8c01e3775022551ac8696eecfb16ee3cb7",
+  "records": [
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/stock-build.log",
+      "sha256": "9c3d6cabbe2769db584aa7ca0efa70d415ba226360e8038a5c65e28922a1fe44"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/candidate-build-1.log",
+      "sha256": "ff09c19619400c1f483ff044151cb799c67ae028f672868c3dee0f9d19de7062"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/candidate-build-2.log",
+      "sha256": "0c3e817235c3be23a1893cbad017852e1c46216de1634de80db1b1570c042670"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/candidate-build-3.log",
+      "sha256": "db7310435539f294d369f73a1a00debe9b46ea0f0a3e8460b108d5942ad85148"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/stock-upstream.log",
+      "sha256": "a19582d5fa6b1ca6f143d95b852eb8d0fd08c3eaea6460c9935dbce473688048"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/candidate-upstream.log",
+      "sha256": "122020d68a08e839776afbd4477a8ece99549cd1e4c8057973a1dd75b19dd9df"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/expo-14.log",
+      "sha256": "9dd46f919c67d52d996aae1c604086d766b4b1d19599e77b40d70dc3db5f5e70"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/expo-14-final.log",
+      "sha256": "e6f9d593cf45b2a233db16093730e5c5bdae3c6baac3a780b160932fa1f7cd05"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/oxy-34.log",
+      "sha256": "08049fdec3d744850a628f7874021f7b591d139cf6e52627ad8f55c053cb9172"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/oxy-db-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/stock-install-pinned.log",
+      "sha256": "d3986824969caab696d2378cb07ea3f29ac03c506b5c7c5383cd303c25f6c842"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/candidate-install.log",
+      "sha256": "d8d5f3edddecc67ba680c9e9faacf537977d1c198ac87ff3cbae937185af82ed"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/oxy-install.log",
+      "sha256": "075d9b2008777216763c4e131bffaab5f44df95192cdb577e6d035507397b803"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/stock-controls.json",
+      "sha256": "6601b78646f19ae140740a073e7bb53f402b091331cce97e5b81d68040e2c28b"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/candidate-controls.json",
+      "sha256": "363475799ad0f3c687298909e5ecfaf270e321b423c000ffafbee6f6af11f6f2"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/hashes-after-build-2.json",
+      "sha256": "cfa84fd5651fe22dd404a19c00891c90cae9266b72367f41e2ed8c0cd23092cc"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/candidate-build-repeat.json",
+      "sha256": "5b4b22dbb33db144dde5a94cd6fb67269f981705b9a55b519b6a2d6f00934143"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/consumer-runner-final.log",
+      "sha256": "1af7f2e6ae70efbee630a1a30416e38038433d2da9007c3de843850e5d957e41"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/inventory.json",
+      "sha256": "aeb662c679e3b3b371bc5da771d247257fddb33aede784789e9cad08d2b65f0c"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/policy-final.log",
+      "sha256": "82b1290ade8edc1b7274941466f9e02d599b29c5ea381da04fab3cae1ac5f23b"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/resolver14.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/raw-audit.json",
+      "sha256": "496b6b4085635ba813c61d01452b72fe1099f5b79493cbaef5b05b6db8bc4f07"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/quiesced-census61.log",
+      "sha256": "13ece010a36c25814ab2e68d570c59bc6ab76415b148ce0582ddbbaab2fd6cca"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/quiesced-census-shell10.log",
+      "sha256": "44ef42ef01cd322870a3bf2ea4a556b2c5088b3dc067d829f59864a7707b3fb9"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/quiesced-census-biome3.log",
+      "sha256": "94cf74da15f5f347365d8f075e8b8810699bf75fbd5792ea2824107d092a192d"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/fixed-main-topology-red.log",
+      "sha256": "bd0c44a6498bd87cd77fd03a0fa3fb968fbe912fc69acbc96fe8fd2bdb3165e1"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/fixed-main-topology-green.log",
+      "sha256": "42c3f57beb42c5302d38f534e5148ee96cda6ba6f06dcf2e210ff3e790fac463"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/fixed-main-policy144.log",
+      "sha256": "219be3a507bb54a02f15d53d4d75dad6510f1d4eb3f078eb9de88f62199ea84c"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/fixed-main-dag82.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/fixed-main-resolver14.log",
+      "sha256": "f0b327b8cd1f2406e5395e4f16469f4f728a7e14c4dd20efa756263f78eb34d3"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/i05-quiesced-topology-final.log",
+      "sha256": "d1596d9050309b129557027be3e17789e0615f1db0f719683e67759f15bc9365"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/i05-quiesced-policy-final.log",
+      "sha256": "12af797a7ebe9c581eea6df49f1a44d8de214d4db48fa2143c500b0cff729802"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/i05-quiesced-binding-final.log",
+      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/i05-quiesced-collector-final.log",
+      "sha256": "9746a7f6baed84fa55c2320db1dca1acb2e69c1aac74423199a7db1394317c95"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/i05-quiesced-dag-final.log",
+      "sha256": "1ca662914db85a8e63e862507171f961e4bb4516acb9aaacc143205f17b330a9"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/i05-quiesced-oxy34-composed-harness.log",
+      "sha256": "6701ebfe35b75b30ababfad069552e1923e0abbc4b28803d52cec9c8943dff01"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/framework-inputs.json",
+      "sha256": "27ab127a6c213d6b6dcbaaf1024ba8353260d3c1ff08218735345dd330d4784c"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/migrate-fresh.txt",
+      "sha256": "61cab37026f22e0d51bb4a7b9304e30d92815104293ded9293fa8074311c6bb2"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/migrate-repeat.txt",
+      "sha256": "f6e50d11fb61684706b741760799ac0dd58256e7ed8aa71aa4b49d67fdff4598"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-topology-exact-GREEN.log",
+      "sha256": "d1596d9050309b129557027be3e17789e0615f1db0f719683e67759f15bc9365"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-topology-lint-final.log",
+      "sha256": "c943f80d97ee27c0306b6fa62ad39ec0e2f32d37d6e2c4c94958bb9b75b08254"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-binding.log",
+      "sha256": "24781df185be3103232c533dbf7a1cda40d7b193b118a4f54fcab97b1a8835c4"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-collector.log",
+      "sha256": "ceed52adf70e0dbba8ad5068f2c55eea0e9e5fd808141159199201bd78e6a869"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-proposal.log",
+      "sha256": "b46f4bc183bf111c7ed20a81bb3596bb7676d63f53bece4dbe4c567a7f8d1a52"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-policy.log",
+      "sha256": "ca1638ee7fe363cc7be56608a2b7bfac6c49a1f6da013be77615cd728a6da234"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-dag-exact-green.log",
+      "sha256": "ef705c1e862555abea13704d22d8f060b4fe024d2c6dac3c0c8b3b438214ff7c"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-oxy34-harness.log",
+      "sha256": "368e8036869c73ea91e563460cbfca273084c6dd333c7a2f5566ac3824625467"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-install-current.log",
+      "sha256": "8a3de7560c19a89b7a1b3b168927f2442778e6cc28704ca7812f50059ed061bf"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-topology-exact-RED.log",
+      "sha256": "eebaefe72bec8a1c8c2f72f967b79bebb9b7f7aa68a7270f9e6fe99991995d1a"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/proof.json",
+      "sha256": "a2b2d9ec6394b7e0bdb21eb86a019c8c01e3775022551ac8696eecfb16ee3cb7"
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/shipping-source-equality.json",
+      "sha256": "e777ed345227f4fc229c53a8c596de255e46e93e5bdf9f9fb92e3e2ad9440ec7"
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/owned-oxy34-final.py",
+      "sha256": "b8f436dfce7680a06d9c93b126099ce142ba9dfc46ccc1b0b399861e6f506ca5"
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/update-proof.py",
+      "sha256": "9dd4a775eace18382208020c68b1fecc51abb1625dbe215c7c2d6146d7fd6f5f"
+    },
+    {
+      "file": "docs/security/forge-independent/2026-10-03-final-input/recovery-services-build-final.log",
+      "sha256": "9b44553e6dc249d69a16e9c0f68d05867d38a803a5ac1d343ef8893a286c369a"
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/policy-after-machineproof-final.log",
+      "sha256": "ca1638ee7fe363cc7be56608a2b7bfac6c49a1f6da013be77615cd728a6da234",
+      "exitCode": 0,
+      "scope": "Final machineproof policy recheck"
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/policy-after-machineproof.log",
+      "sha256": "74d0dad4b06c63b237e8d425db4f27523bf34439dc4be0db1c9a0d225cf2dc75",
+      "exitCode": 1,
+      "scope": "Preserved local /tmp ENOSPC invocation"
+    }
+  ],
+  "frameworkInputs": 45,
+  "historicalCryptoRecords": 14,
+  "freshRecords": 3,
+  "ownedPostgresPidAbsent": true,
+  "ownedPostmasterAbsent": true,
+  "status": "INACTIVE_FREEZE_READY_FOR_INDEPENDENT_ARM_GATE",
+  "expiresAtUnchanged": "2026-10-09T22:00:00Z",
+  "scope": "Forge source availability/per-attempt provenance and quiesced final hold/latest steady guards; ops-only configuration scripts. No new SDK or Oxy runtime deployment.",
+  "preservedToolingFailures": [
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/preserved-tooling-failures/services-build.log",
+      "sha256": "d8c8c03fc78d9353159a4ac59367b613de2d8755133d89099c8e5c4aab77e079",
+      "scope": "Initial local tooling invocation failure; corrected command or task TMPDIR recorded separately. No product success inferred from this log."
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/preserved-tooling-failures/dag.log",
+      "sha256": "7886a75cb5e61ef6bb82da4acbf51a06eacc351fe9acb57ef772218a6c90c5c0",
+      "scope": "Initial local tooling invocation failure; corrected command or task TMPDIR recorded separately. No product success inferred from this log."
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/preserved-tooling-failures/dag-final.log",
+      "sha256": "42bafbefae87167d7977585a3e8797142d374fd13befe36b4d5ab7bed453c6d0",
+      "scope": "Initial local tooling invocation failure; corrected command or task TMPDIR recorded separately. No product success inferred from this log."
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/preserved-tooling-failures/workflows.log",
+      "sha256": "0f7110cc6cac50dd066e50c9e10b9e123d3718304e5f43f6d0314e1631e0e21f",
+      "scope": "Initial local tooling invocation failure; corrected command or task TMPDIR recorded separately. No product success inferred from this log."
+    },
+    {
+      "file": "docs/audits/2026-10-04-final-forge-recovery-freeze/preserved-tooling-failures/topology-biome.log",
+      "sha256": "8198bc1b88a2982e538fa78de03819bb703cd2168877e32bb8e1cf3610aa2398",
+      "scope": "Initial local tooling invocation failure; corrected command or task TMPDIR recorded separately. No product success inferred from this log."
+    }
+  ],
+  "shippingBuilds": {
+    "packages": [
+      "contracts",
+      "core",
+      "services",
+      "protocol",
+      "mcp",
+      "db"
+    ],
+    "fresh": true,
+    "packageSourceByteEqualRuntimeMain85": true,
+    "publish": false,
+    "runtimeDeployment": false
+  }
+}

@@ -43,8 +43,8 @@ export function fixture() {
   const proofZipBytes = zip(entries);
   const run = { id: 123, run_attempt: 1, event: 'merge_group', head_sha: head, repository: { full_name: 'OxyHQ/oxy', id: 973881060 }, head_repository: { full_name: 'OxyHQ/oxy' }, path: '.github/workflows/forge-queue-image-inspection.yml', status: 'in_progress', conclusion: null };
   const job = { name: 'inspection', run_id: 123, run_attempt: 1, head_sha: head, status: 'completed', conclusion: 'success', labels: ['ubuntu-24.04-arm'], steps: FINAL_INSPECTION_STEPS.map(name => ({ name, conclusion: 'success' })) };
-  const artifact = { id: 456, name: `forge-queue-proof-${head}-123`, workflow_run: { id: 123, head_sha: head, repository_id: 973881060 }, expired: false, expires_at: '2026-10-09T12:00:00Z', size_in_bytes: proofZipBytes.length, digest: `sha256:${sha256(proofZipBytes)}` };
-  const archiveArtifact = { ...artifact, id: 457, name: `forge-queue-oci-${head}-123`, size_in_bytes: 999, digest: `sha256:${'e'.repeat(64)}` };
+  const artifact = { id: 456, name: `forge-queue-proof-${head}-123-1`, workflow_run: { id: 123, head_sha: head, repository_id: 973881060 }, expired: false, expires_at: '2026-10-09T12:00:00Z', size_in_bytes: proofZipBytes.length, digest: `sha256:${sha256(proofZipBytes)}` };
+  const archiveArtifact = { ...artifact, id: 457, name: `forge-queue-oci-${head}-123-1`, size_in_bytes: 999, digest: `sha256:${'e'.repeat(64)}` };
   return { execution: { head, event: 'merge_group', repository: 'OxyHQ/oxy', repositoryId: 973881060 }, producer: { run, job, executedBlobs: { source: Object.fromEntries(FINAL_IMAGE_EXECUTED_PATHS.map(p => [p, 'b'.repeat(40)])), current: Object.fromEntries(FINAL_IMAGE_EXECUTED_PATHS.map(p => [p, 'b'.repeat(40)])) } }, artifact, archiveArtifact, proofZipBytes, archiveBytes: null,
     archiveVerification: { schemaVersion: 1, artifactId: 457, zipDigest: archiveArtifact.digest, zipSizeBytes: archiveArtifact.size_in_bytes, archiveSha256: 'd'.repeat(64), archiveSizeBytes: 500 }, published: null, phase: 'prepublish', now: '2026-10-02T12:00:00Z' };
 }
