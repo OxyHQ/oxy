@@ -29,7 +29,7 @@ base = transport.base
 require, private_json, digest = base.require, base.private_json, base.digest
 ROLE = 'arn:aws:iam::237343248947:role/oxy-alia-task'
 APP = '6a2f851751b784a86fd0e934'
-OWNER = '69b2d3df5d12f58c9800d651'
+OWNER = '01a0369b-1222-712f-8df6-f8ffeb78ccc2'
 HELPERS = ['scripts/agency/alia-revocation-canary.mjs', 'scripts/agency/alia-revocation-canary-receiver.mjs']
 SOURCE_PATHS = HELPERS + ['scripts/agency/alia-revocation-canary-ecs.py',
     'scripts/agency/foreground-pilot-ecs.py', 'scripts/agency/oxy-profile-registrar-preflight-ecs.py',
@@ -163,7 +163,7 @@ def canary_plan(value, actor, issuing):
     from datetime import datetime
     start = datetime.fromisoformat(value['issuedAt'].replace('Z', '+00:00')).timestamp()
     end = datetime.fromisoformat(value['expiresAt'].replace('Z', '+00:00')).timestamp()
-    require(start <= time.time() and 0 < end - start <= 3600 and (not issuing or end > time.time()),
+    require(start <= time.time() and 0 < end - start <= 3600 and (not issuing or end - time.time() >= 122),
             'Canary lifetime differs')
 
 

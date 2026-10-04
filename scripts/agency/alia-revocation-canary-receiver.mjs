@@ -34,7 +34,7 @@ export async function createCanaryReceiver({ apiPackage, baseURL, principalId, b
       redirect: 'error', signal: AbortSignal.timeout(5500),
     });
     const body = await response.json();
-    if (response.status === 200 && Number.isSafeInteger(body.effectCount)) return { outcome: 'ALLOW', effectCount, status: 200 };
+    if (response.status === 200 && Number.isSafeInteger(body.effectCount)) return { outcome: 'ALLOW', effectCount, status: 200, observedAtMillis: Date.now() };
     if (response.status === 403 && body.code === 'SERVICE_ACTING_AS_UNAUTHORIZED') {
       // Core uses the same refusal for network failure. Independently require a
       // successful authenticated oracle response, not a timeout disguised as DENY.
@@ -47,7 +47,7 @@ export async function createCanaryReceiver({ apiPackage, baseURL, principalId, b
       const data = result.data ?? result;
       if (check.status === 200 && data.authorized === false && Array.isArray(data.scopes) && data.scopes.length === 0
         && typeof data.epoch === 'string' && /^(?:0|[1-9][0-9]*)$/.test(data.epoch)) {
-        return { outcome: 'DENY', effectCount, status: 403 };
+        return { outcome: 'DENY', effectCount, status: 403, observedAtMillis: Date.now() };
       }
     }
     return { outcome: 'ERROR', effectCount, status: response.status };
