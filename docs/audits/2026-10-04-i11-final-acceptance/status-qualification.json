@@ -5,13 +5,22 @@
   "I08": {
     "url": "https://github.com/OxyHQ/Peable/issues/87",
     "state": "open",
-    "updatedAt": "2026-10-04T08:48:19Z",
-    "unchecked": 4,
-    "bodySha256": "37393f46327f3ed7618f62f7f27864aeac6ef3ba8f3fce415e860fa5655ef9f6"
+    "reopenCheckpointAt": "2026-10-04T08:48:19Z",
+    "reopenCheckpointUnchecked": 4,
+    "reopenCheckpointBodySha256": "37393f46327f3ed7618f62f7f27864aeac6ef3ba8f3fce415e860fa5655ef9f6",
+    "reviewedSource": "39d395689859dc4eb2e152473a14a1792a41b431 / 9dae93ed79ac7015aec43381726cac7c3d6f9acc",
+    "remaining": [
+      "Automatic retry with SQL cohort claim before attempts/lease; foreign rows remain untouched",
+      "Store-aware action availability before acceptance/customer/effects",
+      "Exact CI, image and root runtime acceptance"
+    ]
   },
   "reviews": [
     "https://github.com/OxyHQ/Mercaria/pull/1046#issuecomment-5977506884",
-    "https://github.com/OxyHQ/oxy/issues/1527#issuecomment-5978157590"
+    "https://github.com/OxyHQ/oxy/issues/1527#issuecomment-5978157590",
+    "https://github.com/OxyHQ/Mercaria/pull/1048#discussion_r4176963639",
+    "https://github.com/OxyHQ/Mercaria/pull/1048#discussion_r4176963691",
+    "https://github.com/OxyHQ/Mercaria/pull/1048#issuecomment-5978635252"
   ],
   "authority": "Root instructed reopen after Git80291 confirmation; integration owns narrow fix; i04 owns independent review and issue synchronization.",
   "limits": "Accepted SDK/sandbox/registered cohort observations preserved. No new live financial transaction, general Stripe enable or manufactured authority requested.",
@@ -26,12 +35,35 @@
       "Steady acceptance must use the newest validated complete observation."
     ],
     "liveIncidentObserved": false,
-    "artifactPublicationAccepted": false,
+    "artifactPublicationAccepted": true,
     "historicalPublicationFailures": [
       "Source841 unreachable after squash, before copy.",
       "Attempt2 transport retained attempt1 nonce."
     ],
     "sourceFixOwner": "coverage",
-    "runtimeRolloutFromOpsMerge": false
+    "runtimeRolloutFromOpsMerge": false,
+    "artifactPublicationScope": "Historical main82 attempt3 only, no runtime rollout",
+    "reviewedFollowup": {
+      "pullRequest": 1570,
+      "head": "9240356b642bb8803b0e187c0734901766f2f6e9",
+      "source": "96752299604be3e57772369fe0212d4d017b1e68",
+      "sourceReviewAccepted": true,
+      "armRun": 37193380441,
+      "armConclusion": "success",
+      "ciRun": 37193380439,
+      "ciConclusion": "failure",
+      "ciFunctionalJobs": "All success; Guards/aggregate failed while candidate policy inactive. Final gate remains root-owned.",
+      "finalAcceptance": false,
+      "activation": {
+        "head": "66277886d",
+        "status": "ACTIVE",
+        "expiresAt": "2026-10-09T22:00:00Z",
+        "rootGate": "Authenticated, machine and structural eligible; errors[]",
+        "armSource": "9240356b642bb8803b0e187c0734901766f2f6e9",
+        "artifactId": 11299374073,
+        "ciRun": 37193903552,
+        "finalAcceptance": false
+      }
+    }
   }
 }

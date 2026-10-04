@@ -106,7 +106,7 @@
   "records": [
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/README.md",
-      "sha256": "d279a9f7a4d55787806b031105a98ad91b02abb4b44f2a8322207a91805417e5"
+      "sha256": "4ee1d68923b04340384822b2901a75b4b80d58386958df786729beca7d9b1c56"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/child-states.json",
@@ -118,7 +118,7 @@
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/status-qualification.json",
-      "sha256": "49a9ef699e5432dc74cc506613f9f67679c767df4b0ba5e01ed91d6b2f3d696a"
+      "sha256": "db19cf2f13a74405f5d468afb191c98c1fa13c23930eadfadf76cdb54c7e4f0f"
     },
     {
       "path": "docs/audits/2026-10-04-i11-final-acceptance/closed-historical-drafts.json",
@@ -130,12 +130,22 @@
     }
   ],
   "pending": [
-    "Mercaria Stripe-off consumer qualification review5978157590; narrow source fix/real app+SQL evidence pending",
-    "PR1569/quiescence and bounded Forge gate",
-    "Final consolidated workflow original-state reconciliation"
+    "Mercaria1048 automatic scoped retry/store-aware availability, exact CI/image/root runtime acceptance",
+    "PR1570 active662 CI/queue/merge/publication after accepted root gate and ARM924",
+    "Final workflow reconciliation after Mercaria restoration"
   ],
   "operationKinds": [
     "Authorized GitHub historical draft closures and issue-state documentation only"
   ],
-  "newRuntimeOperationsExecuted": false
+  "newRuntimeOperationsExecuted": false,
+  "independentFollowupReviews": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-forge-recovery-review-20261004/composed-freeze-review.json",
+      "sha256": "0dad9c1c58dfd633feea8528489eccbb6d6e63681c61d12a86f5903dbb9de9a0"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-mercaria-cohort-independent-review-20261004/final-source-receipt.json",
+      "sha256": "1e854a99dd12405e830dbb60091165340f5520051d1b08928858f428879cc63e"
+    }
+  ]
 }
