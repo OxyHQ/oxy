@@ -138,8 +138,10 @@ parent policy controls. Its `private_auto_classifier` evidence is separate from
 `private_commissioning`; commercial-use `false` stays false and a policy requiring
 commercial rights still denies it. The reviewed score for the actual optimisation
 dimension and funding evidence remain mandatory; no synthetic quality score is
-created by the private lane. The internal default therefore needs real reviewed
-balanced evidence before activation.
+created by the private lane. The canonical `platform-internal-default` v1 ranks
+by `price`, so its current price score and funding evidence are required. An
+explicit policy choosing balanced, latency or throughput still needs that
+dimension's measured evidence; this private lane does not supply it.
 
 `dist/scripts/recordPrivateAutoLegalReview.js <plan.json>` is dry-run by default;
 `--apply <plan-sha256>` additionally requires an existing active local staff
