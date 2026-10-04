@@ -1,0 +1,53 @@
+{
+  "sourceHead": "d0d60a6944b8229ea2f56ab41b6317be774276af",
+  "receiptBase": "f816c8ad4b0fb7f383b52da2e068e75b24336b71",
+  "sources": [
+    {
+      "path": "packages/api/src/services/__tests__/inferenceInternalPilot.test.ts",
+      "sha256": "6d34c488358d4a090204adc4caa737477b3ec4a9f7987ad56e7531fd47fab17d"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "sha256": "2dfcc3521e880387d91a36e622aed7b06d07b465e7e8391de427ad18ca551993"
+    },
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "2634d7538f79ef0d67d60348b1820078b15a016d64f1e1062b79b1b551be467c"
+    },
+    {
+      "path": "packages/api/src/services/inferenceInternalPilot.ts",
+      "sha256": "9f51b3cc662edfe057d4f58eeb82b0f29de83007a26f8fa13905437409b53d34"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "203956f5a6f4977d495b8aa4b1f076f657aa3fdf587ddb901d01c90c82fbe3f5"
+    },
+    {
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "94fe71fa6274c3266bb0a5e27ef1952c067c4a1974ca2cf5ce32884c2b915348"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/scopedAdmission.test.ts",
+      "sha256": "7891f723d842f73ef56d8e77c9cd9d520ca399d6ffce604135f729c4b949c4c3"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/composed-receipt/tests-composed-p2.log",
+      "sha256": "f5a5af0f244db9f83fa002a5a9ee3f67972f7ace5d1c6fd545a2f9206da5dc18"
+    },
+    {
+      "path": "docs/audits/2026-10-04-scoped-pilot-price/composed-receipt/composed-p2-test.py",
+      "sha256": "7758231770805238b892a06143c6ae28c2b30165983312644949f30dbb44bb9b"
+    }
+  ],
+  "results": {
+    "tests": 126,
+    "suites": 8,
+    "postgresStopped": true
+  },
+  "limits": [
+    "Owned local PostgreSQL, unchanged receipt fixtures and synthetic data-plane fixtures. No production activation.",
+    "Only edge source differs from prior seven-file proof, composing exact receipt selector changes with existing scoped pilot admission."
+  ]
+}
