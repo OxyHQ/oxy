@@ -44,7 +44,11 @@ extended. Unknown regions remain unknown.
    canonical `recordLegalReview` and a security audit in one transaction. It
    never creates a staff identity, changes its privileges, authenticates an HTTP
    bearer, or calls `applyPermissionAction('approve')`.
-4. Inspect legal/audit readback before invoking the one synthetic nonstreaming
+4. An identical canonical reimport preserves the exact private legal review. A
+   changed audience, price, route/revision, model capability or provider privacy
+   invalidates that review before reuse, even if immutable price import refuses
+   the changed publication. Ordinary manually reviewed deployments keep their
+   existing protection. Inspect legal/audit readback before invoking the one synthetic nonstreaming
    decisions fixture through the real scoped principal. The private selector
    still applies availability, capability, privacy, residency, effective-policy,
    price, capacity and attestation checks. Price-only routing uses the real price
