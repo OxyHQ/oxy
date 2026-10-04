@@ -1,0 +1,66 @@
+$ node ../core/scripts/build-workspace-deps.mjs @oxy.so/utils @oxy.so/telemetry @oxy.so/contracts @oxy.so/protocol @oxy.so/core @oxy.so/federation @oxy.so/db @oxy.so/mcp && tsc
+@oxy.so/utils build: $ rm -rf dist
+@oxy.so/utils build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/utils build: $ tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs
+@oxy.so/utils build: $ tsc -p tsconfig.types.json
+@oxy.so/utils build: Exited with code 0
+@oxy.so/telemetry build: $ rm -rf dist
+@oxy.so/telemetry build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/telemetry build: $ tsc -p tsconfig.esm.json
+@oxy.so/telemetry build: $ tsc -p tsconfig.types.json
+@oxy.so/telemetry build: Exited with code 0
+@oxy.so/contracts build: $ tsc -p tsconfig.cjs.json
+@oxy.so/contracts build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/contracts build: ESM imports fixed
+@oxy.so/contracts build: $ tsc -p tsconfig.types.json
+@oxy.so/contracts build: Exited with code 0
+@oxy.so/protocol build: $ tsc -p tsconfig.cjs.json
+@oxy.so/protocol build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/protocol build: ESM imports fixed
+@oxy.so/protocol build: $ tsc -p tsconfig.types.json
+@oxy.so/protocol build: Exited with code 0
+@oxy.so/core build: @oxy.so/telemetry build: $ rm -rf dist
+@oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.esm.json
+@oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.types.json
+@oxy.so/core build: @oxy.so/telemetry build: Exited with code 0
+@oxy.so/core build: $ tsc -p tsconfig.cjs.json
+@oxy.so/core build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/core build: ESM imports fixed
+@oxy.so/core build: $ tsc -p tsconfig.types.json
+@oxy.so/core build: Exited with code 0
+@oxy.so/federation build: @oxy.so/contracts build: $ tsc -p tsconfig.cjs.json
+@oxy.so/federation build: @oxy.so/contracts build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/federation build: @oxy.so/contracts build: ESM imports fixed
+@oxy.so/federation build: @oxy.so/contracts build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: @oxy.so/contracts build: Exited with code 0
+@oxy.so/federation build: @oxy.so/protocol build: $ tsc -p tsconfig.cjs.json
+@oxy.so/federation build: @oxy.so/protocol build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/federation build: @oxy.so/protocol build: ESM imports fixed
+@oxy.so/federation build: @oxy.so/protocol build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: @oxy.so/protocol build: Exited with code 0
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: $ rm -rf dist
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.esm.json
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: @oxy.so/core build: @oxy.so/telemetry build: Exited with code 0
+@oxy.so/federation build: @oxy.so/core build: $ tsc -p tsconfig.cjs.json
+@oxy.so/federation build: @oxy.so/core build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/federation build: @oxy.so/core build: ESM imports fixed
+@oxy.so/federation build: @oxy.so/core build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: @oxy.so/core build: Exited with code 0
+@oxy.so/federation build: $ tsc -p tsconfig.cjs.json
+@oxy.so/federation build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/federation build: ESM imports fixed
+@oxy.so/federation build: $ tsc -p tsconfig.types.json
+@oxy.so/federation build: Exited with code 0
+@oxy.so/db build: $ tsc -p tsconfig.cjs.json
+@oxy.so/db build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/db build: ESM imports fixed
+@oxy.so/db build: $ tsc -p tsconfig.types.json
+@oxy.so/db build: Exited with code 0
+@oxy.so/mcp build: $ tsc -p tsconfig.cjs.json
+@oxy.so/mcp build: $ tsc -p tsconfig.esm.json && node scripts/fix-esm-imports.mjs
+@oxy.so/mcp build: $ tsc -p tsconfig.types.json
+@oxy.so/mcp build: Exited with code 0
+src/services/mentionClassifierEconomics.service.ts(3,23): error TS2307: Cannot find module '../db' or its corresponding type declarations.
