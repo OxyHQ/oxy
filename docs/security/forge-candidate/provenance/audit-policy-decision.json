@@ -1,16 +1,8 @@
 {
   "schemaVersion": 1,
-  "status": "ACTIVE",
-  "targetSourceHead": "49793a08a7920ce9442efb439d05c8d2db3eec2f",
-  "expiresAt": "2026-10-09T22:00:00.000Z",
-  "authorizationRecord": {
-    "channel": "explicit-user-session",
-    "reference": "Session question request_user_input_async/call_yd1MgqnIyGDxrnc5exsmwCKJ/0; exact question and reply in docs/security/forge-candidate/session-authorization-2026-10-03.txt",
-    "instructionSha256": "e3bf0ee49b2dd3a33d900dd4f10dc8967b467b0d4ddca3c1c08f7864c5d9cc57",
-    "recordedAt": "2026-10-02T22:45:04.000Z"
-  },
-  "independentEvidence": {
-    "sourceHead": "5d2a7c1f866eae44d9c25478248b25594b750dd9",
-    "proofSha256": "bc882ff55fe3fb6bb6f53e218e76508bf782ce6e5556d03275d6adc5537b53ef"
-  }
+  "status": "INACTIVE",
+  "targetSourceHead": null,
+  "expiresAt": null,
+  "authorizationRecord": null,
+  "independentEvidence": null
 }
