@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "kind": "native-expo-production-contract-followup-v1",
+  "sourceCommit": "cb8a3903ff2f28b7cf0a0b95e8838f9e8d79306d",
+  "priorSource": "caff995c87716f8c97124e292f755b10806f741b",
+  "priorARMRun": 37211720714,
+  "priorARMStatus": "FAILURE_UNACCEPTED",
+  "inputs": {
+    ".github/workflows/native-expo-image-proof.yml": {
+      "sha256": "95e826d5caf6616b389912e8930ffc5ac35a72a30a0555737a0917ba181b8007",
+      "gitBlob": "dcb43e19d4baccce96eb69f4a92cada1006f305c"
+    },
+    "scripts/forge-independent-expo-compat.cjs": {
+      "sha256": "121fb2b699d1291ebfa490bc7c99dd486d4a97a2726c2c4cdae0c1e7f8bb7cdf",
+      "gitBlob": "2b2608da6d833c846eb37ffe4b23d8d6f3abf8c3"
+    },
+    "scripts/native-expo-image-inventory.mjs": {
+      "sha256": "34868acb991cde2eb9ebd301b994a4058dbbf8362566d67f0fb9279a3eef46a9",
+      "gitBlob": "362e704e04861a55f2a508e001f2cf05f9d4d350"
+    },
+    "scripts/test-api-runtime-dependencies.mjs": {
+      "sha256": "ec9288b7150ed6a0ee900745d26d65b46df6ce1657bfb789eea51d2c0dba0dc8",
+      "gitBlob": "a6638cec2175ffc44df709d8e8c781eb6dd47cd4"
+    },
+    "scripts/test-native-expo-image-inventory.mjs": {
+      "sha256": "8c36508b8387c44b04bf9ea16582498b00b2674f97b616122b46bf8fde266ce9",
+      "gitBlob": "597cb9201700449a07ec759481938e29eb1b1c20"
+    }
+  },
+  "records": {
+    "native-api-runtime-deps-red.log": {
+      "sha256": "783f94544dd6d7d11de6fdc2df5b09eea6c72c018f125e32675c5ce10b578271",
+      "bytes": 869
+    },
+    "native-api-runtime-deps-green-final.log": {
+      "sha256": "c0b34c6b4671ec1818ac4ea535cadf1bc8dc6b98e4bb87fad8f9d2c09c35dcf7",
+      "bytes": 1558
+    },
+    "image-inventory-controls-final6.log": {
+      "sha256": "91f2841c7c95dabd0789fb962b8cec32c0f95c66acc989e79e2ec9fd8bd32f5f",
+      "bytes": 508
+    },
+    "installed-expo14-followup.log": {
+      "sha256": "056842fed782f55a6861c80dbcf68481b7cd253469bd48e7d3fa89551e3ea780",
+      "bytes": 1232
+    }
+  },
+  "externalPriorAuthenticatedARMLog": {
+    "path": "/home/nate/Oxy/.agent-evidence/coverage-forge-permanent-20261004/arm-caff-red.log",
+    "sha256": "d780de37ebee76230bab1a4d087038e4f7c84a51b9f64249a5a3632eee4d0c47"
+  },
+  "checks": {
+    "frozenProductionGraph": "PASS_FORGE_ABSENT_NATIVE_BYTES_AND_EXPO14",
+    "hostAPIExpo14": "PASS",
+    "physicalInventory6": "PASS",
+    "actualFinalARM": "PENDING"
+  },
+  "nativeArtifactAndRuntimeCodeChanged": false,
+  "noDevAliasResolutionClaim": true
+}
