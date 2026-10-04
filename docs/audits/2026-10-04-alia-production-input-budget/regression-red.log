@@ -1,0 +1,26 @@
+$ jest --runInBand src/routes/__tests__/inferenceEdgeInternalMetered.test.ts -t "serves a complete assistant context"
+FAIL src/routes/__tests__/inferenceEdgeInternalMetered.test.ts
+  ● approved production pilot admission › serves a complete assistant context above the retired 8KiB pilot cap without replay or money holds
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 400
+
+      883 |     const headers = { ...bearer(serviceToken(approvedCaller)), 'Idempotency-Key': `production-context-${tag()}` };
+      884 |     const payload = { model: approvedCaller.modelReference, input, maxOutputTokens: 4096 };
+    > 885 |     expect((await post(payload, headers)).status).toBe(200);
+          |                                                   ^
+      886 |     expect(pilotEnvelopes).toHaveLength(1);
+      887 |     expect(pilotEnvelopes[0].maxOutputTokens).toBe(2048);
+      888 |     expect(JSON.stringify(pilotEnvelopes[0].input)).toContain(input);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:885:51
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 40 skipped, 41 total
+Snapshots:   0 total
+Time:        3.618 s
+Ran all test suites matching src/routes/__tests__/inferenceEdgeInternalMetered.test.ts with tests matching "serves a complete assistant context".
+error: script "test" exited with code 1
