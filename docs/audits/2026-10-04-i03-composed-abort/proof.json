@@ -1,0 +1,37 @@
+{
+  "base": "fb1b99e6e92c5ccb8ff78286f9662ef2f5a6a854",
+  "source": "c95649ee2ba412cb576db032774895109b3d7b03",
+  "sources": [
+    {
+      "path": "scripts/agency/alia-revocation-canary.mjs",
+      "sha256": "d0e1b4299c6568e8909b5adee82a6b6616a77d03a715d6234f5041c13505c598"
+    },
+    {
+      "path": "scripts/agency/tests/test-canary-expiry.mjs",
+      "sha256": "4a445ba7300f9aab99e2c65e43a0dadf44a8608bba47a36214db44716e054935"
+    },
+    {
+      "path": "scripts/agency/alia-revocation-canary-ecs.py",
+      "sha256": "6650a03c537297492cef1f8d90f72b2c19ba98f08e20047ee82a678b76310cea"
+    },
+    {
+      "path": "scripts/agency/stage-alia-canary-module.mjs",
+      "sha256": "1fbaa085c6182bc0caeb57ba996837564274ce48dc85cf7f7d3a39ce547527e0"
+    },
+    {
+      "path": "scripts/agency/artifacts/alia-revocation-canary.cjs",
+      "sha256": "2977ad4b30cd33bbce2a0a8b2faa3c3f16838d7dc06f72d8cc324a8ea64343d6"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i03-composed-abort/clock-tests.log",
+      "sha256": "a08c5384477476f4a7af1d0f4a0700ca461be4be8811e4fe18abffe2998d68ec"
+    }
+  ],
+  "limits": [
+    "Only changed production helper statement is stopIfAborted after SQL clock await and before issue; 10 own-PG controls repeated",
+    "Original active prepare worktree unchanged; same canary plan schema/operator/owner and same closed standalone module2977",
+    "No AWS writes or canary execution"
+  ]
+}
