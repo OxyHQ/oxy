@@ -1,3 +1,4 @@
+import * as scopedSource from '../scopedExecution.service';
 import { parseKaanaCatalogue, planKaanaModel } from '../kaanaCatalogueSync.service';
 import type { ScopedExecutionAudience } from '@oxy.so/contracts';
 
@@ -63,8 +64,7 @@ it('does not publish any private deployment in the ordinary liveness view', asyn
 });
 
 it('preserves provider-reported decisions and derives capability only from the exact private contract', () => {
-  const source = require('../scopedExecution.service') as typeof import('../scopedExecution.service');
-  const spy = jest.spyOn(source, 'sourceReviewedScopedAudience').mockReturnValue(first);
+  const spy = jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockReturnValue(first);
   try {
     const body = { ...payload, deployments: [deployments[1]], models: [{ ...payload.models[0], outputModalities: ['decisions'],
       listPrices: [{ deploymentId: first.deploymentId, provider: first.provider, currency: 'USD', input: '0.001', output: '0' }] }] };
@@ -78,6 +78,9 @@ it('preserves provider-reported decisions and derives capability only from the e
     spy.mockReturnValue(first);
     for (const outputs of [['decisions', 'text'], ['decisions', 'unknown'], ['image']]) {
       expect(planKaanaModel({ ...parsed, outputModalities: outputs }, planning([deployments[1]])).status).toBe('skipped');
+    }
+    for (const inputs of [['decisions'], ['text', 'decisions'], ['text', 'DECISIONS']]) {
+      expect(planKaanaModel({ ...parsed, inputModalities: inputs }, planning([deployments[1]])).status).toBe('skipped');
     }
     const ordinaryBody = { ...body, deployments: [deployments[0]], models: [{ ...body.models[0], listPrices: [payload.models[0].listPrices[0]] }] };
     expect(planKaanaModel(parseKaanaCatalogue(ordinaryBody).models[0], planning([deployments[0]])).status).toBe('skipped');

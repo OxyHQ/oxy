@@ -1,6 +1,8 @@
 -- oxy:deploy-phase=pre
--- Structured decisions are genuine model outputs. Request/input vocabulary is unchanged.
+-- Output-only vocabulary; request/input and media safety requirements remain intact.
 ALTER TABLE "inference_models" DROP CONSTRAINT "inference_models_output_modalities_check";--> statement-breakpoint
+ALTER TABLE "inference_models" ADD CONSTRAINT "inference_models_output_modalities_check" CHECK (cardinality("inference_models"."output_modalities") >= 1 and "inference_models"."output_modalities" <@ array['text', 'image', 'audio', 'video', 'embedding', 'decisions']::text[]);
+--> statement-breakpoint
 CREATE OR REPLACE FUNCTION inference_revision_declares_provenance() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE

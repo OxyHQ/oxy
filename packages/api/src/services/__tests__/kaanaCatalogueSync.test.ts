@@ -958,7 +958,7 @@ describe('source-reviewed scoped price bootstrap', () => {
     await runKaanaCatalogueSync({ reader: f.scopedReader });
     const [model] = await getDb().select().from(inferenceModels).where(eq(inferenceModels.modelId, f.world.line('private')));
     expect(model).toMatchObject({ inputModalities: ['text'], outputModalities: ['decisions'], apiFormats: ['decisions'], supportsStreaming: false });
-    const [row] = await deploymentsOf(f.world.line('private'));
+    const [row] = await getDb().select().from(inferenceDeployments).where(eq(inferenceDeployments.internalRouteId, f.scope.deploymentId));
     if (!row) throw new Error('Private import missing');
     expect(row).toMatchObject({ status: 'disabled', permissionState: 'pending_review', legalReviewStatus: 'not_started' });
     const required = { input: 'text' as const, output: 'decisions' as const, apiFormat: 'decisions' as const, requiresDeclaredApiFormat: true };

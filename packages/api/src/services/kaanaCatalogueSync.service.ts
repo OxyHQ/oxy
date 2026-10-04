@@ -484,6 +484,9 @@ export function planKaanaModel(
   }
   if (entry.contextTokens === undefined) return { status: 'skipped', reason: 'missing_context_tokens' };
   if (entry.maxOutputTokens === undefined) return { status: 'skipped', reason: 'missing_max_output_tokens' };
+  if (entry.inputModalities?.some(value => value.toLowerCase() === 'decisions')) {
+    return { status: 'skipped', reason: 'missing_modalities' };
+  }
   const inputModalities = knownModalities(entry.inputModalities);
   const typedDecisions = entry.outputModalities?.length === 1 && entry.outputModalities[0] === 'decisions';
   const outputModalities = [...new Set((entry.outputModalities ?? []).filter(value =>
