@@ -24,11 +24,14 @@ ROOT creates an external config containing exactly three `{path,sha256}` refs:
   and independent inspection/security evidence. Placeholder images are refused.
 - `migrationVerification`: canonical `root-consumer-migration-verification-v1`,
   service mercaria, actual source/image, mode not-required and hash-bound evidence
-  proving unchanged 135-migration SQL/journal and accepted live reconciliation.
+  proving unchanged 158-entry SQL/journal and accepted live reconciliation
+  (135 historical comment-only hash differences, 23 unchanged, zero pending).
 - `acceptedPrerequisites`: ROOT receipt `root-mercaria-cohort-prerequisites-v1`
   with exactly `kind`, `cohort` (fixed six-field configuration in this helper),
   `merchantPortalAccepted`, `storesAccepted`, `peableCohortAccepted`,
   `canonical135Unchanged`, `shippingSdkVerified` (all true) and `evidence` refs.
+  The legacy `canonical135Unchanged` field names the accepted 135 historical
+  comment-only reconciliations; the complete unchanged journal has 158 entries.
   ROOT independently verifies these meanings; the helper authenticates every
   referenced file's bytes and the exact namespace, without synthesizing evidence.
 
