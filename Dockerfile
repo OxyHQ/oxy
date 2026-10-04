@@ -28,7 +28,7 @@ WORKDIR /app
 # stages, so dependency resolution is reproducible without building the apps.
 COPY package.json bun.lock ./
 COPY patches/ patches/
-COPY vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.0.tgz ./vendor/expo-native/
+COPY vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.1.tgz ./vendor/expo-native/
 COPY packages/ packages/
 RUN find packages -type f ! -name package.json -delete
 
@@ -40,6 +40,10 @@ WORKDIR /app
 # materializing the API workspace and its transitive workspace dependencies.
 COPY --from=workspace-manifests /app/ ./
 RUN bun install --frozen-lockfile --filter @oxy.so/api
+
+# Permanent removal: every materialized package is scanned before any build or
+# publish. A cached/unreachable Forge copy is still forbidden.
+RUN node -e 'const fs=require("node:fs"),path=require("node:path"); function scan(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,e.name); if(e.name==="node-forge" || e.name.startsWith("node-forge@"))throw Error("Retained Forge path: "+file); if(e.isDirectory())scan(file); else if(e.isFile() && e.name==="package.json" && JSON.parse(fs.readFileSync(file,"utf8")).name==="node-forge")throw Error("Retained Forge package: "+file);}} scan("node_modules"); console.log("Installed Forge copies: 0");'
 
 # The install above is UNLOCKED, so this asserts the one property the lockfile
 # would otherwise have guaranteed: that the express types resolve to exactly one
@@ -120,6 +124,10 @@ RUN bun install --production --frozen-lockfile --filter @oxy.so/api \
               node_modules/.bun/ffmpeg-static@* node_modules/.bun/ffprobe-static@* \
     && rm -rf node_modules/.bun/@img+sharp-linux-*@* \
               node_modules/.bun/@img+sharp-libvips-linux-*@*
+
+# Permanent removal: every materialized package is scanned before any build or
+# publish. A cached/unreachable Forge copy is still forbidden.
+RUN node -e 'const fs=require("node:fs"),path=require("node:path"); function scan(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,e.name); if(e.name==="node-forge" || e.name.startsWith("node-forge@"))throw Error("Retained Forge path: "+file); if(e.isDirectory())scan(file); else if(e.isFile() && e.name==="package.json" && JSON.parse(fs.readFileSync(file,"utf8")).name==="node-forge")throw Error("Retained Forge package: "+file);}} scan("node_modules"); console.log("Installed Forge copies: 0");'
 
 # ── Production image ──────────────────────────────────────────────
 FROM node:24-alpine

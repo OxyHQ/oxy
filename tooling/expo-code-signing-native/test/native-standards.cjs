@@ -4,7 +4,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const test = require("node:test");
 const { AsnParser, AsnSerializer } = require("@peculiar/asn1-schema");
 const x = require("@peculiar/asn1-x509");
@@ -42,12 +42,13 @@ test.after(() => {
 	fs.rmSync(scratch, { force: true, recursive: true });
 });
 test("native CSR verifies using system OpenSSL independently", () => {
-	const out = execFileSync(
+	const result = spawnSync(
 		"openssl",
 		["req", "-verify", "-in", path.join(scratch, "request.pem"), "-noout"],
 		{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
 	);
-	assert.match(out, /Certificate request self-signature verify OK/);
+	assert.equal(result.status, 0);
+	assert.match(result.stdout + result.stderr, /(?:self-signature )?verify OK/);
 });
 test("system OpenSSL CSR retains CN/O/OU and verifies using native implementation", () => {
 	const openssl = execFileSync(
@@ -295,4 +296,34 @@ test("actual forked Expo Security.js reads an OpenSSL EC certificate DN", async 
 	assert.equal(value.codeSigningInfo, "Apple Development Fixture");
 	assert.equal(value.appleTeamName, "Fixture Organization");
 	assert.equal(value.appleTeamId, "FIXTURETEAM");
+});
+
+test("oversized or non-string PEM is refused before DER parsing", () => {
+	assert.throws(() => pki.convertCSRPEMToCSR(" ".repeat(2 * 1024 * 1024 + 1)));
+	assert.throws(
+		() =>
+			pki.convertCertificatePEMToCertificate({
+				toString() {
+					throw Error("Must not coerce");
+				},
+			}),
+		/Unsupported PEM input/,
+	);
+});
+test("EC PEM cannot be presented as an RSA code-signing key", () => {
+	const ec = crypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+	assert.throws(
+		() =>
+			pki.convertPublicKeyPEMToPublicKey(
+				ec.publicKey.export({ format: "pem", type: "spki" }),
+			),
+		/RSA key required/,
+	);
+	assert.throws(
+		() =>
+			pki.convertPrivateKeyPEMToPrivateKey(
+				ec.privateKey.export({ format: "pem", type: "pkcs8" }),
+			),
+		/RSA key required/,
+	);
 });

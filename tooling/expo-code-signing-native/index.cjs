@@ -24,8 +24,17 @@ function strictParse(value, Type) {
 		throw Error("Noncanonical or incomplete DER structure");
 	return parsed;
 }
+function checkedPEM(value) {
+	if (
+		typeof value !== "string" ||
+		value.length === 0 ||
+		value.length > 2 * 1024 * 1024
+	)
+		throw Error("Unsupported PEM input");
+	return value.trim();
+}
 function unpem(value, label) {
-	const text = String(value).trim();
+	const text = checkedPEM(value);
 	const match = new RegExp(
 		`^-----BEGIN ${label}-----\\s+([A-Za-z0-9+/=\\s]+)-----END ${label}-----$`,
 	).exec(text);
@@ -89,10 +98,16 @@ function convertKeyPairToPEM(pair) {
 		}),
 	};
 }
-const convertPublicKeyPEMToPublicKey = (value) =>
-	wrapKey(crypto.createPublicKey(value));
-const convertPrivateKeyPEMToPrivateKey = (value) =>
-	wrapKey(crypto.createPrivateKey(value));
+const convertPublicKeyPEMToPublicKey = (value) => {
+	const key = wrapKey(crypto.createPublicKey(checkedPEM(value)));
+	keyObject(key);
+	return key;
+};
+const convertPrivateKeyPEMToPrivateKey = (value) => {
+	const key = wrapKey(crypto.createPrivateKey(checkedPEM(value)));
+	keyObject(key);
+	return key;
+};
 const convertKeyPairPEMToKeyPair = ({ privateKeyPEM, publicKeyPEM }) => ({
 	privateKey: convertPrivateKeyPEMToPrivateKey(privateKeyPEM),
 	publicKey: convertPublicKeyPEMToPublicKey(publicKeyPEM),

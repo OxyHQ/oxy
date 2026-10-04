@@ -35,7 +35,7 @@ WORKDIR /app
 # monorepo lockfile (the subset does not match the full-repo lock — bun resolves
 # deterministically from the package.json versions). Mirrors the api Dockerfile.
 COPY package.json ./
-COPY vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.0.tgz ./vendor/expo-native/
+COPY vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.1.tgz ./vendor/expo-native/
 RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/core','packages/node']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
 
 # package.json files first for dependency resolution caching
@@ -68,7 +68,7 @@ RUN npm install -g bun
 WORKDIR /app
 
 COPY package.json ./
-COPY vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.0.tgz ./vendor/expo-native/
+COPY vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.1.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.1.tgz ./vendor/expo-native/
 RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/core','packages/node']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
 COPY packages/node/package.json packages/node/
 COPY packages/core/package.json packages/core/

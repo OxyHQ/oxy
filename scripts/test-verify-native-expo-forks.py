@@ -50,7 +50,7 @@ class NativeForkSeal(unittest.TestCase):
             verifier.verify()
 
     def test_adapter_archive_drift_is_denied(self):
-        self.mutate_archive('oxy.so-expo-code-signing-native-0.1.0.tgz', 'index.cjs', lambda value: value + b'\nexports.injected = true;\n')
+        self.mutate_archive('oxy.so-expo-code-signing-native-0.1.1.tgz', 'index.cjs', lambda value: value + b'\nexports.injected = true;\n')
         with self.assertRaises(AssertionError):
             verifier.verify()
 

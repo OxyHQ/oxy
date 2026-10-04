@@ -1,0 +1,81 @@
+name: Native Expo image proof
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  image-proof:
+    if: github.repository == 'OxyHQ/oxy' && github.event.pull_request.head.repo.full_name == 'OxyHQ/oxy' && github.head_ref == 'fix/1571-forge-permanent-removal-20261004'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 35
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact source and inactive exception
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          python3 -c 'import json; d=json.load(open("docs/security/forge-candidate/provenance/audit-policy-decision.json")); assert d==dict(schemaVersion=1,status="INACTIVE",targetSourceHead=None,expiresAt=None,authorizationRecord=None,independentEvidence=None)'
+      - uses: docker/setup-buildx-action@v4
+      - uses: crazy-max/ghaction-github-runtime@v4
+      - name: Build actual ARM production image without credentials or publication
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/native-expo"
+          docker buildx build --platform linux/arm64 --provenance=false --sbom=false \
+            --cache-from type=gha,scope=oxy-api-backend \
+            --label "org.opencontainers.image.revision=$SOURCE_SHA" \
+            --metadata-file "$RUNNER_TEMP/native-expo/build-metadata.json" \
+            --output "type=oci,dest=$RUNNER_TEMP/native-expo/image.oci.tar" -f Dockerfile .
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+          skopeo copy "oci-archive:$RUNNER_TEMP/native-expo/image.oci.tar" "docker-daemon:oxy-native-expo:$SOURCE_SHA"
+          skopeo inspect --raw "oci-archive:$RUNNER_TEMP/native-expo/image.oci.tar" > "$RUNNER_TEMP/native-expo/manifest.json"
+          IMAGE_ID=$(docker image inspect "oxy-native-expo:$SOURCE_SHA" --format '{{.Id}}')
+          echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
+          CONFIG_DIGEST=$(jq -r .config.digest "$RUNNER_TEMP/native-expo/manifest.json")
+          test "$IMAGE_ID" = "$CONFIG_DIGEST"
+          tar -xOf "$RUNNER_TEMP/native-expo/image.oci.tar" "blobs/sha256/${CONFIG_DIGEST#sha256:}" > "$RUNNER_TEMP/native-expo/config.json"
+          test "sha256:$(sha256sum "$RUNNER_TEMP/native-expo/config.json" | cut -d' ' -f1)" = "$CONFIG_DIGEST"
+          printf 'sha256:%s\n' "$(sha256sum "$RUNNER_TEMP/native-expo/manifest.json" | cut -d' ' -f1)" > "$RUNNER_TEMP/native-expo/manifest-digest.txt"
+          test "$(docker image inspect "$IMAGE_ID" --format '{{.Architecture}}')" = arm64
+          test "$(docker image inspect "$IMAGE_ID" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$SOURCE_SHA"
+      - name: Inspect original image absence, native bytes, and actual public API
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --entrypoint node "$IMAGE_ID" -e 'try{require("node:fs").lstatSync("/native-expo-proof");process.exit(1)}catch(e){if(e.code!=="ENOENT")throw e}'
+          PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' > "$RUNNER_TEMP/native-expo/expected-files.json"
+          import hashlib,json,pathlib,tarfile
+          result={}
+          for archive in pathlib.Path('vendor/expo-native').glob('oxy.so-*.tgz'):
+              with tarfile.open(archive) as source:
+                  files={m.name.removeprefix('package/'):source.extractfile(m).read() for m in source.getmembers() if m.isfile()}
+                  p=json.loads(files['package.json'])
+                  result[p['name']]={'version':p['version'],'files':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()}}
+          assert set(result)=={'@oxy.so/expo-cli-native','@oxy.so/expo-code-signing-native'}
+          print(json.dumps(result))
+          PY
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --mount "type=bind,src=$PWD/scripts,dst=/native-expo-proof/scripts,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP/native-expo/expected-files.json,dst=/native-expo-proof/expected-files.json,readonly" \
+            --entrypoint node "$IMAGE_ID" /native-expo-proof/scripts/native-expo-image-inventory.mjs \
+            /native-expo-proof/expected-files.json "$SOURCE_SHA" "$IMAGE_ID" > "$RUNNER_TEMP/native-expo/image-inventory.json"
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
+            --mount "type=bind,src=$PWD/scripts,dst=/native-expo-proof/scripts,readonly" \
+            --entrypoint node "$IMAGE_ID" /native-expo-proof/scripts/forge-independent-expo-compat.cjs /app/packages/api \
+            > "$RUNNER_TEMP/native-expo/image-expo-compat.log"
+          printf '%s\n' "$SOURCE_SHA" > "$RUNNER_TEMP/native-expo/source-sha.txt"
+          (cd "$RUNNER_TEMP/native-expo" && sha256sum build-metadata.json image.oci.tar manifest.json config.json expected-files.json image-inventory.json image-expo-compat.log manifest-digest.txt source-sha.txt > SHA256SUMS)
+      - uses: actions/upload-artifact@v6
+        with:
+          name: native-expo-image-proof-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-expo/
+          if-no-files-found: error
+          retention-days: 14
