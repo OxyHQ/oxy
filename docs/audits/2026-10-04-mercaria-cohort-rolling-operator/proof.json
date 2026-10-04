@@ -1,6 +1,6 @@
 {
   "kind": "mercaria-closed-cohort-rolling-operator-preparation-v1",
-  "sourceCommit": "7e6419b69bace0773edaf634acbc7297453541c3",
+  "sourceCommit": "2fa5b95511d9736d2f53ae16d40b28da3d76f5cb",
   "sourceInputs": [
     {
       "path": "scripts/operations/mercaria-cohort-promotion.py",
@@ -24,8 +24,8 @@
     },
     {
       "path": "docs/audits/2026-10-04-mercaria-cohort-rolling-operator/README.md",
-      "bytes": 5144,
-      "sha256": "22f2fa86c2600ee052b27d6b63783b635a7a692fc8328eccc029e4a0093efe7a"
+      "bytes": 5374,
+      "sha256": "9fae9243c5fb4e958c248f7ef9ee57513e4e66edefbbc0e27b77a9a14c3e0b80"
     }
   ],
   "records": [
@@ -62,7 +62,10 @@
     "noDesiredCountWrites": true,
     "noScalerWrites": true,
     "noAutomaticOldImageRollback": true,
-    "newImagePending": true
+    "newImagePending": false,
+    "migrationEntries": 158,
+    "historicalCommentOnlyReconciliations": 135,
+    "unchangedHistoricalRows": 23
   },
   "limits": {
     "awsReadsOrWritesExecuted": false,
@@ -71,5 +74,15 @@
     "preparedRootInputsRequired": "actual image+migration+merchant/Portal/store/Peable/SDK receipts before prepare",
     "unknownAck": "stop and root-reconcile intents before another mutation",
     "confirmedFailure": "preserve count/scalers; root fresh-read and explicit rollback decision, never automatic hold0"
+  },
+  "runtimeSourceCommit": "7e6419b69bace0773edaf634acbc7297453541c3",
+  "documentationOnlyFollowup": true,
+  "imageVerification": {
+    "path": "/home/nate/Oxy/.agent-evidence/integration-mercaria-cohort-image-20261004/consumer-image-verification.json",
+    "sha256": "1b75a410e956c64c854df8e8d6f562cc12d3c36456050553aca5bf1d7eac63f5"
+  },
+  "migrationVerification": {
+    "path": "/home/nate/Oxy/.agent-evidence/integration-mercaria-cohort-image-20261004/migration-verification.json",
+    "sha256": "2e329235893004900fc389c5068ef4c633fbca808ea46df742d067d09802c154"
   }
 }
