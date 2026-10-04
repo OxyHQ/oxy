@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "kind": "mercaria-image-only-promotion-proof-v1",
+  "sourceCommit": "489877a9196a55b4dbf5b4701557fb478944aa3f",
+  "baselineDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mercaria:61",
+  "baselineImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mercaria@sha256:36b6db86db15d8b25d726c467ed83dc9b4e19a425b5d5be724517e22f45a20fb",
+  "sourceInputs": [
+    {
+      "path": "scripts/operations/mercaria-image-only-promotion.py",
+      "sha256": "5830d9ef4ca3fac9038e627bf2f63bf7a5f2c8be917963fbaf628e466f9308cc"
+    },
+    {
+      "path": "scripts/operations/__tests__/mercaria-image-only-promotion.test.py",
+      "sha256": "142ba15b8dd27ab325d15e0ee8932dbc649bda3c58caaf8e65556a08a7bd33ef"
+    },
+    {
+      "path": "scripts/operations/mercaria-cohort-promotion.py",
+      "sha256": "6a66730db1e1b02678988ef7d2048e4f7b5a00cca392a0f257efa05f4bb16ce6"
+    },
+    {
+      "path": "scripts/operations/consumer-promotion.py",
+      "sha256": "6498df2458bfa407c3905e0ebd824c766b7af1beecc3d1b1a0d5770be9dca83b"
+    },
+    {
+      "path": "scripts/operations/fleet-quiescence.py",
+      "sha256": "56fbe998fc58f2fc473f0622e5b06693f88b75942020f25001bf409d24852959"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-mercaria-image-only-promotion/tests-final.log",
+      "sha256": "ef7f50366ca51c63d0a896e3e65efc5222f44162d66e4b582da049ed183177d8"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mercaria-image-only-promotion/help.log",
+      "sha256": "00f1b9f3212054a0a4733a84c4ce26e5d291a7b606573bfcfd1e5c5fbfe934d8"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mercaria-image-only-promotion/actual-baseline-control.json",
+      "sha256": "8e15ee24c9e4b84f5281c1ca82ab72a6864eaf598745a0fef9f79349b66d891e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-mercaria-image-only-promotion/source-comparison.json",
+      "sha256": "844b48dbb2a44b31588412cc5b8f4e8dda9512966b211919441e299eababc45c"
+    }
+  ],
+  "checks": {
+    "offlineMethods": 5,
+    "actualPrivateBaselineImageOnly": true,
+    "actualPrivateIntentsAndFileTransport": true,
+    "readonlyLocalHttpReadiness": true,
+    "awsCalls": 0,
+    "futureImageAndSourceNotYetSelected": true
+  },
+  "limits": [
+    "AWS interactions are mocked in tests; HTTP test uses a private loopback server. No production execution or future image approval.",
+    "Fresh prepare and ROOT review require the final verified Mercaria image/source protocol and no-DDL evidence.",
+    "New startup executes the reviewed cohort registration path; no paid transaction or general Stripe activation is claimed.",
+    "Only image is changed; flags, literal cohort JSON, environment, secret aliases, sidecars, roles, counts, network and service configuration are retained.",
+    "Source AST after exact plan-kind/recovery-label normalization differs from reviewed original only in render."
+  ]
+}

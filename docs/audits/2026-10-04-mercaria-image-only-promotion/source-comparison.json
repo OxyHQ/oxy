@@ -1,0 +1,39 @@
+{
+  "kind": "mercaria-image-only-source-comparison-v1",
+  "originalOperatorSha256": "6a66730db1e1b02678988ef7d2048e4f7b5a00cca392a0f257efa05f4bb16ce6",
+  "newOperatorSha256": "5830d9ef4ca3fac9038e627bf2f63bf7a5f2c8be917963fbaf628e466f9308cc",
+  "unchangedFunctions": [
+    "need",
+    "digest",
+    "sha",
+    "save",
+    "ref",
+    "load",
+    "aws",
+    "service",
+    "td",
+    "tags",
+    "service_equal",
+    "steady",
+    "tasks",
+    "describe",
+    "inputs_checked",
+    "log_matches",
+    "own_logs",
+    "public_smoke",
+    "task_ips",
+    "target_ready",
+    "main"
+  ],
+  "changedFunctions": [
+    "render",
+    "prepare",
+    "validate",
+    "monitor",
+    "execute"
+  ],
+  "afterExactKindAndRecoveryLabelNormalization": [
+    "render"
+  ],
+  "awsCalls": 0
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "mercaria-image-only-actual-baseline-control-v1",
+  "baselineInput": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i08-mercaria-cohort-promotion/independent-readback/definition.json",
+    "sha256": "01b03e8a1e234206d1061060da5419cd5e1972a69c5354ce30f907bb1a7840f1"
+  },
+  "baselineDefinition": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-mercaria:61",
+  "baselineImage": "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mercaria@sha256:36b6db86db15d8b25d726c467ed83dc9b4e19a425b5d5be724517e22f45a20fb",
+  "imageOnly": true,
+  "syntheticNewImage": true,
+  "awsCalls": 0,
+  "privateDefinitionCopied": false
+}
