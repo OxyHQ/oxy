@@ -1,0 +1,118 @@
+{
+  "kind": "i09-original-criteria-final-acceptance",
+  "accepted": true,
+  "sourceHead": "cbfe23c671276f743633174e3e4d6b4fcd6e5b5e",
+  "sourceInputs": [
+    {
+      "path": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sha256": "da6ae5038f825f726b2994dab73cf3d17adff552c8e4bee6f009ae7d4d7e6d5a"
+    },
+    {
+      "path": "packages/api/src/config/__tests__/inferenceEconomicPolicy.test.ts",
+      "sha256": "e3807cf331568dddb632b3616f72066a0703b2e557805ff0f08bd3d1f29c4ec6"
+    },
+    {
+      "path": "packages/api/src/services/inferenceInternalPilot.ts",
+      "sha256": "113b998e18e48ccd82e5f36e33d0172ffc4cb6520191090cf34623639ea6a1a8"
+    },
+    {
+      "path": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "sha256": "436a38f3e709b1b66188b25e49cdf030ace68bb64f9f40f9d02e617460c9ffdd"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/inferenceMeteredUsage.service.test.ts",
+      "sha256": "b83a4f894d7f7dace6065822fb4e83f2fa86862a9f4041684d155836d6f05e99"
+    },
+    {
+      "path": "packages/api/src/services/kaanaProviderCostFeed.service.ts",
+      "sha256": "583d6d61e743011262c42521481358332cdfe5ba5b38f6c3d2354039a34695b4"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaProviderCostFeed.service.test.ts",
+      "sha256": "cb5ae2d6baa0315c3b5fcd2a49456d4d3c09ffb70868629f1f10290d61f56042"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "5805d39906996ade95b634496abadd320d18baa23411cf3752f1a2f748943851"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-i09-final-acceptance/README.md",
+      "sha256": "dbcd19f9fd154d7455bad9a2488032119fedbaa28ab3b307caabd93150b736fb"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-final-acceptance/root-accepted.json",
+      "sha256": "f727c2ac58c4901ef4f8cd91ab7146baf5896a63e1fb36614c36c089fac0aec2"
+    }
+  ],
+  "preservedProofs": [
+    {
+      "path": "docs/audits/2026-10-03-i09-approved-pilot/proof.json",
+      "sha256": "293d8ee62629c6dd8360c7686bd26b80100873cf473f404ddab34adfeef72a4c"
+    },
+    {
+      "path": "docs/audits/1519-i07-i09-composite-2026-10-02/proof.json",
+      "sha256": "99d3b2cf69703286658f7ef679dad2cd14328e696b48e09631779053138fa238"
+    },
+    {
+      "path": "docs/audits/2026-10-04-i09-route-reconciliation/proof.json",
+      "sha256": "0f49b02071c2c160a0cb4d501153718e83023882fc21987e28d26636ae8bf6c8"
+    }
+  ],
+  "privateReferences": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/final-acceptance/issue1526-before.json",
+      "sha256": "71911c269253e73ea8273e612fba21dae90c593b94178329a9dddff698681b76"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-baseline-accepted.json",
+      "sha256": "4509e9cdaf0164281f9cfe5636d059bdbf1938d7a9a6546741aaf0ecf7724d31"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-20261003/i09-caller-accepted.json",
+      "sha256": "dec2a5ed852a78fe0ce1c7736be3e9cf62e0806ad8db38af97e5d9e013fb639f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-run/cleanup.json",
+      "sha256": "731f9a105cafe9e3902ffc1704e4aa855133b00da84bb829af1420adb38da239"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-run-attempt2/cleanup.json",
+      "sha256": "ab6af429f26c82d4812449925726a7283d9fbd99bbaa656f831efcff5b37914f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/readonly-diagnostic-run/result.private.json",
+      "sha256": "0bedb905201b0c3dd7f175969859481ff898fe6dedb9bbd49c052aa997a95419"
+    }
+  ],
+  "rootResultReferencesVerified": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-run-route-v3/result.private.json",
+      "sha256": "b3765f41beb582fc72d991858969b4564b4144e0b4a0972afdb3fc6ec9e947a2"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-run-route-v3/receipt.json",
+      "sha256": "33c8ca75b10dcc2e052b0bc750c8b28b55be82100b163670c3e6aaf039cd2226"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-run-route-v3/cleanup.json",
+      "sha256": "ab6af429f26c82d4812449925726a7283d9fbd99bbaa656f831efcff5b37914f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/caller-run/result.private.json",
+      "sha256": "cbe8a3ffeff5e673fc9c1c61cbb894151357a59b149a844e60e46b85e9727bfc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/baseline-run/result.private.json",
+      "sha256": "2564afe1842f259bd2682cc986492a315b420138a0e9d5da4af7e085f1f98dc9"
+    }
+  ],
+  "limitations": [
+    "Explicit-model direct admission legitimately leaves final Auto override tuple NULL; source and SQL regression justify guard correction.",
+    "Original unknown dispatch and failed overly strict guard preserved; no new inference created.",
+    "Quoted customer-facing tariff is separate from unknown upstream provider cost.",
+    "Positive provider-cost and external-charge controls are integration fixtures; this live upstream cost remains unknown.",
+    "No percentile latency or all-human-traffic claim."
+  ]
+}

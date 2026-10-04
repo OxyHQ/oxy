@@ -1,0 +1,65 @@
+{
+  "accepted": true,
+  "kind": "root-i09-exact-final-accepted-v1",
+  "intent": "oxy1519-i09-1791093169991-608bdb4f0ed0e8b0",
+  "requestId": "6c937204-26ae-4309-bba8-ef0ffdb9c07b",
+  "callerHttp200": true,
+  "sameIntentRetry409": true,
+  "newInferenceRequestsForReconciliation": 0,
+  "meteredRows": 1,
+  "providerAttempts": 1,
+  "internalMetered": true,
+  "moneyUnchanged": true,
+  "unknownProviderCostPreservedNull": true,
+  "replay": {
+    "kind": "i09-authenticated-feed-replay-v1",
+    "requestId": "6c937204-26ae-4309-bba8-ef0ffdb9c07b",
+    "eventCount": 1,
+    "inserted": 0,
+    "duplicates": 1,
+    "mismatches": 0,
+    "rowsUnchanged": true,
+    "moneyUnchanged": true,
+    "cursorBefore": {
+      "feed": "kaana-provider-attempts",
+      "cursor": "kaf_MjAyNi0xMC0wNFQwNjo0NDoxNi4wMjIyNlp8MHw2YzkzNzIwNC0yNmFlLTQzMDktYmJhOC1lZjBmZmRiOWMwN2I",
+      "updated_at": "2026-10-04T06:44:38.425Z"
+    },
+    "cursorAfter": {
+      "feed": "kaana-provider-attempts",
+      "cursor": "kaf_MjAyNi0xMC0wNFQwNjo0NDoxNi4wMjIyNlp8MHw2YzkzNzIwNC0yNmFlLTQzMDktYmJhOC1lZjBmZmRiOWMwN2I",
+      "updated_at": "2026-10-04T06:44:38.425Z"
+    }
+  },
+  "taskArn": "arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/a4a7ddcd73fa4fcc9ba75545b0a62220",
+  "taskDefinitionArn": "arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-i09-exact-feed-replay:3",
+  "taskStoppedExitZero": true,
+  "definitionInactive": true,
+  "limits": [
+    "Explicit-model direct admission legitimately leaves final Auto override tuple NULL; source and SQL regression justify guard correction.",
+    "Original unknown dispatch and failed overly strict guard preserved; no new inference created.",
+    "Quoted customer-facing tariff is separate from unknown upstream provider cost."
+  ],
+  "refs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-run-route-v3/result.private.json",
+      "sha256": "b3765f41beb582fc72d991858969b4564b4144e0b4a0972afdb3fc6ec9e947a2"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-run-route-v3/receipt.json",
+      "sha256": "33c8ca75b10dcc2e052b0bc750c8b28b55be82100b163670c3e6aaf039cd2226"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/post-run-route-v3/cleanup.json",
+      "sha256": "ab6af429f26c82d4812449925726a7283d9fbd99bbaa656f831efcff5b37914f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/caller-run/result.private.json",
+      "sha256": "cbe8a3ffeff5e673fc9c1c61cbb894151357a59b149a844e60e46b85e9727bfc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/i04-i09-runtime-693-alia449-20261004/baseline-run/result.private.json",
+      "sha256": "2564afe1842f259bd2682cc986492a315b420138a0e9d5da4af7e085f1f98dc9"
+    }
+  ]
+}
