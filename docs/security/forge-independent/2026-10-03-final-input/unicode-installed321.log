@@ -1,0 +1,12 @@
+file:///home/nate/Oxy/oxy/.worktrees/1573-unicode-forge-evidence-20261004/scripts/forge-remediation-proof-proposal.mjs:159
+  if (used.size !== intentionalDanglingSharpLinks.length) throw new Error('Unused or duplicate intentional Sharp omission entry');
+                                                                ^
+
+Error: Unused or duplicate intentional Sharp omission entry
+    at inventory (file:///home/nate/Oxy/oxy/.worktrees/1573-unicode-forge-evidence-20261004/scripts/forge-remediation-proof-proposal.mjs:159:65)
+    at file:///home/nate/Oxy/oxy/.worktrees/1573-unicode-forge-evidence-20261004/scripts/forge-candidate-image-proof.mjs:13:16
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.21.0

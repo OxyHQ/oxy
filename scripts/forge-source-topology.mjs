@@ -1,5 +1,5 @@
 /** Structural source binding. Authentication comes only from the live collector. */
-export const FROZEN_BASE_HEAD = '82bca73efa870b013d7817aac7b7f9d63799963b';
+export const FROZEN_BASE_HEAD = 'eab1b6dd42b518500b49c03e692738081099d9cc';
 const sha = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
 export function checkSourceTopologyStructure(git, pins, frozenBaseHead) {
   const errors = [];

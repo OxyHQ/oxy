@@ -1,0 +1,2289 @@
+{
+  "candidateOnly": true,
+  "approved": false,
+  "technicalByteRegressionProofPassed": true,
+  "platform": "linux",
+  "arch": "x64",
+  "node": "v24.21.0",
+  "installedRoot": "/home/nate/Oxy/oxy/.worktrees/1573-unicode-forge-evidence-20261004",
+  "patchSha256": "6c8b35a750038ddae3b2973dd81cad4826fa31744053c878cd8959338edcd776",
+  "earlierPruningReceipt": {
+    "sourceSha": "81442f48fc8c5a7251dd4ae290e02c4afb1aa633",
+    "imageDigest": "sha256:d11e581d88b3dcf92d5b09add482406f31db68f45be81af19a559967a70c4b67",
+    "receiptSha256": "4b3c6d088ea21592c6ee683cba3adc348c437591b515bf783e0f39d9ce4525dd"
+  },
+  "inventorySha256": "0b54d193f7090879afc4babdacdb56c86d2b7078f9b5a846c753639d575162dc",
+  "intentionalDanglingSharpLinks": [],
+  "copies": [
+    {
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1573-unicode-forge-evidence-20261004/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge",
+      "version": "1.4.0",
+      "files": {
+        "lib/rsa.js": "425543a09d94457a66d098c490540b2759806dc61236ad3d38610c18d88f1b81",
+        "dist/forge.min.js": "811a6061b91b04955ea1457a7d987f21a496f43304c4a89f870d2d175191a19f",
+        "dist/forge.min.js.map": "5f11be794b0ad083ce9b2bcee1079e7ee1f0771d37beb90d6f13b2b9a8a0eba3",
+        "dist/forge.all.min.js": "fc2c8c484e3da7608ad5a966a8b747d7fe7c8ea7086b1f76ea8ead544dd7d232",
+        "dist/forge.all.min.js.map": "0b21eb8fb1c124e963d564b6462177331027f6e739f48e73184e0f6a81cac3f1"
+      }
+    }
+  ],
+  "regressions": [
+    {
+      "realpath": "/home/nate/Oxy/oxy/.worktrees/1573-unicode-forge-evidence-20261004/node_modules/.bun/node-forge@1.4.0/node_modules/node-forge",
+      "node": "v24.21.0",
+      "openssl": "3.5.8",
+      "count": 321,
+      "publicKeySha256": "d0259f135210dbe00bd6d977bd15a2ebe429fefafcdf2a68226fb612b8da2085",
+      "reportSha256": "f78c6984900af24d83384f313a4bbc5e7997232dd4aa7cdde7a57a32298ee63b",
+      "rows": [
+        {
+          "algorithm": "sha1",
+          "variant": "normal-sign",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "normal-sign",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "normal-sign",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha1",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "normal-sign",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "normal-sign",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "normal-sign",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha224",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "normal-sign",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "normal-sign",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "normal-sign",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha256",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "normal-sign",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "normal-sign",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "normal-sign",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha384",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "normal-sign",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "normal-sign",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "normal-sign",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "normal-sign",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "normal-sign",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "normal-sign",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-224",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "normal-sign",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "normal-sign",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "normal-sign",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "sha512-256",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "normal-sign",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "md5",
+          "variant": "normal-sign",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "md5",
+          "variant": "normal-sign",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "md5",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "md5",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "md5",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": true
+        },
+        {
+          "algorithm": "md5",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md5",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": false
+        },
+        {
+          "algorithm": "md2",
+          "variant": "empty-null",
+          "distribution": "lib",
+          "forgeAccepted": true,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "empty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "empty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": true,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "absent-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "absent-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "absent-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "extra-nested",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "extra-nested",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "extra-nested",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "nonempty-null",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "nonempty-null",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "nonempty-null",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "extra-outer",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "extra-outer",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "extra-outer",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "trailing",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "trailing",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "trailing",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-digest",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-digest",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-digest",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "unknown-oid",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "unknown-oid",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "unknown-oid",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-oid-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-oid-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "wrong-algorithm-tag",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "empty-algorithm",
+          "distribution": "lib",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "empty-algorithm",
+          "distribution": "forge.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        },
+        {
+          "algorithm": "md2",
+          "variant": "empty-algorithm",
+          "distribution": "forge.all.min.js",
+          "forgeAccepted": false,
+          "nodeAccepted": null
+        }
+      ]
+    }
+  ]
+}

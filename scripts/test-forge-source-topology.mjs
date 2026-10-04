@@ -48,7 +48,7 @@ try {
     ]) { const x = structuredClone(facts); mutate(x); assert.equal(checkSourceTopologyStructure(x, { sourceSha: source }, base).eligible, false); count++; }
   }
   assert.equal(checkSourceTopologyStructure(undefined, undefined, base).eligible, false); count++;
-  const currentMain = '82bca73efa870b013d7817aac7b7f9d63799963b';
+  const currentMain = 'eab1b6dd42b518500b49c03e692738081099d9cc';
   const queueHead = '1'.repeat(40);
   const frozenSource = '091cb952a3fe14adae48397e373e2e1461969dc0';
   // Structurally synthetic queue metadata bound to the authenticated current main.
@@ -59,13 +59,13 @@ try {
       'docs/security/forge-candidate/provenance/audit-policy-decision.json'],
     currentGithub: { run: { repository: { id: 973881060, full_name: 'OxyHQ/oxy' },
       head_repository: { full_name: 'OxyHQ/oxy' }, event: 'merge_group',
-      head_sha: queueHead, head_branch: `gh-readonly-queue/main/pr-1569-${currentMain}` },
+      head_sha: queueHead, head_branch: `gh-readonly-queue/main/pr-1573-${currentMain}` },
       commit: { sha: queueHead, tree: 'd'.repeat(40), parents: [currentMain] } } };
   assert.equal(checkFrozenSourceTopology(current, { sourceSha: frozenSource }).eligible, true, 'the reviewed actual main base must admit its exact squash topology'); count++;
-  for (const wrongBase of ['85dad68e5685413740a4a3fd52afee5bd724bed1', '73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12', 'f'.repeat(40)]) {
+  for (const wrongBase of ['82bca73efa870b013d7817aac7b7f9d63799963b', '85dad68e5685413740a4a3fd52afee5bd724bed1', '73bf4c8dbe22c30ae9c4a2f39e9b649b927b8d12', 'f'.repeat(40)]) {
     const wrong = structuredClone(current);
     wrong.headParents = [wrongBase]; wrong.currentGithub.commit.parents = [wrongBase];
-    wrong.currentGithub.run.head_branch = `gh-readonly-queue/main/pr-1569-${wrongBase}`;
+    wrong.currentGithub.run.head_branch = `gh-readonly-queue/main/pr-1573-${wrongBase}`;
     assert.equal(checkFrozenSourceTopology(wrong, { sourceSha: frozenSource }).eligible, false); count++;
   }
   assert.equal(FROZEN_BASE_HEAD, currentMain); count++;

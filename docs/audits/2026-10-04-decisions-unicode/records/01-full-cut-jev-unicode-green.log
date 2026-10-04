@@ -1,0 +1,6 @@
+@oxy.so/contracts test: Test Suites: 1 passed, 1 total
+@oxy.so/contracts test: Tests:       18 passed, 18 total
+@oxy.so/contracts test: Snapshots:   0 total
+@oxy.so/contracts test: Time:        0.391 s, estimated 1 s
+@oxy.so/contracts test: Ran all test suites within paths "src/__tests__/inference.decisions.test.ts".
+@oxy.so/contracts test: Exited with code 0

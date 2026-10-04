@@ -1,0 +1,13 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/inferenceDecisionsRoute.test.ts
+Error: Jest: Got error running globalSetup - /home/nate/Oxy/oxy/.worktrees/full-cut-jev-contract-20261004/packages/api/jest.globalSetup.ts, reason: `bun run db:migrate` exited with code 1:
+$ bun run src/db/migrate.ts --phase=all
+error: Cannot find module '@oxy.so/db/migrate' from '/home/nate/Oxy/oxy/.worktrees/full-cut-jev-contract-20261004/packages/api/src/db/migrate.ts'
+
+Bun v1.4.2 (Linux x64)
+error: script "db:migrate" exited with code 1
+
+    at ChildProcess.<anonymous> (/home/nate/Oxy/oxy/.worktrees/full-cut-jev-contract-20261004/packages/api/src/db/testDatabase.ts:86:20)
+    at ChildProcess.emit (node:events:514:28)
+    at maybeClose (node:internal/child_process:1141:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+error: script "test" exited with code 1

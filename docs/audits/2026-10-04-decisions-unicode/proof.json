@@ -1,0 +1,81 @@
+{
+  "sourceCommit": "3a8c5e0cb0138662d6e05d2d5a4de9c732348cc2",
+  "sources": [
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceDecisionsRoute.test.ts",
+      "sha256": "f366e5c169c8c7a32f1c8ab2c8f6d3e9911a4d091186957f20b5be09ad9071c5"
+    },
+    {
+      "path": "packages/contracts/src/__tests__/inference.decisions.test.ts",
+      "sha256": "c62bd56dc24856665626bb8eef4dc0de2a0bbdaeea3b639559eee6976b57e116"
+    },
+    {
+      "path": "packages/contracts/src/inference/decisions.ts",
+      "sha256": "0b49b587f26198a762dc4645935c47ba888b6163b9b0f4acdfa4f96dd7cb0866"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/00-full-cut-jev-unicode-red.log",
+      "sha256": "39fcd4086d5a38bbcead042d5ad018a772024ea0624b4fa6282b1177bafacd4d"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/01-full-cut-jev-unicode-green.log",
+      "sha256": "fe9196941b540c5ce5df5a1ee2783f35d8588a30a438b14b5c0ff24467187bd7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/02-full-cut-jev-contract-full.log",
+      "sha256": "d3b6145dd6593bf4a618b38bbc409602949d18a3ddaf5ea81cfd92e9bfc82bed"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/03-full-cut-jev-contract-build.log",
+      "sha256": "39efb0fb26de68b505ff61bdd579c979be621c9b5cd36dc11974fa221f1e4fce"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/04-full-cut-jev-api-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/05-full-cut-jev-contract-lint.log",
+      "sha256": "967c1eb73ff103928ef8edf73b47e89032eeb26ac7ff0f457c68f8c3928f9618"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/06-full-cut-jev-route-green.log",
+      "sha256": "f54d192f2d1d86e6afafa6bf09b4332d43aa55445a2d57bfe75bda8c0e6a6033"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/07-route-green.log",
+      "sha256": "c137d88908584680f2a4fcaf0bb4ea6a1ad011dd6c41bbed8442b84dbc7bdbce"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/08-tests.log",
+      "sha256": "4944a0b4745294f46cc5323d64977fa556e695d76ebe6ec8cdec333bb264d205"
+    },
+    {
+      "path": "docs/audits/2026-10-04-decisions-unicode/records/09-receipt.json",
+      "sha256": "dbd97f49b9bd5af7bae1132ad2d16f00d9bb0f5b571f4a1170ea3a27b0883e44"
+    }
+  ],
+  "frozenContractFixtureSha256": "c62bd56dc24856665626bb8eef4dc0de2a0bbdaeea3b639559eee6976b57e116",
+  "baseline": "eab1b6dd42b518500b49c03e692738081099d9cc",
+  "results": {
+    "baseline": {
+      "passed": 13,
+      "failed": 5
+    },
+    "sameFixtureFinal": 18,
+    "contractsFull": {
+      "suites": 53,
+      "passed": 927
+    },
+    "apiRoutePassed": 6,
+    "contractsBuild": 0,
+    "apiBuild": 0,
+    "contractsBiomeLint": 0
+  },
+  "limits": [
+    "No production requests, provider activation or approval changes.",
+    "API route fixture invokes the mounted final handler with synthetic principal; authentication ordering is checked separately in same suite. It asserts no reserve calls.",
+    "Initial API attempts stopped in setup: missing TEST_DATABASE_URL, then missing built @oxy.so/db. Final canonical build + migrated owned PG passed and PG stopped."
+  ]
+}
