@@ -1,0 +1,7 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/inferenceEdgeInternalMetered.test.ts src/routes/__tests__/inferenceEdgeGateCoverage.test.ts src/__tests__/openapiRouteWalker.test.ts src/__tests__/openapiZodConverter.test.ts src/__tests__/openapiBaseYaml.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       88 passed, 88 total
+Snapshots:   0 total
+Time:        12.761 s
+Ran all test suites within paths "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts", "src/routes/__tests__/inferenceEdgeGateCoverage.test.ts", "src/__tests__/openapiRouteWalker.test.ts", "src/__tests__/openapiZodConverter.test.ts", "src/__tests__/openapiBaseYaml.test.ts".

@@ -1,0 +1,153 @@
+{
+  "sourceHead": "cab17b7e1a74c2b26293cc23019653ee6f993cf4",
+  "baseline": "70b98e483",
+  "sources": [
+    {
+      "path": "packages/api/src/services/inferenceEdge.service.ts",
+      "sha256": "2c2eac9e4ff36daa90f5379a9cb7efd182d83fd5cd48e5c0a4003525589265fd"
+    },
+    {
+      "path": "packages/api/src/routes/__tests__/inferenceEdgeInternalMetered.test.ts",
+      "sha256": "fdbca90920618d8fba96e47367aa5bf0ec483bb49f2f3fea998799ccdb5c4847"
+    },
+    {
+      "path": "packages/api/scripts/generate-openapi.ts",
+      "sha256": "aab7c756573ba23db2ce27e69304d91438b0d47dbe9279904ba74eaa007af82c"
+    },
+    {
+      "path": "packages/api/src/routes/inferenceEdge.ts",
+      "sha256": "f49e779dc52a2ffcaa07ad16db8e1332dfd464b75170e4d6b9095628aed669df"
+    },
+    {
+      "path": "packages/api/src/schemas/inferenceEdge.schemas.ts",
+      "sha256": "522b452d2c237b531a74af1b24dc3d4ba95ff66f5f4499efac3377a716002204"
+    },
+    {
+      "path": "packages/api/src/__tests__/openapiRouteWalker.test.ts",
+      "sha256": "8e6ab9ce1fa670e324e5e9de0f7afb3a0fb2aad81cd92ba492f689cef1ab3ec2"
+    },
+    {
+      "path": "packages/api/openapi.json",
+      "sha256": "a52433df8a085f5035a367356708be5503a0def75821f4766f0bc5389f54148d"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-red-final-tests.log",
+      "sha256": "ef8da74aa25d34cbfea5a66567802aaec80eddca18f484a543dbc9e0245dfa36"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-red-final-receipt.json",
+      "sha256": "b9d21de566d102a36c4f5942eb81665bfd18f2fdc57439ad698b3f0574979e70"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-header-full-tests.log",
+      "sha256": "cbcf53b15c116a10f73b5b407842252ea97dcd573a48b36a42dd61fbabfe5db2"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-header-full-receipt.json",
+      "sha256": "105a6aad43da412e3267ac7f155652f2e607757cd5da558ed14d01be60f441fb"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-header-red-tests.log",
+      "sha256": "bb4eb02626a526452956d7eddecaf1e6e325d1d3875803308ed2d9fb5ca0e2ee"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-header-red-receipt.json",
+      "sha256": "5344255750fffffcca19e0bd7b0fcb07f9df8dcd4f3f5aa700c646161e139865"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-header-green-corrected-tests.log",
+      "sha256": "337a7a86890bef2c78d0d18eea57c3177c97ba890fb174b94547efcf4df01303"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-header-green-corrected-receipt.json",
+      "sha256": "982b92337eb1d5d403cfb0ea210de3728f8a8310208d1599540c670ca6a31dc0"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-full-built-tests.log",
+      "sha256": "d5ecaee011af44e9f68d420c14d7136d5c5b19907d497d72791c201b2c319c97"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-full-built-receipt.json",
+      "sha256": "c4fa774bd2a7531937d8638bee1f0bc088bbf2fb63128faaeed6291edc2c6816"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-full-tests.log",
+      "sha256": "9f783866cb960ae0e169bf0a1ee9b82e1ac549d9b78fd758e187b1c685c23fd1"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-full-receipt.json",
+      "sha256": "fd67e5c2021da57f30d7b1ca12f3cd5c47d61e6f24ac6acab9acf28f82079275"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-header-types.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-header-lint.log",
+      "sha256": "d8057d98a5308777d2f90ac9bd2a8db2f96f555a0216bf40ee1a2156602ce6c9"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-header-lint-runtime.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-header-openapi-check.log",
+      "sha256": "781eef042c93ebd487839332b004e5376a98abdd75e99cfb2d5cbbfb3cfc73e3"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-alias-header-openapi-guards.log",
+      "sha256": "19eba1a8e847a1f60ede0b3c3f79e1efd1a6fbbc802da0377b5e1ba40a1ebf4e"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-header-generate.log",
+      "sha256": "9fdee1d7845224b54473bf6f94a7a59153be1b3041dffdbf0f27fa5dd7c73ad1"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/jev-receipt-header-generate-corrected.log",
+      "sha256": "7baaf8b7a9d0ce66497b96358d352335f545561773111d6c37e26f0b20c4de99"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/frozen-alias-final.test.ts",
+      "sha256": "fdbca90920618d8fba96e47367aa5bf0ec483bb49f2f3fea998799ccdb5c4847"
+    },
+    {
+      "path": "docs/audits/2026-10-04-original-key-receipt/alias-and-header-followup/records/frozen-header.test.ts",
+      "sha256": "8e6ab9ce1fa670e324e5e9de0f7afb3a0fb2aad81cd92ba492f689cef1ab3ec2"
+    }
+  ],
+  "result": {
+    "aliasSameFinalFixtureBaseline": {
+      "failed": 3,
+      "passed": 1,
+      "skipped": 36
+    },
+    "headerSameFinalFixtureBaseline": {
+      "failed": 2,
+      "passed": 16
+    },
+    "combinedFinal": {
+      "suites": 5,
+      "passed": 88
+    },
+    "openapiGuardCases": 38,
+    "typecheckExit": 0,
+    "runtimeLintExit": 0,
+    "canonicalOpenapiFreshnessExit": 0,
+    "allOwnedPostgresStopped": true
+  },
+  "limits": [
+    "Local owned PostgreSQL and synthetic data plane; no production inference, credential, billing or deployment changes.",
+    "Original public request/generation-alias lookup semantics remain unchanged. New original-key lookup renders the selected internal metering row or its exact financial receipt foreign key with all principal fields rechecked.",
+    "Commercial v1 amounts and internal v2 technical usage remain distinct. Unknown or pending records remain 404.",
+    "Initial combined test invocation collided with a dependency build and ran zero tests; the next run exposed fixture ordering funding a shared synthetic account. Both failures are preserved. Final reordered fixture was rerun against baseline unchanged, then passed against fixed source.",
+    "The first header generation failed on missing schema-only imports; corrected generation and unchanged header assertions pass. ESLint ignored the generator under canonical configuration; the ignored-file warning is preserved separately from the successful runtime lint. Generator behavior is covered by tests, generation and freshness.",
+    "The prior openapi-followup proof describes its historical prose-only headers. This followup supersedes that limitation with required header parameters and explicit 400/404 schemas.",
+    "No package versions, security source pins or publication claims changed."
+  ]
+}

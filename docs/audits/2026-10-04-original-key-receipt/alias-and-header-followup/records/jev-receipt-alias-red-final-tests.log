@@ -1,0 +1,213 @@
+$ jest --runInBand --runTestsByPath src/routes/__tests__/inferenceEdgeInternalMetered.test.ts -t "newer .* generation alias collides"
+FAIL src/routes/__tests__/inferenceEdgeInternalMetered.test.ts
+  ● original-key receipt recovery › keeps original commercial identity when a newer commercial generation alias collides
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 6
+
+    @@ -1,14 +1,15 @@
+      Object {
+        "body": Object {
+          "data": Object {
+            "applicationId": "6a2f851751b784a86fd0e934",
+            "billedAmount": "0.033000000000",
+    -       "credentialId": "01a10764-bb7d-7486-9c86-ae433f9cec4e",
+    +       "credentialId": "01a10764-bb86-7db5-b7fd-697f41ce7abb",
+            "currency": "USD",
+    +       "delegatedUserId": "01a10764-bac0-7c22-9d14-08bad8408703",
+            "environment": "development",
+    -       "generationId": "gen-236ef255-af4d-4e50-9bbb-3261a7632005",
+    +       "generationId": "8fd7a94d-8910-4d55-8677-c44d8ce41ddf",
+            "outcome": "completed",
+            "platformFeeOnly": false,
+            "priceSnapshot": Object {
+              "currency": "USD",
+              "priceVersionId": "01a10764-bb06-75e3-935e-df369d698802",
+    @@ -43,16 +44,16 @@
+                  "per": 1,
+                  "unit": "requests",
+                },
+              ],
+            },
+    -       "receiptId": "01a10764-bc9c-740a-8a37-c2f84f34d5db",
+    -       "requestId": "8fd7a94d-8910-4d55-8677-c44d8ce41ddf",
+    +       "receiptId": "01a10764-bdfb-76b9-90e5-87b73f1e2d09",
+    +       "requestId": "b3303fcd-8817-4706-97bc-c8e607d0b927",
+            "resolvedModelReference": "pub9399377477/model-9399377477@2026-01-01",
+            "schemaVersion": 1,
+            "servingProvider": "prov9399377477",
+    -       "settledAt": "2026-10-04T14:50:04.827Z",
+    +       "settledAt": "2026-10-04T14:50:05.179Z",
+            "units": Array [
+              Object {
+                "quantity": 1000,
+                "unit": "input_tokens",
+              },
+
+      1074 |     const aMeter = await meteredFor(first.body.requestId); const bMeter = await meteredFor(second.body.requestId);
+      1075 |     expect(bMeter).toMatchObject({ generationId: first.body.requestId, delegatedUserId: base.accountId });
+    > 1076 |     expect(await getGeneration('by-idempotency-key', originalHeaders)).toEqual(original);
+           |                                                                        ^
+      1077 |     expect(await meteredFor(first.body.requestId)).toEqual(aMeter);
+      1078 |     expect(await meteredFor(second.body.requestId)).toEqual(bMeter);
+      1079 |     expect(await moneyRowsFor(base.accountId)).toEqual(money);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:1076:72
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● original-key receipt recovery › keeps original internal_metered identity when a newer commercial generation alias collides
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 18
+    + Received  + 46
+
+    @@ -1,31 +1,59 @@
+      Object {
+        "body": Object {
+          "data": Object {
+            "applicationId": "6a2f851751b784a86fd0e934",
+    -       "credentialId": "01a10764-be95-780d-a084-3a1797fb0afe",
+    -       "customerCharge": Object {
+    -         "status": "not_charged",
+    -       },
+    -       "economicPolicyVersion": "synthetic-metering-mechanism",
+    -       "economicTreatment": "internal_metered",
+    -       "environment": "production",
+    -       "generationId": "gen-1c74005e-d37f-42e5-a713-112c3457f5c6",
+    -       "kind": "metered_usage",
+    -       "meteredUsageId": "01a10764-bef2-76e7-888a-8636a416480b",
+    +       "billedAmount": "0.033000000000",
+    +       "credentialId": "01a10764-bea5-7cae-b6da-1a3c017ff61d",
+    +       "currency": "USD",
+    +       "delegatedUserId": "01a10764-bac0-7c22-9d14-08bad8408703",
+    +       "environment": "development",
+    +       "generationId": "6e9edbdb-d2ea-4d1a-bb2e-6143c7a83d91",
+            "outcome": "completed",
+    -       "requestId": "6e9edbdb-d2ea-4d1a-bb2e-6143c7a83d91",
+    -       "resolvedModelReference": "pub9399377477/model-9399377477@2026-01-01",
+    -       "schemaVersion": 2,
+    -       "servingProvider": "prov9399377477",
+    -       "settledAt": "2026-10-04T14:50:05.492Z",
+    -       "tariff": Object {
+    -         "amount": "0.033000000000",
+    +       "platformFeeOnly": false,
+    +       "priceSnapshot": Object {
+              "currency": "USD",
+              "priceVersionId": "01a10764-bb06-75e3-935e-df369d698802",
+    -         "status": "quoted",
+    +         "unitPrices": Array [
+    +           Object {
+    +             "amount": "3.000000000000",
+    +             "currency": "USD",
+    +             "per": 1000000,
+    +             "unit": "cached_input_tokens",
+    +           },
+    +           Object {
+    +             "amount": "3.000000000000",
+    +             "currency": "USD",
+    +             "per": 1000000,
+    +             "unit": "input_tokens",
+                },
+    +           Object {
+    +             "amount": "15.000000000000",
+    +             "currency": "USD",
+    +             "per": 1000000,
+    +             "unit": "output_tokens",
+    +           },
+    +           Object {
+    +             "amount": "15.000000000000",
+    +             "currency": "USD",
+    +             "per": 1000000,
+    +             "unit": "reasoning_tokens",
+    +           },
+    +           Object {
+    +             "amount": "0.000000000000",
+    +             "currency": "USD",
+    +             "per": 1,
+    +             "unit": "requests",
+    +           },
+    +         ],
+    +       },
+    +       "receiptId": "01a10764-c018-7ecd-bcdd-0cb8ed5f0d01",
+    +       "requestId": "6e787b68-fd72-4bff-a1f6-fbab4be80eeb",
+    +       "resolvedModelReference": "pub9399377477/model-9399377477@2026-01-01",
+    +       "schemaVersion": 1,
+    +       "servingProvider": "prov9399377477",
+    +       "settledAt": "2026-10-04T14:50:05.720Z",
+            "units": Array [
+              Object {
+                "quantity": 1000,
+                "unit": "input_tokens",
+              },
+
+      1074 |     const aMeter = await meteredFor(first.body.requestId); const bMeter = await meteredFor(second.body.requestId);
+      1075 |     expect(bMeter).toMatchObject({ generationId: first.body.requestId, delegatedUserId: base.accountId });
+    > 1076 |     expect(await getGeneration('by-idempotency-key', originalHeaders)).toEqual(original);
+           |                                                                        ^
+      1077 |     expect(await meteredFor(first.body.requestId)).toEqual(aMeter);
+      1078 |     expect(await meteredFor(second.body.requestId)).toEqual(bMeter);
+      1079 |     expect(await moneyRowsFor(base.accountId)).toEqual(money);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:1076:72
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+  ● original-key receipt recovery › keeps original internal_metered identity when a newer internal_metered generation alias collides
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 5
+    + Received  + 6
+
+    @@ -1,25 +1,26 @@
+      Object {
+        "body": Object {
+          "data": Object {
+            "applicationId": "6a2f851751b784a86fd0e934",
+    -       "credentialId": "01a10764-c0be-7747-88bd-1ef360ac0dfb",
+    +       "credentialId": "01a10764-c0c6-7a3a-8fb9-b84f9d4d4964",
+            "customerCharge": Object {
+              "status": "not_charged",
+            },
+    +       "delegatedUserId": "01a10764-bac0-7c22-9d14-08bad8408703",
+            "economicPolicyVersion": "synthetic-metering-mechanism",
+            "economicTreatment": "internal_metered",
+            "environment": "production",
+    -       "generationId": "gen-2647ab62-d35c-4464-9575-cd9abc122c0e",
+    +       "generationId": "24cb9b61-1b67-498f-89a0-e5be0a979c66",
+            "kind": "metered_usage",
+    -       "meteredUsageId": "01a10764-c116-76ad-83c7-f5cbc691b266",
+    +       "meteredUsageId": "01a10764-c1d6-7998-b184-c5d3b8e6b58d",
+            "outcome": "completed",
+    -       "requestId": "24cb9b61-1b67-498f-89a0-e5be0a979c66",
+    +       "requestId": "ad5df7d0-e703-4baa-ad42-dd685d7f1df3",
+            "resolvedModelReference": "pub9399377477/model-9399377477@2026-01-01",
+            "schemaVersion": 2,
+            "servingProvider": "prov9399377477",
+    -       "settledAt": "2026-10-04T14:50:06.039Z",
+    +       "settledAt": "2026-10-04T14:50:06.234Z",
+            "tariff": Object {
+              "amount": "0.033000000000",
+              "currency": "USD",
+              "priceVersionId": "01a10764-bb06-75e3-935e-df369d698802",
+              "status": "quoted",
+
+      1074 |     const aMeter = await meteredFor(first.body.requestId); const bMeter = await meteredFor(second.body.requestId);
+      1075 |     expect(bMeter).toMatchObject({ generationId: first.body.requestId, delegatedUserId: base.accountId });
+    > 1076 |     expect(await getGeneration('by-idempotency-key', originalHeaders)).toEqual(original);
+           |                                                                        ^
+      1077 |     expect(await meteredFor(first.body.requestId)).toEqual(aMeter);
+      1078 |     expect(await meteredFor(second.body.requestId)).toEqual(bMeter);
+      1079 |     expect(await moneyRowsFor(base.accountId)).toEqual(money);
+
+      at src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:1076:72
+      at fulfilled (src/routes/__tests__/inferenceEdgeInternalMetered.test.ts:43:58)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 36 skipped, 1 passed, 40 total
+Snapshots:   0 total
+Time:        4.166 s, estimated 8 s
+Ran all test suites within paths "src/routes/__tests__/inferenceEdgeInternalMetered.test.ts".
+error: script "test" exited with code 1
