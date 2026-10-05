@@ -40,7 +40,11 @@ import { extractUsername } from '../config/email.config';
 const router = Router();
 
 const BREVO_WEBHOOK_SECRET = getEnvVar('BREVO_WEBHOOK_SECRET', '');
-const SES_FEEDBACK_TOPIC_ARN = getEnvVar('SES_FEEDBACK_TOPIC_ARN', '').trim();
+/**
+ * The one SNS topic SES publishes Oxy's bounces and complaints to (us-west-2,
+ * docs: ~/Oxy/docs/outbound-mail-relay.md). An identifier, not a secret.
+ */
+export const SES_FEEDBACK_TOPIC_ARN = 'arn:aws:sns:us-west-2:237343248947:oxy-ses-feedback';
 /**
  * Refuse anything arriving with a cookie.
  *
@@ -127,7 +131,7 @@ export interface SnsEnvelope {
 /**
  * SNS signatures establish that Amazon emitted an envelope, not that the
  * envelope came from this deployment's SES feedback topic. Bind both
- * confirmations and notifications to the exact operator-configured ARN.
+ * confirmations and notifications to the exact feedback topic ARN.
  */
 export function isAuthorizedSnsTopic(topicArn: string | undefined, expectedTopicArn: string): boolean {
   return expectedTopicArn.length > 0 && topicArn === expectedTopicArn;
@@ -349,11 +353,6 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as SnsEnvelope;
 
-    if (!SES_FEEDBACK_TOPIC_ARN) {
-      logger.error('SNS feedback received but SES_FEEDBACK_TOPIC_ARN is not configured');
-      res.status(503).json({ error: 'Webhook not configured' });
-      return;
-    }
     if (!isAuthorizedSnsTopic(body.TopicArn, SES_FEEDBACK_TOPIC_ARN)) {
       logger.warn('SNS message rejected: topic is not authorized');
       res.status(403).json({ error: 'Invalid topic' });
