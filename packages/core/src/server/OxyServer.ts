@@ -376,6 +376,18 @@ export class OxyServer extends OxyServices {
     return snapshot;
   }
 
+  /** Offline metering read: the API requires this app's live consent for this exact subject. */
+  async productGrantSnapshotForService(query: SubjectProductAccessQuery): Promise<SubjectProductGrantSnapshot> {
+    const parsed = subjectProductAccessQuerySchema.parse(query);
+    const answer = await this.serviceRequest<unknown>('GET',
+      `/v1/products/${encodeURIComponent(parsed.productId)}/access/${encodeURIComponent(parsed.subjectAccountId)}/service-grants`,
+      undefined, { cache: false, retry: false });
+    const snapshot = subjectProductGrantSnapshotSchema.parse(answer);
+    if (snapshot.access.subjectAccountId !== parsed.subjectAccountId || snapshot.access.productId !== parsed.productId)
+      throw new Error('Product grant response attribution differs');
+    return snapshot;
+  }
+
   async serviceRequest<T>(
     method: HttpMethod,
     url: string,

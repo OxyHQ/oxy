@@ -1,12 +1,12 @@
 import { Router, type Response } from 'express';
 import { subjectProductAccessQuerySchema, subjectProductGrantSnapshotSchema } from '@oxy.so/contracts';
 import { productAccessResponseSchema, productAccessParamsSchema } from '../schemas/productAccess.schemas';
-import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { authMiddleware, serviceAuthMiddleware, type AuthRequest, type ServiceAuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { parseValidatedRequestValue, validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { UnauthorizedError } from '../utils/error';
-import { readAuthorizedSubjectProductAccess, readAuthorizedSubjectProductGrantSnapshot } from '../services/productAccessAuthorization.service';
+import { readAuthorizedSubjectProductAccess, readAuthorizedSubjectProductGrantSnapshot, readServiceAuthorizedSubjectProductGrantSnapshot } from '../services/productAccessAuthorization.service';
 
 const router = Router();
 const readLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600, prefix: 'rl:product:access:read:' });
@@ -39,6 +39,16 @@ router.get('/:productId/access/:subjectAccountId/grants', authMiddleware, readLi
     const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, { schemaVersion: 1,
       productId: req.params.productId, subjectAccountId: req.params.subjectAccountId });
     const data = await readAuthorizedSubjectProductGrantSnapshot(req.oxyToken, query);
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
+  }));
+/** No impersonation header: the exact path subject must hold live offline consent. */
+router.get('/:productId/access/:subjectAccountId/service-grants', serviceAuthMiddleware, readLimiter, validate({ params: productAccessParamsSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    if (!req.serviceApp) throw new UnauthorizedError();
+    const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, { schemaVersion: 1,
+      productId: req.params.productId, subjectAccountId: req.params.subjectAccountId });
+    const data = await readServiceAuthorizedSubjectProductGrantSnapshot(req.serviceApp, query);
     res.set('Cache-Control', 'no-store');
     res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
   }));

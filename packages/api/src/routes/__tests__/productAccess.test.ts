@@ -10,7 +10,7 @@ import { productAccessFixture, accessAccount } from '../../services/__fixtures__
 import { recordProductAccessPeriod } from '../../services/productAccessPersistence.service';
 import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 let identity: AccessTokenIdentity;
-jest.mock('../../middleware/auth', () => ({ authMiddleware: (req: { oxyToken: AccessTokenIdentity }, _res: unknown, next: () => void) => { req.oxyToken = identity; next(); } }));
+jest.mock('../../middleware/auth', () => ({ ...jest.requireActual('../../middleware/auth'), authMiddleware: (req: { oxyToken: AccessTokenIdentity }, _res: unknown, next: () => void) => { req.oxyToken = identity; next(); } }));
 jest.mock('../../middleware/rateLimiter', () => ({ rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next() }));
 import router from '../productAccess';
 const app = express(); app.use('/v1/products', router);

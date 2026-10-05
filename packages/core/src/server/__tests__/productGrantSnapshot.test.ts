@@ -16,3 +16,14 @@ it('forwards each user session independently, without cache or shared-token muta
  request.mockResolvedValue({schemaVersion:1,grants:[],access:{...a,subjectAccountId:'synthetic-b',evaluatedAt:new Date().toISOString(),capabilities:[],quotas:[],conflicts:[]}});
  await expect(server.productGrantSnapshotForUser(a,'session-a')).rejects.toThrow('attribution');
 });
+it('uses the service lane without impersonation and rejects a mismatched response',async()=>{
+ const server=new OxyServer({baseURL:'https://synthetic.invalid'});
+ const query=subjectProductAccessQuerySchema.parse({schemaVersion:1,subjectAccountId:'synthetic-a',productId:'synthetic-product'});
+ const service=jest.spyOn(server,'serviceRequest').mockResolvedValue({schemaVersion:1,grants:[],access:{...query,
+  evaluatedAt:new Date().toISOString(),capabilities:[],quotas:[],conflicts:[]}});
+ await server.productGrantSnapshotForService(query);
+ expect(service).toHaveBeenCalledWith('GET','/v1/products/synthetic-product/access/synthetic-a/service-grants',undefined,{cache:false,retry:false});
+ service.mockResolvedValue({schemaVersion:1,grants:[],access:{...query,subjectAccountId:'synthetic-b',
+  evaluatedAt:new Date().toISOString(),capabilities:[],quotas:[],conflicts:[]}});
+ await expect(server.productGrantSnapshotForService(query)).rejects.toThrow('attribution');
+});
