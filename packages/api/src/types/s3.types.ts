@@ -40,6 +40,10 @@ export interface FileInfo {
 
 export interface PresignedUrlOptions {
   expiresIn?: number;
+  /** Exact signed body size; the request transport must supply Content-Length. */
+  contentLength?: number;
+  /** Signed conditional PUT, preventing overwrite of an existing object. */
+  ifNoneMatch?: '*';
   contentType?: string;
   metadata?: Record<string, string>;
   /**

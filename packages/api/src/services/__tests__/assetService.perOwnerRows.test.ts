@@ -319,6 +319,28 @@ describe('a delete racing another owner\'s upload of the same bytes', () => {
   });
 });
 
+describe('configured presigned admission', () => {
+  it('signs the admitted size and digest for first upload and missing-object repair', async () => {
+    const f = await productAccessFixture();
+    mockCatalogue = {...EMPTY_PRODUCT_BILLING_CATALOGUE,products:f.products,
+      storageAdapter:{productId:f.products[0].id,quotaKey:'storage_bytes',unit:'byte',legacyCombination:'maximum'}};
+    const {service}=harness();const content=png();const hash=createHash('sha256').update(content).digest('hex');
+    const initial=await service.initUpload(f.payer,hash,content.length,'image/png');
+    const repair=await service.initUpload(f.payer,hash,content.length+1,'image/png');
+    for(const result of [initial,repair]) {
+      expect(result.requiredHeaders).toEqual({'If-None-Match':'*'});
+      const url=new URL(result.uploadUrl);
+      expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('content-length');
+      expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('if-none-match');
+      expect(url.searchParams.get('x-amz-checksum-sha256')).toBe(Buffer.from(hash,'hex').toString('base64'));
+      expect(url.searchParams.get('X-Amz-Expires')).toBe('60');
+    }
+    expect(initial.fileId).toBe(repair.fileId);
+    const [stored]=await getDb().select().from(files).where(eq(files.id,initial.fileId));
+    expect(stored.size).toBe(content.length);
+  });
+});
+
 describe('completeUpload', () => {
   it('refuses to commit metadata to a row the caller does not own', async () => {
     const { service } = harness();

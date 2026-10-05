@@ -639,12 +639,9 @@ export class AssetService {
         return await this.initUploadForExistingOwnRow(raced, userId, expectedMime);
       }
 
-      const uploadUrl = created.needsUpload
-        ? await this.s3Service.getPresignedUploadUrl(created.file.storageKey, {
-            contentType: expectedMime,
-            expiresIn: 3600,
-          })
-        : '';
+      const upload = created.needsUpload
+        ? await this.presignAdmittedUpload(created.file, expectedMime)
+        : {uploadUrl: ''};
 
       logger.info('Asset upload initialized', {
         fileId: created.file.id,
@@ -654,7 +651,7 @@ export class AssetService {
       });
 
       return {
-        uploadUrl,
+        ...upload,
         fileId: created.file.id,
         sha256: expectedSha256
       };
@@ -664,12 +661,24 @@ export class AssetService {
     }
   }
 
+  private async presignAdmittedUpload(file: FileRecord, contentType: string): Promise<Pick<AssetInitResponse, 'uploadUrl' | 'requiredHeaders'>> {
+    const configured = (await loadProductBillingCatalogue()).storageAdapter !== null;
+    if (configured && (!Number.isSafeInteger(file.size) || file.size <= 0 || !/^[a-f0-9]{64}$/i.test(file.sha256)))
+      throw new BadRequestError('Exact size and SHA-256 are required for admitted uploads');
+    const uploadUrl = await this.s3Service.getPresignedUploadUrl(file.storageKey, {
+      contentType, expiresIn: configured ? 60 : 3600,
+      ...(configured ? {contentLength:file.size, ifNoneMatch:'*' as const,
+        checksumSHA256:Buffer.from(file.sha256,'hex').toString('base64')} : {}),
+    });
+    return {uploadUrl, ...(configured ? {requiredHeaders:{'If-None-Match':'*'}} : {})};
+  }
+
   private async initUploadForExistingOwnRow(
     own: FileRecord,
     userId: string,
     expectedMime: string,
   ): Promise<AssetInitResponse> {
-    let uploadUrl = '';
+    let upload: Pick<AssetInitResponse, 'uploadUrl' | 'requiredHeaders'> = {uploadUrl: ''};
     if (!(await this.s3Service.fileExists(own.storageKey))) {
       if (await isStorageKeyUsedByOtherLiveRow(own.sha256, own.storageKey, own.id)) {
         logger.warn('Own asset row has no storage object, but its key is shared; not returning a repair URL', {
@@ -684,10 +693,7 @@ export class AssetService {
           sha256: own.sha256,
           storageKey: own.storageKey,
         });
-        uploadUrl = await this.s3Service.getPresignedUploadUrl(own.storageKey, {
-          contentType: expectedMime,
-          expiresIn: 3600
-        });
+        upload = await this.presignAdmittedUpload(own, expectedMime);
       }
     }
 
@@ -696,7 +702,7 @@ export class AssetService {
       fileId: own.id
     });
 
-    return { uploadUrl, fileId: own.id, sha256: own.sha256 };
+    return { ...upload, fileId: own.id, sha256: own.sha256 };
   }
 
   /**

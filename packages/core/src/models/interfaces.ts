@@ -581,6 +581,8 @@ export interface AssetInitRequest {
 }
 
 export interface AssetInitResponse {
+  /** Replay these headers on PUT; Content-Length is supplied by the transport. */
+  requiredHeaders?: Record<string, string>;
   uploadUrl: string;
   fileId: string;
   sha256: string;
