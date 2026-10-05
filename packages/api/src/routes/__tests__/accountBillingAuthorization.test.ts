@@ -31,30 +31,23 @@ import http from 'http';
 import crypto from 'crypto';
 import type { AddressInfo } from 'net';
 
+// The verified token names the human operator as `principalUserId` when the
+// session speaks as a managed account; a missing or unreadable session leaves
+// only the subject.
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: { _id: string; id: string; isStaff: boolean } },
+    req: {
+      user?: { _id: string; id: string; isStaff: boolean };
+      oxyToken?: { principalUserId: string };
+    },
     _res: unknown,
     next: () => void
   ) => {
     req.user = { _id: currentUserId, id: currentUserId, isStaff: false };
+    if (!sessionMissing && !sessionUnreadable) {
+      req.oxyToken = { principalUserId: currentOperatorId ?? currentUserId };
+    }
     next();
-  },
-}));
-
-
-// Exercise the canonical operator reader against a synthetic verified session.
-jest.mock('../../middleware/authUtils', () => ({
-  extractTokenFromRequest: () => 'own-synthetic-session',
-  decodeToken: () => ({ sessionId: 'own-synthetic-session-id' }),
-}));
-jest.mock('../../services/session.service', () => ({
-  __esModule: true,
-  default: {
-    getSession: jest.fn(async () => {
-      if (sessionUnreadable) throw Error('fixture session unavailable');
-      return sessionMissing ? null : { operatedByUserId: currentOperatorId };
-    }),
   },
 }));
 

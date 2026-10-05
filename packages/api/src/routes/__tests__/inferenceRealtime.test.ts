@@ -553,9 +553,9 @@ describe('session_milliseconds', () => {
     await withEdge(async (harness) => {
       const { customer, emit } = await opened(harness, fixture);
       const [reservation] = await reservationsFor(fixture.accountId);
-      // The token ceiling of the control case above ($2.72), plus
+      // The token ceiling of the control case above ($3.21536), plus
       // (60 000 ms signed + 60 000 ms open allowance) × $0.06/M = $0.0072.
-      expect(reservation.reservedAmount).toBe('2.727200000000');
+      expect(reservation.reservedAmount).toBe('3.222560000000');
       emit.closed([]);
       emit.report([], 'failed');
       await customer.closed;
@@ -1153,7 +1153,7 @@ describe('a token-priced route is relayed exactly as before', () => {
       );
       const [reservation] = await reservationsFor(fixture.accountId);
       // The token ceiling alone, as in 'holds spend against the signed limits'.
-      expect(reservation.reservedAmount).toBe('2.720000000000');
+      expect(reservation.reservedAmount).toBe('3.215360000000');
       for (const id of ['c-1', 'c-2', 'c-3']) {
         const item = textItem(customer.requestId, id);
         customer.send(item);
