@@ -9,6 +9,7 @@
  * `payment.controller`, `wallet.routes` in `packages/api`); `Date` columns
  * arrive as ISO-8601 strings.
  */
+import { personalPlanCatalogueSchema, type PersonalPlanCatalogue } from '@oxy.so/contracts';
 import { type SubjectProductAccess,
 	type SubjectProductAccessQuery,
 	subjectProductAccessQuerySchema, subjectProductAccessSchema, } from '@oxy.so/contracts';
@@ -115,6 +116,12 @@ export interface WalletTransactionsPage {
 export class BillingApi {
   constructor(protected readonly ctx: OxyContext) {}
 
+  /** Public versioned personal plans. Discovery never proves customer access. */
+  async personalPlans(): Promise<PersonalPlanCatalogue> {
+    return personalPlanCatalogueSchema.parse(await this.ctx.request<unknown>(
+      'GET', '/billing/personal-plans', undefined, { cache: false }));
+  }
+
   /** Product rights only; requires a production application-bound user session. Never cached. */
   async productAccess(query: SubjectProductAccessQuery): Promise<SubjectProductAccess> {
     const parsed = subjectProductAccessQuerySchema.parse(query);
@@ -125,11 +132,11 @@ export class BillingApi {
   }
 
 	/** Named commercial sources for the current subject; no inferred plan collapse. */
-	async productSubscriptions(): Promise<ProductSubscriptionSummary[]> {
+	async productSubscriptions(expectedSubjectAccountId?: string): Promise<ProductSubscriptionSummary[]> {
 		return productSubscriptionsResponseSchema.parse(
 			await this.ctx.request<unknown>(
 				"GET",
-				"/billing/product-subscriptions",
+				expectedSubjectAccountId ? `/billing/product-subscriptions?expectedSubjectAccountId=${encodeURIComponent(expectedSubjectAccountId)}` : "/billing/product-subscriptions",
 				undefined,
 				{ cache: false },
 			),

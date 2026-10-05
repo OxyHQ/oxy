@@ -42,6 +42,13 @@ export const productBillingCatalogueSchema = z
 		products: z.array(productDefinitionSchema),
 		offers: z.array(productOfferSchema),
 		prices: z.array(priceSchema),
+    /** Editorial publication grants no entitlement and enables no checkout. */
+    storageAdapter: z.object({ productId: id, quotaKey: id, unit: z.literal('byte'),
+      legacyCombination: z.literal('maximum') }).strict().nullable().default(null),
+    personalPlans: z.array(z.object({ offerId: id, offerVersion: z.number().int().positive().safe(),
+      displayName: z.string().min(1).max(100), audience: z.literal('personal'), kind: z.literal('oxy_one'),
+      benefitNames: z.array(z.string().min(1).max(100)),
+    }).strict()).default([]),
 		/** Explicit historical or beneficiary≠payer mappings require reviewed exact IDs. */
 		displayNames: z.object({ products: z.record(id, z.string().min(1).max(100)), offers: z.record(id, z.string().min(1).max(100)) }).strict().default({ products: {}, offers: {} }),
     subscriptions: z.array(
@@ -71,6 +78,20 @@ export const productBillingCatalogueSchema = z
 				code: "custom",
 				message: "Duplicate product or offer identity",
 			});
+    if (value.storageAdapter && !products.has(value.storageAdapter.productId))
+      context.addIssue({ code: 'custom', message: 'Storage adapter requires a registered product' });
+    const published = new Set<string>();
+    for (const plan of value.personalPlans) {
+      const key = `${plan.offerId}@${plan.offerVersion}`;
+      const offer = offers.get(key);
+      if (published.has(key) || !offer || offer.kind !== 'bundle' || !offer.benefits.length
+        || plan.benefitNames.length !== offer.benefits.length
+        || offer.benefits.some(benefit => !products.has(benefit.productId)
+          || (benefit.kind === 'quota' && (benefit.unit === 'api_credit' || benefit.key === 'api_credits')))) {
+        context.addIssue({ code: 'custom', message: 'Published personal plan requires a unique registered non-API-credit bundle version' });
+      }
+      published.add(key);
+    }
 		const prices = new Set<string>();
 		for (const binding of value.prices) {
 			const key = `${binding.providerAccountId}:${binding.mode}:${binding.environment}:${binding.priceId}`;
@@ -164,7 +185,7 @@ export const EMPTY_PRODUCT_BILLING_CATALOGUE: ProductBillingCatalogue = {
 	schemaVersion: 1,
 	products: [],
 	offers: [],
-	prices: [],
+	prices: [], personalPlans: [], storageAdapter: null,
 	subscriptions: [], displayNames: { products: {}, offers: {} },
 };
 

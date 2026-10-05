@@ -1,3 +1,4 @@
+import { readPersonalPlanCatalogue } from '../services/personalPlanCatalogue';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import { cancelProductSubscriptionSchema, productSubscriptionsResponseSchema, subscriptionCreditGrantsResponseSchema,
 } from "@oxy.so/contracts";
@@ -254,11 +255,23 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
   }
 });
 
+/** Public personal-plan discovery is separate from authenticated customer rights. */
+router.get('/personal-plans', async (_req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    return res.json(readPersonalPlanCatalogue(await loadProductBillingCatalogue()));
+  } catch {
+    return res.status(503).json({ error: 'Plan catalogue is temporarily unavailable' });
+  }
+});
+
 /** List source lifecycle and paid segments separately; historical offers never masquerade as current access.
  * @response 200 productSubscriptionsResponseSchema Source lifecycle and paid segment provenance.
  */
 router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, res: Response) => {
   const userId = req.user?._id?.toString(); if (!userId) return res.status(401).json({ error: 'Authentication required' });
+  if (req.query.expectedSubjectAccountId !== undefined && req.query.expectedSubjectAccountId !== userId)
+    return res.status(403).json({ error: 'Signed-in subject changed' });
   try {
     const namespace = await assertBillingDatabaseNamespace(getDb());
     const catalogue = await loadProductBillingCatalogue(); const now = Date.now();

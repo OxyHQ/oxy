@@ -313,19 +313,19 @@ export async function revokeProductAccessGrant(input: { grantId: string; product
   return rows.length === 1;
 }
 /** Caller authorization is separate and mandatory at every exposed boundary. */
-export async function readSubjectProductAccess(subjectAccountId: string, productId: string, now = new Date()) {
-  const namespace = await assertBillingDatabaseNamespace(getDb());
-  await readRegisteredProduct(getDb(), productId);
-  const rows = await getDb().select({ grant: accessGrants, benefit: accessOfferBenefits, segment: accessOfferSegments })
+export async function readSubjectProductAccess(subjectAccountId: string, productId: string, now = new Date(), db: DatabaseOrTransaction = getDb()) {
+  const namespace = await assertBillingDatabaseNamespace(db);
+  await readRegisteredProduct(db, productId);
+  const rows = await db.select({ grant: accessGrants, benefit: accessOfferBenefits, segment: accessOfferSegments })
     .from(accessGrants)
     .innerJoin(accessOfferBenefits, and(eq(accessGrants.offerId, accessOfferBenefits.offerId), eq(accessGrants.offerVersion, accessOfferBenefits.offerVersion), eq(accessGrants.benefitIndex, accessOfferBenefits.benefitIndex)))
     .innerJoin(accessOfferSegments, eq(accessGrants.sourceSegmentId, accessOfferSegments.id))
     .innerJoin(accessSubscriptionSources, eq(accessOfferSegments.subscriptionId, accessSubscriptionSources.id))
     .where(and(eq(accessGrants.beneficiaryAccountId, subjectAccountId), eq(accessGrants.productId, productId),
       eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment)));
-  for (const row of rows) await configuredOffer(getDb(), row.segment.offerId, row.segment.offerVersion);
+  for (const row of rows) await configuredOffer(db, row.segment.offerId, row.segment.offerVersion);
   const sourceIds = [...new Set(rows.map(row => row.segment.subscriptionId))];
-  const sources = sourceIds.length ? await getDb().select().from(accessSubscriptionSources).where(and(inArray(accessSubscriptionSources.id, sourceIds), eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment))) : [];
+  const sources = sourceIds.length ? await db.select().from(accessSubscriptionSources).where(and(inArray(accessSubscriptionSources.id, sourceIds), eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment))) : [];
   const segments = [...new Map(rows.map(row => [row.segment.id, segmentDto(row.segment)])).values()];
   const grants = rows.map(({ grant, benefit }) => productAccessGrantSchema.parse({ schemaVersion: 1, id: grant.id,
     sourceSegmentId: grant.sourceSegmentId, beneficiaryAccountId: grant.beneficiaryAccountId,

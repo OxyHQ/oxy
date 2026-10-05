@@ -1,0 +1,68 @@
+import React, { useState } from 'react';
+import { View, Pressable } from 'react-native';
+import { authenticatedApiCall } from '@oxy.so/core';
+import { useOxy, usePersonalPlans, usePersonalPlanSubscriptions } from '@oxy.so/services';
+import { Section } from '@/components/section';
+import { ThemedText } from '@/components/themed-text';
+import { useTranslation } from '@/lib/i18n';
+
+/** Remount confirmation state on every account/session change. */
+export function PersonalPlansCard() {
+  const { user, activeSessionId } = useOxy();
+  return <PersonalPlansContent key={`${user?.id}:${activeSessionId}`} />;
+}
+
+function PersonalPlansContent() {
+  const { oxyServices, user, activeSessionId, isAuthenticated } = useOxy();
+  const { t } = useTranslation();
+  const catalogue = usePersonalPlans();
+  const sources = usePersonalPlanSubscriptions();
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  async function cancel(sourceId: string) {
+    if (!user?.id || !isAuthenticated || busy) return;
+    setBusy(true);
+    try {
+      const result = await authenticatedApiCall(oxyServices, activeSessionId,
+        () => oxyServices.billing.cancelProductSubscriptionWithStatus(sourceId, user.id));
+      setMessage(t(`payments.one.${'reconciliationPending' in result ? 'pending' : 'scheduled'}`));
+      setConfirm(null);
+      await sources.refetch();
+    } catch {
+      setMessage(t('payments.one.failed'));
+    } finally { setBusy(false); }
+  }
+  return <Section title="Oxy One">
+    <View style={{ gap: 12, padding: 16 }}>
+      <ThemedText>{t('payments.one.description')}</ThemedText>
+      {catalogue.isPending ? <ThemedText>{t('payments.one.loading')}</ThemedText>
+        : catalogue.isError ? <ThemedText>{t('payments.one.unavailable')}</ThemedText>
+        : <>
+          {catalogue.data?.plans.map(plan => <View key={`${plan.offerId}@${plan.offerVersion}`}>
+            <ThemedText>{plan.displayName} · v{plan.offerVersion}</ThemedText>
+            {plan.benefits.map(({ displayName, benefit }) => <ThemedText key={`${benefit.productId}:${benefit.key}:${displayName}`}>
+              {displayName}{benefit.kind === 'quota' ? ` · ${benefit.included.toLocaleString()} ${benefit.unit}` : ''}
+            </ThemedText>)}
+          </View>)}
+          <ThemedText>{t('payments.one.unconfigured')}</ThemedText>
+        </>}
+      {isAuthenticated && (sources.isPending ? <ThemedText>{t('payments.one.loading')}</ThemedText>
+        : sources.isError ? <ThemedText>{t('payments.one.sourceError')}</ThemedText>
+        : sources.data?.length ? sources.data.map(source => <View key={source.sourceId} style={{ gap: 8 }}>
+          <ThemedText>{source.status} · {source.cancelAtPeriodEnd ? t('payments.one.ends') : t('payments.one.period')} {source.period.end.slice(0, 10)}</ThemedText>
+          {source.offers.map(offer => <ThemedText key={offer.segmentId}>
+            {offer.displayName} · v{offer.offerVersion} · {offer.origin} · {offer.current ? t('payments.one.current') : t('payments.one.history')}
+          </ThemedText>)}
+          {source.canCancel && !source.cancelAtPeriodEnd && <>
+            {confirm === source.sourceId ? <>
+              <ThemedText>{t('payments.one.confirm')}</ThemedText>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => cancel(source.sourceId)}><ThemedText>{t('payments.one.confirmCancel')}</ThemedText></Pressable>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => setConfirm(null)}><ThemedText>{t('payments.one.keep')}</ThemedText></Pressable>
+            </> : <Pressable accessibilityRole="button" onPress={() => setConfirm(source.sourceId)}><ThemedText>{t('payments.one.cancel')}</ThemedText></Pressable>}
+          </>}
+        </View>) : <ThemedText>{t('payments.one.noSources')}</ThemedText>)}
+      {!!message && <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>}
+    </View>
+  </Section>;
+}

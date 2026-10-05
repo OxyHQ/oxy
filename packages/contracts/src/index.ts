@@ -1529,3 +1529,5 @@ export * from './agentKeys';
 export { productSubscriptionSummarySchema, productSubscriptionsResponseSchema,
     subscriptionCreditGrantSchema, subscriptionCreditGrantsResponseSchema, cancelProductSubscriptionSchema, productSubscriptionCancellationResultSchema,
     type ProductSubscriptionSummary, type SubscriptionCreditGrant, type ProductSubscriptionCancellationResult } from './products/billing';
+
+export { personalPlanCatalogueSchema, type PersonalPlanCatalogue } from './products/plans';

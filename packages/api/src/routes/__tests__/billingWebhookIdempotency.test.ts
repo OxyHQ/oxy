@@ -1491,6 +1491,11 @@ it("self-service lists multiple product sources and named cancellation preserves
 			const read = await fetch(`${base}/billing/product-subscriptions`, {
 				headers,
 			});
+			const switched = await fetch(`${base}/billing/product-subscriptions?expectedSubjectAccountId=${second.userId}`, { headers });
+            expect(switched.status).toBe(403);
+            const plans = await fetch(`${base}/billing/personal-plans`);
+            expect(plans.status).toBe(200);
+            expect(await plans.json()).toMatchObject({ purchase: 'unavailable', plans: [] });
 			expect(read.status).toBe(200);
 			expect(read.headers.get("cache-control")).toBe("no-store");
 			const body = (await read.json()) as {

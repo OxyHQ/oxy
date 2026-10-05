@@ -1,6 +1,21 @@
 import { stubbedClient } from './helpers';
 
 describe('oxy.billing', () => {
+  it('loads public plans through the shared schema and refuses invented prices', async () => {
+    const { oxy, request } = stubbedClient('me');
+    const answer = { schemaVersion: 1, state: 'unconfigured', purchase: 'unavailable', plans: [] };
+    request.mockResolvedValue(answer);
+    await expect(oxy.billing.personalPlans()).resolves.toEqual(answer);
+    expect(request).toHaveBeenLastCalledWith('GET', '/billing/personal-plans', undefined, { cache: false });
+    request.mockResolvedValue({ ...answer, price: 2999 });
+    await expect(oxy.billing.personalPlans()).rejects.toThrow();
+  });
+  it('fences a subscription read to the rendered account', async () => {
+    const { oxy, request } = stubbedClient('me');
+    request.mockResolvedValue({ subscriptions: [] });
+    await oxy.billing.productSubscriptions('account/one');
+    expect(request).toHaveBeenLastCalledWith('GET', '/billing/product-subscriptions?expectedSubjectAccountId=account%2Fone', undefined, { cache: false });
+  });
   it('queries explicit product rights uncached and parses the access-only response', async () => {
     const { oxy, request } = stubbedClient('me');
     const query = { schemaVersion: 1 as const, subjectAccountId: 'me', productId: 'product/one' };
