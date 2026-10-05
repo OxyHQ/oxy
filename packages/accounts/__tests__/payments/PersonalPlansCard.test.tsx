@@ -1,5 +1,7 @@
 import React from 'react';
 import { render, fireEvent, screen, waitFor } from '@testing-library/react';
+let mockActionCounter=0;
+jest.mock('expo-crypto',()=>({randomUUID:()=>`action_${++mockActionCounter}`}));
 const mockCancel = jest.fn();
 let mockUser = { id: 'first' };
 const mockRefetch = jest.fn();
@@ -22,7 +24,7 @@ jest.mock('@oxy.so/services', () => ({
   usePersonalPlanSubscriptions: () => ({ data: [mockSource], refetch: mockRefetch }),
 }));
 import { PersonalPlansCard } from '@/components/payments/PersonalPlansCard';
-beforeEach(() => { mockUser = { id: 'first' }; mockCancel.mockReset(); mockRefetch.mockReset(); mockPlans = []; mockLocale = 'en-US'; });
+beforeEach(() => {mockActionCounter=0; mockUser = { id: 'first' }; mockCancel.mockReset(); mockRefetch.mockReset(); mockPlans = []; mockLocale = 'en-US'; });
 it('requires confirmation, fences cancellation to the account, and explains pending reconciliation', async () => {
   mockCancel.mockResolvedValue({ sourceId: 'source-one', reconciliationPending: true });
   render(<PersonalPlansCard />);
@@ -30,7 +32,7 @@ it('requires confirmation, fences cancellation to the account, and explains pend
   fireEvent.click(screen.getByText('payments.one.cancel'));
   expect(mockCancel).not.toHaveBeenCalled();
   fireEvent.click(screen.getByText('payments.one.confirmCancel'));
-  await waitFor(() => expect(mockCancel).toHaveBeenCalledWith('source-one', 'first'));
+  await waitFor(() => expect(mockCancel).toHaveBeenCalledWith('source-one', 'first','action_1'));
   expect(await screen.findByText('payments.one.pending')).toBeTruthy();
 });
 it('clears a pending confirmation when the account changes', () => {
@@ -59,4 +61,11 @@ it('formats locale-aware prices and follows SDK amounts rather than a UI constan
   render(<PersonalPlansCard />);
   expect(screen.getByText(/12,34.*US.*\/mes/)).toBeTruthy();
   expect(screen.queryByText(/29[.,]99/)).toBeNull();
+});
+
+it('retries same action and assigns new identity to later cancellation',async()=>{
+ mockCancel.mockRejectedValueOnce(new Error('unknown')).mockResolvedValue({sourceId:'source-one',cancelAtPeriodEnd:true});render(<PersonalPlansCard/>);
+ fireEvent.click(screen.getByText('payments.one.cancel'));fireEvent.click(screen.getByText('payments.one.confirmCancel'));await screen.findByText('payments.one.failed');
+ fireEvent.click(screen.getByText('payments.one.confirmCancel'));await screen.findByText('payments.one.scheduled');expect(mockCancel.mock.calls.map(v=>v[2])).toEqual(['action_1','action_1']);
+ fireEvent.click(screen.getByText('payments.one.cancel'));fireEvent.click(screen.getByText('payments.one.confirmCancel'));await waitFor(()=>expect(mockCancel).toHaveBeenCalledTimes(3));expect(mockCancel.mock.calls[2][2]).toBe('action_2');
 });

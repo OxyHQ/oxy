@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState,useRef } from 'react';
+import {randomUUID} from 'expo-crypto';
 import { View, Pressable } from 'react-native';
 import { authenticatedApiCall } from '@oxy.so/core';
 import { useOxy, usePersonalPlans, usePersonalPlanSubscriptions } from '@oxy.so/services';
@@ -19,14 +20,17 @@ function PersonalPlansContent() {
   const sources = usePersonalPlanSubscriptions();
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const actions=useRef(new Map<string,string>());
   const [message, setMessage] = useState('');
   async function cancel(sourceId: string) {
     if (!user?.id || !isAuthenticated || busy) return;
+    const actionId=actions.current.get(sourceId)??randomUUID();actions.current.set(sourceId,actionId);
     setBusy(true);
     try {
       const result = await authenticatedApiCall(oxyServices, activeSessionId,
-        () => oxyServices.billing.cancelProductSubscriptionWithStatus(sourceId, user.id));
+        () => oxyServices.billing.cancelProductSubscriptionWithStatus(sourceId, user.id,actionId));
       setMessage(t(`payments.one.${'reconciliationPending' in result ? 'pending' : 'scheduled'}`));
+      actions.current.delete(sourceId);
       setConfirm(null);
       await sources.refetch();
     } catch {
@@ -63,7 +67,7 @@ function PersonalPlansContent() {
             {confirm === source.sourceId ? <>
               <ThemedText>{t('payments.one.confirm')}</ThemedText>
               <Pressable accessibilityRole="button" disabled={busy} onPress={() => cancel(source.sourceId)}><ThemedText>{t('payments.one.confirmCancel')}</ThemedText></Pressable>
-              <Pressable accessibilityRole="button" disabled={busy} onPress={() => setConfirm(null)}><ThemedText>{t('payments.one.keep')}</ThemedText></Pressable>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => {actions.current.delete(source.sourceId);setConfirm(null);}}><ThemedText>{t('payments.one.keep')}</ThemedText></Pressable>
             </> : <Pressable accessibilityRole="button" onPress={() => setConfirm(source.sourceId)}><ThemedText>{t('payments.one.cancel')}</ThemedText></Pressable>}
           </>}
         </View>) : <ThemedText>{t('payments.one.noSources')}</ThemedText>)}

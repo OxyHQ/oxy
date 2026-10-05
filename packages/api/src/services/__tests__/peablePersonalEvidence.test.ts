@@ -1,0 +1,20 @@
+import {randomUUID} from 'node:crypto';
+import {eq} from 'drizzle-orm';
+import {connectPostgres,closePostgres,getDb} from '../../config/postgres';
+import {accessGrants,accessSubscriptionSources} from '../../db/schema';
+import {productAccessFixture} from '../__fixtures__/productAccessFixtures';
+import {reconcilePeablePersonalPaidInvoice,type PeableEvidenceAuthority} from '../peablePersonalEvidence.service';
+import {recordProductAccessPeriod} from '../productAccessPersistence.service';
+beforeAll(connectPostgres);afterAll(closePostgres);
+it('requires real authority, activates exact paid period once and preserves individual sources',async()=>{
+ const f=await productAccessFixture();const raw=f.input(f.offers[1]);await recordProductAccessPeriod({...raw,source:{...raw.source,beneficiaryAccountId:f.payer},segment:{...raw.segment,beneficiaryAccountId:f.payer}});
+ const context={accountId:f.payer,customerId:'cus_fixture',subscriptionId:`sub_${randomUUID()}`,priceId:'price_fixture',planId:'approved_fixture',merchantId:'merch_fixture',mode:'live' as const,environment:'production' as const,offerId:f.offers[0].id,offerVersion:1};
+ const value={invoiceId:'in_fixture',lineId:'il_fixture',paymentIntentId:'pi_fixture',providerSubscriptionId:context.subscriptionId,providerCustomerId:context.customerId,providerPriceId:context.priceId,storeId:f.payer,planId:context.planId,livemode:true,currency:'USD',amountPaid:'2999',netAmount:'2500',taxAmount:'499',periodStart:f.period.start,periodEnd:f.period.end,paidAt:f.now.toISOString(),observedAt:f.now.toISOString()};
+ const final={platform:'peable',currency:'USD',grossMinorUnits:2999,netMinorUnits:2500,taxMinorUnits:499,merchantFeeMinorUnits:0,taxTreatment:'inclusive',sellerId:'synthetic-review-seller',invoiceIssuerId:'synthetic-review-issuer',taxQuoteId:'synthetic-review-tax',customerLocationEvidenceId:'synthetic-location',taxRateEvidenceId:'synthetic-rate',issuedAt:new Date(f.now.getTime()-1000).toISOString(),expiresAt:new Date(f.now.getTime()+60_000).toISOString(),context:{payerAccountId:f.payer,beneficiaryAccountId:f.payer,providerSubscriptionId:context.subscriptionId,offerId:context.offerId,offerVersion:1,periodStart:f.period.start,periodEnd:f.period.end,mode:'live',environment:'production'}};
+ const read=jest.fn(async()=>value);const current=jest.fn(async()=>({providerSubscriptionId:context.subscriptionId,providerCustomerId:context.customerId,providerPriceId:context.priceId,storeId:f.payer,planId:context.planId,livemode:true,status:'active',interval:'month',cancelAtPeriodEnd:true,currentPeriodStart:f.period.start,currentPeriodEnd:f.period.end,trialEndsAt:null}));
+ const client={billing:{retrievePaidInvoice:read,retrieveSubscription:current}} as unknown as PeableEvidenceAuthority['client'];
+ await expect(reconcilePeablePersonalPaidInvoice({client},context,'in_fixture',f.now)).rejects.toThrow('unconfigured');expect(read).not.toHaveBeenCalled();const authority={client,readFinalInvoiceAuthority:async()=>final};
+ read.mockResolvedValue({...value,storeId:f.owner});await expect(reconcilePeablePersonalPaidInvoice(authority,context,'in_fixture',f.now)).rejects.toThrow('ownership');read.mockResolvedValue({...value,observedAt:new Date(f.now.getTime()-60_001).toISOString()});await expect(reconcilePeablePersonalPaidInvoice(authority,context,'in_fixture',f.now)).rejects.toThrow('time');read.mockResolvedValue(value);
+ const first=await reconcilePeablePersonalPaidInvoice(authority,context,'in_fixture',f.now);const second=await reconcilePeablePersonalPaidInvoice(authority,context,'in_fixture',f.now);expect(second.sourceId).toBe(first.sourceId);
+ expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId,f.payer))).toHaveLength(3);const sources=await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.payerAccountId,f.payer));expect(sources).toHaveLength(2);expect(sources.find(s=>s.id===first.sourceId)?.cancelAtPeriodEnd).toBe(true);
+});

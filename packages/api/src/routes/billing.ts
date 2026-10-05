@@ -1,3 +1,5 @@
+import {cancelStoredPeablePersonalSource,loadPeablePersonalManagement} from '../services/peablePersonalManagement.service';
+import {assertPersistedBillingNamespace,readPersistedBillingNamespace} from '../config/billingNamespace';
 import { ApiError } from '../utils/error';
 import { personalPlanCheckoutRequestSchema } from '@oxy.so/contracts';
 import { startPersonalPlanCheckout } from '../services/personalPlanCheckout.service';
@@ -287,7 +289,9 @@ router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, re
   if (req.query.expectedSubjectAccountId !== undefined && req.query.expectedSubjectAccountId !== userId)
     return res.status(403).json({ error: 'Signed-in subject changed' });
   try {
-    const namespace = await assertBillingDatabaseNamespace(getDb());
+    const peableManagement=await loadPeablePersonalManagement();
+    const namespace=peableManagement?peableManagement.configuration.namespace:await assertBillingDatabaseNamespace(getDb());
+    if(peableManagement)assertPersistedBillingNamespace(await readPersistedBillingNamespace(getDb()),namespace);
     const catalogue = await loadProductBillingCatalogue(); const now = Date.now();
     const sources = await getDb().select().from(accessSubscriptionSources).where(and(eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment), or(eq(accessSubscriptionSources.payerAccountId, userId), eq(accessSubscriptionSources.beneficiaryAccountId, userId))));
     const subscriptions = await Promise.all(sources.map(async source => {
@@ -301,7 +305,7 @@ router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, re
           products: [...new Set(grants.map(grant => grant.productId))].map(id => ({ id, displayName: catalogue.displayNames.products[id] ?? 'Product' })) };
       }));
       return { sourceId: source.id, status: source.status, period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
-        cancelAtPeriodEnd: source.cancelAtPeriodEnd, canCancel: source.payerAccountId === userId && source.provider === 'stripe'
+        cancelAtPeriodEnd: source.cancelAtPeriodEnd, canCancel: source.payerAccountId === userId && (source.provider === 'stripe' || (source.provider === 'peable' && !!peableManagement && source.providerAccountRef===peableManagement.configuration.merchantId))
           && source.mode === namespace.mode && source.environment === namespace.environment && ['active','trialing'].includes(source.status), offers };
     }));
     res.set('Cache-Control', 'no-store'); return res.json(productSubscriptionsResponseSchema.parse({ subscriptions }));
@@ -368,7 +372,6 @@ router.post(
 		if (parsed.success && parsed.data.expectedSubjectAccountId && parsed.data.expectedSubjectAccountId !== userId) return res.status(403).json({ error: 'Signed-in subject changed' });
     let providerConfirmed = false;
 	try {
-      const namespace = await assertBillingDatabaseNamespace(getDb());
 			const [source] = await getDb()
 				.select()
 				.from(accessSubscriptionSources)
@@ -378,6 +381,13 @@ router.post(
 						eq(accessSubscriptionSources.payerAccountId, userId),
 					),
 				);
+      if(source?.provider==='peable'){
+        await assertProductSourceEvidence(source);
+        if(!parsed.data.expectedSubjectAccountId||!parsed.data.actionId)return res.status(400).json({error:'Expected subject and cancellation action ID required'});
+        const answer=await cancelStoredPeablePersonalSource(userId,source.id,parsed.data.actionId);
+        return res.status('reconciliationPending' in answer?202:200).json(answer);
+      }
+      const namespace = await assertBillingDatabaseNamespace(getDb());
 			if (
 				!source ||
 				source.provider !== "stripe" ||
@@ -447,6 +457,7 @@ router.post(
 			return res.json({ sourceId: source.id, cancelAtPeriodEnd: true });
 		} catch (error) {
 			logger.error("Named product cancellation failed", error);
+      if(error instanceof ApiError)return res.status(error.statusCode).json({error:error.code});
       if (providerConfirmed) return res.status(202).json({ sourceId: parsed.data.sourceId, reconciliationPending: true });
 			return res
 				.status(500)

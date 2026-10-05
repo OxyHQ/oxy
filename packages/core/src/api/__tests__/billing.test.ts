@@ -137,3 +137,10 @@ describe('oxy.billing', () => {
     expect(request).not.toHaveBeenCalled();
   });
 });
+
+it('forwards one explicit cancellation action identity without regenerating it on retry',async()=>{
+ const {oxy,request}=stubbedClient('me');request.mockResolvedValue({sourceId:'source',cancelAtPeriodEnd:true});
+ await oxy.billing.cancelProductSubscriptionWithStatus('source','me','action_001');await oxy.billing.cancelProductSubscriptionWithStatus('source','me','action_001');
+ expect(request).toHaveBeenLastCalledWith('POST','/billing/product-subscriptions/cancel',{sourceId:'source',expectedSubjectAccountId:'me',actionId:'action_001'},{cache:false});
+ await oxy.billing.cancelProductSubscriptionWithStatus('source','me','action_002');expect(request.mock.calls[2][2]).toMatchObject({actionId:'action_002'});
+});

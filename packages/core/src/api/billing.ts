@@ -162,20 +162,20 @@ export class BillingApi {
 	}
 
 	/** Payer-only named-source cancellation. Resolves on provider acceptance, including pending local reconciliation. Use cancelProductSubscriptionWithStatus for detailed completion state. */
-	async cancelProductSubscription(sourceId: string, expectedSubjectAccountId?: string): Promise<void> {
+	async cancelProductSubscription(sourceId: string, expectedSubjectAccountId?: string, actionId?:string): Promise<void> {
 		await this.ctx.request(
 			"POST",
 			"/billing/product-subscriptions/cancel",
-			cancelProductSubscriptionSchema.parse({ sourceId, ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}) }),
+			cancelProductSubscriptionSchema.parse({ sourceId, ...(actionId?{actionId}:{}), ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}) }),
 			{ cache: false },
 		);
 	}
 
   /** Provider acceptance versus completed local cancellation, for user-facing flows. */
-  async cancelProductSubscriptionWithStatus(sourceId: string, expectedSubjectAccountId?: string): Promise<ProductSubscriptionCancellationResult> {
+  async cancelProductSubscriptionWithStatus(sourceId: string, expectedSubjectAccountId?: string, actionId?:string): Promise<ProductSubscriptionCancellationResult> {
     return productSubscriptionCancellationResultSchema.parse(await this.ctx.request<unknown>(
       'POST', '/billing/product-subscriptions/cancel',
-      cancelProductSubscriptionSchema.parse({ sourceId, ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}) }),
+      cancelProductSubscriptionSchema.parse({ sourceId, ...(actionId?{actionId}:{}), ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}) }),
       { cache: false },
     ));
   }
