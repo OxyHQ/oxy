@@ -18,6 +18,12 @@ export interface MentionClassifierApproval {
   readonly priceVersionId: string;
   readonly routingPolicyId: string;
   readonly routingPolicyVersion: number;
+  /** A separately reviewed second qualification, never a reset of the first request. */
+  readonly qualificationBudget?: {
+    readonly utcDay: '2026-10-05';
+    readonly maxTotalRequests: 2;
+    readonly previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1';
+  };
 }
 
 /** Exact root-reviewed own-Mention relationship; no environment override or mutable setter. */
@@ -33,8 +39,13 @@ const REVIEWED_MENTION_APPROVAL: MentionClassifierApproval = {
   "routingPolicyVersion": 1
 };
 
+/** Value isolation only; this function neither approves nor activates its input. */
+export function cloneMentionClassifierApproval(approval: MentionClassifierApproval): MentionClassifierApproval {
+  return structuredClone(approval);
+}
+
 export function mentionClassifierApproval(): MentionClassifierApproval | undefined {
   const now = Date.now();
   return Number.isFinite(now) && Date.parse(REVIEWED_MENTION_APPROVAL.expiresAt) > now
-    ? { ...REVIEWED_MENTION_APPROVAL } : undefined;
+    ? cloneMentionClassifierApproval(REVIEWED_MENTION_APPROVAL) : undefined;
 }
