@@ -159,12 +159,14 @@ A route that prices neither completely is refused `no_route_available`
 A session is one request: one hold, one receipt.
 
 - **Hold:** per authorized route, `maxResponses × context window` at the dearest
-  of the four input token units and `maxResponses × per-response output cap` at
-  the dearest of the three output units, plus `requests` — or, for a
+  of the four input token units and `maxResponses × route output cap` at the
+  dearest of the three output units, plus `requests` — or, for a
   duration-priced route, the duration ceiling above — plus
   `session_milliseconds` at `maxDurationMs + 60 000` (contract set 3.3.0; the
   allowance covers Kaana's bounded open, 20 s per stage, since Kaana measures
-  from the accepted upstream handshake) on every plan. Every unit must be priced: a route
+  from the accepted upstream handshake) on every plan. The route cap, rather
+  than the opening config's cap, covers later session updates and per-response
+  overrides. Every unit must be priced: a route
   whose provider bills no session time (OpenAI) prices `session_milliseconds`
   explicitly at zero, exactly as `requests`; a route that leaves it unpriced is
   refused before the hold. The hold expires after the session's maximum duration, the resume
