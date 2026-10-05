@@ -99,3 +99,7 @@ streams in both critical phases: while the first PUT owns its lock, and after it
 reservation commit but before PUT lock acquisition. Both requests return one file
 with one PUT and one counted hold. Full unquiescent batches defer so later safe
 orphans progress; a failed delete retains its bytes while a later delete succeeds.
+
+## Recovery scheduling fairness
+
+Candidate eligibility still requires the original writer lease and any retry deadline to have elapsed. Selection orders by `coalesce(retry_after, recover_after)` then reservation ID, moving deferred candidates behind later due holds independently of scheduler cadence. PostgreSQL regressions advance the next bounded run beyond five and ten minutes: the safe hold is cleaned while both unquiescent holds remain counted and their writer leases stay unchanged. No extra migration, release of unverified bytes or scheduler activation is introduced.

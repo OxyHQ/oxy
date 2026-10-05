@@ -86,7 +86,10 @@ export async function recoverStorageByteReservations(
         and (f.storage_key = ${storageByteReservations.objectKey} or exists (
           select 1 from "file_variants" v where v.file_id = f.id and v.key = ${storageByteReservations.objectKey}
         )))`))
-    .orderBy(storageByteReservations.recoverAfter, storageByteReservations.id).limit(limit);
+    // Retry deadlines also move attempted rows to the back of the due queue.
+    // Filtering alone would starve later holds when each run exceeds the backoff.
+    .orderBy(sql`coalesce(${storageByteReservations.retryAfter}, ${storageByteReservations.recoverAfter})`,
+      storageByteReservations.id).limit(limit);
   let cleaned = 0, retained = 0, failed = 0, backoffFailed = 0;
   const retryAfter = new Date(now.getTime() + RECOVERY_RETRY_DELAY_MS);
   for (const candidate of candidates) {

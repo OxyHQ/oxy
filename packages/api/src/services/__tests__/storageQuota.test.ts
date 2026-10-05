@@ -361,6 +361,29 @@ it('defers a full batch of unquiescent holds so the next bounded run reaches a s
   expect(deferred.every(row => row.recoverAfter.getTime() === 0)).toBe(true); // retry does not revive upload admission
   expect(await reservedStorageBytes(getDb(), owner)).toBe(4n);
 });
+it.each([5 * 60_000 + 1, 10 * 60_000])(
+  'rotates a blocked full batch behind safe holds when the next run advances %i ms', async (elapsed) => {
+    for (let i = 0; i < 2; i++) await reserveStorageBytes({ accountId: owner, sha256: '3'.repeat(64),
+      objectKey: 'synthetic/cadence-blocked/' + randomUUID(), size: 2, kind: 'server', recoverAfter: new Date(0) });
+    const safe = await reserveStorageBytes({ accountId: owner, sha256: '4'.repeat(64),
+      objectKey: 'synthetic/cadence-safe/' + randomUUID(), size: 3, kind: 'server', recoverAfter: new Date(1) });
+    const remove = jest.fn(async () => undefined);
+    const quiescent = jest.fn(async (row: typeof storageByteReservations.$inferSelect) => row.objectKey === safe.objectKey);
+    const firstRun = new Date(2), nextRun = new Date(2 + elapsed);
+    expect(await recoverStorageByteReservations(remove, quiescent, 2, firstRun))
+      .toEqual({ cleaned: 0, retained: 2, failed: 0, backoffFailed: 0 });
+    // Both older blocked rows are eligible again; the new order must rotate them,
+    // rather than relying on another run before their retry delay expires.
+    expect(await recoverStorageByteReservations(remove, quiescent, 2, nextRun))
+      .toEqual({ cleaned: 1, retained: 1, failed: 0, backoffFailed: 0 });
+    expect(remove).toHaveBeenCalledTimes(1); expect(remove).toHaveBeenCalledWith(safe.objectKey);
+    const rows = await getDb().select().from(storageByteReservations).where(eq(storageByteReservations.accountId, owner));
+    const blocked = rows.filter(row => row.id !== safe.id);
+    expect(blocked.every(row => row.cleanedAt === null && row.recoverAfter.getTime() === 0)).toBe(true);
+    expect(await reservedStorageBytes(getDb(), owner)).toBe(4n);
+  },
+);
+
 it('isolates a failed delete and cleans the later safe candidate without releasing failed bytes', async () => {
   const failed = await reserveStorageBytes({ accountId: owner, sha256: '1'.repeat(64),
     objectKey: 'synthetic/delete-failure/' + randomUUID(), size: 2, kind: 'server', recoverAfter: new Date(3) });
