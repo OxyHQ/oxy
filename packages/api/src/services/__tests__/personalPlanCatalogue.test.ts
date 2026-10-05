@@ -33,9 +33,9 @@ it('fails closed for wrong versions, duplicate publication and API credit benefi
 });
 
 it('publishes approved monthly price without inventing provider readiness or annual/trial offers',()=>{
- const catalogue=fixture();catalogue.personalPlans[0].price={amountMinorUnits:2999,currency:'USD',interval:'month',trial:'none'};
+ const catalogue=fixture();catalogue.personalPlans[0].price={amountMinorUnits:2999,currency:'USD',interval:'month',trial:'none',taxTreatment:'inclusive',merchantTotal:'final'};
  const answer=readPersonalPlanCatalogue(catalogue);
- expect(answer.plans[0].price).toEqual({amountMinorUnits:2999,currency:'USD',interval:'month',trial:'none'});
+ expect(answer.plans[0].price).toEqual({amountMinorUnits:2999,currency:'USD',interval:'month',trial:'none',taxTreatment:'inclusive',merchantTotal:'final'});
  expect(answer.purchase).toBe('unavailable');expect(catalogue.prices).toEqual([]);
  expect(JSON.stringify(answer)).not.toMatch(/priceId|providerAccount|stripe/);
  expect(()=>productBillingCatalogueSchema.parse({...catalogue,personalPlans:[{...catalogue.personalPlans[0],price:{...catalogue.personalPlans[0].price,interval:'year'}}]})).toThrow();

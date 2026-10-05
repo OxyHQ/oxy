@@ -11,7 +11,7 @@ async function fixture() {
   const f = await productAccessFixture();
   const catalogue = productBillingCatalogueSchema.parse({ ...EMPTY_PRODUCT_BILLING_CATALOGUE, products: f.products, offers: f.offers,
     personalPlans: [{ offerId: f.offers[0].id, offerVersion: 1, displayName: 'Synthetic bundle', kind: 'oxy_one', audience: 'personal', benefitNames: ['Synthetic first', 'Synthetic second'] }],
-    prices: [{ priceId: 'price_synthetic', providerAccountId: 'acct_synthetic', mode: 'live', environment: 'production',
+    prices: [{ priceId: 'price_synthetic', provider: 'peable', providerAccountId: 'merch_synthetic', mode: 'live', environment: 'production',
       offerId: f.offers[0].id, offerVersion: 1, validFrom: '2026-01-01T00:00:00.000Z', validUntil: null,
       currency: 'usd', amountMinorUnits: 7, offerKind: 'bundle', kind: 'oxy_one' }],
   });
@@ -44,8 +44,8 @@ it('fulfills only on exact normalized paid evidence, and replay preserves one gr
   const checkout = await startPersonalPlanCheckout(f.payer, f.request, deps);
   if (checkout.state !== 'pending') throw new Error('Expected synthetic pending checkout');
   const raw = f.input(); const { id: _id, ...subscription } = raw.source;
-  const input = { checkoutIntentId: checkout.intentId, binding: { ...f.providerBinding, providerAccountRef: 'acct_synthetic' },
-    subscription: { ...subscription, beneficiaryAccountId: f.payer, payerAccountId: f.payer },
+  const input = { checkoutIntentId: checkout.intentId, binding: { ...f.providerBinding, providerAccountRef: 'merch_synthetic' },
+    subscription: { ...subscription, provider: 'peable' as const, beneficiaryAccountId: f.payer, payerAccountId: f.payer },
     offer: { offerId: f.offers[0].id, offerVersion: 1, origin: 'bundle' as const },
     paidLine: { invoiceId: `in_${randomUUID()}`, lineId: `il_${randomUUID()}`, priceId: 'price_synthetic', quantity: 1 as const, period: f.period },
     event: { id: `evt_${randomUUID()}`, createdAt: f.now.toISOString() }, providerObservedAt: f.now };
@@ -66,7 +66,7 @@ it('releases only exact trusted terminal sessions and keeps the original retry c
   const checkout = await startPersonalPlanCheckout(f.payer, f.request, deps);
   if (checkout.state !== 'pending') throw new Error('Expected pending');
   const observation = { intentId: checkout.intentId, subjectAccountId: f.payer, mode: 'live', environment: 'production',
-    providerAccountRef: 'acct_synthetic', providerSessionId: `synthetic_${checkout.intentId}`, reason: 'expired' as const };
+    providerAccountRef: 'merch_synthetic', providerSessionId: `synthetic_${checkout.intentId}`, reason: 'expired' as const };
   await expect(closePersonalPlanCheckoutFromProvider({ ...observation, providerSessionId: 'wrong' })).rejects.toThrow();
   await closePersonalPlanCheckoutFromProvider(observation); await closePersonalPlanCheckoutFromProvider(observation);
   expect(await startPersonalPlanCheckout(f.payer, f.request, deps)).toEqual({ state: 'closed', intentId: checkout.intentId });
@@ -74,7 +74,7 @@ it('releases only exact trusted terminal sessions and keeps the original retry c
 });
 
 it('requires provider mapping to match approved display amount/currency and requests monthly with no trial',async()=>{
- const f=await fixture();f.catalogue.personalPlans[0].price={amountMinorUnits:2999,currency:'USD',interval:'month',trial:'none'};
+ const f=await fixture();f.catalogue.personalPlans[0].price={amountMinorUnits:2999,currency:'USD',interval:'month',trial:'none',taxTreatment:'inclusive',merchantTotal:'final'};
  const deps={catalogue:f.catalogue,provider:f.provider};
  expect(await startPersonalPlanCheckout(f.payer,f.request,deps)).toEqual({state:'unconfigured',reason:'price_unconfigured'});
  expect(f.create).not.toHaveBeenCalled();

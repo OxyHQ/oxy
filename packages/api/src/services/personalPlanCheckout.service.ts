@@ -20,6 +20,13 @@ export async function startPersonalPlanCheckout(subjectAccountId: string, raw: P
   dependencies: { catalogue?: ProductBillingCatalogue; provider?: PersonalCheckoutProvider; now?: Date } = {}): Promise<PersonalPlanCheckoutResult> {
   const request = personalPlanCheckoutRequestSchema.parse(raw);
   if (request.expectedSubjectAccountId !== subjectAccountId) throw new ApiError(403, 'Signed-in subject changed', 'SUBJECT_CHANGED');
+  // No Peable purchase adapter exists yet. Do not use unrelated Stripe credentials
+  // or persist an intent while recurring/tax/FX evidence is unavailable.
+  if (!dependencies.provider) {
+    const catalogue = productBillingCatalogueSchema.parse(dependencies.catalogue ?? await loadProductBillingCatalogue());
+    const published = catalogue.personalPlans.some(value => value.offerId === request.offerId && value.offerVersion === request.offerVersion);
+    return { state: 'unconfigured', reason: published ? 'provider_unconfigured' : 'offer_unconfigured' };
+  }
   const namespace = await assertBillingDatabaseNamespace(getDb());
   const idempotencyHash = hash(request.idempotencyKey);
   const [prior] = await getDb().select().from(personalPlanCheckoutIntents).where(and(

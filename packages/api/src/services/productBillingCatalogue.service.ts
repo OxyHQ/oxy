@@ -21,7 +21,8 @@ const id = z.string().min(1).max(160);
 export const productBillingPriceSchema = z
 	.object({
 		priceId: id,
-		providerAccountId: z.string().regex(/^acct_[a-zA-Z0-9_]+$/),
+    provider: z.enum(["stripe", "peable"]).default("stripe"),
+		providerAccountId: id,
 		mode: z.enum(["live", "test"]),
 		environment: z.enum(["production", "test", "staging", "development"]),
 		offerId: id,
@@ -35,6 +36,9 @@ export const productBillingPriceSchema = z
 		kind: z.enum(["existing_product", "oxy_one"]),
 	})
 	.strict().superRefine((value, context) => {
+    if (value.kind === "oxy_one" && value.provider !== "peable") context.addIssue({code:"custom",message:"Oxy One payments require Peable"});
+    if (value.provider === "peable" && !/^merch_[a-zA-Z0-9_]+$/.test(value.providerAccountId)) context.addIssue({code:"custom",message:"Peable merchant binding differs"});
+    if (value.provider === "stripe" && !/^acct_[a-zA-Z0-9_]+$/.test(value.providerAccountId)) context.addIssue({code:"custom",message:"Legacy Stripe account binding differs"});
     if (!billingNamespaceSchema.safeParse({ mode: value.mode, environment: value.environment }).success) context.addIssue({ code: "custom", message: "Provider price namespace is incoherent" });
   });
 export const productBillingCatalogueSchema = z
@@ -99,12 +103,12 @@ export const productBillingCatalogueSchema = z
     }
 		const prices = new Set<string>();
 		for (const binding of value.prices) {
-			const key = `${binding.providerAccountId}:${binding.mode}:${binding.environment}:${binding.priceId}`;
+			const key = `${binding.provider}:${binding.providerAccountId}:${binding.mode}:${binding.environment}:${binding.priceId}`;
 			const offer = offers.get(`${binding.offerId}@${binding.offerVersion}`);
 			const otherPeriods = value.prices.filter(
 				(other) =>
 					other !== binding &&
-					other.providerAccountId === binding.providerAccountId &&
+					other.provider === binding.provider && other.providerAccountId === binding.providerAccountId &&
           other.mode === binding.mode && other.environment === binding.environment &&
 					other.priceId === binding.priceId,
 			);
@@ -250,7 +254,7 @@ export async function prepareStripeProductPeriod(
 		catalogue.prices
 			.filter(
 				(binding) =>
-					binding.providerAccountId === providerAccountId &&
+					binding.provider === "stripe" && binding.kind !== "oxy_one" && binding.providerAccountId === providerAccountId &&
 					binding.mode === mode &&
 					binding.environment === environment &&
 					binding.priceId ===

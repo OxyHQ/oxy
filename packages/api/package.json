@@ -85,6 +85,7 @@
     "@oxy.so/protocol": "workspace:*",
     "@oxy.so/telemetry": "workspace:*",
     "@oxy.so/utils": "workspace:*",
+    "@peable.to/sdk": "0.2.2",
     "@socket.io/redis-adapter": "^8.3.0",
     "@types/compression": "^1.8.1",
     "@types/express": "catalog:",

@@ -68,7 +68,9 @@
         "amountMinorUnits": 2999,
         "currency": "USD",
         "interval": "month",
-        "trial": "none"
+        "trial": "none",
+        "taxTreatment": "inclusive",
+        "merchantTotal": "final"
       }
     }
   ],

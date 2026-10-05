@@ -189,6 +189,7 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
       const [intent] = await tx.select().from(personalPlanCheckoutIntents)
         .where(eq(personalPlanCheckoutIntents.id, input.checkoutIntentId)).for('update');
       if (!intent || input.offer.origin !== 'bundle'
+        || input.subscription.provider !== 'peable'
         || intent.subjectAccountId !== input.subscription.beneficiaryAccountId
         || intent.subjectAccountId !== input.subscription.payerAccountId
         || intent.mode !== binding.mode || intent.environment !== binding.environment

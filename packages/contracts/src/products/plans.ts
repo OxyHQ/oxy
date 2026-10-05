@@ -3,7 +3,7 @@ import { productBenefitSchema } from './access';
 
 /** Approved display terms never identify or activate a billing-provider price. */
 export const personalPlanDisplayPriceSchema=z.object({currency:z.string().regex(/^[A-Z]{3}$/),
-  amountMinorUnits:z.number().int().positive().safe(),interval:z.literal('month'),trial:z.literal('none')}).strict();
+  amountMinorUnits:z.number().int().positive().safe(),interval:z.literal('month'),trial:z.literal('none'),taxTreatment:z.literal('inclusive'),merchantTotal:z.literal('final')}).strict();
 
 /** Public discovery is separate from customer access. No provider or owner IDs. */
 export const personalPlanCatalogueSchema = z.object({
