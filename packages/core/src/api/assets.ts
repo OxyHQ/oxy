@@ -18,6 +18,7 @@ import type { OxyContext } from '../client/context';
 import { logger } from '../logger';
 import type {
   AccountStorageUsageResponse,
+  AssetInitResponse,
   Asset,
   AssetDeleteSummary,
   AssetLink,
@@ -100,6 +101,21 @@ export interface AssetDeleteResult {
 
 export class AssetsApi {
   constructor(protected readonly ctx: OxyContext) {}
+
+  /** Upload already-admitted bytes. Sends required bucket headers, never an Oxy bearer. */
+  async putPresignedUpload(init: AssetInitResponse, body: Blob): Promise<void> {
+    if (!init.uploadUrl) return; // bytes already exist for this account
+    const target = new URL(init.uploadUrl);
+    if (target.protocol !== 'https:') throw new Error('Presigned uploads require HTTPS');
+    const headers = new Headers(init.requiredHeaders);
+    headers.forEach((_value,name) => {
+      if (!['if-none-match','content-type','x-amz-checksum-sha256','cache-control'].includes(name.toLowerCase()))
+        throw new Error('Unsupported required upload header');
+    });
+    if (body.type && !headers.has('Content-Type')) headers.set('Content-Type',body.type);
+    const result = await fetch(target.toString(),{method:'PUT',body,headers,credentials:'omit',redirect:'error'});
+    if(!result.ok)throw new Error(`Presigned upload failed (${result.status})`);
+  }
 
   // ── Upload ───────────────────────────────────────────────────────────────
 

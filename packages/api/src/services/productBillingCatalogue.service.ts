@@ -3,6 +3,7 @@ import { billingNamespaceSchema } from '../config/billingNamespace';
 import { readFile } from "node:fs/promises";
 import {
 	productDefinitionSchema,
+  personalPlanDisplayPriceSchema,
 	productOfferSchema,
 	productSubscriptionSourceSchema,
 } from "@oxy.so/contracts";
@@ -45,9 +46,11 @@ export const productBillingCatalogueSchema = z
     /** Editorial publication grants no entitlement and enables no checkout. */
     storageAdapter: z.object({ productId: id, quotaKey: id, unit: z.literal('byte'),
       legacyCombination: z.literal('maximum') }).strict().nullable().default(null),
+    personalizationAdapter: z.object({productId:id, capabilityKey:id}).strict().nullable().default(null),
     personalPlans: z.array(z.object({ offerId: id, offerVersion: z.number().int().positive().safe(),
       displayName: z.string().min(1).max(100), audience: z.literal('personal'), kind: z.literal('oxy_one'),
       benefitNames: z.array(z.string().min(1).max(100)),
+      price:personalPlanDisplayPriceSchema.optional(),
     }).strict()).default([]),
 		/** Explicit historical or beneficiary≠payer mappings require reviewed exact IDs. */
 		displayNames: z.object({ products: z.record(id, z.string().min(1).max(100)), offers: z.record(id, z.string().min(1).max(100)) }).strict().default({ products: {}, offers: {} }),
@@ -80,6 +83,8 @@ export const productBillingCatalogueSchema = z
 			});
     if (value.storageAdapter && !products.has(value.storageAdapter.productId))
       context.addIssue({ code: 'custom', message: 'Storage adapter requires a registered product' });
+    if (value.personalizationAdapter && !products.has(value.personalizationAdapter.productId))
+      context.addIssue({code:'custom',message:'Personalization adapter requires a registered product'});
     const published = new Set<string>();
     for (const plan of value.personalPlans) {
       const key = `${plan.offerId}@${plan.offerVersion}`;
@@ -185,7 +190,7 @@ export const EMPTY_PRODUCT_BILLING_CATALOGUE: ProductBillingCatalogue = {
 	schemaVersion: 1,
 	products: [],
 	offers: [],
-	prices: [], personalPlans: [], storageAdapter: null,
+	prices: [], personalPlans: [], storageAdapter: null, personalizationAdapter: null,
 	subscriptions: [], displayNames: { products: {}, offers: {} },
 };
 

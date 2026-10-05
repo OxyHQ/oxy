@@ -12,6 +12,12 @@
       "id": "REPLACE_REGISTERED_STORAGE_PRODUCT_ID",
       "ownerAccountId": "REPLACE_STORAGE_OWNER_ACCOUNT_ID",
       "applicationId": "REPLACE_STORAGE_APPLICATION_ID"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "REPLACE_REGISTERED_MENTION_PRODUCT_ID",
+      "ownerAccountId": "REPLACE_MENTION_OWNER_ACCOUNT_ID",
+      "applicationId": "REPLACE_MENTION_APPLICATION_ID"
     }
   ],
   "offers": [
@@ -36,6 +42,11 @@
           "unit": "byte",
           "included": 100000000000,
           "combination": "maximum"
+        },
+        {
+          "kind": "capability",
+          "productId": "REPLACE_REGISTERED_MENTION_PRODUCT_ID",
+          "key": "mono_theme"
         }
       ]
     }
@@ -50,8 +61,15 @@
       "audience": "personal",
       "benefitNames": [
         "Alia \u00b7 10,000 credits per subscription month",
-        "Storage \u00b7 100 GB (decimal)"
-      ]
+        "Shared storage \u00b7 100 GB (decimal), including Noted attachments",
+        "Mention \u00b7 mono personalization"
+      ],
+      "price": {
+        "amountMinorUnits": 2999,
+        "currency": "USD",
+        "interval": "month",
+        "trial": "none"
+      }
     }
   ],
   "storageAdapter": {
@@ -60,5 +78,9 @@
     "unit": "byte",
     "legacyCombination": "maximum"
   },
-  "subscriptions": []
+  "subscriptions": [],
+  "personalizationAdapter": {
+    "productId": "REPLACE_REGISTERED_MENTION_PRODUCT_ID",
+    "capabilityKey": "mono_theme"
+  }
 }

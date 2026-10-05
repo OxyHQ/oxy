@@ -80,6 +80,7 @@ export {
     userNameSchema,
     userRelationshipSchema,
     themePreferenceSchema,
+    USER_PROFILE_COLOR_PRESETS,
     dateOfBirthSchema,
     userResponseSchema,
     userProfileUpdateSchema,
@@ -1532,5 +1533,5 @@ export { productSubscriptionSummarySchema, productSubscriptionsResponseSchema,
     subscriptionCreditGrantSchema, subscriptionCreditGrantsResponseSchema, cancelProductSubscriptionSchema, productSubscriptionCancellationResultSchema,
     type ProductSubscriptionSummary, type SubscriptionCreditGrant, type ProductSubscriptionCancellationResult } from './products/billing';
 
-export { personalPlanCatalogueSchema, type PersonalPlanCatalogue } from './products/plans';
+export { personalPlanDisplayPriceSchema, personalPlanCatalogueSchema, type PersonalPlanCatalogue } from './products/plans';
 export * from './products/checkout';

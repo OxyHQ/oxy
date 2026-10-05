@@ -29,6 +29,7 @@ import {
   ConflictError,
   BadRequestError,
 } from '../utils/error';
+import {readProfilePersonalization} from '../services/profilePersonalization.service';
 import { userService } from '../services/user.service';
 import graphCache from '../utils/graphCache';
 import { assetService } from '../services/assetServiceSingleton';
@@ -303,9 +304,11 @@ router.get(
     }
 
     logger.debug('GET /users/me', { userId: req.user.id });
+    res.set('Cache-Control','no-store');
     sendSuccess(
       res,
-      userService.formatUserResponse(user, undefined, { includePrivateFields: true })
+      {...userService.formatUserResponse(user, undefined, { includePrivateFields: true }),
+        personalization:await readProfilePersonalization(req.user.id)}
     );
   })
 );
@@ -427,9 +430,11 @@ router.put(
         updatedFields: Object.keys(req.body),
       });
 
+      res.set('Cache-Control','no-store');
       sendSuccess(
         res,
-        userService.formatUserResponse(updatedUser, undefined, { includePrivateFields: true })
+        {...userService.formatUserResponse(updatedUser, undefined, { includePrivateFields: true }),
+          personalization:await readProfilePersonalization(req.user.id)}
       );
     } catch (error) {
       // Handle known errors from service layer

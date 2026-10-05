@@ -13,7 +13,7 @@ export interface PersonalCheckoutProvider {
   kind: 'synthetic';
   create(input: { intentId: string; idempotencyKey: string; subjectAccountId: string;
     offerId: string; offerVersion: number; priceId: string; amountMinorUnits: number; currency: string;
-    providerAccountRef: string; mode: string; environment: string }): Promise<{ sessionId: string; checkoutUrl: string }>;
+    providerAccountRef: string; mode: string; environment: string; interval:'month';trial:'none' }): Promise<{ sessionId: string; checkoutUrl: string }>;
 }
 function hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
 export async function startPersonalPlanCheckout(subjectAccountId: string, raw: PersonalPlanCheckoutRequest,
@@ -36,6 +36,7 @@ export async function startPersonalPlanCheckout(subjectAccountId: string, raw: P
   if (process.env.NODE_ENV !== 'test') throw new ApiError(503, 'Consumer checkout provider is unconfigured', 'CHECKOUT_NOT_CONFIGURED');
   const now = dependencies.now ?? new Date();
   const prices = catalogue.prices.filter(value => value.offerId === request.offerId && value.offerVersion === request.offerVersion
+    && (!published?.price || (value.amountMinorUnits === published.price.amountMinorUnits && value.currency.toUpperCase() === published.price.currency))
     && value.kind === 'oxy_one' && value.offerKind === 'bundle' && value.mode === namespace.mode && value.environment === namespace.environment
     && Date.parse(value.validFrom) <= now.getTime() && (value.validUntil === null || Date.parse(value.validUntil) > now.getTime()));
   if (!prior && prices.length === 0) return { state: 'unconfigured', reason: 'price_unconfigured' };
@@ -72,7 +73,7 @@ export async function startPersonalPlanCheckout(subjectAccountId: string, raw: P
   if (!dependencies.provider) return { state: 'unconfigured', reason: 'provider_unconfigured' };
   const session = await dependencies.provider.create({ intentId: intent.id, idempotencyKey: `personal-checkout:${intent.id}`,
     subjectAccountId, offerId: intent.offerId, offerVersion: intent.offerVersion, priceId: price.priceId,
-    amountMinorUnits: price.amountMinorUnits, currency: price.currency, providerAccountRef: price.providerAccountId, ...namespace });
+    amountMinorUnits: price.amountMinorUnits, currency: price.currency, providerAccountRef: price.providerAccountId, interval:'month',trial:'none', ...namespace });
   const answer = personalPlanCheckoutResultSchema.parse({ state: 'pending', intentId: intent.id, checkoutUrl: session.checkoutUrl });
   if (!session.sessionId || session.sessionId.length > 160) throw new Error('Provider session identity differs');
   await getDb().transaction(async tx => {

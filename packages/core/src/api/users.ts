@@ -121,8 +121,8 @@ export class UsersApi {
   }
 
   /** The signed-in user. Cached 1 minute. */
-  async me(): Promise<User> {
-    const user = await this.ctx.request<User>('GET', '/users/me', undefined, { cache: true, cacheTTL: ME_TTL });
+  async me(options?: {cache?: boolean}): Promise<User> {
+    const user = await this.ctx.request<User>('GET', '/users/me', undefined, { cache: options?.cache ?? true, cacheTTL: ME_TTL });
     return normalizeUserIdentity(user);
   }
 

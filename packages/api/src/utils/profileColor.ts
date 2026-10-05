@@ -24,7 +24,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { USER_COLOR_PRESETS, users, type UserColorPreset } from '../db/schema/users';
 import { BadRequestError } from './error';
-import { isPremiumSubscriptionPlan, resolveUserSubscriptionPlan } from './subscriptionPlan';
+import {readProfilePersonalization} from '../services/profilePersonalization.service';
 
 /**
  * Presets that are not simply available.
@@ -74,7 +74,7 @@ async function storedUsername(accountId: string): Promise<string | null> {
  *
  * The rule is the one `updateUserProfile` has always enforced on a person's own
  * profile, stated for any subject: the account whose HANDLE is the brand may
- * wear it, and so may a premium subscriber.
+ * wear it, no subscription overrides the reserved identity.
  *
  * ## The subject is the account being COLOURED, never the administrator
  *
@@ -93,15 +93,15 @@ export async function assertColorNotReserved(
   color: string,
   subject: { accountId: string | null; username: string | null }
 ): Promise<void> {
+  if(color==='mono') {
+    if(subject.accountId && (await readProfilePersonalization(subject.accountId)).mentionMono.allowed)return;
+    throw new BadRequestError('The mono preset requires an active personalization benefit');
+  }
   if (!isReservedColorPreset(color)) return;
 
   const handle =
     subject.username ?? (subject.accountId ? await storedUsername(subject.accountId) : null);
   if (handle && normalizeUserColor(handle) === color) return;
 
-  if (subject.accountId) {
-    const plan = await resolveUserSubscriptionPlan(subject.accountId);
-    if (isPremiumSubscriptionPlan(plan)) return;
-  }
-  throw new BadRequestError(`The ${color} color is exclusive to premium subscribers`);
+  throw new BadRequestError(`The ${color} color is reserved for its matching identity`);
 }

@@ -72,3 +72,16 @@ it('releases only exact trusted terminal sessions and keeps the original retry c
   expect(await startPersonalPlanCheckout(f.payer, f.request, deps)).toEqual({ state: 'closed', intentId: checkout.intentId });
   expect((await startPersonalPlanCheckout(f.payer, { ...f.request, idempotencyKey: randomUUID() }, deps)).state).toBe('pending');
 });
+
+it('requires provider mapping to match approved display amount/currency and requests monthly with no trial',async()=>{
+ const f=await fixture();f.catalogue.personalPlans[0].price={amountMinorUnits:2999,currency:'USD',interval:'month',trial:'none'};
+ const deps={catalogue:f.catalogue,provider:f.provider};
+ expect(await startPersonalPlanCheckout(f.payer,f.request,deps)).toEqual({state:'unconfigured',reason:'price_unconfigured'});
+ expect(f.create).not.toHaveBeenCalled();
+ f.catalogue.prices[0].amountMinorUnits=2999;f.catalogue.prices[0].currency='eur';
+ expect(await startPersonalPlanCheckout(f.payer,f.request,deps)).toEqual({state:'unconfigured',reason:'price_unconfigured'});
+ expect(f.create).not.toHaveBeenCalled();
+ f.catalogue.prices[0].currency='usd';
+ expect((await startPersonalPlanCheckout(f.payer,f.request,deps)).state).toBe('pending');
+ expect(f.create.mock.calls[0][0]).toMatchObject({amountMinorUnits:2999,currency:'usd',interval:'month',trial:'none'});
+});

@@ -67,7 +67,7 @@ import {
   type PublicUserRow,
   type PublicUserView,
 } from '../utils/publicUserProjection';
-import { assertColorNotReserved, normalizeUserColor } from '../utils/profileColor';
+import { assertColorNotReserved, normalizeUserColor, isUserColorPreset } from '../utils/profileColor';
 import { userIdentityFields, deriveIsFederated, toThemePreference } from '../utils/userTransform';
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxy.so/core';
 import { buildUserDid } from './did.service';
@@ -954,6 +954,7 @@ export class UserService {
       // gate. The rule itself lives in `utils/profileColor` because the account
       // graph writes this column too — see its header.
       if (key === 'color' && typeof normalizedValue === 'string') {
+        if(!isUserColorPreset(normalizedValue))throw new BadRequestError('Unknown color preset');
         await assertColorNotReserved(normalizedValue, { accountId: userId, username: null });
       }
 
@@ -1031,7 +1032,10 @@ export class UserService {
             field: 'themePreference',
           });
         }
-        filteredUpdates.themePreference = { mode, colorPreset: colorPreset.trim() };
+        const preset=normalizeUserColor(colorPreset);
+        if(!isUserColorPreset(preset))throw new BadRequestError('Unknown color preset');
+        await assertColorNotReserved(preset,{accountId:userId,username:null});
+        filteredUpdates.themePreference = { mode, colorPreset: preset };
         continue;
       }
 

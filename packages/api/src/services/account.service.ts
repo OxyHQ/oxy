@@ -725,7 +725,7 @@ export class AccountService {
       // describes for withdrawn `accountCategories` and for a nullable `bio`. It
       // is also what lets a legacy hex colour (still permitted by
       // `users_color_check`) be carried forward without being newly adoptable.
-      if (color !== account.color) {
+      if (color !== account.color || color === 'mono') {
         assertAssignableColorPreset(color);
         // The subject is the account being coloured, not the administrator
         // asking: an operator's own premium plan does not travel down the tree.

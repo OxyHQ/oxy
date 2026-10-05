@@ -224,6 +224,8 @@ export interface User {
    * user sets it. Updated via `updateThemePreference` / `updateProfile`.
    */
   themePreference?: ThemePreference;
+  /** Product-specific personalization; never inferred from generic premium. */
+  personalization?: {mentionMono:{allowed:boolean;expiresAt:string|null}};
   /**
    * The authenticated viewer's relationship to THIS profile. Populated ONLY on
    * single-profile fetches (`getProfileByUsername` / `getUserById`) when the
@@ -771,6 +773,8 @@ export interface AccountStorageCategoryUsage {
 }
 
 export interface AccountStorageUsageResponse {
+  quotaEnforcement?: 'metadata_admission' | 'unconfigured';
+  reservedBytes?: string | null;
   plan: 'basic' | 'pro' | 'business';
   totalUsedBytes: number;
   totalLimitBytes: number;

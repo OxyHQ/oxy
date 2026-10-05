@@ -1,3 +1,6 @@
+/** Canonical profile/theme preset identities accepted by Oxy writes. */
+export const USER_PROFILE_COLOR_PRESETS = ['teal','blue','green','amber','red','purple','pink','sky','orange','mint','mono','oxy'] as const;
+
 /**
  * Canonical API user-response contracts.
  *
@@ -292,6 +295,7 @@ export const userResponseSchema = z
          * `GET /session/user/:sessionId`) and absent until the user sets it.
          */
         themePreference: themePreferenceSchema.optional(),
+        personalization: z.object({mentionMono:z.object({allowed:z.boolean(),expiresAt:z.string().datetime().nullable()}).strict()}).strict().optional(),
     })
     .passthrough();
 
