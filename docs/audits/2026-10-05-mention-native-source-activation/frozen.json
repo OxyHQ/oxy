@@ -1,0 +1,20 @@
+{
+  "rootReview": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/root-review.json",
+    "sha256": "bd227379b2f439a9df4e51c04ce9f6d636c67d99f4974d0ff78da9875fa593ea"
+  },
+  "audience": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/audience.json",
+    "sha256": "350971d8d43196f3b8c10101f6a14a4137f50ed675b040b0a20a97fdb5801e3e"
+  },
+  "economics": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/economics.json",
+    "sha256": "f6afbf5bb57746657e22ff71d8c028f200d7f9fc14798205633f81f2721fa326"
+  },
+  "providerCard": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/provider-card.json",
+    "sha256": "621db5dcf8d73810f30e2004c6e4022a2d7577ea4b3c0492c1e00b1b1f2fb310"
+  },
+  "expiresAt": "2026-10-05T01:28:26Z",
+  "noRuntimeAcceptanceInferred": true
+}

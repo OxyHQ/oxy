@@ -1,4 +1,5 @@
 import { MENTION_CLASSIFIER_IDENTITY, mentionClassifierApproval, type MentionClassifierApproval } from '../../config/mentionClassifierEconomics';
+import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-source-activation/economics.json';
 import { resolveEconomicTreatment } from '../../config/inferenceEconomicPolicy';
 import { isMentionClassifierRequest, mentionClassifierEconomicDecision } from '../mentionClassifierEconomics.service';
 import type { EdgePrincipal } from '../inferenceEdge.service';
@@ -18,8 +19,17 @@ const input = () => ({ principal, request, approval, routes: [{ deploymentId: ap
   policy: { routingPolicyId: approval.routingPolicyId, policyVersion: 1 }, quote: { amount: '0.01', currency: 'USD' },
   authorityActive: true, now: Date.parse('2026-10-04T00:00:00.000Z') });
 
-it('ships inactive and preserves the global commercial treatment for Mention', () => {
-  expect(mentionClassifierApproval()).toBeUndefined();
+it('activates only the frozen own-Mention relationship and preserves global commercial treatment', () => {
+  const expiry = Date.parse(rootApproval.expiresAt);
+  jest.useFakeTimers().setSystemTime(expiry - 1);
+  try {
+    expect(mentionClassifierApproval()).toEqual(rootApproval);
+    const changed = mentionClassifierApproval()!;
+    Object.assign(changed, { deploymentId: 'foreign' });
+    expect(mentionClassifierApproval()).toEqual(rootApproval);
+    jest.setSystemTime(expiry);
+    expect(mentionClassifierApproval()).toBeUndefined();
+  } finally { jest.useRealTimers(); }
   expect(resolveEconomicTreatment(principal).treatment).toBe('commercial');
 });
 it('uses the independent exact relationship without changing internal trust', () => {
