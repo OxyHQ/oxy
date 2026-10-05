@@ -1,0 +1,7 @@
+# Mention original operation: explicit source revalidation
+
+Root re-reviewed the same unsubmitted original Mention operation at 2026-10-05T01:14:23Z, with fixed expiry 2026-10-05T03:14:23Z. This V2 review follows the canonical catalogue negotiation defect and insufficient delivery window. The prior V1 evidence directory and original Alia failed history remain unchanged; no automatic renewal, new operation/key/fixture or retry is authorized.
+
+The seven fresh primary GETs preserve visible OpenRouter terms/ZDR guidance, TypeSafe terms/privacy, exact dated Jev endpoint price and its exact ZDR-list row. Only unrelated model-page application counters changed. Root selected the same principal, provider key, model, price, card, post/input hash and one original idempotency identity. The provider card is byte-identical, including its original observedAt. Source approval/economics refer to the exact V2 review; Auto3.7 source/card/expiry remain unchanged.
+
+Exact compiled equality, V1 rejection, expiry boundaries and caller mutation remain checked. Mention stays non-internal; all ordinary traffic remains commercial and the relationship remains USD0.01/8192 bytes/one concurrent and daily request. Live scopes/bindings, signed descriptor/import, canonical legal review, actual image and the original operation receipt remain separate runtime gates. No provider request or AWS mutation occurs in this source work.

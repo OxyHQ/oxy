@@ -20,7 +20,21 @@ export interface MentionClassifierApproval {
   readonly routingPolicyVersion: number;
 }
 
-/** No env override. Exact price, privacy and resolver evidence is not approved yet. */
+/** Exact root-reviewed own-Mention relationship; no environment override or mutable setter. */
+const REVIEWED_MENTION_APPROVAL: MentionClassifierApproval = {
+  "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.1",
+  "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:613bde08e74fa7a3ff0c16b7d6e1a3310f2b3934b028add5ecbda5b1d0a46fba",
+  "expiresAt": "2026-10-05T03:14:23Z",
+  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_2026_10_05",
+  "modelReference": "typesafe/jev-1.13@2026-09-17",
+  "provider": "openrouter",
+  "priceVersionId": "jev_scoped_price_20261004_01",
+  "routingPolicyId": "platform-internal-default",
+  "routingPolicyVersion": 1
+};
+
 export function mentionClassifierApproval(): MentionClassifierApproval | undefined {
-  return undefined;
+  const now = Date.now();
+  return Number.isFinite(now) && Date.parse(REVIEWED_MENTION_APPROVAL.expiresAt) > now
+    ? { ...REVIEWED_MENTION_APPROVAL } : undefined;
 }

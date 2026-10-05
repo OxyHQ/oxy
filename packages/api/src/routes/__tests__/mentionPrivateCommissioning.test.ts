@@ -596,6 +596,7 @@ it.each([
   },
 );
 it("keeps the ordinary catalogue and unrelated Mention approval closed", async () => {
+  jest.spyOn(approvalConfig, "mentionClassifierApproval").mockReturnValue(undefined);
   expect(approvalConfig.mentionClassifierApproval()).toBeUndefined();
   expect(scoped.sourceReviewedScopedAudience(Number.POSITIVE_INFINITY)).toBeUndefined();
   const f = await fixture();
