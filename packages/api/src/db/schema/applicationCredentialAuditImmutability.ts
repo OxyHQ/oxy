@@ -56,6 +56,11 @@
  * deleted row is absent, and visibly so against the retention window. An edited
  * row is a lie that reads as a fact.
  *
+ * Account erasure is the sole non-edit transition: PostgreSQL may clear
+ * actor_user_id through its declared ON DELETE SET NULL after the actor row
+ * disappears. Migration 0146 allows only that nested FK transition with every
+ * other field unchanged. Direct NULL writes, other changes and no-ops still fail.
+ *
  * `SQLSTATE 23514` (check violation) rather than a bespoke code, so `@oxy.so/db`'s
  * `isCheckViolation` recognises it like any other constraint failure — a caller
  * must never have to string-match this message.
@@ -78,10 +83,21 @@ export const CREDENTIAL_AUDIT_TRIGGER = 'application_credential_audit_events_imm
 export const CREDENTIAL_AUDIT_IMMUTABLE_MESSAGE =
   `${CREDENTIAL_AUDIT_TABLE} is append-only: an audit entry is corrected by a new entry, never by update`;
 
-/** The DDL applied by `drizzle/0043_application_credential_audit_immutability.sql`. */
+/** Current function installed by 0146; 0043 remains immutable migration history. */
 export const CREDENTIAL_AUDIT_IMMUTABILITY_DDL = `CREATE OR REPLACE FUNCTION credential_audit_row_immutable() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+  -- A foreign-key SET NULL during genuine account erasure is not an audit
+  -- edit. Keep the event byte-for-byte except for its now-absent actor.
+  -- The depth and absent-parent checks refuse a direct/manual NULL rewrite.
+  IF pg_trigger_depth() > 1
+    AND OLD.actor_user_id IS NOT NULL
+    AND NEW.actor_user_id IS NULL
+    AND (to_jsonb(NEW) - 'actor_user_id') IS NOT DISTINCT FROM (to_jsonb(OLD) - 'actor_user_id')
+    AND NOT EXISTS (SELECT 1 FROM users WHERE id = OLD.actor_user_id)
+  THEN
+    RETURN NEW;
+  END IF;
   RAISE EXCEPTION '% is append-only: an audit entry is corrected by a new entry, never by %', TG_TABLE_NAME, lower(TG_OP)
     USING ERRCODE = '23514';
 END;
