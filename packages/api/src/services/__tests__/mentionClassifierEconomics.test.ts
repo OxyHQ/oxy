@@ -1,5 +1,5 @@
 import { MENTION_CLASSIFIER_IDENTITY, mentionClassifierApproval, cloneMentionClassifierApproval, type MentionClassifierApproval } from '../../config/mentionClassifierEconomics';
-import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-source-revalidation/economics.json';
+import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-second-source/economics.json';
 import { resolveEconomicTreatment } from '../../config/inferenceEconomicPolicy';
 import { isMentionClassifierRequest, mentionClassifierEconomicDecision } from '../mentionClassifierEconomics.service';
 import type { EdgePrincipal } from '../inferenceEdge.service';
@@ -26,6 +26,8 @@ it('activates only the frozen own-Mention relationship and preserves global comm
     expect(mentionClassifierApproval()).toEqual(rootApproval);
     const changed = mentionClassifierApproval()!;
     Object.assign(changed, { deploymentId: 'foreign' });
+    if (changed.qualificationBudget === undefined) throw new Error('reviewed .2 budget missing');
+    Object.assign(changed.qualificationBudget, { maxTotalRequests: 99, utcDay: 'foreign' });
     expect(mentionClassifierApproval()).toEqual(rootApproval);
     jest.setSystemTime(expiry);
     expect(mentionClassifierApproval()).toBeUndefined();
@@ -122,4 +124,17 @@ it('isolates the nested future qualification budget without approving it', () =>
   Object.assign(returned.qualificationBudget, { maxTotalRequests: 99, utcDay: 'foreign' });
   expect(cloneMentionClassifierApproval(reviewed).qualificationBudget).toEqual({ utcDay: '2026-10-05',
     maxTotalRequests: 2, previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1' });
+});
+
+it('derives the reviewed cumulative capacity from the exact second frozen source, without reopening the original review', () => {
+  const active: MentionClassifierApproval = rootApproval as MentionClassifierApproval;
+  const result = mentionClassifierEconomicDecision({ ...input(), approval: active,
+    request: { ...request, target: { kind: 'model', modelReference: active.modelReference } },
+    routes: [{ deploymentId: active.deploymentId, modelReference: active.modelReference,
+      provider: active.provider, priceVersionId: active.priceVersionId }],
+    policy: { routingPolicyId: active.routingPolicyId, policyVersion: active.routingPolicyVersion },
+    now: Date.parse(active.expiresAt) - 1 });
+  expect(result).toMatchObject({ policyVersion: active.economicPolicyVersion,
+    relationship: { relationshipId: 'mention-jev-kaana', capacity: { maxConcurrentRequests: 1,
+      maxRequestsPerUtcDay: 2, qualificationBudget: { utcDay: '2026-10-05', expiresAt: active.expiresAt } } } });
 });
