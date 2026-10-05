@@ -42,6 +42,22 @@ jest.mock('../../middleware/auth', () => ({
   },
 }));
 
+
+// Exercise the canonical operator reader against a synthetic verified session.
+jest.mock('../../middleware/authUtils', () => ({
+  extractTokenFromRequest: () => 'own-synthetic-session',
+  decodeToken: () => ({ sessionId: 'own-synthetic-session-id' }),
+}));
+jest.mock('../../services/session.service', () => ({
+  __esModule: true,
+  default: {
+    getSession: jest.fn(async () => {
+      if (sessionUnreadable) throw Error('fixture session unavailable');
+      return sessionMissing ? null : { operatedByUserId: currentOperatorId };
+    }),
+  },
+}));
+
 jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -63,6 +79,12 @@ jest.setTimeout(60_000);
 
 let server: http.Server;
 let currentUserId = '';
+let currentOperatorId: string | null = null;
+let sessionMissing = false;
+let sessionUnreadable = false;
+let spoofedOperatorId = '';
+
+beforeEach(() => { currentOperatorId = null; sessionMissing = false; sessionUnreadable = false; spoofedOperatorId = ''; });
 
 interface JsonResponse {
   status: number;
@@ -83,6 +105,7 @@ function request(method: string, path: string, payload?: unknown): Promise<JsonR
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),
           Authorization: 'Bearer t',
+          'x-operator-id': spoofedOperatorId,
         },
       },
       (res) => {
@@ -287,5 +310,77 @@ describe('a top-up is refused before it can be charged into nowhere', () => {
       cancelUrl: 'https://console.oxy.so/no',
     });
     expect(response.status).toBe(404);
+  });
+});
+
+async function managedBillingFixture() {
+  const workspace = await seedAccount('organization');
+  const operator = await seedAccount('personal');
+  const stranger = await seedAccount('personal');
+  await seedMember(workspace, operator);
+  return { workspace, operator, stranger };
+}
+
+describe('managed-session billing uses the verified operator membership', () => {
+  it('reads an absent profile for the member operator, and retains ordinary personal-session access', async () => {
+    const { workspace, operator } = await managedBillingFixture();
+    currentUserId = workspace;
+    currentOperatorId = operator;
+    const response = await request('GET', `/billing/accounts/${workspace}`);
+    expect(response.status).toBe(200);
+    expect(response.body.data).toBeNull();
+    currentUserId = operator;
+    currentOperatorId = null;
+    expect((await request('GET', `/billing/accounts/${workspace}`)).status).toBe(200);
+  });
+  it('refuses an unrelated operator although the subject is the target workspace', async () => {
+    const { workspace, operator, stranger } = await managedBillingFixture();
+    spoofedOperatorId = operator;
+    currentUserId = workspace;
+    currentOperatorId = stranger;
+    expect((await request('GET', `/billing/accounts/${workspace}`)).status).toBe(404);
+  });
+  it.each(['missing', 'unreadable'] as const)('fails closed for a %s operator session', async (failure) => {
+    const { workspace, operator } = await managedBillingFixture();
+    currentUserId = workspace;
+    currentOperatorId = operator;
+    sessionMissing = failure === 'missing';
+    sessionUnreadable = failure === 'unreadable';
+    expect((await request('GET', `/billing/accounts/${workspace}`)).status).toBe(404);
+  });
+});
+
+
+describe('managed-session billing writes retain account and staff gates', () => {
+  it('allows a billing:manage operator to provision only the requested workspace', async () => {
+    const { workspace, operator } = await managedBillingFixture();
+    currentUserId = workspace;
+    currentOperatorId = operator;
+    const response = await request('POST', `/billing/accounts/${workspace}`, {});
+    expect(response.status).toBe(201);
+    expect(response.body.data).toMatchObject({ billingAccountId: workspace,
+      inherited: false, profile: { accountId: workspace, currency: 'USD', billingMode: 'prepaid',
+        autoRecharge: { enabled: false } } });
+  });
+  it('refuses provision by an unrelated operator despite a spoofed member header', async () => {
+    const { workspace, operator, stranger } = await managedBillingFixture();
+    currentUserId = workspace;
+    currentOperatorId = stranger;
+    spoofedOperatorId = operator;
+    expect((await request('POST', `/billing/accounts/${workspace}`, {})).status).toBe(404);
+    currentOperatorId = operator;
+    expect((await request('GET', `/billing/accounts/${workspace}`)).body.data).toBeNull();
+  });
+  it('does not confer staff on a managed subject even when its operator is staff', async () => {
+    const workspace = await seedAccount('organization');
+    const [operator] = await getDb().insert(users)
+      .values({ username: `bill-staff-${tag()}`, kind: 'personal', isStaff: true })
+      .returning({ id: users.id });
+    await seedMember(workspace, operator.id);
+    currentUserId = workspace;
+    currentOperatorId = operator.id;
+    expect((await request('POST', `/billing/accounts/${workspace}/grants`,
+      { amount: '0.01', currency: 'USD', idempotencyKey: `own-fixture-${tag()}` })).status).toBe(403);
+    expect((await request('GET', `/billing/accounts/${workspace}`)).body.data).toBeNull();
   });
 });
