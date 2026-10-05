@@ -405,6 +405,7 @@
       "unconfigured": "La compra aún no está disponible.",
       "monthlyPrice": "{{price}}/mes",
       "noTrial": "Facturación mensual · Sin prueba gratuita",
+      "finalTaxInclusive": "El precio final incluye los impuestos de compra aplicables. Sin cargos adicionales del vendedor.",
       "sourceError": "No se pudieron cargar las suscripciones. Tu acceso no ha cambiado.",
       "ends": "Finaliza",
       "period": "El período actual finaliza",

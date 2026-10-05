@@ -405,6 +405,7 @@
       "unconfigured": "Purchasing is not available yet.",
       "monthlyPrice": "{{price}}/month",
       "noTrial": "Monthly billing · No free trial",
+      "finalTaxInclusive": "Final price includes applicable purchase taxes. No additional merchant fee.",
       "sourceError": "Could not load subscriptions. Your access has not been changed.",
       "ends": "Ends",
       "period": "Current period ends",

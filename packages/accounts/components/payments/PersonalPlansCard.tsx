@@ -44,6 +44,7 @@ function PersonalPlansContent() {
             {plan.price && <>
               <ThemedText>{t('payments.one.monthlyPrice', { price: formatPersonalPlanPrice(plan.price, locale) })}</ThemedText>
               <ThemedText>{t('payments.one.noTrial')}</ThemedText>
+              <ThemedText>{t('payments.one.finalTaxInclusive')}</ThemedText>
             </>}
             {plan.benefits.map(({ displayName, benefit }) => <ThemedText key={`${benefit.productId}:${benefit.key}:${displayName}`}>
               {displayName}{benefit.kind === 'quota' ? ` · ${benefit.included.toLocaleString()} ${benefit.unit}` : ''}

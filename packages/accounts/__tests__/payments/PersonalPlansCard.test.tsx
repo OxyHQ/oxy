@@ -44,17 +44,18 @@ it('clears a pending confirmation when the account changes', () => {
 
 it('shows the catalogue monthly price without offering checkout or trial', () => {
   mockPlans = [{offerId:'synthetic-only', offerVersion:1,displayName:'Oxy One Personal',benefits:[],
-    price:{currency:'USD',amountMinorUnits:2999,interval:'month',trial:'none'}}];
+    price:{currency:'USD',amountMinorUnits:2999,interval:'month',trial:'none',taxTreatment:'inclusive',merchantTotal:'final'}}];
   render(<PersonalPlansCard />);
   expect(screen.getByText('$29.99/month')).toBeTruthy();
   expect(screen.getByText('payments.one.noTrial')).toBeTruthy();
+  expect(screen.getByText('payments.one.finalTaxInclusive')).toBeTruthy();
   expect(screen.getByText('payments.one.unconfigured')).toBeTruthy();
   expect(screen.queryByText(/buy|checkout|subscribe/i)).toBeNull();
 });
 it('formats locale-aware prices and follows SDK amounts rather than a UI constant', () => {
   mockLocale = 'es-ES';
   mockPlans = [{offerId:'synthetic-only',offerVersion:2,displayName:'Synthetic fixture',benefits:[],
-    price:{currency:'USD',amountMinorUnits:1234,interval:'month',trial:'none'}}];
+    price:{currency:'USD',amountMinorUnits:1234,interval:'month',trial:'none',taxTreatment:'inclusive',merchantTotal:'final'}}];
   render(<PersonalPlansCard />);
   expect(screen.getByText(/12,34.*US.*\/mes/)).toBeTruthy();
   expect(screen.queryByText(/29[.,]99/)).toBeNull();
