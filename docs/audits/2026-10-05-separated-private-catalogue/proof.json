@@ -1,0 +1,227 @@
+{
+  "kind": "separate-private-catalogue-source-proof-v1",
+  "sourceCommit": "fd65e118e3b650a9a48fd48bafe73109d5401bd5",
+  "runtimeCommit": "5d515b074a8a2d1f62f359397019b132ab5712aa",
+  "baseCommit": "229eebbcbb16950ee5f169bb5dc46d49630c6115",
+  "inputs": [
+    {
+      "path": "packages/api/src/services/httpKaanaClient.ts",
+      "gitSource": "fd65e118e3b650a9a48fd48bafe73109d5401bd5",
+      "sha256": "a57567c246d021bbf2ade10a542f4fe142f04db0e7e5ab8c9859f135fdc62978"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "gitSource": "fd65e118e3b650a9a48fd48bafe73109d5401bd5",
+      "sha256": "176e0df7fb26abe0f683fc95f89d217fa99b2e3f55232108101fb39788ef91e3"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/httpScopedExecution.test.ts",
+      "gitSource": "fd65e118e3b650a9a48fd48bafe73109d5401bd5",
+      "sha256": "2225e3ee679c1fba54cd3bad392851d6a198b8337c114d0fe72cea6487cf4e1a"
+    },
+    {
+      "path": "packages/api/src/services/__tests__/kaanaCatalogueSync.test.ts",
+      "gitSource": "fd65e118e3b650a9a48fd48bafe73109d5401bd5",
+      "sha256": "d4de92bba0b47cf8a1891234ac3dca6554339ac33c05cf9cc5864c42fb95ccc0"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/green-composed.txt",
+      "sha256": "eea2fbec598fd5e6e0f53157fec0438e1c96d52d2270a0a1208a4b0edb63244d",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-8ni5kry_/focused.txt"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/owned-pg-composed.txt",
+      "sha256": "d49c63551acbf9691f9575558bcdd76ddb017b8ef1edfb93732e70512ba06d88",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-composed.log"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/migrate-fresh.txt",
+      "sha256": "d99dff06940fec79b011848cca781f412f910de3b1f9d5596db7615ba332ff02",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-8ni5kry_/migrate-fresh.txt"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/migrate-repeat.txt",
+      "sha256": "22587cb49141280ebf55a346a4c548d6754404b79b4ab92f55cf2b8e2945e5f4",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-8ni5kry_/migrate-repeat.txt"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/baseline-red.txt",
+      "sha256": "288c6adad88f97096fcef31ad0bfbf88c2ade32417e9c996a01ff472b9155ba3",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-06lg5ejx/focused.txt"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/baseline-owned-pg.txt",
+      "sha256": "04290eb2da6d29f5092185a802638aa95b9c1c98e589de75806d6b5b501edc11",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/controlled-baseline-red.log"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/canonical-build-composed.txt",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/canonical-build-composed.log"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/lint-final.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/lint-parity-final.log"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/real-go-parser.txt",
+      "sha256": "b8999614ea1e5f9a6b80328793aaae5e4a3ee9688864aeb72af83c19882c2d4c",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/real-go-parser.log"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/shipping-producer-wire.json",
+      "sha256": "339e1396c9782b175c5f66e62d7be286dd5f4171526b0f8600a4b02a9676c424",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/shipping-producer-wire.json"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/baseline-producer-wire.json",
+      "sha256": "cb9ec49fb0f54def57e1dd1c89def4b2c1c751328972d416daa4aaa80ea6314a",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/shipping-producer-wire-baseline.json"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/real-go-parser-fixture.go",
+      "sha256": "10952d98d69bdb0a9677d6fe306ddb7410f912896b43ae12a601afff6468a9cd",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/integration_catalogue_negotiation_test.go"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/owned-pg.py",
+      "sha256": "9f17452972d403f2eccd93e53a069cd72f889e4d281190996b369b82a2e7df09",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg.py"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/records/owned-pg-baseline.py",
+      "sha256": "e649db7fd237bdac11e9eaa55248e7cbe758f559b145cfd0d7a42d37c45d3eac",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-baseline.py"
+    }
+  ],
+  "retainedFixtureFailures": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-bq13ytfs/focused.txt",
+      "sha256": "2d7e81f2714179eea245f9fab64bda38e2c8715a71fce41204c8b8b88d7753ee",
+      "qualification": "Shared synthetic ordinary descriptor object mutated both projections; fixture now clones independently."
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-821bmetc/focused.txt",
+      "sha256": "3996aa16e942af234889c26293d9a8ea0376aaacf916b0d8a3e376bad5dc2467",
+      "qualification": "Synthetic scoped descriptor omitted required key/upstream/card/source fields; fixture now supplies them."
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-unjzpgrp/focused.txt",
+      "sha256": "20d0383fc5a8034284bd25ab73b1047263e0a382d87283825e852cc93921d0da",
+      "qualification": "Fixture incorrectly required updatedAt unchanged on reimport; functional fields now checked unchanged and update timestamp nondecreasing."
+    }
+  ],
+  "unchanged": [
+    {
+      "path": "packages/api/src/config/privateAutoClassification.ts",
+      "gitSource": "229eebbcbb16950ee5f169bb5dc46d49630c6115",
+      "sha256": "0bbb438804bade8534bc5301fb58c80c00c9305352c805f7eb391d273769b208"
+    },
+    {
+      "path": "packages/api/src/config/kaanaInitialCatalogue.ts",
+      "gitSource": "229eebbcbb16950ee5f169bb5dc46d49630c6115",
+      "sha256": "3b992666a8babc61e960aae1a124fc487cb2e3492304e5f6cfa9e9900d3e5159"
+    },
+    {
+      "path": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "gitSource": "229eebbcbb16950ee5f169bb5dc46d49630c6115",
+      "sha256": "c87839d53177eaeebd3d7c9fa3c20afc2a1ebcd967ef1eb6ab5b29229c33126c"
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "gitSource": "229eebbcbb16950ee5f169bb5dc46d49630c6115",
+      "sha256": "7113508b9386d711a897b4f3c54b604eb4b008ab27c11de611b71d45cef0baae"
+    },
+    {
+      "path": "bun.lock",
+      "gitSource": "229eebbcbb16950ee5f169bb5dc46d49630c6115",
+      "sha256": "96e0009039603d12f84c3801ed05496fe7431a5ec4363983bad34b63e95b0024"
+    },
+    {
+      "path": "packages/api/package.json",
+      "gitSource": "229eebbcbb16950ee5f169bb5dc46d49630c6115",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/dist/services/httpKaanaClient.js",
+      "builtSource": "5d515b074a8a2d1f62f359397019b132ab5712aa",
+      "sha256": "a5959690c72709cda73838ddb4bc7fb17d9078eb839380bdeb08e2743c1747e5"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/dist/services/kaanaCatalogueSync.service.js",
+      "builtSource": "5d515b074a8a2d1f62f359397019b132ab5712aa",
+      "sha256": "64b819ac43ee872ba438d76b8b946b169cdce0a6e43ca10faf770c576c22b5fd"
+    }
+  ],
+  "ownedPostgresStopped": [
+    {
+      "pid": 2337099,
+      "absent": true,
+      "record": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-combined2.log"
+    },
+    {
+      "pid": 2332842,
+      "absent": true,
+      "record": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-initial.log"
+    },
+    {
+      "pid": 2340872,
+      "absent": true,
+      "record": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-final.log"
+    },
+    {
+      "pid": 2352128,
+      "absent": true,
+      "record": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-composed.log"
+    },
+    {
+      "pid": 2335176,
+      "absent": true,
+      "record": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-combined.log"
+    },
+    {
+      "pid": 2348434,
+      "absent": true,
+      "record": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-parity-final.log"
+    }
+  ],
+  "baseline": {
+    "runtimeSource": "d7f69b643c12b8012e1008dc61520f6241ae0741",
+    "positiveFixtures": 2,
+    "failed": 2,
+    "skipped": 104,
+    "failureKinds": [
+      "HTTP400 combined negotiation",
+      "SQL fixture rejects combined query before import"
+    ]
+  },
+  "green": {
+    "source": "5d515b074a8a2d1f62f359397019b132ab5712aa",
+    "suites": 3,
+    "tests": 108,
+    "failed": 0,
+    "freshMigrationsExit": 0,
+    "repeatMigrationsExit": 0,
+    "canonicalBuildExit": 0,
+    "lintExit": 0
+  },
+  "realGoParser": {
+    "repository": "/home/nate/Oxy/Kaana",
+    "gitSource": "fe3329de3757940ef49aeb5b98a84eccaa79e833",
+    "shippingBodies": 6,
+    "result": "PASS",
+    "temporaryFixtureRemoved": true
+  },
+  "limits": [
+    "No production AWS, SQL, provider calls, sync retries or authority changes were performed.",
+    "HTTP fixtures use actual Oxy signer and schemas plus synthetic fetch responses; separately captured bodies pass the shipping Go parser. This is not a live Kaana/provider test.",
+    "Compilation/tests ran at runtimeCommit. sourceCommit adds only a corrected method comment; compiled hashes intentionally retain the tested-source attribution.",
+    "Production failure/metadata cleanup receipts remain parent-owned; this source proof does not claim deployment or sync success.",
+    "The existing 3.6 synthetic operation remains failed permanently. Mention approval rotation and final image pins follow the actual merged queue source."
+  ]
+}

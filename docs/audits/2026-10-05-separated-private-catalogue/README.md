@@ -1,0 +1,9 @@
+# Separately negotiated private catalogues
+
+When both private source approvals were active, Oxy put contract versions 3.6 and 3.7 in one signed query. Kaana deliberately rejects that query before any database import. This change reads and attests each negotiated projection separately, then merges only a consistent serving snapshot.
+
+The merge requires identical ordinary descriptor/model/price projections, consistent configuration and shared facts, unique private identities, and price membership in the same negotiated projection. Each attestation batch checks exact requested IDs, authority, provider, snapshot and echoed version. Private commissioning and Auto remain disabled/pending until their existing canonical legal and admission gates pass; ordinary routes retain their existing approval.
+
+The controlled previous-runtime test fails both new positive fixtures: one HTTP 400 and one combined-query assertion before SQL import. The final main229 composition passes 108 tests across three package-owned suites on a fresh, locally owned PostgreSQL server, plus repeat migrations, canonical API build and lint. Six query bodies emitted by the actual signer/client separately pass Kaana's shipping Go parser without changing that parser. The SQL fixture imports ordinary, commissioning and Auto together and confirms an idempotent reimport preserves functional state. Earlier fixture setup failures are retained and qualified in proof.json.
+
+Both source approvals, economic policy, lockfile, package versions and migrations are unchanged. The final source commit after testing corrects a stale method comment only; compiled evidence remains explicitly attributed to the tested runtime commit. PostgreSQL processes are stopped. No production operations or provider calls were performed; deployment and a fresh canonical sync remain parent-owned prerequisites.
