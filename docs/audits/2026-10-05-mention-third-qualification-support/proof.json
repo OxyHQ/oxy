@@ -1,0 +1,238 @@
+{
+  "kind": "mention-closed-third-qualification-inactive-source-proof-v1",
+  "preparedAt": "2026-10-05T05:05:40.838715+00:00",
+  "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+  "baseCommit": "133c8a930b3847740bdb080935c7823e51d3501c",
+  "baseAuthenticatedRead": {
+    "url": "https://api.github.com/repos/OxyHQ/oxy/commits/main",
+    "commit": "133c8a930b3847740bdb080935c7823e51d3501c",
+    "commitTime": "2026-10-05T03:42:46Z",
+    "transport": "GitHub App MCP"
+  },
+  "activationStatus": "INACTIVE_SUPPORT_ONLY",
+  "liveEconomicApproval": "Unchanged .2 / total2 / original05:21:15 expiry",
+  "newApproval": null,
+  "newSelection": null,
+  "newExpiry": null,
+  "delta": "Closed type/resolver/metered-admission .3 cumulative3 variant for2026-10-05; preserve .1 cap1/.2 cap2 and stable relationship counting all previous failed admissions. No scoped/privateAuto/sourceapproval/globalconfig change.",
+  "sourceInputs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/config/mentionClassifierEconomics.ts",
+      "gitPath": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "2af02a1433734c67814bb004f7044b943d0f60e048dac10dfbb629cb739dfd74",
+      "unchangedFromBase": false
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "gitPath": "packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "a5657a6d9bf095058b27d992634ef675e9b0b220d1f0041f242df3cd81f09efe",
+      "unchangedFromBase": false
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "gitPath": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "2b8350ad479cd5457481ee01314117b9ae9758d7faee2cb2d5a46514b48e792f",
+      "unchangedFromBase": false
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "gitPath": "packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "4f60c0b6f6c9ea11f0108c50c8a77332712d48cb343f9ed0b92ffaf8933036bb",
+      "unchangedFromBase": false
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts",
+      "gitPath": "packages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "e497355a5fda406f64c3e7d6ccd2e32db9b7cf5fc8dfdfc402276ca0fea822c4",
+      "unchangedFromBase": false
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/scopedExecution.service.ts",
+      "gitPath": "packages/api/src/services/scopedExecution.service.ts",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "86e3976ed9567db1dbb45f91001eff588d8063f731d7934b262ee5ee07a6ad58",
+      "unchangedFromBase": true
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/config/inferenceEconomicPolicy.ts",
+      "gitPath": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "4d3cfa6b89947aa383e37e21c8ec1e2ea17a501b9d6760ede9310d222fb78e98",
+      "unchangedFromBase": true
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/docs/audits/2026-10-05-mention-native-second-source/economics.json",
+      "gitPath": "docs/audits/2026-10-05-mention-native-second-source/economics.json",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "764e673899c64db2c32169a04fea1017d36fb4bd98e9cdc68be5ce4a8ba2ebc6",
+      "unchangedFromBase": true
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/docs/audits/2026-10-05-mention-native-second-source/audience.json",
+      "gitPath": "docs/audits/2026-10-05-mention-native-second-source/audience.json",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "e8f0bd94dfb68b5a29b929ff1c67ecd2afca2d43ad02d0f6e3aa3fcd6e4c51b1",
+      "unchangedFromBase": true
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/core/package.json",
+      "gitPath": "packages/core/package.json",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "891584d9cdc87d15e29c8f5f54dce92a65cbd72c450d3e61b04fb14e1078ff85",
+      "unchangedFromBase": true
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/contracts/package.json",
+      "gitPath": "packages/contracts/package.json",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "7113508b9386d711a897b4f3c54b604eb4b008ab27c11de611b71d45cef0baae",
+      "unchangedFromBase": true
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/bun.lock",
+      "gitPath": "bun.lock",
+      "sourceCommit": "c33c82bfa5b3515acca5c889651503962131bca2",
+      "sha256": "96e0009039603d12f84c3801ed05496fe7431a5ec4363983bad34b63e95b0024",
+      "unchangedFromBase": true
+    }
+  ],
+  "immutableCompiledSnapshots": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/inactive-compiled/config/mentionClassifierEconomics.js",
+      "shippingRelativePath": "packages/api/dist/config/mentionClassifierEconomics.js",
+      "sha256": "6c3ea35358e9f8f1d4094e093f4e0893226c51c97d53370c517f8022b46492a5",
+      "originalMutableBuildPath": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/dist/config/mentionClassifierEconomics.js"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/inactive-compiled/services/mentionClassifierEconomics.service.js",
+      "shippingRelativePath": "packages/api/dist/services/mentionClassifierEconomics.service.js",
+      "sha256": "a0c4ad81dfd980d333e44d84b2921311e7f2185f0b2f24b6b7fcdd013b62a1bf",
+      "originalMutableBuildPath": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/dist/services/mentionClassifierEconomics.service.js"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/inactive-compiled/services/inferenceMeteredUsage.service.js",
+      "shippingRelativePath": "packages/api/dist/services/inferenceMeteredUsage.service.js",
+      "sha256": "775600262e266a1c298d2ad77914ba294a163a9f8fc11725cc8c5d67b3b7d0a5",
+      "originalMutableBuildPath": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/dist/services/inferenceMeteredUsage.service.js"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/inactive-compiled/services/scopedExecution.service.js",
+      "shippingRelativePath": "packages/api/dist/services/scopedExecution.service.js",
+      "sha256": "ec309484d375c9819924bd204e1645e88ecdd500e3cdd2265e1d3ad06a4fa025",
+      "originalMutableBuildPath": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/dist/services/scopedExecution.service.js"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/inactive-compiled/config/inferenceEconomicPolicy.js",
+      "shippingRelativePath": "packages/api/dist/config/inferenceEconomicPolicy.js",
+      "sha256": "a94e861c7fd742ab0362203b3cf9129c2f223caf3ad78dbbf14be1a0b5aea084",
+      "originalMutableBuildPath": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/dist/config/inferenceEconomicPolicy.js"
+    }
+  ],
+  "records": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/red.log",
+      "sha256": "43e30d3b22e7aae6f28b4edf093a86b45303d64160d4482162b4ba2beb351ad6"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/green.log",
+      "sha256": "6ed832d70f3aae1d2d38013415d2723c034d5ce97e5ec58f0ece66da473395ed"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/owned-pg-final.log",
+      "sha256": "09cf8d41025e55314d80a1c1be0a7b47dc1b938d71d7014c308164d149db5c86"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/owned-pg.py",
+      "sha256": "d56d8ea45e3619644e5b4dd52ee9683a70348ee290494f5e739d3f4988dfe110"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/third-support-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/third-support-install.log",
+      "sha256": "b59cdecdd2e448be00f8c9140b90b79b403973b3611a12fcf7ed79965cb4e2aa"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/runtime-lint.log",
+      "sha256": "5ac1a5fe0e5effc25acb80a91934c3bd4ec190ea040f6108a7d218c9b79d4b75"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/third-support-lint-baseline.log",
+      "sha256": "c0c982f28b50c73c6d788ae936892ab48f310a6c2381e485177820477826886b"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/third-support-lint-final.log",
+      "sha256": "87d9292b29c3a747f837eed0299bf2697ec40f6460b33736bc231fcec8728bca"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/inactive-and-lint-invariants.json",
+      "sha256": "e2c9a0e6ca91c8800bd86896f83626f2583164eef839451a3a31c6dcbe3038fe"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/proposal.json",
+      "sha256": "cd6cf2f87e1c648db71875a7438bce43a384f0fd5f15e0d57c7600aecffaab2f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/pg1519-9o408b5a/migrate-fresh.txt",
+      "sha256": "489e89983554c4945df179bd7e34e0603ba9250996a8634046085f4edd51b0d8"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/pg1519-9o408b5a/migrate-repeat.txt",
+      "sha256": "24352c1414db1552f7a5a5eb1201ce807e262f5a9977a4c7e08be53a9cd1848f"
+    }
+  ],
+  "verification": {
+    "sameFinalFixturesRed": {
+      "failed": 4,
+      "passed": 69,
+      "suitesFailed": 2,
+      "baselineRuntime": "base133c8 three source files substituted under same final tests; restored finally"
+    },
+    "sameFinalFixturesGreen": {
+      "passed": 73,
+      "suites": 2
+    },
+    "httpAndSql": "Own-role signedHTTP plus real catalogue/authority/meteredSQL; provider executor reply fake; no provider network",
+    "freshAndRepeatMigrations": {
+      "exitCodes": [
+        0,
+        0
+      ],
+      "ddlSourceDelta": false
+    },
+    "canonicalApiBuildExit": 0,
+    "runtimeBiomeLintExit": 0,
+    "historicalTestLintDiagnostics": 10,
+    "historicalTestLintSameAsBase": true,
+    "gitDiffCheckExit": 0,
+    "ownedPostgres": {
+      "pid": 2750739,
+      "port": 5896,
+      "pidAbsent": true,
+      "dataPath": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/pg1519-9o408b5a/data"
+    },
+    "activeObjectAndGetterUnchanged": true
+  },
+  "controls": [
+    "Both .1/.2 settledfailed rows preserved; .1/.2 refuse a third; explicit synthetic .3 allows exactly one then fourth429, same stable relationship",
+    "Actual PostgreSQL advisory waiter observed; expiry elapses while blocked, admission refuses afterward",
+    "Queued budget day mutated to nextday while actually blocked; refused after lock without claim",
+    "Foreign ownowner/credential/delegation/day/missingbudget/version/cap4 refused with noSQLrow",
+    "Resolver refuses no-budget .3/cap4/cap2/lineage mismatch/unreviewedsource/nonfinite daywindow and preserves exactquote/route guards",
+    "Nested clone mutation cannot alter approval; getter still exact original .2"
+  ],
+  "limits": [
+    "Current sourcegetter.2 still exhausted; this support never admits a third without a separately reviewed sourceactivation",
+    "Day test is adversarial queued-input drift on real DB clock, not a claim of observing actual UTCmidnight crossing; production daycheck uses clock_timestamp afterlock",
+    "Existing ten historical test lint findings retained; no all-files lintGREEN claim",
+    "Synthetic ownedSQL marks its two fixture rows failed to test durable counters; no live rows touched",
+    "No root source approval, expiry, SDK publication, AWS call, provider call, push or merge"
+  ],
+  "requiredBeforeActivation": "Root verifies parser fix/image, distinctthirdselection/fixture/input/key, exacttuple/privacy/card/source/actualprice/legal and newfixedexpiry. Activate only with separate source/proof commit after reviewedfreeze; no originalhistory/reset/replay."
+}
