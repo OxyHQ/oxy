@@ -5,14 +5,14 @@ import {and,eq} from 'drizzle-orm';
 import {reconcileProductAccessFinancialState} from './productAccessPersistence.service';
 import {z} from 'zod';
 import {oxyAccountIdSchema} from '@oxy.so/contracts';
-import type {Peable} from '@peable.to/sdk';
+import type {Peable, BillingPaidInvoice, BillingInvoiceState} from '@peable.to/sdk';
 import {recordProductProviderPeriod,revokeProductProviderPaidPeriod,type ProductProviderPeriodInput} from './productProviderEvidence.service';
 import {validatePersonalInvoiceForAction,personalFinalInvoiceSchema} from './peablePersonalBilling.service';
 export const peablePaidEvidenceSchema=z.object({invoiceId:z.string().min(1),lineId:z.string().min(1),paymentIntentId:z.string().min(1),providerSubscriptionId:z.string().min(1),providerCustomerId:z.string().min(1),providerPriceId:z.string().min(1),storeId:z.string().min(1),planId:z.string().min(1),livemode:z.boolean(),currency:z.literal('USD'),amountPaid:z.literal('2999'),netAmount:z.string().regex(/^(0|[1-9][0-9]*)$/).nullable(),taxAmount:z.string().regex(/^(0|[1-9][0-9]*)$/).nullable(),periodStart:z.string().datetime(),periodEnd:z.string().datetime(),paidAt:z.string().datetime(),observedAt:z.string().datetime()}).strict();
 export interface PeableInvoiceSource {invoiceId:string;paymentIntentId:string;customerId:string;subscriptionId:string;priceId:string;planId:string;merchantId:string;appId:string;mode:'live'|'test';environment:'production'|'test'|'development'|'staging';}
 export interface PeableEvidenceAuthority{
  /** Authenticated server read through the updated Peable SDK, not browser data. */
- client:Pick<Peable,'billing'|'merchants'> & {billing:{retrievePaidInvoice?(subscriptionId:string,invoiceId:string):Promise<unknown>;retrieveInvoiceState?(subscriptionId:string,invoiceId:string):Promise<unknown>}};
+ client:Pick<Peable,'merchants'> & {billing:Pick<Peable['billing'],'retrievePaidInvoice'|'retrieveInvoiceState'|'retrieveSubscription'>};
  /** Authoritative tax/seller evidence is not currently supplied by Peable. No default. */
  readFinalInvoiceAuthority?:(source:PeableInvoiceSource)=>Promise<{source:PeableInvoiceSource;invoice:unknown}>;
 }
@@ -29,7 +29,8 @@ export async function reconcilePeablePersonalPaidInvoice(authority:PeableEvidenc
  context:PeablePersonalPaidContext,invoiceId:string,clock:()=>Date=()=>new Date()){
  if(!authority.client.billing.retrievePaidInvoice||!authority.readFinalInvoiceAuthority)throw new Error('Authoritative Peable evidence is unconfigured');
  await assertPeableEvidenceOwner(authority,context);
- const value=peablePaidEvidenceSchema.parse(await authority.client.billing.retrievePaidInvoice(context.subscriptionId,invoiceId));
+ const paid:BillingPaidInvoice=await authority.client.billing.retrievePaidInvoice(context.subscriptionId,invoiceId);
+ const value=peablePaidEvidenceSchema.parse(paid);
  const validateTime=()=>{const now=clock();
  if(value.invoiceId!==invoiceId||value.providerSubscriptionId!==context.subscriptionId||value.providerCustomerId!==context.customerId||value.providerPriceId!==context.priceId||value.storeId!==context.accountId||value.planId!==context.planId||value.livemode!==(context.mode==='live')||Date.parse(value.observedAt)>now.getTime()||now.getTime()-Date.parse(value.observedAt)>60_000||Date.parse(value.paidAt)>now.getTime()||Date.parse(value.periodStart)>now.getTime()||Date.parse(value.periodEnd)<=now.getTime())throw new Error('Peable paid period ownership/time differs');
  };
@@ -64,7 +65,8 @@ export type PersonalInvoiceAuthority=z.infer<typeof personalFinalInvoiceSchema>;
 export async function reconcilePeablePersonalInvoiceState(authority:PeableEvidenceAuthority,context:PeablePersonalPaidContext,invoiceId:string,clock:()=>Date=()=>new Date()){
  if(!authority.client.billing.retrieveInvoiceState)throw new Error('Authoritative Peable invoice state unconfigured');
  await assertPeableEvidenceOwner(authority,context);
- const value=peablePaidEvidenceSchema.extend({chargeId:z.string().min(1),amountRefunded:z.string().regex(/^(0|[1-9][0-9]*)$/),state:z.enum(['paid','fully_refunded','partially_refunded'])}).parse(await authority.client.billing.retrieveInvoiceState(context.subscriptionId,invoiceId));
+ const invoiceState:BillingInvoiceState=await authority.client.billing.retrieveInvoiceState(context.subscriptionId,invoiceId);
+ const value=peablePaidEvidenceSchema.extend({chargeId:z.string().min(1),amountRefunded:z.string().regex(/^(0|[1-9][0-9]*)$/),state:z.enum(['paid','fully_refunded','partially_refunded'])}).parse(invoiceState);
  const now=clock().getTime();
  if(value.invoiceId!==invoiceId||value.providerSubscriptionId!==context.subscriptionId||value.providerCustomerId!==context.customerId||value.providerPriceId!==context.priceId||value.storeId!==context.accountId||value.planId!==context.planId||value.livemode!==(context.mode==='live')||Date.parse(value.observedAt)>now||now-Date.parse(value.observedAt)>60_000||Date.parse(value.paidAt)>now)throw new Error('Peable invoice state ownership/time differs');
  const refunded=BigInt(value.amountRefunded),paid=BigInt(value.amountPaid);
