@@ -23,8 +23,8 @@ export interface MentionClassifierApproval {
 /** Exact root-reviewed own-Mention relationship; no environment override or mutable setter. */
 const REVIEWED_MENTION_APPROVAL: MentionClassifierApproval = {
   "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.1",
-  "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:bd227379b2f439a9df4e51c04ce9f6d636c67d99f4974d0ff78da9875fa593ea",
-  "expiresAt": "2026-10-05T01:28:26Z",
+  "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:613bde08e74fa7a3ff0c16b7d6e1a3310f2b3934b028add5ecbda5b1d0a46fba",
+  "expiresAt": "2026-10-05T03:14:23Z",
   "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_2026_10_05",
   "modelReference": "typesafe/jev-1.13@2026-09-17",
   "provider": "openrouter",

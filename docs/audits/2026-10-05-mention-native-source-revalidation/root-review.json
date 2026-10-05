@@ -1,0 +1,58 @@
+{
+  "kind": "root-mention-native-source-review-v2",
+  "reviewedAt": "2026-10-05T01:14:23Z",
+  "expiresAt": "2026-10-05T03:14:23Z",
+  "scopeAccepted": true,
+  "userAuthority": "Existing explicit instructions to complete/deploy parent1519 and Jev1572, including Mention own existing OpenRouter provider; reviewed bounded native original public English classification",
+  "purpose": "One original public native English post through Mention own principal and Oxy/Kaana, four canonical decisions, shadow-only; no new post/key or product permission expansion",
+  "proposal": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-mention-native-release-price-bound-20261005/proof.json",
+    "sha256": "dc882e09998ba7fca7177757fc750880874e835e4212432ecdff27dd8b0f6650"
+  },
+  "actualPrice": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/jev-canonical-runtime/after-import705-read-run/result.private.json",
+    "sha256": "5346f023fd5ebcdb45b6807363b9e0f19669cdab3cf6a4b8f97c87108f1b3f44"
+  },
+  "originalSyntheticOutcome": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/jev-canary-v2/failure-reconciled705.json",
+    "sha256": "bc4730561b7987fc9dabb1aa66738f20429fd35a1a2c59c9cd49eb2eb0056957"
+  },
+  "selection": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-mention-native-en-selection-20261005/proof.json",
+    "sha256": "297a48bad8d7fd569f1ba4992d150ac0daf1d2c6fbf707d942141b0ef088ae0a"
+  },
+  "privacy": "Fresh same visible terms and ZDR guidance, exact dated Jev endpoint bytes and exact ZDR entry unchanged. Specific TypeSafe-only ZDR endpoint governs inference constraints; no reliance on general website privacy as proof of zero retention. Public native own-content shadow use only; no commercial or regional rights asserted.",
+  "limits": {
+    "maximumRequests": 1,
+    "maxCostUsd": "0.01",
+    "controlledInputBytes": 8192,
+    "windowSeconds": 7200,
+    "automaticResubmit": false
+  },
+  "retirement": "Original synthetic request failed and settled with zero Kaana claims; root original intent ledger remains consumed. Rotate singleton3.6 to separate Mention identity; no renewed original permit and no Auto3.7 change.",
+  "runtimeAcceptancePending": [
+    "canonical Mention scopes/API binding final readback",
+    "distinct deployment binding and signed publication/import",
+    "own canonical legal review",
+    "product exact private route/economics/privacy/SDK/recovery review refs",
+    "one original operation and independent receipts"
+  ],
+  "previousReview": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/root-review.json",
+    "sha256": "bd227379b2f439a9df4e51c04ce9f6d636c67d99f4974d0ff78da9875fa593ea"
+  },
+  "primaryRevalidation": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-primary-revalidation/manifest.json",
+    "sha256": "abb35c80cfb94c3176b30b8cfbeb43c48cf3543e6439d4a3bd15c327c0bbbf8d"
+  },
+  "primaryComparison": {
+    "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-primary-revalidation-review-20261005/source-comparison.json",
+    "sha256": "51df446ea1595a0be6a2842e60d65f0f904831e2908925826cf467144c0061a3"
+  },
+  "exactZdrComparison": {
+    "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-primary-revalidation-review-20261005/zdr-jev-exact-comparison.json",
+    "sha256": "adce3d8b01063908fb7708fc9023c1639c9429f318806686144f6da7a12d244a"
+  },
+  "changeReason": "Initial one-hour source-only window is insufficient after newly discovered catalogue-sync defect and deployment validation; this is an explicit re-review of the same unsubmitted Mention operation, not a new operation or automatic extension. Original reviewed files remain immutable.",
+  "unsubmittedEvidence": "Mention492 getter absent; original Mention intent has not been dispatched by root. Oxy1588/Kaana159 not merged. Bindings alone do not submit inference. Before dispatch own original-key and permanent-claim readbacks remain required."
+}

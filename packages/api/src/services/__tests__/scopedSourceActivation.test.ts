@@ -2,7 +2,8 @@ import { scopedExecutionAudienceSchema } from '@oxy.so/contracts';
 import type { EdgeExecutionContext } from '../inferenceEdge.service';
 import { bindScopedPermit, hashScopedInput, privateCommissioningAudience,
   scopedPermitForContext, sourceReviewedScopedAudience } from '../scopedExecution.service';
-import audienceJson from '../../../../../docs/audits/2026-10-05-mention-native-source-activation/audience.json';
+import audienceJson from '../../../../../docs/audits/2026-10-05-mention-native-source-revalidation/audience.json';
+import priorMentionAudience from '../../../../../docs/audits/2026-10-05-mention-native-source-activation/audience.json';
 import retiredAudience from '../../../../../docs/audits/2026-10-04-jev-exact-activation/frozen-audience-2030.json';
 import syntheticInput from '../../../../../docs/audits/2026-10-04-jev-exact-activation/fixture.json';
 
@@ -23,6 +24,7 @@ afterEach(() => jest.useRealTimers());
 it('compiles the exact own-Mention audience without renewing the retired Alia operation', () => {
   expect(sourceReviewedScopedAudience(at)).toEqual(audience);
   expect(privateCommissioningAudience(audience, at)).toEqual(audience);
+  expect(privateCommissioningAudience(scopedExecutionAudienceSchema.parse(priorMentionAudience), at)).toBeUndefined();
   expect(privateCommissioningAudience(scopedExecutionAudienceSchema.parse(retiredAudience), at)).toBeUndefined();
   expect(audience.principal.applicationId).toBe('6a2f851751b784a86fd0e916');
   expect(audience.idempotencyKey).toBe('mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231');

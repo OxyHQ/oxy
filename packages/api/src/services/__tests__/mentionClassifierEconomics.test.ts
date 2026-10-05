@@ -1,5 +1,5 @@
 import { MENTION_CLASSIFIER_IDENTITY, mentionClassifierApproval, type MentionClassifierApproval } from '../../config/mentionClassifierEconomics';
-import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-source-activation/economics.json';
+import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-source-revalidation/economics.json';
 import { resolveEconomicTreatment } from '../../config/inferenceEconomicPolicy';
 import { isMentionClassifierRequest, mentionClassifierEconomicDecision } from '../mentionClassifierEconomics.service';
 import type { EdgePrincipal } from '../inferenceEdge.service';

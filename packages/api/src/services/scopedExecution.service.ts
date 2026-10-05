@@ -17,7 +17,7 @@ const preapprovedManifest: ScopedExecutionAudience | undefined = scopedExecution
   "permitId": "jev-mention-native-en-onepost-20261005-01",
   "idempotencyKey": "mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231",
   "fixtureSha256": "a962e5ed49a962db7934684c62834dd25b04aba94162ad9d07140c9a2abeb3b2",
-  "expiresAt": "2026-10-05T01:28:26Z",
+  "expiresAt": "2026-10-05T03:14:23Z",
   "principal": {
     "accountId": "69b2d3df5d12f58c9800d651",
     "applicationId": "6a2f851751b784a86fd0e916",
