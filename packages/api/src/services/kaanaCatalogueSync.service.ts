@@ -1404,7 +1404,8 @@ export async function attestPricedDeployments(
         throw new Error('Deployment attestation must contain exactly the requested identities.');
       }
       for (const descriptor of evidence.deployments) {
-        const route = pricedRoutes.get(descriptor.deploymentId)!;
+        const route = pricedRoutes.get(descriptor.deploymentId);
+        if (route === undefined) throw new Error('Deployment attestation lacks its exact priced route.');
         if (descriptor.provider !== route.provider ||
           canonicalScopedExecutionJson(descriptor.privateAutoSourceApproval ?? null) !== canonicalScopedExecutionJson(route.privateAutoSourceApproval ?? null) ||
           canonicalScopedExecutionJson(descriptor.scopedExecution ?? null) !== canonicalScopedExecutionJson(route.scopedExecution ?? null)) {

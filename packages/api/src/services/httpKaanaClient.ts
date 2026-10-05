@@ -396,6 +396,14 @@ export function mergeNegotiatedCatalogueReads(scopedBody: unknown, autoBody: unk
     { ...scoped, snapshotId: scoped.configuration.snapshotId },
     { ...auto, snapshotId: auto.configuration.snapshotId },
   );
+  const ordinaryIds = new Set(merged.deployments.filter(row => row.scopedExecution === undefined && row.privateAutoSourceApproval === undefined).map(row => row.deploymentId));
+  const ordinaryModels = new Set(merged.deployments.filter(row => ordinaryIds.has(row.deploymentId)).map(row => row.modelReference));
+  const ordinaryProjection = (projection: typeof scoped) => projection.models.filter(model => ordinaryModels.has(model.modelReference))
+    .map(model => ({ ...model, listPrices: (model.listPrices ?? []).filter(price => ordinaryIds.has(price.deploymentId)).sort((a,b) => a.deploymentId.localeCompare(b.deploymentId)) }))
+    .sort((a,b) => a.modelReference.localeCompare(b.modelReference));
+  if (canonicalScopedExecutionJson(ordinaryProjection(scoped)) !== canonicalScopedExecutionJson(ordinaryProjection(auto))) {
+    throw new KaanaProtocolError('Independent catalogue ordinary model or price projections conflict.');
+  }
   // Age and checkedAt are request-time observations; snapshot configuration is immutable.
   const { ageSeconds: _scopedAge, ...scopedConfiguration } = scoped.configuration;
   const { ageSeconds: _autoAge, ...autoConfiguration } = auto.configuration;
@@ -573,7 +581,9 @@ class HttpKaanaClient implements KaanaClient {
   async listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation> {
     const reads: KaanaDeploymentAttestation[] = [];
     for (const negotiation of catalogueNegotiations()) reads.push(await this.readPublishedDeployments(signal, negotiation));
-    return reads.length === 1 ? reads[0] : mergeNegotiatedDeploymentReads(reads[0]!, reads[1]!);
+    const [scoped, auto] = reads;
+    if (scoped === undefined) throw new KaanaProtocolError('No catalogue negotiation was performed.');
+    return auto === undefined ? scoped : mergeNegotiatedDeploymentReads(scoped, auto);
   }
 
   private async readPublishedDeployments(signal: AbortSignal, requested: Pick<KaanaExecuteOptions, 'scopedExecutionContractVersion' | 'privateAutoExecutionContractVersion'>): Promise<KaanaDeploymentAttestation> {

@@ -103,7 +103,7 @@ it('reads and attests private lanes independently with the shipping signer and p
   if (process.env.OXY_NEGOTIATION_CAPTURE_FILE) writeFileSync(process.env.OXY_NEGOTIATION_CAPTURE_FILE, JSON.stringify(captured));
 });
 
-it.each(['snapshot', 'model-facts', 'revision', 'price', 'descriptor', 'duplicate', 'foreign-authority', 'missing-descriptor', 'missing-ordinary', 'foreign-lane-price', 'configuration', 'ack'])
+it.each(['snapshot', 'model-facts', 'revision', 'price', 'descriptor', 'duplicate', 'foreign-authority', 'missing-descriptor', 'missing-ordinary', 'missing-ordinary-model', 'missing-ordinary-price', 'foreign-lane-price', 'configuration', 'ack'])
   ('refuses %s across projections', mutation => {
     const f = independentFixtures();
     if (mutation === 'snapshot') f.autoBody.configuration.snapshotId = 'other';
@@ -115,6 +115,8 @@ it.each(['snapshot', 'model-facts', 'revision', 'price', 'descriptor', 'duplicat
     if (mutation === 'foreign-authority') Object.assign(f.autoBody.deployments[0]!, { scopedExecution: f.scoped.scopedExecution });
     if (mutation === 'missing-descriptor') f.autoBody.deployments.splice(1, 1);
     if (mutation === 'missing-ordinary') { f.autoBody.deployments.splice(0, 1); f.autoBody.models.splice(0, 1); }
+    if (mutation === 'missing-ordinary-model') f.autoBody.models.splice(0, 1);
+    if (mutation === 'missing-ordinary-price') f.autoBody.models[0]!.listPrices = [];
     if (mutation === 'foreign-lane-price') f.autoBody.models[1]!.listPrices[0]!.deploymentId = f.scoped.deploymentId;
     if (mutation === 'configuration') Object.assign(f.autoBody.configuration, { issuedAt: 'changed' });
     if (mutation === 'ack') Object.assign(f.autoBody, { scopedExecutionContractVersion: '3.6.0' });
