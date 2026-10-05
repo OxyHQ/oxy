@@ -1,0 +1,235 @@
+{
+  "kind": "official-scopes-only-source-and-local-sql",
+  "sourceCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+  "baseCommit": "8a9976a67594d15c4d1738954396ed45fdbd4fe0",
+  "inputs": [
+    {
+      "path": "packages/api/scripts/seed-oxy-applications.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "0a9a50fd654986ce64e13c57e04c58ef4156410ae884021a492b53fbfb06c91f"
+    },
+    {
+      "path": "packages/api/src/scripts/seedOxyApplicationScopes.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "b0bce1a0efd0ca69c3a28a694c15f812f592b9bad3826bbb96d6f49129e626c2"
+    },
+    {
+      "path": "packages/api/src/scripts/__tests__/seedOxyApplicationScopes.test.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "57f31b89ac74b6e58d47a4e6567798516fee41739e963590d2bc921ab1f7aa97"
+    },
+    {
+      "path": "packages/api/src/scripts/seedOxyApplicationsSpecs.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "416f9f5e88c9531b148b48116df3b2cd276e36bdc9fd7a7f4993f7e773f68968"
+    },
+    {
+      "path": "packages/api/src/scripts/__tests__/seedOxyApplicationsSpecs.test.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "fcd894135ec161937f950cfc915895f527e91ed49d6b245e0b59ebbc12bfaffd"
+    },
+    {
+      "path": "packages/api/src/scripts/seedEntrySelection.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "7e729cc776ffff7e1beec2f4648729ff16fa11780ea26fe05fd98f72cfb7dbf2"
+    },
+    {
+      "path": "packages/api/src/scripts/seedOxyApplicationsPlan.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "240cb3c3ba5f3fb38e5c63ae7abf4017009ea9e089300734b3ec2740c2123f21"
+    },
+    {
+      "path": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "c87839d53177eaeebd3d7c9fa3c20afc2a1ebcd967ef1eb6ab5b29229c33126c"
+    },
+    {
+      "path": "packages/api/src/utils/applicationScopes.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "c277afc6ff5564ee3e41102bd1cfa9efd43023ca487ec0458aef2ebdd92dfdd5"
+    },
+    {
+      "path": "packages/api/src/services/workloadIdentityBinding.service.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "6ecec1524d410fa4d10217273c17a0d5d30f0ecd80fda84a09960e8b40de38bb"
+    },
+    {
+      "path": "packages/api/src/services/accountFinancialHolds.service.ts",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "50ae5ad6a96bb5aee73ce6ec407d8fad72b32fabe5e92b1df9be0417c7971a4c"
+    },
+    {
+      "path": "packages/api/package.json",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "296b998498a9d83a9e5383978eda38ea4e913c7f8872472ce70645f7d8d32510"
+    },
+    {
+      "path": "Dockerfile",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "ecfde2e9f992af862ca7f0acc238241cdbf5bd2afd3814f39b125cd990967023"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/README.md",
+      "gitCommit": "a5de2d3a3288639ab2b82a0acd9f464c5ae0e379",
+      "sha256": "5616736c137541ecef33f75b404fcde8e6a3926c36576ae8bd8730ff535c7a9f"
+    }
+  ],
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/compiled-cli.log",
+      "sha256": "143ef41e8dd7328865233cd22a3961675a345ff553028e18ab874115aaf566b5"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/focal-initial-authorized-spec-delta.log",
+      "sha256": "2c36596a592567cdd21d4b48a0fe15585325c13a62eff870099a61c9cbaf9f6b"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/focal-initial-type-narrowing.log",
+      "sha256": "60c4a21d7b8be3e0a2b75a298596be8024c90ac2e9f9a2819af756cbc9504fa3"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/focal.log",
+      "sha256": "eb141cda6de3c4b3c2d8664e6f6ff115c3c850204ae6eebf30fd03645bb76b02"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/format.log",
+      "sha256": "dc0ceb48a0fb3446aadce9dbde64a28905ce2c408e3ba897e3e2d17516115196"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/lint-baseline-wrapper.log",
+      "sha256": "ee918a370399c565d449a6dad8fd679a1afe2839daff46f392ddf8db2613f080"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/lint-scoped.log",
+      "sha256": "9ad3061813e3c34b67e1525c806d79bf9f6dc6a35ffbd900e3ada68ea8aa3dc6"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/lint.log",
+      "sha256": "36e010b91d73300b9a18c8759a5e6b4b3ed0e9f553c98b1a7b37e0e7ae280663"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/freeze-proof.py",
+      "sha256": "fb89f8c0beec9f18b81d6ae7b9200f7669dcc43188a7fef624ce61e137c834e0"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/owned-pg-cli.py",
+      "sha256": "cafcd82afefa86bf674722607596ad111ff77425b7441f42d27a004d6bbeb08f"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/owned-pg.py",
+      "sha256": "f026e9cc48f5f24b50d070243772e91ba78b267b34d6180a648bf6e8c9d1ea37"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/compiled-cli.cjs",
+      "sha256": "afe90b53846cfc3ac03e8c9a5e33b204693b4b4935a208b3a7b91d32d02a37d6"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-idkezkn6-focused.txt",
+      "sha256": "959c72b30c9a99d605f3ee31c47090b49a88cb1368e9f9eb5ee54d7f296347ad"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-idkezkn6-migrate-fresh.txt",
+      "sha256": "a0e58b31e8c6c86a3bd4d1c4ded77399353bb9dc3cfb68be4f9a09e93c799b97"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-idkezkn6-migrate-repeat.txt",
+      "sha256": "2d4ab995906ccb2ab1b42fc1c26a02614d9b7cca3999968cf893db6bf1835e1b"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-op8q6i8d-focused.txt",
+      "sha256": "65218cab98354d4b811b5a2bdd56c15299d9e5f596b99da24851dcbe025fa46d"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-op8q6i8d-migrate-fresh.txt",
+      "sha256": "d0919bbdd570fc0ce1e41cea4a928573655ec11b55f0b8467997d6284cd1f97b"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-op8q6i8d-migrate-repeat.txt",
+      "sha256": "2df07497fc9910e5202c76411bdd192dd95e43439f1e84c8975a2223e44a4d3f"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-v91zj68h-focused.txt",
+      "sha256": "fca1bed45db7991125f6013cead2300777c428f5b0a75764c262d157c7fc0a08"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-v91zj68h-migrate-fresh.txt",
+      "sha256": "aa4f2e106ae0d2a72890e39c91edff340717b5f4e4891fccbc0e50f73b6f2dae"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-v91zj68h-migrate-repeat.txt",
+      "sha256": "1c23fda901a40604a5ba35bb8870ea5aa2bd62a69c22dd198ffff639779a943d"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-w3y9ge06-focused.txt",
+      "sha256": "dea470ace59472781fd5db6a35c6dd19cbb194c4d24a59a4c28ac6284f228f72"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-w3y9ge06-migrate-fresh.txt",
+      "sha256": "85a26ab284a831d63155ecc86140df2272ac0b740f037237d22c03459443975a"
+    },
+    {
+      "path": "docs/audits/2026-10-05-official-scopes-only/records/pg1519-w3y9ge06-migrate-repeat.txt",
+      "sha256": "63e4ee3467232ee1d5cf3647a4f2deb933d174e35f0ee8df9aa84b1e5697b174"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "packages/api/dist/scripts/seedOxyApplicationScopes.js",
+      "sha256": "877f9a8f44c3cbccb5e1e91688761b5c8cce5a5f6bbf36a65d396c37b3e9855d",
+      "preserved": "docs/audits/2026-10-05-official-scopes-only/records/seedOxyApplicationScopes.js"
+    },
+    {
+      "path": "packages/api/dist/scripts/seedOxyApplicationsSpecs.js",
+      "sha256": "966195b352f02397847a474ff06f2f14da5aa5895df13bf443a47729c11bc3ba",
+      "preserved": "docs/audits/2026-10-05-official-scopes-only/records/seedOxyApplicationsSpecs.js"
+    },
+    {
+      "path": "packages/api/dist/scripts/seedEntrySelection.js",
+      "sha256": "f0cecc813a94c5ebb8b3c78f446b8a229cd1e47f87aea4f24e49d3bc0f1e5e4d",
+      "preserved": "docs/audits/2026-10-05-official-scopes-only/records/seedEntrySelection.js"
+    }
+  ],
+  "ownedPgCleanup": [
+    {
+      "pid": 2115248,
+      "absent": true,
+      "sourceLog": "focal.log"
+    },
+    {
+      "pid": 2117591,
+      "absent": true,
+      "sourceLog": "compiled-cli.log"
+    },
+    {
+      "pid": 2114397,
+      "absent": true,
+      "sourceLog": "focal-initial-authorized-spec-delta.log"
+    },
+    {
+      "pid": 2113902,
+      "absent": true,
+      "sourceLog": "focal-initial-type-narrowing.log"
+    }
+  ],
+  "results": {
+    "jestSuites": 4,
+    "jestPassed": 124,
+    "canonicalBuild": true,
+    "compiledNodeCli": true,
+    "scopedBiome": true,
+    "existingWrapperBiomeDiagnostics": 9
+  },
+  "limits": [
+    "No production execution or activation",
+    "No scope-binding mutation in this command",
+    "No session or staff identity manufactured",
+    "New image source binding required before operator use",
+    "Human OAuth/session grants not evaluated",
+    "Initial setup/assertion failures retained, not product RED",
+    "Final test-only concatenation formatting change did not alter runtime tested"
+  ]
+}
