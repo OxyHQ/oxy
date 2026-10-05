@@ -70,6 +70,7 @@ it('refuses unacknowledged, unknown-version and changed-region private evidence'
 });
 it('nil approval leaves catalogue negotiation unchanged; private source never enters ordinary publication', async () => {
   setup();
+  jest.spyOn(source, 'privateAutoClassifierSourceApproval').mockReturnValue(undefined);
   const fetcher = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ snapshotId: 'ordinary', scopedExecutionContractVersion: '3.6.0', deployments: [] })));
   const reader = createHttpKaanaCatalogueReader();
   if (!reader) throw new Error('Missing reader');
