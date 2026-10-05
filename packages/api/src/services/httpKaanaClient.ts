@@ -577,7 +577,7 @@ class HttpKaanaClient implements KaanaClient {
     return parsed.data;
   }
 
-  /** The whole serving snapshot: the signed empty query `{}`. */
+  /** The whole serving snapshot, read through separately signed private projections. */
   async listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation> {
     const reads: KaanaDeploymentAttestation[] = [];
     for (const negotiation of catalogueNegotiations()) reads.push(await this.readPublishedDeployments(signal, negotiation));
