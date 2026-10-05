@@ -18,7 +18,11 @@ const actor = {
 	isPlatformStaff: true,
 	describedAs: "synthetic operator fixture",
 };
+const cleanups: Array<() => Promise<void>> = [];
 beforeAll(connectPostgres);
+afterEach(async () => {
+	while (cleanups.length > 0) await cleanups.pop()?.();
+});
 afterAll(closePostgres);
 async function fixture() {
 	const [owner] = await getDb()
@@ -239,6 +243,15 @@ it("one-shot operation seam accepts only verifier, exact target and closed input
 	);
 	const { target } = await import("../mercariaEphemeralCredential.contract");
 	const { credentialVerifier } = await import("../../utils/credentialMaterial");
+	// The exact target is Oxy's own fixed account and application: remove them
+	// afterwards so a later suite in this worker's database can seed them too.
+	cleanups.push(async () => {
+		await getDb()
+			.delete(applicationCredentials)
+			.where(eq(applicationCredentials.applicationId, target.applicationId));
+		await getDb().delete(applications).where(eq(applications.id, target.applicationId));
+		await getDb().delete(users).where(eq(users.id, target.ownerAccountId));
+	});
 	await getDb()
 		.insert(users)
 		.values({ id: target.ownerAccountId, color: "teal" });
