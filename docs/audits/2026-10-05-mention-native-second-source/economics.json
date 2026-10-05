@@ -1,0 +1,16 @@
+{
+  "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.2",
+  "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:801905abc8267496404b1ce23578f56ff5b8f0cc24fa6502d1f19cd3d2eba62c",
+  "expiresAt": "2026-10-05T05:21:15Z",
+  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_second_2026_10_05",
+  "modelReference": "typesafe/jev-1.13@2026-09-17",
+  "provider": "openrouter",
+  "priceVersionId": "jev_scoped_price_20261004_01",
+  "routingPolicyId": "platform-internal-default",
+  "routingPolicyVersion": 1,
+  "qualificationBudget": {
+    "utcDay": "2026-10-05",
+    "maxTotalRequests": 2,
+    "previousEconomicPolicyVersion": "oxy-mention-jev-native/2026-10-05.1"
+  }
+}

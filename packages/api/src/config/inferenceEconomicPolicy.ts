@@ -62,6 +62,11 @@ export interface InternalMeteredCapacity {
   readonly maxRequestsPerUtcDay: number;
   /** Default remains all application traffic; a reviewed feature may own a separate budget. */
   readonly scope?: 'relationship';
+  /** Closed, source-reviewed Mention qualification; ordinary daily budgets are unchanged. */
+  readonly qualificationBudget?: {
+    readonly utcDay: '2026-10-05';
+    readonly expiresAt: string;
+  };
 }
 
 export interface InternalMeteredPilot {

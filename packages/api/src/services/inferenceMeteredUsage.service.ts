@@ -23,6 +23,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { MENTION_CLASSIFIER_IDENTITY } from '../config/mentionClassifierEconomics';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { executeRows, type SqlExecutor } from '@oxy.so/db';
 import {
@@ -174,6 +175,34 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
       await tx.execute(
         sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`
       );
+      if (capacity.qualificationBudget !== undefined || input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2') {
+        const budget = capacity.qualificationBudget;
+        const identity = MENTION_CLASSIFIER_IDENTITY;
+        const expiry = Date.parse(budget?.expiresAt ?? '');
+        // Recheck the wall clock AFTER waiting for the capacity lock. A day or
+        // source expiry crossed while queued cannot acquire a fresh daily slot.
+        const valid = typeof budget === 'object' && budget !== null
+          && Object.keys(budget).sort().join(',') === 'expiresAt,utcDay'
+          && input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2'
+          && input.economics.relationship.relationshipId === 'mention-jev-kaana'
+          && input.economics.relationship.consumerApplicationId === identity.applicationId
+          && input.economics.relationship.consumerProduct === 'mention'
+          && input.economics.relationship.providerProduct === 'kaana'
+          && input.economics.relationship.lane === 'service_token'
+          && input.economics.relationship.environments.length === 1
+          && input.economics.relationship.environments[0] === 'production'
+          && input.applicationId === identity.applicationId && input.accountId === identity.ownerAccountId
+          && input.applicationCredentialId === identity.credentialId && input.environment === 'production'
+          && input.delegatedUserId === undefined && input.endpoint === '/v1/decisions'
+          && capacity.scope === 'relationship' && capacity.maxConcurrentRequests === 1
+          && capacity.maxRequestsPerUtcDay === 2 && budget.utcDay === '2026-10-05'
+          && Number.isFinite(expiry) && expiry <= Date.parse('2026-10-06T00:00:00Z');
+        if (!valid || budget === undefined) return { status: 'capacity-exceeded', limit: 'daily', capacity };
+        const [clock] = await tx.execute<{ valid: boolean }>(sql`select
+          to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD') = ${budget.utcDay}
+          and clock_timestamp() < ${budget.expiresAt}::timestamptz as valid`);
+        if (clock?.valid !== true) return { status: 'capacity-exceeded', limit: 'daily', capacity };
+      }
       const counts = await readMeteredCapacity(tx, input.applicationId, input.environment,
         capacity.scope === 'relationship' ? input.economics.relationship.relationshipId : undefined);
       if (counts.activeAdmissions >= capacity.maxConcurrentRequests) {

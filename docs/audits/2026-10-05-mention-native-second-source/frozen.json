@@ -1,0 +1,32 @@
+{
+  "kind": "root-distinct-mention-second-operation-freeze-v1",
+  "rootReview": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-source-freeze/root-review.json",
+    "sha256": "801905abc8267496404b1ce23578f56ff5b8f0cc24fa6502d1f19cd3d2eba62c"
+  },
+  "audience": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-source-freeze/audience.json",
+    "sha256": "e8f0bd94dfb68b5a29b929ff1c67ecd2afca2d43ad02d0f6e3aa3fcd6e4c51b1"
+  },
+  "economics": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-source-freeze/economics.json",
+    "sha256": "764e673899c64db2c32169a04fea1017d36fb4bd98e9cdc68be5ce4a8ba2ebc6"
+  },
+  "providerCard": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-source-freeze/provider-card.json",
+    "sha256": "7dad32e09865c10b8d33487f76303a0f1f2ceb325771eb9ed4fd1a0bc1d7b351"
+  },
+  "selection": {
+    "postId": "019fd378-8d12-70da-83ef-b2d39f86e192",
+    "fingerprint": "454831da03d69cfbfd312779c426078ff97b39f42f2a17466bd3f46ae04b121b",
+    "inputSha256": "207a9c8fa2847e7263d6e8d525a951bca72d82bfb762aeb37cf546ca8762966a",
+    "idempotencyKey": "mention_jev_native_en_d5c4e4815e9bfb2b998af67bb7677011"
+  },
+  "expiresAt": "2026-10-05T05:21:15Z",
+  "sourceCardObservation": "Original provider card observation22:51:12 preserved; fresh independent publicrevalidation03:14:40 is separately recorded, not backdated or substituted",
+  "noRuntimeAcceptanceInferred": true,
+  "originalApprovalUnmodified": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/frozen.json",
+    "sha256": "e5fb0f619d7923196bfd78f5fd66e13d9130a845fef284272866b1cb4a675bf9"
+  }
+}

@@ -11,8 +11,8 @@ jest.mock("../../utils/logger", () => ({
 import express from "express";
 import http from "http";
 import type { AddressInfo } from "net";
-import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import { eq, sql } from "drizzle-orm";
 import {
   scopedExecutionAudienceSchema,
   type ScopedExecutionAudience,
@@ -37,6 +37,8 @@ import {
   usageReservations,
   usageReceipts,
 } from "../../db/schema";
+import { claimMeteredAdmission, type MeteredAdmissionInput } from "../../services/inferenceMeteredUsage.service";
+import type { EconomicTreatmentDecision } from "../../config/inferenceEconomicPolicy";
 import * as approvalConfig from "../../config/mentionClassifierEconomics";
 import { MENTION_CLASSIFIER_IDENTITY as identity } from "../../config/mentionClassifierEconomics";
 import * as scoped from "../../services/scopedExecution.service";
@@ -213,7 +215,7 @@ async function post(f: Awaited<ReturnType<typeof fixture>>) {
   });
   const data = JSON.stringify({
     model: f.modelReference,
-    state: "SYNTHETIC",
+    state: f.state,
     questions: [{ id: "q", kind: "noul", question: "Synthetic?" }],
   });
   return new Promise<{
@@ -251,8 +253,8 @@ async function post(f: Awaited<ReturnType<typeof fixture>>) {
     req.end(data);
   });
 }
-async function authorizedFixture() {
-  const f = await fixture();
+async function authorizedFixture(state = "SYNTHETIC") {
+  const f = await fixture(state);
   audience = f.audience;
   expect(scopedExecutionAudienceSchema.safeParse(audience)).toMatchObject({
     success: true,
@@ -276,7 +278,7 @@ async function authorizedFixture() {
     });
   return f;
 }
-async function fixture() {
+async function fixture(state = "SYNTHETIC") {
   const key = randomUUID().replaceAll("-", "");
   const publisher = `private${key}`;
   const provider = `openrouter`;
@@ -368,7 +370,7 @@ async function fixture() {
     fixtureSha256: scoped.hashScopedInput({
       format: "decisions",
       decisions: {
-        state: "SYNTHETIC",
+        state,
         questions: [{ id: "q", kind: "noul", question: "Synthetic?" }],
       },
     }),
@@ -472,6 +474,7 @@ async function fixture() {
           : undefined,
       );
   return {
+    state,
     audience,
     deployment,
     resolve,
@@ -667,3 +670,115 @@ it("preserves relationship concurrency while the first synthetic execution is in
       .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId)),
   ).toHaveLength(1);
 });
+
+it("counts the original failed request across the explicit review and admits only one additional distinct permit", async () => {
+  const first = await authorizedFixture();
+  const firstApproval = approvalConfig.mentionClassifierApproval();
+  if (firstApproval === undefined) throw new Error("fixture approval missing");
+  jest.mocked(approvalConfig.mentionClassifierApproval).mockReturnValue({ ...firstApproval,
+    economicPolicyVersion: "oxy-mention-jev-native/2026-10-05.1" });
+  expect((await post(first)).status).toBe(200);
+  const [original] = await getDb().select({ id: inferenceMeteredUsage.id })
+    .from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.applicationId, identity.applicationId));
+  // A provider-processed failed row remains spent. Never mark it refused or delete it.
+  await getDb().update(inferenceMeteredUsage).set({ outcome: "failed" })
+    .where(eq(inferenceMeteredUsage.id, original.id));
+  const second = await authorizedFixture("SYNTHETIC DISTINCT PUBLIC POST");
+  expect(second.audience.idempotencyKey).not.toBe(first.audience.idempotencyKey);
+  expect(second.audience.fixtureSha256).not.toBe(first.audience.fixtureSha256); // synthetic inputs, not live post-selection evidence
+  expect((await post(second)).status).toBe(429); // original cap1 remains unchanged
+  const secondApproval = approvalConfig.mentionClassifierApproval();
+  if (secondApproval === undefined) throw new Error("fixture approval missing");
+  jest.mocked(approvalConfig.mentionClassifierApproval).mockReturnValue({ ...secondApproval,
+    economicPolicyVersion: "oxy-mention-jev-native/2026-10-05.2",
+    evidenceRef: `oxy1519/1572/mention-native-source-review/sha256:${"a".repeat(64)}`,
+    expiresAt: "2026-10-05T23:59:59Z",
+    qualificationBudget: { utcDay: "2026-10-05", maxTotalRequests: 2,
+      previousEconomicPolicyVersion: "oxy-mention-jev-native/2026-10-05.1" },
+  });
+  const secondResult = await post(second);
+  // This source-reviewed qualification intentionally expires on its fixed UTC
+  // day. Subsequent CI must verify refusal, never broaden the day to keep green.
+  const [clock] = await getDb().execute<{ day: string }>(sql`select
+    to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD') as day`);
+  if (clock.day !== '2026-10-05') {
+    expect(secondResult.status).toBeGreaterThanOrEqual(400);
+    expect(executions).toBe(1);
+    expect(await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+      .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId))).toHaveLength(1);
+    return;
+  }
+  expect(secondResult.status).toBe(200);
+  const third = await authorizedFixture("SYNTHETIC THIRD POST");
+  const thirdApproval = approvalConfig.mentionClassifierApproval();
+  if (thirdApproval === undefined) throw new Error("fixture approval missing");
+  jest.mocked(approvalConfig.mentionClassifierApproval).mockReturnValue({ ...thirdApproval,
+    economicPolicyVersion: "oxy-mention-jev-native/2026-10-05.2",
+    evidenceRef: `oxy1519/1572/mention-native-source-review/sha256:${"a".repeat(64)}`,
+    expiresAt: "2026-10-05T23:59:59Z",
+    qualificationBudget: { utcDay: "2026-10-05", maxTotalRequests: 2,
+      previousEconomicPolicyVersion: "oxy-mention-jev-native/2026-10-05.1" },
+  });
+  expect((await post(third)).status).toBe(429);
+  expect(executions).toBe(2);
+  const rows = await getDb().select({ id: inferenceMeteredUsage.id, outcome: inferenceMeteredUsage.outcome,
+    relationship: inferenceMeteredUsage.economicRelationshipId, version: inferenceMeteredUsage.economicPolicyVersion })
+    .from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.applicationId, identity.applicationId));
+  expect(rows).toHaveLength(2);
+  expect(rows.find(r => r.id === original.id)).toMatchObject({ outcome: "failed",
+    version: "oxy-mention-jev-native/2026-10-05.1" });
+  expect(rows.every(r => r.relationship === "mention-jev-kaana")).toBe(true);
+  expect(rows.some(r => r.version === "oxy-mention-jev-native/2026-10-05.2")).toBe(true);
+});
+
+function boundedAdmission(expiresAt: string): MeteredAdmissionInput {
+  const id = randomUUID();
+  const economics: EconomicTreatmentDecision = { treatment: "internal_metered",
+    policyVersion: "oxy-mention-jev-native/2026-10-05.2",
+    relationship: { relationshipId: "mention-jev-kaana", consumerApplicationId: identity.applicationId,
+      consumerProduct: "mention", providerProduct: "kaana", lane: "service_token", environments: ["production"],
+      capacity: { scope: "relationship", maxConcurrentRequests: 1, maxRequestsPerUtcDay: 2,
+        qualificationBudget: { utcDay: "2026-10-05", expiresAt } } } };
+  return { requestId: id, idempotencyKey: `synthetic-qualified-${id}`, economics,
+    accountId: identity.ownerAccountId, applicationId: identity.applicationId,
+    applicationCredentialId: identity.credentialId, environment: "production", endpoint: "/v1/decisions",
+    requestedModelReference: "synthetic/model@fixture", admittedModelReference: "synthetic/model@fixture",
+    admittedProvider: "openrouter", admittedDeploymentId: "synthetic-deployment",
+    routingPolicyVersionId: undefined, ceiling: { amount: "0.01", currency: "USD" }, expiresInSeconds: 900 };
+}
+it("checks actual source expiry after waiting on the canonical capacity advisory lock", async () => {
+  const lockKey = createHash("sha256").update(`inference-capacity:${identity.applicationId}:production`).digest().readBigInt64BE();
+  let entered!: () => void;
+  let release!: () => void;
+  const locked = new Promise<void>(r => { entered = r; });
+  const untilRelease = new Promise<void>(r => { release = r; });
+  const blocker = getDb().transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${lockKey.toString()}::bigint)`);
+    entered();
+    await untilRelease;
+  });
+  await locked;
+  const input = boundedAdmission(new Date(Date.now() + 250).toISOString());
+  const pending = claimMeteredAdmission(input);
+  try { await new Promise(r => setTimeout(r, 400)); } finally { release(); }
+  await blocker;
+  expect(await pending).toMatchObject({ status: "capacity-exceeded", limit: "daily" });
+  expect(await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+    .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId))).toHaveLength(0);
+});
+it.each(["foreign-owner", "foreign-credential", "other-day", "third-cap", "delegation", "missing-budget"])(
+  "rejects closed qualification inputs in actual SQL before any claim: %s", async kind => {
+    const input = boundedAdmission("2026-10-05T23:59:59Z");
+    if (kind === "foreign-owner") Object.assign(input, { accountId: "foreign" });
+    if (kind === "foreign-credential") Object.assign(input, { applicationCredentialId: "foreign" });
+    if (kind === "delegation") Object.assign(input, { delegatedUserId: "foreign" });
+    if (input.economics.treatment !== "internal_metered") throw new Error("fixture");
+    const capacity = input.economics.relationship.capacity;
+    if (capacity.qualificationBudget === undefined) throw new Error("fixture budget missing");
+    if (kind === "other-day") Object.assign(capacity.qualificationBudget, { utcDay: "2026-10-06" });
+    if (kind === "missing-budget") Object.assign(capacity, { qualificationBudget: undefined });
+    if (kind === "third-cap") Object.assign(capacity, { maxRequestsPerUtcDay: 3 });
+    expect(await claimMeteredAdmission(input)).toMatchObject({ status: "capacity-exceeded", limit: "daily" });
+    expect(await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+      .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId))).toHaveLength(0);
+  });

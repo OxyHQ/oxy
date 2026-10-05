@@ -18,23 +18,39 @@ export interface MentionClassifierApproval {
   readonly priceVersionId: string;
   readonly routingPolicyId: string;
   readonly routingPolicyVersion: number;
+  /** A separately reviewed second qualification, never a reset of the first request. */
+  readonly qualificationBudget?: {
+    readonly utcDay: '2026-10-05';
+    readonly maxTotalRequests: 2;
+    readonly previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1';
+  };
 }
 
 /** Exact root-reviewed own-Mention relationship; no environment override or mutable setter. */
 const REVIEWED_MENTION_APPROVAL: MentionClassifierApproval = {
-  "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.1",
-  "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:613bde08e74fa7a3ff0c16b7d6e1a3310f2b3934b028add5ecbda5b1d0a46fba",
-  "expiresAt": "2026-10-05T03:14:23Z",
-  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_2026_10_05",
+  "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.2",
+  "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:801905abc8267496404b1ce23578f56ff5b8f0cc24fa6502d1f19cd3d2eba62c",
+  "expiresAt": "2026-10-05T05:21:15Z",
+  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_second_2026_10_05",
   "modelReference": "typesafe/jev-1.13@2026-09-17",
   "provider": "openrouter",
   "priceVersionId": "jev_scoped_price_20261004_01",
   "routingPolicyId": "platform-internal-default",
-  "routingPolicyVersion": 1
+  "routingPolicyVersion": 1,
+  "qualificationBudget": {
+    "utcDay": "2026-10-05",
+    "maxTotalRequests": 2,
+    "previousEconomicPolicyVersion": "oxy-mention-jev-native/2026-10-05.1"
+  }
 };
+
+/** Value isolation only; this function neither approves nor activates its input. */
+export function cloneMentionClassifierApproval(approval: MentionClassifierApproval): MentionClassifierApproval {
+  return structuredClone(approval);
+}
 
 export function mentionClassifierApproval(): MentionClassifierApproval | undefined {
   const now = Date.now();
   return Number.isFinite(now) && Date.parse(REVIEWED_MENTION_APPROVAL.expiresAt) > now
-    ? { ...REVIEWED_MENTION_APPROVAL } : undefined;
+    ? cloneMentionClassifierApproval(REVIEWED_MENTION_APPROVAL) : undefined;
 }
