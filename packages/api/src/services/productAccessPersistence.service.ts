@@ -20,7 +20,7 @@ import {
 	getDb,
 } from '../config/postgres';
 import {
-  accessGrants,
+  accessGrants,accessProviderRefunds,
 	accessOfferBenefits,
 	accessOfferSegments, accessOffers, accessProducts, accessSubscriptionSources, accountClosureFences,
   applications, users, } from '../db/schema';
@@ -168,6 +168,12 @@ export async function recordProductAccessPeriod(input: {
     const definitions = await Promise.all([...new Set(offer.benefits.map(benefit => benefit.productId))].map(id => readRegisteredProduct(tx, id)));
     await lockOpenAccounts(tx, [source.beneficiaryAccountId, source.payerAccountId, ...definitions.map(product => product.ownerAccountId)]);
     await lockProductApplications(tx, definitions);
+    // Account locks serialize this check with refund evidence, even when the
+    // source and grants do not exist yet. Financial IDs derive from the same line.
+    if(source.provider==='peable'){
+      const [terminalRefund]=await tx.select({id:accessProviderRefunds.id}).from(accessProviderRefunds).where(eq(accessProviderRefunds.segmentId,segment.id)).limit(1);
+      if(terminalRefund)throw new ConflictError('Paid period has terminal full refund evidence');
+    }
     if (input.expectedConfiguration) {
       const expected = productAccessConfigurationExpectationSchema.parse(input.expectedConfiguration);
       same(offer, expected.offer);

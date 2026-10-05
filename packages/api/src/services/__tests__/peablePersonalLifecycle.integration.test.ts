@@ -1,3 +1,9 @@
+import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import type {Peable} from '@peable.to/sdk';
+import {cancelStoredPeablePersonalSource} from '../peablePersonalManagement.service';
+import {EMPTY_PRODUCT_BILLING_CATALOGUE} from '../productBillingCatalogue.service';
 /** Opt-in two-checkout fixture. Set PEABLE_ONE_FIXTURE_RUNNER to Peable's
  * packages/backend/src/__tests__/fixtures/oxyOneLifecycleServer.ts. A separate
  * Bun process owns its throwaway DB and actual SDK; no product dependency override.
@@ -7,7 +13,7 @@ import {createInterface} from 'node:readline';
 import {randomUUID} from 'node:crypto';
 import {eq} from 'drizzle-orm';
 import {connectPostgres,closePostgres,getDb} from '../../config/postgres';
-import {accessGrants,accessSubscriptionSources} from '../../db/schema';
+import {accessGrants,accessSubscriptionSources,accessProviderRefunds} from '../../db/schema';
 import {productAccessFixture} from '../__fixtures__/productAccessFixtures';
 import {recordProductAccessPeriod,readSubjectProductAccess} from '../productAccessPersistence.service';
 import {cancelOwnedPeableSubscription} from '../peablePersonalBilling.service';
@@ -36,7 +42,7 @@ const runner=process.env.PEABLE_ONE_FIXTURE_RUNNER;
   await cancelOwnedPeableSubscription(client,f.payer,{payerAccountId:f.payer,providerSubscriptionId:context.subscriptionId,providerCustomerId:context.customerId,providerPriceId:context.priceId,storeId:f.payer,planId:context.planId,livemode:true},'fixture_action');
   await reconcilePeablePersonalInvoiceState(authority,context,'in_fixture');expect((await active()).capabilities).toHaveLength(1);const [source]=await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id,(first as any).sourceId));expect(source.cancelAtPeriodEnd).toBe(true);
   expect((await readSubjectProductAccess(f.payer,f.products[1].id,new Date(Date.parse(end)+1))).capabilities).toHaveLength(0);
-  await rpc('setState',[],{refund:100});expect((await reconcilePeablePersonalInvoiceState(authority,context,'in_fixture')).status).toBe('review_required');
+  await rpc('setState',[],{refund:100});expect((await reconcilePeablePersonalInvoiceState(authority,context,'in_fixture')).status).toBe('review_required');expect(await getDb().select().from(accessProviderRefunds).where(eq(accessProviderRefunds.payerAccountId,f.payer))).toHaveLength(0);
   await rpc('setState',[],{refund:2999});expect(await rpc('observe',[],{type:'charge.refunded',id:'evt_refund',created:100})).toMatchObject({kind:'observed'});expect((await reconcilePeablePersonalInvoiceState(authority,context,'in_fixture')).status).toBe('revoked');expect((await active()).capabilities).toHaveLength(0);
   // Original paid wake-up arrives after the refund; fresh read preserves refund.
   expect(await rpc('observe',[],{type:'invoice.paid',id:'evt_old_paid',created:1})).toMatchObject({kind:'unchanged'});expect((await handlePeablePersonalObservation(authority,context,deliveries[0].raw,deliveries[0].signature,verify)).status).toBe('replayed');expect((await active()).capabilities).toHaveLength(0);
@@ -48,6 +54,24 @@ const runner=process.env.PEABLE_ONE_FIXTURE_RUNNER;
   const renewed=await reconcilePeablePersonalInvoiceState(authority,context,'in_renewal',clock);expect(renewed.status).toBe('recorded');expect((await readSubjectProductAccess(f.payer,f.products[1].id,clock())).capabilities).toHaveLength(1);
   expect((await reconcilePeablePersonalInvoiceState(authority,context,'in_fixture',clock)).status).toBe('replayed');expect((await readSubjectProductAccess(f.payer,f.products[1].id,clock())).capabilities).toHaveLength(1);expect((await readSubjectProductAccess(f.payer,f.products[1].id,new Date(Date.parse(authorityEnd)+1))).capabilities).toHaveLength(0);
   const grants=await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId,f.payer));expect(grants).toHaveLength(5);expect(grants.filter(g=>g.revokedAt!==null)).toHaveLength(2);
+  // An unrefunded old paid wake-up after the next renewal is a historical no-op.
+  authorityStart=authorityEnd;authorityEnd=new Date(Date.parse(authorityStart)+30*86_400_000).toISOString();const third=await rpc('setState',[],{renew:{start:authorityStart,end:authorityEnd,invoiceId:'in_third'}});validationNow=new Date(third.now);
+  const thirdPaid=await reconcilePeablePersonalInvoiceState(authority,context,'in_third',clock);expect(thirdPaid.status).toBe('recorded');const [beforeReplay]=await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id,(thirdPaid as any).sourceId));
+  expect((await reconcilePeablePersonalInvoiceState(authority,context,'in_renewal',clock)).status).toBe('historical_replayed');const [afterReplay]=await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id,beforeReplay.id));expect(afterReplay).toEqual(beforeReplay);
+  await rpc('setState',[],{invoiceId:'in_renewal',refund:2999});expect((await reconcilePeablePersonalInvoiceState(authority,context,'in_renewal',clock)).status).toBe('revoked');expect((await readSubjectProductAccess(f.payer,f.products[1].id,clock())).capabilities).toHaveLength(1);
+  // Failed renewal cancellation uses exact historical paid mapping, both before
+  // and after Oxy's subscription wake advances the source into an unpaid month.
+  const directory=await mkdtemp(join(tmpdir(),'one-failed-renewal-'));const previousCatalogue=process.env.BILLING_PRODUCT_CATALOGUE_FILE;
+  const cfg={merchantId:context.merchantId,applicationId:context.appId,namespace:{mode:'live' as const,environment:'production' as const},offers:[{offerId:context.offerId,offerVersion:1,planId:context.planId,providerPriceId:context.priceId}]};
+  const path=join(directory,'catalogue.json');await writeFile(path,JSON.stringify({...EMPTY_PRODUCT_BILLING_CATALOGUE,products:f.products,offers:f.offers,prices:[{provider:'peable',providerAccountId:context.merchantId,priceId:context.priceId,mode:'live',environment:'production',offerId:context.offerId,offerVersion:1,validFrom:'2000-01-01T00:00:00.000Z',validUntil:null,currency:'usd',amountMinorUnits:2999,offerKind:'bundle',kind:'oxy_one'}]}));process.env.BILLING_PRODUCT_CATALOGUE_FILE=path;
+  try{for(const status of ['past_due','unpaid'] as const)for(const reconciled of [false,true]){
+   const unpaidStart=authorityEnd,unpaidEnd=new Date(Date.parse(unpaidStart)+30*86_400_000).toISOString();authorityEnd=unpaidEnd;const changed=await rpc('setState',[],{period:{start:unpaidStart,end:unpaidEnd},status,cancelAtPeriodEnd:false});validationNow=new Date(changed.now);
+   if(reconciled){expect(await rpc('observe',[],{type:'customer.subscription.updated',id:`evt_failed_${status}_${reconciled}`})).toMatchObject({kind:'observed'});await rpc('relay',[],{enabled:true});const events=await rpc('deliveries');const wake=events.filter((v:any)=>v.event.data.object.resourceKind==='subscription').at(-1);validationNow=new Date(validationNow.getTime()+1);await handlePeablePersonalObservation(authority,context,wake.raw,wake.signature,verify,clock);}
+   await expect(cancelStoredPeablePersonalSource(f.owner,beforeReplay.id,'wrong_owner',{management:{configuration:cfg,client:client as Peable},now:clock})).rejects.toMatchObject({statusCode:404});
+   validationNow=new Date(validationNow.getTime()+1);expect(await cancelStoredPeablePersonalSource(f.payer,beforeReplay.id,`cancel_${status}_${reconciled}`,{management:{configuration:cfg,client:client as Peable},now:clock})).toEqual({sourceId:beforeReplay.id,cancelAtPeriodEnd:true});
+   const [state]=await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id,beforeReplay.id));expect(state.status).toBe(status);expect(state.cancelAtPeriodEnd).toBe(true);expect(state.periodStart.toISOString()).toBe(unpaidStart);expect((await readSubjectProductAccess(f.payer,f.products[1].id,clock())).capabilities).toHaveLength(0);
+  }}finally{if(previousCatalogue===undefined)delete process.env.BILLING_PRODUCT_CATALOGUE_FILE;else process.env.BILLING_PRODUCT_CATALOGUE_FILE=previousCatalogue;await rm(directory,{recursive:true,force:true});}
+
 
  },30_000);
 });
