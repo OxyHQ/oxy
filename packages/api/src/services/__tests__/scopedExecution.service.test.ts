@@ -1,4 +1,6 @@
-import { bindScopedPermit, hashScopedInput, attestScopedPermit, scopedPermitForContext } from '../scopedExecution.service';
+import reviewedSecond from '../../../../../docs/audits/2026-10-05-mention-native-second-source/audience.json';
+import originalConsumed from '../../../../../docs/audits/2026-10-05-mention-native-source-revalidation/audience.json';
+import { bindScopedPermit, hashScopedInput, attestScopedPermit, scopedPermitForContext, sourceReviewedScopedAudience, privateCommissioningAudience } from '../scopedExecution.service';
 import type { EdgeExecutionContext } from '../inferenceEdge.service';
 import type { ScopedExecutionAudience } from '@oxy.so/contracts';
 
@@ -67,4 +69,20 @@ it('attests the explicit private discriminator without inventing public approval
   expect(attestScopedPermit(permit, attestation, 'synthetic-private-request', { ...evidence,
     eligibility: { ...evidence.eligibility, availabilityScope: 'public_payg' } })).toBeUndefined();
   expect(attestScopedPermit({ ...permit, expiresAt: new Date(0).toISOString() }, attestation, 'synthetic-private-request', evidence)).toBeUndefined();
+});
+
+it('activates exactly the distinct frozen second permit and never reauthorizes the consumed original', () => {
+  const expiry = Date.parse(reviewedSecond.expiresAt);
+  expect(sourceReviewedScopedAudience(expiry - 1)).toEqual(reviewedSecond);
+  expect(sourceReviewedScopedAudience(expiry)).toBeUndefined();
+  expect(sourceReviewedScopedAudience(expiry + 1)).toBeUndefined();
+  expect(sourceReviewedScopedAudience(Number.NaN)).toBeUndefined();
+  expect(privateCommissioningAudience(originalConsumed as ScopedExecutionAudience, expiry - 1)).toBeUndefined();
+  const changed = sourceReviewedScopedAudience(expiry - 1);
+  if (changed === undefined) throw new Error('reviewed source missing');
+  changed.principal.applicationId = 'foreign';
+  expect(sourceReviewedScopedAudience(expiry - 1)).toEqual(reviewedSecond);
+  expect(reviewedSecond.permitId).not.toBe(originalConsumed.permitId);
+  expect(reviewedSecond.idempotencyKey).not.toBe(originalConsumed.idempotencyKey);
+  expect(reviewedSecond.fixtureSha256).not.toBe(originalConsumed.fixtureSha256);
 });

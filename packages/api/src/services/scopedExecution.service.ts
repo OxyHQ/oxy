@@ -14,10 +14,10 @@ export const scopedFundingRestriction: NonNullable<ReserveInput['fundingRestrict
 
 /** Source-reviewed authorization only. No environment switch or public setter. */
 const preapprovedManifest: ScopedExecutionAudience | undefined = scopedExecutionAudienceSchema.parse({
-  "permitId": "jev-mention-native-en-onepost-20261005-01",
-  "idempotencyKey": "mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231",
-  "fixtureSha256": "a962e5ed49a962db7934684c62834dd25b04aba94162ad9d07140c9a2abeb3b2",
-  "expiresAt": "2026-10-05T03:14:23Z",
+  "permitId": "jev-mention-native-en-onepost-20261005-02",
+  "idempotencyKey": "mention_jev_native_en_d5c4e4815e9bfb2b998af67bb7677011",
+  "fixtureSha256": "207a9c8fa2847e7263d6e8d525a951bca72d82bfb762aeb37cf546ca8762966a",
+  "expiresAt": "2026-10-05T05:21:15Z",
   "principal": {
     "accountId": "69b2d3df5d12f58c9800d651",
     "applicationId": "6a2f851751b784a86fd0e916",
@@ -28,13 +28,13 @@ const preapprovedManifest: ScopedExecutionAudience | undefined = scopedExecution
     "routingPolicyId": "platform-internal-default",
     "policyVersion": 1
   },
-  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_2026_10_05",
+  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_second_2026_10_05",
   "provider": "openrouter",
   "keyId": "b8090dce-82f2-4077-9fc1-fd831a53ca27",
   "modelReference": "typesafe/jev-1.13@2026-09-17",
   "upstreamModelId": "typesafe/jev-1.13-20260917",
   "priceVersionId": "jev_scoped_price_20261004_01",
-  "providerRateCardVersionId": "rc_openrouter_jev_mention_native_20261005_01",
+  "providerRateCardVersionId": "rc_openrouter_jev_mention_native_20261005_02",
   "providerSourceVersion": "openrouter-api/2026-10-04/typesafe/jev-1.13-20260917/556fab0c5da201c07d4eeafd32b48250fb3fa297b69ed0f9e62a7225ca8511ba",
   "maxCostUsd": "0.01"
 });

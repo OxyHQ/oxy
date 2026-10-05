@@ -2,7 +2,8 @@ import { scopedExecutionAudienceSchema } from '@oxy.so/contracts';
 import type { EdgeExecutionContext } from '../inferenceEdge.service';
 import { bindScopedPermit, hashScopedInput, privateCommissioningAudience,
   scopedPermitForContext, sourceReviewedScopedAudience } from '../scopedExecution.service';
-import audienceJson from '../../../../../docs/audits/2026-10-05-mention-native-source-revalidation/audience.json';
+import audienceJson from '../../../../../docs/audits/2026-10-05-mention-native-second-source/audience.json';
+import consumedOriginal from '../../../../../docs/audits/2026-10-05-mention-native-source-revalidation/audience.json';
 import priorMentionAudience from '../../../../../docs/audits/2026-10-05-mention-native-source-activation/audience.json';
 import retiredAudience from '../../../../../docs/audits/2026-10-04-jev-exact-activation/frozen-audience-2030.json';
 import syntheticInput from '../../../../../docs/audits/2026-10-04-jev-exact-activation/fixture.json';
@@ -25,10 +26,11 @@ it('compiles the exact own-Mention audience without renewing the retired Alia op
   expect(sourceReviewedScopedAudience(at)).toEqual(audience);
   expect(privateCommissioningAudience(audience, at)).toEqual(audience);
   expect(privateCommissioningAudience(scopedExecutionAudienceSchema.parse(priorMentionAudience), at)).toBeUndefined();
+  expect(privateCommissioningAudience(scopedExecutionAudienceSchema.parse(consumedOriginal), at)).toBeUndefined();
   expect(privateCommissioningAudience(scopedExecutionAudienceSchema.parse(retiredAudience), at)).toBeUndefined();
   expect(audience.principal.applicationId).toBe('6a2f851751b784a86fd0e916');
-  expect(audience.idempotencyKey).toBe('mention_jev_native_en_8d04b9d17510fe89d7ae084039ee4231');
-  expect(audience.fixtureSha256).toBe('a962e5ed49a962db7934684c62834dd25b04aba94162ad9d07140c9a2abeb3b2');
+  expect(audience.idempotencyKey).toBe('mention_jev_native_en_d5c4e4815e9bfb2b998af67bb7677011');
+  expect(audience.fixtureSha256).toBe('207a9c8fa2847e7263d6e8d525a951bca72d82bfb762aeb37cf546ca8762966a');
 });
 
 it('requires the actual selected input rather than substituting a synthetic or retired input', () => {

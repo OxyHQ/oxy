@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "rateCardVersionId": "rc_openrouter_jev_mention_native_20261005_02",
+  "source": "provider_api",
+  "sourceVersion": "openrouter-api/2026-10-04/typesafe/jev-1.13-20260917/556fab0c5da201c07d4eeafd32b48250fb3fa297b69ed0f9e62a7225ca8511ba",
+  "observedAt": "2026-10-04T22:51:12.367282Z",
+  "effectiveAt": "2026-10-04T22:51:12.367282Z",
+  "rateCards": [
+    {
+      "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_second_2026_10_05",
+      "currency": "USD",
+      "rates": [
+        {
+          "unit": "input_tokens",
+          "amountPerUnit": 42000
+        },
+        {
+          "unit": "output_tokens",
+          "amountPerUnit": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
-import { MENTION_CLASSIFIER_IDENTITY, mentionClassifierApproval, type MentionClassifierApproval } from '../../config/mentionClassifierEconomics';
-import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-source-revalidation/economics.json';
+import { MENTION_CLASSIFIER_IDENTITY, mentionClassifierApproval, cloneMentionClassifierApproval, type MentionClassifierApproval } from '../../config/mentionClassifierEconomics';
+import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-second-source/economics.json';
 import { resolveEconomicTreatment } from '../../config/inferenceEconomicPolicy';
 import { isMentionClassifierRequest, mentionClassifierEconomicDecision } from '../mentionClassifierEconomics.service';
 import type { EdgePrincipal } from '../inferenceEdge.service';
@@ -26,6 +26,8 @@ it('activates only the frozen own-Mention relationship and preserves global comm
     expect(mentionClassifierApproval()).toEqual(rootApproval);
     const changed = mentionClassifierApproval()!;
     Object.assign(changed, { deploymentId: 'foreign' });
+    if (changed.qualificationBudget === undefined) throw new Error('reviewed .2 budget missing');
+    Object.assign(changed.qualificationBudget, { maxTotalRequests: 99, utcDay: 'foreign' });
     expect(mentionClassifierApproval()).toEqual(rootApproval);
     jest.setSystemTime(expiry);
     expect(mentionClassifierApproval()).toBeUndefined();
@@ -81,4 +83,58 @@ it('counts all UTF-8 controlled input and rejects streaming', () => {
   if (request.input.format !== 'decisions') throw new Error('fixture');
   const oversized = { ...request, input: { ...request.input, decisions: { ...request.input.decisions, state: '字'.repeat(3000) } } };
   expect(mentionClassifierEconomicDecision({ ...i, request: oversized })).toBeUndefined();
+});
+
+const qualificationApproval = (): MentionClassifierApproval => ({ ...approval,
+  economicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.2',
+  evidenceRef: `oxy1519/1572/mention-native-source-review/sha256:${'a'.repeat(64)}`,
+  expiresAt: '2026-10-05T06:00:00Z',
+  qualificationBudget: { utcDay: '2026-10-05', maxTotalRequests: 2,
+    previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1' },
+});
+it('prepares cumulative two-request capacity only for the explicit reviewed day/version', () => {
+  const result = mentionClassifierEconomicDecision({ ...input(), approval: qualificationApproval(),
+    now: Date.parse('2026-10-05T05:00:00Z') });
+  expect(result).toMatchObject({ policyVersion: 'oxy-mention-jev-native/2026-10-05.2',
+    relationship: { relationshipId: 'mention-jev-kaana', capacity: { maxConcurrentRequests: 1,
+      maxRequestsPerUtcDay: 2, scope: 'relationship', qualificationBudget: {
+        utcDay: '2026-10-05', expiresAt: '2026-10-05T06:00:00Z' } } } });
+});
+it.each([
+  ['other day', { now: Date.parse('2026-10-04T23:59:59Z') }],
+  ['following day', { now: Date.parse('2026-10-06T00:00:00Z') }],
+  ['non-finite clock', { now: Number.NaN }],
+  ['unreviewed evidence', { approval: { ...qualificationApproval(), evidenceRef: 'unreviewed' } }],
+  ['version without budget', { approval: { ...qualificationApproval(), qualificationBudget: undefined } }],
+  ['old version with new budget', { approval: { ...qualificationApproval(), economicPolicyVersion: approval.economicPolicyVersion } }],
+  ['expiry spills into next day', { approval: { ...qualificationApproval(), expiresAt: '2026-10-06T00:00:01Z' } }],
+  ['third-request budget', { approval: { ...qualificationApproval(), qualificationBudget: {
+    ...qualificationApproval().qualificationBudget, maxTotalRequests: 3 } } }],
+  ['counter reset version', { approval: { ...qualificationApproval(), qualificationBudget: {
+    ...qualificationApproval().qualificationBudget, previousEconomicPolicyVersion: 'foreign' } } }],
+])('refuses qualification budget drift: %s', (_name, changes) => {
+  expect(mentionClassifierEconomicDecision({ ...input(), approval: qualificationApproval(),
+    now: Date.parse('2026-10-05T05:00:00Z'), ...changes } as Parameters<typeof mentionClassifierEconomicDecision>[0])).toBeUndefined();
+});
+
+it('isolates the nested future qualification budget without approving it', () => {
+  const reviewed = qualificationApproval();
+  const returned = cloneMentionClassifierApproval(reviewed);
+  if (returned.qualificationBudget === undefined) throw new Error('fixture budget missing');
+  Object.assign(returned.qualificationBudget, { maxTotalRequests: 99, utcDay: 'foreign' });
+  expect(cloneMentionClassifierApproval(reviewed).qualificationBudget).toEqual({ utcDay: '2026-10-05',
+    maxTotalRequests: 2, previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1' });
+});
+
+it('derives the reviewed cumulative capacity from the exact second frozen source, without reopening the original review', () => {
+  const active: MentionClassifierApproval = rootApproval as MentionClassifierApproval;
+  const result = mentionClassifierEconomicDecision({ ...input(), approval: active,
+    request: { ...request, target: { kind: 'model', modelReference: active.modelReference } },
+    routes: [{ deploymentId: active.deploymentId, modelReference: active.modelReference,
+      provider: active.provider, priceVersionId: active.priceVersionId }],
+    policy: { routingPolicyId: active.routingPolicyId, policyVersion: active.routingPolicyVersion },
+    now: Date.parse(active.expiresAt) - 1 });
+  expect(result).toMatchObject({ policyVersion: active.economicPolicyVersion,
+    relationship: { relationshipId: 'mention-jev-kaana', capacity: { maxConcurrentRequests: 1,
+      maxRequestsPerUtcDay: 2, qualificationBudget: { utcDay: '2026-10-05', expiresAt: active.expiresAt } } } });
 });
