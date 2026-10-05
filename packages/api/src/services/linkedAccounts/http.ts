@@ -19,8 +19,11 @@ import { assertSafePublicUrl, safeFetch } from '@oxy.so/core/server';
 /** Largest response body the flow will buffer. Identity documents are small. */
 const LINKED_ACCOUNT_MAX_RESPONSE_BYTES = 1024 * 1024;
 
-/** Time-to-first-byte per request. */
+/** Socket inactivity limit while waiting for response headers or body bytes. */
 const HEADERS_TIMEOUT_MS = 8_000;
+
+/** Absolute deadline for the complete request, including response-body consumption. */
+const REQUEST_TIMEOUT_MS = 15_000;
 
 const USER_AGENT = 'Oxy/1.0 (+https://oxy.so; linked accounts)';
 
@@ -79,15 +82,28 @@ const safeWhatwgFetch: typeof fetch = async (input, init) => {
   }
   if (body !== undefined) headers['Content-Length'] = String(body.byteLength);
   const followRedirects = method === 'GET' && request.redirect === 'follow';
-  const result = await safeFetch(request.url, {
-    method,
-    headers,
-    body,
-    maxRedirects: followRedirects ? 5 : 0,
-    headersTimeoutMs: HEADERS_TIMEOUT_MS,
-    signal: init?.signal ?? undefined,
-  });
-  const payload = await readBounded(result.response);
+  const controller = new AbortController();
+  const abort = () => controller.abort(request.signal.reason);
+  if (request.signal.aborted) abort();
+  else request.signal.addEventListener('abort', abort, { once: true });
+  const timeout = setTimeout(() => controller.abort(new Error('linked-account request timed out')), REQUEST_TIMEOUT_MS);
+
+  let result: Awaited<ReturnType<typeof safeFetch>>;
+  let payload: Buffer;
+  try {
+    result = await safeFetch(request.url, {
+      method,
+      headers,
+      body,
+      maxRedirects: followRedirects ? 5 : 0,
+      headersTimeoutMs: HEADERS_TIMEOUT_MS,
+      signal: controller.signal,
+    });
+    payload = await readBounded(result.response);
+  } finally {
+    clearTimeout(timeout);
+    request.signal.removeEventListener('abort', abort);
+  }
   const responseHeaders = new Headers();
   for (const [key, value] of Object.entries(result.headers)) {
     if (Array.isArray(value)) for (const item of value) responseHeaders.append(key, item);
