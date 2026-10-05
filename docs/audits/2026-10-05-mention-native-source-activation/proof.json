@@ -1,0 +1,363 @@
+{
+  "kind": "mention-native-source-activation-proof-v1",
+  "sources": {
+    "oxy": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+    "kaana": "64c1f4167027089344dd1289a50f84400b5cf31a"
+  },
+  "inputs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/README.md",
+      "sha256": "9c91ed7f253c90eee414b435ddfe4d9b8aa53edeb44c2189542c07774bb8ddad",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/README.md"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/audience.json",
+      "sha256": "350971d8d43196f3b8c10101f6a14a4137f50ed675b040b0a20a97fdb5801e3e",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/audience.json"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/economics.json",
+      "sha256": "f6afbf5bb57746657e22ff71d8c028f200d7f9fc14798205633f81f2721fa326",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/economics.json"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/frozen.json",
+      "sha256": "2600896538a8e2808e156536013ce1db4478d8e5af9175884687250b6338663c",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/frozen.json"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/root-review.json",
+      "sha256": "bd227379b2f439a9df4e51c04ce9f6d636c67d99f4974d0ff78da9875fa593ea",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/root-review.json"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/packages/api/src/config/mentionClassifierEconomics.ts",
+      "sha256": "2613d393432feecf56f287f1e07546d9bde30019ce9d36a2938031fec1299304",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "packages/api/src/config/mentionClassifierEconomics.ts"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "sha256": "01fb3e5324d09bff1b3cc2fb3ef08458496ce902a39be3878ffb2ace3f15f549",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/packages/api/src/services/__tests__/scopedSourceActivation.test.ts",
+      "sha256": "4e834089548a465708966552cea0a71a504918cc569757669823751ace5d677f",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "packages/api/src/services/__tests__/scopedSourceActivation.test.ts"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "7fbd5a0af14e13df008906d40929000204e80cba4acf37062ca724e12f3cca01",
+      "repository": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "aa2d43d19e5b41db785a937e70bfa98680f6c409",
+      "gitPath": "packages/api/src/services/scopedExecution.service.ts"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/configs/provider-rates-jev-scoped.json",
+      "sha256": "621db5dcf8d73810f30e2004c6e4022a2d7577ea4b3c0492c1e00b1b1f2fb310",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "configs/provider-rates-jev-scoped.json"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/README.md",
+      "sha256": "9c91ed7f253c90eee414b435ddfe4d9b8aa53edeb44c2189542c07774bb8ddad",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/README.md"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/audience.json",
+      "sha256": "350971d8d43196f3b8c10101f6a14a4137f50ed675b040b0a20a97fdb5801e3e",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/audience.json"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/economics.json",
+      "sha256": "f6afbf5bb57746657e22ff71d8c028f200d7f9fc14798205633f81f2721fa326",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/economics.json"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/frozen.json",
+      "sha256": "2600896538a8e2808e156536013ce1db4478d8e5af9175884687250b6338663c",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/frozen.json"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/docs/audits/2026-10-05-mention-native-source-activation/root-review.json",
+      "sha256": "bd227379b2f439a9df4e51c04ce9f6d636c67d99f4974d0ff78da9875fa593ea",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "docs/audits/2026-10-05-mention-native-source-activation/root-review.json"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/internal/scopedpermit/private_auto_activation_test.go",
+      "sha256": "bca76a701356d7d784438f4afadbfbb169a01400108fea38408b28bb852a5d65",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "internal/scopedpermit/private_auto_activation_test.go"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/internal/scopedpermit/private_auto_rate_cards_test.go",
+      "sha256": "fba1ec7a0b7e02c845ebfd8d5d97db292d1006061535cde3b79e3c3bd442d4e4",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "internal/scopedpermit/private_auto_rate_cards_test.go"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/internal/scopedpermit/rate_cards_test.go",
+      "sha256": "042255445b4658379708c2f99686f673ff75d99a230364ac08743221f6b1f844",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "internal/scopedpermit/rate_cards_test.go"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/internal/scopedpermit/source.go",
+      "sha256": "328f3be1f5a3d93d1f19bde96a6192426680d93b5edb5d9b3e636f57c8723843",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "internal/scopedpermit/source.go"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/internal/scopedpermit/source_activation_test.go",
+      "sha256": "ab8828260fdc66d4aa689d898618f3036455c30fe5d0e5f5f4c4f5c7ea13d6f0",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "internal/scopedpermit/source_activation_test.go"
+    },
+    {
+      "path": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005/internal/scopedpermit/testdata/retired-alia-provider-card.json",
+      "sha256": "9d20790738035f59d5b609ad8096fa54a365aa3d04ed61a3e8243adf25454761",
+      "repository": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+      "gitSourceSha": "64c1f4167027089344dd1289a50f84400b5cf31a",
+      "gitPath": "internal/scopedpermit/testdata/retired-alia-provider-card.json"
+    }
+  ],
+  "records": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/oxy-build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/oxy-red.log",
+      "sha256": "0bf86be30970e002c10899208240396bdffc470eca2536595c429b6bc841ce00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/oxy-focused.log",
+      "sha256": "5e6159931d9f9d25d911c389199126f81b83631b1c8df1ca999cdb7f6451f0d0"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/owned-pg.py",
+      "sha256": "39645e2cd90b622699aa769b8efd8484275e85cbe24b900bc690824c33f9c238"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/owned-pg.log",
+      "sha256": "aae0cf72e9877e104cdbd7d21f05ce502c68f70603586cb6e17d9a2f5d218bee"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/pid.json",
+      "sha256": "b228acc000bf75cfdcb7ae711169731be225cb4c076aebfb1c4a1887bd2c9917"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/oxy-first-setup-error.log",
+      "sha256": "e9383e60e03123ec7f7a2725b740cadd60515a89c5efd39ed38acef2e2ec0f00"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/owned-pg-first-setup-error.log",
+      "sha256": "5d23afb89769ca16459ad0b939bb5dd85eb393ecdffb3ef4eb6f4241130a4831"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/eslint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/oxy-wire-guard.log",
+      "sha256": "a0592222f32b6f978a4d6ae772329bca414037c13843fad3110c77ab2327af1d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/compiled-getters.log",
+      "sha256": "e406de8aa53a3b9567f4484dcfa23d8a4bd6ad139ccaed739728bc1e54bca66e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/kaana-focused.log",
+      "sha256": "97d788fe5eb84c0e847798dfec1db18c030621d602f3adf566370765655b53df"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/kaana-executor.log",
+      "sha256": "3f23797f06daf86c34f947660e7c72df47c473a6b05924b3fc886210590e1040"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/kaana-red.log",
+      "sha256": "b71985f31cb3fd75ce6013241bf89c41f62305afb4d2b763f984a1c92c17cdce"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/kaana-green.log",
+      "sha256": "8908436762da050f3b6f734b10088c34a5aec7479175b8c34e747cffa2cf8ea2"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/kaana-build.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/kaana-vet.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/kaana-lint.log",
+      "sha256": "49ea6e81df22e6b7a77ea96722bc38b05a7162153d807c040a915747fe86463a"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/kaana-lint-final.log",
+      "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/preserved.json",
+      "sha256": "b7a0c2478ee2f3c6fe7ff42f25678c69944a6f2bcc3fd2da7e3fb40500c83256"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-source-activation-20261005/proposal-review.json",
+      "sha256": "584bf673fca94eb15ac25d6cfd148cfa931556c2596f99dd468b9edca88c4afa"
+    }
+  ],
+  "rootInputs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/root-review.json",
+      "sha256": "bd227379b2f439a9df4e51c04ce9f6d636c67d99f4974d0ff78da9875fa593ea"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/audience.json",
+      "sha256": "350971d8d43196f3b8c10101f6a14a4137f50ed675b040b0a20a97fdb5801e3e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/economics.json",
+      "sha256": "f6afbf5bb57746657e22ff71d8c028f200d7f9fc14798205633f81f2721fa326"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/provider-card.json",
+      "sha256": "621db5dcf8d73810f30e2004c6e4022a2d7577ea4b3c0492c1e00b1b1f2fb310"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze/frozen.json",
+      "sha256": "2600896538a8e2808e156536013ce1db4478d8e5af9175884687250b6338663c"
+    }
+  ],
+  "compiled": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/packages/api/dist/services/scopedExecution.service.js",
+      "sha256": "801557c877c60734843b8778ab59128272ae5f81d994b97f22fc2d6823d595d4"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005/packages/api/dist/config/mentionClassifierEconomics.js",
+      "sha256": "f03d5180df8a9f4a1e431f26ace15e27d4e7d8c7126226d40f71c10e8dad6fe8"
+    }
+  ],
+  "tests": {
+    "oxyOldSource": "3 failed / 28 passed",
+    "oxyFrozenSource": "31 passed / 3 suites actual owned PostgreSQL",
+    "compiledGetters": "exact audience/economics, expiry and mutation checks, 0 network",
+    "kaanaOldSource": "2 failed",
+    "kaanaFrozenSource": "scopedpermit race PASS; serving/inventory/publisher race PASS",
+    "canonicalAPIbuild": 0,
+    "scopedESLint": 0,
+    "wireGuard": 0,
+    "goBuild": 0,
+    "goVet": 0,
+    "scopedGoLint": 0
+  },
+  "preservation": {
+    "records": [
+      {
+        "repo": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+        "base": "9b91b20c175550385eb2abffe7468150b6bdcb91",
+        "path": "packages/api/src/config/privateAutoClassification.ts",
+        "sha256": "0bbb438804bade8534bc5301fb58c80c00c9305352c805f7eb391d273769b208"
+      },
+      {
+        "repo": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+        "base": "9b91b20c175550385eb2abffe7468150b6bdcb91",
+        "path": "packages/api/src/services/privateAutoExecution.service.ts",
+        "sha256": "f30c1c98abc3d2908251429b79b79f7dc36245e260fe7604591385acb6e6c40f"
+      },
+      {
+        "repo": "/home/nate/Oxy/oxy/.worktrees/mention-native-source-approval-20261005",
+        "base": "9b91b20c175550385eb2abffe7468150b6bdcb91",
+        "path": "packages/contracts/src/inference/request.ts",
+        "sha256": "41c78899eaa4b8cef5e4b9844620dbe07e30b4a0f8ad277ead120378e685267e"
+      },
+      {
+        "repo": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+        "base": "fe3329de3757940ef49aeb5b98a84eccaa79e833",
+        "path": "internal/scopedpermit/private_auto.go",
+        "sha256": "c424501244376b9cb2c8e76fefb408e3bbfa021e164cca0abdfb8a1632890054"
+      },
+      {
+        "repo": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+        "base": "fe3329de3757940ef49aeb5b98a84eccaa79e833",
+        "path": "configs/provider-rates-jev-private-auto.json",
+        "sha256": "9bb42935daa583f1efaee802050020c309dd4cc76e2e94af5dc3f04efa953234"
+      },
+      {
+        "repo": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+        "base": "fe3329de3757940ef49aeb5b98a84eccaa79e833",
+        "path": "configs/provider-rates.json",
+        "sha256": "5a094d5d27005f7182c99cb19129d328f48576147940db91bbb5fc0008219968"
+      },
+      {
+        "repo": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+        "base": "fe3329de3757940ef49aeb5b98a84eccaa79e833",
+        "path": "Dockerfile",
+        "sha256": "cb3d689a0f62bbb58baf59dd55cc653e86ec4c0b4f2debd0b49db2d447f2b881"
+      },
+      {
+        "repo": "/home/nate/Oxy/Kaana/.worktrees/mention-native-source-approval-20261005",
+        "base": "fe3329de3757940ef49aeb5b98a84eccaa79e833",
+        "path": ".dockerignore",
+        "sha256": "ce99def03026abec3d6484765b6e59067bd6de5ad0d5238dea925fd9c233bd05"
+      }
+    ],
+    "ownedPGPidsAbsent": [
+      2250354,
+      2254903
+    ],
+    "AutoAuthorityUnchanged": true
+  },
+  "historicalFailures": [
+    "First Jest started before fresh workspace DB dependency had built; no suites ran, ownedPG stopped; exact error retained",
+    "Initial Go command named nonexistent internal/executor; other3packages passed, correct internal/kaana subsequently passed",
+    "Initial scopedlint launched from Oxy cwd; corrected Kaana cwd exit0"
+  ],
+  "expiry": "2026-10-05T01:28:26Z",
+  "originalAliaNotRenewed": true,
+  "oldCardRetainedAsTestFixtureOnly": true,
+  "newActualNativeBodyCopied": false,
+  "runtimeAcceptancePending": [
+    "Exact deployed images/source modules",
+    "Canonical own Mention legal and product approval refs",
+    "Live authority/scopes/binding readbacks and signed import",
+    "One original native post operation and independent receipts"
+  ],
+  "AWSCalls": 0,
+  "providerCalls": 0,
+  "publicationCalls": 0,
+  "pushes": 0
+}
