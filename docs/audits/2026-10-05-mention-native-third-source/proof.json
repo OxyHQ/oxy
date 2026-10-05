@@ -1,0 +1,241 @@
+{
+  "kind": "mention-exact-third-source-activation-proof-v1",
+  "preparedAt": "2026-10-05T05:15:02.177450+00:00",
+  "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+  "inactiveSupportSource": "c33c82bfa5b3515acca5c889651503962131bca2",
+  "inactiveProofHead": "28eb4d2b3",
+  "inactiveProofSha256": "a64afe5bd3f473a36d9653456d5a69f1e58bdbcbe1a776f2ecbf704d0b5c2bda",
+  "expiry": "2026-10-05T07:09:12Z",
+  "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.3",
+  "stableRelationship": "mention-jev-kaana",
+  "totalUtcDayAdmissions": 3,
+  "previousFailedAdmissionsIncluded": 2,
+  "additionalDistinctAdmissions": 1,
+  "previousVersion": ".2",
+  "sourceInputs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/config/mentionClassifierEconomics.ts",
+      "gitPath": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+      "sha256": "590b01039e41c29e9dc26f53ba0d264bb0bc3c56a5a46080700195acb2e46712"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/scopedExecution.service.ts",
+      "gitPath": "packages/api/src/services/scopedExecution.service.ts",
+      "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+      "sha256": "4e291f810195fab6795b5cb0f20ec1efa8389fcc2ba88db76b3aebc705fed9f0"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "gitPath": "packages/api/src/services/__tests__/mentionClassifierEconomics.test.ts",
+      "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+      "sha256": "5466fdb409538660def6c6a399c0449b2f0c517e6df8e8d1fea63cd4cfc20c25"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/__tests__/scopedSourceActivation.test.ts",
+      "gitPath": "packages/api/src/services/__tests__/scopedSourceActivation.test.ts",
+      "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+      "sha256": "572b91f644e05758502c62430053b8af830531868085dbc9d9e451bb9fe74243"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/docs/audits/2026-10-05-mention-native-third-source/frozen.json",
+      "gitPath": "docs/audits/2026-10-05-mention-native-third-source/frozen.json",
+      "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+      "sha256": "72be09e28debddcc7df18577c6ffafe3d13f8b8be7b35d91cd596c3b80c5aaf1"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/docs/audits/2026-10-05-mention-native-third-source/audience.json",
+      "gitPath": "docs/audits/2026-10-05-mention-native-third-source/audience.json",
+      "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+      "sha256": "c7bc1aea899adead03d35f30620a1bdc6cd6805067bf0dee40a5be8f7e71fde1"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/docs/audits/2026-10-05-mention-native-third-source/economics.json",
+      "gitPath": "docs/audits/2026-10-05-mention-native-third-source/economics.json",
+      "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+      "sha256": "078b78f052f79171e362288cceb3148c44e085539a8d2ec9f5e4e1f1635211d9"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/docs/audits/2026-10-05-mention-native-third-source/root-review.json",
+      "gitPath": "docs/audits/2026-10-05-mention-native-third-source/root-review.json",
+      "sourceCommit": "272ae9791bcab4ee4258e4b4a8124004aee1642c",
+      "sha256": "ea34cfaf7bc7e3b7743dcc6509d15f421b741de4e496269f913009b41b89b998"
+    }
+  ],
+  "unchangedInputs": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "gitPath": "packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "a5657a6d9bf095058b27d992634ef675e9b0b220d1f0041f242df3cd81f09efe"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "gitPath": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "2b8350ad479cd5457481ee01314117b9ae9758d7faee2cb2d5a46514b48e792f"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts",
+      "gitPath": "packages/api/src/routes/__tests__/mentionPrivateCommissioning.test.ts",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "e497355a5fda406f64c3e7d6ccd2e32db9b7cf5fc8dfdfc402276ca0fea822c4"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/config/inferenceEconomicPolicy.ts",
+      "gitPath": "packages/api/src/config/inferenceEconomicPolicy.ts",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "4d3cfa6b89947aa383e37e21c8ec1e2ea17a501b9d6760ede9310d222fb78e98"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/docs/audits/2026-10-05-mention-native-second-source/economics.json",
+      "gitPath": "docs/audits/2026-10-05-mention-native-second-source/economics.json",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "764e673899c64db2c32169a04fea1017d36fb4bd98e9cdc68be5ce4a8ba2ebc6"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/docs/audits/2026-10-05-mention-native-second-source/audience.json",
+      "gitPath": "docs/audits/2026-10-05-mention-native-second-source/audience.json",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "e8f0bd94dfb68b5a29b929ff1c67ecd2afca2d43ad02d0f6e3aa3fcd6e4c51b1"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/core/package.json",
+      "gitPath": "packages/core/package.json",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "891584d9cdc87d15e29c8f5f54dce92a65cbd72c450d3e61b04fb14e1078ff85"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/contracts/package.json",
+      "gitPath": "packages/contracts/package.json",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "7113508b9386d711a897b4f3c54b604eb4b008ab27c11de611b71d45cef0baae"
+    },
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/bun.lock",
+      "gitPath": "bun.lock",
+      "comparedTo": "28eb4d2b3",
+      "sha256": "96e0009039603d12f84c3801ed05496fe7431a5ec4363983bad34b63e95b0024"
+    }
+  ],
+  "rootRefs": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/frozen.json",
+      "sha256": "72be09e28debddcc7df18577c6ffafe3d13f8b8be7b35d91cd596c3b80c5aaf1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/audience.json",
+      "sha256": "c7bc1aea899adead03d35f30620a1bdc6cd6805067bf0dee40a5be8f7e71fde1"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/economics.json",
+      "sha256": "078b78f052f79171e362288cceb3148c44e085539a8d2ec9f5e4e1f1635211d9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/root-review.json",
+      "sha256": "ea34cfaf7bc7e3b7743dcc6509d15f421b741de4e496269f913009b41b89b998"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/provider-card.json",
+      "sha256": "40634000dfe23d9364dd09129b3f30c9ab2e6c9fab2e298c99845329f870ec0c"
+    }
+  ],
+  "immutableCompiledSnapshots": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/compiled/config/mentionClassifierEconomics.js",
+      "shippingPath": "packages/api/dist/config/mentionClassifierEconomics.js",
+      "sha256": "6fb7d89a46ba36a711c1eb7fae9bffe0211f18f794c9890cae196eb154084212"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/compiled/services/scopedExecution.service.js",
+      "shippingPath": "packages/api/dist/services/scopedExecution.service.js",
+      "sha256": "0bed0259e6021da368de1eb5a0b6e8d8130826c8a69d7d309ab421062c9e09f3"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/compiled/services/mentionClassifierEconomics.service.js",
+      "shippingPath": "packages/api/dist/services/mentionClassifierEconomics.service.js",
+      "sha256": "a0c4ad81dfd980d333e44d84b2921311e7f2185f0b2f24b6b7fcdd013b62a1bf"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/compiled/services/inferenceMeteredUsage.service.js",
+      "shippingPath": "packages/api/dist/services/inferenceMeteredUsage.service.js",
+      "sha256": "775600262e266a1c298d2ad77914ba294a163a9f8fc11725cc8c5d67b3b7d0a5"
+    }
+  ],
+  "records": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/owned-pg.py",
+      "sha256": "861f343a604c0bcdb2def60142cb234a8869b79861a75b8282ff398fab3d2a3d"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/owned-pg.log",
+      "sha256": "f32bec0ad5137bba500d7b83eefe4cbb727edf1d5037dd5587279b049ed154f0"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/build.log",
+      "sha256": "ecd5c30714a33cd32545cc38c4606f5c65bcee0518fce88b24f1399f1b1314b7"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/red.log",
+      "sha256": "c3dd38cec24bb1ddf6fd9af6a18ccf4b4762717af1e83b867d428e9dd37a75dc"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/green.log",
+      "sha256": "3f6b1863d253ad7c935cac071e2cd2e61f08a2453171f1cc4b3aac65686c7678"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/runtime-lint.log",
+      "sha256": "b169e8183a21deb4b3461945d6fe8013023365838fc15f6e5f538bb38704b593"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/compiled-validation.json",
+      "sha256": "d99bf35087ed81266ebab2dcedbc3c4ceda3b2e8c4102a6c63c549c1e27b532f"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/inactive-proof-preservation.json",
+      "sha256": "f1ba7418c1f120d263705139d1b52957dc649b5108caa2292361575e44b986c7"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/pg1519-ucx6qk8x/migrate-fresh.txt",
+      "sha256": "7a5e9ed9dccc78262b61538bf6df6f463dec41f70fe7043d72ff7ef1fe4c88fa"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/pg1519-ucx6qk8x/migrate-repeat.txt",
+      "sha256": "43cbd775d347d55569c3631ac8fe1df5edee457ad0182425a085825afc11afee"
+    }
+  ],
+  "validation": {
+    "rootJsonFilesByteExact": true,
+    "compiledRootGettersExact": true,
+    "compiledFixedExpiryAndMutationGuards": true,
+    "sameFinalFixturesRed": {
+      "failed": 4,
+      "passed": 72,
+      "suites": 3,
+      "baseline": "Inactive28eb source under final activated-source tests; restored finally"
+    },
+    "sameFinalFixturesGreen": {
+      "passed": 76,
+      "suites": 3
+    },
+    "apiCanonicalBuildExit": 0,
+    "runtimeBiomeLintExit": 0,
+    "freshRepeatMigrationExits": [
+      0,
+      0
+    ],
+    "ownedPg": {
+      "pid": 2769789,
+      "pidAbsent": true
+    },
+    "gitDiffCheck": 0
+  },
+  "limits": [
+    "Source acceptance is not runtime/provider/product acceptance. Root owns merge/deploy/keybinding/import/legal/five refs/factory verification.",
+    "No third provider request or production call made by this work.",
+    "Consumed first/second keys and histories remain immutable; same stable counter includes both failures, no reset/replay.",
+    "Original .1/.2 expiry preserved in immutable audits; this fixed distinct .3 deadline is not their extension.",
+    "PrivateAuto source/cards/scopes and ordinary public permissions unchanged.",
+    "Prior inactive proof records and five compiled snapshots hash-verified BEFORE source activation; immutable snapshots retain original bytes."
+  ]
+}

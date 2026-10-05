@@ -18,20 +18,24 @@ export interface MentionClassifierApproval {
   readonly priceVersionId: string;
   readonly routingPolicyId: string;
   readonly routingPolicyVersion: number;
-  /** A separately reviewed second qualification, never a reset of the first request. */
+  /** Closed qualification lineage; support does not activate a new source approval. */
   readonly qualificationBudget?: {
     readonly utcDay: '2026-10-05';
+  } & ({
     readonly maxTotalRequests: 2;
     readonly previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1';
-  };
+  } | {
+    readonly maxTotalRequests: 3;
+    readonly previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.2';
+  });
 }
 
 /** Exact root-reviewed own-Mention relationship; no environment override or mutable setter. */
 const REVIEWED_MENTION_APPROVAL: MentionClassifierApproval = {
-  "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.2",
-  "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:801905abc8267496404b1ce23578f56ff5b8f0cc24fa6502d1f19cd3d2eba62c",
-  "expiresAt": "2026-10-05T05:21:15Z",
-  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_second_2026_10_05",
+  "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.3",
+  "evidenceRef": "oxy1519/1572/mention-native-source-review/sha256:ea34cfaf7bc7e3b7743dcc6509d15f421b741de4e496269f913009b41b89b998",
+  "expiresAt": "2026-10-05T07:09:12Z",
+  "deploymentId": "dep_openrouter_typesafe_jev_1_13_mention_native_third_2026_10_05",
   "modelReference": "typesafe/jev-1.13@2026-09-17",
   "provider": "openrouter",
   "priceVersionId": "jev_scoped_price_20261004_01",
@@ -39,8 +43,8 @@ const REVIEWED_MENTION_APPROVAL: MentionClassifierApproval = {
   "routingPolicyVersion": 1,
   "qualificationBudget": {
     "utcDay": "2026-10-05",
-    "maxTotalRequests": 2,
-    "previousEconomicPolicyVersion": "oxy-mention-jev-native/2026-10-05.1"
+    "maxTotalRequests": 3,
+    "previousEconomicPolicyVersion": "oxy-mention-jev-native/2026-10-05.2"
   }
 };
 

@@ -1,0 +1,102 @@
+{
+  "schema": "mention-third-scoped-fixture-ci-followup-v1",
+  "observedAt": "2026-10-05T05:29:21.216047+00:00",
+  "sourceSha": "9ecfebf0ac712bbed1fbc7bfb4aca7c5ecb46c75",
+  "baseline": "b49549437198744f7cf386c33c75c69481e3addd",
+  "source": [
+    {
+      "path": "/home/nate/Oxy/oxy/.worktrees/1572-mention-reviewed-third-budget-inactive-20261005/packages/api/src/services/__tests__/scopedExecution.service.test.ts",
+      "gitPath": "packages/api/src/services/__tests__/scopedExecution.service.test.ts",
+      "sha256": "98e52bfb9008dc85fc71f3959664cc8b7d7c6d2910d221e99a1b7b28ffcd1cc0"
+    }
+  ],
+  "records": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/ci-fixture-followup/scopedExecution.before.ts",
+      "sha256": "03dc6e83955f052c5def961701dcdb911b6fcd09f67a6502a38ae50f1fda61fe"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/ci-fixture-followup/owned-pg.py",
+      "sha256": "3e5c4c36ca65aee0e5c71b09c8f1237f6b04ac9a79b9fdf3ec917c1ffe976024"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/ci-fixture-followup/owned-pg.log",
+      "sha256": "e424d150c59a3febc1e0650648931f854f176e6d292c6579a617ab0788e0dc65"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/ci-fixture-followup/red.log",
+      "sha256": "9a7a9b5a86411f1471e4092abe8c799c4d6c8ac98d59b78fdcad475a8d195f9e"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/ci-fixture-followup/green.log",
+      "sha256": "edd1dbd448cccafc2199bd6e64de93af0a199d29f7528b2ca5439e88bc68012c"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/ci-api6-raw.log",
+      "sha256": "f8cc88935dcba844287e7e2c7dd200851cce5696505c6a26f2c456902d51f618"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/ci-fixture-followup/pg1519-6qkpyvs1/migrate-fresh.txt",
+      "sha256": "87427866c4e09bcf3a9dac6ca13acee045921cbb9f18cd24ca7350abda8cd6ab"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/activation/ci-fixture-followup/pg1519-6qkpyvs1/migrate-repeat.txt",
+      "sha256": "acbbab18532c56892afeddce1cd06065f87039e2c49d229919bfa85e2f2ee435"
+    }
+  ],
+  "unchangedRuntime": [
+    {
+      "path": "packages/api/src/config/mentionClassifierEconomics.ts",
+      "sha256": "590b01039e41c29e9dc26f53ba0d264bb0bc3c56a5a46080700195acb2e46712",
+      "baseline": "b49549437198744f7cf386c33c75c69481e3addd"
+    },
+    {
+      "path": "packages/api/src/services/mentionClassifierEconomics.service.ts",
+      "sha256": "a5657a6d9bf095058b27d992634ef675e9b0b220d1f0041f242df3cd81f09efe",
+      "baseline": "b49549437198744f7cf386c33c75c69481e3addd"
+    },
+    {
+      "path": "packages/api/src/services/inferenceMeteredUsage.service.ts",
+      "sha256": "2b8350ad479cd5457481ee01314117b9ae9758d7faee2cb2d5a46514b48e792f",
+      "baseline": "b49549437198744f7cf386c33c75c69481e3addd"
+    },
+    {
+      "path": "packages/api/src/services/scopedExecution.service.ts",
+      "sha256": "4e291f810195fab6795b5cb0f20ec1efa8389fcc2ba88db76b3aebc705fed9f0",
+      "baseline": "b49549437198744f7cf386c33c75c69481e3addd"
+    },
+    {
+      "path": "packages/api/src/config/privateAutoClassification.ts",
+      "sha256": "0bbb438804bade8534bc5301fb58c80c00c9305352c805f7eb391d273769b208",
+      "baseline": "b49549437198744f7cf386c33c75c69481e3addd"
+    }
+  ],
+  "failure": {
+    "run": 37267014121,
+    "job": 111625901847,
+    "ciTests": {
+      "failed": 1,
+      "passed": 1703
+    },
+    "cause": "An old active fixture expected the consumed second permit; the root-approved runtime returns the distinct third permit."
+  },
+  "verification": {
+    "sameRuntime": true,
+    "red": {
+      "failed": 1,
+      "passed": 5
+    },
+    "green": {
+      "passed": 6
+    },
+    "canonicalFreshMigration": 0,
+    "canonicalRepeatMigration": 0,
+    "ownedPostgresPid": 2788014,
+    "ownedPostgresPidAbsent": true
+  },
+  "limits": [
+    "Only a test changed; runtime, expiry, budgets and approvals are unchanged.",
+    "No AWS, SQL production or provider request.",
+    "Prior CI and activation proof records remain immutable."
+  ]
+}

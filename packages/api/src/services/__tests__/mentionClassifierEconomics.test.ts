@@ -1,5 +1,5 @@
 import { MENTION_CLASSIFIER_IDENTITY, mentionClassifierApproval, cloneMentionClassifierApproval, type MentionClassifierApproval } from '../../config/mentionClassifierEconomics';
-import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-second-source/economics.json';
+import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-third-source/economics.json';
 import { resolveEconomicTreatment } from '../../config/inferenceEconomicPolicy';
 import { isMentionClassifierRequest, mentionClassifierEconomicDecision } from '../mentionClassifierEconomics.service';
 import type { EdgePrincipal } from '../inferenceEdge.service';
@@ -26,7 +26,7 @@ it('activates only the frozen own-Mention relationship and preserves global comm
     expect(mentionClassifierApproval()).toEqual(rootApproval);
     const changed = mentionClassifierApproval()!;
     Object.assign(changed, { deploymentId: 'foreign' });
-    if (changed.qualificationBudget === undefined) throw new Error('reviewed .2 budget missing');
+    if (changed.qualificationBudget === undefined) throw new Error('reviewed .3 budget missing');
     Object.assign(changed.qualificationBudget, { maxTotalRequests: 99, utcDay: 'foreign' });
     expect(mentionClassifierApproval()).toEqual(rootApproval);
     jest.setSystemTime(expiry);
@@ -126,7 +126,7 @@ it('isolates the nested future qualification budget without approving it', () =>
     maxTotalRequests: 2, previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1' });
 });
 
-it('derives the reviewed cumulative capacity from the exact second frozen source, without reopening the original review', () => {
+it('derives the reviewed cumulative capacity from the exact third frozen source, without reopening the original review', () => {
   const active: MentionClassifierApproval = rootApproval as MentionClassifierApproval;
   const result = mentionClassifierEconomicDecision({ ...input(), approval: active,
     request: { ...request, target: { kind: 'model', modelReference: active.modelReference } },
@@ -136,5 +136,49 @@ it('derives the reviewed cumulative capacity from the exact second frozen source
     now: Date.parse(active.expiresAt) - 1 });
   expect(result).toMatchObject({ policyVersion: active.economicPolicyVersion,
     relationship: { relationshipId: 'mention-jev-kaana', capacity: { maxConcurrentRequests: 1,
-      maxRequestsPerUtcDay: 2, qualificationBudget: { utcDay: '2026-10-05', expiresAt: active.expiresAt } } } });
+      maxRequestsPerUtcDay: 3, qualificationBudget: { utcDay: '2026-10-05', expiresAt: active.expiresAt } } } });
+});
+
+const thirdQualificationApproval = (): MentionClassifierApproval => ({ ...qualificationApproval(),
+  economicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.3',
+  qualificationBudget: { utcDay: '2026-10-05', maxTotalRequests: 3,
+    previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.2' },
+});
+it('supports a separately reviewed synthetic third qualification independently of the frozen getter', () => {
+  const result = mentionClassifierEconomicDecision({ ...input(), approval: thirdQualificationApproval(),
+    now: Date.parse('2026-10-05T05:00:00Z') });
+  expect(result).toMatchObject({ policyVersion: 'oxy-mention-jev-native/2026-10-05.3',
+    relationship: { relationshipId: 'mention-jev-kaana', capacity: { maxConcurrentRequests: 1,
+      maxRequestsPerUtcDay: 3, scope: 'relationship', qualificationBudget: {
+        utcDay: '2026-10-05', expiresAt: '2026-10-05T06:00:00Z' } } } });
+  jest.useFakeTimers().setSystemTime(Date.parse(rootApproval.expiresAt) - 1);
+  try { expect(mentionClassifierApproval()).toEqual(rootApproval); }
+  finally { jest.useRealTimers(); }
+});
+it.each([
+  ['no budget', { qualificationBudget: undefined }],
+  ['cap four', { qualificationBudget: { ...thirdQualificationApproval().qualificationBudget, maxTotalRequests: 4 } }],
+  ['cap two with third version', { qualificationBudget: qualificationApproval().qualificationBudget }],
+  ['wrong previous version', { qualificationBudget: { ...thirdQualificationApproval().qualificationBudget,
+    previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1' } }],
+  ['unknown version', { economicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.4' }],
+  ['second version with cap three', { economicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.2' }],
+  ['next UTC day', { qualificationBudget: { ...thirdQualificationApproval().qualificationBudget, utcDay: '2026-10-06' } }],
+  ['expiry beyond fixed day', { expiresAt: '2026-10-06T00:00:01Z' }],
+  ['unreviewed source', { evidenceRef: 'foreign' }],
+])('refuses unsupported third qualification: %s', (_name, changes) => {
+  expect(mentionClassifierEconomicDecision({ ...input(), approval: { ...thirdQualificationApproval(), ...changes },
+    now: Date.parse('2026-10-05T05:00:00Z') } as Parameters<typeof mentionClassifierEconomicDecision>[0])).toBeUndefined();
+});
+it.each(['2026-10-04T23:59:59Z', '2026-10-06T00:00:00Z', '2026-10-05T06:00:00Z'])(
+  'refuses the third qualification outside its day or expiry: %s', now => {
+    expect(mentionClassifierEconomicDecision({ ...input(), approval: thirdQualificationApproval(), now: Date.parse(now) })).toBeUndefined();
+  });
+it('isolates an inactive third approval nested budget from mutation', () => {
+  const candidate = thirdQualificationApproval();
+  const returned = cloneMentionClassifierApproval(candidate);
+  if (returned.qualificationBudget === undefined) throw new Error('fixture budget missing');
+  Object.assign(returned.qualificationBudget, { maxTotalRequests: 99 });
+  expect(cloneMentionClassifierApproval(candidate).qualificationBudget).toEqual({ utcDay: '2026-10-05',
+    maxTotalRequests: 3, previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.2' });
 });

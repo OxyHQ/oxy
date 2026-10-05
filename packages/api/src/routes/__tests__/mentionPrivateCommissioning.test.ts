@@ -782,3 +782,134 @@ it.each(["foreign-owner", "foreign-credential", "other-day", "third-cap", "deleg
     expect(await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
       .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId))).toHaveLength(0);
   });
+
+it("counts both prior settled failures under one relationship and admits only the explicit third qualification", async () => {
+  const first = await authorizedFixture("SYNTHETIC CONSUMED FIRST POST");
+  const firstApproval = approvalConfig.mentionClassifierApproval();
+  if (firstApproval === undefined) throw new Error("fixture approval missing");
+  jest.mocked(approvalConfig.mentionClassifierApproval).mockReturnValue({ ...firstApproval,
+    economicPolicyVersion: "oxy-mention-jev-native/2026-10-05.1" });
+  expect((await post(first)).status).toBe(200);
+  const second = await authorizedFixture("SYNTHETIC CONSUMED SECOND POST");
+  const secondApproval = approvalConfig.mentionClassifierApproval();
+  if (secondApproval === undefined) throw new Error("fixture approval missing");
+  jest.mocked(approvalConfig.mentionClassifierApproval).mockReturnValue({ ...secondApproval,
+    economicPolicyVersion: "oxy-mention-jev-native/2026-10-05.2",
+    evidenceRef: `oxy1519/1572/mention-native-source-review/sha256:${"a".repeat(64)}`,
+    expiresAt: "2026-10-05T23:59:59Z",
+    qualificationBudget: { utcDay: "2026-10-05", maxTotalRequests: 2,
+      previousEconomicPolicyVersion: "oxy-mention-jev-native/2026-10-05.1" } });
+  const secondResult = await post(second);
+  const [clock] = await getDb().execute<{ day: string }>(sql`select
+    to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD') as day`);
+  if (clock.day !== '2026-10-05') {
+    expect(secondResult.status).toBeGreaterThanOrEqual(400);
+    expect(executions).toBe(1);
+    return; // This approval is intentionally not broadened to future CI days.
+  }
+  expect(secondResult.status).toBe(200);
+  await getDb().update(inferenceMeteredUsage).set({ outcome: "failed" })
+    .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId));
+  const previous = await getDb().select({ id: inferenceMeteredUsage.id, outcome: inferenceMeteredUsage.outcome,
+    version: inferenceMeteredUsage.economicPolicyVersion }).from(inferenceMeteredUsage)
+    .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId));
+  expect(previous).toHaveLength(2);
+  expect(previous.every(row => row.outcome === "failed")).toBe(true);
+  const third = await authorizedFixture("SYNTHETIC DISTINCT THIRD POST");
+  const thirdApproval = approvalConfig.mentionClassifierApproval();
+  if (thirdApproval === undefined) throw new Error("fixture approval missing");
+  expect((await post(third)).status).toBe(429); // .1 default cannot erase two failures.
+  jest.mocked(approvalConfig.mentionClassifierApproval).mockReturnValue({ ...thirdApproval,
+    economicPolicyVersion: "oxy-mention-jev-native/2026-10-05.2",
+    evidenceRef: `oxy1519/1572/mention-native-source-review/sha256:${"a".repeat(64)}`,
+    expiresAt: "2026-10-05T23:59:59Z",
+    qualificationBudget: { utcDay: "2026-10-05", maxTotalRequests: 2,
+      previousEconomicPolicyVersion: "oxy-mention-jev-native/2026-10-05.1" } });
+  expect((await post(third)).status).toBe(429); // .2 still has total2, no version reset.
+  jest.mocked(approvalConfig.mentionClassifierApproval).mockReturnValue({ ...thirdApproval,
+    economicPolicyVersion: "oxy-mention-jev-native/2026-10-05.3",
+    evidenceRef: `oxy1519/1572/mention-native-source-review/sha256:${"b".repeat(64)}`,
+    expiresAt: "2026-10-05T23:59:59Z",
+    qualificationBudget: { utcDay: "2026-10-05", maxTotalRequests: 3,
+      previousEconomicPolicyVersion: "oxy-mention-jev-native/2026-10-05.2" } });
+  expect((await post(third)).status).toBe(200);
+  const fourth = await authorizedFixture("SYNTHETIC FOURTH POST");
+  const fourthApproval = approvalConfig.mentionClassifierApproval();
+  if (fourthApproval === undefined) throw new Error("fixture approval missing");
+  jest.mocked(approvalConfig.mentionClassifierApproval).mockReturnValue({ ...fourthApproval,
+    economicPolicyVersion: "oxy-mention-jev-native/2026-10-05.3",
+    evidenceRef: `oxy1519/1572/mention-native-source-review/sha256:${"b".repeat(64)}`,
+    expiresAt: "2026-10-05T23:59:59Z",
+    qualificationBudget: { utcDay: "2026-10-05", maxTotalRequests: 3,
+      previousEconomicPolicyVersion: "oxy-mention-jev-native/2026-10-05.2" } });
+  expect((await post(fourth)).status).toBe(429);
+  expect(executions).toBe(3);
+  const rows = await getDb().select({ id: inferenceMeteredUsage.id, outcome: inferenceMeteredUsage.outcome,
+    version: inferenceMeteredUsage.economicPolicyVersion, relationship: inferenceMeteredUsage.economicRelationshipId })
+    .from(inferenceMeteredUsage).where(eq(inferenceMeteredUsage.applicationId, identity.applicationId));
+  expect(rows).toHaveLength(3);
+  expect(rows.every(row => row.relationship === "mention-jev-kaana")).toBe(true);
+  for (const old of previous) expect(rows.find(row => row.id === old.id)).toMatchObject(old);
+  expect(rows.filter(row => row.version === "oxy-mention-jev-native/2026-10-05.3")).toHaveLength(1);
+});
+
+function thirdBoundedAdmission(expiresAt: string): MeteredAdmissionInput {
+  const input = boundedAdmission(expiresAt);
+  if (input.economics.treatment !== "internal_metered") throw new Error("fixture");
+  Object.assign(input.economics, { policyVersion: "oxy-mention-jev-native/2026-10-05.3" });
+  Object.assign(input.economics.relationship.capacity, { maxRequestsPerUtcDay: 3 });
+  return input;
+}
+it.each(["expiry", "day-drift"])("rechecks third qualification after an actual advisory-lock wait: %s", async kind => {
+  const lockKey = createHash("sha256").update(`inference-capacity:${identity.applicationId}:production`).digest().readBigInt64BE();
+  let entered!: () => void;
+  let release!: () => void;
+  const locked = new Promise<void>(r => { entered = r; });
+  const untilRelease = new Promise<void>(r => { release = r; });
+  const blocker = getDb().transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${lockKey.toString()}::bigint)`);
+    entered(); await untilRelease;
+  });
+  await locked;
+  const input = thirdBoundedAdmission(kind === "expiry" ? new Date(Date.now() + 250).toISOString() : "2026-10-05T23:59:59Z");
+  const pending = claimMeteredAdmission(input);
+  try {
+    let waiterObserved = false;
+    for (let i = 0; i < 100; i++) {
+      const [waiter] = await getDb().execute<{ waiting: boolean }>(sql`select exists(select 1 from pg_stat_activity
+        where datname=current_database() and wait_event='advisory') as waiting`);
+      if (waiter.waiting) { waiterObserved = true; break; }
+      await new Promise(r => setTimeout(r, 10));
+    }
+    expect(waiterObserved).toBe(true);
+    if (kind === "expiry") await new Promise(r => setTimeout(r, 400));
+    else {
+      if (input.economics.treatment !== "internal_metered") throw new Error("fixture");
+      const budget = input.economics.relationship.capacity.qualificationBudget;
+      if (budget === undefined) throw new Error("fixture budget missing");
+      Object.assign(budget, { utcDay: "2026-10-06" });
+      // Adversarial queued day drift; DB clock is real, not advanced or mocked.
+    }
+  } finally { release(); }
+  await blocker;
+  expect(await pending).toMatchObject({ status: "capacity-exceeded", limit: "daily" });
+  expect(await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+    .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId))).toHaveLength(0);
+});
+it.each(["foreign-owner", "foreign-credential", "other-day", "fourth-cap", "wrong-version", "delegation", "missing-budget"])(
+  "rejects closed third qualification inputs before SQL claim: %s", async kind => {
+    const input = thirdBoundedAdmission("2026-10-05T23:59:59Z");
+    if (kind === "foreign-owner") Object.assign(input, { accountId: "foreign" });
+    if (kind === "foreign-credential") Object.assign(input, { applicationCredentialId: "foreign" });
+    if (kind === "delegation") Object.assign(input, { delegatedUserId: "foreign" });
+    if (input.economics.treatment !== "internal_metered") throw new Error("fixture");
+    const capacity = input.economics.relationship.capacity;
+    if (capacity.qualificationBudget === undefined) throw new Error("fixture budget missing");
+    if (kind === "other-day") Object.assign(capacity.qualificationBudget, { utcDay: "2026-10-06" });
+    if (kind === "missing-budget") Object.assign(capacity, { qualificationBudget: undefined });
+    if (kind === "fourth-cap") Object.assign(capacity, { maxRequestsPerUtcDay: 4 });
+    if (kind === "wrong-version") Object.assign(input.economics, { policyVersion: "oxy-mention-jev-native/2026-10-05.4" });
+    expect(await claimMeteredAdmission(input)).toMatchObject({ status: "capacity-exceeded", limit: "daily" });
+    expect(await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
+      .where(eq(inferenceMeteredUsage.applicationId, identity.applicationId))).toHaveLength(0);
+  });
