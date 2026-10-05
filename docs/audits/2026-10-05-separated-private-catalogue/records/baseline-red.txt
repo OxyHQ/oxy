@@ -1,0 +1,54 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/httpScopedExecution.test.ts src/services/__tests__/kaanaCatalogueSync.test.ts src/services/__tests__/httpKaanaDecisions.test.ts "--testNamePattern=reads and attests private lanes independently|imports ordinary, commissioning and Auto"
+FAIL src/services/__tests__/kaanaCatalogueSync.test.ts
+  ● independent private Auto catalogue import › imports ordinary, commissioning and Auto through real separate signed HTTP projections and preserves private DENY
+
+    expect(received).not.toBe(expected) // Object.is equality
+
+    Expected: not true
+
+      794 |     const fetcher = jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      795 |       const query = JSON.parse((init!.body as Buffer).toString());
+    > 796 |       expect(Boolean(query.scopedExecutionContractVersion)).not.toBe(Boolean(query.privateAutoExecutionContractVersion));
+          |                                                                 ^
+      797 |       const projection = query.privateAutoExecutionContractVersion === '3.7.0' ? autoBody : scopedBody;
+      798 |       return new Response(JSON.stringify(String(url).endsWith('/models/query') ? projection : {
+      799 |         snapshotId: 'snap_test',
+
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:796:65
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:41:71
+      at __awaiter (src/services/__tests__/kaanaCatalogueSync.test.ts:37:12)
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:794:92
+      at Object.<anonymous> (src/services/httpKaanaClient.ts:356:30)
+      at src/services/httpKaanaClient.ts:64:71
+      at __awaiter (src/services/httpKaanaClient.ts:60:12)
+      at Object.listModels (src/services/httpKaanaClient.ts:290:20)
+      at src/services/kaanaCatalogueSync.service.ts:1430:18
+      at src/services/kaanaCatalogueSync.service.ts:54:71
+      at __awaiter (src/services/kaanaCatalogueSync.service.ts:50:12)
+      at runKaanaCatalogueSync (src/services/kaanaCatalogueSync.service.ts:1016:12)
+      at src/services/__tests__/kaanaCatalogueSync.test.ts:804:46
+      at fulfilled (src/services/__tests__/kaanaCatalogueSync.test.ts:38:58)
+
+FAIL src/services/__tests__/httpScopedExecution.test.ts
+  ● reads and attests private lanes independently with the shipping signer and preserves all three lanes
+
+    KaanaProtocolError: The inference data plane refused the catalogue read with HTTP 400.
+
+      370 |       if (!response.ok) {
+      371 |         await readBounded(response);
+    > 372 |         throw new KaanaProtocolError(
+          |               ^
+      373 |           `The inference data plane refused the catalogue read with HTTP ${response.status}.`
+      374 |         );
+      375 |       }
+
+      at Object.<anonymous> (src/services/httpKaanaClient.ts:372:15)
+      at fulfilled (src/services/httpKaanaClient.ts:61:58)
+
+
+Test Suites: 2 failed, 1 skipped, 2 of 3 total
+Tests:       2 failed, 104 skipped, 106 total
+Snapshots:   0 total
+Time:        0.901 s, estimated 6 s
+Ran all test suites within paths "src/services/__tests__/httpScopedExecution.test.ts", "src/services/__tests__/kaanaCatalogueSync.test.ts", "src/services/__tests__/httpKaanaDecisions.test.ts".
+error: script "test" exited with code 1

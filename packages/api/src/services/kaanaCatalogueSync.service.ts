@@ -1371,40 +1371,55 @@ export async function attestPricedDeployments(
   reader: KaanaCatalogueReader,
   catalogue: ParsedKaanaCatalogue
 ): Promise<Map<string, KaanaDeploymentDescriptor>> {
-  const ids = [
-    ...new Set(
-      catalogue.models.flatMap((model) =>
-        model.listPrices.filter((row) => row.price !== 'invalid').map((row) => row.deploymentId)
-      )
-    ),
-  ].sort();
+  const pricedRoutes = new Map<string, KaanaPricedRoute>();
+  for (const model of catalogue.models) for (const route of model.listPrices) {
+    if (route.price === 'invalid') continue;
+    const existing = pricedRoutes.get(route.deploymentId);
+    if (existing !== undefined && canonicalScopedExecutionJson(existing) !== canonicalScopedExecutionJson(route)) {
+      throw new Error('Catalogue repeats a deployment with conflicting price or authority.');
+    }
+    pricedRoutes.set(route.deploymentId, route);
+  }
   const attested = new Map<string, KaanaDeploymentDescriptor>();
-  for (let start = 0; start < ids.length; start += KAANA_ATTESTATION_BATCH) {
-    const batch = ids.slice(start, start + KAANA_ATTESTATION_BATCH);
-    const evidence = await reader.attestDeployments(batch, {
-      signal: AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS),
-      scopedExecutionContractVersion: '3.6.0',
-      ...(catalogue.models.some(model => model.listPrices.some(price => price.privateAutoSourceApproval !== undefined)) ? { privateAutoExecutionContractVersion: '3.7.0' as const } : {}),
-    });
-    validatePrivateAutoAttestation(evidence, catalogue.models.some(model => model.listPrices.some(price => price.privateAutoSourceApproval !== undefined)) ? '3.7.0' : undefined);
-    if (evidence.scopedExecutionContractVersion !== '3.6.0') throw new Error('Missing scoped deployment acknowledgement.');
-    if (catalogue.models.some((model) => model.listPrices.some((price) => (price.scopedExecution !== undefined || price.privateAutoSourceApproval !== undefined))) &&
-      (catalogue.snapshotId === undefined || evidence.snapshotId !== catalogue.snapshotId)) throw new Error('Scoped catalogue snapshot changed before attestation.');
-    for (const descriptor of evidence.deployments) {
-      if (!batch.includes(descriptor.deploymentId)) continue;
-      attested.set(descriptor.deploymentId, {
-        deploymentId: descriptor.deploymentId,
-        provider: descriptor.provider,
-        modelReference: descriptor.modelReference,
-        regions: [...new Set(descriptor.regions)].sort(),
-        keyId: descriptor.keyId, upstreamModelId: descriptor.upstreamModelId,
-        providerRateCardVersionId: descriptor.providerRateCardVersionId, providerSourceVersion: descriptor.providerSourceVersion,
-        ...(descriptor.scopedExecution === undefined ? {} : { scopedExecution: descriptor.scopedExecution }),
-        ...(descriptor.privateAutoSourceApproval === undefined ? {} : { privateAutoSourceApproval: descriptor.privateAutoSourceApproval }),
-        ...(descriptor.acceptedParameters === undefined
-          ? {}
-          : { acceptedParameters: descriptor.acceptedParameters }),
+  // Metadata negotiations stay independent just like the v3 and v4 execution lanes.
+  for (const privateAuto of [false, true]) {
+    const ids = [...pricedRoutes.values()].filter(route => (route.privateAutoSourceApproval !== undefined) === privateAuto)
+      .map(route => route.deploymentId).sort();
+    for (let start = 0; start < ids.length; start += KAANA_ATTESTATION_BATCH) {
+      const batch = ids.slice(start, start + KAANA_ATTESTATION_BATCH);
+      const evidence = await reader.attestDeployments(batch, {
+        signal: AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS),
+        ...(privateAuto ? { privateAutoExecutionContractVersion: '3.7.0' as const } : { scopedExecutionContractVersion: '3.6.0' as const }),
       });
+      validatePrivateAutoAttestation(evidence, privateAuto ? '3.7.0' : undefined);
+      if (evidence.scopedExecutionContractVersion !== (privateAuto ? undefined : '3.6.0')) {
+        throw new Error('Missing independent scoped deployment acknowledgement.');
+      }
+      if (catalogue.models.some(model => model.listPrices.some(price => price.scopedExecution !== undefined || price.privateAutoSourceApproval !== undefined)) &&
+        (catalogue.snapshotId === undefined || evidence.snapshotId !== catalogue.snapshotId)) {
+        throw new Error('Private catalogue snapshot changed before attestation.');
+      }
+      if (evidence.deployments.length !== batch.length || new Set(evidence.deployments.map(row => row.deploymentId)).size !== batch.length ||
+        evidence.deployments.some(row => !batch.includes(row.deploymentId))) {
+        throw new Error('Deployment attestation must contain exactly the requested identities.');
+      }
+      for (const descriptor of evidence.deployments) {
+        const route = pricedRoutes.get(descriptor.deploymentId);
+        if (route === undefined) throw new Error('Deployment attestation lacks its exact priced route.');
+        if (descriptor.provider !== route.provider ||
+          canonicalScopedExecutionJson(descriptor.privateAutoSourceApproval ?? null) !== canonicalScopedExecutionJson(route.privateAutoSourceApproval ?? null) ||
+          canonicalScopedExecutionJson(descriptor.scopedExecution ?? null) !== canonicalScopedExecutionJson(route.scopedExecution ?? null)) {
+          throw new Error('Deployment attestation changed its provider or private authority.');
+        }
+        attested.set(descriptor.deploymentId, {
+          deploymentId: descriptor.deploymentId, provider: descriptor.provider, modelReference: descriptor.modelReference,
+          regions: [...new Set(descriptor.regions)].sort(), keyId: descriptor.keyId, upstreamModelId: descriptor.upstreamModelId,
+          providerRateCardVersionId: descriptor.providerRateCardVersionId, providerSourceVersion: descriptor.providerSourceVersion,
+          ...(descriptor.scopedExecution === undefined ? {} : { scopedExecution: descriptor.scopedExecution }),
+          ...(descriptor.privateAutoSourceApproval === undefined ? {} : { privateAutoSourceApproval: descriptor.privateAutoSourceApproval }),
+          ...(descriptor.acceptedParameters === undefined ? {} : { acceptedParameters: descriptor.acceptedParameters }),
+        });
+      }
     }
   }
   return attested;

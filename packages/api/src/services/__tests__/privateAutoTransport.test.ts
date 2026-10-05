@@ -77,11 +77,22 @@ it('nil approval leaves catalogue negotiation unchanged; private source never en
   await reader.listPublishedDeployments(new AbortController().signal);
   expect(JSON.parse((fetcher.mock.calls[0][1]?.body as Buffer).toString())).toEqual({ scopedExecutionContractVersion: '3.6.0' });
   jest.spyOn(source, 'privateAutoClassifierSourceApproval').mockReturnValue(approval);
-  fetcher.mockResolvedValue(new Response(JSON.stringify({ ...evidence, scopedExecutionContractVersion: '3.6.0' })));
+  fetcher.mockImplementation(async (_url, init) => {
+    const query = JSON.parse((init?.body as Buffer).toString());
+    const projection = query.privateAutoExecutionContractVersion === '3.7.0'
+      ? evidence
+      : { snapshotId: evidence.snapshotId, scopedExecutionContractVersion: '3.6.0', deployments: [] };
+    return new Response(JSON.stringify(projection), { headers: { 'Cache-Control': 'no-store' } });
+  });
   const publication = await createDeploymentPublicationCache(reader).current();
   expect(publication.status).toBe('observed');
   if (publication.status !== 'observed') throw new Error('Missing publication');
   expect(publication.deploymentIds.size).toBe(0);
+  expect(fetcher).toHaveBeenCalledTimes(3);
+  expect(fetcher.mock.calls.slice(1).map(([, init]) => JSON.parse((init?.body as Buffer).toString()))).toEqual([
+    { scopedExecutionContractVersion: '3.6.0' },
+    { privateAutoExecutionContractVersion: '3.7.0' },
+  ]);
 });
 it('signs actual variable-input canonical bytes through the decisions endpoint once', async () => {
   const { client, keys } = setup();
