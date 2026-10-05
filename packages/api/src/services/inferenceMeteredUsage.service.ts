@@ -175,7 +175,9 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
       await tx.execute(
         sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`
       );
-      if (capacity.qualificationBudget !== undefined || input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2') {
+      if (capacity.qualificationBudget !== undefined
+        || input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2'
+        || input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.3') {
         const budget = capacity.qualificationBudget;
         const identity = MENTION_CLASSIFIER_IDENTITY;
         const expiry = Date.parse(budget?.expiresAt ?? '');
@@ -183,7 +185,10 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
         // source expiry crossed while queued cannot acquire a fresh daily slot.
         const valid = typeof budget === 'object' && budget !== null
           && Object.keys(budget).sort().join(',') === 'expiresAt,utcDay'
-          && input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2'
+          && ((input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2'
+            && capacity.maxRequestsPerUtcDay === 2)
+            || (input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.3'
+              && capacity.maxRequestsPerUtcDay === 3))
           && input.economics.relationship.relationshipId === 'mention-jev-kaana'
           && input.economics.relationship.consumerApplicationId === identity.applicationId
           && input.economics.relationship.consumerProduct === 'mention'
@@ -195,7 +200,7 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
           && input.applicationCredentialId === identity.credentialId && input.environment === 'production'
           && input.delegatedUserId === undefined && input.endpoint === '/v1/decisions'
           && capacity.scope === 'relationship' && capacity.maxConcurrentRequests === 1
-          && capacity.maxRequestsPerUtcDay === 2 && budget.utcDay === '2026-10-05'
+          && budget.utcDay === '2026-10-05'
           && Number.isFinite(expiry) && expiry <= Date.parse('2026-10-06T00:00:00Z');
         if (!valid || budget === undefined) return { status: 'capacity-exceeded', limit: 'daily', capacity };
         const [clock] = await tx.execute<{ valid: boolean }>(sql`select

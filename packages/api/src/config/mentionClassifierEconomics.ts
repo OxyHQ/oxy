@@ -18,12 +18,16 @@ export interface MentionClassifierApproval {
   readonly priceVersionId: string;
   readonly routingPolicyId: string;
   readonly routingPolicyVersion: number;
-  /** A separately reviewed second qualification, never a reset of the first request. */
+  /** Closed qualification lineage; support does not activate a new source approval. */
   readonly qualificationBudget?: {
     readonly utcDay: '2026-10-05';
+  } & ({
     readonly maxTotalRequests: 2;
     readonly previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1';
-  };
+  } | {
+    readonly maxTotalRequests: 3;
+    readonly previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.2';
+  });
 }
 
 /** Exact root-reviewed own-Mention relationship; no environment override or mutable setter. */

@@ -62,17 +62,20 @@ export function mentionClassifierEconomicDecision(input: {
   const route = input.routes[0];
   const budget = approval.qualificationBudget;
   const reviewedSecondVersion = 'oxy-mention-jev-native/2026-10-05.2';
-  // The live .1 getter remains unchanged. A future .2 approval must explicitly
-  // bind the cumulative budget to this day and the consumed original review.
+  const reviewedThirdVersion = 'oxy-mention-jev-native/2026-10-05.3';
+  // The live .2 getter remains unchanged. A .3 approval requires a separate
+  // source review; its stable counter must include both prior failed requests.
   if (budget !== undefined) {
     if (typeof budget !== 'object' || budget === null || Object.keys(budget).sort().join(',') !== 'maxTotalRequests,previousEconomicPolicyVersion,utcDay'
-      || approval.economicPolicyVersion !== reviewedSecondVersion
-      || budget.utcDay !== '2026-10-05' || budget.maxTotalRequests !== 2
-      || budget.previousEconomicPolicyVersion !== 'oxy-mention-jev-native/2026-10-05.1'
+      || !((approval.economicPolicyVersion === reviewedSecondVersion
+        && budget.maxTotalRequests === 2 && budget.previousEconomicPolicyVersion === 'oxy-mention-jev-native/2026-10-05.1')
+        || (approval.economicPolicyVersion === reviewedThirdVersion
+          && budget.maxTotalRequests === 3 && budget.previousEconomicPolicyVersion === reviewedSecondVersion))
+      || budget.utcDay !== '2026-10-05'
       || !/^oxy1519\/1572\/mention-native-source-review\/sha256:[a-f0-9]{64}$/.test(approval.evidenceRef)
       || !Number.isFinite(input.now) || (input.now < Date.parse('2026-10-05T00:00:00Z') || input.now >= Date.parse('2026-10-06T00:00:00Z'))
       || !Number.isFinite(expiry) || expiry > Date.parse('2026-10-06T00:00:00Z')) return undefined;
-  } else if (approval.economicPolicyVersion === reviewedSecondVersion) return undefined;
+  } else if (approval.economicPolicyVersion === reviewedSecondVersion || approval.economicPolicyVersion === reviewedThirdVersion) return undefined;
   if (!input.authorityActive || !isMentionClassifierRequest(input.principal, request, approval)
     || input.delegatedUserId !== undefined || !Number.isFinite(expiry) || expiry <= input.now
     || !approval.economicPolicyVersion.trim() || !approval.evidenceRef.trim()
@@ -87,6 +90,6 @@ export function mentionClassifierEconomicDecision(input: {
   return { treatment: 'internal_metered', policyVersion: approval.economicPolicyVersion,
     relationship: { relationshipId: 'mention-jev-kaana', consumerApplicationId: MENTION_CLASSIFIER_IDENTITY.applicationId,
       consumerProduct: 'mention', providerProduct: 'kaana', environments: ['production'], lane: 'service_token',
-      capacity: { maxConcurrentRequests: 1, maxRequestsPerUtcDay: budget === undefined ? 1 : 2, scope: 'relationship',
+      capacity: { maxConcurrentRequests: 1, maxRequestsPerUtcDay: budget === undefined ? 1 : budget.maxTotalRequests, scope: 'relationship',
         ...(budget === undefined ? {} : { qualificationBudget: { utcDay: budget.utcDay, expiresAt: approval.expiresAt } }) } } };
 }
