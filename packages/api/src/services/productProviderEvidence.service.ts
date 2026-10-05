@@ -1,3 +1,4 @@
+import {assertBillingDatabaseNamespace,billingNamespaceSchema} from '../config/billingNamespace';
 import { personalPlanCheckoutIntents } from '../db/schema/personalPlanCheckoutIntents';
 /** Unmounted adapter of explicit, trusted normalized data. No provider/network calls. */
 import { createHash } from 'node:crypto';
@@ -5,10 +6,10 @@ import {
 	productOfferSegmentSchema,
 	productSubscriptionSourceSchema,
 } from "@oxy.so/contracts";
-import { and, eq } from "drizzle-orm";
+import { and, eq,isNull } from "drizzle-orm";
 import { z } from "zod";
 import { type Transaction, getDb } from '../config/postgres';
-import { accessProviderEvents, accessProviderPeriods } from '../db/schema';
+import { accessProviderEvents, accessProviderPeriods,accessGrants,accessSubscriptionSources,users } from '../db/schema';
 import { ConflictError } from '../utils/error';
 import { productAccessConfigurationExpectationSchema, productProviderBindingSchema, recordProductAccessPeriod } from './productAccessPersistence.service';
 
@@ -213,4 +214,22 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
 		};
 	};
 	return transaction ? write(transaction) : getDb().transaction(write);
+}
+
+/** Trusted adapter only: full cash refund revokes exactly the original invoice line,
+ * never another paid month or an individual subscription. Retain grants as terminal
+ * tombstones so a delayed paid replay cannot reinsert them. No provider calls in TX. */
+export async function revokeProductProviderPaidPeriod(input:{binding:z.infer<typeof productProviderBindingSchema>;accountId:string;subscriptionId:string;invoiceId:string;lineId:string;priceId:string;period:{start:string;end:string};observedAt:Date}){
+ const binding=productProviderBindingSchema.parse(input.binding);
+ await assertBillingDatabaseNamespace(getDb(),billingNamespaceSchema.parse({mode:binding.mode,environment:binding.environment}));
+ if(!Number.isFinite(input.observedAt.getTime()))throw new ConflictError('Refund observation time unavailable');
+ return getDb().transaction(async tx=>{
+  await tx.select({id:users.id}).from(users).where(eq(users.id,input.accountId)).for('update');
+  const periods=await tx.select().from(accessProviderPeriods).where(and(eq(accessProviderPeriods.provider,'peable'),eq(accessProviderPeriods.providerAccountRef,binding.providerAccountRef),eq(accessProviderPeriods.mode,binding.mode),eq(accessProviderPeriods.environment,binding.environment),eq(accessProviderPeriods.invoiceId,input.invoiceId),eq(accessProviderPeriods.lineId,input.lineId)));
+  const period=periods[0];if(!period)return {status:'not_recorded' as const,revoked:0};
+  if(period.payerAccountId!==input.accountId||period.beneficiaryAccountId!==input.accountId||period.providerSubscriptionId!==input.subscriptionId||period.priceId!==input.priceId||period.periodStart.toISOString()!==input.period.start||period.periodEnd.toISOString()!==input.period.end)throw new ConflictError('Refund paid-period ownership differs');
+  await tx.select({id:accessSubscriptionSources.id}).from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id,period.sourceId)).for('update');
+  const revoked=await tx.update(accessGrants).set({revokedAt:input.observedAt}).where(and(eq(accessGrants.sourceSegmentId,period.segmentId),eq(accessGrants.beneficiaryAccountId,input.accountId),isNull(accessGrants.revokedAt))).returning({id:accessGrants.id});
+  return {status:revoked.length?'revoked' as const:'replayed' as const,revoked:revoked.length};
+ });
 }

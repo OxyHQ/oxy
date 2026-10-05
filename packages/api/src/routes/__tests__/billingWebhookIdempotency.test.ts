@@ -1,3 +1,5 @@
+let mockPeableManagement:unknown;
+jest.mock('../../services/peablePersonalManagement.service',()=>({loadPeablePersonalManagement:jest.fn(async()=>mockPeableManagement),cancelStoredPeablePersonalSource:jest.fn()}));
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 import { registerProductAccessConfiguration } from '../../services/productAccessPersistence.service';
 /**
@@ -261,6 +263,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  mockPeableManagement=undefined;
   invalidNextCancellationSnapshot = false;
   subscriptionUpdateCalls.length = 0;
   failNextGrant = false;
@@ -1712,4 +1715,17 @@ it('maintains a paid empty bundle through list, named cancellation and lifecycle
   expect(await getDb().select().from(accessOfferSegments).where(eq(accessOfferSegments.subscriptionId, source.id))).toHaveLength(1);
   expect(await paidBalance(sub.userId)).toBe(0);
   expect(subscriptionUpdateCalls).toEqual([sub.subscriptionId]);
+}));
+
+
+it.each(['past_due','unpaid'] as const)('discovers cancellation for owned Peable %s while preserving account/namespace fences',async status=>withProductCatalogue(async()=>{
+ const sub=await subscriber();const paid=invoiceEvent(sub);assertProductEvidenceTest(paid,sub.subscriptionId);expect(await postWebhook(paid)).toBe(200);
+ const [original]=await getDb().select().from(accessSubscriptionSources).where(eq(accessSubscriptionSources.providerSubscriptionId,sub.subscriptionId));
+ const merchant='merch_SYNTHETIC';const [source]=await getDb().insert(accessSubscriptionSources).values({...original,id:`synthetic-peable-${sub.subscriptionId}`,providerSubscriptionId:`peable-${sub.subscriptionId}`,provider:'peable',providerAccountRef:merchant,status}).returning();
+ mockPeableManagement={configuration:{merchantId:merchant,namespace:{mode:'test',environment:'test'}}};
+ try{await withApp(async base=>{
+  const headers={'x-test-user':sub.userId};const list=await fetch(`${base}/billing/product-subscriptions?expectedSubjectAccountId=${sub.userId}`,{headers});expect(list.status).toBe(200);const listed=await list.json() as {subscriptions:Array<{sourceId:string;canCancel:boolean}>};expect(listed.subscriptions.find(v=>v.sourceId===source.id)).toMatchObject({sourceId:source.id,status,canCancel:true});
+  expect((await fetch(`${base}/billing/product-subscriptions?expectedSubjectAccountId=other`,{headers})).status).toBe(403);
+  mockPeableManagement={configuration:{merchantId:'merch_OTHER',namespace:{mode:'test',environment:'test'}}};const foreign=await fetch(`${base}/billing/product-subscriptions`,{headers});const other=await foreign.json() as {subscriptions:Array<{sourceId:string;canCancel:boolean}>};expect(other.subscriptions.find(v=>v.sourceId===source.id)).toMatchObject({canCancel:false});
+ });}finally{mockPeableManagement=undefined;}
 }));

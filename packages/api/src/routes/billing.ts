@@ -305,8 +305,8 @@ router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, re
           products: [...new Set(grants.map(grant => grant.productId))].map(id => ({ id, displayName: catalogue.displayNames.products[id] ?? 'Product' })) };
       }));
       return { sourceId: source.id, status: source.status, period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
-        cancelAtPeriodEnd: source.cancelAtPeriodEnd, canCancel: source.payerAccountId === userId && (source.provider === 'stripe' || (source.provider === 'peable' && !!peableManagement && source.providerAccountRef===peableManagement.configuration.merchantId))
-          && source.mode === namespace.mode && source.environment === namespace.environment && ['active','trialing'].includes(source.status), offers };
+        cancelAtPeriodEnd: source.cancelAtPeriodEnd, canCancel: source.payerAccountId === userId && (source.provider === 'stripe' || (source.provider === 'peable' && source.beneficiaryAccountId===userId && !!peableManagement && source.providerAccountRef===peableManagement.configuration.merchantId))
+          && source.mode === namespace.mode && source.environment === namespace.environment && (source.provider==='peable' ? ['active','trialing','past_due','unpaid'] : ['active','trialing']).includes(source.status), offers };
     }));
     res.set('Cache-Control', 'no-store'); return res.json(productSubscriptionsResponseSchema.parse({ subscriptions }));
   } catch (error) { logger.error('Product source read failed', error); return res.status(500).json({ error: 'Product source read failed' }); }

@@ -24,7 +24,7 @@ jest.mock('@oxy.so/services', () => ({
   usePersonalPlanSubscriptions: () => ({ data: [mockSource], refetch: mockRefetch }),
 }));
 import { PersonalPlansCard } from '@/components/payments/PersonalPlansCard';
-beforeEach(() => {mockActionCounter=0; mockUser = { id: 'first' }; mockCancel.mockReset(); mockRefetch.mockReset(); mockPlans = []; mockLocale = 'en-US'; });
+beforeEach(() => {mockSource.status='active';mockSource.canCancel=true;mockActionCounter=0; mockUser = { id: 'first' }; mockCancel.mockReset(); mockRefetch.mockReset(); mockPlans = []; mockLocale = 'en-US'; });
 it('requires confirmation, fences cancellation to the account, and explains pending reconciliation', async () => {
   mockCancel.mockResolvedValue({ sourceId: 'source-one', reconciliationPending: true });
   render(<PersonalPlansCard />);
@@ -69,3 +69,6 @@ it('retries same action and assigns new identity to later cancellation',async()=
  fireEvent.click(screen.getByText('payments.one.confirmCancel'));await screen.findByText('payments.one.scheduled');expect(mockCancel.mock.calls.map(v=>v[2])).toEqual(['action_1','action_1']);
  fireEvent.click(screen.getByText('payments.one.cancel'));fireEvent.click(screen.getByText('payments.one.confirmCancel'));await waitFor(()=>expect(mockCancel).toHaveBeenCalledTimes(3));expect(mockCancel.mock.calls[2][2]).toBe('action_2');
 });
+
+it.each(['past_due','unpaid'])('shows owned %s cancellation from the trusted SDK read model',async status=>{mockSource.status=status;mockCancel.mockResolvedValue({sourceId:'source-one',cancelAtPeriodEnd:true});render(<PersonalPlansCard/>);fireEvent.click(screen.getByText('payments.one.cancel'));fireEvent.click(screen.getByText('payments.one.confirmCancel'));await waitFor(()=>expect(mockCancel).toHaveBeenCalledWith('source-one','first','action_1'));});
+it('hides cancellation when the SDK ownership read model refuses it',()=>{mockSource.status='past_due';mockSource.canCancel=false;render(<PersonalPlansCard/>);expect(screen.queryByText('payments.one.cancel')).toBeNull();});
