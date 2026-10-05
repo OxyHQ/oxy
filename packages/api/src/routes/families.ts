@@ -8,6 +8,7 @@
 import express from 'express';
 import type { Request } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -25,9 +26,9 @@ import {
 
 const router = express.Router();
 
-// Every family route requires an authenticated user — there is no
-// service-scoped or public surface here, unlike `routes/accounts.ts`.
-router.use(authMiddleware);
+// Family membership is a sensitive first-party account control. In addition to
+// authentication, reject application-bound tokens from untrusted OAuth clients.
+router.use(authMiddleware, requireFirstPartyDeviceAccess);
 
 /** Per-user (or per-IP when anonymous) rate-limit key for a scope. */
 function userScopedKey(scope: string) {

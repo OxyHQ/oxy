@@ -10,6 +10,12 @@ fails at that instant. The daily
 goes red and opens the issue "Kaana routing scores expire within 7 days" a week
 before the cliff. Renew then, not on the day.
 
+Routes written by the Kaana catalogue sync carry only a `price` score, which
+has no validity window, so they never trigger this monitor. The census still
+refuses one that lacks its price, price version or `requests` unit, or that
+shares a model revision with a measured route (it would refuse that model's
+latency, throughput and balanced ranking).
+
 This path renews validity only, with the **same** scores, sources, evidence and
 measurement windows, after an owner approval. Changing a score is a new review,
 not a renewal.

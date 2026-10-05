@@ -41,6 +41,11 @@ const router = Router();
 
 const BREVO_WEBHOOK_SECRET = getEnvVar('BREVO_WEBHOOK_SECRET', '');
 /**
+ * The one SNS topic SES publishes Oxy's bounces and complaints to (us-west-2,
+ * docs: ~/Oxy/docs/outbound-mail-relay.md). An identifier, not a secret.
+ */
+export const SES_FEEDBACK_TOPIC_ARN = 'arn:aws:sns:us-west-2:237343248947:oxy-ses-feedback';
+/**
  * Refuse anything arriving with a cookie.
  *
  * Neither SNS nor Brevo sends one. A request that does is a browser, which is
@@ -121,6 +126,15 @@ export interface SnsEnvelope {
   SignatureVersion?: string;
   Signature?: string;
   SigningCertURL?: string;
+}
+
+/**
+ * SNS signatures establish that Amazon emitted an envelope, not that the
+ * envelope came from this deployment's SES feedback topic. Bind both
+ * confirmations and notifications to the exact feedback topic ARN.
+ */
+export function isAuthorizedSnsTopic(topicArn: string | undefined, expectedTopicArn: string): boolean {
+  return expectedTopicArn.length > 0 && topicArn === expectedTopicArn;
 }
 
 /**
@@ -338,6 +352,12 @@ router.post(
   '/ses',
   asyncHandler(async (req: Request, res: Response) => {
     const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as SnsEnvelope;
+
+    if (!isAuthorizedSnsTopic(body.TopicArn, SES_FEEDBACK_TOPIC_ARN)) {
+      logger.warn('SNS message rejected: topic is not authorized');
+      res.status(403).json({ error: 'Invalid topic' });
+      return;
+    }
 
     if (!(await verifySnsSignature(body))) {
       logger.warn('SNS message rejected: signature verification failed');

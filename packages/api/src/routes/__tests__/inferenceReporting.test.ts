@@ -37,13 +37,19 @@ jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 
 process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
 
+// The verified token names the human operator as `principalUserId` when the
+// session speaks as a managed account; a missing or unreadable session leaves
+// only the subject.
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
-    req: { user?: { _id: string; id: string } },
+    req: { user?: { _id: string; id: string }; oxyToken?: { principalUserId: string } },
     _res: unknown,
     next: () => void
   ) => {
     req.user = { _id: currentUserId, id: currentUserId };
+    if (!sessionMissing && !sessionUnreadable) {
+      req.oxyToken = { principalUserId: currentOperatorId ?? currentUserId };
+    }
     next();
   },
 }));
@@ -78,6 +84,12 @@ import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 let server: http.Server;
 let currentUserId = '';
+let currentOperatorId: string | null = null;
+let sessionMissing = false;
+let sessionUnreadable = false;
+let spoofedOperatorId = '';
+
+beforeEach(() => { currentOperatorId = null; sessionMissing = false; sessionUnreadable = false; spoofedOperatorId = ''; });
 
 interface JsonResponse {
   status: number;
@@ -102,6 +114,7 @@ function request(
         path,
         headers: {
           authorization: `Bearer ${options.token ?? 'user-token'}`,
+          'x-operator-id': spoofedOperatorId,
           ...(payload === undefined
             ? {}
             : {
@@ -1304,5 +1317,42 @@ describe('service rate-limit partitioning', () => {
       reportingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
     );
     expect(REPORTING_SERVICE_READS_PER_15_MINUTES).toBeGreaterThan(600);
+  });
+});
+
+async function managedBillingFixture() {
+  const workspace = await seedAccount('organization');
+  const operator = await seedAccount('personal');
+  const stranger = await seedAccount('personal');
+  await seedMember(workspace, operator, 'billing');
+  return { workspace, operator, stranger };
+}
+
+describe('managed-session billing uses the verified operator membership', () => {
+  it('reads an absent profile for the member operator, and retains ordinary personal-session access', async () => {
+    const { workspace, operator } = await managedBillingFixture();
+    currentUserId = workspace;
+    currentOperatorId = operator;
+    const response = await request('GET', `/inference/reporting/accounts/${workspace}/balance`);
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ accountId: workspace, provisioned: false, balances: [] });
+    currentUserId = operator;
+    currentOperatorId = null;
+    expect((await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status).toBe(200);
+  });
+  it('refuses an unrelated operator although the subject is the target workspace', async () => {
+    const { workspace, operator, stranger } = await managedBillingFixture();
+    spoofedOperatorId = operator;
+    currentUserId = workspace;
+    currentOperatorId = stranger;
+    expect((await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status).toBe(404);
+  });
+  it.each(['missing', 'unreadable'] as const)('fails closed for a %s operator session', async (failure) => {
+    const { workspace, operator } = await managedBillingFixture();
+    currentUserId = workspace;
+    currentOperatorId = operator;
+    sessionMissing = failure === 'missing';
+    sessionUnreadable = failure === 'unreadable';
+    expect((await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status).toBe(404);
   });
 });

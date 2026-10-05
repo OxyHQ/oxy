@@ -515,14 +515,15 @@ describe('the signed first frame', () => {
     });
   });
 
-  it('holds spend against the signed limits: responses × window in, responses × cap out', async () => {
+  it('holds spend against the signed limits and the route output cap', async () => {
     const fixture = await realtimeModel();
     await withEdge(async (harness) => {
       const { customer, emit } = await opened(harness, fixture);
       const [reservation] = await reservationsFor(fixture.accountId);
       // 2 responses × 32 000-token window at the dearest input unit ($40/M audio)
-      // + 2 × 1 000-token cap at the dearest output unit ($80/M audio).
-      expect(reservation.reservedAmount).toBe('2.720000000000');
+      // + 2 × 4 096-token route cap at the dearest output unit ($80/M audio).
+      // The opening cap is only 1 000, but later commands may raise it.
+      expect(reservation.reservedAmount).toBe('3.215360000000');
       // The hold outlives the session: 60 s + the 60 s resume window + grace.
       expect(reservation.expiresAt.getTime()).toBeGreaterThan(Date.now() + 120_000);
       emit.closed([]);
@@ -552,9 +553,9 @@ describe('session_milliseconds', () => {
     await withEdge(async (harness) => {
       const { customer, emit } = await opened(harness, fixture);
       const [reservation] = await reservationsFor(fixture.accountId);
-      // The token ceiling of the control case above ($2.72), plus
+      // The token ceiling of the control case above ($3.21536), plus
       // (60 000 ms signed + 60 000 ms open allowance) × $0.06/M = $0.0072.
-      expect(reservation.reservedAmount).toBe('2.727200000000');
+      expect(reservation.reservedAmount).toBe('3.222560000000');
       emit.closed([]);
       emit.report([], 'failed');
       await customer.closed;
@@ -1152,7 +1153,7 @@ describe('a token-priced route is relayed exactly as before', () => {
       );
       const [reservation] = await reservationsFor(fixture.accountId);
       // The token ceiling alone, as in 'holds spend against the signed limits'.
-      expect(reservation.reservedAmount).toBe('2.720000000000');
+      expect(reservation.reservedAmount).toBe('3.215360000000');
       for (const id of ['c-1', 'c-2', 'c-3']) {
         const item = textItem(customer.requestId, id);
         customer.send(item);
