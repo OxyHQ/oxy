@@ -66,13 +66,8 @@ export const getUserByPublicKeyParams = z.object({
 // request binding — nothing already owned by `Application`, `AuthCode` or
 // `DeviceSession`. The RP-owned `state` never reaches the server.
 export const authSessionOAuthContextSchema = z.object({
-  /**
-   * OAuth-bound out-of-band sessions are restricted to confidential clients.
-   * Public clients must use the ordinary browser authorization redirect flow.
-   */
-  clientSecret: z.string().trim().min(1),
   redirectUri: z.string().trim().url(),
-  /** PKCE remains mandatory as defence in depth after client authentication. */
+  /** PKCE is MANDATORY for an OAuth-bound session (no confidential-client path here). */
   codeChallenge: z.string().trim().min(43).max(128),
   /** S256 only — `plain` is rejected outright, per current OAuth BCP. */
   codeChallengeMethod: z.literal('S256'),
