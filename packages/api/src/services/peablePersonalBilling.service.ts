@@ -33,7 +33,7 @@ export async function cancelOwnedPeableSubscription(client:Pick<Peable,'billing'
  if(accountId!==owned.payerAccountId)throw new Error('Peable payer differs');
  const check=(v:Awaited<ReturnType<Peable['billing']['retrieveSubscription']>>)=>{
   for(const key of ['providerSubscriptionId','providerCustomerId','providerPriceId','storeId','planId','livemode'] as const)if(v[key]!==owned[key])throw new Error('Peable subscription ownership differs');
-  if(!['active','trialing'].includes(v.status)||!Number.isFinite(Date.parse(v.currentPeriodStart))||!Number.isFinite(Date.parse(v.currentPeriodEnd))||Date.parse(v.currentPeriodEnd)<=Date.parse(v.currentPeriodStart))throw new Error('Peable period unavailable');return v;
+  if(!['active','trialing','past_due','unpaid'].includes(v.status)||!Number.isFinite(Date.parse(v.currentPeriodStart))||!Number.isFinite(Date.parse(v.currentPeriodEnd))||Date.parse(v.currentPeriodEnd)<=Date.parse(v.currentPeriodStart))throw new Error('Peable period unavailable');return v;
  };
  const current=check(await client.billing.retrieveSubscription(owned.providerSubscriptionId));if(current.cancelAtPeriodEnd)return current;
  const updated=check(await client.billing.cancelAtPeriodEnd(owned.providerSubscriptionId,{idempotencyKey:`oxy-one-cancel:${createHash('sha256').update(JSON.stringify([accountId,owned.providerSubscriptionId,actionId])).digest('hex')}`}));

@@ -25,3 +25,5 @@ it('requires a current Faircoin quote rather than accepting future or expired FX
  expect(()=>validatePersonalInvoiceForAction({...invoice,faircoinQuote:{...quote,quotedAt:'2026-10-05T00:02:00Z'}},context,'faircoin',now)).toThrow();
  expect(()=>validatePersonalInvoiceForAction({...invoice,faircoinQuote:{...quote,expiresAt:now.toISOString()}},context,'faircoin',now)).toThrow();
 });
+
+it.each(['past_due','unpaid'])('allows owned %s subscriptions to cancel without granting access',async(status)=>{const f=fixture();const canceled={...subscription,status,cancelAtPeriodEnd:true};f.retrieveSubscription.mockResolvedValueOnce({...subscription,status}).mockResolvedValueOnce(canceled);f.cancelAtPeriodEnd.mockResolvedValue(canceled);expect((await cancelOwnedPeableSubscription(f.client,'payer',owned,'action_1')).cancelAtPeriodEnd).toBe(true);});
