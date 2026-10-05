@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { type DatabaseOrTransaction } from '../config/postgres';
 import { randomUUID } from 'crypto';
 import type { FileRecord, NewFileVariant } from '../types/file.types';
-import { files, fileVariants } from '../db/schema';
+import { files, fileVariants, storageByteReservations } from '../db/schema';
 import { FILE_LIVE_STATUSES } from '../db/schema/files';
 import { resolveUserSubscriptionPlan } from '../utils/subscriptionPlan';
 import { ApiError } from '../utils/error';
@@ -30,7 +30,15 @@ export async function reservedStorageBytes(db: DatabaseOrTransaction, userId: st
   const [row] = await db.select({ bytes: sql<string>`coalesce(sum(${files.size} + coalesce((
     select sum(${fileVariants.size}) from ${fileVariants} where "file_variants"."file_id" = "files"."id"
   ), 0)), 0)` }).from(files).where(and(eq(files.ownerUserId, userId), inArray(files.status, [...FILE_LIVE_STATUSES])));
-  return BigInt(row?.bytes ?? 0);
+  const [pending] = await db.select({ bytes: sql<string>`coalesce(sum(${storageByteReservations.size}), 0)` })
+    .from(storageByteReservations).where(and(eq(storageByteReservations.accountId, userId), sql`${storageByteReservations.cleanedAt} is null`,
+      sql`not exists (select 1 from "files" f where f.owner_user_id = ${storageByteReservations.accountId}
+        and f.status in ('active', 'trash') and (
+          (f.storage_key = ${storageByteReservations.objectKey} and f.size = ${storageByteReservations.size})
+          or exists (select 1 from "file_variants" v where v.file_id = f.id
+            and v.key = ${storageByteReservations.objectKey} and v.size = ${storageByteReservations.size})
+        ))`));
+  return BigInt(row?.bytes ?? 0) + BigInt(pending?.bytes ?? 0);
 }
 /** Metadata admission only. Call inside the transaction that writes originals/variants. */
 export async function withStorageQuota<T>(db: DatabaseOrTransaction, ownerIds: (string | null | undefined)[], write: () => Promise<T>): Promise<T> {
@@ -68,9 +76,13 @@ export async function uploadAdmittedVariant(file: FileRecord, variant: NewFileVa
   if (!Number.isSafeInteger(variant.size) || (variant.size ?? 0) < 0)
     throw new ApiError(400, 'Variant size is invalid', 'STORAGE_INVALID_SIZE');
   const admitted = { ...variant, key: `${variant.key}.${randomUUID()}` };
+  const { reserveStorageBytes, assertStorageReservationWritable } = await import('./storageByteReservation.service.js');
+  const reservation = await reserveStorageBytes({ accountId: file.ownerUserId, sha256: file.sha256,
+    objectKey: admitted.key, size: admitted.size!, kind: 'server' });
   let putStarted = false;
   try {
     return await withContentHashLock(file.sha256, async tx => {
+      await assertStorageReservationWritable(tx, reservation.id);
       await withStorageQuota(tx, [file.ownerUserId], async () => {
         const [current] = await tx.select().from(files).where(eq(files.id, file.id)).for('update');
         if (!current || current.ownerUserId !== file.ownerUserId || !FILE_LIVE_STATUSES.includes(current.status as typeof FILE_LIVE_STATUSES[number]))

@@ -1,67 +1,83 @@
 # Oxy One physical storage admission draft
 
-This source change is inert until `storageAdapter` is configured. It does not
-change bucket policies, CORS, lifecycle rules, deployment, or live entitlements.
-The same central/individual/legacy maximum capacity and account locks apply.
+This source change is inert until `storageAdapter` is configured. No bucket
+policy, CORS, lifecycle, deployment, or live entitlement changes are included.
+The central/individual/legacy maximum capacity and account locks remain shared.
 
-Implemented paths:
+## Implemented admission and durable holds
 
-- Buffered image variants (bulk and lazy): persist exact rendered-byte admission
-  in an open transaction, check quota before PUT, use a unique object key, and
-  keep the content-hash/account/file locks through PUT and readiness commit.
-  A failed PUT/commit deletes that unique key and rolls back metadata. Existing
-  rendition objects are reused by the normal ready-variant path; replacing an
-  existing admitted type is rejected rather than silently orphaning its key.
-- Owner and federated streams: stage the existing `maxBytes`-bounded stream on
-  local temporary disk, calculate actual size/SHA, then admit its file row before
-  bucket multipart upload. Hash/account locks span PUT and commit. Failed PUTs
-  clean up the unique object and disk staging; duplicate own content reuses an
-  existing valid object. Missing deduplicated objects require repair rather than
-  silently writing into an uncoordinated key.
-- System federation cache and sticker namespaces retain their existing bounded
-  stream pipeline and cleanup; they are not consumer-account storage.
+`storage_byte_reservations` records account, SHA, exact key/size, writer kind and
+recovery lease **before** network writes. It intentionally survives account
+removal. Usage counts open reservations plus originals/variants, excluding a
+reservation only when that account has an exact live key+size claim. Deletion or
+transaction rollback therefore restores the physical hold; it does not release
+capacity merely because metadata disappeared. Completed cleanup retains its audit
+row. Migration 0149 is additive and marked pre-deploy; only throwaway test databases
+have been migrated.
 
-Exact remaining restrictions and operational gates:
+- Buffered image variants, both bulk and lazy, admit rendered bytes before PUT;
+  unique keys and content-hash/account/file locks protect PUT/readiness commit.
+  Existing ready variants are reused; replacing a claimed type is rejected.
+- Owner/federated streams stage their existing `maxBytes`-bounded source on local
+  disk, compute actual size/SHA, durably reserve, then insert quota-admitted rows
+  before bucket multipart PUT. Hash/account locks span PUT and commit. Failure
+  deletes the unique object and local staging, but retains the durable hold until
+  recovery confirms terminal upload and cleanup. Missing own deduplicated objects
+  require repair instead of uncoordinated reuse.
+- Direct originals, direct repair, federation repair and configured presigned URL
+  issuance also create/renew exact durable holds before PUT/URL delivery. Promotion
+  of a server key to a presigned key is monotonic; renewal never changes its
+  immutable account/hash/size. Configured init does not copy a missing opposite
+  visibility spelling before byte admission.
+- System federation cache/sticker namespaces retain their bounded stream cleanup;
+  they do not spend consumer account storage.
 
-- Newly generated owner video/poster/HLS paths fail closed with
-  `STORAGE_PHYSICAL_PATH_UNAVAILABLE`. HLS needs reservation of **all** playlist,
-  master, and segment bytes: its current segment objects lack variant size rows.
-  Existing admitted ready variants remain readable. Image resizing from an
-  existing admitted video poster can use the buffered image path.
-- PDF rendition generation was a metadata-only placeholder without real bytes;
-  configured accounts now receive the same explicit unsupported error.
-- Bounded network writes hold a database connection and locks. Validate provider
-  request timeout/pool capacity and local temporary-disk capacity before enabling.
-  This draft does not assert that a finite `maxBytes` protects aggregate disk use.
-- An abrupt process death after PUT but before DB commit can leave a unique
-  object without a committed row. Ordinary cleanup failures surface to the caller;
-  neither failure currently creates a durable cleanup reservation/ledger entry.
-  A crash-recovery reservation ledger or bucket inventory/lifecycle policy is
-  still required for a physical bucket guarantee. No production policy changed.
-- Existing original direct uploads and outstanding presigned URL deletion/reuse
-  need the same lifetime coordination. Signed exact size/hash/conditional PUT
-  bounds one request, but an expired reservation/deleted row does not revoke a URL.
+## Recovery interface and exact activation gates
 
-These are working admission paths and explicit restrictions, not an end-to-end
-claim that all physical bytes or crash orphans are bounded by 100 GB.
+`recoverStorageByteReservations(deleteAndVerifyAbsent, confirmUploadQuiescent,
+limit, now)` is a bounded backend drain interface. It serializes under existing
+content-hash and account locks, rechecks the current reservation kind/lease,
+retains every live key claim, and releases a server hold only after trusted
+quiescence proof followed by verified absence. Failed proof/cleanup retains quota.
+The recovery adapter/scheduler is **not connected or activated** in this draft.
+A crashed PUT followed by failed DB commit still has its durable quota hold.
 
-## Bounded follow-up contract for physical lifetime recovery
+A lease or HEAD absence does not prove that an interrupted network request ended.
+The future provider/proxy adapter must supply terminal completion evidence (or a
+verified infrastructure maximum request lifetime) before automatic release. Tests
+provide this proof only for synthetic, terminated bucket operations. Unknown
+completion conservatively consumes capacity, even when a best-effort delete
+appeared to succeed.
 
-Add a persistent reservation with account, immutable source/limit snapshot,
-content hash, unique object key, exact admitted bytes (or HLS manifest total),
-upload expiry, and states `reserved`, `uploading`, `committed`, `cleanup_pending`,
-`cleaned`. Reserved and cleanup-pending bytes must count until deletion succeeds;
-only a committed live file/variant may replace that reservation without double
-counting. Creating the reservation and quota check must share the existing account
-lock. A recovery worker rechecks ownership/key claims under the content-hash lock,
-HEADs an interrupted upload, and either atomically attaches verified bytes or
-records durable deletion. It must not credit capacity for failed cleanup.
+Presigned holds are never automatically cleaned: signature expiry does not bound
+an already-started PUT. They remain counted after deletion and after the 60-second
+signature window, preventing capacity reuse before a late PUT. A safe release
+contract needs an enforced request lifetime/terminal proof for **every** issued
+URL; no arbitrary in-flight grace period is invented.
 
-Presigned reservations remain counted through URL expiry plus permitted in-flight
-completion; file deletion cannot release that reservation while its PUT may still
-arrive. Require exact signed size/hash/conditional key and never recycle that key.
-HLS must reserve and associate every segment and playlist; master publication is
-last and occurs only after all objects are verified. Add crash-before/after-PUT,
-late-PUT-after-delete, two-account shared-key, restart recovery, cleanup failure,
-and competing upload/expiry tests. This requires source/schema/worker work and
-provider timeout/lifecycle verification, not a commercial price/provider decision.
+## Remaining paths and verification
+
+- Fresh owner video/poster/HLS generation returns 503
+  `STORAGE_PHYSICAL_PATH_UNAVAILABLE`; its playlist/segment/master writes need a
+  complete byte manifest and reservations. Existing ready variants stay readable,
+  and image resizing from an existing video poster uses buffered admission.
+- PDF generation was a metadata-only placeholder without bytes; configured owner
+  calls now return the same explicit unsupported error.
+- Visibility relocation and historical cross-owner/storage-key spelling repair
+  retain older copy implementations, but configured owner writes now fail closed
+  before an unreserved copy. A visibility transition requiring a copy is rejected
+  before privacy metadata changes. Shared existing object references and system
+  namespaces remain usable. The full copy-byte reservation/reclamation bridge is
+  unfinished.
+- Existing pre-ledger files are not retroactively inventoried. Temporary multipart
+  parts, aggregate temporary-disk use, pool capacity and provider timeouts need
+  infrastructure validation. Bounded writes hold DB connections/locks during PUT.
+- Cleanup recovery requires the trusted adapter above before production activation.
+  No production lifecycle policy or automatic reservation deletion is included.
+
+Real PostgreSQL plus synthetic bucket tests cover admission before PUT, actual
+sizes, exact claim deduplication, crash-after-PUT holds, failed cleanup, successful
+verified drain, account/deleted-file isolation, and expiry/deletion/late-PUT
+capacity retention. A SQL lock barrier checks server-to-presigned promotion after
+candidate selection. These support the stated paths and conservative holds, not
+a claim of complete physical bucket enforcement across all legacy paths.

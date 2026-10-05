@@ -1,6 +1,8 @@
+import { reserveStorageBytes, recoverStorageByteReservations } from '../storageByteReservation.service';
+import { storageByteReservations } from '../../db/schema';
 import { Readable } from 'stream';
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { files } from '../../db/schema';
 import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
@@ -109,6 +111,8 @@ it('cleans the unique failed variant object and releases its rolled-back admissi
   const remove = jest.fn(async () => undefined);
   await expect(uploadAdmittedVariant(file, { type: 'failed', key: 'synthetic/failed', size: 2 }, put, remove)).rejects.toThrow('synthetic PUT failure');
   expect(remove).toHaveBeenCalledWith(put.mock.calls[0][0]);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(3n); // durable pending bytes survive failure
+  await recoverStorageByteReservations(remove, async () => true, 100, new Date(Date.now() + 3600_000));
   expect(await reservedStorageBytes(getDb(), owner)).toBe(1n);
 });
 it('does not replace or orphan an existing admitted variant', async () => {
@@ -117,10 +121,11 @@ it('does not replace or orphan an existing admitted variant', async () => {
   const put = jest.fn(async () => undefined);
   await expect(uploadAdmittedVariant(file, { type: 'existing', key: 'synthetic/new', size: 2 }, put, async () => undefined)).rejects.toMatchObject({ code: 'STORAGE_VARIANT_EXISTS' });
   expect(put).not.toHaveBeenCalled();
+  await recoverStorageByteReservations(async () => undefined, async () => true, 100, new Date(Date.now() + 3600_000));
   expect(await reservedStorageBytes(getDb(), owner)).toBe(3n);
 });
-it('blocks unreserved owner streams/video while preserving system caches and legacy mode', async () => {
-  await expect(assertPhysicalStoragePathSupported(owner, 'multipart')).rejects.toMatchObject({ code: 'STORAGE_PHYSICAL_PATH_UNAVAILABLE' });
+it('blocks unsupported owner writers while preserving system caches and legacy mode', async () => {
+  await expect(assertPhysicalStoragePathSupported(owner, 'HLS')).rejects.toMatchObject({ code: 'STORAGE_PHYSICAL_PATH_UNAVAILABLE' });
   await expect(assertPhysicalStoragePathSupported(null, 'system cache')).resolves.toBeUndefined();
   mockCatalogue = EMPTY_PRODUCT_BILLING_CATALOGUE;
   await expect(assertPhysicalStoragePathSupported(owner, 'legacy multipart')).resolves.toBeUndefined();
@@ -174,6 +179,9 @@ it('owner multipart charges actual bytes and cleans failed unique objects', asyn
   const service = new AssetService(s3 as unknown as import('../s3Service').S3Service);
   await expect(service.uploadUserMediaStream(Readable.from(Buffer.from('stream')), 'text/plain', 'stream.txt', 100, owner)).rejects.toThrow('synthetic multipart failure');
   expect(bucket.size).toBe(0);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(6n);
+  await recoverStorageByteReservations(async key => { await s3.deleteFile(key); expect(bucket.has(key)).toBe(false); }, async () => true,
+    100, new Date(Date.now() + 3600_000));
   expect(await reservedStorageBytes(getDb(), owner)).toBe(0n);
   fail = false;
   const file = await service.uploadUserMediaStream(Readable.from(Buffer.from('stream')), 'text/plain', 'stream.txt', 100, owner);
@@ -192,4 +200,76 @@ it('stale owner and deleted files cannot create physical variants', async () => 
   await updateFile(own.id, { status: 'deleted' });
   await expect(uploadAdmittedVariant(own, { type: 'deleted', key: 'synthetic/deleted', size: 1 }, put, async () => undefined)).rejects.toMatchObject({ code: 'STORAGE_FILE_CHANGED' });
   expect(put).not.toHaveBeenCalled();
+});
+
+it('durably counts a simulated crash after PUT until quiescent verified cleanup', async () => {
+  const key = 'synthetic/crash/' + randomUUID();
+  const reservation = await reserveStorageBytes({ accountId: owner, sha256: 'a'.repeat(64), objectKey: key, size: 7,
+    kind: 'server' });
+  const recoveryTime = new Date(Date.now() + 3600_000);
+  const bucket = new Set([key]); // process died after PUT, before file/variant commit
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(7n);
+  await recoverStorageByteReservations(async key => { bucket.delete(key); }, async () => false, 100, recoveryTime);
+  expect(bucket.has(key)).toBe(true);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(7n);
+  await expect(recoverStorageByteReservations(async () => { throw new Error('cleanup unavailable'); }, async () => true, 100, recoveryTime))
+    .rejects.toThrow('cleanup unavailable');
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(7n);
+  await recoverStorageByteReservations(async key => { bucket.delete(key); expect(bucket.has(key)).toBe(false); }, async () => true, 100, recoveryTime);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(0n);
+  const [row] = await getDb().select().from(storageByteReservations).where(eq(storageByteReservations.id, reservation.id));
+  expect(row.cleanedAt).not.toBeNull();
+});
+it('live exact claims count once and tombstones retain pending physical bytes', async () => {
+  const row = original(4);
+  await reserveStorageBytes({ accountId: owner, sha256: row.sha256, objectKey: row.storageKey, size: 4, kind: 'server' });
+  const file = await insertFile(row);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(4n);
+  await updateFile(file.id, { status: 'deleted' });
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(4n);
+});
+it('presigned expiry/deletion cannot release bytes while a late PUT may arrive', async () => {
+  const row = original(legacyStorageLimit('basic'));
+  await reserveStorageBytes({ accountId: owner, sha256: row.sha256, objectKey: row.storageKey,
+    size: row.size, kind: 'presigned', recoverAfter: new Date(0) });
+  const file = await insertFile(row);
+  await updateFile(file.id, { status: 'deleted' });
+  await recoverStorageByteReservations(async () => undefined, async () => true, 100, new Date(Date.now() + 86_400_000));
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(BigInt(legacyStorageLimit('basic')));
+  await expect(insertFile(original(1))).rejects.toMatchObject({ code: 'STORAGE_QUOTA_EXCEEDED' });
+});
+
+it('rechecks presigned promotion after a recovery candidate waits for its hash lock', async () => {
+  const reservation = await reserveStorageBytes({ accountId: owner, sha256: 'c'.repeat(64),
+    objectKey: 'synthetic/renew/' + randomUUID(), size: 2, kind: 'server', recoverAfter: new Date(0) });
+  const remove = jest.fn(async () => undefined);
+  let recovery: ReturnType<typeof recoverStorageByteReservations> | undefined;
+  await getDb().transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'oxy:files:sha256:' + reservation.sha256}, 0))`);
+    recovery = recoverStorageByteReservations(remove, async () => true, 100);
+    let waiting = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const rows = await getDb().execute(sql`select 1 from pg_locks where locktype = 'advisory' and not granted limit 1`);
+      if (rows.length) { waiting = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    expect(waiting).toBe(true);
+    // Even an already elapsed timestamp must not turn a promoted URL into a server-only cleanup target.
+    await tx.update(storageByteReservations).set({ kind: 'presigned', recoverAfter: new Date(0) })
+      .where(eq(storageByteReservations.id, reservation.id));
+  });
+  await recovery;
+  expect(remove).not.toHaveBeenCalledWith(reservation.objectKey);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(2n);
+});
+
+it('configured visibility relocation fails before copy and before changing privacy metadata', async () => {
+  const { AssetService } = await import('../assetService');
+  const file = await insertFile(original(1));
+  const s3 = { copyFile: jest.fn(async () => undefined), fileExists: jest.fn(async () => true) };
+  const service = new AssetService(s3 as unknown as import('../s3Service').S3Service);
+  await expect(service.updateFileVisibility(file.id, 'public')).rejects.toMatchObject({ code: 'STORAGE_PHYSICAL_PATH_UNAVAILABLE' });
+  expect(s3.copyFile).not.toHaveBeenCalled();
+  const [unchanged] = await getDb().select().from(files).where(eq(files.id, file.id));
+  expect(unchanged.visibility).toBe('private');
 });

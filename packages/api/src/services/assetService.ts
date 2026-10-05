@@ -1,3 +1,5 @@
+import { assertPhysicalStoragePathSupported } from './storageQuota.service';
+import { reserveStorageBytes, assertStorageReservationWritable } from './storageByteReservation.service';
 import { createWriteStream, createReadStream } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -432,6 +434,10 @@ export class AssetService {
       logLabel,
     });
 
+    if (file.ownerUserId && (await loadProductBillingCatalogue()).storageAdapter) {
+      await reserveStorageBytes({ accountId: file.ownerUserId, sha256: file.sha256,
+        objectKey: file.storageKey, size: fileBuffer.length, kind: 'server' });
+    }
     await this.s3Service.uploadBuffer(file.storageKey, fileBuffer, {
       contentType: file.mime || mimeType,
       cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
@@ -464,6 +470,7 @@ export class AssetService {
       logLabel,
     });
 
+    await assertPhysicalStoragePathSupported(file.ownerUserId, 'stream key-spelling repair copy');
     await this.s3Service.copyFile(sourceKey, file.storageKey);
     this.cacheFile(file);
     return true;
@@ -617,7 +624,7 @@ export class AssetService {
             if (await this.s3Service.fileExists(shared)) {
               storageKey = shared;
               needsUpload = false;
-            } else if (shared !== source.storageKey && await this.s3Service.fileExists(source.storageKey)) {
+            } else if (!(await loadProductBillingCatalogue()).storageAdapter && shared !== source.storageKey && await this.s3Service.fileExists(source.storageKey)) {
               await this.s3Service.copyFile(source.storageKey, shared);
               storageKey = shared;
               needsUpload = false;
@@ -670,6 +677,9 @@ export class AssetService {
     const configured = (await loadProductBillingCatalogue()).storageAdapter !== null;
     if (configured && (!Number.isSafeInteger(file.size) || file.size <= 0 || !/^[a-f0-9]{64}$/i.test(file.sha256)))
       throw new BadRequestError('Exact size and SHA-256 are required for admitted uploads');
+    if (configured && file.ownerUserId) await reserveStorageBytes({ accountId: file.ownerUserId,
+      sha256: file.sha256, objectKey: file.storageKey, size: file.size, kind: 'presigned',
+      recoverAfter: new Date(Date.now() + 60_000) });
     const uploadUrl = await this.s3Service.getPresignedUploadUrl(file.storageKey, {
       contentType, expiresIn: configured ? 60 : 3600,
       ...(configured ? {contentLength:file.size, ifNoneMatch:'*' as const,
@@ -784,6 +794,8 @@ export class AssetService {
       }
 
       if (!(await this.s3Service.fileExists(file.storageKey))) {
+        if ((await loadProductBillingCatalogue()).storageAdapter) await reserveStorageBytes({
+          accountId: userId, sha256: file.sha256, objectKey: file.storageKey, size: fileBuffer.length, kind: 'server' });
         await this.s3Service.uploadBuffer(file.storageKey, fileBuffer, {
           contentType: mimeType,
           cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
@@ -976,7 +988,10 @@ export class AssetService {
       }
       const ext = this.getExtensionFromMime(mimeType);
       const key = `${this.generateStorageKey(sha256, mimeType, options.visibility)}.${crypto.randomUUID()}`;
+      const reservation = await reserveStorageBytes({ accountId: options.owner.ownerUserId!, sha256,
+        objectKey: key, size, kind: 'server' });
       const file = await withContentHashLock(sha256, async tx => {
+        await assertStorageReservationWritable(tx, reservation.id);
         // insertFile locks account quota, checks actual bytes, then returns.
         // Its lock remains held by this transaction throughout multipart PUT.
         const admitted = await insertFile({ sha256, size, mime: mimeType, ext,
@@ -1578,6 +1593,8 @@ export class AssetService {
         return false;
       }
 
+      if (file.ownerUserId && (await loadProductBillingCatalogue()).storageAdapter) await reserveStorageBytes({
+        accountId: file.ownerUserId, sha256: file.sha256, objectKey: file.storageKey, size: repaired.buffer.length, kind: 'server' });
       await this.s3Service.uploadBuffer(file.storageKey, repaired.buffer, {
         contentType: repaired.mime,
         cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
@@ -1679,6 +1696,7 @@ export class AssetService {
           });
           continue;
         }
+        await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
         await this.s3Service.copyFile(move.key, move.target);
       }
       for (const move of moves) {
@@ -2080,6 +2098,9 @@ export class AssetService {
       if (file.visibility === visibility) {
         return file;
       }
+
+      if ((file.visibility === 'public') !== (visibility === 'public'))
+        await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
 
       const updated = await updateFile(fileId, { visibility });
       if (!updated) {
