@@ -1,0 +1,72 @@
+{
+  "kind": "separate-catalogue-publication-fixture-addendum-v1",
+  "sourceCommit": "c2de0b47be969413a149fee23c55bb648c31d3ab",
+  "source": {
+    "path": "packages/api/src/services/__tests__/privateAutoTransport.test.ts",
+    "sha256": "bc892597be8fdfa9a7a23011758a795cde1beac6b768d1502dc283b5bd1c58d3"
+  },
+  "priorProofSha256": "b93721d8fc12a546ccbac079f4ef115b0da4c3c77c56e9319b4496456696db45",
+  "records": [
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/ci-fixture/red.txt",
+      "sha256": "ae40d2cb7e8b94e6787aded162e36b80180a004d4cd9dd05dbb1fcbb99892330",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-dq2ofthg/focused.txt"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/ci-fixture/green.txt",
+      "sha256": "fe9efd7045ffeefd2df4ebbc4940bab255d9f1876340fcaede5213cad07a9507",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/pg1519-03rymf4o/focused.txt"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/ci-fixture/red-owned-pg.txt",
+      "sha256": "2b293aa566a9c228fa75aab18c78c8ce18c4236f959c3040e9dfa1d19725b920",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/ci-fixture-red.log"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/ci-fixture/green-owned-pg.txt",
+      "sha256": "ebb1118faeb342fe18af6b3b279daaa388445783ac5790174f555edc893d509f",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/ci-fixture-green.log"
+    },
+    {
+      "path": "docs/audits/2026-10-05-separated-private-catalogue/ci-fixture/owned-pg.py",
+      "sha256": "1a894b8cdd5295f9b21f8eb62cb3b2e3004ac208f8927497451881360da0b743",
+      "originalPath": "/home/nate/Oxy/.agent-evidence/integration-private-auto-separated-sync-20261005/owned-pg-ci-fixture.py"
+    }
+  ],
+  "productionCiFailure": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/separated-catalogue-promotion/api4-job-failure.log",
+    "sha256": "217829c63dd82797d3f0c277cbb9b381761fad38630c76295fb2b7fc598b5342",
+    "runId": "37251965127",
+    "jobId": "111581310787",
+    "failedTest": "nil approval leaves catalogue negotiation unchanged; private source never enters ordinary publication"
+  },
+  "red": {
+    "failed": 1,
+    "passed": 119,
+    "suites": 4
+  },
+  "green": {
+    "failed": 0,
+    "passed": 120,
+    "suites": 4,
+    "freshMigrationExit": 0,
+    "repeatMigrationExit": 0
+  },
+  "ownedPidsAbsent": [
+    2364232,
+    2365001
+  ],
+  "unchangedRuntime": [
+    {
+      "path": "packages/api/src/services/httpKaanaClient.ts",
+      "sha256": "a57567c246d021bbf2ade10a542f4fe142f04db0e7e5ab8c9859f135fdc62978",
+      "gitSource": "fd65e118e3b650a9a48fd48bafe73109d5401bd5"
+    },
+    {
+      "path": "packages/api/src/services/kaanaCatalogueSync.service.ts",
+      "sha256": "176e0df7fb26abe0f683fc95f89d217fa99b2e3f55232108101fb39788ef91e3",
+      "gitSource": "fd65e118e3b650a9a48fd48bafe73109d5401bd5"
+    }
+  ],
+  "qualification": "The old active-publication fixture returned both private ACKs and Auto descriptors to every lane. It now returns scoped-empty3.6 and Auto3.7 separately in one snapshot. Existing nil negotiation, observed status and zero ordinary exposure assertions remain, plus exact signed-query count/body checks. No runtime change or assertion weakening; no production operations."
+}

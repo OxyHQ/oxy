@@ -1,0 +1,68 @@
+$ jest --runInBand --runTestsByPath src/services/__tests__/httpScopedExecution.test.ts src/services/__tests__/kaanaCatalogueSync.test.ts src/services/__tests__/httpKaanaDecisions.test.ts src/services/__tests__/privateAutoTransport.test.ts
+FAIL src/services/__tests__/privateAutoTransport.test.ts
+  ● nil approval leaves catalogue negotiation unchanged; private source never enters ordinary publication
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "observed"
+    Received: "unavailable"
+
+      80 |   fetcher.mockResolvedValue(new Response(JSON.stringify({ ...evidence, scopedExecutionContractVersion: '3.6.0' })));
+      81 |   const publication = await createDeploymentPublicationCache(reader).current();
+    > 82 |   expect(publication.status).toBe('observed');
+         |                              ^
+      83 |   if (publication.status !== 'observed') throw new Error('Missing publication');
+      84 |   expect(publication.deploymentIds.size).toBe(0);
+      85 | });
+
+      at src/services/__tests__/privateAutoTransport.test.ts:82:30
+      at fulfilled (src/services/__tests__/privateAutoTransport.test.ts:38:58)
+
+{"level":30,"time":1791164429152,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429174,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429175,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429177,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429179,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429180,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429181,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429184,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429185,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429188,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":40,"time":1791164429189,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","error":"Private Auto attestation negotiation mismatch.","msg":"inference.kaana.publication_read_failed"}
+{"level":30,"time":1791164429193,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164429202,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+PASS src/services/__tests__/kaanaCatalogueSync.test.ts
+PASS src/services/__tests__/httpScopedExecution.test.ts
+PASS src/services/__tests__/httpKaanaDecisions.test.ts
+
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       1 failed, 119 passed, 120 total
+Snapshots:   0 total
+Time:        5.6 s
+Ran all test suites within paths "src/services/__tests__/httpScopedExecution.test.ts", "src/services/__tests__/kaanaCatalogueSync.test.ts", "src/services/__tests__/httpKaanaDecisions.test.ts", "src/services/__tests__/privateAutoTransport.test.ts".
+{"level":30,"time":1791164433898,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433902,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433903,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433904,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433905,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433906,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433908,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433909,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433912,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":50,"time":1791164433914,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","requestId":"req-decision-fixture","status":502,"upstreamCode":"provider_credential_invalid","err":{"type":"Object","message":"the inference data plane answered HTTP 502","stack":"Error: the inference data plane answered HTTP 502\n    at logDecisionsFailure (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:828:5)\n    at /home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:790:5\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:61:58)","name":"Error"},"msg":"inference.kaana.decisions_failed"}
+{"level":30,"time":1791164433915,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":50,"time":1791164433917,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","requestId":"req-decision-fixture","status":502,"upstreamCode":"provider_overloaded","err":{"type":"Object","message":"the inference data plane answered HTTP 502","stack":"Error: the inference data plane answered HTTP 502\n    at logDecisionsFailure (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:828:5)\n    at /home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:790:5\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:61:58)","name":"Error"},"msg":"inference.kaana.decisions_failed"}
+{"level":30,"time":1791164433918,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":50,"time":1791164433918,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","requestId":"req-decision-fixture","status":502,"err":{"type":"Object","message":"the inference data plane answered HTTP 502","stack":"Error: the inference data plane answered HTTP 502\n    at logDecisionsFailure (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:828:5)\n    at /home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:783:23\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:61:58)","name":"Error"},"msg":"inference.kaana.decisions_failed"}
+{"level":30,"time":1791164433919,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":50,"time":1791164433919,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","requestId":"req-decision-fixture","status":502,"upstreamCode":"provider_error","err":{"type":"Object","message":"the inference data plane answered HTTP 502","stack":"Error: the inference data plane answered HTTP 502\n    at logDecisionsFailure (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:828:5)\n    at /home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:790:5\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:61:58)","name":"Error"},"msg":"inference.kaana.decisions_failed"}
+{"level":30,"time":1791164433920,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":50,"time":1791164433921,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","requestId":"req-decision-fixture","status":502,"err":{"type":"Object","message":"the inference data plane answered HTTP 502","stack":"Error: the inference data plane answered HTTP 502\n    at logDecisionsFailure (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:828:5)\n    at /home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:790:5\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:61:58)","name":"Error"},"msg":"inference.kaana.decisions_failed"}
+{"level":30,"time":1791164433921,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433923,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433923,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433925,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":50,"time":1791164433925,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","requestId":"req-decision-fixture","status":400,"upstreamCode":"invalid_request","err":{"type":"Object","message":"the inference data plane answered HTTP 400","stack":"Error: the inference data plane answered HTTP 400\n    at /home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:1264:5\n    at Generator.next (<anonymous>)\n    at fulfilled (/home/nate/Oxy/oxy/.worktrees/1572-separated-private-catalogue-20261005/packages/api/src/services/httpKaanaClient.ts:61:58)","name":"Error"},"msg":"inference.kaana.rejected_envelope"}
+{"level":30,"time":1791164433926,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+{"level":30,"time":1791164433928,"pid":2364358,"hostname":"SuperPC","component":"inference-kaana","baseUrl":"https://kaana.ai","keyId":"synthetic","msg":"inference.kaana.configured"}
+error: script "test" exited with code 1
