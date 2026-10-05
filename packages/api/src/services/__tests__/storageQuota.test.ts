@@ -78,3 +78,15 @@ it('uses immutable bundle and individual grants without dropping the legacy floo
   await expect(updateFile(file.id, { size: cap + 9 })).resolves.toBeDefined();
   await expect(insertFile(original(1))).rejects.toMatchObject({ code: 'STORAGE_QUOTA_EXCEEDED' });
 });
+
+it('applies the approved detached personal composition as exactly 100 GB decimal',async()=>{
+  const {registerProductAccessConfiguration,recordProductAccessPeriod}=await import('../productAccessPersistence.service');
+  const f=await productAccessFixture();owner=f.beneficiary;
+  const bundle={...f.offers[0],id:randomUUID(),benefits:[{kind:'quota' as const,productId:f.products[0].id,key:'storage_bytes',unit:'byte',included:100_000_000_000,combination:'maximum' as const}]};
+  await registerProductAccessConfiguration({products:f.products,offers:[bundle]});
+  await recordProductAccessPeriod(f.input(bundle));
+  mockCatalogue={...EMPTY_PRODUCT_BILLING_CATALOGUE,products:f.products,offers:[bundle],storageAdapter:{productId:f.products[0].id,quotaKey:'storage_bytes',unit:'byte',legacyCombination:'maximum'}};
+  expect(await storageCapacity(getDb(),owner,mockCatalogue)).toBe(100_000_000_000);
+  await insertFile(original(100_000_000_000));
+  await expect(insertFile(original(1))).rejects.toMatchObject({code:'STORAGE_QUOTA_EXCEEDED'});
+});

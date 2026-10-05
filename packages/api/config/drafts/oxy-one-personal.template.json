@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "products": [
+    {
+      "schemaVersion": 1,
+      "id": "REPLACE_REGISTERED_ALIA_PRODUCT_ID",
+      "ownerAccountId": "REPLACE_ALIA_OWNER_ACCOUNT_ID",
+      "applicationId": "REPLACE_ALIA_APPLICATION_ID"
+    },
+    {
+      "schemaVersion": 1,
+      "id": "REPLACE_REGISTERED_STORAGE_PRODUCT_ID",
+      "ownerAccountId": "REPLACE_STORAGE_OWNER_ACCOUNT_ID",
+      "applicationId": "REPLACE_STORAGE_APPLICATION_ID"
+    }
+  ],
+  "offers": [
+    {
+      "schemaVersion": 1,
+      "id": "oxy_one_personal",
+      "version": 1,
+      "kind": "bundle",
+      "benefits": [
+        {
+          "kind": "quota",
+          "productId": "REPLACE_REGISTERED_ALIA_PRODUCT_ID",
+          "key": "monthly_credits",
+          "unit": "alia_credit",
+          "included": 10000,
+          "combination": "maximum"
+        },
+        {
+          "kind": "quota",
+          "productId": "REPLACE_REGISTERED_STORAGE_PRODUCT_ID",
+          "key": "storage_bytes",
+          "unit": "byte",
+          "included": 100000000000,
+          "combination": "maximum"
+        }
+      ]
+    }
+  ],
+  "prices": [],
+  "personalPlans": [
+    {
+      "offerId": "oxy_one_personal",
+      "offerVersion": 1,
+      "displayName": "Oxy One Personal",
+      "kind": "oxy_one",
+      "audience": "personal",
+      "benefitNames": [
+        "Alia \u00b7 10,000 credits per subscription month",
+        "Storage \u00b7 100 GB (decimal)"
+      ]
+    }
+  ],
+  "storageAdapter": {
+    "productId": "REPLACE_REGISTERED_STORAGE_PRODUCT_ID",
+    "quotaKey": "storage_bytes",
+    "unit": "byte",
+    "legacyCombination": "maximum"
+  },
+  "subscriptions": []
+}

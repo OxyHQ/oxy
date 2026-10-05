@@ -1508,12 +1508,14 @@ export {
     productOfferSchema,
     productSubscriptionSourceSchema,
     productAccessGrantSchema,
+    subjectProductGrantSnapshotSchema,
     productOfferSegmentSchema,
     subjectProductAccessSchema,
 } from './products/access';
 export type {
     ProductDefinition,
     SubjectProductAccessQuery,
+    SubjectProductGrantSnapshot,
     ProductBenefit,
     ProductOffer,
     ProductSubscriptionSource,

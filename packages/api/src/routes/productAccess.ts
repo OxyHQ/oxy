@@ -1,12 +1,12 @@
 import { Router, type Response } from 'express';
-import { subjectProductAccessQuerySchema } from '@oxy.so/contracts';
+import { subjectProductAccessQuerySchema, subjectProductGrantSnapshotSchema } from '@oxy.so/contracts';
 import { productAccessResponseSchema, productAccessParamsSchema } from '../schemas/productAccess.schemas';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { parseValidatedRequestValue, validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { UnauthorizedError } from '../utils/error';
-import { readAuthorizedSubjectProductAccess } from '../services/productAccessAuthorization.service';
+import { readAuthorizedSubjectProductAccess, readAuthorizedSubjectProductGrantSnapshot } from '../services/productAccessAuthorization.service';
 
 const router = Router();
 const readLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600, prefix: 'rl:product:access:read:' });
@@ -32,5 +32,14 @@ router.get('/:productId/access/:subjectAccountId', authMiddleware, readLimiter, 
     const data = await readAuthorizedSubjectProductAccess(req.oxyToken, query);
     res.set('Cache-Control', 'no-store');
     res.json(productAccessResponseSchema.parse({ data }));
+  }));
+router.get('/:productId/access/:subjectAccountId/grants', authMiddleware, readLimiter, validate({ params: productAccessParamsSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    if (!req.oxyToken) throw new UnauthorizedError();
+    const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, { schemaVersion: 1,
+      productId: req.params.productId, subjectAccountId: req.params.subjectAccountId });
+    const data = await readAuthorizedSubjectProductGrantSnapshot(req.oxyToken, query);
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
   }));
 export default router;

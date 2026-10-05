@@ -102,3 +102,54 @@ Alia install stopped at an unauthenticated GitHub dependency tarball HTTP 403.
 Its exact access/consumption adapter handoff is in Alia docs; no runtime integration
 or bundle credit activation is claimed. No push, PR, deploy, production migration,
 provider product/price creation, credentials or payment activation occurred.
+
+## Approved composition and tested benefit plumbing (continuation)
+
+User approved Alia Pro-level **10,000 monthly credits**, existing daily free
+refill preserved, and **100 GB decimal** (100,000,000,000 bytes). The detached
+`packages/api/config/drafts/oxy-one-personal.template.json` contains those
+benefits with explicit registered-identity placeholders and empty prices and
+subscriptions. No runtime points at it; live publication is still unapproved.
+
+Oxy now exposes an access-only active-grant-period snapshot behind the same live
+subject/application/product boundary as product access. The SDK's request-scoped
+server method forwards each validated user session without changing a shared
+client token, with caching and retries disabled. Snapshot validation checks exact
+active grant IDs, periods and quota composition. This is not a financial balance.
+
+Alia's isolated branch now implements period-scoped product credit allocations
+and links them to its existing immutable credit operations and price books.
+Configured metered chat can fall back to bundle credits after existing daily/free
+and individual paid sources are insufficient. Replay never refills a grant;
+concurrent reservations conserve quantity; renewal uses a new period identity;
+cancellation/expiry stop new reservations; refunds return to the same source.
+Extra settlement beyond the admitted amount requires fresh Oxy authority.
+Recovery without it is limited to the already reserved amount. No unrestricted
+paid balance top-up is performed. A configured existing plan ID controls the
+rolling window and does not reduce a larger existing individual plan window.
+Overlapping bundle allocations fail closed pending an explicit upgrade policy.
+
+This is metered-chat funding integration, not complete Alia consumer UI or all
+background/voice/show credit lanes. Alia's ordinary plan/balance screens still
+need the plural bundle read model. Its full install remains blocked by libsignal
+from `@whiskeysockets/baileys` at the exact GitHub tarball revision bcea72d
+(HTTP 403). Installed supported tools ran focused tests; no dependency substitute
+or denial bypass was used. Local SDK builds were copied into ignored installed
+package directories for validation; compatible SDK publication remains a release
+gate and no private-path manifest dependency was committed.
+
+Current verification: Oxy storage/access suites 35 tests passed; new SDK
+request-session isolation test passed; Alia 39 database tests passed plus its
+26-test billing-separation suite, and API typechecks passed. Alia lint reported
+0 errors and 409 existing warnings. Website production Vite build passed,
+offline-fallback prerender wrote 3,275 routes with 0 failures, and routing contract
+validated 95 declared routes. A production-browser test covers empty and clearly
+labelled synthetic configured catalogues, approved benefit layout, 100 GB decimal,
+Accounts handoff, disabled checkout and desktop/mobile overflow. Existing Bloom
+version was retained. No full CMS/integration production validation is claimed.
+
+Storage's original/variant metadata admission and actual HEAD correction are
+proven, including exact 100 GB and concurrent/downgrade cases. Hard physical bucket
+usage remains a release blocker: reusable PUT URLs, orphan cleanup and variant
+write-before-admission need a coordinated storage protocol change and bucket/CORS
+validation. No claim that this draft enforces every physical byte is made.

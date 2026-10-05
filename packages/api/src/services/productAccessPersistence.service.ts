@@ -313,7 +313,7 @@ export async function revokeProductAccessGrant(input: { grantId: string; product
   return rows.length === 1;
 }
 /** Caller authorization is separate and mandatory at every exposed boundary. */
-export async function readSubjectProductAccess(subjectAccountId: string, productId: string, now = new Date(), db: DatabaseOrTransaction = getDb()) {
+async function readProductAccessRecords(subjectAccountId: string, productId: string, now: Date, db: DatabaseOrTransaction) {
   const namespace = await assertBillingDatabaseNamespace(db);
   await readRegisteredProduct(db, productId);
   const rows = await db.select({ grant: accessGrants, benefit: accessOfferBenefits, segment: accessOfferSegments })
@@ -331,5 +331,14 @@ export async function readSubjectProductAccess(subjectAccountId: string, product
     sourceSegmentId: grant.sourceSegmentId, beneficiaryAccountId: grant.beneficiaryAccountId,
     offerId: grant.offerId, offerVersion: grant.offerVersion, origin: grant.origin, benefit: benefitDto(benefit),
     period: { start: grant.periodStart.toISOString(), end: grant.periodEnd.toISOString() }, revokedAt: grant.revokedAt?.toISOString() ?? null }));
-  return composeSubjectProductAccess({ subjectAccountId, productId, now, sources: sources.map(sourceDto), segments, grants });
+  const access = composeSubjectProductAccess({ subjectAccountId, productId, now, sources: sources.map(sourceDto), segments, grants });
+  return { access, grants };
+}
+export async function readSubjectProductAccess(subjectAccountId: string, productId: string, now = new Date(), db: DatabaseOrTransaction = getDb()) {
+  return (await readProductAccessRecords(subjectAccountId, productId, now, db)).access;
+}
+export async function readSubjectProductGrantSnapshot(subjectAccountId: string, productId: string, now = new Date(), db: DatabaseOrTransaction = getDb()) {
+  const { access, grants } = await readProductAccessRecords(subjectAccountId, productId, now, db);
+  const active = new Set([...access.capabilities, ...access.quotas].flatMap(entry => entry.grantIds));
+  return { schemaVersion: 1 as const, access, grants: grants.filter(grant => active.has(grant.id)) };
 }
