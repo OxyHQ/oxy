@@ -1,5 +1,5 @@
 import { assertPhysicalStoragePathSupported } from './storageQuota.service';
-import { reserveStorageBytes, assertStorageReservationWritable } from './storageByteReservation.service';
+import { reserveStorageBytes, assertStorageReservationWritable, releaseUnwrittenStorageReservation } from './storageByteReservation.service';
 import { createWriteStream, createReadStream } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -974,6 +974,7 @@ export class AssetService {
       hash.update(chunk); callback(null, chunk);
     } });
     let writtenKey: string | undefined;
+    let unwrittenReservation: { id: string; sha256: string } | undefined;
     let committed = false;
     try {
       await pipeline(source, meter, createWriteStream(staged, { flags: 'wx' }));
@@ -990,8 +991,22 @@ export class AssetService {
       const key = `${this.generateStorageKey(sha256, mimeType, options.visibility)}.${crypto.randomUUID()}`;
       const reservation = await reserveStorageBytes({ accountId: options.owner.ownerUserId!, sha256,
         objectKey: key, size, kind: 'server' });
+      unwrittenReservation = { id: reservation.id, sha256 };
+      let deduplicated = false;
       const file = await withContentHashLock(sha256, async tx => {
         await assertStorageReservationWritable(tx, reservation.id);
+        // The pre-lock read is only optimistic: another identical upload may
+        // have committed while this request staged or reserved its own key.
+        const raced = await findLiveFileBySha256ForOwner(sha256, options.owner, tx);
+        if (raced) {
+          this.assertStreamedDedupeAllowed(raced, options);
+          if (!(await this.s3Service.fileExists(raced.storageKey)))
+            throw new ApiError(409, 'Existing stream object needs repair before reuse', 'STORAGE_STREAM_REPAIR_REQUIRED');
+          // This attempt has never issued PUT or a URL for its unique key.
+          await releaseUnwrittenStorageReservation(tx, reservation.id);
+          deduplicated = true;
+          return raced;
+        }
         // insertFile locks account quota, checks actual bytes, then returns.
         // Its lock remains held by this transaction throughout multipart PUT.
         const admitted = await insertFile({ sha256, size, mime: mimeType, ext,
@@ -1005,10 +1020,15 @@ export class AssetService {
         return admitted;
       });
       committed = true;
+      if (deduplicated) return { file: await this.prepareExistingStreamedMediaFile(file, options), deduplicated: true };
       this.queueVariantGeneration(file);
       return { file, deduplicated: false };
     } catch (error) {
       if (writtenKey && !committed) await this.s3Service.deleteFile(writtenKey);
+      if (unwrittenReservation && !writtenKey) {
+        const unused = unwrittenReservation;
+        await withContentHashLock(unused.sha256, tx => releaseUnwrittenStorageReservation(tx, unused.id));
+      }
       throw error;
     } finally {
       await rm(directory, { recursive: true, force: true });

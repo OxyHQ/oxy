@@ -273,3 +273,65 @@ it('configured visibility relocation fails before copy and before changing priva
   const [unchanged] = await getDb().select().from(files).where(eq(files.id, file.id));
   expect(unchanged.visibility).toBe('private');
 });
+
+it('recovers an orphan beyond more than one batch of older live claims', async () => {
+  const liveKeys: string[] = [];
+  for (let i = 0; i < 26; i++) {
+    const row = original(1);
+    await reserveStorageBytes({ accountId: owner, sha256: row.sha256, objectKey: row.storageKey,
+      size: row.size, kind: 'server', recoverAfter: new Date(0) });
+    await insertFile(row);
+    liveKeys.push(row.storageKey);
+  }
+  const orphan = await reserveStorageBytes({ accountId: owner, sha256: 'd'.repeat(64),
+    objectKey: 'synthetic/later-orphan/' + randomUUID(), size: 7, kind: 'server', recoverAfter: new Date(1) });
+  const bucket = new Set([...liveKeys, orphan.objectKey]);
+  const remove = jest.fn(async (key: string) => { bucket.delete(key); expect(bucket.has(key)).toBe(false); });
+  const quiescent = jest.fn(async () => true);
+  expect(await recoverStorageByteReservations(remove, quiescent, 25, new Date(2))).toEqual({ cleaned: 1, retained: 0 });
+  expect(remove).toHaveBeenCalledTimes(1);
+  expect(remove).toHaveBeenCalledWith(orphan.objectKey);
+  expect(quiescent).toHaveBeenCalledTimes(1);
+  expect(liveKeys.every(key => bucket.has(key))).toBe(true);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(26n);
+});
+
+it('concurrent identical owner streams reuse one file and release the proven unwritten loser hold', async () => {
+  const { AssetService } = await import('../assetService');
+  let releasePut!: () => void, startedPut!: () => void;
+  const blockedPut = new Promise<void>(resolve => { releasePut = resolve; });
+  const putStarted = new Promise<void>(resolve => { startedPut = resolve; });
+  const bucket = new Map<string, Buffer>();
+  const s3 = {
+    uploadStream: jest.fn(async (key: string, source: Readable) => {
+      const chunks: Buffer[] = []; for await (const chunk of source) chunks.push(Buffer.from(chunk));
+      startedPut();
+      await blockedPut;
+      bucket.set(key, Buffer.concat(chunks));
+    }),
+    deleteFile: jest.fn(async (key: string) => { bucket.delete(key); }),
+    fileExists: jest.fn(async (key: string) => bucket.has(key)),
+  };
+  const service = new AssetService(s3 as unknown as import('../s3Service').S3Service);
+  const first = service.uploadUserMediaStream(Readable.from(Buffer.from('same')), 'text/plain', 'same.txt', 100, owner);
+  await putStarted;
+  const second = service.uploadUserMediaStream(Readable.from(Buffer.from('same')), 'text/plain', 'same.txt', 100, owner);
+  let waiting = false;
+  try {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const rows = await getDb().execute(sql`select 1 from pg_locks where locktype = 'advisory' and not granted limit 1`);
+      if (rows.length) { waiting = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+  } finally { releasePut(); }
+  const [firstFile, secondFile] = await Promise.all([first, second]);
+  expect(waiting).toBe(true); // second pre-lock read missed the first uncommitted row
+  expect(secondFile.id).toBe(firstFile.id);
+  expect(s3.uploadStream).toHaveBeenCalledTimes(1);
+  expect(s3.deleteFile).not.toHaveBeenCalled();
+  expect(bucket.size).toBe(1);
+  expect(await getDb().select().from(files).where(eq(files.ownerUserId, owner))).toHaveLength(1);
+  const holds = await getDb().select().from(storageByteReservations).where(eq(storageByteReservations.accountId, owner));
+  expect(holds.filter(row => !row.cleanedAt)).toHaveLength(1);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(4n);
+});

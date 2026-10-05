@@ -22,7 +22,10 @@ have been migrated.
   disk, compute actual size/SHA, durably reserve, then insert quota-admitted rows
   before bucket multipart PUT. Hash/account locks span PUT and commit. Failure
   deletes the unique object and local staging, but retains the durable hold until
-  recovery confirms terminal upload and cleanup. Missing own deduplicated objects
+  recovery confirms terminal upload and cleanup. Concurrent identical uploads
+  recheck owner deduplication under the hash lock; an attempt that never issued
+  PUT or a URL releases its unique unwritten hold and reuses the winner. Missing
+  own deduplicated objects
   require repair instead of uncoordinated reuse.
 - Direct originals, direct repair, federation repair and configured presigned URL
   issuance also create/renew exact durable holds before PUT/URL delivery. Promotion
@@ -37,7 +40,8 @@ have been migrated.
 `recoverStorageByteReservations(deleteAndVerifyAbsent, confirmUploadQuiescent,
 limit, now)` is a bounded backend drain interface. It serializes under existing
 content-hash and account locks, rechecks the current reservation kind/lease,
-retains every live key claim, and releases a server hold only after trusted
+excludes live key claims before the batch limit and rechecks them under locks,
+then releases a server hold only after trusted
 quiescence proof followed by verified absence. Failed proof/cleanup retains quota.
 The recovery adapter/scheduler is **not connected or activated** in this draft.
 A crashed PUT followed by failed DB commit still has its durable quota hold.

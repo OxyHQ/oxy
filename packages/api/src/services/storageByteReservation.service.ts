@@ -1,5 +1,5 @@
 import { and, eq, isNull, lte, sql } from 'drizzle-orm';
-import { getDb, type DatabaseOrTransaction } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { storageByteReservations } from '../db/schema';
 import { withContentHashLock } from './contentHashLock';
 import { withStorageQuota } from './storageQuota.service';
@@ -45,6 +45,21 @@ export async function assertStorageReservationWritable(db: DatabaseOrTransaction
 }
 
 /**
+ * Caller owns the hash lock and this attempt's unique server key, and must prove
+ * in its control flow that neither PUT nor a signed URL was ever issued.
+ * This is not a general cleanup shortcut for interrupted uploads.
+ */
+export async function releaseUnwrittenStorageReservation(tx: Transaction, id: string): Promise<void> {
+  const [current] = await tx.select().from(storageByteReservations).where(eq(storageByteReservations.id, id)).for('update');
+  if (!current || current.cleanedAt) return;
+  if (current.kind !== 'server')
+    throw new ApiError(409, 'A presigned reservation requires terminal upload proof', 'STORAGE_RESERVATION_NOT_UNWRITTEN');
+  await withStorageQuota(tx, [current.accountId], async () => {
+    await tx.update(storageByteReservations).set({ cleanedAt: new Date() }).where(eq(storageByteReservations.id, id));
+  });
+}
+
+/**
  * Bounded recovery entrypoint for the existing storage worker/scheduler.
  * Does no live/provider work unless its caller supplies an object-deletion adapter.
  * Presigned rows stay counted: signature expiry cannot bound in-flight PUTs.
@@ -57,8 +72,14 @@ export async function recoverStorageByteReservations(
 ): Promise<{ cleaned: number; retained: number }> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid storage recovery batch limit');
   const candidates = await getDb().select().from(storageByteReservations)
-    .where(and(isNull(storageByteReservations.cleanedAt), eq(storageByteReservations.kind, 'server'), lte(storageByteReservations.recoverAfter, now)))
-    .orderBy(storageByteReservations.recoverAfter).limit(limit);
+    .where(and(isNull(storageByteReservations.cleanedAt), eq(storageByteReservations.kind, 'server'), lte(storageByteReservations.recoverAfter, now),
+      // Referenced holds must not occupy every slot ahead of orphan recovery.
+      // Recheck under the hash/account locks below: this is only candidate selection.
+      sql`not exists (select 1 from "files" f where f.status in ('active', 'trash')
+        and (f.storage_key = ${storageByteReservations.objectKey} or exists (
+          select 1 from "file_variants" v where v.file_id = f.id and v.key = ${storageByteReservations.objectKey}
+        )))`))
+    .orderBy(storageByteReservations.recoverAfter, storageByteReservations.id).limit(limit);
   let cleaned = 0, retained = 0;
   for (const candidate of candidates) {
     const didClean = await withContentHashLock(candidate.sha256, async tx => {
