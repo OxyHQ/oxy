@@ -1,7 +1,7 @@
 import { reserveStorageBytes, recoverStorageByteReservations } from '../storageByteReservation.service';
 import { storageByteReservations } from '../../db/schema';
 import { Readable } from 'stream';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { files } from '../../db/schema';
@@ -212,10 +212,11 @@ it('durably counts a simulated crash after PUT until quiescent verified cleanup'
   await recoverStorageByteReservations(async key => { bucket.delete(key); }, async () => false, 100, recoveryTime);
   expect(bucket.has(key)).toBe(true);
   expect(await reservedStorageBytes(getDb(), owner)).toBe(7n);
-  await expect(recoverStorageByteReservations(async () => { throw new Error('cleanup unavailable'); }, async () => true, 100, recoveryTime))
-    .rejects.toThrow('cleanup unavailable');
+  const failed = await recoverStorageByteReservations(async () => { throw new Error('cleanup unavailable'); }, async () => true,
+    100, new Date(recoveryTime.getTime() + 5 * 60_000));
+  expect(failed.failed).toBeGreaterThan(0);
   expect(await reservedStorageBytes(getDb(), owner)).toBe(7n);
-  await recoverStorageByteReservations(async key => { bucket.delete(key); expect(bucket.has(key)).toBe(false); }, async () => true, 100, recoveryTime);
+  await recoverStorageByteReservations(async key => { bucket.delete(key); expect(bucket.has(key)).toBe(false); }, async () => true, 100, new Date(recoveryTime.getTime() + 10 * 60_000));
   expect(await reservedStorageBytes(getDb(), owner)).toBe(0n);
   const [row] = await getDb().select().from(storageByteReservations).where(eq(storageByteReservations.id, reservation.id));
   expect(row.cleanedAt).not.toBeNull();
@@ -288,7 +289,7 @@ it('recovers an orphan beyond more than one batch of older live claims', async (
   const bucket = new Set([...liveKeys, orphan.objectKey]);
   const remove = jest.fn(async (key: string) => { bucket.delete(key); expect(bucket.has(key)).toBe(false); });
   const quiescent = jest.fn(async () => true);
-  expect(await recoverStorageByteReservations(remove, quiescent, 25, new Date(2))).toEqual({ cleaned: 1, retained: 0 });
+  expect(await recoverStorageByteReservations(remove, quiescent, 25, new Date(2))).toEqual({ cleaned: 1, retained: 0, failed: 0, backoffFailed: 0 });
   expect(remove).toHaveBeenCalledTimes(1);
   expect(remove).toHaveBeenCalledWith(orphan.objectKey);
   expect(quiescent).toHaveBeenCalledTimes(1);
@@ -296,7 +297,7 @@ it('recovers an orphan beyond more than one batch of older live claims', async (
   expect(await reservedStorageBytes(getDb(), owner)).toBe(26n);
 });
 
-it('concurrent identical owner streams reuse one file and release the proven unwritten loser hold', async () => {
+it('concurrent identical owner streams reuse the last four quota bytes without reserving a losing key', async () => {
   const { AssetService } = await import('../assetService');
   let releasePut!: () => void, startedPut!: () => void;
   const blockedPut = new Promise<void>(resolve => { releasePut = resolve; });
@@ -313,6 +314,7 @@ it('concurrent identical owner streams reuse one file and release the proven unw
     fileExists: jest.fn(async (key: string) => bucket.has(key)),
   };
   const service = new AssetService(s3 as unknown as import('../s3Service').S3Service);
+  await insertFile(original(legacyStorageLimit('basic') - 4));
   const first = service.uploadUserMediaStream(Readable.from(Buffer.from('same')), 'text/plain', 'same.txt', 100, owner);
   await putStarted;
   const second = service.uploadUserMediaStream(Readable.from(Buffer.from('same')), 'text/plain', 'same.txt', 100, owner);
@@ -330,8 +332,97 @@ it('concurrent identical owner streams reuse one file and release the proven unw
   expect(s3.uploadStream).toHaveBeenCalledTimes(1);
   expect(s3.deleteFile).not.toHaveBeenCalled();
   expect(bucket.size).toBe(1);
-  expect(await getDb().select().from(files).where(eq(files.ownerUserId, owner))).toHaveLength(1);
+  expect(await getDb().select().from(files).where(eq(files.ownerUserId, owner))).toHaveLength(2);
   const holds = await getDb().select().from(storageByteReservations).where(eq(storageByteReservations.accountId, owner));
   expect(holds.filter(row => !row.cleanedAt)).toHaveLength(1);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(BigInt(legacyStorageLimit('basic')));
+});
+
+it('defers a full batch of unquiescent holds so the next bounded run reaches a safe orphan', async () => {
+  const blocked: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    const row = await reserveStorageBytes({ accountId: owner, sha256: 'e'.repeat(64),
+      objectKey: 'synthetic/unquiescent/' + randomUUID(), size: 2, kind: 'server', recoverAfter: new Date(0) });
+    blocked.push(row.objectKey);
+  }
+  const safe = await reserveStorageBytes({ accountId: owner, sha256: 'f'.repeat(64),
+    objectKey: 'synthetic/safe/' + randomUUID(), size: 3, kind: 'server', recoverAfter: new Date(1) });
+  const remove = jest.fn(async () => undefined);
+  const quiescent = jest.fn(async (row: typeof storageByteReservations.$inferSelect) => row.objectKey === safe.objectKey);
+  expect(await recoverStorageByteReservations(remove, quiescent, 2, new Date(2)))
+    .toEqual({ cleaned: 0, retained: 2, failed: 0, backoffFailed: 0 });
+  expect(await recoverStorageByteReservations(remove, quiescent, 2, new Date(2)))
+    .toEqual({ cleaned: 1, retained: 0, failed: 0, backoffFailed: 0 });
+  expect(remove).toHaveBeenCalledTimes(1);
+  expect(remove).toHaveBeenCalledWith(safe.objectKey);
+  const rows = await getDb().select().from(storageByteReservations).where(eq(storageByteReservations.accountId, owner));
+  const deferred = rows.filter(row => blocked.includes(row.objectKey));
+  expect(deferred.every(row => !row.cleanedAt && row.retryAfter && row.retryAfter > new Date(2))).toBe(true);
+  expect(deferred.every(row => row.recoverAfter.getTime() === 0)).toBe(true); // retry does not revive upload admission
   expect(await reservedStorageBytes(getDb(), owner)).toBe(4n);
+});
+it('isolates a failed delete and cleans the later safe candidate without releasing failed bytes', async () => {
+  const failed = await reserveStorageBytes({ accountId: owner, sha256: '1'.repeat(64),
+    objectKey: 'synthetic/delete-failure/' + randomUUID(), size: 2, kind: 'server', recoverAfter: new Date(3) });
+  const safe = await reserveStorageBytes({ accountId: owner, sha256: '2'.repeat(64),
+    objectKey: 'synthetic/delete-success/' + randomUUID(), size: 3, kind: 'server', recoverAfter: new Date(4) });
+  const remove = jest.fn(async (key: string) => { if (key === failed.objectKey) throw new Error('synthetic delete failure'); });
+  expect(await recoverStorageByteReservations(remove, async () => true, 2, new Date(5)))
+    .toEqual({ cleaned: 1, retained: 1, failed: 1, backoffFailed: 0 });
+  expect(remove).toHaveBeenCalledWith(safe.objectKey);
+  const [retained] = await getDb().select().from(storageByteReservations).where(eq(storageByteReservations.id, failed.id));
+  expect(retained.cleanedAt).toBeNull();
+  expect(retained.retryAfter!.getTime()).toBeGreaterThan(5);
+  expect(retained.recoverAfter.getTime()).toBe(3);
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(2n);
+});
+
+it('coalesces identical last-byte uploads in the committed-reservation gap before PUT lock acquisition', async () => {
+  const { AssetService } = await import('../assetService');
+  const locks = await import('../contentHashLock');
+  const realLock = locks.withContentHashLock;
+  const hash = createHash('sha256').update('gap!').digest('hex');
+  let releaseGap!: () => void, gapReached!: () => void, pendingSeen!: () => void;
+  const gap = new Promise<void>(resolve => { releaseGap = resolve; });
+  const reached = new Promise<void>(resolve => { gapReached = resolve; });
+  const pending = new Promise<void>(resolve => { pendingSeen = resolve; });
+  let calls = 0;
+  const spy = jest.spyOn(locks, 'withContentHashLock').mockImplementation(async function<T>(
+    sha: string, callback: (tx: import('../../config/postgres').Transaction) => Promise<T>,
+  ): Promise<T> {
+    const ordinal = sha === hash ? ++calls : 0;
+    if (ordinal === 2) { gapReached(); await gap; } // reservation transaction has COMMITTED, PUT transaction not started
+    const result = await realLock(sha, callback);
+    if (ordinal > 2 && (result as { kind?: string })?.kind === 'pending') pendingSeen();
+    return result;
+  });
+  const bucket = new Map<string, Buffer>();
+  const s3 = {
+    uploadStream: jest.fn(async (key: string, source: Readable) => {
+      const chunks: Buffer[] = []; for await (const chunk of source) chunks.push(Buffer.from(chunk));
+      bucket.set(key, Buffer.concat(chunks));
+    }),
+    deleteFile: jest.fn(async (key: string) => { bucket.delete(key); }),
+    fileExists: jest.fn(async (key: string) => bucket.has(key)),
+  };
+  await insertFile(original(legacyStorageLimit('basic') - 4));
+  const service = new AssetService(s3 as unknown as import('../s3Service').S3Service);
+  const first = service.uploadUserMediaStream(Readable.from(Buffer.from('gap!')), 'text/plain', 'gap.txt', 100, owner);
+  await reached;
+  const second = service.uploadUserMediaStream(Readable.from(Buffer.from('gap!')), 'text/plain', 'gap.txt', 100, owner);
+  try {
+    await Promise.race([pending, second.then(() => { throw new Error('Second upload finished before gap resumed'); })]);
+    expect(s3.uploadStream).not.toHaveBeenCalled();
+    expect(await getDb().select().from(files).where(eq(files.ownerUserId, owner))).toHaveLength(1);
+    expect(await getDb().select().from(storageByteReservations).where(eq(storageByteReservations.accountId, owner))).toHaveLength(1);
+    expect(await reservedStorageBytes(getDb(), owner)).toBe(BigInt(legacyStorageLimit('basic')));
+  } finally { releaseGap(); }
+  try {
+    const [one, two] = await Promise.all([first, second]);
+    expect(one.id).toBe(two.id);
+    expect(s3.uploadStream).toHaveBeenCalledTimes(1);
+    expect(s3.deleteFile).not.toHaveBeenCalled();
+    expect(bucket.size).toBe(1);
+    expect(await reservedStorageBytes(getDb(), owner)).toBe(BigInt(legacyStorageLimit('basic')));
+  } finally { spy.mockRestore(); }
 });

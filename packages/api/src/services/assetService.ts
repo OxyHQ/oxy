@@ -1,5 +1,5 @@
 import { assertPhysicalStoragePathSupported } from './storageQuota.service';
-import { reserveStorageBytes, assertStorageReservationWritable, releaseUnwrittenStorageReservation } from './storageByteReservation.service';
+import { reserveStorageBytes, reserveStorageBytesWithinTransaction, assertStorageReservationWritable, releaseUnwrittenStorageReservation } from './storageByteReservation.service';
 import { createWriteStream, createReadStream } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -9,7 +9,7 @@ import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { Readable, Transform } from 'stream';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import type { S3Service } from './s3Service';
@@ -20,6 +20,7 @@ import {
 import { VariantService } from './variantService';
 import { getDb, type Transaction } from '../config/postgres';
 import { files as filesTable } from '../db/schema/files';
+import { storageByteReservations } from '../db/schema/storageByteReservations';
 import { recordFileStorageDeletion, recordFileStorageRelocation } from './accountStorageDeletion.service';
 import { runStorageDeletionBatch } from './accountStorageDeletion.worker';
 import { withContentHashLock } from './contentHashLock';
@@ -989,8 +990,40 @@ export class AssetService {
       }
       const ext = this.getExtensionFromMime(mimeType);
       const key = `${this.generateStorageKey(sha256, mimeType, options.visibility)}.${crypto.randomUUID()}`;
-      const reservation = await reserveStorageBytes({ accountId: options.owner.ownerUserId!, sha256,
-        objectKey: key, size, kind: 'server' });
+      const prepare = () => withContentHashLock(sha256, async tx => {
+        // Recheck BEFORE a second key spends quota; the optimistic pre-lock
+        // miss may now be the winner that used this account's last bytes.
+        const existing = await findLiveFileBySha256ForOwner(sha256, options.owner, tx);
+        if (existing) return { kind: 'existing' as const, file: existing };
+        const [pending] = await tx.select().from(storageByteReservations).where(and(
+          eq(storageByteReservations.accountId, options.owner.ownerUserId!),
+          eq(storageByteReservations.sha256, sha256), eq(storageByteReservations.size, size),
+          eq(storageByteReservations.kind, 'server'), isNull(storageByteReservations.cleanedAt),
+          sql`(${storageByteReservations.objectKey} like 'content/%' or ${storageByteReservations.objectKey} like 'public/content/%')`
+        )).limit(1);
+        if (pending) return { kind: 'pending' as const };
+        const reservation = await reserveStorageBytesWithinTransaction(tx, {
+          accountId: options.owner.ownerUserId!, sha256, objectKey: key, size, kind: 'server' });
+        return { kind: 'reserved' as const, reservation };
+      }); // database-only critical section; no external I/O
+      // A reservation may commit before its writer acquires the PUT transaction.
+      // Coalesce that in-flight original outside locks instead of charging another
+      // key (which could consume the winner's last available quota bytes).
+      let prepared = await prepare();
+      const waitUntil = Date.now() + 5_000;
+      while (prepared.kind === 'pending') {
+        if (Date.now() >= waitUntil)
+          throw new ApiError(409, 'Identical upload is still in progress; retry after it finishes', 'STORAGE_UPLOAD_IN_PROGRESS');
+        await new Promise(resolve => setTimeout(resolve, 20));
+        prepared = await prepare();
+      }
+      if (prepared.kind === 'existing') {
+        this.assertStreamedDedupeAllowed(prepared.file, options);
+        if (!(await this.s3Service.fileExists(prepared.file.storageKey)))
+          throw new ApiError(409, 'Existing stream object needs repair before reuse', 'STORAGE_STREAM_REPAIR_REQUIRED');
+        return { file: await this.prepareExistingStreamedMediaFile(prepared.file, options), deduplicated: true };
+      }
+      const reservation = prepared.reservation;
       unwrittenReservation = { id: reservation.id, sha256 };
       let deduplicated = false;
       const file = await withContentHashLock(sha256, async tx => {

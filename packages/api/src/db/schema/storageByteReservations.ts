@@ -10,6 +10,8 @@ export const storageByteReservations = pgTable('storage_byte_reservations', {
   size: bigint({ mode: 'number' }).notNull(),
   kind: text({ enum: ['server', 'presigned'] }).notNull(),
   recoverAfter: timestamptz().notNull(),
+  /** Recovery backoff is independent of the immutable upload admission lease. */
+  retryAfter: timestamptz(),
   cleanedAt: timestamptz(),
   createdAt: createdAt(),
 }, t => [unique('storage_byte_reservation_account_key_unique').on(t.accountId, t.objectKey),

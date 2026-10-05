@@ -12,7 +12,7 @@ removal. Usage counts open reservations plus originals/variants, excluding a
 reservation only when that account has an exact live key+size claim. Deletion or
 transaction rollback therefore restores the physical hold; it does not release
 capacity merely because metadata disappeared. Completed cleanup retains its audit
-row. Migration 0149 is additive and marked pre-deploy; only throwaway test databases
+row. Migrations 0149 and 0150 are additive and marked pre-deploy; only throwaway test databases
 have been migrated.
 
 - Buffered image variants, both bulk and lazy, admit rendered bytes before PUT;
@@ -23,7 +23,10 @@ have been migrated.
   before bucket multipart PUT. Hash/account locks span PUT and commit. Failure
   deletes the unique object and local staging, but retains the durable hold until
   recovery confirms terminal upload and cleanup. Concurrent identical uploads
-  recheck owner deduplication under the hash lock; an attempt that never issued
+  recheck owner deduplication under the hash lock before reserving another key.
+  An exact account/hash/size pending server original coalesces outside transactions
+  for up to five seconds; a stalled writer returns honest retryable 409 and keeps
+  its hold. An attempt that never issued
   PUT or a URL releases its unique unwritten hold and reuses the winner. Missing
   own deduplicated objects
   require repair instead of uncoordinated reuse.
@@ -42,7 +45,12 @@ limit, now)` is a bounded backend drain interface. It serializes under existing
 content-hash and account locks, rechecks the current reservation kind/lease,
 excludes live key claims before the batch limit and rechecks them under locks,
 then releases a server hold only after trusted
-quiescence proof followed by verified absence. Failed proof/cleanup retains quota.
+quiescence proof followed by verified absence. Failed proof/cleanup retains quota. A separate `retryAfter` defers unquiescent
+and failed candidates for five minutes, without changing the writer admission
+lease `recoverAfter`. One failure does not abort later candidates; `failed` and
+`backoffFailed` counters report cleanup/proof and retry-persistence failures.
+Recovery remains bounded by its batch limit, and subsequent calls reach later
+candidates instead of rescanning the same blocked batch.
 The recovery adapter/scheduler is **not connected or activated** in this draft.
 A crashed PUT followed by failed DB commit still has its durable quota hold.
 
@@ -85,3 +93,9 @@ verified drain, account/deleted-file isolation, and expiry/deletion/late-PUT
 capacity retention. A SQL lock barrier checks server-to-presigned promotion after
 candidate selection. These support the stated paths and conservative holds, not
 a claim of complete physical bucket enforcement across all legacy paths.
+
+Additional regressions fill all but four quota bytes and race identical four-byte
+streams in both critical phases: while the first PUT owns its lock, and after its
+reservation commit but before PUT lock acquisition. Both requests return one file
+with one PUT and one counted hold. Full unquiescent batches defer so later safe
+orphans progress; a failed delete retains its bytes while a later delete succeeds.
