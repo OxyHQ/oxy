@@ -1,16 +1,21 @@
 # Private Auto classifier contract
 
-Implementation proposal for Oxy#1572 at base `4c29c62d0fb40a018a3434ca08fdbdcfd5e37d07`.
-This is repeatable private classification of variable task text. The source
-getter is absent; ordinary decisions remain unavailable. No provider, privacy,
-ZDR, model-rights or quality approval is supplied by these synthetic fixtures.
+Oxy#1572 implements repeatable private classification of variable task text.
+The source getter now returns the [frozen own-Alia approval](../audits/2026-10-05-private-auto-source-approval/reviewed-source-approval.json)
+until `2026-10-05T22:51:12Z`, checking expiry on every read. It covers exactly
+the existing production service principal, private Auto deployment and reviewed
+routing/economic identities. Ordinary/public decisions remain unavailable.
+Synthetic fixtures supply no provider, privacy, ZDR, model-rights or quality
+approval; this source approval instead references the separate root review and
+primary privacy/ZDR evidence. Source approval alone does not admit a request.
 
 ## Authority and compatibility
 
 Negotiate `privateAutoExecutionContractVersion: 3.7.0` independently of ordinary
 3.5/v2 and fixed-input commissioning 3.6/v3. Private Auto uses envelope v4 and
 its own `privateAutoExecution` field. Neither a v2/v3 receiver nor a server without
-the new negotiated extension may serve it. No current negotiation is activated.
+the new negotiated extension may serve it. Source approval does not substitute
+for the matching live Kaana negotiation or catalogue/legal review.
 
 Both Oxy and Kaana must hold the same reviewed source approval. It names one
 production service principal (owner account, application and existing workload
@@ -77,13 +82,21 @@ own `inference:usage:read` authority and the retained parent/child lineage; it
 can retrieve the original child's metering after settlement/source expiry.
 It never starts another classifier or returns retained private input/output.
 
-The initial source change remains inactive. Delivery requires Oxy and Kaana
-contracts, catalogue/signed-descriptor projection, SDK compatibility where
-exported, SQL qualification and both-side image checks before negotiation. A
-later source activation requires actual canary evidence and explicit review of
-the precise repeated private use. It does not approve the general catalogue,
-ordinary decisions or commercial resale. Release versions belong to the root
-release owner; the implementation changes no package version.
+The frozen approval is tied to the actual imported model/provider price
+`jev_scoped_price_20261004_01`. The repeatable-read production readback verified
+that identity and its USD units; the deployment-specific Auto rate card remains
+separate from commissioning 3.6. The approved bounded parent input includes
+serialized authorized context and tool schemas; the child still has no executable
+tools and the same whole-input limit. No price or permissions are invented.
+
+Runtime admission still requires the matching fresh Kaana 3.7 descriptor,
+provider key/card/source, catalogue row, independent canonical private legal
+review, current price/score/funding, and the unchanged principal, parent and
+privacy checks. Legal review is pending at this source-only handoff, so admission
+remains blocked. Image rollout and real qualification belong to the release
+operator; this commit performs neither. The existing 3.6 permit, its fixed expiry,
+ordinary/public denial and model commercial rights remain unchanged. No package
+version changes.
 
 ## Required qualification
 
@@ -107,13 +120,14 @@ pure binding/recovery identity checks and atomic parent/child metering barrier.
 The later slices below compose its catalogue, adapter and envelope. Their local
 qualification is not an activation or completed production claim.
 
-## Inactive transport integration
+## Implementation history and transport integration
 
 The signed descriptor carries `privateAutoSourceApproval` only with its independent
 `privateAutoExecutionContractVersion: 3.7.0` acknowledgement. Exact route, provider
 credential identity, model, regions and rate/source versions must match that
-approval; commissioning 3.6 cannot stand in for it. The absent source getter
-leaves production catalogue negotiation unchanged. Ordinary publication excludes
+approval; commissioning 3.6 cannot stand in for it. In the initial inactive implementation, the absent source getter
+left production catalogue negotiation unchanged; the reviewed approval above is
+the subsequent source-only activation. Ordinary publication excludes
 both private metadata classes. Schema 4 uses the canonical actual input bytes
 and verifies their hash before signing one decisions request; it has no stream
 path. The original absolute deadline covers serialization, send and response.
