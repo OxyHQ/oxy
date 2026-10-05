@@ -1016,6 +1016,13 @@
       "when": 1791152910951,
       "tag": "0145_private_decisions_output",
       "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1791161889918,
+      "tag": "0146_credential_audit_actor_erasure",
+      "breakpoints": true
     }
   ]
 }
