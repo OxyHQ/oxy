@@ -1,3 +1,8 @@
+import { createWriteStream, createReadStream } from 'fs';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { pipeline } from 'stream/promises';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
@@ -942,6 +947,59 @@ export class AssetService {
     return (await this.uploadStreamedMediaDetailed(source, mimeType, originalName, maxBytes, options)).file;
   }
 
+  /** Stage owner streams on local disk; no bucket multipart bytes precede quota admission. */
+  private async uploadAdmittedOwnerStream(source: AbortableReadable, mimeType: string,
+    originalName: string, maxBytes: number, options: StreamedMediaOptions): Promise<StreamedMediaResult> {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
+      throw new BadRequestError('Stream size limit must be a positive safe integer');
+    const directory = await mkdtemp(join(tmpdir(), 'oxy-admitted-media-'));
+    const staged = join(directory, 'source');
+    let size = 0;
+    const hash = crypto.createHash('sha256');
+    const meter = new Transform({ transform(chunk: Buffer, _encoding, callback) {
+      size += chunk.length;
+      if (size > maxBytes) return callback(new ApiError(413, 'Stream exceeds its size limit', 'STORAGE_STREAM_TOO_LARGE'));
+      hash.update(chunk); callback(null, chunk);
+    } });
+    let writtenKey: string | undefined;
+    let committed = false;
+    try {
+      await pipeline(source, meter, createWriteStream(staged, { flags: 'wx' }));
+      if (!size) throw new BadRequestError('Cannot store an empty file');
+      const sha256 = hash.digest('hex');
+      const own = await findLiveFileBySha256ForOwner(sha256, options.owner);
+      if (own) {
+        this.assertStreamedDedupeAllowed(own, options);
+        if (!(await this.s3Service.fileExists(own.storageKey)))
+          throw new ApiError(409, 'Existing stream object needs repair before reuse', 'STORAGE_STREAM_REPAIR_REQUIRED');
+        return { file: await this.prepareExistingStreamedMediaFile(own, options), deduplicated: true };
+      }
+      const ext = this.getExtensionFromMime(mimeType);
+      const key = `${this.generateStorageKey(sha256, mimeType, options.visibility)}.${crypto.randomUUID()}`;
+      const file = await withContentHashLock(sha256, async tx => {
+        // insertFile locks account quota, checks actual bytes, then returns.
+        // Its lock remains held by this transaction throughout multipart PUT.
+        const admitted = await insertFile({ sha256, size, mime: mimeType, ext,
+          ...options.owner, purpose: options.purpose, status: 'active', storageKey: key,
+          originalName: normalizeInlineText(originalName), visibility: options.visibility,
+          metadata: options.metadata }, tx);
+        writtenKey = key;
+        await this.s3Service.uploadStream(key, createReadStream(staged), {
+          contentType: mimeType, cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+        });
+        return admitted;
+      });
+      committed = true;
+      this.queueVariantGeneration(file);
+      return { file, deduplicated: false };
+    } catch (error) {
+      if (writtenKey && !committed) await this.s3Service.deleteFile(writtenKey);
+      throw error;
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
   private async uploadStreamedMediaDetailed(
     source: AbortableReadable,
     mimeType: string,
@@ -949,6 +1007,8 @@ export class AssetService {
     maxBytes: number,
     options: StreamedMediaOptions
   ): Promise<StreamedMediaResult> {
+    if (options.owner.ownerUserId && (await loadProductBillingCatalogue()).storageAdapter)
+      return this.uploadAdmittedOwnerStream(source, mimeType, originalName, maxBytes, options);
     const hash = crypto.createHash('sha256');
     let size = 0;
 

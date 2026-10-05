@@ -1,3 +1,4 @@
+import { assertPhysicalStoragePathSupported, uploadAdmittedVariant } from './storageQuota.service';
 import type { S3Service } from './s3Service';
 import {
   storageKeyForVisibility,
@@ -588,6 +589,8 @@ export class VariantService {
 
       const variants: NewFileVariant[] = [];
       for (const config of this.imageVariants) {
+        const existing = await this.getUsableReadyVariant(file, config.type);
+        if (existing) { variants.push(existing); continue; }
         const variantKey = this.generateVariantKey(file.sha256, config.type, config.format || 'webp', file.visibility);
 
         const width = config.width || meta.width || 1280;
@@ -602,20 +605,16 @@ export class VariantService {
   if (format === 'png') pipeline = pipeline.png();
 
         const out = await pipeline.toBuffer();
-        await this.s3Service.uploadBuffer(variantKey, out, {
+        const variant = await uploadAdmittedVariant(file, {
+          type: config.type, key: variantKey, width,
+          height: height || Math.round((meta.height || width) * (width / (meta.width || width))),
+          readyAt: new Date(), size: out.length,
+          metadata: { format, quality: config.quality }
+        }, key => this.s3Service.uploadBuffer(key, out, {
           contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
           cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-        });
-
-        variants.push({
-          type: config.type,
-          key: variantKey,
-          width,
-          height: height || Math.round((meta.height || width) * (width / (meta.width || width))),
-          readyAt: new Date(),
-          size: out.length,
-          metadata: { format, quality: config.quality }
-        });
+        }), key => this.s3Service.deleteFile(key));
+        variants.push(variant);
 
         logger.debug('Generated image variant', { fileId: file.id, type: config.type, key: variantKey });
       }
@@ -642,6 +641,7 @@ export class VariantService {
    * Generates poster frame, multiple bitrate variants, and HLS streams
    */
   private async generateVideoVariants(file: FileRecord): Promise<void> {
+    await assertPhysicalStoragePathSupported(file.ownerUserId, 'generateVideoVariants');
     try {
       logger.info('Generating video variants with FFmpeg', { fileId: file.id });
 
@@ -1409,6 +1409,7 @@ export class VariantService {
    * Generate PDF variants (first page thumbnail)
    */
   private async generatePdfVariants(file: FileRecord): Promise<void> {
+    await assertPhysicalStoragePathSupported(file.ownerUserId, 'generatePdfVariants');
     // This would use pdf2pic or similar to generate thumbnails
     // For now, this is a placeholder
     
@@ -1534,6 +1535,8 @@ export class VariantService {
       return existing;
     }
 
+    await assertPhysicalStoragePathSupported(file.ownerUserId, 'video/HLS generation');
+
     const config = this.videoVariants.find(v => v.type === variantType);
     if (!config) {
       throw new Error(`Unsupported video mp4 rendition: ${variantType}`);
@@ -1580,6 +1583,8 @@ export class VariantService {
     if (existing) {
       return existing;
     }
+
+    await assertPhysicalStoragePathSupported(file.ownerUserId, 'video/HLS generation');
 
     // Generate poster frame directly from S3 - no temp files
     try {
@@ -1636,21 +1641,15 @@ export class VariantService {
     // what lets a `video/*` file own an `image/webp` variant (the `poster`
     // variant has always relied on the same property).
     const key = this.generateVariantKey(file.sha256, config.type, format, file.visibility);
-    await this.s3Service.uploadBuffer(key, out, {
+    const imgMeta = await sharp(out).metadata();
+    return uploadAdmittedVariant(file, {
+      type: config.type, key,
+      width: imgMeta.width || config.width || 0, height: imgMeta.height || config.height || 0,
+      readyAt: new Date(), size: out.length, metadata: { format, quality: config.quality }
+    }, admittedKey => this.s3Service.uploadBuffer(admittedKey, out, {
       contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
       cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-    });
-
-    const imgMeta = await sharp(out).metadata();
-    return {
-      type: config.type,
-      key,
-      width: imgMeta.width || config.width || 0,
-      height: imgMeta.height || config.height || 0,
-      readyAt: new Date(),
-      size: out.length,
-      metadata: { format, quality: config.quality }
-    };
+    }), admittedKey => this.s3Service.deleteFile(admittedKey));
   }
 
 
