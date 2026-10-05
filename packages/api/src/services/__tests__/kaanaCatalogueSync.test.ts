@@ -8,7 +8,10 @@ import { executeScopedLegalReview } from '../scopedLegalReviewOperation.service'
  * this file left behind: no other suite writes a synced row.
  */
 
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
+import * as dataPlane from '../../config/kaanaDataPlane';
+import { scopedAudienceFixture } from '../../../../contracts/src/__tests__/scopedExecution.fixture';
+import { createHttpKaanaCatalogueReader } from '../httpKaanaClient';
 import { privateAutoSourceApprovalSchema, type ScopedExecutionAudience } from '@oxy.so/contracts';
 import { privateAutoApprovalFixture } from '../../../../contracts/src/__tests__/privateAutoExecution.fixture';
 import * as privateAutoSource from '../../config/privateAutoClassification';
@@ -748,8 +751,9 @@ describe('independent private Auto catalogue import', () => {
       models: [world.entry('privateauto', { listPrices: prices, outputModalities: includeOrdinary ? ['text'] : ['decisions'] })] };
     const privateReader: KaanaCatalogueReader = {
       listModels: async () => payload,
-      attestDeployments: async () => ({ snapshotId: 'snap_test', scopedExecutionContractVersion: '3.6.0', privateAutoExecutionContractVersion: '3.7.0',
-        deployments: descriptors.map(row => ({ ...row, regions: row.regions ?? [] })) }),
+      attestDeployments: async (ids, options) => ({ snapshotId: 'snap_test',
+        ...(options.privateAutoExecutionContractVersion === undefined ? { scopedExecutionContractVersion: '3.6.0' as const } : { privateAutoExecutionContractVersion: '3.7.0' as const }),
+        deployments: descriptors.filter(row => ids.includes(row.deploymentId)).map(row => ({ ...row, regions: row.regions ?? [] })) }),
       listPublishedDeployments: async () => ({ snapshotId: 'snap_test', scopedExecutionContractVersion: '3.6.0', privateAutoExecutionContractVersion: '3.7.0',
         deployments: descriptors.map(row => ({ ...row, regions: row.regions ?? [] })) }),
     };
@@ -765,6 +769,56 @@ describe('independent private Auto catalogue import', () => {
       .from(inferenceDeployments).where(inArray(inferenceDeployments.internalRouteId, descriptors.map(row => row.deploymentId)));
     return { world, approval, route, ordinary, privateReader, rows, prices, payload };
   }
+  it('imports ordinary, commissioning and Auto through real separate signed HTTP projections and preserves private DENY', async () => {
+    const f = await fixture();
+    const ordinary = f.world.route('combined-ordinary');
+    const commissioning = { ...f.route, deploymentId: `${f.route.deploymentId}-commissioning` };
+    const audience: ScopedExecutionAudience = { ...scopedAudienceFixture, expiresAt: '2030-01-01T00:00:00Z',
+      deploymentId: commissioning.deploymentId, modelReference: commissioning.modelReference, provider: commissioning.provider,
+      priceVersionId: f.approval.priceVersionId };
+    const privateDescriptor = f.payload.deployments[0]!;
+    const scopedDescriptor = { ...commissioning, regions: commissioning.regions ?? [], scopedExecution: audience,
+      keyId: audience.keyId, upstreamModelId: audience.upstreamModelId, providerRateCardVersionId: audience.providerRateCardVersionId, providerSourceVersion: audience.providerSourceVersion };
+    const model = f.payload.models[0]!;
+    const scopedModel = { ...model, listPrices: [{ ...f.prices[0]!, deploymentId: commissioning.deploymentId }] };
+    const ordinaryModel = f.world.entry('combined-ordinary');
+    const scopedBody = { configuration: { snapshotId: 'snap_test' }, scopedExecutionContractVersion: '3.6.0',
+      deployments: [ordinary, scopedDescriptor], models: [ordinaryModel, scopedModel] };
+    const autoBody = { configuration: { snapshotId: 'snap_test' }, privateAutoExecutionContractVersion: '3.7.0',
+      deployments: [ordinary, privateDescriptor], models: [ordinaryModel, model] };
+    jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(f.approval);
+    jest.spyOn(scopedSource, 'sourceReviewedScopedAudience').mockReturnValue(audience);
+    const keys = generateKeyPairSync('ed25519');
+    jest.spyOn(dataPlane, 'resolveKaanaDataPlane').mockReturnValue({ status: 'configured',
+      config: { baseUrl: 'https://kaana.ai', keyId: 'synthetic-composition', privateKey: keys.privateKey } });
+    const fetcher = jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      const query = JSON.parse((init!.body as Buffer).toString());
+      expect(Boolean(query.scopedExecutionContractVersion)).not.toBe(Boolean(query.privateAutoExecutionContractVersion));
+      const projection = query.privateAutoExecutionContractVersion === '3.7.0' ? autoBody : scopedBody;
+      return new Response(JSON.stringify(String(url).endsWith('/models/query') ? projection : {
+        snapshotId: 'snap_test',
+        ...(query.privateAutoExecutionContractVersion === '3.7.0' ? { privateAutoExecutionContractVersion: '3.7.0' } : { scopedExecutionContractVersion: '3.6.0' }),
+        deployments: projection.deployments.filter(row => query.deploymentIds.includes(row.deploymentId)),
+      }), { status: 200, headers: { 'Cache-Control': 'no-store' } });
+    });
+    const first = await runKaanaCatalogueSync({ reader: createHttpKaanaCatalogueReader()! });
+    expect(first.status).toBe('synced'); expect(first.skippedModels).toEqual([]); expect(first.deployments.created).toBe(3);
+    const ids = [ordinary.deploymentId, commissioning.deploymentId, f.route.deploymentId];
+    const rows = () => getDb().select().from(inferenceDeployments).where(inArray(inferenceDeployments.internalRouteId, ids));
+    const before = await rows();
+    expect(before.filter(row => row.internalRouteId !== ordinary.deploymentId)).toHaveLength(2);
+    for (const row of before.filter(row => row.internalRouteId !== ordinary.deploymentId)) {
+      expect(row).toMatchObject({ status: 'disabled', permissionState: 'pending_review', legalReviewStatus: 'not_started', autoApprovalPolicyId: null });
+    }
+    expect(before.find(row => row.internalRouteId === ordinary.deploymentId)).toMatchObject({ status: 'active', autoApprovalPolicyId: KAANA_SYNC_AUTO_APPROVAL_POLICY_ID });
+    const second = await runKaanaCatalogueSync({ reader: createHttpKaanaCatalogueReader()! });
+    expect(second.deployments.created).toBe(0); expect(second.deployments.retired).toBe(0);
+    const stable = (items: typeof before) => items.map(({ updatedAt: _updatedAt, ...facts }) => facts).sort((a,b) => a.id.localeCompare(b.id));
+    const after = await rows(); expect(stable(after)).toEqual(stable(before));
+    expect(after.every(row => row.updatedAt >= before.find(old => old.id === row.id)!.updatedAt)).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(8);
+  });
+
   async function legalFixture() {
     const f = await fixture();
     jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(f.approval);
