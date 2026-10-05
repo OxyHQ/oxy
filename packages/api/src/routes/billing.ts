@@ -1,3 +1,6 @@
+import { ApiError } from '../utils/error';
+import { personalPlanCheckoutRequestSchema } from '@oxy.so/contracts';
+import { startPersonalPlanCheckout } from '../services/personalPlanCheckout.service';
 import { readPersonalPlanCatalogue } from '../services/personalPlanCatalogue';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import { cancelProductSubscriptionSchema, productSubscriptionsResponseSchema, subscriptionCreditGrantsResponseSchema,
@@ -256,6 +259,17 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
 });
 
 /** Public personal-plan discovery is separate from authenticated customer rights. */
+/** Inert until an approved provider adapter is wired in a separately authorized change. */
+router.post('/checkout/personal-plan', authMiddleware, validate({ body: personalPlanCheckoutRequestSchema }), async (req: AuthRequest, res: Response) => {
+  const subject = req.user?._id?.toString();
+  if (!subject) return res.status(401).json({ error: 'Authentication required' });
+  try { return res.json(await startPersonalPlanCheckout(subject, personalPlanCheckoutRequestSchema.parse(req.body))); }
+  catch (error) {
+    if (error instanceof ApiError) return res.status(error.statusCode).json({ error: error.code });
+    return res.status(503).json({ error: 'CHECKOUT_NOT_CONFIGURED' });
+  }
+});
+
 router.get('/personal-plans', async (_req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
   try {

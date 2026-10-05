@@ -1,3 +1,4 @@
+import { personalPlanCheckoutIntents } from '../db/schema/personalPlanCheckoutIntents';
 /** Unmounted adapter of explicit, trusted normalized data. No provider/network calls. */
 import { createHash } from 'node:crypto';
 import {
@@ -15,6 +16,7 @@ const providerId = z.string().min(1).max(160);
 const inputSchema = z.object({
   binding: productProviderBindingSchema,
   expectedConfiguration: productAccessConfigurationExpectationSchema.optional(),
+  checkoutIntentId: providerId.optional(),
   // No caller source/segment/evidence IDs or deduplication namespaces.
   subscription: z.unknown().transform(value => productSubscriptionSourceSchema.omit({ id: true }).parse(value)),
   offer: z.unknown().transform(value => productOfferSegmentSchema.pick({ offerId: true, offerVersion: true, origin: true }).parse(value)),
@@ -60,7 +62,8 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
     providerSubscriptionId: input.subscription.providerSubscriptionId,
     beneficiaryAccountId: input.subscription.beneficiaryAccountId,
     payerAccountId: input.subscription.payerAccountId, priceId: input.paidLine.priceId,
-    quantity: input.paidLine.quantity, ...input.offer, period: input.paidLine.period };
+    quantity: input.paidLine.quantity, ...input.offer, period: input.paidLine.period,
+    ...(input.checkoutIntentId ? { checkoutIntentId: input.checkoutIntentId } : {}) };
 	const payloadSha256 = digest(payload);
 	const eventPayload = { schemaVersion: 1, ...binding, eventId: input.event.id,
     eventCreatedAt: input.event.createdAt, evidenceId, sourceId, payloadSha256 };
@@ -181,6 +184,22 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
 				payloadSha256: eventPayloadSha256,
 			},
 		);
+    // Only this trusted, atomically persisted paid-evidence path fulfills checkout.
+    if (input.checkoutIntentId) {
+      const [intent] = await tx.select().from(personalPlanCheckoutIntents)
+        .where(eq(personalPlanCheckoutIntents.id, input.checkoutIntentId)).for('update');
+      if (!intent || input.offer.origin !== 'bundle'
+        || intent.subjectAccountId !== input.subscription.beneficiaryAccountId
+        || intent.subjectAccountId !== input.subscription.payerAccountId
+        || intent.mode !== binding.mode || intent.environment !== binding.environment
+        || intent.providerAccountRef !== binding.providerAccountRef
+        || intent.priceId !== input.paidLine.priceId || intent.offerId !== input.offer.offerId
+        || intent.offerVersion !== input.offer.offerVersion || intent.state === 'closed'
+        || (intent.state === 'fulfilled' && intent.fulfilledSourceId !== sourceId))
+        throw new ConflictError('Paid evidence checkout attribution differs');
+      await tx.update(personalPlanCheckoutIntents).set({ state: 'fulfilled', fulfilledSourceId: sourceId })
+        .where(eq(personalPlanCheckoutIntents.id, intent.id));
+    }
 		return {
 			status: inserted.length ? ("recorded" as const) : ("replayed" as const),
 			eventStatus: delivered.length

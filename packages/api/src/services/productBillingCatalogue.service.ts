@@ -17,7 +17,7 @@ import {
 } from "./stripeSubscriptionEvidence.service";
 
 const id = z.string().min(1).max(160);
-const priceSchema = z
+export const productBillingPriceSchema = z
 	.object({
 		priceId: id,
 		providerAccountId: z.string().regex(/^acct_[a-zA-Z0-9_]+$/),
@@ -41,7 +41,7 @@ export const productBillingCatalogueSchema = z
 		schemaVersion: z.literal(1),
 		products: z.array(productDefinitionSchema),
 		offers: z.array(productOfferSchema),
-		prices: z.array(priceSchema),
+		prices: z.array(productBillingPriceSchema),
     /** Editorial publication grants no entitlement and enables no checkout. */
     storageAdapter: z.object({ productId: id, quotaKey: id, unit: z.literal('byte'),
       legacyCombination: z.literal('maximum') }).strict().nullable().default(null),
@@ -332,6 +332,7 @@ export async function prepareStripeProductPeriod(
 				},
 				cancelAtPeriodEnd: subscription.cancel_at_period_end,
 			}),
+    ...(subscription.metadata?.oxyPersonalCheckoutIntentId ? { checkoutIntentId: subscription.metadata.oxyPersonalCheckoutIntentId } : {}),
     expectedConfiguration: { offer, products: catalogue.products.filter(product => offer.benefits.some(benefit => benefit.productId === product.id)) },
 		offer: {
 			offerId: offer.id,

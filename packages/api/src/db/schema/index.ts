@@ -193,3 +193,4 @@ export * from './productProviderEvidence';
 
 export * from './serviceActingAsAuthorityEpochs';
 export * from './billingCreditGrants';
+export * from './personalPlanCheckoutIntents';

@@ -1023,6 +1023,13 @@
       "when": 1791161889918,
       "tag": "0146_credential_audit_actor_erasure",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1791184469068,
+      "tag": "0147_personal_checkout_intents",
+      "breakpoints": true
     }
   ]
 }

@@ -28,6 +28,7 @@
  * order twice in a row.
  */
 
+import { ConflictError } from '../utils/error';
 import { withStorageQuota } from './storageQuota.service';
 import { and, asc, count, desc, eq, exists, inArray, ne, notExists, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
@@ -35,6 +36,12 @@ import { fileLinks, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
 import { messageAttachments } from '../db/schema/messageAttachments';
 import type { FileLinkRecord, FileOwner, FileRecord, FileVariantRecord, NewFileVariant } from '../types/file.types';
+
+/** Account locks precede this row lock on every quota-checked update. */
+async function assertStableFileOwner(tx: DatabaseOrTransaction, fileId: string, expected: string | null | undefined): Promise<void> {
+  const [current] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId)).for('update');
+  if (current?.owner !== expected) throw new ConflictError('File ownership changed during admission; retry');
+}
 
 /** Columns a caller may set when creating a file row. */
 export type NewFile = typeof files.$inferInsert;
@@ -369,6 +376,7 @@ export async function updateFile(fileId: string, patch: FilePatch): Promise<File
   return getDb().transaction(async tx => {
     const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
     return withStorageQuota(tx, [old?.owner, patch.ownerUserId], async () => {
+      await assertStableFileOwner(tx, fileId, old?.owner);
       const rows = await tx.update(files).set(patch).where(eq(files.id, fileId)).returning();
       const [record] = await withChildren(rows, tx);
       return record ?? null;
@@ -582,6 +590,7 @@ export async function upsertVariantSet(
   return getDb().transaction(async (tx) => {
     const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
     return withStorageQuota(tx, [old?.owner, patch?.ownerUserId], async () => {
+      await assertStableFileOwner(tx, fileId, old?.owner);
       const types = variants.map((variant) => variant.type);
       if (types.length > 0) {
         await tx
@@ -621,6 +630,7 @@ export async function upsertVariant(
   return getDb().transaction(async (tx) => {
     const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
     return withStorageQuota(tx, [old?.owner, null], async () => {
+      await assertStableFileOwner(tx, fileId, old?.owner);
       await tx
         .delete(fileVariants)
         .where(and(eq(fileVariants.fileId, fileId), eq(fileVariants.type, variant.type)));

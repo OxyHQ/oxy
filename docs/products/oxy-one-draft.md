@@ -53,3 +53,52 @@ Verified locally on this draft:
 - Bun 1.4.2 was missing from PATH. A temporary npm-fetched runtime in `/tmp/oxy-bin` enabled the required scripts; dependency manifests and lockfiles were not changed.
 - Accounts web export passed (37 HTML pages). Expo's initial cache write outside the workspace failed; retry used a `/tmp` Expo cache with telemetry disabled/offline mode, without changing HOME or credentials. Native OTA certificate warnings were existing build warnings; no native binary was built or published.
 - Biome lint with `--error-on-warnings` passed for the five new implementation modules. Storage and Accounts interaction suites passed again after lint repairs.
+
+## Continuation: visible draft and checkout lifecycle
+
+Public Website and Alia repositories were fetched without credentials and placed
+on separate `draft/oxy-one-personal-20261005` branches. Website adds `/one`, a
+pricing-page entry, shared SDK catalogue reads, unconfigured/error states and an
+Accounts link. English and Spanish copy are implemented; other locale keys use
+explicit English fallback pending translation review. Website TypeScript build
+passes using the locally compiled Core/Contracts copied into ignored installed
+package directories; release requires publishing those SDK packages first.
+No dependency manifest points to this private workspace.
+
+Desktop/mobile Website screenshots were captured with existing system Chromium.
+No horizontal overflow was observed. Accounts screenshot renders the actual
+PersonalPlansCard/Section/ThemedText through a temporary harness with synthetic
+account hooks and blocked network/mutations; it is component visual QA, not a
+logged-in end-to-end session. Full Accounts export exists from the first draft.
+Local preview servers are not public/deployed URLs.
+
+Consumer checkout now has strict request/result SDK contracts, an additive draft
+migration and durable subject/namespace/idempotency intent storage. Exact offer
+version and price selection are server-owned. The HTTP route has no provider
+adapter and remains unconfigured. Only synthetic test injection is allowed under
+NODE_ENV=test. Browser completion grants nothing. Trusted immutable paid evidence
+binds the checkout intent in its evidence hash, validates all ownership/selection
+fields under lock, and fulfills atomically with the existing grant period. Frozen
+selection is used for retries after catalogue changes. Only an exact trusted
+terminal-session observation releases a pending checkout; no clock-only expiry
+or browser-controlled release is exposed. A production provider adapter and
+provider metadata propagation remain deliberately unwired.
+
+Independent review identified and prompted repairs to storage ownership races,
+owner-split copied variant admission, immutable checkout attribution, frozen
+retry selection and terminal session release. Configured upload completion reads
+HEAD bytes rather than trusting the client size. This improves metadata admission;
+it does NOT enforce hard physical bucket usage: presigned uploads precede
+completion and reusable PUT URLs can overwrite afterward. Staging/object version
+admission, rejection cleanup, orphan accounting and an overwrite-proof upload
+protocol remain required before claiming physical quota enforcement.
+
+Validation of this continuation: checkout+paid-evidence 22 tests passed;
+storage/file/asset suites 17 tests passed; Contracts/Core builds and API TypeScript
+passed. Website `tsc -b` passed with local SDK validation arrangement and canonical
+internal-link check passed. Website routing check requires a completed dist build,
+which is not available in this slice; full production build/prerender was not run.
+Alia install stopped at an unauthenticated GitHub dependency tarball HTTP 403.
+Its exact access/consumption adapter handoff is in Alia docs; no runtime integration
+or bundle credit activation is claimed. No push, PR, deploy, production migration,
+provider product/price creation, credentials or payment activation occurred.

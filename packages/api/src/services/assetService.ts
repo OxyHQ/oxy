@@ -1,3 +1,4 @@
+import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
 import { Readable, Transform } from 'stream';
@@ -1199,9 +1200,17 @@ export class AssetService {
         throw new Error('File not found in storage');
       }
 
+      const catalogue = await loadProductBillingCatalogue();
+      let admittedSize = request.size;
+      if (catalogue.storageAdapter) {
+        const object = await this.s3Service.headObject(existing.storageKey);
+        if (!object || !Number.isSafeInteger(object.size) || object.size <= 0)
+          throw new BadRequestError('Uploaded object size could not be verified');
+        admittedSize = object.size;
+      }
       const file = await updateFile(request.fileId, {
         originalName: normalizeInlineText(request.originalName),
-        size: request.size,
+        size: admittedSize,
         mime: request.mime,
         metadata: request.metadata ?? {},
         ...(request.visibility ? { visibility: request.visibility } : {}),

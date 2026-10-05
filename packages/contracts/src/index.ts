@@ -1531,3 +1531,4 @@ export { productSubscriptionSummarySchema, productSubscriptionsResponseSchema,
     type ProductSubscriptionSummary, type SubscriptionCreditGrant, type ProductSubscriptionCancellationResult } from './products/billing';
 
 export { personalPlanCatalogueSchema, type PersonalPlanCatalogue } from './products/plans';
+export * from './products/checkout';

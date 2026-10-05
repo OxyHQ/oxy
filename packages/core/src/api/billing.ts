@@ -1,3 +1,4 @@
+import { personalPlanCheckoutRequestSchema, personalPlanCheckoutResultSchema, type PersonalPlanCheckoutRequest, type PersonalPlanCheckoutResult } from '@oxy.so/contracts';
 /**
  * `oxy.billing` — the signed-in user's subscription, wallet and payment history.
  *
@@ -115,6 +116,11 @@ export interface WalletTransactionsPage {
 
 export class BillingApi {
   constructor(protected readonly ctx: OxyContext) {}
+
+  async startPersonalPlanCheckout(request: PersonalPlanCheckoutRequest): Promise<PersonalPlanCheckoutResult> {
+    return personalPlanCheckoutResultSchema.parse(await this.ctx.request<unknown>('POST', '/billing/checkout/personal-plan',
+      personalPlanCheckoutRequestSchema.parse(request), { cache: false }));
+  }
 
   /** Public versioned personal plans. Discovery never proves customer access. */
   async personalPlans(): Promise<PersonalPlanCatalogue> {
