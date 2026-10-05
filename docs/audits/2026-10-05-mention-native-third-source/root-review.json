@@ -1,0 +1,100 @@
+{
+  "kind": "root-distinct-mention-third-operation-review-v1",
+  "reviewedAt": "2026-10-05T05:09:12Z",
+  "expiresAt": "2026-10-05T07:09:12Z",
+  "scopeAccepted": true,
+  "executionAcceptancePending": true,
+  "userAuthority": "Existing explicit authorization to complete, test and deploy all1519/1571/1572 work; this concrete root review admits one additional distinct bounded qualification only after the shipped Score normalization correction. No new external account, recipient or funding authority.",
+  "purpose": "One distinct existing native originally-authored public English Mention post under own product workload authority; three Noul and one Score canonical questions; shadow only. Post authorship is not claimed as service-account ownership.",
+  "selection": {
+    "postId": "019fd378-8ea7-7b4f-acd0-1c83361e0413",
+    "fingerprint": "b6118a879b0961cf1c25c040ea501ef7e4557228bea5f4f82dac2efa2e684222",
+    "inputSha256": "0c12c43c70a269a40ca0e856af98c48db8d20573b2e1b7d75f9bd6f9468a73da",
+    "idempotencyKey": "mention_jev_native_en_9aebfe5269e8fbe9e8c3961a93ef71d3"
+  },
+  "selectionReceipt": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-candidate/keyset-run/accepted.json",
+    "sha256": "2be0654694fc1402123aaf3952108ccab844f710b44938b99d8c8f62be33d8c6"
+  },
+  "selectorRootReview": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-keyset-reader-root-review.json",
+    "sha256": "f87fd724d3fdbedf3512acecbe0e003469ed384ba1007ee18e34fe66ce96a86b"
+  },
+  "scoreFixSource": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/kaana162-final-source-root-accepted.json",
+    "sha256": "ea23f5fa87b4af4a6328de0c8d250958641836a6131af96cd00e2d6bc6d0ae33"
+  },
+  "scoreFixRuntime": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/kaana-score-normalization-root-runtime-accepted.json",
+    "sha256": "6d5fe1993d3b3a58ea2009931b80e791d8eaa0f949ba23f8cff4a3423fb28df0"
+  },
+  "inactiveBudgetSupport": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-inactive-budget-root-review.json",
+    "sha256": "9f3113851ecb18604448ab52e7b7b7526be71c5c87c62c9d46fe916dba434093"
+  },
+  "independentBudgetReview": {
+    "path": "/home/nate/Oxy/.agent-evidence/integration-mention-third-budget-review-20261005/review.json",
+    "sha256": "db44637b8088599f5cd9f9f16813d12294250bcf919d8779412aba0f5205d201"
+  },
+  "originalFailure": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-original-failure-reconciled.json",
+    "sha256": "60305a85471567ec32020645c1848a6e012ff8101700b65896046a0986969401"
+  },
+  "secondFailure": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-failure-root-accepted.json",
+    "sha256": "eca52d68a19c1dd0cb9a03df6f79b9fd741b1554a6108b2a9a524f3c9c4c6fbc"
+  },
+  "secondGetRecovery": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-recovery-root-accepted.json",
+    "sha256": "6621a43288f8948006ee04fd34090e121e2a419b215d69e226c033004c65c90a"
+  },
+  "originalImmutableApproval": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/frozen.json",
+    "sha256": "e5fb0f619d7923196bfd78f5fd66e13d9130a845fef284272866b1cb4a675bf9"
+  },
+  "secondImmutableApproval": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-source-freeze/frozen.json",
+    "sha256": "11442681ee4e1788d541e0346723a15a2d47f7ef3edfde4dfbc2f577bba8a854"
+  },
+  "freshPrimaryReview": {
+    "path": "/home/nate/Oxy/.agent-evidence/i04-mention-third-primary-review-20261005/review.json",
+    "sha256": "abe3b49230d2d22cef3fb452758b5019d05a824ccddb976e13cf13cee467ddd8"
+  },
+  "actualPriceReadback": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-oxy-after2-run/accepted.json",
+    "sha256": "5c050d24a2b00b6ba1bab2a735050e9969056111a0cf1cdc0574d4d1a1525a52"
+  },
+  "scopeProposal": {
+    "path": "/home/nate/Oxy/.agent-evidence/coverage-mention-third-postfix-proposal-20261005/proposal.json",
+    "sha256": "cd6cf2f87e1c648db71875a7438bce43a384f0fd5f15e0d57c7600aecffaab2f"
+  },
+  "privacy": "Fresh04:57 primary terms and exact dated TypeSafe endpoint/ZDR entry unchanged. Keep TypeSafe-only, deny data collection, ZDR and exact price controls; native public shadow only, no public/commercial/resale/region/funding assertion.",
+  "newBudgetExplicitlyReviewed": {
+    "utcDay": "2026-10-05",
+    "economicPolicyVersion": "oxy-mention-jev-native/2026-10-05.3",
+    "stableRelationshipId": "mention-jev-kaana",
+    "maxTotalAdmissions": 3,
+    "previousFailedAdmissionsIncluded": 2,
+    "additionalAdmissions": 1,
+    "maxConcurrentRequests": 1,
+    "maxCostUsdPerNewOperation": "0.01",
+    "previousReportedProviderCostsUsd": [
+      "0.000025956",
+      "0.00002499"
+    ],
+    "controlledInputBytes": 8192,
+    "maxProviderAttempts": 1,
+    "windowSeconds": 7200
+  },
+  "previousUnchanged": "Both consumed permit/key/post/input/expiry/claims/history remain immutable. No rekey, reset or automatic retry. Stable relationship counter includes both failed admissions. Semantic evaluationVersion unchanged.",
+  "runtimePrerequisites": [
+    "Score normalization fix source and final serving image accepted",
+    "Exact frozen.3 source budget and scoped audience deployed, cumulative today3 includes both failed admissions and afterlock clock guards",
+    "New distinct deployment and card bound to existing key, signed/imported with existing sharedprice, canonical specific ownlegalreview",
+    "Five independent actual Mention source refs and final image, globalclassifier false selectednative shadow only",
+    "Before snapshots newkey/permit/post absent and both prior meterings/claims intact; count2failed2",
+    "Exactly one natural productworker operation; independent Oxy/Kaana/Mention outcome/cost and cleanup acceptance"
+  ],
+  "expiryPolicy": "New fixed distinct-review deadline; neither old review is extended. Expiry blocks new admission; prior GET recovery remains available.",
+  "diagnosisLimit": "Score normalization defect is reproduced from official representation and fixed with unchanged tolerances. Lost hosted response discrepancy magnitude remains unknown; no claim that historical failures became successes."
+}

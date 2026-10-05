@@ -1,5 +1,5 @@
 import { MENTION_CLASSIFIER_IDENTITY, mentionClassifierApproval, cloneMentionClassifierApproval, type MentionClassifierApproval } from '../../config/mentionClassifierEconomics';
-import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-second-source/economics.json';
+import rootApproval from '../../../../../docs/audits/2026-10-05-mention-native-third-source/economics.json';
 import { resolveEconomicTreatment } from '../../config/inferenceEconomicPolicy';
 import { isMentionClassifierRequest, mentionClassifierEconomicDecision } from '../mentionClassifierEconomics.service';
 import type { EdgePrincipal } from '../inferenceEdge.service';
@@ -26,7 +26,7 @@ it('activates only the frozen own-Mention relationship and preserves global comm
     expect(mentionClassifierApproval()).toEqual(rootApproval);
     const changed = mentionClassifierApproval()!;
     Object.assign(changed, { deploymentId: 'foreign' });
-    if (changed.qualificationBudget === undefined) throw new Error('reviewed .2 budget missing');
+    if (changed.qualificationBudget === undefined) throw new Error('reviewed .3 budget missing');
     Object.assign(changed.qualificationBudget, { maxTotalRequests: 99, utcDay: 'foreign' });
     expect(mentionClassifierApproval()).toEqual(rootApproval);
     jest.setSystemTime(expiry);
@@ -126,7 +126,7 @@ it('isolates the nested future qualification budget without approving it', () =>
     maxTotalRequests: 2, previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.1' });
 });
 
-it('derives the reviewed cumulative capacity from the exact second frozen source, without reopening the original review', () => {
+it('derives the reviewed cumulative capacity from the exact third frozen source, without reopening the original review', () => {
   const active: MentionClassifierApproval = rootApproval as MentionClassifierApproval;
   const result = mentionClassifierEconomicDecision({ ...input(), approval: active,
     request: { ...request, target: { kind: 'model', modelReference: active.modelReference } },
@@ -136,7 +136,7 @@ it('derives the reviewed cumulative capacity from the exact second frozen source
     now: Date.parse(active.expiresAt) - 1 });
   expect(result).toMatchObject({ policyVersion: active.economicPolicyVersion,
     relationship: { relationshipId: 'mention-jev-kaana', capacity: { maxConcurrentRequests: 1,
-      maxRequestsPerUtcDay: 2, qualificationBudget: { utcDay: '2026-10-05', expiresAt: active.expiresAt } } } });
+      maxRequestsPerUtcDay: 3, qualificationBudget: { utcDay: '2026-10-05', expiresAt: active.expiresAt } } } });
 });
 
 const thirdQualificationApproval = (): MentionClassifierApproval => ({ ...qualificationApproval(),
@@ -144,7 +144,7 @@ const thirdQualificationApproval = (): MentionClassifierApproval => ({ ...qualif
   qualificationBudget: { utcDay: '2026-10-05', maxTotalRequests: 3,
     previousEconomicPolicyVersion: 'oxy-mention-jev-native/2026-10-05.2' },
 });
-it('supports a separately reviewed cumulative third qualification without activating its getter', () => {
+it('supports a separately reviewed synthetic third qualification independently of the frozen getter', () => {
   const result = mentionClassifierEconomicDecision({ ...input(), approval: thirdQualificationApproval(),
     now: Date.parse('2026-10-05T05:00:00Z') });
   expect(result).toMatchObject({ policyVersion: 'oxy-mention-jev-native/2026-10-05.3',

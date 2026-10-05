@@ -1,0 +1,38 @@
+{
+  "kind": "root-distinct-mention-third-operation-freeze-v1",
+  "rootReview": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/root-review.json",
+    "sha256": "ea34cfaf7bc7e3b7743dcc6509d15f421b741de4e496269f913009b41b89b998"
+  },
+  "audience": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/audience.json",
+    "sha256": "c7bc1aea899adead03d35f30620a1bdc6cd6805067bf0dee40a5be8f7e71fde1"
+  },
+  "economics": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/economics.json",
+    "sha256": "078b78f052f79171e362288cceb3148c44e085539a8d2ec9f5e4e1f1635211d9"
+  },
+  "providerCard": {
+    "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-third-source-freeze/provider-card.json",
+    "sha256": "40634000dfe23d9364dd09129b3f30c9ab2e6c9fab2e298c99845329f870ec0c"
+  },
+  "selection": {
+    "postId": "019fd378-8ea7-7b4f-acd0-1c83361e0413",
+    "fingerprint": "b6118a879b0961cf1c25c040ea501ef7e4557228bea5f4f82dac2efa2e684222",
+    "inputSha256": "0c12c43c70a269a40ca0e856af98c48db8d20573b2e1b7d75f9bd6f9468a73da",
+    "idempotencyKey": "mention_jev_native_en_9aebfe5269e8fbe9e8c3961a93ef71d3"
+  },
+  "expiresAt": "2026-10-05T07:09:12Z",
+  "sourceCardObservation": "Original22:51:12 card observation preserved; fresh04:57 independent public revalidation separately recorded, never backdated.",
+  "noRuntimeAcceptanceInferred": true,
+  "previousImmutableApprovals": [
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-source-freeze-v2/frozen.json",
+      "sha256": "e5fb0f619d7923196bfd78f5fd66e13d9130a845fef284272866b1cb4a675bf9"
+    },
+    {
+      "path": "/home/nate/Oxy/.agent-evidence/root-1519-full-completion-20261004/mention-second-source-freeze/frozen.json",
+      "sha256": "11442681ee4e1788d541e0346723a15a2d47f7ef3edfde4dfbc2f577bba8a854"
+    }
+  ]
+}
