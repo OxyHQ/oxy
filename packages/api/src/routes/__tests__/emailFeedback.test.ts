@@ -10,7 +10,27 @@
  * checks out against the wrong key.
  */
 
-import { extractAngleAddress, isAmazonSigningCertUrl, snsStringToSign } from '../emailFeedback';
+import {
+  extractAngleAddress,
+  isAmazonSigningCertUrl,
+  isAuthorizedSnsTopic,
+  snsStringToSign,
+} from '../emailFeedback';
+
+describe('isAuthorizedSnsTopic', () => {
+  const configured = 'arn:aws:sns:us-east-1:111122223333:oxy-ses-feedback';
+
+  it('accepts only the exact configured topic ARN', () => {
+    expect(isAuthorizedSnsTopic(configured, configured)).toBe(true);
+    expect(isAuthorizedSnsTopic('arn:aws:sns:us-east-1:999999999999:attacker-topic', configured)).toBe(false);
+    expect(isAuthorizedSnsTopic(`${configured}-suffix`, configured)).toBe(false);
+  });
+
+  it('fails closed when the topic or configuration is absent', () => {
+    expect(isAuthorizedSnsTopic(undefined, configured)).toBe(false);
+    expect(isAuthorizedSnsTopic(configured, '')).toBe(false);
+  });
+});
 
 describe('isAmazonSigningCertUrl', () => {
   it('accepts Amazon SNS signing hosts', () => {

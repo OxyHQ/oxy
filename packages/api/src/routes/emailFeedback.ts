@@ -40,6 +40,7 @@ import { extractUsername } from '../config/email.config';
 const router = Router();
 
 const BREVO_WEBHOOK_SECRET = getEnvVar('BREVO_WEBHOOK_SECRET', '');
+const SES_FEEDBACK_TOPIC_ARN = getEnvVar('SES_FEEDBACK_TOPIC_ARN', '').trim();
 /**
  * Refuse anything arriving with a cookie.
  *
@@ -121,6 +122,15 @@ export interface SnsEnvelope {
   SignatureVersion?: string;
   Signature?: string;
   SigningCertURL?: string;
+}
+
+/**
+ * SNS signatures establish that Amazon emitted an envelope, not that the
+ * envelope came from this deployment's SES feedback topic. Bind both
+ * confirmations and notifications to the exact operator-configured ARN.
+ */
+export function isAuthorizedSnsTopic(topicArn: string | undefined, expectedTopicArn: string): boolean {
+  return expectedTopicArn.length > 0 && topicArn === expectedTopicArn;
 }
 
 /**
@@ -338,6 +348,17 @@ router.post(
   '/ses',
   asyncHandler(async (req: Request, res: Response) => {
     const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as SnsEnvelope;
+
+    if (!SES_FEEDBACK_TOPIC_ARN) {
+      logger.error('SNS feedback received but SES_FEEDBACK_TOPIC_ARN is not configured');
+      res.status(503).json({ error: 'Webhook not configured' });
+      return;
+    }
+    if (!isAuthorizedSnsTopic(body.TopicArn, SES_FEEDBACK_TOPIC_ARN)) {
+      logger.warn('SNS message rejected: topic is not authorized');
+      res.status(403).json({ error: 'Invalid topic' });
+      return;
+    }
 
     if (!(await verifySnsSignature(body))) {
       logger.warn('SNS message rejected: signature verification failed');
