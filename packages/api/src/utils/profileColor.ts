@@ -24,6 +24,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { USER_COLOR_PRESETS, users, type UserColorPreset } from '../db/schema/users';
 import { BadRequestError } from './error';
+import { isPremiumSubscriptionPlan, resolveUserSubscriptionPlan } from './subscriptionPlan';
 import {readProfilePersonalization} from '../services/profilePersonalization.service';
 
 /**
@@ -74,7 +75,7 @@ async function storedUsername(accountId: string): Promise<string | null> {
  *
  * The rule is the one `updateUserProfile` has always enforced on a person's own
  * profile, stated for any subject: the account whose HANDLE is the brand may
- * wear it, no subscription overrides the reserved identity.
+ * wear it, and so may an independently premium subscriber.
  *
  * ## The subject is the account being COLOURED, never the administrator
  *
@@ -103,5 +104,6 @@ export async function assertColorNotReserved(
     subject.username ?? (subject.accountId ? await storedUsername(subject.accountId) : null);
   if (handle && normalizeUserColor(handle) === color) return;
 
-  throw new BadRequestError(`The ${color} color is reserved for its matching identity`);
+  if (subject.accountId && isPremiumSubscriptionPlan(await resolveUserSubscriptionPlan(subject.accountId))) return;
+  throw new BadRequestError(`The ${color} color is exclusive to premium subscribers`);
 }

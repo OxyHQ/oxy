@@ -10,7 +10,7 @@ SDK service snapshots require the existing account-specific offline consent, app
 
 ## Working draft integrations
 
-Alia maintains durable subscription-period allocations independently of free and individual paid balances, reserves and settles real credit operations, and rechecks time after allocation-row lock waits. Cancellation, expiry, overlap and replay cannot mint renewed allowance. Queue identity is persisted without user tokens. Actual balance and plan UI displays the independent sources. Voice requests with an eligible bundle or unknown configured authority fail before inference/storage because a voice-to-credit accounting policy is not approved.
+Alia maintains durable subscription-period allocations independently of free and individual paid balances, reserves and settles real credit operations, and rechecks time after allocation-row lock waits. Cancellation, expiry, overlap and replay cannot mint renewed allowance. Queue identity is persisted without user tokens. Actual balance and plan UI displays the independent sources. Standalone speech preserves its existing authenticated-user policy; voice-call chat and show episodes retain their respective existing metering. Standalone speech is not a new monthly-credit benefit.
 
 Mention gates mono through the specific capability and canonical profile preset shared by contracts, SDK and API, preserving eligible individual sources. Noted routes attachment ownership and usage through shared storage and fences account/session changes; its ordinary notes and exports remain usable.
 

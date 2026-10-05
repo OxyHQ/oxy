@@ -107,7 +107,7 @@ describe('the `oxy` colour is refused without premium', () => {
       // assertion below is exactly that), so asking twice costs nothing.
       await expect(userService.updateUserProfile(id, { color })).rejects.toThrow(BadRequestError);
       await expect(userService.updateUserProfile(id, { color })).rejects.toThrow(
-        'The oxy color is reserved for its matching identity'
+        'The oxy color is exclusive to premium subscribers'
       );
 
       // The load-bearing half: the write did not happen. A gate that throws
@@ -121,7 +121,7 @@ describe('the `oxy` colour is refused without premium', () => {
     await giveSubscription(id, 'basic');
 
     await expect(userService.updateUserProfile(id, { color: 'oxy' })).rejects.toThrow(
-      'The oxy color is reserved for its matching identity'
+      'The oxy color is exclusive to premium subscribers'
     );
     expect(await storedColor(id)).toBe('blue');
   });
@@ -143,19 +143,19 @@ describe('the `oxy` colour is refused without premium', () => {
     });
 
     await expect(userService.updateUserProfile(id, { color: 'oxy' })).rejects.toThrow(
-      'The oxy color is reserved for its matching identity'
+      'The oxy color is exclusive to premium subscribers'
     );
     expect(await storedColor(id)).toBe('blue');
   });
 });
 
-describe('identity colors remain handle-owned', () => {
-  it.each([['pro'], ['business']])('refuses reserved identity color even for a live %p subscriber', async (plan) => {
+describe('existing premium identity colors and added mono benefit', () => {
+  it.each([['pro'], ['business']])('preserves reserved identity color for a live %p subscriber', async (plan) => {
     const id = await makeUser();
     await giveSubscription(id, plan);
 
-    await expect(userService.updateUserProfile(id, { color: ' OXY ' })).rejects.toThrow(BadRequestError);
-    expect(await storedColor(id)).toBe('blue');
+    await userService.updateUserProfile(id, { color: ' OXY ' });
+    expect(await storedColor(id)).toBe('oxy');
     await userService.updateUserProfile(id,{color:'mono'});
     expect(await storedColor(id)).toBe('mono');
   });
@@ -174,7 +174,7 @@ describe('identity colors remain handle-owned', () => {
     const id = await makeUser({ username: `oxy${uniqueId().slice(0, 8)}` });
 
     await expect(userService.updateUserProfile(id, { color: 'oxy' })).rejects.toThrow(
-      'The oxy color is reserved for its matching identity'
+      'The oxy color is exclusive to premium subscribers'
     );
     expect(await storedColor(id)).toBe('blue');
   });
