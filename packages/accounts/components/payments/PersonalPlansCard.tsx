@@ -14,7 +14,7 @@ export function PersonalPlansCard() {
 
 function PersonalPlansContent() {
   const { oxyServices, user, activeSessionId, isAuthenticated } = useOxy();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const catalogue = usePersonalPlans();
   const sources = usePersonalPlanSubscriptions();
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -41,6 +41,10 @@ function PersonalPlansContent() {
         : <>
           {catalogue.data?.plans.map(plan => <View key={`${plan.offerId}@${plan.offerVersion}`}>
             <ThemedText>{plan.displayName} · v{plan.offerVersion}</ThemedText>
+            {plan.price && <>
+              <ThemedText>{t('payments.one.monthlyPrice', { price: formatPersonalPlanPrice(plan.price, locale) })}</ThemedText>
+              <ThemedText>{t('payments.one.noTrial')}</ThemedText>
+            </>}
             {plan.benefits.map(({ displayName, benefit }) => <ThemedText key={`${benefit.productId}:${benefit.key}:${displayName}`}>
               {displayName}{benefit.kind === 'quota' ? ` · ${benefit.included.toLocaleString()} ${benefit.unit}` : ''}
             </ThemedText>)}
@@ -65,4 +69,11 @@ function PersonalPlansContent() {
       {!!message && <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>}
     </View>
   </Section>;
+}
+
+/** Currency precision comes from Intl; catalogue amounts are integer minor units. */
+export function formatPersonalPlanPrice(price: { currency: string; amountMinorUnits: number }, locale: string): string {
+  const formatter = new Intl.NumberFormat(locale, { style: 'currency', currency: price.currency });
+  const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
+  return formatter.format(price.amountMinorUnits / 10 ** digits);
 }

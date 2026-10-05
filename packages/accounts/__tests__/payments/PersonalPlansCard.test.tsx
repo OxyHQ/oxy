@@ -3,6 +3,8 @@ import { render, fireEvent, screen, waitFor } from '@testing-library/react';
 const mockCancel = jest.fn();
 let mockUser = { id: 'first' };
 const mockRefetch = jest.fn();
+let mockPlans: unknown[] = [];
+let mockLocale = 'en-US';
 const mockSource = { sourceId: 'source-one', status: 'active', period: { end: '2026-11-05T00:00:00.000Z' },
   cancelAtPeriodEnd: false, canCancel: true, offers: [] };
 jest.mock('react-native', () => ({
@@ -11,16 +13,16 @@ jest.mock('react-native', () => ({
 }));
 jest.mock('@/components/section', () => ({ Section: ({ children }: { children: React.ReactNode }) => <section>{children}</section> }));
 jest.mock('@/components/themed-text', () => ({ ThemedText: ({ children }: { children: React.ReactNode }) => <span>{children}</span> }));
-jest.mock('@/lib/i18n', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+jest.mock('@/lib/i18n', () => ({ useTranslation: () => ({ locale: mockLocale, t: (key: string, vars?: { price?: string }) => key === 'payments.one.monthlyPrice' ? `${vars?.price}/${mockLocale === 'es-ES' ? 'mes' : 'month'}` : key }) }));
 jest.mock('@oxy.so/core', () => ({ authenticatedApiCall: (_svc: unknown, _sid: unknown, run: () => unknown) => run() }));
 jest.mock('@oxy.so/services', () => ({
   useOxy: () => ({ user: mockUser, isAuthenticated: true, activeSessionId: mockUser.id,
     oxyServices: { billing: { cancelProductSubscriptionWithStatus: mockCancel } } }),
-  usePersonalPlans: () => ({ data: { state: 'unconfigured', plans: [] } }),
+  usePersonalPlans: () => ({ data: { state: 'unconfigured', plans: mockPlans } }),
   usePersonalPlanSubscriptions: () => ({ data: [mockSource], refetch: mockRefetch }),
 }));
 import { PersonalPlansCard } from '@/components/payments/PersonalPlansCard';
-beforeEach(() => { mockUser = { id: 'first' }; mockCancel.mockReset(); mockRefetch.mockReset(); });
+beforeEach(() => { mockUser = { id: 'first' }; mockCancel.mockReset(); mockRefetch.mockReset(); mockPlans = []; mockLocale = 'en-US'; });
 it('requires confirmation, fences cancellation to the account, and explains pending reconciliation', async () => {
   mockCancel.mockResolvedValue({ sourceId: 'source-one', reconciliationPending: true });
   render(<PersonalPlansCard />);
@@ -38,4 +40,22 @@ it('clears a pending confirmation when the account changes', () => {
   mockUser = { id: 'second' }; rerender(<PersonalPlansCard />);
   expect(screen.queryByText('payments.one.confirmCancel')).toBeNull();
   expect(mockCancel).not.toHaveBeenCalled();
+});
+
+it('shows the catalogue monthly price without offering checkout or trial', () => {
+  mockPlans = [{offerId:'synthetic-only', offerVersion:1,displayName:'Oxy One Personal',benefits:[],
+    price:{currency:'USD',amountMinorUnits:2999,interval:'month',trial:'none'}}];
+  render(<PersonalPlansCard />);
+  expect(screen.getByText('$29.99/month')).toBeTruthy();
+  expect(screen.getByText('payments.one.noTrial')).toBeTruthy();
+  expect(screen.getByText('payments.one.unconfigured')).toBeTruthy();
+  expect(screen.queryByText(/buy|checkout|subscribe/i)).toBeNull();
+});
+it('formats locale-aware prices and follows SDK amounts rather than a UI constant', () => {
+  mockLocale = 'es-ES';
+  mockPlans = [{offerId:'synthetic-only',offerVersion:2,displayName:'Synthetic fixture',benefits:[],
+    price:{currency:'USD',amountMinorUnits:1234,interval:'month',trial:'none'}}];
+  render(<PersonalPlansCard />);
+  expect(screen.getByText(/12,34.*US.*\/mes/)).toBeTruthy();
+  expect(screen.queryByText(/29[.,]99/)).toBeNull();
 });
