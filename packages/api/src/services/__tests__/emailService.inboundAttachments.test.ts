@@ -310,6 +310,22 @@ describe('storeIncomingMessage — the message itself', () => {
       && event.resource.effectiveAccountId === user.id
       && event.resource.resourceId === stored.mailboxId
     )).toBe(true);
+    const newEmail = events.find(({ event }) => event.type === 'new_email')?.event;
+    expect(newEmail?.data).toMatchObject({ snippet: 'Body', folder: 'inbox' });
+  });
+
+  it('tells subscribers a spam-scored message is spam, and never that it needs a reply', async () => {
+    const user = await recipient();
+    const spam = await emailService.storeIncomingMessage(
+      baseParams(user.username, { spamScore: 9, spamAction: 'reject', text: 'x'.repeat(500) }),
+    );
+    const events = await getDb()
+      .select({ event: normalizedAppEventOutbox.event })
+      .from(normalizedAppEventOutbox)
+      .where(inArray(normalizedAppEventOutbox.eventId, [`${spam.id}:new_email`, `${spam.id}:email_needs_reply`]));
+    expect(events.map(({ event }) => event.type)).toEqual(['new_email']);
+    expect(events[0]?.event.data).toMatchObject({ folder: 'spam' });
+    expect(String(events[0]?.event.data.snippet).length).toBeLessThanOrEqual(140);
   });
 
   it('routes a spam-scored message to Junk instead of the Inbox', async () => {

@@ -8,6 +8,8 @@ const base = {
   subject: 'Can you review this?',
   headers: {},
   receivedAt: new Date('2026-09-02T10:00:00.000Z'),
+  snippet: 'Here is the draft, could you review it by Friday?',
+  folder: 'inbox' as const,
 };
 
 describe('Inbox normalized events', () => {
@@ -54,6 +56,8 @@ describe('Inbox normalized events', () => {
       mailboxId: 'mailbox-1',
       from: 'person@example.com',
       subject: 'Can you review this?',
+      snippet: 'Here is the draft, could you review it by Friday?',
+      folder: 'inbox',
     });
     expect(events[1]?.data).toEqual({
       messageId: 'message-1',
@@ -61,5 +65,16 @@ describe('Inbox normalized events', () => {
       reason: 'Direct non-automated incoming message',
     });
     expect(JSON.stringify(events)).not.toContain('must-not-be-persisted');
+  });
+
+  it('carries at most the one-line preview, never more of the body', () => {
+    const [event] = buildInboxMessageEvents({ ...base, snippet: 'y'.repeat(1000) });
+    expect(String(event?.data.snippet)).toHaveLength(140);
+  });
+
+  it('marks Junk as spam and never claims spam needs a reply', () => {
+    const events = buildInboxMessageEvents({ ...base, folder: 'spam' });
+    expect(events.map((event) => event.type)).toEqual(['new_email']);
+    expect(events[0]?.data.folder).toBe('spam');
   });
 });

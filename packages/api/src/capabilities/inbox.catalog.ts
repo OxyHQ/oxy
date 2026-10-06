@@ -554,11 +554,19 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
   ],
   events: [
     {
-      type: 'new_email', version: '1.0.0',
-      description: 'An email arrived in a mailbox. `messageId` is the email\'s `id` (use it as `emailId`).',
+      type: 'new_email', version: '1.1.0',
+      description: 'An email arrived in a mailbox. `messageId` is the email\'s `id` (use it as `emailId`). '
+        + '`snippet` is the one-line list preview (at most 140 characters, never the body); `folder` is `spam` when it was filed in Junk.',
       dataSchema: {
         type: 'object',
-        properties: { messageId: { type: 'string' }, mailboxId: { type: 'string' }, from: { type: 'string' }, subject: { type: 'string' } },
+        properties: {
+          messageId: { type: 'string' },
+          mailboxId: { type: 'string' },
+          from: { type: 'string' },
+          subject: { type: 'string' },
+          snippet: { type: 'string', maxLength: 140 },
+          folder: { type: 'string', enum: ['inbox', 'spam'] },
+        },
         required: ['messageId', 'mailboxId'], additionalProperties: false,
       },
       resourceTypes: ['mailbox'],
