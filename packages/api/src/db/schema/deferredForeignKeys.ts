@@ -1,6 +1,9 @@
 import { billingCreditInvoices, billingCreditGrants, billingCreditSpends, billingCreditRefundObservations } from './billingCreditGrants';
 import { accessSubscriptionSources } from './productAccess';
 import { accessProviderPeriods, accessProviderEvents } from './productProviderEvidence';
+import { accessProviderRefunds } from './productProviderRefunds';
+import { personalPlanCheckoutIntents } from './personalPlanCheckoutIntents';
+import { storageByteReservations } from './storageByteReservations';
 import { emailSignInRequests } from './emailSignInRequests';
 import { signInSecondFactorChallenges } from './signInChallenges';
 import { externalIdentities, externalIdentityClaims } from './externalIdentities';
@@ -133,6 +136,17 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   { table: accessProviderPeriods, column: accessProviderPeriods.invoiceId, reason: 'Opaque invoice identity owned by the explicitly bound provider/account/mode/environment; not a local billing invoice ID.' },
   { table: accessProviderPeriods, column: accessProviderPeriods.lineId, reason: 'Opaque recurring invoice line owned by the provider, combined with its invoice and provider binding; no local provider-line table exists.' },
   { table: accessProviderPeriods, column: accessProviderPeriods.priceId, reason: 'Explicit opaque provider price in the normalized immutable paid-line evidence; not a local catalogue row.' },
+  { table: accessProviderRefunds, column: accessProviderRefunds.invoiceId, reason: 'Opaque Peable invoice owned by the bound provider/account/mode/environment; no local provider invoice table.' },
+  { table: accessProviderRefunds, column: accessProviderRefunds.lineId, reason: 'Opaque Peable invoice line, unique only with its invoice and provider binding; no local provider-line table.' },
+  { table: accessProviderRefunds, column: accessProviderRefunds.priceId, reason: 'Opaque provider price observed on the refunded line; not a local catalogue row.' },
+  { table: accessProviderRefunds, column: accessProviderRefunds.paymentIntentId, reason: 'Opaque Peable payment intent identity of the refunded charge; no local payment-intent table.' },
+  { table: accessProviderRefunds, column: accessProviderRefunds.chargeId, reason: 'Opaque Peable charge identity verified against the refunded invoice payment; no local charge table.' },
+  { table: accessProviderRefunds, column: accessProviderRefunds.providerSubscriptionId, reason: 'Opaque Peable subscription identity, not the local access_subscription_sources primary key.' },
+  { table: accessProviderRefunds, column: accessProviderRefunds.sourceId, reason: 'Deterministic ID of the source the refunded line WOULD activate. A full refund may precede activation and must fence it, so the row cannot reference a source that does not exist yet.' },
+  { table: accessProviderRefunds, column: accessProviderRefunds.segmentId, reason: 'Deterministic ID of the paid segment the refund fences. Recorded before activation, so recordProductAccessPeriod refuses to create that segment later; an FK would forbid the fence.' },
+  { table: personalPlanCheckoutIntents, column: personalPlanCheckoutIntents.priceId, reason: 'Opaque provider price frozen at reservation; the approved price columns keep it after the catalogue changes. Not a local catalogue row.' },
+  { table: personalPlanCheckoutIntents, column: personalPlanCheckoutIntents.providerSessionId, reason: 'Opaque Peable checkout session identity used for terminal observation replay; no local provider-session table.' },
+  { table: storageByteReservations, column: storageByteReservations.accountId, reason: 'Durable byte claim that must outlive the owning account: deleting the users row must not drop the claim before its storage objects are cleaned up and the quota hold released.' },
   { table: accessProviderEvents, column: accessProviderEvents.eventId, reason: 'Opaque provider delivery ID, deduplicated only within provider/account/mode/environment; no local provider-event table exists.' },
   { table: accountEvents, column: accountEvents.userId,
     reason: 'The DELETED account the event announces. Its `users` row is gone (or archived) by the time relying parties read this, which is the point of the event; a foreign key could only CASCADE the announcement away with the account or RESTRICT the deletion. Swept after `ACCOUNT_EVENT_RETENTION_SECONDS`.' },

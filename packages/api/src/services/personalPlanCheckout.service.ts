@@ -16,6 +16,13 @@ export interface PersonalCheckoutProvider {
     providerAccountRef: string; mode: string; environment: string; interval:'month';trial:'none' }): Promise<{ sessionId: string; checkoutUrl: string }>;
 }
 function hash(value: string): string { return createHash('sha256').update(value).digest('hex'); }
+/** The approved price frozen at reservation, independent of the current catalogue. */
+function frozenPrice(intent: typeof personalPlanCheckoutIntents.$inferSelect) {
+  return productBillingPriceSchema.parse({ priceId: intent.priceId, provider: intent.priceProvider, providerAccountId: intent.providerAccountRef,
+    mode: intent.mode, environment: intent.environment, offerId: intent.offerId, offerVersion: intent.offerVersion,
+    validFrom: intent.priceValidFrom.toISOString(), validUntil: intent.priceValidUntil?.toISOString() ?? null,
+    currency: intent.currency, amountMinorUnits: intent.amountMinorUnits, offerKind: intent.offerKind, kind: intent.priceKind });
+}
 export async function startPersonalPlanCheckout(subjectAccountId: string, raw: PersonalPlanCheckoutRequest,
   dependencies: { catalogue?: ProductBillingCatalogue; provider?: PersonalCheckoutProvider; now?: Date } = {}): Promise<PersonalPlanCheckoutResult> {
   const request = personalPlanCheckoutRequestSchema.parse(raw);
@@ -48,7 +55,7 @@ export async function startPersonalPlanCheckout(subjectAccountId: string, raw: P
     && Date.parse(value.validFrom) <= now.getTime() && (value.validUntil === null || Date.parse(value.validUntil) > now.getTime()));
   if (!prior && prices.length === 0) return { state: 'unconfigured', reason: 'price_unconfigured' };
   if (!prior && prices.length !== 1) throw new ConflictError('Approved checkout price selection is ambiguous');
-  const price = prior ? productBillingPriceSchema.parse(prior.selection) : prices[0];
+  const price = prior ? frozenPrice(prior) : prices[0];
   const requestHash = hash(JSON.stringify({ offerId: request.offerId, offerVersion: request.offerVersion,
     providerAccountRef: price.providerAccountId, priceId: price.priceId, amountMinorUnits: price.amountMinorUnits, currency: price.currency }));
   const intent = await getDb().transaction(async tx => {
@@ -70,7 +77,9 @@ export async function startPersonalPlanCheckout(subjectAccountId: string, raw: P
     if (held) throw new ConflictError('A personal bundle subscription already exists');
     const [created] = await tx.insert(personalPlanCheckoutIntents).values({ id: randomUUID(), subjectAccountId, ...namespace,
       idempotencyHash, requestHash, offerId: request.offerId, offerVersion: request.offerVersion,
-      providerAccountRef: price.providerAccountId, priceId: price.priceId, selection: price, state: 'reserved' }).returning();
+      providerAccountRef: price.providerAccountId, offerKind: price.offerKind, priceId: price.priceId, priceProvider: price.provider,
+      priceKind: price.kind, currency: price.currency, amountMinorUnits: price.amountMinorUnits,
+      priceValidFrom: new Date(price.validFrom), priceValidUntil: price.validUntil === null ? null : new Date(price.validUntil), state: 'reserved' }).returning();
     return created;
   });
   if (intent.state === 'closed') return { state: 'closed', intentId: intent.id };

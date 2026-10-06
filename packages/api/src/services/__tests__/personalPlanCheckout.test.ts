@@ -85,3 +85,24 @@ it('requires provider mapping to match approved display amount/currency and requ
  expect((await startPersonalPlanCheckout(f.payer,f.request,deps)).state).toBe('pending');
  expect(f.create.mock.calls[0][0]).toMatchObject({amountMinorUnits:2999,currency:'usd',interval:'month',trial:'none'});
 });
+
+it('replays a reserved intent with its frozen typed price after the catalogue changes', async () => {
+  const f = await fixture();
+  const failing: PersonalCheckoutProvider = { kind: 'synthetic', create: jest.fn(async () => { throw new Error('provider unavailable'); }) };
+  await expect(startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider: failing })).rejects.toThrow('provider unavailable');
+  const [reserved] = await getDb().select().from(personalPlanCheckoutIntents).where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
+  expect(reserved).toMatchObject({ state: 'reserved', priceId: 'price_synthetic', priceProvider: 'peable', priceKind: 'oxy_one', offerKind: 'bundle',
+    currency: 'usd', amountMinorUnits: 7, priceValidFrom: new Date('2026-01-01T00:00:00.000Z'), priceValidUntil: null });
+  const changed = structuredClone(f.catalogue); changed.prices[0].amountMinorUnits = 8; changed.prices[0].priceId = 'price_replaced';
+  expect((await startPersonalPlanCheckout(f.payer, f.request, { catalogue: changed, provider: f.provider })).state).toBe('pending');
+  expect(f.create.mock.calls[0][0]).toMatchObject({ intentId: reserved.id, amountMinorUnits: 7, currency: 'usd', priceId: 'price_synthetic' });
+});
+
+it('binds a checkout to a registered bundle offer version at the database', async () => {
+  const f = await fixture();
+  const row = { id: randomUUID(), subjectAccountId: f.payer, mode: 'live', environment: 'production', idempotencyHash: randomUUID(), requestHash: randomUUID(),
+    offerId: f.offers[0].id, offerVersion: 99, offerKind: 'bundle' as const, providerAccountRef: 'merch_synthetic', priceId: 'price_synthetic',
+    priceProvider: 'peable' as const, priceKind: 'oxy_one' as const, currency: 'usd', amountMinorUnits: 7, priceValidFrom: new Date(), state: 'reserved' as const };
+  await expect(getDb().insert(personalPlanCheckoutIntents).values(row)).rejects.toThrow();
+  await expect(getDb().insert(personalPlanCheckoutIntents).values({ ...row, offerVersion: 1, fulfilledSourceId: `access_source_${randomUUID()}`, state: 'fulfilled' })).rejects.toThrow();
+});

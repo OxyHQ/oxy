@@ -37066,6 +37066,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "offer_kind": {
+          "name": "offer_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "provider_account_ref": {
           "name": "provider_account_ref",
           "type": "text",
@@ -37078,11 +37084,41 @@
           "primaryKey": false,
           "notNull": true
         },
-        "selection": {
-          "name": "selection",
-          "type": "jsonb",
+        "price_provider": {
+          "name": "price_provider",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "price_kind": {
+          "name": "price_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_minor_units": {
+          "name": "amount_minor_units",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_valid_from": {
+          "name": "price_valid_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_valid_until": {
+          "name": "price_valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "state": {
           "name": "state",
@@ -37198,6 +37234,36 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk": {
+          "name": "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk",
+          "tableFrom": "personal_plan_checkout_intents",
+          "tableTo": "access_subscription_sources",
+          "columnsFrom": [
+            "fulfilled_source_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "personal_checkout_offer_fk": {
+          "name": "personal_checkout_offer_fk",
+          "tableFrom": "personal_plan_checkout_intents",
+          "tableTo": "access_offers",
+          "columnsFrom": [
+            "offer_id",
+            "offer_version",
+            "offer_kind"
+          ],
+          "columnsTo": [
+            "id",
+            "version",
+            "kind"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -37211,6 +37277,14 @@
         "personal_checkout_state": {
           "name": "personal_checkout_state",
           "value": "\"personal_plan_checkout_intents\".\"state\" in ('reserved', 'pending', 'fulfilled', 'closed')"
+        },
+        "personal_checkout_price": {
+          "name": "personal_checkout_price",
+          "value": "\"personal_plan_checkout_intents\".\"offer_kind\" = 'bundle' and \"personal_plan_checkout_intents\".\"price_kind\" = 'oxy_one' and \"personal_plan_checkout_intents\".\"price_provider\" in ('stripe', 'peable') and \"personal_plan_checkout_intents\".\"currency\" ~ '^[a-z]{3}$' and \"personal_plan_checkout_intents\".\"amount_minor_units\" > 0 and (\"personal_plan_checkout_intents\".\"price_valid_until\" is null or \"personal_plan_checkout_intents\".\"price_valid_until\" > \"personal_plan_checkout_intents\".\"price_valid_from\")"
+        },
+        "personal_checkout_fulfillment": {
+          "name": "personal_checkout_fulfillment",
+          "value": "(\"personal_plan_checkout_intents\".\"state\" = 'fulfilled') = (\"personal_plan_checkout_intents\".\"fulfilled_source_id\" is not null)"
         }
       },
       "isRLSEnabled": false
