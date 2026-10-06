@@ -14,17 +14,18 @@ function readWorkspacePackageVersion(dir: string): string {
   return manifest.version;
 }
 
-/** `[major, minor, patch]` of a caret range's floor — `^1.7.1` → `[1, 7, 1]`. */
-function floorOf(range: string): [number, number, number] {
-  const parts = range.replace(/^[\^~]/, '').split('.').map(Number);
-  if (parts.length !== 3 || parts.some(Number.isNaN)) throw new Error(`not a plain semver range: ${range}`);
-  return [parts[0], parts[1], parts[2]];
+/** `[major, minor, patch]` of a caret range's floor — `^1.7.1` → `[1, 7, 1]` —
+ * and whether it is a prerelease (`11.2.0-oxy-one.0` is a workspace candidate). */
+function floorOf(range: string): { core: [number, number, number]; prerelease: boolean } {
+  const match = /^[\^~]?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/.exec(range);
+  if (!match) throw new Error(`not a plain semver range: ${range}`);
+  return { core: [Number(match[1]), Number(match[2]), Number(match[3])], prerelease: match[4] !== undefined };
 }
 
-/** Negative when `a` sorts below `b`. */
+/** Negative when `a` sorts below `b`; a prerelease sorts below its release. */
 function compareVersions(a: string, b: string): number {
   const [x, y] = [floorOf(a), floorOf(b)];
-  return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+  return x.core[0] - y.core[0] || x.core[1] - y.core[1] || x.core[2] - y.core[2] || Number(y.prerelease) - Number(x.prerelease);
 }
 
 function readWorkspaceCatalogVersion(pkg: string): string {
