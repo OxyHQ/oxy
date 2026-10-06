@@ -9935,6 +9935,96 @@
         "operationId": "postBillingCheckoutCredits"
       }
     },
+    "/billing/checkout/personal-plan": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "Inert until an approved provider adapter is wired in a separately authorized change.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/billing.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedSubjectAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "offerId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "offerVersion": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]+$",
+                    "minLength": 8,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "expectedSubjectAccountId",
+                  "offerId",
+                  "offerVersion",
+                  "idempotencyKey"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postBillingCheckoutPersonalPlan"
+      }
+    },
     "/billing/checkout/subscription": {
       "post": {
         "tags": [
@@ -10182,6 +10272,35 @@
           {}
         ],
         "operationId": "getBillingPackages"
+      }
+    },
+    "/billing/personal-plans": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "GET /billing/personal-plans",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/billing.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/billing.ts`, naming a Zod schema the file imports."
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getBillingPersonalPlans"
       }
     },
     "/billing/plans": {
@@ -10589,6 +10708,12 @@
                   "sourceId": {
                     "type": "string",
                     "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "actionId": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]+$",
+                    "minLength": 8,
                     "maxLength": 160
                   },
                   "expectedSubjectAccountId": {
@@ -43195,6 +43320,200 @@
           }
         ],
         "operationId": "getV1ProductsProductIdAccessSubjectAccountId"
+      }
+    },
+    "/v1/products/{productId}/access/{subjectAccountId}/grants": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "GET /v1/products/{productId}/access/{subjectAccountId}/grants",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/productAccess.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "subjectAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/productAccess.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getV1ProductsProductIdAccessSubjectAccountIdGrants"
+      }
+    },
+    "/v1/products/{productId}/access/{subjectAccountId}/service-grants": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "No impersonation header: the exact path subject must hold live offline consent.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/productAccess.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "subjectAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/productAccess.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getV1ProductsProductIdAccessSubjectAccountIdServiceGrants"
       }
     },
     "/v1/responses": {
