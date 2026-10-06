@@ -35,10 +35,19 @@ const actor = {
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 async function fixture() {
+	// Every field the canary's precondition reads is SET here rather than left
+	// to whichever file ran before in this worker's database: the owner id is
+	// the real `oxy` organization, which other fixtures (the official-app seed
+	// tests) create and delete with their own shape, and a row this fixture
+	// merely tolerated failed the precondition whenever sharding put them
+	// first.
 	await getDb()
 		.insert(users)
 		.values({ id: I03_CANARY_OWNER_ID, color: "blue" })
-		.onConflictDoNothing();
+		.onConflictDoUpdate({ target: users.id, set: { accountStatus: "active" } });
+	await getDb()
+		.delete(accountClosureFences)
+		.where(eq(accountClosureFences.accountId, I03_CANARY_OWNER_ID));
 	await getDb()
 		.insert(applications)
 		.values({
@@ -49,11 +58,15 @@ async function fixture() {
 			status: "active",
 			scopes: [...I03_CANARY_SCOPES],
 		})
-		.onConflictDoNothing();
-	await getDb()
-		.update(applications)
-		.set({ scopes: [...I03_CANARY_SCOPES], status: "active" })
-		.where(eq(applications.id, I03_CANARY_APPLICATION_ID));
+		.onConflictDoUpdate({
+			target: applications.id,
+			set: {
+				ownerAccountId: I03_CANARY_OWNER_ID,
+				type: "first_party",
+				status: "active",
+				scopes: [...I03_CANARY_SCOPES],
+			},
+		});
 	const [principal] = await getDb()
 		.insert(users)
 		.values({ color: "teal" })

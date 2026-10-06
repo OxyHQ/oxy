@@ -192,6 +192,8 @@
     "browserslist": "4.28.8",
     "ioredis": "5.11.1",
     "send": "0.19.1",
+    "proxy-addr": "2.0.8",
+    "source-map-js": "1.2.2",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",

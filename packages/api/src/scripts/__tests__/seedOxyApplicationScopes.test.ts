@@ -55,16 +55,26 @@ async function ownedRows() {
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 beforeEach(async () => {
+	// The owner is the real `oxy` organization id, which other DB fixtures in
+	// the same worker also create (the Alia revocation canary) and hang rows
+	// off (usage receipts on their own applications). So this file never
+	// deletes that account: it SETS the shape it needs, and clears only the
+	// application row it owns.
+	await getDb().delete(applications).where(eq(applications.id, appId));
+	// A closure fence (installed by a test here, or by the canary) would
+	// outlive the account now that the account is never deleted.
+	await getDb().delete(accountClosureFences).where(eq(accountClosureFences.accountId, ownerId));
+	const owner = {
+		username: "oxy",
+		kind: "organization",
+		color: "blue",
+		type: "local",
+		accountStatus: "active",
+	} as const;
 	await getDb()
 		.insert(users)
-		.values({
-			id: ownerId,
-			username: "oxy",
-			kind: "organization",
-			color: "blue",
-			type: "local",
-			accountStatus: "active",
-		});
+		.values({ id: ownerId, ...owner })
+		.onConflictDoUpdate({ target: users.id, set: owner });
 	await getDb()
 		.insert(applications)
 		.values({
@@ -114,7 +124,6 @@ beforeEach(async () => {
 });
 afterEach(async () => {
 	await getDb().delete(applications).where(eq(applications.id, appId));
-	await getDb().delete(users).where(eq(users.id, ownerId));
 });
 
 describe("existing official application scopes-only seed", () => {

@@ -71,7 +71,7 @@ import { aiLabelingService } from './aiLabeling.service';
 import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
-import { emitEmailNew, emitEmailChanged } from './inboxRealtime';
+import { buildSnippet, emitEmailNew, emitEmailChanged } from './inboxRealtime';
 import { parseInboundMime } from './inboundMime';
 import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
@@ -1997,6 +1997,8 @@ class EmailService {
           subject: params.subject,
           headers: params.headers,
           receivedAt,
+          snippet: buildSnippet(params.text, params.html),
+          folder: isSpam ? 'spam' : 'inbox',
         });
       },
     );
