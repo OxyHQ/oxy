@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "11.1.0",
+  "version": "11.2.0-oxy-one.0",
   "description": "OxyHQ Expo/React Native SDK \u2014 UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -155,7 +155,7 @@
   },
   "dependencies": {
     "@expo/config-plugins": "catalog:",
-    "@oxy.so/contracts": "workspace:^",
+    "@oxy.so/contracts": "workspace:4.11.0-oxy-one.0",
     "color": "^4.2.3"
   },
   "devDependencies": {
