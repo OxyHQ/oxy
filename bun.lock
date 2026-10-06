@@ -142,7 +142,7 @@
         "@oxy.so/protocol": "workspace:*",
         "@oxy.so/telemetry": "workspace:*",
         "@oxy.so/utils": "workspace:*",
-        "@peable.to/sdk": "0.2.2",
+        "@peable.to/sdk": "0.2.3-oxy-one.0",
         "@socket.io/redis-adapter": "^8.3.0",
         "@types/compression": "^1.8.1",
         "@types/express": "catalog:",
@@ -2165,9 +2165,9 @@
 
     "@parcel/watcher-win32-x64": ["@parcel/watcher-win32-x64@2.6.0", "", { "os": "win32", "cpu": "x64" }, "sha512-cA+/pXV2YkfxlIcXOQ5fSWqAzzPyD78/x5qbK/I0vUkrlYHA8TIz+MXjAbGouguKVSI4bOmkTSJ1/poVSsgt+A=="],
 
-    "@peable.to/sdk": ["@peable.to/sdk@0.2.2", "", { "dependencies": { "@peable.to/shared-types": "^0.3.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" } }, "sha512-U1i6gGK2yGXvsIIjHBMga+RzuvgSl9+74N0+ENFLinv7vD56syP5lfrD+Jmuw208E5H9tLars61ucq7HW00a9A=="],
+    "@peable.to/sdk": ["@peable.to/sdk@0.2.3-oxy-one.0", "", { "dependencies": { "@peable.to/shared-types": "0.3.1-oxy-one.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" } }, "sha512-rjWxRi1Z2dP+tWfUOQ/pRchCLqHsv87CheNbLxizIyv7pVbG/r3oQwdS1HkH9q4TVycYIVwJcUmDceWGu2dSLw=="],
 
-    "@peable.to/shared-types": ["@peable.to/shared-types@0.3.0", "", {}, "sha512-SczFYX93BkY1OghT95oKemixSFsbWI98jeV6gwXBqWtBAuXS6mit2fk0hLyoFQVvSpul1Rq3RCjsBEobygZOaw=="],
+    "@peable.to/shared-types": ["@peable.to/shared-types@0.3.1-oxy-one.0", "", {}, "sha512-bkEkL8+z9msSLQnj1RDBGVxFKR4fEiQRIH31d8aXcDEr48CD/jN9BAV9nPN6yMBOH+saZtNjLMof9jEbNo53zw=="],
 
     "@peculiar/asn1-csr": ["@peculiar/asn1-csr@2.10.0", "", { "dependencies": { "@peculiar/asn1-schema": "^2.10.0", "@peculiar/asn1-x509": "^2.10.0", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-jTPTr/9rxKM+niQLMF3jiAMb0lWHUhUHIuSOhdGCIfpB4FAQYf9SoiXOgxP8bS/68IB+bj+1OHvVnDVCQfVUZw=="],
 
