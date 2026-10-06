@@ -1,3 +1,9 @@
+import {cancelStoredPeablePersonalSource,loadPeablePersonalManagement} from '../services/peablePersonalManagement.service';
+import {assertPersistedBillingNamespace,readPersistedBillingNamespace} from '../config/billingNamespace';
+import { ApiError } from '../utils/error';
+import { personalPlanCheckoutRequestSchema } from '@oxy.so/contracts';
+import { startPersonalPlanCheckout } from '../services/personalPlanCheckout.service';
+import { readPersonalPlanCatalogue } from '../services/personalPlanCatalogue';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import { cancelProductSubscriptionSchema, productSubscriptionsResponseSchema, subscriptionCreditGrantsResponseSchema,
 } from "@oxy.so/contracts";
@@ -254,13 +260,38 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
   }
 });
 
+/** Public personal-plan discovery is separate from authenticated customer rights. */
+/** Inert until an approved provider adapter is wired in a separately authorized change. */
+router.post('/checkout/personal-plan', authMiddleware, validate({ body: personalPlanCheckoutRequestSchema }), async (req: AuthRequest, res: Response) => {
+  const subject = req.user?._id?.toString();
+  if (!subject) return res.status(401).json({ error: 'Authentication required' });
+  try { return res.json(await startPersonalPlanCheckout(subject, personalPlanCheckoutRequestSchema.parse(req.body))); }
+  catch (error) {
+    if (error instanceof ApiError) return res.status(error.statusCode).json({ error: error.code });
+    return res.status(503).json({ error: 'CHECKOUT_NOT_CONFIGURED' });
+  }
+});
+
+router.get('/personal-plans', async (_req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    return res.json(readPersonalPlanCatalogue(await loadProductBillingCatalogue()));
+  } catch {
+    return res.status(503).json({ error: 'Plan catalogue is temporarily unavailable' });
+  }
+});
+
 /** List source lifecycle and paid segments separately; historical offers never masquerade as current access.
  * @response 200 productSubscriptionsResponseSchema Source lifecycle and paid segment provenance.
  */
 router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, res: Response) => {
   const userId = req.user?._id?.toString(); if (!userId) return res.status(401).json({ error: 'Authentication required' });
+  if (req.query.expectedSubjectAccountId !== undefined && req.query.expectedSubjectAccountId !== userId)
+    return res.status(403).json({ error: 'Signed-in subject changed' });
   try {
-    const namespace = await assertBillingDatabaseNamespace(getDb());
+    const peableManagement=await loadPeablePersonalManagement();
+    const namespace=peableManagement?peableManagement.configuration.namespace:await assertBillingDatabaseNamespace(getDb());
+    if(peableManagement)assertPersistedBillingNamespace(await readPersistedBillingNamespace(getDb()),namespace);
     const catalogue = await loadProductBillingCatalogue(); const now = Date.now();
     const sources = await getDb().select().from(accessSubscriptionSources).where(and(eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment), or(eq(accessSubscriptionSources.payerAccountId, userId), eq(accessSubscriptionSources.beneficiaryAccountId, userId))));
     const subscriptions = await Promise.all(sources.map(async source => {
@@ -274,8 +305,8 @@ router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, re
           products: [...new Set(grants.map(grant => grant.productId))].map(id => ({ id, displayName: catalogue.displayNames.products[id] ?? 'Product' })) };
       }));
       return { sourceId: source.id, status: source.status, period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
-        cancelAtPeriodEnd: source.cancelAtPeriodEnd, canCancel: source.payerAccountId === userId && source.provider === 'stripe'
-          && source.mode === namespace.mode && source.environment === namespace.environment && ['active','trialing'].includes(source.status), offers };
+        cancelAtPeriodEnd: source.cancelAtPeriodEnd, canCancel: source.payerAccountId === userId && (source.provider === 'stripe' || (source.provider === 'peable' && source.beneficiaryAccountId===userId && !!peableManagement && source.providerAccountRef===peableManagement.configuration.merchantId))
+          && source.mode === namespace.mode && source.environment === namespace.environment && (source.provider==='peable' ? ['active','trialing','past_due','unpaid'] : ['active','trialing']).includes(source.status), offers };
     }));
     res.set('Cache-Control', 'no-store'); return res.json(productSubscriptionsResponseSchema.parse({ subscriptions }));
   } catch (error) { logger.error('Product source read failed', error); return res.status(500).json({ error: 'Product source read failed' }); }
@@ -341,7 +372,6 @@ router.post(
 		if (parsed.success && parsed.data.expectedSubjectAccountId && parsed.data.expectedSubjectAccountId !== userId) return res.status(403).json({ error: 'Signed-in subject changed' });
     let providerConfirmed = false;
 	try {
-      const namespace = await assertBillingDatabaseNamespace(getDb());
 			const [source] = await getDb()
 				.select()
 				.from(accessSubscriptionSources)
@@ -351,6 +381,13 @@ router.post(
 						eq(accessSubscriptionSources.payerAccountId, userId),
 					),
 				);
+      if(source?.provider==='peable'){
+        await assertProductSourceEvidence(source);
+        if(!parsed.data.expectedSubjectAccountId||!parsed.data.actionId)return res.status(400).json({error:'Expected subject and cancellation action ID required'});
+        const answer=await cancelStoredPeablePersonalSource(userId,source.id,parsed.data.actionId);
+        return res.status('reconciliationPending' in answer?202:200).json(answer);
+      }
+      const namespace = await assertBillingDatabaseNamespace(getDb());
 			if (
 				!source ||
 				source.provider !== "stripe" ||
@@ -420,6 +457,7 @@ router.post(
 			return res.json({ sourceId: source.id, cancelAtPeriodEnd: true });
 		} catch (error) {
 			logger.error("Named product cancellation failed", error);
+      if(error instanceof ApiError)return res.status(error.statusCode).json({error:error.code});
       if (providerConfirmed) return res.status(202).json({ sourceId: parsed.data.sourceId, reconciliationPending: true });
 			return res
 				.status(500)

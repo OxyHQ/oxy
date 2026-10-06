@@ -358,6 +358,8 @@ export class S3Service {
         metadata,
         cacheControl,
         checksumSHA256,
+        contentLength,
+        ifNoneMatch,
       } = options;
 
       // Sanitize metadata to ensure all values are strings
@@ -374,12 +376,16 @@ export class S3Service {
         Bucket: this.bucketName,
         Key: key,
         ContentType: contentType,
+        ContentLength: contentLength,
+        IfNoneMatch: ifNoneMatch,
         CacheControl: cacheControl,
         ChecksumSHA256: checksumSHA256,
         Metadata: Object.keys(sanitizedMetadata).length > 0 ? sanitizedMetadata : undefined,
       });
 
-      return getSignedUrl(this.s3Client, command, { expiresIn });
+      return getSignedUrl(this.s3Client, command, { expiresIn,
+        signableHeaders: new Set(['content-length', 'if-none-match']),
+      });
     } catch (error) {
       throw new Error(`Failed to generate presigned upload URL: ${error}`);
     }

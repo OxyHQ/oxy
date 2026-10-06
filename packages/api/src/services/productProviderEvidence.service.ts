@@ -1,13 +1,15 @@
+import {assertBillingDatabaseNamespace,billingNamespaceSchema} from '../config/billingNamespace';
+import { personalPlanCheckoutIntents } from '../db/schema/personalPlanCheckoutIntents';
 /** Unmounted adapter of explicit, trusted normalized data. No provider/network calls. */
 import { createHash } from 'node:crypto';
 import {
 	productOfferSegmentSchema,
 	productSubscriptionSourceSchema,
 } from "@oxy.so/contracts";
-import { and, eq } from "drizzle-orm";
+import { and, eq,isNull } from "drizzle-orm";
 import { z } from "zod";
 import { type Transaction, getDb } from '../config/postgres';
-import { accessProviderEvents, accessProviderPeriods } from '../db/schema';
+import { accessProviderEvents, accessProviderPeriods,accessGrants,accessSubscriptionSources,users,accessProviderRefunds } from '../db/schema';
 import { ConflictError } from '../utils/error';
 import { productAccessConfigurationExpectationSchema, productProviderBindingSchema, recordProductAccessPeriod } from './productAccessPersistence.service';
 
@@ -15,6 +17,7 @@ const providerId = z.string().min(1).max(160);
 const inputSchema = z.object({
   binding: productProviderBindingSchema,
   expectedConfiguration: productAccessConfigurationExpectationSchema.optional(),
+  checkoutIntentId: providerId.optional(),
   // No caller source/segment/evidence IDs or deduplication namespaces.
   subscription: z.unknown().transform(value => productSubscriptionSourceSchema.omit({ id: true }).parse(value)),
   offer: z.unknown().transform(value => productOfferSegmentSchema.pick({ offerId: true, offerVersion: true, origin: true }).parse(value)),
@@ -60,7 +63,8 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
     providerSubscriptionId: input.subscription.providerSubscriptionId,
     beneficiaryAccountId: input.subscription.beneficiaryAccountId,
     payerAccountId: input.subscription.payerAccountId, priceId: input.paidLine.priceId,
-    quantity: input.paidLine.quantity, ...input.offer, period: input.paidLine.period };
+    quantity: input.paidLine.quantity, ...input.offer, period: input.paidLine.period,
+    ...(input.checkoutIntentId ? { checkoutIntentId: input.checkoutIntentId } : {}) };
 	const payloadSha256 = digest(payload);
 	const eventPayload = { schemaVersion: 1, ...binding, eventId: input.event.id,
     eventCreatedAt: input.event.createdAt, evidenceId, sourceId, payloadSha256 };
@@ -181,6 +185,23 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
 				payloadSha256: eventPayloadSha256,
 			},
 		);
+    // Only this trusted, atomically persisted paid-evidence path fulfills checkout.
+    if (input.checkoutIntentId) {
+      const [intent] = await tx.select().from(personalPlanCheckoutIntents)
+        .where(eq(personalPlanCheckoutIntents.id, input.checkoutIntentId)).for('update');
+      if (!intent || input.offer.origin !== 'bundle'
+        || input.subscription.provider !== 'peable'
+        || intent.subjectAccountId !== input.subscription.beneficiaryAccountId
+        || intent.subjectAccountId !== input.subscription.payerAccountId
+        || intent.mode !== binding.mode || intent.environment !== binding.environment
+        || intent.providerAccountRef !== binding.providerAccountRef
+        || intent.priceId !== input.paidLine.priceId || intent.offerId !== input.offer.offerId
+        || intent.offerVersion !== input.offer.offerVersion || intent.state === 'closed'
+        || (intent.state === 'fulfilled' && intent.fulfilledSourceId !== sourceId))
+        throw new ConflictError('Paid evidence checkout attribution differs');
+      await tx.update(personalPlanCheckoutIntents).set({ state: 'fulfilled', fulfilledSourceId: sourceId })
+        .where(eq(personalPlanCheckoutIntents.id, intent.id));
+    }
 		return {
 			status: inserted.length ? ("recorded" as const) : ("replayed" as const),
 			eventStatus: delivered.length
@@ -193,4 +214,38 @@ export async function recordProductProviderPeriod(raw: ProductProviderPeriodInpu
 		};
 	};
 	return transaction ? write(transaction) : getDb().transaction(write);
+}
+
+/** Canonical refund identity rebuilt from typed columns, so an incompatible replay
+ * (another charge, price, subscription, party or period for the same line) is refused. */
+function refundProjection(row:Pick<typeof accessProviderRefunds.$inferSelect,'provider'|'providerAccountRef'|'mode'|'environment'|'invoiceId'|'lineId'|'sourceId'|'segmentId'|'providerSubscriptionId'|'payerAccountId'|'beneficiaryAccountId'|'priceId'|'paymentIntentId'|'chargeId'|'periodStart'|'periodEnd'>){
+ return {provider:row.provider,providerAccountRef:row.providerAccountRef,mode:row.mode,environment:row.environment,invoiceId:row.invoiceId,lineId:row.lineId,sourceId:row.sourceId,segmentId:row.segmentId,providerSubscriptionId:row.providerSubscriptionId,payerAccountId:row.payerAccountId,beneficiaryAccountId:row.beneficiaryAccountId,priceId:row.priceId,paymentIntentId:row.paymentIntentId,chargeId:row.chargeId,period:{start:row.periodStart.toISOString(),end:row.periodEnd.toISOString()}};
+}
+
+/** Trusted adapter only: full cash refund revokes exactly the original invoice line,
+ * never another paid month or an individual subscription. Retain grants as terminal
+ * tombstones so a delayed paid replay cannot reinsert them. No provider calls in TX. */
+export async function revokeProductProviderPaidPeriod(input:{binding:z.infer<typeof productProviderBindingSchema>;accountId:string;subscriptionId:string;invoiceId:string;lineId:string;priceId:string;paymentIntentId:string;chargeId:string;period:{start:string;end:string};observedAt:Date}){
+ const binding=productProviderBindingSchema.parse(input.binding);
+ for(const value of [input.accountId,input.subscriptionId,input.invoiceId,input.lineId,input.priceId,input.paymentIntentId,input.chargeId])providerId.parse(value);
+ const periodInput=productOfferSegmentSchema.shape.period.parse(input.period);
+ const identity={provider:'peable' as const,...binding,invoiceId:input.invoiceId,lineId:input.lineId};
+ const sourceId=`access_source_${digest([{provider:'peable',...binding},input.subscriptionId])}`,segmentId=`access_segment_${digest(identity)}`;
+ const expected=refundProjection({...identity,sourceId,segmentId,providerSubscriptionId:input.subscriptionId,payerAccountId:input.accountId,beneficiaryAccountId:input.accountId,priceId:input.priceId,paymentIntentId:input.paymentIntentId,chargeId:input.chargeId,periodStart:new Date(periodInput.start),periodEnd:new Date(periodInput.end)});
+ await assertBillingDatabaseNamespace(getDb(),billingNamespaceSchema.parse({mode:binding.mode,environment:binding.environment}));
+ if(!Number.isFinite(input.observedAt.getTime()))throw new ConflictError('Refund observation time unavailable');
+ return getDb().transaction(async tx=>{
+  const accounts=await tx.select({id:users.id}).from(users).where(eq(users.id,input.accountId)).for('update');
+  if(accounts.length!==1)throw new ConflictError('Refund account unavailable');
+  const periods=await tx.select().from(accessProviderPeriods).where(and(eq(accessProviderPeriods.provider,'peable'),eq(accessProviderPeriods.providerAccountRef,binding.providerAccountRef),eq(accessProviderPeriods.mode,binding.mode),eq(accessProviderPeriods.environment,binding.environment),eq(accessProviderPeriods.invoiceId,input.invoiceId),eq(accessProviderPeriods.lineId,input.lineId)));
+  const period=periods[0];
+  if(period&&(period.payerAccountId!==input.accountId||period.beneficiaryAccountId!==input.accountId||period.providerSubscriptionId!==input.subscriptionId||period.priceId!==input.priceId||period.periodStart.toISOString()!==input.period.start||period.periodEnd.toISOString()!==input.period.end))throw new ConflictError('Refund paid-period ownership differs');
+  const [inserted]=await tx.insert(accessProviderRefunds).values({id:`access_refund_${digest(identity)}`,...identity,sourceId,segmentId,providerSubscriptionId:input.subscriptionId,payerAccountId:input.accountId,beneficiaryAccountId:input.accountId,priceId:input.priceId,paymentIntentId:input.paymentIntentId,chargeId:input.chargeId,periodStart:new Date(periodInput.start),periodEnd:new Date(periodInput.end),observedAt:input.observedAt}).onConflictDoNothing().returning({id:accessProviderRefunds.id});
+  const [fence]=await tx.select().from(accessProviderRefunds).where(and(eq(accessProviderRefunds.sourceId,sourceId),eq(accessProviderRefunds.segmentId,segmentId)));
+  if(!fence)throw new ConflictError('Refund fence unavailable');same(refundProjection(fence),expected);
+  if(!period)return {status:inserted?'fenced' as const:'replayed' as const,revoked:0};
+  await tx.select({id:accessSubscriptionSources.id}).from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id,period.sourceId)).for('update');
+  const revoked=await tx.update(accessGrants).set({revokedAt:input.observedAt}).where(and(eq(accessGrants.sourceSegmentId,period.segmentId),eq(accessGrants.beneficiaryAccountId,input.accountId),isNull(accessGrants.revokedAt))).returning({id:accessGrants.id});
+  return {status:revoked.length?'revoked' as const:'replayed' as const,revoked:revoked.length};
+ });
 }

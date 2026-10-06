@@ -1,3 +1,4 @@
+import { subjectProductAccessQuerySchema, subjectProductGrantSnapshotSchema, type SubjectProductAccessQuery, type SubjectProductGrantSnapshot } from '@oxy.so/contracts';
 /**
  * `OxyServer` — the Oxy client for a backend.
  *
@@ -362,6 +363,31 @@ export class OxyServer extends OxyServices {
    * request is on behalf of that user (the API checks the delegation grant).
    * Never cached unless `cache` says so. Rejects with `OxyApiError`.
    */
+  /** Validated request's user session only; never changes the shared client's token. */
+  async productGrantSnapshotForUser(query: SubjectProductAccessQuery, accessToken: string): Promise<SubjectProductGrantSnapshot> {
+    const parsed = subjectProductAccessQuerySchema.parse(query);
+    if (!accessToken || /[\r\n]/.test(accessToken)) throw new Error('A user session is required');
+    const answer = await this.request<unknown>('GET',
+      `/v1/products/${encodeURIComponent(parsed.productId)}/access/${encodeURIComponent(parsed.subjectAccountId)}/grants`,
+      undefined, { cache: false, retry: false, headers: { Authorization: `Bearer ${accessToken}` } });
+    const snapshot = subjectProductGrantSnapshotSchema.parse(answer);
+    if(snapshot.access.subjectAccountId !== parsed.subjectAccountId || snapshot.access.productId !== parsed.productId)
+      throw new Error('Product grant response attribution differs');
+    return snapshot;
+  }
+
+  /** Offline metering read: the API requires this app's live consent for this exact subject. */
+  async productGrantSnapshotForService(query: SubjectProductAccessQuery): Promise<SubjectProductGrantSnapshot> {
+    const parsed = subjectProductAccessQuerySchema.parse(query);
+    const answer = await this.serviceRequest<unknown>('GET',
+      `/v1/products/${encodeURIComponent(parsed.productId)}/access/${encodeURIComponent(parsed.subjectAccountId)}/service-grants`,
+      undefined, { cache: false, retry: false });
+    const snapshot = subjectProductGrantSnapshotSchema.parse(answer);
+    if (snapshot.access.subjectAccountId !== parsed.subjectAccountId || snapshot.access.productId !== parsed.productId)
+      throw new Error('Product grant response attribution differs');
+    return snapshot;
+  }
+
   async serviceRequest<T>(
     method: HttpMethod,
     url: string,

@@ -1,3 +1,5 @@
+import { loadProductBillingCatalogue } from '../services/productBillingCatalogue.service';
+import { storageCapacity, reservedStorageBytes } from '../services/storageQuota.service';
 import type { Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
@@ -75,7 +77,10 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
     }
 
     const subscriptionPlan = await resolveUserSubscriptionPlan(userId);
-    const totalLimitBytes = getPlanStorageLimitBytes(subscriptionPlan);
+    const catalogue = await loadProductBillingCatalogue();
+    const totalLimitBytes = catalogue.storageAdapter
+      ? await storageCapacity(getDb(), userId, catalogue) : getPlanStorageLimitBytes(subscriptionPlan);
+    const reservedBytes = catalogue.storageAdapter ? (await reservedStorageBytes(getDb(), userId)).toString() : null;
 
     // `sum`/`count` over `bigint` come back as strings from postgres.js — a byte
     // total can exceed 2^53, so the driver refuses to guess. Parse once, here.
@@ -110,6 +115,8 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
       plan: subscriptionPlan,
       totalUsedBytes,
       totalLimitBytes,
+      quotaEnforcement: catalogue.storageAdapter ? 'metadata_admission' : 'unconfigured',
+      reservedBytes,
       // Keep names close to UI categories; mail/family not implemented yet.
       categories: {
         documents: breakdown.documents,

@@ -7,6 +7,8 @@
 import type { FileVisibility } from './file.types';
 
 export interface AssetInitResponse {
+  /** Replay these headers on PUT; Content-Length is supplied by the transport. */
+  requiredHeaders?: Record<string, string>;
   uploadUrl: string;
   fileId: string;
   sha256: string;

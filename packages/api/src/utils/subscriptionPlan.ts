@@ -1,5 +1,5 @@
 import { and, eq, gt, inArray, sql } from 'drizzle-orm';
-import { getDb } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { billingSubscriptions } from '../db/schema/billingSubscriptions';
 import { subscriptions } from '../db/schema/subscriptions';
 
@@ -43,8 +43,8 @@ function normalizePlanName(planName: string | undefined | null): SubscriptionPla
  */
 export async function resolveUserSubscriptionPlan(
   userId: string,
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<SubscriptionPlanTier> {
-  const db = getDb();
 
   const [billingSubscription] = await db
     .select({ planName: billingSubscriptions.planName })

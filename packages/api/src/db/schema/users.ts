@@ -88,6 +88,7 @@ import {
   ACCOUNT_KINDS as CONTRACT_ACCOUNT_KINDS,
   MAX_ACCOUNT_CATEGORIES,
   TRUST_TIERS as CONTRACT_TRUST_TIERS,
+  USER_PROFILE_COLOR_PRESETS,
   type AccountCategoryId,
   type AccountCategoryKind,
   type AccountKind as ContractAccountKind,
@@ -96,28 +97,16 @@ import {
 import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
 
 /**
- * Named color presets a user may pick. `oxy` is premium-gated at the service
- * layer; the constraint permits it so an already-premium user can persist it.
+ * Named color presets a user may pick. `oxy` is handle-owned and `mono` is benefit-gated at the service
+ * layer; the constraint only declares valid stored preset identities.
  *
- * This tuple is the SINGLE declaration — the Mongoose model that carried the
+ * The shared contract tuple is the SINGLE declaration — the Mongoose model that carried the
  * other copy is gone. It renders the CHECK below, and
  * `check-drizzle-snapshot-sync` holds that rendering against the migration the
  * database was actually built from, so editing it without regenerating a
  * migration fails CI.
  */
-export const USER_COLOR_PRESETS = [
-  'teal',
-  'blue',
-  'green',
-  'amber',
-  'red',
-  'purple',
-  'pink',
-  'sky',
-  'orange',
-  'mint',
-  'oxy',
-] as const;
+export const USER_COLOR_PRESETS = USER_PROFILE_COLOR_PRESETS;
 
 /** A preset key the catalogue above still contains. */
 export type UserColorPreset = (typeof USER_COLOR_PRESETS)[number];

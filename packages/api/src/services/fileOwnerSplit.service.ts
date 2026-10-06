@@ -1,3 +1,4 @@
+import { withStorageQuota } from './storageQuota.service';
 /**
  * Split the cross-owner shares the one-live-row-per-hash model left behind.
  *
@@ -129,6 +130,7 @@ export async function ensureOwnerRowFor(
     const existing = await findLiveFileBySha256ForOwner(source.sha256, owner, tx);
     if (existing) return { file: existing, created: false };
 
+    return withStorageQuota(tx, [ownerUserId], async () => {
     const intrinsic = Object.fromEntries(
       Object.entries(source.metadata ?? {}).filter(([key]) => INTRINSIC_METADATA_KEYS.has(key)),
     );
@@ -158,6 +160,7 @@ export async function ensureOwnerRowFor(
       })));
     }
     return { file, created: true };
+    });
   });
 }
 

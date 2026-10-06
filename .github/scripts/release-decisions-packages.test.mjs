@@ -39,7 +39,10 @@ test('both actual consumer entry points strictly require the contracts release v
 });
 test('core keeps its contracts workspace dependency for pack-time rewriting', () => {
   const core = JSON.parse(readFileSync(resolve('packages/core/package.json'), 'utf8'));
-  assert.equal(core.dependencies['@oxy.so/contracts'], 'workspace:^');
+  // `workspace:^` or an exact `workspace:<version>` (a prerelease candidate pins
+  // its contracts exactly); either way bun rewrites it at pack time, and the
+  // source never names a registry version directly.
+  assert.match(core.dependencies['@oxy.so/contracts'], /^workspace:(\^|\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$/);
 });
 test('prepare accepts only the fixed source release before entering build', () => {
   const f = fixture();

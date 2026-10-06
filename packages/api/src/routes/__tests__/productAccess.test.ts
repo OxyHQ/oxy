@@ -10,7 +10,7 @@ import { productAccessFixture, accessAccount } from '../../services/__fixtures__
 import { recordProductAccessPeriod } from '../../services/productAccessPersistence.service';
 import { insertBearerSession } from '../__fixtures__/bearerSessionFixtures';
 let identity: AccessTokenIdentity;
-jest.mock('../../middleware/auth', () => ({ authMiddleware: (req: { oxyToken: AccessTokenIdentity }, _res: unknown, next: () => void) => { req.oxyToken = identity; next(); } }));
+jest.mock('../../middleware/auth', () => ({ ...jest.requireActual('../../middleware/auth'), authMiddleware: (req: { oxyToken: AccessTokenIdentity }, _res: unknown, next: () => void) => { req.oxyToken = identity; next(); } }));
 jest.mock('../../middleware/rateLimiter', () => ({ rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next() }));
 import router from '../productAccess';
 const app = express(); app.use('/v1/products', router);
@@ -75,4 +75,14 @@ it('personal and managed beneficiaries use the same product rights resolver', as
   await getDb().update(sessions).set({ applicationId: f.app.id, clientId: f.credential.publicKey, scopes: ['user:read'] }).where(eq(sessions.sessionId, sessionId));
   identity.subjectAccountId = f.operator; identity.sessionId = sessionId;
   const response = await f.read(f.operator); expect(response.status).toBe(200); expect(response.body.data.capabilities).toHaveLength(1);
+});
+
+it('returns only active per-grant periods behind the same subject and product boundary',async()=>{
+ const f=await fixture();
+ const url=`/v1/products/${encodeURIComponent(f.products[0].id)}/access/${encodeURIComponent(f.beneficiary)}/grants`;
+ const response=await request(app).get(url);expect(response.status).toBe(200);expect(response.headers['cache-control']).toBe('no-store');
+ expect(response.body.data.grants).toHaveLength(1);
+ expect(response.body.data.grants[0]).toMatchObject({beneficiaryAccountId:f.beneficiary,origin:'bundle'});
+ expect(JSON.stringify(response.body)).not.toContain('providerSubscriptionId');
+ identity.subjectAccountId=f.operator;expect((await request(app).get(url)).status).toBe(404);
 });

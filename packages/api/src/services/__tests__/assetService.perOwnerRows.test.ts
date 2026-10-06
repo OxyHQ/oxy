@@ -36,6 +36,14 @@ jest.mock('../../queue/assetVariants.queue', () => ({
   enqueueAssetVariantGeneration: jest.fn(() => Promise.resolve()),
 }));
 
+import { EMPTY_PRODUCT_BILLING_CATALOGUE, type ProductBillingCatalogue } from '../productBillingCatalogue.service';
+import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
+import { legacyStorageLimit } from '../storageQuota.service';
+let mockCatalogue: ProductBillingCatalogue = EMPTY_PRODUCT_BILLING_CATALOGUE;
+jest.mock('../productBillingCatalogue.service', () => ({
+  ...jest.requireActual('../productBillingCatalogue.service'),
+  loadProductBillingCatalogue: () => Promise.resolve(mockCatalogue),
+}));
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { files, users } from '../../db/schema';
 import { AssetService } from '../assetService';
@@ -167,6 +175,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+  mockCatalogue = EMPTY_PRODUCT_BILLING_CATALOGUE;
   fileCache.clear();
 });
 
@@ -310,6 +319,28 @@ describe('a delete racing another owner\'s upload of the same bytes', () => {
   });
 });
 
+describe('configured presigned admission', () => {
+  it('signs the admitted size and digest for first upload and missing-object repair', async () => {
+    const f = await productAccessFixture();
+    mockCatalogue = {...EMPTY_PRODUCT_BILLING_CATALOGUE,products:f.products,
+      storageAdapter:{productId:f.products[0].id,quotaKey:'storage_bytes',unit:'byte',legacyCombination:'maximum'}};
+    const {service}=harness();const content=png();const hash=createHash('sha256').update(content).digest('hex');
+    const initial=await service.initUpload(f.payer,hash,content.length,'image/png');
+    const repair=await service.initUpload(f.payer,hash,content.length+1,'image/png');
+    for(const result of [initial,repair]) {
+      expect(result.requiredHeaders).toEqual({'If-None-Match':'*'});
+      const url=new URL(result.uploadUrl);
+      expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('content-length');
+      expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('if-none-match');
+      expect(url.searchParams.get('x-amz-checksum-sha256')).toBe(Buffer.from(hash,'hex').toString('base64'));
+      expect(url.searchParams.get('X-Amz-Expires')).toBe('60');
+    }
+    expect(initial.fileId).toBe(repair.fileId);
+    const [stored]=await getDb().select().from(files).where(eq(files.id,initial.fileId));
+    expect(stored.size).toBe(content.length);
+  });
+});
+
 describe('completeUpload', () => {
   it('refuses to commit metadata to a row the caller does not own', async () => {
     const { service } = harness();
@@ -328,4 +359,40 @@ describe('completeUpload', () => {
     const [stored] = await getDb().select().from(files).where(eq(files.id, row.id));
     expect(stored).toMatchObject({ originalName: 'a.png', visibility: 'private' });
   });
+  it('admits actual HEAD bytes, ignores client size, and rolls back over-capacity completion', async () => {
+    const f = await productAccessFixture();
+    mockCatalogue = { ...EMPTY_PRODUCT_BILLING_CATALOGUE, products: f.products,
+      storageAdapter: { productId: f.products[0].id, quotaKey: 'storage_bytes', unit: 'byte', legacyCombination: 'maximum' } };
+    const { bucket, service } = harness(); const content = png();
+    const row = await service.uploadFileDirect(f.payer, content, 'image/png', 'first.png', 'private');
+    const completed = await service.completeUpload({ fileId: row.id, originalName: 'first.png', size: 1,
+      mime: 'image/png' }, f.payer);
+    expect(completed.size).toBe(content.length);
+    const [filler] = await getDb().insert(files).values({sha256: randomBytes(32).toString('hex'),
+      size: legacyStorageLimit('basic') - content.length, mime: 'text/plain', ext: '.txt',
+      ownerUserId: f.payer, status: 'active', visibility: 'private', storageKey: 'synthetic/filler'}).returning();
+    bucket.objects.set(completed.storageKey, Buffer.concat([content, Buffer.from([1])]));
+    await expect(service.completeUpload({ fileId: row.id, originalName: 'oversized.png', size: 1,
+      mime: 'image/png' }, f.payer)).rejects.toMatchObject({code:'STORAGE_QUOTA_EXCEEDED'});
+    const [stored] = await getDb().select().from(files).where(eq(files.id,row.id));
+    expect(stored.size).toBe(content.length); expect(stored.originalName).toBe('first.png');
+    await getDb().delete(files).where(eq(files.id,filler.id));
+    bucket.objects.delete(completed.storageKey);
+    await expect(service.completeUpload({fileId:row.id,size:1,mime:'image/png',originalName:'absent'},f.payer)).rejects.toThrow('not found');
+  });
+  it('refuses an unsupported public relocation before persisting the visibility change', async () => {
+    const f = await productAccessFixture();
+    mockCatalogue = { ...EMPTY_PRODUCT_BILLING_CATALOGUE, products: f.products,
+      storageAdapter: { productId: f.products[0].id, quotaKey: 'storage_bytes', unit: 'byte', legacyCombination: 'maximum' } };
+    const { service } = harness(); const content = png();
+    const row = await service.uploadFileDirect(f.payer, content, 'image/png', 'private.png', 'private');
+    for (let attempt = 0; attempt < 2; attempt++)
+      await expect(service.completeUpload({ fileId: row.id, originalName: 'public.png', size: content.length,
+        mime: 'image/png', visibility: 'public' }, f.payer)).rejects.toMatchObject({ code: 'STORAGE_PHYSICAL_PATH_UNAVAILABLE' });
+    const [stored] = await getDb().select().from(files).where(eq(files.id, row.id));
+    expect(stored).toMatchObject({ visibility: 'private', storageKey: row.storageKey, originalName: 'private.png' });
+    // Completing without a prefix change still works under configured admission.
+    expect((await service.completeUpload({ fileId: row.id, originalName: 'kept.png', size: 1, mime: 'image/png' }, f.payer)).visibility).toBe('private');
+  });
+
 });

@@ -80,6 +80,7 @@ export {
     userNameSchema,
     userRelationshipSchema,
     themePreferenceSchema,
+    USER_PROFILE_COLOR_PRESETS,
     dateOfBirthSchema,
     userResponseSchema,
     userProfileUpdateSchema,
@@ -1508,12 +1509,14 @@ export {
     productOfferSchema,
     productSubscriptionSourceSchema,
     productAccessGrantSchema,
+    subjectProductGrantSnapshotSchema,
     productOfferSegmentSchema,
     subjectProductAccessSchema,
 } from './products/access';
 export type {
     ProductDefinition,
     SubjectProductAccessQuery,
+    SubjectProductGrantSnapshot,
     ProductBenefit,
     ProductOffer,
     ProductSubscriptionSource,
@@ -1529,3 +1532,6 @@ export * from './agentKeys';
 export { productSubscriptionSummarySchema, productSubscriptionsResponseSchema,
     subscriptionCreditGrantSchema, subscriptionCreditGrantsResponseSchema, cancelProductSubscriptionSchema, productSubscriptionCancellationResultSchema,
     type ProductSubscriptionSummary, type SubscriptionCreditGrant, type ProductSubscriptionCancellationResult } from './products/billing';
+
+export { personalPlanDisplayPriceSchema, personalPlanCatalogueSchema, type PersonalPlanCatalogue } from './products/plans';
+export * from './products/checkout';

@@ -8,9 +8,11 @@ import { ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error
 import { isCredentialUsable } from '../utils/credentialUsability';
 import sessionService from './session.service';
 import { resolveCallerAccountAccess } from './attribution.service';
-import { readRegisteredProduct, readSubjectProductAccess } from './productAccessPersistence.service';
+import { readRegisteredProduct, readSubjectProductAccess, readSubjectProductGrantSnapshot } from './productAccessPersistence.service';
+import type { ServiceTokenPayload } from '../middleware/serviceToken';
+import { resolveServiceActingAsGrant, SERVICE_ACTING_AS_SCOPE } from './serviceActingAs.service';
 
-export async function readAuthorizedSubjectProductAccess(identity: AccessTokenIdentity, input: SubjectProductAccessQuery) {
+async function authorizeProductAccess(identity: AccessTokenIdentity, input: SubjectProductAccessQuery) {
   const query = subjectProductAccessQuerySchema.parse(input);
   if (query.subjectAccountId !== identity.subjectAccountId) throw new NotFoundError('Product access is unavailable');
   // Force the shared session/managed-account authority reader, bypassing caches.
@@ -35,5 +37,32 @@ export async function readAuthorizedSubjectProductAccess(identity: AccessTokenId
   if (fence) throw new NotFoundError('Product access is unavailable');
   const product = await readRegisteredProduct(getDb(), query.productId);
   if (product.applicationId !== identity.applicationId) throw new NotFoundError('Product access is unavailable');
-  return readSubjectProductAccess(query.subjectAccountId, query.productId);
+  return query;
+}
+
+export async function readAuthorizedSubjectProductAccess(identity: AccessTokenIdentity, input: SubjectProductAccessQuery) {
+  const query = await authorizeProductAccess(identity,input);
+  return readSubjectProductAccess(query.subjectAccountId,query.productId);
+}
+export async function readAuthorizedSubjectProductGrantSnapshot(identity: AccessTokenIdentity, input: SubjectProductAccessQuery) {
+  const query = await authorizeProductAccess(identity,input);
+  return readSubjectProductGrantSnapshot(query.subjectAccountId,query.productId);
+}
+
+/** Offline reads retain the existing explicit account/application consent boundary.
+ * A service token proves the application, never the requested beneficiary.
+ */
+export async function readServiceAuthorizedSubjectProductGrantSnapshot(identity: ServiceTokenPayload, input: SubjectProductAccessQuery) {
+  const query = subjectProductAccessQuerySchema.parse(input);
+  const required = ['user:read', SERVICE_ACTING_AS_SCOPE];
+  if (identity.environment !== 'production' || required.some(scope => !identity.scopes.includes(scope)))
+    throw new ForbiddenError('Production offline product read authority is required');
+  const grant = await resolveServiceActingAsGrant(identity.appId, query.subjectAccountId, {
+    credentialId: identity.credentialId, ownerAccountId: identity.ownerAccountId, environment: identity.environment,
+  });
+  if (!grant.authorized || required.some(scope => !grant.scopes.includes(scope)))
+    throw new NotFoundError('Product access is unavailable');
+  const product = await readRegisteredProduct(getDb(), query.productId);
+  if (product.applicationId !== identity.appId) throw new NotFoundError('Product access is unavailable');
+  return readSubjectProductGrantSnapshot(query.subjectAccountId, query.productId);
 }

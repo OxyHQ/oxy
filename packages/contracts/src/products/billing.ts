@@ -21,7 +21,7 @@ export const subscriptionCreditGrantSchema = z.object({ id, invoiceId: id,
   promotionId: id.nullable(), createdAt: z.string().datetime(),
 }).strict().refine(value => BigInt(value.consumed) + BigInt(value.clawed) + BigInt(value.remaining) === BigInt(value.granted), 'Grant conservation differs');
 export const subscriptionCreditGrantsResponseSchema = z.object({ grants: z.array(subscriptionCreditGrantSchema) }).strict();
-export const cancelProductSubscriptionSchema = z.object({ sourceId: id, expectedSubjectAccountId: oxyAccountIdSchema.optional() }).strict();
+export const cancelProductSubscriptionSchema = z.object({ sourceId: id, actionId:z.string().min(8).max(160).regex(/^[a-zA-Z0-9_-]+$/).optional(), expectedSubjectAccountId: oxyAccountIdSchema.optional() }).strict();
 export type ProductSubscriptionSummary = z.infer<typeof productSubscriptionSummarySchema>;
 export type SubscriptionCreditGrant = z.infer<typeof subscriptionCreditGrantSchema>;
 

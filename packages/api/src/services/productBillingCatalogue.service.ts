@@ -3,6 +3,7 @@ import { billingNamespaceSchema } from '../config/billingNamespace';
 import { readFile } from "node:fs/promises";
 import {
 	productDefinitionSchema,
+  personalPlanDisplayPriceSchema,
 	productOfferSchema,
 	productSubscriptionSourceSchema,
 } from "@oxy.so/contracts";
@@ -17,10 +18,11 @@ import {
 } from "./stripeSubscriptionEvidence.service";
 
 const id = z.string().min(1).max(160);
-const priceSchema = z
+export const productBillingPriceSchema = z
 	.object({
 		priceId: id,
-		providerAccountId: z.string().regex(/^acct_[a-zA-Z0-9_]+$/),
+    provider: z.enum(["stripe", "peable"]).default("stripe"),
+		providerAccountId: id,
 		mode: z.enum(["live", "test"]),
 		environment: z.enum(["production", "test", "staging", "development"]),
 		offerId: id,
@@ -34,6 +36,9 @@ const priceSchema = z
 		kind: z.enum(["existing_product", "oxy_one"]),
 	})
 	.strict().superRefine((value, context) => {
+    if (value.kind === "oxy_one" && value.provider !== "peable") context.addIssue({code:"custom",message:"Oxy One payments require Peable"});
+    if (value.provider === "peable" && !/^merch_[a-zA-Z0-9_]+$/.test(value.providerAccountId)) context.addIssue({code:"custom",message:"Peable merchant binding differs"});
+    if (value.provider === "stripe" && !/^acct_[a-zA-Z0-9_]+$/.test(value.providerAccountId)) context.addIssue({code:"custom",message:"Legacy Stripe account binding differs"});
     if (!billingNamespaceSchema.safeParse({ mode: value.mode, environment: value.environment }).success) context.addIssue({ code: "custom", message: "Provider price namespace is incoherent" });
   });
 export const productBillingCatalogueSchema = z
@@ -41,7 +46,16 @@ export const productBillingCatalogueSchema = z
 		schemaVersion: z.literal(1),
 		products: z.array(productDefinitionSchema),
 		offers: z.array(productOfferSchema),
-		prices: z.array(priceSchema),
+		prices: z.array(productBillingPriceSchema),
+    /** Editorial publication grants no entitlement and enables no checkout. */
+    storageAdapter: z.object({ productId: id, quotaKey: id, unit: z.literal('byte'),
+      legacyCombination: z.literal('maximum') }).strict().nullable().default(null),
+    personalizationAdapter: z.object({productId:id, capabilityKey:id}).strict().nullable().default(null),
+    personalPlans: z.array(z.object({ offerId: id, offerVersion: z.number().int().positive().safe(),
+      displayName: z.string().min(1).max(100), audience: z.literal('personal'), kind: z.literal('oxy_one'),
+      benefitNames: z.array(z.string().min(1).max(100)),
+      price:personalPlanDisplayPriceSchema.optional(),
+    }).strict()).default([]),
 		/** Explicit historical or beneficiary≠payer mappings require reviewed exact IDs. */
 		displayNames: z.object({ products: z.record(id, z.string().min(1).max(100)), offers: z.record(id, z.string().min(1).max(100)) }).strict().default({ products: {}, offers: {} }),
     subscriptions: z.array(
@@ -71,14 +85,30 @@ export const productBillingCatalogueSchema = z
 				code: "custom",
 				message: "Duplicate product or offer identity",
 			});
+    if (value.storageAdapter && !products.has(value.storageAdapter.productId))
+      context.addIssue({ code: 'custom', message: 'Storage adapter requires a registered product' });
+    if (value.personalizationAdapter && !products.has(value.personalizationAdapter.productId))
+      context.addIssue({code:'custom',message:'Personalization adapter requires a registered product'});
+    const published = new Set<string>();
+    for (const plan of value.personalPlans) {
+      const key = `${plan.offerId}@${plan.offerVersion}`;
+      const offer = offers.get(key);
+      if (published.has(key) || !offer || offer.kind !== 'bundle' || !offer.benefits.length
+        || plan.benefitNames.length !== offer.benefits.length
+        || offer.benefits.some(benefit => !products.has(benefit.productId)
+          || (benefit.kind === 'quota' && (benefit.unit === 'api_credit' || benefit.key === 'api_credits')))) {
+        context.addIssue({ code: 'custom', message: 'Published personal plan requires a unique registered non-API-credit bundle version' });
+      }
+      published.add(key);
+    }
 		const prices = new Set<string>();
 		for (const binding of value.prices) {
-			const key = `${binding.providerAccountId}:${binding.mode}:${binding.environment}:${binding.priceId}`;
+			const key = `${binding.provider}:${binding.providerAccountId}:${binding.mode}:${binding.environment}:${binding.priceId}`;
 			const offer = offers.get(`${binding.offerId}@${binding.offerVersion}`);
 			const otherPeriods = value.prices.filter(
 				(other) =>
 					other !== binding &&
-					other.providerAccountId === binding.providerAccountId &&
+					other.provider === binding.provider && other.providerAccountId === binding.providerAccountId &&
           other.mode === binding.mode && other.environment === binding.environment &&
 					other.priceId === binding.priceId,
 			);
@@ -164,7 +194,7 @@ export const EMPTY_PRODUCT_BILLING_CATALOGUE: ProductBillingCatalogue = {
 	schemaVersion: 1,
 	products: [],
 	offers: [],
-	prices: [],
+	prices: [], personalPlans: [], storageAdapter: null, personalizationAdapter: null,
 	subscriptions: [], displayNames: { products: {}, offers: {} },
 };
 
@@ -224,7 +254,7 @@ export async function prepareStripeProductPeriod(
 		catalogue.prices
 			.filter(
 				(binding) =>
-					binding.providerAccountId === providerAccountId &&
+					binding.provider === "stripe" && binding.kind !== "oxy_one" && binding.providerAccountId === providerAccountId &&
 					binding.mode === mode &&
 					binding.environment === environment &&
 					binding.priceId ===
@@ -311,6 +341,7 @@ export async function prepareStripeProductPeriod(
 				},
 				cancelAtPeriodEnd: subscription.cancel_at_period_end,
 			}),
+    ...(subscription.metadata?.oxyPersonalCheckoutIntentId ? { checkoutIntentId: subscription.metadata.oxyPersonalCheckoutIntentId } : {}),
     expectedConfiguration: { offer, products: catalogue.products.filter(product => offer.benefits.some(benefit => benefit.productId === product.id)) },
 		offer: {
 			offerId: offer.id,

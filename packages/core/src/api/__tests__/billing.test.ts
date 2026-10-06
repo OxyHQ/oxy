@@ -1,6 +1,21 @@
 import { stubbedClient } from './helpers';
 
 describe('oxy.billing', () => {
+  it('loads public plans through the shared schema and refuses invented prices', async () => {
+    const { oxy, request } = stubbedClient('me');
+    const answer = { schemaVersion: 1, state: 'unconfigured', purchase: 'unavailable', plans: [] };
+    request.mockResolvedValue(answer);
+    await expect(oxy.billing.personalPlans()).resolves.toEqual(answer);
+    expect(request).toHaveBeenLastCalledWith('GET', '/billing/personal-plans', undefined, { cache: false });
+    request.mockResolvedValue({ ...answer, price: 2999 });
+    await expect(oxy.billing.personalPlans()).rejects.toThrow();
+  });
+  it('fences a subscription read to the rendered account', async () => {
+    const { oxy, request } = stubbedClient('me');
+    request.mockResolvedValue({ subscriptions: [] });
+    await oxy.billing.productSubscriptions('account/one');
+    expect(request).toHaveBeenLastCalledWith('GET', '/billing/product-subscriptions?expectedSubjectAccountId=account%2Fone', undefined, { cache: false });
+  });
   it('queries explicit product rights uncached and parses the access-only response', async () => {
     const { oxy, request } = stubbedClient('me');
     const query = { schemaVersion: 1 as const, subjectAccountId: 'me', productId: 'product/one' };
@@ -121,4 +136,11 @@ describe('oxy.billing', () => {
     await expect(oxy.billing.wallet()).rejects.toThrow('User not authenticated');
     expect(request).not.toHaveBeenCalled();
   });
+});
+
+it('forwards one explicit cancellation action identity without regenerating it on retry',async()=>{
+ const {oxy,request}=stubbedClient('me');request.mockResolvedValue({sourceId:'source',cancelAtPeriodEnd:true});
+ await oxy.billing.cancelProductSubscriptionWithStatus('source','me','action_001');await oxy.billing.cancelProductSubscriptionWithStatus('source','me','action_001');
+ expect(request).toHaveBeenLastCalledWith('POST','/billing/product-subscriptions/cancel',{sourceId:'source',expectedSubjectAccountId:'me',actionId:'action_001'},{cache:false});
+ await oxy.billing.cancelProductSubscriptionWithStatus('source','me','action_002');expect(request.mock.calls[2][2]).toMatchObject({actionId:'action_002'});
 });

@@ -125,3 +125,5 @@ it("unreviewed subscription assignment and duplicate price/offer identities fail
 		}),
 	).toThrow();
 });
+
+it('rejects direct Stripe Oxy One prices while retaining unrelated legacy Stripe prices',()=>{const v=fixture();expect(productBillingCatalogueSchema.parse(v).prices[0].provider).toBe('stripe');v.prices[0].kind='oxy_one';expect(()=>productBillingCatalogueSchema.parse(v)).toThrow('Peable');expect(productBillingCatalogueSchema.parse({...v,prices:[{...v.prices[0],provider:'peable',providerAccountId:'merch_review'}]}).prices[0].provider).toBe('peable');});

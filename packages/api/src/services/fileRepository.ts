@@ -28,12 +28,20 @@
  * order twice in a row.
  */
 
+import { ConflictError } from '../utils/error';
+import { withStorageQuota } from './storageQuota.service';
 import { and, asc, count, desc, eq, exists, inArray, ne, notExists, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { fileLinks, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
 import { messageAttachments } from '../db/schema/messageAttachments';
 import type { FileLinkRecord, FileOwner, FileRecord, FileVariantRecord, NewFileVariant } from '../types/file.types';
+
+/** Account locks precede this row lock on every quota-checked update. */
+async function assertStableFileOwner(tx: DatabaseOrTransaction, fileId: string, expected: string | null | undefined): Promise<void> {
+  const [current] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId)).for('update');
+  if (current?.owner !== expected) throw new ConflictError('File ownership changed during admission; retry');
+}
 
 /** Columns a caller may set when creating a file row. */
 export type NewFile = typeof files.$inferInsert;
@@ -356,15 +364,24 @@ export async function findVariantlessTwins(
  *   {@link isUniqueViolation}, which the caller uses to fall back to a re-read.
  */
 export async function insertFile(values: NewFile, db: DatabaseOrTransaction = getDb()): Promise<FileRecord> {
-  const [row] = await db.insert(files).values(values).returning();
-  return { ...row, links: [], variants: [] };
+  if (db === getDb()) return getDb().transaction(tx => insertFile(values, tx));
+  return withStorageQuota(db, [values.ownerUserId], async () => {
+    const [row] = await db.insert(files).values(values).returning();
+    return { ...row, links: [], variants: [] };
+  });
 }
 
 /** Apply a column patch and return the file as it now stands, or `null` if it is gone. */
 export async function updateFile(fileId: string, patch: FilePatch): Promise<FileRecord | null> {
-  const rows = await getDb().update(files).set(patch).where(eq(files.id, fileId)).returning();
-  const [record] = await withChildren(rows);
-  return record ?? null;
+  return getDb().transaction(async tx => {
+    const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
+    return withStorageQuota(tx, [old?.owner, patch.ownerUserId], async () => {
+      await assertStableFileOwner(tx, fileId, old?.owner);
+      const rows = await tx.update(files).set(patch).where(eq(files.id, fileId)).returning();
+      const [record] = await withChildren(rows, tx);
+      return record ?? null;
+    });
+  });
 }
 
 /**
@@ -571,26 +588,30 @@ export async function upsertVariantSet(
   patch?: FilePatch
 ): Promise<FileVariantRecord[]> {
   return getDb().transaction(async (tx) => {
-    const types = variants.map((variant) => variant.type);
-    if (types.length > 0) {
-      await tx
-        .delete(fileVariants)
-        .where(and(eq(fileVariants.fileId, fileId), inArray(fileVariants.type, types)));
-    }
+    const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
+    return withStorageQuota(tx, [old?.owner, patch?.ownerUserId], async () => {
+      await assertStableFileOwner(tx, fileId, old?.owner);
+      const types = variants.map((variant) => variant.type);
+      if (types.length > 0) {
+        await tx
+          .delete(fileVariants)
+          .where(and(eq(fileVariants.fileId, fileId), inArray(fileVariants.type, types)));
+      }
 
-    const inserted =
-      variants.length > 0
-        ? await tx
-            .insert(fileVariants)
-            .values(variants.map((variant) => ({ ...variant, fileId })))
-            .returning()
-        : [];
+      const inserted =
+        variants.length > 0
+          ? await tx
+              .insert(fileVariants)
+              .values(variants.map((variant) => ({ ...variant, fileId })))
+              .returning()
+          : [];
 
-    if (patch) {
-      await tx.update(files).set(patch).where(eq(files.id, fileId));
-    }
+      if (patch) {
+        await tx.update(files).set(patch).where(eq(files.id, fileId));
+      }
 
-    return inserted;
+      return inserted;
+    });
   });
 }
 
@@ -607,16 +628,20 @@ export async function upsertVariant(
   variant: NewFileVariant
 ): Promise<FileVariantRecord> {
   return getDb().transaction(async (tx) => {
-    await tx
-      .delete(fileVariants)
-      .where(and(eq(fileVariants.fileId, fileId), eq(fileVariants.type, variant.type)));
+    const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
+    return withStorageQuota(tx, [old?.owner, null], async () => {
+      await assertStableFileOwner(tx, fileId, old?.owner);
+      await tx
+        .delete(fileVariants)
+        .where(and(eq(fileVariants.fileId, fileId), eq(fileVariants.type, variant.type)));
 
-    const [row] = await tx
-      .insert(fileVariants)
-      .values({ ...variant, fileId })
-      .returning();
+      const [row] = await tx
+        .insert(fileVariants)
+        .values({ ...variant, fileId })
+        .returning();
 
-    return row;
+      return row;
+    });
   });
 }
 

@@ -1,5 +1,5 @@
 /**
- * The `oxy` profile colour is a PAID entitlement, against a real Postgres.
+ * Reserved identity colors and individual mono permissions, against real Postgres.
  *
  * The suite this replaces asserted `expect(set).toHaveBeenCalledWith('color',
  * 'blue')` on a mocked Mongoose document, and stubbed
@@ -149,15 +149,15 @@ describe('the `oxy` colour is refused without premium', () => {
   });
 });
 
-describe('the `oxy` colour is granted where it is earned', () => {
-  it.each([['pro'], ['business']])('allows a live %p subscriber', async (plan) => {
+describe('existing premium identity colors and added mono benefit', () => {
+  it.each([['pro'], ['business']])('preserves reserved identity color for a live %p subscriber', async (plan) => {
     const id = await makeUser();
     await giveSubscription(id, plan);
 
     await userService.updateUserProfile(id, { color: ' OXY ' });
-
-    // Granted AND canonicalized — the same normalization the gate checked.
     expect(await storedColor(id)).toBe('oxy');
+    await userService.updateUserProfile(id,{color:'mono'});
+    expect(await storedColor(id)).toBe('mono');
   });
 
   it('allows the `oxy` account itself with no subscription', async () => {

@@ -20,7 +20,7 @@ import {
 	getDb,
 } from '../config/postgres';
 import {
-  accessGrants,
+  accessGrants,accessProviderRefunds,
 	accessOfferBenefits,
 	accessOfferSegments, accessOffers, accessProducts, accessSubscriptionSources, accountClosureFences,
   applications, users, } from '../db/schema';
@@ -168,6 +168,12 @@ export async function recordProductAccessPeriod(input: {
     const definitions = await Promise.all([...new Set(offer.benefits.map(benefit => benefit.productId))].map(id => readRegisteredProduct(tx, id)));
     await lockOpenAccounts(tx, [source.beneficiaryAccountId, source.payerAccountId, ...definitions.map(product => product.ownerAccountId)]);
     await lockProductApplications(tx, definitions);
+    // Account locks serialize this check with refund evidence, even when the
+    // source and grants do not exist yet. Financial IDs derive from the same line.
+    if(source.provider==='peable'){
+      const [terminalRefund]=await tx.select({id:accessProviderRefunds.id}).from(accessProviderRefunds).where(eq(accessProviderRefunds.segmentId,segment.id)).limit(1);
+      if(terminalRefund)throw new ConflictError('Paid period has terminal full refund evidence');
+    }
     if (input.expectedConfiguration) {
       const expected = productAccessConfigurationExpectationSchema.parse(input.expectedConfiguration);
       same(offer, expected.offer);
@@ -313,23 +319,32 @@ export async function revokeProductAccessGrant(input: { grantId: string; product
   return rows.length === 1;
 }
 /** Caller authorization is separate and mandatory at every exposed boundary. */
-export async function readSubjectProductAccess(subjectAccountId: string, productId: string, now = new Date()) {
-  const namespace = await assertBillingDatabaseNamespace(getDb());
-  await readRegisteredProduct(getDb(), productId);
-  const rows = await getDb().select({ grant: accessGrants, benefit: accessOfferBenefits, segment: accessOfferSegments })
+async function readProductAccessRecords(subjectAccountId: string, productId: string, now: Date, db: DatabaseOrTransaction) {
+  const namespace = await assertBillingDatabaseNamespace(db);
+  await readRegisteredProduct(db, productId);
+  const rows = await db.select({ grant: accessGrants, benefit: accessOfferBenefits, segment: accessOfferSegments })
     .from(accessGrants)
     .innerJoin(accessOfferBenefits, and(eq(accessGrants.offerId, accessOfferBenefits.offerId), eq(accessGrants.offerVersion, accessOfferBenefits.offerVersion), eq(accessGrants.benefitIndex, accessOfferBenefits.benefitIndex)))
     .innerJoin(accessOfferSegments, eq(accessGrants.sourceSegmentId, accessOfferSegments.id))
     .innerJoin(accessSubscriptionSources, eq(accessOfferSegments.subscriptionId, accessSubscriptionSources.id))
     .where(and(eq(accessGrants.beneficiaryAccountId, subjectAccountId), eq(accessGrants.productId, productId),
       eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment)));
-  for (const row of rows) await configuredOffer(getDb(), row.segment.offerId, row.segment.offerVersion);
+  for (const row of rows) await configuredOffer(db, row.segment.offerId, row.segment.offerVersion);
   const sourceIds = [...new Set(rows.map(row => row.segment.subscriptionId))];
-  const sources = sourceIds.length ? await getDb().select().from(accessSubscriptionSources).where(and(inArray(accessSubscriptionSources.id, sourceIds), eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment))) : [];
+  const sources = sourceIds.length ? await db.select().from(accessSubscriptionSources).where(and(inArray(accessSubscriptionSources.id, sourceIds), eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment))) : [];
   const segments = [...new Map(rows.map(row => [row.segment.id, segmentDto(row.segment)])).values()];
   const grants = rows.map(({ grant, benefit }) => productAccessGrantSchema.parse({ schemaVersion: 1, id: grant.id,
     sourceSegmentId: grant.sourceSegmentId, beneficiaryAccountId: grant.beneficiaryAccountId,
     offerId: grant.offerId, offerVersion: grant.offerVersion, origin: grant.origin, benefit: benefitDto(benefit),
     period: { start: grant.periodStart.toISOString(), end: grant.periodEnd.toISOString() }, revokedAt: grant.revokedAt?.toISOString() ?? null }));
-  return composeSubjectProductAccess({ subjectAccountId, productId, now, sources: sources.map(sourceDto), segments, grants });
+  const access = composeSubjectProductAccess({ subjectAccountId, productId, now, sources: sources.map(sourceDto), segments, grants });
+  return { access, grants };
+}
+export async function readSubjectProductAccess(subjectAccountId: string, productId: string, now = new Date(), db: DatabaseOrTransaction = getDb()) {
+  return (await readProductAccessRecords(subjectAccountId, productId, now, db)).access;
+}
+export async function readSubjectProductGrantSnapshot(subjectAccountId: string, productId: string, now = new Date(), db: DatabaseOrTransaction = getDb()) {
+  const { access, grants } = await readProductAccessRecords(subjectAccountId, productId, now, db);
+  const active = new Set([...access.capabilities, ...access.quotas].flatMap(entry => entry.grantIds));
+  return { schemaVersion: 1 as const, access, grants: grants.filter(grant => active.has(grant.id)) };
 }

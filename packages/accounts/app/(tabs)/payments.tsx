@@ -12,6 +12,7 @@ import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { useTranslation } from '@/lib/i18n';
+import { PersonalPlansCard } from '@/components/payments/PersonalPlansCard';
 import { PaymentsHeader } from '@/components/payments/PaymentsHeader';
 import { FairCoinBanner } from '@/components/payments/FairCoinBanner';
 import { WalletBalanceCard } from '@/components/payments/WalletBalanceCard';
@@ -103,6 +104,8 @@ export default function PaymentsScreen() {
 
   const content = (
     <>
+      <PersonalPlansCard />
+
       <FairCoinBanner />
 
       {wallet && (
