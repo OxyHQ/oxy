@@ -46,6 +46,9 @@ async function fixture() {
 		.values({ id: I03_CANARY_OWNER_ID, color: "blue" })
 		.onConflictDoUpdate({ target: users.id, set: { accountStatus: "active" } });
 	await getDb()
+		.delete(accountClosureFences)
+		.where(eq(accountClosureFences.accountId, I03_CANARY_OWNER_ID));
+	await getDb()
 		.insert(applications)
 		.values({
 			id: I03_CANARY_APPLICATION_ID,
