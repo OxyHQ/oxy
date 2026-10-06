@@ -56,6 +56,9 @@ export async function startPersonalPlanCheckout(subjectAccountId: string, raw: P
   if (!prior && prices.length === 0) return { state: 'unconfigured', reason: 'price_unconfigured' };
   if (!prior && prices.length !== 1) throw new ConflictError('Approved checkout price selection is ambiguous');
   const price = prior ? frozenPrice(prior) : prices[0];
+  // The database refuses anything else; fail here with a domain error first.
+  const offerKind = price.offerKind, priceKind = price.kind;
+  if (offerKind !== 'bundle' || priceKind !== 'oxy_one') throw new ConflictError('Approved checkout price is not a personal bundle price');
   const requestHash = hash(JSON.stringify({ offerId: request.offerId, offerVersion: request.offerVersion,
     providerAccountRef: price.providerAccountId, priceId: price.priceId, amountMinorUnits: price.amountMinorUnits, currency: price.currency }));
   const intent = await getDb().transaction(async tx => {
@@ -77,8 +80,8 @@ export async function startPersonalPlanCheckout(subjectAccountId: string, raw: P
     if (held) throw new ConflictError('A personal bundle subscription already exists');
     const [created] = await tx.insert(personalPlanCheckoutIntents).values({ id: randomUUID(), subjectAccountId, ...namespace,
       idempotencyHash, requestHash, offerId: request.offerId, offerVersion: request.offerVersion,
-      providerAccountRef: price.providerAccountId, offerKind: price.offerKind, priceId: price.priceId, priceProvider: price.provider,
-      priceKind: price.kind, currency: price.currency, amountMinorUnits: price.amountMinorUnits,
+      providerAccountRef: price.providerAccountId, offerKind, priceId: price.priceId, priceProvider: price.provider,
+      priceKind, currency: price.currency, amountMinorUnits: price.amountMinorUnits,
       priceValidFrom: new Date(price.validFrom), priceValidUntil: price.validUntil === null ? null : new Date(price.validUntil), state: 'reserved' }).returning();
     return created;
   });
