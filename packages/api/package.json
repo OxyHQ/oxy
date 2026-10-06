@@ -101,7 +101,7 @@
     "ajv-formats": "^3.0.1",
     "axios": "catalog:",
     "bullmq": "^5.80.4",
-    "compression": "^1.8.1",
+    "compression": "^1.8.2",
     "dotenv": "^16.6.1",
     "drizzle-orm": "catalog:",
     "express": "catalog:",
