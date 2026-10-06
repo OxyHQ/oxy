@@ -2,6 +2,9 @@
 
 - Status: accepted
 - Date: 2026-09-02
+- Amended: 2026-10-06 — an agent acts AS ITSELF on its own bot account without a
+  grant, and an agent's unattended run gets its requester from the bot's live
+  parent (see "Addendum: an agent acts as itself")
 - Scope: Oxy authority, Alia coordination, app execution, and external MCP access
 
 ## Context
@@ -268,3 +271,65 @@ requester → coordinator → executing actor → effective account → resource
 
 No component may replace that chain with a general user session or an inferred
 identity.
+
+## Addendum (2026-10-06): an agent acts as itself
+
+Every agent is a real Oxy bot account (above), and bot accounts already receive
+mail, post and sign up like any account. Until now the only authority an agent
+could hold was a `DelegationGrant` over somebody ELSE's resources, so "read your
+own inbox" — the agent's — was impossible: nobody can delegate to an account what
+it already owns, and no grant ever named `effectiveAccountId = actor.accountId`.
+
+### Own account: no grant
+
+`evaluateCapabilityAuthority` treats an `agent` execution authorization whose
+effective account IS the actor's own account as authorized by:
+
+1. the actor is a live `bot` (not archived);
+2. the coordinator is a live agency coordinator (unchanged);
+3. the requester is a human — never the bot itself — who currently holds
+   `account:act_as` over the bot, re-read on every ticket and introspection
+   (the same `requesterCanOperate` every agent authorization already passes);
+4. the bot's own account policy, the catalogue and autonomy rules (unchanged).
+
+No grant is read and the ticket carries no `grantId`. The equality is the whole
+rule: the owner's account, another bot the same person operates, or an
+organization still need a grant naming exactly that resource. A bot without a
+human requester keeps the existing agent-KEY lane (`requesterAuthMethodId`),
+which proves possession of the bot's own credential instead.
+
+### Unattended runs: the requester is the bot's parent
+
+`POST /capabilities/agent-run-authorizations` (coordinator service lane:
+`capability-tickets:issue` + `agency:coordinate`) creates authority for one tool
+of an agent's run with nobody present. The coordinator names the bot, the owner
+it expects, its session, the resource, tool and autonomy — but not the requester:
+Oxy reads the bot's live `parentAccountId`, refuses unless it equals the named
+owner and still operates both the bot and the effective account, and records it
+as requester and owner. The row is an `automation` authorization
+(`automationId = agent-session:<sessionId>`, run bound when a ticket is issued),
+at most 15 minutes long.
+
+Every ticket re-evaluates it exactly like any other automation authority, so:
+
+- on the agent's own account it needs nothing more (the rule above);
+- on the owner's account it needs a live grant, and an effect needs that grant at
+  `autonomous`: a grant capped at `execute_on_request` — "only when I ask" —
+  never becomes unattended effects through this lane;
+- sensitive tools still need bounded limits, which this lane never supplies.
+
+### Consequences
+
+- A live agency coordinator can act as any bot whose owner still operates it,
+  on the bot's own account, without that owner present. That is the meaning of
+  an agent having an account of its own; it is bounded by the bot's own account
+  policy, by archiving the bot, and by the owner's membership. Owner DATA is
+  never reachable this way without a grant.
+- Alia (the coordinator) shows each agent two sets of tools: its own account's,
+  named `self_*`, and the owner's apps per the agent's grants.
+- Per-agent levels in Alia (`Nada` / `Ver` / `Ver y actuar`) are materialised as
+  one grant per app with the owner's bearer: `Ver` = the app's read packages at
+  `read_only`; `Ver y actuar` = every non-sensitive package at `autonomous`;
+  `Nada` = revoked. The Agency tab in accounts remains the advanced view of the
+  same grants.
+

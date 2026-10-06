@@ -762,6 +762,132 @@ router.post('/execution-authorizations', authMiddleware, asyncHandler(async (req
   response.status(201).json({ authorization });
 }));
 
+const agentRunAuthorizationSchema = z.object({
+  actorAccountId: z.string().min(1),
+  ownerAccountId: z.string().min(1),
+  sessionId: z.string().min(1).max(200).regex(/^[A-Za-z0-9_.:-]+$/),
+  resource: resourceRefSchema,
+  tool: z.string().min(1),
+  maximumAutonomy: autonomyLevelSchema,
+  expiresAt: z.string().datetime(),
+}).strict();
+
+/**
+ * @openapi
+ * /capabilities/agent-run-authorizations:
+ *   post:
+ *     tags: [Capabilities]
+ *     summary: Authorize one step of an agent's unattended run, with the agent's owner as requester
+ *     description: >-
+ *       Coordinator service lane (capability-tickets:issue + agency:coordinate). The requester is
+ *       never supplied: Oxy reads the bot's live parent account and refuses unless it equals
+ *       `ownerAccountId` and still holds account:act_as over the bot. Creates a short automation
+ *       authority (`automationId = agent-session:<sessionId>`) that every ticket re-evaluates: the
+ *       agent's own account needs no DelegationGrant; any other account needs a live grant whose
+ *       autonomy covers the requested one.
+ *     security: [{ serviceTokenAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             additionalProperties: false
+ *             required: [actorAccountId, ownerAccountId, sessionId, resource, tool, maximumAutonomy, expiresAt]
+ *             properties:
+ *               actorAccountId: { type: string, minLength: 1 }
+ *               ownerAccountId: { type: string, minLength: 1 }
+ *               sessionId: { type: string, minLength: 1, maxLength: 200 }
+ *               resource:
+ *                 type: object
+ *                 required: [appId, effectiveAccountId, resourceType, resourceId]
+ *                 properties:
+ *                   appId: { type: string }
+ *                   effectiveAccountId: { type: string }
+ *                   resourceType: { type: string }
+ *                   resourceId: { type: string }
+ *               tool: { type: string, minLength: 1 }
+ *               maximumAutonomy: { type: string, enum: [read_only, draft, execute_on_request, autonomous] }
+ *               expiresAt: { type: string, format: date-time, description: At most 15 minutes ahead. }
+ *     responses:
+ *       201: { description: Automation execution authority for one exact tool and resource. }
+ *       400: { description: Invalid input, tool or expiry. }
+ *       401: { description: Service principal missing or no longer active. }
+ *       403: { description: The bot, its owner or the owner's authority over the account did not hold. }
+ */
+router.post('/agent-run-authorizations', serviceAuthMiddleware, asyncHandler(async (request: ServiceAuthRequest, response: Response) => {
+  const presenter = await livePrincipal(request, response, 'capability-tickets:issue', AGENCY_COORDINATE_CAPABILITY);
+  if (!presenter) return;
+  const parsed = agentRunAuthorizationSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: 'invalid_agent_run_authorization' });
+    return;
+  }
+  const input = parsed.data;
+  // The requester is DERIVED, never taken from the coordinator: the bot's live
+  // parent is the person its unattended work is done for, and Alia only names
+  // whom it expects so a mismatch fails loudly instead of acting for someone else.
+  const [bot] = await getDb()
+    .select({ kind: users.kind, accountStatus: users.accountStatus, parentAccountId: users.parentAccountId })
+    .from(users)
+    .where(eq(users.id, input.actorAccountId))
+    .limit(1);
+  if (!bot || bot.kind !== 'bot' || bot.accountStatus === 'archived'
+    || !bot.parentAccountId || bot.parentAccountId !== input.ownerAccountId) {
+    response.status(403).json({ error: 'agent_run_not_authorized' });
+    return;
+  }
+  const ownerAccountId = bot.parentAccountId;
+  if (!await canOperate(ownerAccountId, input.actorAccountId)
+    || !await canOperate(ownerAccountId, input.resource.effectiveAccountId)) {
+    response.status(403).json({ error: 'agent_run_not_authorized' });
+    return;
+  }
+  const catalog = await activeCapabilityCatalog(input.resource.appId);
+  const tool = catalog?.catalog.tools.find((entry) => entry.name === input.tool);
+  if (!tool || !tool.exposure.includes('internal') || !tool.resourceTypes.includes(input.resource.resourceType)) {
+    response.status(400).json({ error: 'tool_not_available_for_resource' });
+    return;
+  }
+  const sensitiveLimitError = autonomousSensitiveToolLimitError(input.maximumAutonomy, tool, []);
+  if (sensitiveLimitError) {
+    response.status(400).json({ error: sensitiveLimitError });
+    return;
+  }
+  if (tool.effect !== 'read' && (input.maximumAutonomy === 'read_only' || input.maximumAutonomy === 'draft')) {
+    response.status(400).json({ error: 'effect_requires_execution_authority' });
+    return;
+  }
+  const now = new Date();
+  const expiresAt = new Date(input.expiresAt);
+  if (expiresAt <= now || expiresAt.getTime() - now.getTime() > 15 * 60_000) {
+    response.status(400).json({ error: 'execution_authorization_expiry_out_of_range' });
+    return;
+  }
+  const [authorization] = await getDb().insert(capabilityExecutionAuthorizations).values({
+    kind: 'automation',
+    requesterAccountId: ownerAccountId,
+    requesterAuthMethodId: null,
+    ownerAccountId,
+    coordinatorApplicationId: presenter.applicationId,
+    coordinatorCredentialId: presenter.credentialId,
+    actorType: 'agent',
+    actorAccountId: input.actorAccountId,
+    resourceApp: input.resource.appId,
+    effectiveAccountId: input.resource.effectiveAccountId,
+    resourceType: input.resource.resourceType,
+    resourceKey: input.resource.resourceId,
+    tool: input.tool,
+    runId: null,
+    stepId: null,
+    automationId: `agent-session:${input.sessionId}`,
+    maximumAutonomy: input.maximumAutonomy,
+    limits: [],
+    expiresAt,
+  }).returning();
+  response.status(201).json({ authorization });
+}));
+
 router.delete('/execution-authorizations/:authorizationId', authMiddleware, async (request: AuthRequest, response: Response) => {
   const [authorization] = await getDb().select().from(capabilityExecutionAuthorizations)
     .where(eq(capabilityExecutionAuthorizations.id, request.params.authorizationId)).limit(1);

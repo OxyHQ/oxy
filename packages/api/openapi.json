@@ -11129,6 +11129,113 @@
         "operationId": "postBillingWebhook"
       }
     },
+    "/capabilities/agent-run-authorizations": {
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Authorize one step of an agent's unattended run, with the agent's owner as requester",
+        "description": "Coordinator service lane (capability-tickets:issue + agency:coordinate). The requester is never supplied: Oxy reads the bot's live parent account and refuses unless it equals `ownerAccountId` and still holds account:act_as over the bot. Creates a short automation authority (`automationId = agent-session:<sessionId>`) that every ticket re-evaluates: the agent's own account needs no DelegationGrant; any other account needs a live grant whose autonomy covers the requested one.",
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "actorAccountId",
+                  "ownerAccountId",
+                  "sessionId",
+                  "resource",
+                  "tool",
+                  "maximumAutonomy",
+                  "expiresAt"
+                ],
+                "properties": {
+                  "actorAccountId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "ownerAccountId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "resource": {
+                    "type": "object",
+                    "required": [
+                      "appId",
+                      "effectiveAccountId",
+                      "resourceType",
+                      "resourceId"
+                    ],
+                    "properties": {
+                      "appId": {
+                        "type": "string"
+                      },
+                      "effectiveAccountId": {
+                        "type": "string"
+                      },
+                      "resourceType": {
+                        "type": "string"
+                      },
+                      "resourceId": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "tool": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "maximumAutonomy": {
+                    "type": "string",
+                    "enum": [
+                      "read_only",
+                      "draft",
+                      "execute_on_request",
+                      "autonomous"
+                    ]
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "At most 15 minutes ahead."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Automation execution authority for one exact tool and resource."
+          },
+          "400": {
+            "description": "Invalid input",
+            "tool or expiry.": null
+          },
+          "401": {
+            "description": "Service principal missing or no longer active."
+          },
+          "403": {
+            "description": "The bot",
+            "its owner or the owner's authority over the account did not hold.": null
+          }
+        },
+        "operationId": "postCapabilitiesAgentRunAuthorizations"
+      }
+    },
     "/capabilities/foreground-execution-authorizations": {
       "post": {
         "tags": [

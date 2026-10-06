@@ -179,6 +179,30 @@ async function loadGrant(
   };
 }
 
+/**
+ * An agent acting AS ITSELF: the effective account is the agent's own bot
+ * account (ADR 0018, addendum "An agent acts as itself").
+ *
+ * That needs no `DelegationGrant`, because nobody is delegating anything: the
+ * mailbox, the posts and the sign-ups belong to the bot. What authorizes it is
+ * what authorizes every agent run — the actor is a live `bot`, the coordinator
+ * is a live agency coordinator — plus the requester checks every non-requester
+ * actor already passes below: a human who currently holds `account:act_as` over
+ * the bot (its owner, or an operator the owner appointed). A bot is never its
+ * own requester here; that lane is the agent KEY (`autonomousSelf`), which
+ * proves possession of the bot's own credential.
+ *
+ * The equality is the whole rule. Any other effective account — the owner's,
+ * another bot the same person operates, an organization — still needs a grant
+ * naming exactly that resource.
+ */
+function agentActsOnItsOwnAccount(authorization: ExecutionAuthorizationRow): boolean {
+  return authorization.actorType === 'agent'
+    && authorization.actorAccountId !== null
+    && authorization.actorAccountId === authorization.effectiveAccountId
+    && authorization.requesterAccountId !== authorization.actorAccountId;
+}
+
 function denied(reason: string): AuthorityResult {
   return { decision: { allowed: false, reason } };
 }
@@ -222,6 +246,7 @@ export async function evaluateCapabilityAuthority(
     && authorization.actorAccountId === authorization.requesterAccountId
     && authorization.ownerAccountId === authorization.requesterAccountId
     && authorization.effectiveAccountId === authorization.requesterAccountId;
+  const agentOwnAccount = agentActsOnItsOwnAccount(authorization);
 
   let runId: string;
   let stepId: string | undefined;
@@ -288,6 +313,8 @@ export async function evaluateCapabilityAuthority(
     if (!actorRow || actorRow.kind !== 'bot' || actorRow.accountStatus === 'archived') {
       return denied('actor_is_not_an_active_bot_account');
     }
+  }
+  if (actor.type === 'agent' && !autonomousSelf && !agentOwnAccount) {
     grantParts = await loadGrant(authorization, actor.accountId, now);
     if (!grantParts) return denied('agent_has_no_active_grant');
     if (!grantAllowsTool(tool, {
