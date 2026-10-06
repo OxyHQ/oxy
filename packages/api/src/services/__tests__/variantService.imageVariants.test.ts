@@ -24,7 +24,7 @@
 
 import sharp from 'sharp';
 import { randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { fileVariants, files, users } from '../../db/schema';
 import { VariantService } from '../variantService';
@@ -360,5 +360,31 @@ describe('VariantService.ensureVideoImageVariant — sizes derived from the post
     ).rejects.toThrow(/Unsupported video image variant/);
     // A rejected name must never reach storage.
     expect(fakeS3.uploads).toHaveLength(0);
+  });
+});
+
+describe('VariantService image generation retry', () => {
+  it('keeps ready rendition rows instead of deleting and recreating them', async () => {
+    const original = await makeSquarePng(512);
+    const fakeS3 = makeFakeS3(original);
+    const service = new VariantService(fakeS3 as unknown as S3Service);
+    const file = await makeFile();
+    const generate = (target: FileRecord) => (service as unknown as { generateImageVariants(f: FileRecord): Promise<void> }).generateImageVariants(target);
+
+    await generate(file);
+    // xmin changes whenever a row is deleted and reinserted, even with the same id.
+    const rowsOf = () => getDb().select({ id: fileVariants.id, type: fileVariants.type, key: fileVariants.key, version: sql<string>`xmin::text` })
+      .from(fileVariants).where(eq(fileVariants.fileId, file.id));
+    const first = await rowsOf();
+    expect(first.length).toBeGreaterThan(0);
+    const uploadsAfterFirst = fakeS3.uploads.length;
+
+    fakeS3.fileExists.mockImplementation(() => Promise.resolve(true));
+    await generate(file);
+    const second = await rowsOf();
+    const ids = (rows: typeof first) => rows.map((row) => `${row.type}:${row.id}:${row.key}:${row.version}`).sort();
+    expect(ids(second)).toEqual(ids(first));
+    expect(fakeS3.uploads).toHaveLength(uploadsAfterFirst);
+    expect(file.variants.map((variant) => variant.id).sort()).toEqual(first.map((row) => row.id).sort());
   });
 });

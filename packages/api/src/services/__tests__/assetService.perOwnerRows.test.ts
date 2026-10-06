@@ -380,5 +380,19 @@ describe('completeUpload', () => {
     bucket.objects.delete(completed.storageKey);
     await expect(service.completeUpload({fileId:row.id,size:1,mime:'image/png',originalName:'absent'},f.payer)).rejects.toThrow('not found');
   });
+  it('refuses an unsupported public relocation before persisting the visibility change', async () => {
+    const f = await productAccessFixture();
+    mockCatalogue = { ...EMPTY_PRODUCT_BILLING_CATALOGUE, products: f.products,
+      storageAdapter: { productId: f.products[0].id, quotaKey: 'storage_bytes', unit: 'byte', legacyCombination: 'maximum' } };
+    const { service } = harness(); const content = png();
+    const row = await service.uploadFileDirect(f.payer, content, 'image/png', 'private.png', 'private');
+    for (let attempt = 0; attempt < 2; attempt++)
+      await expect(service.completeUpload({ fileId: row.id, originalName: 'public.png', size: content.length,
+        mime: 'image/png', visibility: 'public' }, f.payer)).rejects.toMatchObject({ code: 'STORAGE_PHYSICAL_PATH_UNAVAILABLE' });
+    const [stored] = await getDb().select().from(files).where(eq(files.id, row.id));
+    expect(stored).toMatchObject({ visibility: 'private', storageKey: row.storageKey, originalName: 'private.png' });
+    // Completing without a prefix change still works under configured admission.
+    expect((await service.completeUpload({ fileId: row.id, originalName: 'kept.png', size: 1, mime: 'image/png' }, f.payer)).visibility).toBe('private');
+  });
 
 });

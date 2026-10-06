@@ -84,7 +84,9 @@ export const subjectProductGrantSnapshotSchema = z.object({
   if (active.size !== value.grants.length || new Set(value.grants.map(g => g.id)).size !== value.grants.length
     || value.grants.some(g => g.beneficiaryAccountId !== value.access.subjectAccountId
       || g.benefit.productId !== value.access.productId || !active.has(g.id)
-      || g.revokedAt !== null || Date.parse(g.period.start) > Date.parse(value.access.evaluatedAt)
+      // A future revocation is still active at evaluation time, as in access composition.
+      || (g.revokedAt !== null && Date.parse(g.revokedAt) <= Date.parse(value.access.evaluatedAt))
+      || Date.parse(g.period.start) > Date.parse(value.access.evaluatedAt)
       || Date.parse(g.period.end) <= Date.parse(value.access.evaluatedAt)))
     ctx.addIssue({ code: 'custom', message: 'Active grant snapshot attribution differs' });
   for (const quota of value.access.quotas) {

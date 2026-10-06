@@ -22,20 +22,27 @@ function PersonalPlansContent() {
   const [busy, setBusy] = useState(false);
   const actions=useRef(new Map<string,string>());
   const [message, setMessage] = useState('');
+  const [refreshWarning, setRefreshWarning] = useState(false);
   async function cancel(sourceId: string) {
     if (!user?.id || !isAuthenticated || busy) return;
     const actionId=actions.current.get(sourceId)??randomUUID();actions.current.set(sourceId,actionId);
-    setBusy(true);
+    setBusy(true); setRefreshWarning(false);
+    let confirmed = false;
     try {
       const result = await authenticatedApiCall(oxyServices, activeSessionId,
         () => oxyServices.billing.cancelProductSubscriptionWithStatus(sourceId, user.id,actionId));
       setMessage(t(`payments.one.${'reconciliationPending' in result ? 'pending' : 'scheduled'}`));
       actions.current.delete(sourceId);
       setConfirm(null);
-      await sources.refetch();
+      confirmed = true;
     } catch {
       setMessage(t('payments.one.failed'));
-    } finally { setBusy(false); }
+    }
+    // A failed list refresh never turns a confirmed cancellation into a failure.
+    if (confirmed) {
+      try { await sources.refetch(); } catch { setRefreshWarning(true); }
+    }
+    setBusy(false);
   }
   return <Section title="Oxy One">
     <View style={{ gap: 12, padding: 16 }}>
@@ -72,6 +79,7 @@ function PersonalPlansContent() {
           </>}
         </View>) : <ThemedText>{t('payments.one.noSources')}</ThemedText>)}
       {!!message && <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>}
+      {refreshWarning && <ThemedText>{t('payments.one.refreshFailed')}</ThemedText>}
     </View>
   </Section>;
 }

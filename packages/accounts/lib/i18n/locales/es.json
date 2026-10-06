@@ -418,7 +418,8 @@
       "noSources": "Esta cuenta no tiene suscripciones de productos.",
       "pending": "Cancelación aceptada. La conciliación de la cuenta está pendiente.",
       "scheduled": "Cancelación programada para el final del período actual.",
-      "failed": "No se pudo confirmar la cancelación. Actualiza antes de intentarlo de nuevo."
+      "failed": "No se pudo confirmar la cancelación. Actualiza antes de intentarlo de nuevo.",
+      "refreshFailed": "No se pudo actualizar la lista de suscripciones. Tu cancelación no se ha visto afectada."
     },
     "title": "Pagos y suscripciones",
     "subtitle": "Gestiona tus métodos de pago, suscripciones y monederos.",

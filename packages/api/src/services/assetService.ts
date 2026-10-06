@@ -1341,6 +1341,13 @@ export class AssetService {
         if (!object || !Number.isSafeInteger(object.size) || object.size <= 0)
           throw new BadRequestError('Uploaded object size could not be verified');
         admittedSize = object.size;
+        // Configured admission refuses unadmitted relocation copies. Refuse the
+        // visibility change before persisting it, so a failed completion never
+        // leaves a row that says public while its bytes stay under a private key.
+        const visibility = request.visibility ?? existing.visibility;
+        const keys = [existing.storageKey, ...(existing.variants ?? []).map((variant) => variant.key)];
+        if (keys.some((key) => this.targetKeyForVisibility(key, visibility) !== key))
+          await assertPhysicalStoragePathSupported(existing.ownerUserId, 'visibility relocation copy');
       }
       const file = await updateFile(request.fileId, {
         originalName: normalizeInlineText(request.originalName),

@@ -124,6 +124,15 @@ it('does not replace or orphan an existing admitted variant', async () => {
   await recoverStorageByteReservations(async () => undefined, async () => true, 100, new Date(Date.now() + 3600_000));
   expect(await reservedStorageBytes(getDb(), owner)).toBe(3n);
 });
+it('releases the hold of every variant attempt rejected before PUT, without waiting for recovery', async () => {
+  const file = await insertFile(original(1));
+  await upsertVariant(file.id, { type: 'thumb', key: 'synthetic/thumb', size: 2 });
+  const put = jest.fn(async () => undefined), remove = jest.fn(async () => undefined);
+  for (let attempt = 0; attempt < 10; attempt++)
+    await expect(uploadAdmittedVariant(file, { type: 'thumb', key: 'synthetic/thumb-retry', size: 2 }, put, remove)).rejects.toMatchObject({ code: 'STORAGE_VARIANT_EXISTS' });
+  expect(put).not.toHaveBeenCalled(); expect(remove).not.toHaveBeenCalled();
+  expect(await reservedStorageBytes(getDb(), owner)).toBe(3n);
+});
 it('blocks unsupported owner writers while preserving system caches and legacy mode', async () => {
   await expect(assertPhysicalStoragePathSupported(owner, 'HLS')).rejects.toMatchObject({ code: 'STORAGE_PHYSICAL_PATH_UNAVAILABLE' });
   await expect(assertPhysicalStoragePathSupported(null, 'system cache')).resolves.toBeUndefined();

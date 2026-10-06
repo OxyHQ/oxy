@@ -72,3 +72,14 @@ it('retries same action and assigns new identity to later cancellation',async()=
 
 it.each(['past_due','unpaid'])('shows owned %s cancellation from the trusted SDK read model',async status=>{mockSource.status=status;mockCancel.mockResolvedValue({sourceId:'source-one',cancelAtPeriodEnd:true});render(<PersonalPlansCard/>);fireEvent.click(screen.getByText('payments.one.cancel'));fireEvent.click(screen.getByText('payments.one.confirmCancel'));await waitFor(()=>expect(mockCancel).toHaveBeenCalledWith('source-one','first','action_1'));});
 it('hides cancellation when the SDK ownership read model refuses it',()=>{mockSource.status='past_due';mockSource.canCancel=false;render(<PersonalPlansCard/>);expect(screen.queryByText('payments.one.cancel')).toBeNull();});
+
+it('keeps a confirmed cancellation when the list refresh fails, and does not mint a new action',async()=>{
+ mockCancel.mockResolvedValue({sourceId:'source-one',reconciliationPending:true});mockRefetch.mockRejectedValue(new Error('timeout'));
+ render(<PersonalPlansCard/>);
+ fireEvent.click(screen.getByText('payments.one.cancel'));fireEvent.click(screen.getByText('payments.one.confirmCancel'));
+ expect(await screen.findByText('payments.one.pending')).toBeTruthy();
+ expect(await screen.findByText('payments.one.refreshFailed')).toBeTruthy();
+ expect(screen.queryByText('payments.one.failed')).toBeNull();
+ expect(screen.queryByText('payments.one.confirmCancel')).toBeNull();
+ expect(mockCancel).toHaveBeenCalledTimes(1);
+});

@@ -76,7 +76,7 @@ export async function uploadAdmittedVariant(file: FileRecord, variant: NewFileVa
   if (!Number.isSafeInteger(variant.size) || (variant.size ?? 0) < 0)
     throw new ApiError(400, 'Variant size is invalid', 'STORAGE_INVALID_SIZE');
   const admitted = { ...variant, key: `${variant.key}.${randomUUID()}` };
-  const { reserveStorageBytes, assertStorageReservationWritable } = await import('./storageByteReservation.service.js');
+  const { reserveStorageBytes, assertStorageReservationWritable, releaseUnwrittenStorageReservation } = await import('./storageByteReservation.service.js');
   const reservation = await reserveStorageBytes({ accountId: file.ownerUserId, sha256: file.sha256,
     objectKey: admitted.key, size: admitted.size!, kind: 'server' });
   let putStarted = false;
@@ -98,6 +98,9 @@ export async function uploadAdmittedVariant(file: FileRecord, variant: NewFileVa
     });
   } catch (error) {
     if (putStarted) await remove(admitted.key);
+    // Rejected before PUT: this attempt's unique key was never written, so its
+    // hold must not keep counting against the account until recovery runs.
+    else await withContentHashLock(file.sha256, tx => releaseUnwrittenStorageReservation(tx, reservation.id));
     throw error;
   }
 }
