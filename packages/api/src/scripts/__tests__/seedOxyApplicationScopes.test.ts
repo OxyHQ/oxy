@@ -55,6 +55,12 @@ async function ownedRows() {
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 beforeEach(async () => {
+	// The owner is the real `oxy` organization id, which other DB fixtures in
+	// the same worker (the Alia revocation canary) also create. Start from a
+	// clean slate for THIS file's rows instead of assuming nobody did.
+	await getDb().delete(applications).where(eq(applications.id, appId));
+	await getDb().delete(applications).where(eq(applications.ownerAccountId, ownerId));
+	await getDb().delete(users).where(eq(users.id, ownerId));
 	await getDb()
 		.insert(users)
 		.values({
