@@ -36,6 +36,8 @@ function input() {
     subject: 'Could you reply?',
     headers: {},
     receivedAt: new Date('2026-09-03T10:00:00.000Z'),
+    snippet: 'Could you reply by Friday?',
+    folder: 'inbox' as const,
   };
 }
 

@@ -24,7 +24,18 @@ export interface InboxMessageEventInput {
   subject: string;
   headers: Record<string, string>;
   receivedAt: Date;
+  /**
+   * The one-line preview Inbox already shows in its list (`buildSnippet`,
+   * bounded to 140 characters). Carried so a subscriber can judge importance
+   * without reading the message; never the body, never headers.
+   */
+  snippet: string;
+  /** `inbox`, or `spam` when spam scoring filed it in Junk. */
+  folder: 'inbox' | 'spam';
 }
+
+/** Longest snippet an event carries, whatever the caller passed. */
+export const INBOX_EVENT_SNIPPET_MAX = 140;
 
 export function buildInboxMessageEvents(input: InboxMessageEventInput): NormalizedAppEvent[] {
   const resource = {
@@ -45,9 +56,11 @@ export function buildInboxMessageEvents(input: InboxMessageEventInput): Normaliz
       mailboxId: input.mailboxId,
       from: input.senderAddress,
       subject: input.subject,
+      snippet: input.snippet.slice(0, INBOX_EVENT_SNIPPET_MAX),
+      folder: input.folder,
     },
   }];
-  const reason = likelyNeedsResponse(input);
+  const reason = input.folder === 'spam' ? null : likelyNeedsResponse(input);
   if (reason) {
     events.push({
       eventId: `${input.messageId}:email_needs_reply`,
