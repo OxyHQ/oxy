@@ -1,5 +1,13 @@
 # Oxy One Personal launch readiness — inactive local handoff
 
+## 2026-10-07 continuation
+
+The earlier six repository deliveries and the published Oxy/Peable candidate SDK versions are already deployed; their historical preparation sections below are not outstanding release tasks. Commercial activation remains disabled. The approved invoice issuer is **The Oxy Collective, Inc.** This does not establish the seller's processor identifier, tax remitter, registrations or sale countries. The customer may choose manual monthly Faircoin renewal or automatic renewal with express consent, amount and periodicity limits, and verifiable revocation. No mandate is created. The detached `packages/api/config/drafts/oxy-one-commercial-decisions.json` records these decisions and the remaining policy dependencies; no runtime reads it.
+
+`peablePersonalCheckout.service.ts` now exercises the published SDK's owned customer and recurring checkout operations, with exact merchant/application/namespace/offer/price binding, stable replay keys, monthly no-trial selection and bounded HTTPS session results. It deliberately refuses execution outside the test process. The default HTTP composition remains unconfigured because this SDK recurring processor has no complete authoritative inclusive-tax/seller/FAIR invoice contract. Removing the guard before that contract exists could create a charge that Oxy cannot validate. No fiscal or FX evidence is manufactured by the adapter.
+
+The trusted invoice-authority callback must now state the payment method. A Faircoin paid observation cannot be validated through the card path and must carry current authoritative FX evidence. The callback is still a dependency boundary, not a concrete production SDK authority implementation. Seven targeted suites (36 tests) passed against disposable local PostgreSQL, including the opt-in actual SDK/Peable HTTP lifecycle fixture with simulated downstream/auth/tax evidence. These tests establish local transport, attribution, cancellation, refund and replay behavior; they do not establish Faircoin settlement or production acceptance.
+
 Approved terms: US$29.99 per month (2999 minor units), final consumer price including applicable purchase taxes, no trial, no annual offer; Alia Pro-level 10,000 credits per subscription month plus existing daily free refill; shared 100,000,000,000 bytes including Noted attachments; Mention mono; personal only. This document authorizes no operational changes. There is no live consumer checkout provider in this draft.
 
 ## Voice policy: preserve the existing product

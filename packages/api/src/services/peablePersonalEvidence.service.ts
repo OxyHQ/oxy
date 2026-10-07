@@ -14,7 +14,7 @@ export interface PeableEvidenceAuthority{
  /** Authenticated server read through the updated Peable SDK, not browser data. */
  client:Pick<Peable,'merchants'> & {billing:Pick<Peable['billing'],'retrievePaidInvoice'|'retrieveInvoiceState'|'retrieveSubscription'>};
  /** Authoritative tax/seller evidence is not currently supplied by Peable. No default. */
- readFinalInvoiceAuthority?:(source:PeableInvoiceSource)=>Promise<{source:PeableInvoiceSource;invoice:unknown}>;
+ readFinalInvoiceAuthority?:(source:PeableInvoiceSource)=>Promise<{source:PeableInvoiceSource;invoice:unknown;method:'card'|'faircoin'}>;
 }
 export interface PeablePersonalPaidContext {accountId:string;customerId:string;subscriptionId:string;priceId:string;planId:string;merchantId:string;appId:string;mode:'live'|'test';environment:'production'|'test'|'development'|'staging';offerId:string;offerVersion:number;}
 async function assertPeableEvidenceOwner(authority:PeableEvidenceAuthority,context:PeablePersonalPaidContext){
@@ -38,7 +38,8 @@ export async function reconcilePeablePersonalPaidInvoice(authority:PeableEvidenc
  const source:PeableInvoiceSource={invoiceId:value.invoiceId,paymentIntentId:value.paymentIntentId,customerId:context.customerId,subscriptionId:context.subscriptionId,priceId:context.priceId,planId:context.planId,merchantId:context.merchantId,appId:context.appId,mode:context.mode,environment:context.environment};
  const authorityResult=await authority.readFinalInvoiceAuthority(Object.freeze({...source}));
  if(!authorityResult.source||Object.keys(source).some(k=>authorityResult.source[k as keyof PeableInvoiceSource]!==source[k as keyof PeableInvoiceSource]))throw new Error('Peable authoritative invoice source differs');
- const validateInvoice=()=>validatePersonalInvoiceForAction(authorityResult.invoice,{payerAccountId:context.accountId,beneficiaryAccountId:context.accountId,providerSubscriptionId:context.subscriptionId,offerId:context.offerId,offerVersion:context.offerVersion,periodStart:value.periodStart,periodEnd:value.periodEnd,mode:context.mode,environment:context.environment},'card',clock());
+ const method=z.enum(['card','faircoin']).parse(authorityResult.method);
+ const validateInvoice=()=>validatePersonalInvoiceForAction(authorityResult.invoice,{payerAccountId:context.accountId,beneficiaryAccountId:context.accountId,providerSubscriptionId:context.subscriptionId,offerId:context.offerId,offerVersion:context.offerVersion,periodStart:value.periodStart,periodEnd:value.periodEnd,mode:context.mode,environment:context.environment},method,clock());
  const invoice=validateInvoice();
  if(value.netAmount===null||value.taxAmount===null||BigInt(value.netAmount)!==BigInt(invoice.netMinorUnits)||BigInt(value.taxAmount)!==BigInt(invoice.taxMinorUnits))throw new Error('Peable authoritative invoice totals differ');
  const accountId=oxyAccountIdSchema.parse(context.accountId);

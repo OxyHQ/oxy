@@ -1,0 +1,29 @@
+{
+  "commercialActivation": false,
+  "invoiceIssuer": { "legalName": "The Oxy Collective, Inc.", "approved": true },
+  "offer": {
+    "currency": "USD",
+    "grossMinorUnits": 2999,
+    "taxTreatment": "inclusive",
+    "interval": "month",
+    "trial": "none",
+    "monthlyAliaCredits": 10000,
+    "existingDailyRefill": true,
+    "sharedStorageBytes": 100000000000,
+    "mentionPersonalization": true,
+    "notedAttachments": true
+  },
+  "faircoinRenewal": {
+    "customerChoices": ["manual_monthly", "automatic_revocable"],
+    "automaticRequirements": ["express_consent", "amount_limit", "periodicity_limit", "verifiable_revocation"],
+    "mandatesEnabled": false
+  },
+  "unresolved": [
+    "seller_id_and_invoice_issuer_id",
+    "tax_remitter_registrations_and_sale_countries",
+    "authoritative_tax_and_customer_location_service",
+    "fair_usd_source_quote_expiry_and_rounding",
+    "renewal_failure_grace",
+    "partial_refund_entitlement_policy"
+  ]
+}
