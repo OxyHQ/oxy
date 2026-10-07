@@ -13,7 +13,9 @@ export async function receivePeablePersonalObservation(req: Request, res: Respon
   const sourceId = z.string().uuid().safeParse(rawSourceId);
   const signature = req.get('peable-signature');
   const body: unknown = req.body;
-  if (!sourceId.success || typeof signature !== 'string' || signature.length === 0 || !Buffer.isBuffer(body) || body.length > 1_048_576)
+  if (typeof body !== 'object' || body === null || Array.isArray(body) || !Buffer.isBuffer(body))
+    return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
+  if (!sourceId.success || typeof signature !== 'string' || signature.length === 0 || body.length > 1_048_576)
     return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
   try {
     const result = await runtime.observe(sourceId.data, body.toString('utf8'), signature);

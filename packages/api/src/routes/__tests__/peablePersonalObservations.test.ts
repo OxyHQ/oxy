@@ -74,3 +74,17 @@ it.each(['not_recorded', 'unrecognized'])('does not acknowledge a nonfinal resul
       .set('peable-signature', 'fixture').set('Content-Type', 'application/json').send('{}')).status).toBe(503);
   } finally { getter.mockRestore(); }
 });
+
+it.each([["{}"], [["{}"]], [{ length: 0 }], [null], [Buffer.alloc(1_048_577)]])('rejects an invalid raw-body shape or size before observing', async body => {
+  const observe = jest.fn();
+  const configured = { configuration: { observationsEnabled: true }, observe } as unknown as NonNullable<ReturnType<typeof runtimeService.getPeablePersonalRuntime>>;
+  const getter = jest.spyOn(runtimeService, 'getPeablePersonalRuntime').mockReturnValue(configured);
+  const status = jest.fn(); const json = jest.fn();
+  const response = { status, json } as unknown as Response;
+  status.mockReturnValue(response);
+  try {
+    await receivePeablePersonalObservation({ params: { sourceId: '00000000-0000-4000-8000-000000000001' }, body, get: () => 'fixture' } as unknown as Request, response);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(observe).not.toHaveBeenCalled();
+  } finally { getter.mockRestore(); }
+});
