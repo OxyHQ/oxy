@@ -142,3 +142,24 @@ A delayed expired but previously recorded paid invoice is an exact immutable his
 Current correction validation: 162 Oxy tests in eleven suites (52 service/integration and 110 billing/access route and resolver regressions); 122 Peable backend tests in eight files; API and backend TypeScript checks. Prior v5 SDK, packed public artifact and Accounts checks above remain valid because their sources are unchanged. Migrations were applied only by throwaway local test harnesses. Publication, live configuration, deployment and operator gates remain unchanged.
 
 SDK audit follow-up: optional local billing-method augmentation is removed; the evidence bridge now imports actual public SDK invoice/method types. The installed registry0.2.2 lacks the new reads and cannot compile this updated bridge. Validation used candidate0.2.3-oxy-one.0/shared-types0.3.1-oxy-one.0 tarballs, not published adoption. Exact consumer manifest change and registry-lock clean-install plan are prepared separately, pending authorized release. See oxy-one-sdk-architecture-audit.md for every call, dependency, test-only proxy and remaining release gate.
+
+
+## Configurable runtime and unresolved observation handling (2026-10-07)
+
+The personal runtime now composes the Peable SDK authority reader, signed raw-body
+observation endpoint and bounded source recovery at startup when explicitly
+configured. Missing configuration leaves it disabled. Purchases remain disabled;
+pre-checkout signed tax-quote binding and trusted location lookup are still missing.
+
+Only completed reconciliation outcomes receive HTTP 200. `review_required`,
+`not_recorded` and unknown outcomes receive HTTP 503, leaving the existing Peable
+outbox delivery retryable. Recovery records the source as deferred and revisits it
+on the next cursor cycle while continuing other sources. This is a retry repair,
+not a durable manual-review queue per invoice; no refund policy is inferred.
+
+The source requires the unpublished Peable SDK `0.2.4-oxy-one.0` and shared-types
+`0.3.2-oxy-one.0` candidate APIs. Their immutable source snapshot is Peable
+`b44d490792ab47618a74090ca53ce35e78f1da09`. Publication is authorized but npm
+identity verification in this environment returns `ENEEDAUTH`. The consumer keeps
+its current registry dependency until that release exists, so registry-only API
+build remains blocked. Local candidate checks do not close publication or CI.
