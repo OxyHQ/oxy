@@ -13,8 +13,17 @@ export interface PeableInvoiceSource {invoiceId:string;paymentIntentId:string;cu
 export interface PeableEvidenceAuthority{
  /** Authenticated server read through the updated Peable SDK, not browser data. */
  client:Pick<Peable,'merchants'> & {billing:Pick<Peable['billing'],'retrievePaidInvoice'|'retrieveInvoiceState'|'retrieveSubscription'>};
- /** Authoritative tax/seller evidence is not currently supplied by Peable. No default. */
+ /** Verified SDK authority; no local fiscal or FX default. */
  readFinalInvoiceAuthority?:(source:PeableInvoiceSource)=>Promise<{source:PeableInvoiceSource;invoice:unknown;method:'card'|'faircoin'}>;
+}
+/** The SDK checks the signed envelope using deployment-pinned keys before this
+ * consumer checks its exact frozen source. No response-provided key is trusted. */
+export function createPeablePersonalEvidenceAuthority(client:Peable):PeableEvidenceAuthority{
+ return {client,readFinalInvoiceAuthority:async source=>{
+  const value=await client.billing.retrieveFinalInvoiceAuthority(source.subscriptionId,source.invoiceId);
+  if(Object.keys(source).some(key=>value.source[key as keyof PeableInvoiceSource]!==source[key as keyof PeableInvoiceSource]))throw new Error('Peable authoritative invoice source differs');
+  return {source:value.source,invoice:value.invoice,method:value.method};
+ }};
 }
 export interface PeablePersonalPaidContext {accountId:string;customerId:string;subscriptionId:string;priceId:string;planId:string;merchantId:string;appId:string;mode:'live'|'test';environment:'production'|'test'|'development'|'staging';offerId:string;offerVersion:number;}
 async function assertPeableEvidenceOwner(authority:PeableEvidenceAuthority,context:PeablePersonalPaidContext){
