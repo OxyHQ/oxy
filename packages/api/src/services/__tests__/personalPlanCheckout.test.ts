@@ -6,6 +6,8 @@ import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
 import { EMPTY_PRODUCT_BILLING_CATALOGUE, productBillingCatalogueSchema } from '../productBillingCatalogue.service';
 import { closePersonalPlanCheckoutFromProvider, startPersonalPlanCheckout, type PersonalCheckoutProvider } from '../personalPlanCheckout.service';
 import { recordProductProviderPeriod } from '../productProviderEvidence.service';
+import { createPeablePersonalCheckoutProvider } from '../peablePersonalCheckout.service';
+import type { Peable } from '@peable.to/sdk';
 beforeAll(connectPostgres); afterAll(closePostgres);
 async function fixture() {
   const f = await productAccessFixture();
@@ -26,6 +28,26 @@ it('keeps HTTP-equivalent provider absence and empty offers unconfigured; grants
   expect(await startPersonalPlanCheckout(f.payer, f.request, { catalogue: EMPTY_PRODUCT_BILLING_CATALOGUE })).toEqual({ state: 'unconfigured', reason: 'offer_unconfigured' });
   expect(f.create).not.toHaveBeenCalled();
   expect(await getDb().select().from(personalPlanCheckoutIntents).where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer))).toHaveLength(0);
+});
+it('reserves and replays the SDK transport without granting from a hosted session', async () => {
+  const test = await fixture();
+  test.catalogue.prices[0].amountMinorUnits = 2999;
+  const merchant = { id: 'merch_synthetic', oxyAppId: 'app_fixture', environment: 'production' };
+  const ensureCustomer = jest.fn(async () => ({ providerCustomerId: 'cus_fixture' }));
+  const createCheckoutSession = jest.fn(async () => ({ id: 'cs_fixture', url: 'https://checkout.example.invalid/fixture', expiresAt: '2099-01-01T00:00:00.000Z' }));
+  const client = { merchants: { retrieve: async () => merchant }, billing: { ensureCustomer, createCheckoutSession } } as unknown as Pick<Peable, 'merchants' | 'billing'>;
+  const provider = createPeablePersonalCheckoutProvider(client, {
+    merchantId: merchant.id, applicationId: merchant.oxyAppId,
+    namespace: { mode: 'live', environment: 'production' }, returnUrl: 'https://accounts.example.invalid/payments',
+    offers: [{ offerId: test.request.offerId, offerVersion: 1, priceId: 'price_synthetic', planId: 'one_monthly',
+      amountMinorUnits: 2999, currency: 'USD', interval: 'month', trial: 'none' }],
+  });
+  const dependencies = { catalogue: test.catalogue, provider };
+  const first = await startPersonalPlanCheckout(test.payer, test.request, dependencies);
+  expect(first.state).toBe('pending');
+  expect(await startPersonalPlanCheckout(test.payer, test.request, dependencies)).toEqual(first);
+  expect(createCheckoutSession).toHaveBeenCalledTimes(1);
+  expect(await getDb().select().from(accessGrants).where(eq(accessGrants.beneficiaryAccountId, test.payer))).toHaveLength(0);
 });
 it('selects exact server price, replays one intent and blocks changed payload/new duplicate', async () => {
   const f = await fixture(); const deps = { catalogue: f.catalogue, provider: f.provider };

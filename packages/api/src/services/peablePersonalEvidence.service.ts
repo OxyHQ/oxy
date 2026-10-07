@@ -13,8 +13,17 @@ export interface PeableInvoiceSource {invoiceId:string;paymentIntentId:string;cu
 export interface PeableEvidenceAuthority{
  /** Authenticated server read through the updated Peable SDK, not browser data. */
  client:Pick<Peable,'merchants'> & {billing:Pick<Peable['billing'],'retrievePaidInvoice'|'retrieveInvoiceState'|'retrieveSubscription'>};
- /** Authoritative tax/seller evidence is not currently supplied by Peable. No default. */
- readFinalInvoiceAuthority?:(source:PeableInvoiceSource)=>Promise<{source:PeableInvoiceSource;invoice:unknown}>;
+ /** Verified SDK authority; no local fiscal or FX default. */
+ readFinalInvoiceAuthority?:(source:PeableInvoiceSource)=>Promise<{source:PeableInvoiceSource;invoice:unknown;method:'card'|'faircoin'}>;
+}
+/** The SDK checks the signed envelope using deployment-pinned keys before this
+ * consumer checks its exact frozen source. No response-provided key is trusted. */
+export function createPeablePersonalEvidenceAuthority(client:Peable):PeableEvidenceAuthority{
+ return {client,readFinalInvoiceAuthority:async source=>{
+  const value=await client.billing.retrieveFinalInvoiceAuthority(source.subscriptionId,source.invoiceId);
+  if(Object.keys(source).some(key=>value.source[key as keyof PeableInvoiceSource]!==source[key as keyof PeableInvoiceSource]))throw new Error('Peable authoritative invoice source differs');
+  return {source:value.source,invoice:value.invoice,method:value.method};
+ }};
 }
 export interface PeablePersonalPaidContext {accountId:string;customerId:string;subscriptionId:string;priceId:string;planId:string;merchantId:string;appId:string;mode:'live'|'test';environment:'production'|'test'|'development'|'staging';offerId:string;offerVersion:number;}
 async function assertPeableEvidenceOwner(authority:PeableEvidenceAuthority,context:PeablePersonalPaidContext){
@@ -38,7 +47,8 @@ export async function reconcilePeablePersonalPaidInvoice(authority:PeableEvidenc
  const source:PeableInvoiceSource={invoiceId:value.invoiceId,paymentIntentId:value.paymentIntentId,customerId:context.customerId,subscriptionId:context.subscriptionId,priceId:context.priceId,planId:context.planId,merchantId:context.merchantId,appId:context.appId,mode:context.mode,environment:context.environment};
  const authorityResult=await authority.readFinalInvoiceAuthority(Object.freeze({...source}));
  if(!authorityResult.source||Object.keys(source).some(k=>authorityResult.source[k as keyof PeableInvoiceSource]!==source[k as keyof PeableInvoiceSource]))throw new Error('Peable authoritative invoice source differs');
- const validateInvoice=()=>validatePersonalInvoiceForAction(authorityResult.invoice,{payerAccountId:context.accountId,beneficiaryAccountId:context.accountId,providerSubscriptionId:context.subscriptionId,offerId:context.offerId,offerVersion:context.offerVersion,periodStart:value.periodStart,periodEnd:value.periodEnd,mode:context.mode,environment:context.environment},'card',clock());
+ const method=z.enum(['card','faircoin']).parse(authorityResult.method);
+ const validateInvoice=()=>validatePersonalInvoiceForAction(authorityResult.invoice,{payerAccountId:context.accountId,beneficiaryAccountId:context.accountId,providerSubscriptionId:context.subscriptionId,offerId:context.offerId,offerVersion:context.offerVersion,periodStart:value.periodStart,periodEnd:value.periodEnd,mode:context.mode,environment:context.environment},method,clock());
  const invoice=validateInvoice();
  if(value.netAmount===null||value.taxAmount===null||BigInt(value.netAmount)!==BigInt(invoice.netMinorUnits)||BigInt(value.taxAmount)!==BigInt(invoice.taxMinorUnits))throw new Error('Peable authoritative invoice totals differ');
  const accountId=oxyAccountIdSchema.parse(context.accountId);
@@ -105,4 +115,11 @@ export async function handlePeablePersonalObservation(authority:PeableEvidenceAu
  const [source]=await getDb().select().from(accessSubscriptionSources).where(and(eq(accessSubscriptionSources.provider,'peable'),eq(accessSubscriptionSources.providerSubscriptionId,context.subscriptionId),eq(accessSubscriptionSources.providerAccountRef,context.merchantId),eq(accessSubscriptionSources.payerAccountId,context.accountId),eq(accessSubscriptionSources.beneficiaryAccountId,context.accountId),eq(accessSubscriptionSources.mode,context.mode),eq(accessSubscriptionSources.environment,context.environment)));
  if(!source)return {status:'not_recorded' as const};
  return {status:await reconcileProductAccessFinancialState({sourceId:source.id,beneficiaryAccountId:context.accountId,payerAccountId:context.accountId,provider:'peable',providerSubscriptionId:context.subscriptionId,providerBinding:{providerAccountRef:context.merchantId,mode:context.mode,environment:context.environment},providerObservedAt:subscriptionObservedAt,status:sub.status,period:{start:sub.currentPeriodStart,end:sub.currentPeriodEnd},cancelAtPeriodEnd:sub.cancelAtPeriodEnd})};
+}
+
+/** Applied/replayed outcomes complete reconciliation; no_invoice means recovery
+ * found no invoice work. Unknown or review outcomes remain retryable. */
+export function assertPeablePersonalReconciliationComplete(result: unknown): void {
+ const parsed = z.object({ status: z.enum(['recorded', 'replayed', 'historical_replayed', 'fenced', 'revoked', 'updated', 'stale', 'no_invoice']) }).safeParse(result);
+ if (!parsed.success) throw new Error('Peable personal reconciliation deferred');
 }

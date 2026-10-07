@@ -40,7 +40,7 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@oxy.so/contracts": "workspace:^",
     "zod": "^4.5.4"
   },

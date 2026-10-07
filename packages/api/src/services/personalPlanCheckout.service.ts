@@ -8,9 +8,9 @@ import { users, accountClosureFences, accessSubscriptionSources, accessOfferSegm
 import { ApiError, ConflictError } from '../utils/error';
 import { loadProductBillingCatalogue, productBillingCatalogueSchema, productBillingPriceSchema, type ProductBillingCatalogue } from './productBillingCatalogue.service';
 
-/** Injection is for adapter contract tests. No provider is wired into HTTP yet. */
+/** HTTP stays closed until Peable supplies the complete financial authority. */
 export interface PersonalCheckoutProvider {
-  kind: 'synthetic';
+  kind: 'synthetic' | 'peable';
   create(input: { intentId: string; idempotencyKey: string; subjectAccountId: string;
     offerId: string; offerVersion: number; priceId: string; amountMinorUnits: number; currency: string;
     providerAccountRef: string; mode: string; environment: string; interval:'month';trial:'none' }): Promise<{ sessionId: string; checkoutUrl: string }>;
