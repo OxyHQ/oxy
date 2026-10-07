@@ -9,7 +9,7 @@ import { accessOfferSegments, accessSubscriptionSources } from '../db/schema';
 import { logger } from '../utils/logger';
 import { peablePersonalManagementConfigurationSchema } from './peablePersonalManagement.service';
 import { createPeableObservationVerifier, createPeablePersonalEvidenceAuthority,
-  handlePeablePersonalObservation, reconcilePeablePersonalInvoiceState, type PeablePersonalPaidContext } from './peablePersonalEvidence.service';
+  assertPeablePersonalReconciliationComplete, handlePeablePersonalObservation, reconcilePeablePersonalInvoiceState, type PeablePersonalPaidContext } from './peablePersonalEvidence.service';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 
 const pinnedKeysSchema = z.record(z.string().min(1), z.string().min(1)).refine(keys => Object.keys(keys).length > 0);
@@ -90,7 +90,8 @@ export function createPeablePersonalRuntime(client: Peable, rawConfiguration: Ru
 type PeablePersonalRuntime = ReturnType<typeof createPeablePersonalRuntime>;
 let runtime: PeablePersonalRuntime | undefined;
 let recoveryTimer: ReturnType<typeof setInterval> | undefined;
-let recoveryInFlight: Promise<void> | undefined;
+interface PeablePersonalRecoverySummary { scanned: number; completed: number; deferred: number; batchDeferred: boolean; }
+let recoveryInFlight: Promise<PeablePersonalRecoverySummary> | undefined;
 let recoveryCursor: string | undefined;
 export function getPeablePersonalRuntime() { return runtime; }
 
@@ -117,20 +118,31 @@ export async function initializePeablePersonalRuntime(dependencies: { client?: P
   }
 }
 
-export async function recoverPeablePersonalSources() {
-  if (!runtime?.configuration.recoveryEnabled) return;
+export async function recoverPeablePersonalSources(): Promise<PeablePersonalRecoverySummary> {
+  const summary = { scanned: 0, completed: 0, deferred: 0, batchDeferred: false };
+  if (!runtime?.configuration.recoveryEnabled) return summary;
   const configured = runtime;
   try {
     const sources = await getDb().select({ id: accessSubscriptionSources.id }).from(accessSubscriptionSources).where(and(
       eq(accessSubscriptionSources.provider, 'peable'), eq(accessSubscriptionSources.providerAccountRef, configured.configuration.merchantId),
       eq(accessSubscriptionSources.mode, configured.configuration.namespace.mode), eq(accessSubscriptionSources.environment, configured.configuration.namespace.environment),
       recoveryCursor ? gt(accessSubscriptionSources.id, recoveryCursor) : undefined)).orderBy(asc(accessSubscriptionSources.id)).limit(50);
+    summary.scanned = sources.length;
     for (const source of sources) {
-      try { await configured.recover(source.id); } catch { logger.warn('Peable personal source recovery deferred'); }
+      try {
+        assertPeablePersonalReconciliationComplete(await configured.recover(source.id));
+        summary.completed++;
+      } catch {
+        summary.deferred++;
+        logger.warn('Peable personal source recovery deferred', { sourceId: source.id });
+      }
+      // Advance through every source fairly, including deferred work; wrapping
+      // the scan retries it without trapping all other sources behind one item.
       recoveryCursor = source.id;
     }
     if (sources.length < 50) recoveryCursor = undefined;
-  } catch { logger.warn('Peable personal recovery batch deferred'); }
+  } catch { summary.batchDeferred = true; logger.warn('Peable personal recovery batch deferred'); }
+  return summary;
 }
 export async function stopPeablePersonalRuntime() {
   if (recoveryTimer) clearInterval(recoveryTimer);
