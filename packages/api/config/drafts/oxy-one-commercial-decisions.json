@@ -1,5 +1,7 @@
 {
   "commercialActivation": false,
+  "saleCountryObjective": "worldwide",
+  "enabledSaleCountries": [],
   "invoiceIssuer": { "legalName": "The Oxy Collective, Inc.", "approved": true },
   "offer": {
     "currency": "USD",

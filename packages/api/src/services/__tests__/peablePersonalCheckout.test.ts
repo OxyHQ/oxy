@@ -68,6 +68,8 @@ it('refuses expired and unsafe hosted URLs', async () => {
 it('records the approved issuer and renewal choices without treating them as fiscal activation', () => {
   const proposed = JSON.parse(readFileSync(resolve(__dirname, '../../../config/drafts/oxy-one-commercial-decisions.json'), 'utf8'));
   expect(proposed.commercialActivation).toBe(false);
+  expect(proposed.saleCountryObjective).toBe('worldwide');
+  expect(proposed.enabledSaleCountries).toEqual([]);
   expect(proposed.invoiceIssuer).toEqual({ legalName: 'The Oxy Collective, Inc.', approved: true });
   expect(proposed.faircoinRenewal).toEqual({
     customerChoices: ['manual_monthly', 'automatic_revocable'], mandatesEnabled: false,
