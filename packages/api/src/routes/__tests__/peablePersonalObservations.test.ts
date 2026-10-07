@@ -48,3 +48,29 @@ it.each([[["00000000-0000-4000-8000-000000000001"]], [{}], [undefined]])('reject
     expect(observe).not.toHaveBeenCalled();
   } finally { getter.mockRestore(); }
 });
+
+it.each(['partial_refund_entitlement_policy_unconfigured', 'historical_paid_period_not_recorded'])('does not acknowledge unresolved review: %s', async reason => {
+  const observe = jest.fn(async () => ({ status: 'review_required', reason }));
+  const configured = { configuration: { observationsEnabled: true }, observe } as unknown as NonNullable<ReturnType<typeof runtimeService.getPeablePersonalRuntime>>;
+  const getter = jest.spyOn(runtimeService, 'getPeablePersonalRuntime').mockReturnValue(configured);
+  try {
+    const app = express();
+    app.use('/billing/peable/observations', express.raw({ type: 'application/json' }), router);
+    const response = await request(app).post('/billing/peable/observations/00000000-0000-4000-8000-000000000001')
+      .set('peable-signature', 'fixture').set('Content-Type', 'application/json').send('{}');
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ error: 'PEABLE_OBSERVATION_DEFERRED' });
+    expect(observe).toHaveBeenCalledTimes(1);
+  } finally { getter.mockRestore(); }
+});
+
+it.each(['not_recorded', 'unrecognized'])('does not acknowledge a nonfinal result: %s', async statusValue => {
+  const configured = { configuration: { observationsEnabled: true }, observe: jest.fn(async () => ({ status: statusValue })) } as unknown as NonNullable<ReturnType<typeof runtimeService.getPeablePersonalRuntime>>;
+  const getter = jest.spyOn(runtimeService, 'getPeablePersonalRuntime').mockReturnValue(configured);
+  try {
+    const app = express();
+    app.use('/billing/peable/observations', express.raw({ type: 'application/json' }), router);
+    expect((await request(app).post('/billing/peable/observations/00000000-0000-4000-8000-000000000001')
+      .set('peable-signature', 'fixture').set('Content-Type', 'application/json').send('{}')).status).toBe(503);
+  } finally { getter.mockRestore(); }
+});

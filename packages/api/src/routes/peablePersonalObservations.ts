@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { getPeablePersonalRuntime } from '../services/peablePersonalRuntime.service';
+import { assertPeablePersonalReconciliationComplete } from '../services/peablePersonalEvidence.service';
 
 const router = Router();
 export async function receivePeablePersonalObservation(req: Request, res: Response) {
@@ -15,7 +16,8 @@ export async function receivePeablePersonalObservation(req: Request, res: Respon
   if (!sourceId.success || typeof signature !== 'string' || signature.length === 0 || !Buffer.isBuffer(body) || body.length > 1_048_576)
     return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
   try {
-    await runtime.observe(sourceId.data, body.toString('utf8'), signature);
+    const result = await runtime.observe(sourceId.data, body.toString('utf8'), signature);
+    assertPeablePersonalReconciliationComplete(result);
     return res.status(200).json({ received: true });
   } catch {
     // Any read/reconciliation failure leaves delivery unacknowledged so Peable

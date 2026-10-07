@@ -116,3 +116,10 @@ export async function handlePeablePersonalObservation(authority:PeableEvidenceAu
  if(!source)return {status:'not_recorded' as const};
  return {status:await reconcileProductAccessFinancialState({sourceId:source.id,beneficiaryAccountId:context.accountId,payerAccountId:context.accountId,provider:'peable',providerSubscriptionId:context.subscriptionId,providerBinding:{providerAccountRef:context.merchantId,mode:context.mode,environment:context.environment},providerObservedAt:subscriptionObservedAt,status:sub.status,period:{start:sub.currentPeriodStart,end:sub.currentPeriodEnd},cancelAtPeriodEnd:sub.cancelAtPeriodEnd})};
 }
+
+/** Applied/replayed outcomes complete reconciliation; no_invoice means recovery
+ * found no invoice work. Unknown or review outcomes remain retryable. */
+export function assertPeablePersonalReconciliationComplete(result: unknown): void {
+ const parsed = z.object({ status: z.enum(['recorded', 'replayed', 'historical_replayed', 'fenced', 'revoked', 'updated', 'stale', 'no_invoice']) }).safeParse(result);
+ if (!parsed.success) throw new Error('Peable personal reconciliation deferred');
+}
