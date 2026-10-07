@@ -1,6 +1,6 @@
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import request from 'supertest';
-import router from '../peablePersonalObservations';
+import router, { receivePeablePersonalObservation } from '../peablePersonalObservations';
 import { stopPeablePersonalRuntime } from '../../services/peablePersonalRuntime.service';
 import * as runtimeService from '../../services/peablePersonalRuntime.service';
 
@@ -32,5 +32,19 @@ it('preserves exact signed bytes through JSON middleware and defers failed recon
     expect((await deliver()).status).toBe(503);
     expect((await request(app).post('/billing/peable/observations/foreign-invalid-source')
       .set('Content-Type', 'application/json').send(raw)).status).toBe(400);
+  } finally { getter.mockRestore(); }
+});
+
+it.each([[["00000000-0000-4000-8000-000000000001"]], [{}], [undefined]])('rejects a non-string source parameter before observing', async sourceId => {
+  const observe = jest.fn();
+  const configured = { configuration: { observationsEnabled: true }, observe } as unknown as NonNullable<ReturnType<typeof runtimeService.getPeablePersonalRuntime>>;
+  const getter = jest.spyOn(runtimeService, 'getPeablePersonalRuntime').mockReturnValue(configured);
+  const status = jest.fn(); const json = jest.fn();
+  const response = { status, json } as unknown as Response;
+  status.mockReturnValue(response);
+  try {
+    await receivePeablePersonalObservation({ params: { sourceId }, body: Buffer.from('{}'), get: () => 'fixture' } as unknown as Request, response);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(observe).not.toHaveBeenCalled();
   } finally { getter.mockRestore(); }
 });

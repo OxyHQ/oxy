@@ -1,22 +1,27 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { getPeablePersonalRuntime } from '../services/peablePersonalRuntime.service';
 
 const router = Router();
-router.post('/:sourceId', async (req, res) => {
+export async function receivePeablePersonalObservation(req: Request, res: Response) {
   const runtime = getPeablePersonalRuntime();
   if (!runtime?.configuration.observationsEnabled) return res.status(503).json({ error: 'PEABLE_OBSERVATIONS_DISABLED' });
-  const sourceId = z.string().uuid().safeParse(req.params.sourceId);
+  const rawSourceId: unknown = req.params.sourceId;
+  if (typeof rawSourceId !== 'string')
+    return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
+  const sourceId = z.string().uuid().safeParse(rawSourceId);
   const signature = req.get('peable-signature');
-  if (!sourceId.success || !signature || !Buffer.isBuffer(req.body) || req.body.length > 1_048_576)
+  const body: unknown = req.body;
+  if (!sourceId.success || typeof signature !== 'string' || signature.length === 0 || !Buffer.isBuffer(body) || body.length > 1_048_576)
     return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
   try {
-    await runtime.observe(sourceId.data, req.body.toString('utf8'), signature);
+    await runtime.observe(sourceId.data, body.toString('utf8'), signature);
     return res.status(200).json({ received: true });
   } catch {
     // Any read/reconciliation failure leaves delivery unacknowledged so Peable
     // can retry. Neither signed delivery fields nor response bodies grant access.
     return res.status(503).json({ error: 'PEABLE_OBSERVATION_DEFERRED' });
   }
-});
+}
+router.post('/:sourceId', receivePeablePersonalObservation);
 export default router;
