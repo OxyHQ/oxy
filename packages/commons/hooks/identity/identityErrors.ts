@@ -61,11 +61,41 @@ function hasNumericStatus(e: unknown): e is { status: number } {
   );
 }
 
+/** The 409 `POST /auth/register` answers when the chosen username is taken. */
+const USERNAME_TAKEN_MESSAGE = /username already taken/i;
+
 /**
- * Check if an error indicates the user is already registered.
- * The backend should always return HTTP 409 for duplicate registrations.
+ * Check if a registration failed because the chosen username is taken (409
+ * `Username already taken`). The username is part of registration, so this is
+ * a 409 that must NOT be read as "this key is already registered".
+ */
+export const isUsernameTakenError = (error: unknown): boolean => {
+  if (!hasNumericStatus(error) || error.status !== 409) return false;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === 'string' && USERNAME_TAKEN_MESSAGE.test(message);
+};
+
+/**
+ * Check if an error indicates this key is already registered — a 409 that is
+ * not {@link isUsernameTakenError}. Already-registered is not a failure: the
+ * caller signs in.
  */
 export const isAlreadyRegisteredError = (error: unknown): boolean => {
   if (!error) return false;
-  return hasNumericStatus(error) && error.status === 409;
+  return hasNumericStatus(error) && error.status === 409 && !isUsernameTakenError(error);
 };
+
+/**
+ * Thrown by the identity sync when the key has no server account and no
+ * username has been chosen yet. Registration carries the username, so the
+ * account cannot be created until the username step has run; callers route
+ * there (or, from the background reconnect loop, wait). Matched by
+ * `isUsernameRequiredError` through its `code`.
+ */
+export class UsernameRequiredError extends Error {
+  readonly name = 'UsernameRequiredError';
+  readonly code = 'USERNAME_REQUIRED';
+  constructor() {
+    super('A username is required before this identity can be registered.');
+  }
+}

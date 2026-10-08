@@ -1208,17 +1208,23 @@ export class AuthApi {
   }
 
   /**
-   * Register a new identity with public key authentication
-   * Identity is purely cryptographic - username and profile data are optional
-   * 
+   * Register a new account for a public key, together with its username.
+   *
+   * The username is required: the server writes it in the same insert as the
+   * key, so an account never exists without one. A taken username is a 409
+   * (`Username already taken`), as is a key that is already registered
+   * (`Identity already registered`).
+   *
    * @param publicKey - The user's ECDSA public key (hex)
    * @param signature - Signature of the registration request
    * @param timestamp - Timestamp when the signature was created
+   * @param username - The account's username
    */
   async registerKey(
     publicKey: string,
     signature: string,
-    timestamp: number
+    timestamp: number,
+    username: string
   ): Promise<{ message: string; user: User }> {
     // Advisory for now (server soft-enforces — see
     // `SessionController.register`), but solved unconditionally so every
@@ -1230,6 +1236,7 @@ export class AuthApi {
       publicKey,
       signature,
       timestamp,
+      username,
       powNonce,
     }, { cache: false, skipAuth: true });
 

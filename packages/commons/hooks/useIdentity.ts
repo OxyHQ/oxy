@@ -2,13 +2,12 @@ import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy, useAuthStore, handleAuthError } from '@oxy.so/services';
-import { KeyManager, RecoveryPhraseService, SignatureService, IdentityAlreadyExistsError, IdentityPersistError, IdentityUnavailableError, readIdentityMarker } from '@oxy.so/core/crypto';
-import type { User } from '@oxy.so/core';
+import { KeyManager, RecoveryPhraseService, IdentityAlreadyExistsError, IdentityPersistError, IdentityUnavailableError, readIdentityMarker } from '@oxy.so/core/crypto';
 import { useBiometricSignIn } from './useBiometricSignIn';
-import { useIdentityStore, persistIdentitySyncState, persistOnboardingComplete, persistOnboardingFlow } from './identity/identityStore';
+import { useIdentityStore, persistIdentitySyncState, persistOnboardingComplete, persistOnboardingFlow, persistPendingUsername } from './identity/identityStore';
 import { useNetworkReconnect } from './identity/useNetworkReconnect';
-import { useSyncIdentity } from './identity/useSyncIdentity';
-import { isAlreadyRegisteredError, isIdentityPreflightRefusal, IdentityMayExistError } from './identity/identityErrors';
+import { useSyncIdentity, type UseSyncIdentityResult } from './identity/useSyncIdentity';
+import { isIdentityPreflightRefusal, IdentityMayExistError } from './identity/identityErrors';
 import { ONBOARDING_IDENTITY_QUERY_KEY, ONBOARDING_COMPLETE_QUERY_KEY, ONBOARDING_FLOW_QUERY_KEY } from './useOnboardingStatus';
 
 const REGISTER_ERROR_CODE = 'REGISTER_ERROR';
@@ -23,31 +22,45 @@ const REGISTER_ERROR_CODE = 'REGISTER_ERROR';
  * phrase would be the only valid one) — catastrophic account loss for
  * any user whose flow re-fires the effect.
  */
-let inFlightCreateIdentity: Promise<{ recoveryPhrase: string[]; synced: boolean; user?: User }> | null = null;
-let inFlightImportIdentity: Promise<{ synced: boolean }> | null = null;
-let inFlightImportPrivateKey: Promise<{ synced: boolean }> | null = null;
+let inFlightCreateIdentity: Promise<{ recoveryPhrase: string[] }> | null = null;
+let inFlightImportIdentity: Promise<ImportIdentityResult> | null = null;
+let inFlightImportPrivateKey: Promise<ImportIdentityResult> | null = null;
+
+/**
+ * The outcome of importing a key. `synced`: the key already had an account and
+ * is signed in. `needsUsername`: the server answered that the key has NO
+ * account — it is registered only from the username step, with the username.
+ * Both false: offline (skipped) or the server could not be reached.
+ */
+export interface ImportIdentityResult {
+  synced: boolean;
+  needsUsername: boolean;
+}
 
 export interface UseIdentityResult {
   /**
-   * Create a new identity locally (offline-first) and optionally sync with server.
-   * Pass `{ skipSync: true }` (e.g. when the caller already detected no
-   * connectivity) to skip the register + signIn round-trip entirely instead of
-   * blocking on a ~19s DNS timeout — the identity is still created locally and
-   * the sync is deferred to the reconnect handler / username step.
+   * Create a new identity LOCALLY (works offline). It is never registered here:
+   * registration carries the username, so the account is created at the
+   * username step (`syncIdentity({ username })`), or by the reconnect sync with
+   * the pending username.
    */
-  createIdentity: (opts?: { skipSync?: boolean }) => Promise<{ recoveryPhrase: string[]; synced: boolean; user?: User }>;
-  /** Import an existing identity from recovery phrase */
-  importIdentity: (phrase: string, opts?: { skipSync?: boolean }) => Promise<{ synced: boolean }>;
+  createIdentity: () => Promise<{ recoveryPhrase: string[] }>;
+  /**
+   * Import an existing identity from recovery phrase. Online, a key that has an
+   * account signs in; a key without one is NOT registered (see
+   * {@link ImportIdentityResult}). `{ skipSync: true }` skips the round-trip.
+   */
+  importIdentity: (phrase: string, opts?: { skipSync?: boolean }) => Promise<ImportIdentityResult>;
   /**
    * Import an existing identity from a raw private key (hex) — the recovery
    * path for a user who exported their private key but has NO recovery phrase.
    * Mirrors {@link importIdentity} minus the mnemonic steps: it stores the key
-   * directly and (online) registers-if-needed + signs in. No phrase is
+   * directly and (online) signs in if the key has an account. No phrase is
    * persisted, so the re-reveal surface correctly reports none.
    */
-  importIdentityFromPrivateKey: (privateKeyHex: string, opts?: { skipSync?: boolean }) => Promise<{ synced: boolean }>;
-  /** Sync local identity with server (when online) */
-  syncIdentity: () => Promise<User>;
+  importIdentityFromPrivateKey: (privateKeyHex: string, opts?: { skipSync?: boolean }) => Promise<ImportIdentityResult>;
+  /** Sync local identity with server (when online); see `useSyncIdentity`. */
+  syncIdentity: UseSyncIdentityResult['syncIdentity'];
   /** Check if device has an identity stored */
   hasIdentity: () => Promise<boolean>;
   /** Get the public key of the stored identity */
@@ -80,10 +93,7 @@ export const useIdentity = (): UseIdentityResult => {
   const { syncIdentity, isIdentitySynced, identitySyncState } = useSyncIdentity();
 
   const createIdentity = useCallback(
-    async (opts?: { skipSync?: boolean }): Promise<{ recoveryPhrase: string[]; synced: boolean; user?: User }> => {
-      if (!oxyServices) throw new Error('OxyServices not initialized');
-      if (!signIn) throw new Error('signIn not available');
-
+    async (): Promise<{ recoveryPhrase: string[] }> => {
       // Serialize concurrent calls. Without this guard a fast double-tap
       // or React strict-mode double effect would generate (and persist)
       // two separate identities, losing access to the first one. The
@@ -94,7 +104,7 @@ export const useIdentity = (): UseIdentityResult => {
         return inFlightCreateIdentity;
       }
 
-      const run = async (): Promise<{ recoveryPhrase: string[]; synced: boolean; user?: User }> => {
+      const run = async (): Promise<{ recoveryPhrase: string[] }> => {
         // Pre-flight interlock (four independent locks against silently
         // overwriting a real identity). Use a DIRECT, cache-bypassing verdict —
         // never the poisoned in-memory cache the old `getPublicKey()` preflight
@@ -126,11 +136,8 @@ export const useIdentity = (): UseIdentityResult => {
         }
 
         let words: string[];
-        let publicKey: string;
         try {
-          const result = await RecoveryPhraseService.generateIdentityWithRecovery();
-          words = result.words;
-          publicKey = result.publicKey;
+          ({ words } = await RecoveryPhraseService.generateIdentityWithRecovery());
         } catch (genError) {
           // Generation/persistence failed — there is no identity stored
           // locally, no phrase the user could have written down, and no
@@ -164,56 +171,12 @@ export const useIdentity = (): UseIdentityResult => {
         // completes (username + session) in `useOnboardingStatus`.
         await persistOnboardingComplete(false);
         await persistOnboardingFlow('create');
+        // A username chosen for a previous (deleted) identity is not this one's.
+        await persistPendingUsername(null);
 
-        // Caller detected no connectivity: skip the register + signIn round-trip
-        // rather than stalling the "Setting up your account…" screen on a ~19s
-        // DNS timeout. The identity already exists locally (keys generated
-        // above); sync is deferred to the reconnect handler / username step.
-        if (opts?.skipSync) {
-          console.warn('[useIdentity] Offline during create — identity stored locally, server sync deferred');
-          return { recoveryPhrase: words, synced: false };
-        }
-
-        try {
-          const { signature, timestamp } = await SignatureService.createRegistrationSignature();
-
-          try {
-            await oxyServices.auth.registerKey(publicKey, signature, timestamp);
-          } catch (registerError: unknown) {
-            // 409 means already registered — that's fine, just sign in.
-            if (!isAlreadyRegisteredError(registerError)) {
-              throw registerError;
-            }
-          }
-
-          const user = await signIn(publicKey);
-
-          setSynced(true);
-          await persistIdentitySyncState(true);
-
-          // Commons is the ONLY app that holds the identity; the other Oxy apps
-          // are served its shared slot (the iOS keychain group, or on Android
-          // the signer store the identity host signs with) for silent "Sign in
-          // with Oxy". Mirror it now — after `signIn` — so the shared public key
-          // equals the server-registered primary. Idempotent, native-only (no-op
-          // on web), and swallows its own errors, so it can never regress
-          // identity creation.
-          await KeyManager.syncSharedIdentity();
-
-          return {
-            recoveryPhrase: words,
-            synced: true,
-            user,
-          };
-        } catch (syncError) {
-          // Sync failed — identity exists locally, but the server doesn't
-          // know about it yet. Log the underlying cause so devs can
-          // distinguish a transient network blip from a real server
-          // failure (the previous version silently swallowed all sync
-          // errors which made debugging account-loss reports impossible).
-          console.error('[useIdentity] Identity created locally but server sync failed', syncError);
-          return { recoveryPhrase: words, synced: false };
-        }
+        // No registration here: `POST /auth/register` carries the username, so
+        // the account is created at the username step — never as a key alone.
+        return { recoveryPhrase: words };
       };
 
       inFlightCreateIdentity = run();
@@ -246,11 +209,45 @@ export const useIdentity = (): UseIdentityResult => {
         inFlightCreateIdentity = null;
       }
     },
-    [oxyServices, signIn, setSynced, queryClient],
+    [setSynced, queryClient],
+  );
+
+  /**
+   * After an import: sign in if the key already has an account. A key with no
+   * account is NOT registered — registration carries the username, which the
+   * username step supplies.
+   */
+  const signInIfRegistered = useCallback(
+    async (publicKey: string): Promise<ImportIdentityResult> => {
+      if (!oxyServices || !signIn) return { synced: false, needsUsername: false };
+      try {
+        const { registered } = await oxyServices.auth.isKeyRegistered(publicKey);
+        if (!registered) {
+          return { synced: false, needsUsername: true };
+        }
+
+        await signIn(publicKey);
+
+        setSynced(true);
+        await persistIdentitySyncState(true);
+
+        // Populate the shared identity slot: Commons is the ONLY app that holds
+        // the identity, and the other Oxy apps are served this slot for silent
+        // "Sign in with Oxy". Idempotent, native-only, error-swallowing — never
+        // regresses the import.
+        await KeyManager.syncSharedIdentity();
+
+        return { synced: true, needsUsername: false };
+      } catch (syncError) {
+        console.error('[useIdentity] Identity imported locally but server sync failed', syncError);
+        return { synced: false, needsUsername: false };
+      }
+    },
+    [oxyServices, signIn, setSynced],
   );
 
   const importIdentity = useCallback(
-    async (phrase: string, opts?: { skipSync?: boolean }): Promise<{ synced: boolean }> => {
+    async (phrase: string, opts?: { skipSync?: boolean }): Promise<ImportIdentityResult> => {
       if (!oxyServices) throw new Error('OxyServices not initialized');
       if (!signIn) throw new Error('signIn not available');
 
@@ -259,7 +256,7 @@ export const useIdentity = (): UseIdentityResult => {
         return inFlightImportIdentity;
       }
 
-      const run = async (): Promise<{ synced: boolean }> => {
+      const run = async (): Promise<ImportIdentityResult> => {
         // Pre-flight interlock via a DIRECT, cache-bypassing verdict. Importing
         // is intentionally a recovery path, so the SAME-identity case is always
         // allowed; we only refuse when overwriting would clobber a DIFFERENT,
@@ -307,41 +304,15 @@ export const useIdentity = (): UseIdentityResult => {
         // only when this identity completes onboarding in `useOnboardingStatus`.
         await persistOnboardingComplete(false);
         await persistOnboardingFlow('import');
+        await persistPendingUsername(null);
 
-        // Offline: skip register + signIn (same ~19s DNS-timeout stall as create).
+        // Offline: skip the round-trip rather than stall on a ~19s DNS timeout.
         if (opts?.skipSync) {
           console.warn('[useIdentity] Offline during import — identity stored locally, server sync deferred');
-          return { synced: false };
+          return { synced: false, needsUsername: false };
         }
 
-        try {
-          const { registered } = await oxyServices.auth.isKeyRegistered(publicKey);
-
-          if (!registered) {
-            try {
-              const { signature, timestamp } = await SignatureService.createRegistrationSignature();
-              await oxyServices.auth.registerKey(publicKey, signature, timestamp);
-            } catch (registerError: unknown) {
-              if (!isAlreadyRegisteredError(registerError)) {
-                throw registerError;
-              }
-            }
-          }
-
-          await signIn(publicKey);
-
-          setSynced(true);
-          await persistIdentitySyncState(true);
-
-          // Populate the shared identity slot (see createIdentity).
-          // Idempotent, native-only, error-swallowing — never regresses import.
-          await KeyManager.syncSharedIdentity();
-
-          return { synced: true };
-        } catch (syncError) {
-          console.error('[useIdentity] Identity imported locally but server sync failed', syncError);
-          return { synced: false };
-        }
+        return signInIfRegistered(publicKey);
       };
 
       inFlightImportIdentity = run();
@@ -371,11 +342,11 @@ export const useIdentity = (): UseIdentityResult => {
         inFlightImportIdentity = null;
       }
     },
-    [oxyServices, signIn, setSynced, queryClient],
+    [oxyServices, signIn, setSynced, queryClient, signInIfRegistered],
   );
 
   const importIdentityFromPrivateKey = useCallback(
-    async (privateKeyHex: string, opts?: { skipSync?: boolean }): Promise<{ synced: boolean }> => {
+    async (privateKeyHex: string, opts?: { skipSync?: boolean }): Promise<ImportIdentityResult> => {
       if (!oxyServices) throw new Error('OxyServices not initialized');
       if (!signIn) throw new Error('signIn not available');
 
@@ -384,7 +355,7 @@ export const useIdentity = (): UseIdentityResult => {
         return inFlightImportPrivateKey;
       }
 
-      const run = async (): Promise<{ synced: boolean }> => {
+      const run = async (): Promise<ImportIdentityResult> => {
         const normalizedKey = privateKeyHex.trim().toLowerCase();
         if (!KeyManager.isValidPrivateKey(normalizedKey)) {
           throw new Error('Invalid private key. Check the value and try again.');
@@ -430,37 +401,14 @@ export const useIdentity = (): UseIdentityResult => {
         await persistIdentitySyncState(false);
         await persistOnboardingComplete(false);
         await persistOnboardingFlow('import');
+        await persistPendingUsername(null);
 
         if (opts?.skipSync) {
           console.warn('[useIdentity] Offline during private-key import — identity stored locally, server sync deferred');
-          return { synced: false };
+          return { synced: false, needsUsername: false };
         }
 
-        try {
-          const { registered } = await oxyServices.auth.isKeyRegistered(publicKey);
-
-          if (!registered) {
-            try {
-              const { signature, timestamp } = await SignatureService.createRegistrationSignature();
-              await oxyServices.auth.registerKey(publicKey, signature, timestamp);
-            } catch (registerError: unknown) {
-              if (!isAlreadyRegisteredError(registerError)) {
-                throw registerError;
-              }
-            }
-          }
-
-          await signIn(publicKey);
-
-          setSynced(true);
-          await persistIdentitySyncState(true);
-          await KeyManager.syncSharedIdentity();
-
-          return { synced: true };
-        } catch (syncError) {
-          console.error('[useIdentity] Identity imported locally but server sync failed', syncError);
-          return { synced: false };
-        }
+        return signInIfRegistered(publicKey);
       };
 
       inFlightImportPrivateKey = run();
@@ -484,7 +432,7 @@ export const useIdentity = (): UseIdentityResult => {
         inFlightImportPrivateKey = null;
       }
     },
-    [oxyServices, signIn, setSynced, queryClient],
+    [oxyServices, signIn, setSynced, queryClient, signInIfRegistered],
   );
 
   // Thin passthroughs. Both now THROW `IdentityUnavailableError` when storage is

@@ -116,7 +116,7 @@
       "typescript-eslint": "^8.64.0",
       "vite-plugin-react-native-web": "^3.2.0",
       "zustand": "^5.0.14",
-      "@oxy.so/core": "4.5.0-oxy-one.0"
+      "@oxy.so/core": "4.5.0-oxy-one.1"
     }
   },
   "scripts": {

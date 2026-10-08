@@ -50,7 +50,6 @@
       "identityAlreadyExists": "An identity already exists on this device. Use your existing identity or remove it from settings before importing a new one.",
       "importFailed": "Failed to import identity",
       "identityExistsSyncFailed": "Your identity exists on this device, but we could not connect it to your account. Check your connection and try again.",
-      "identityCreatedSyncFailed": "Your identity was created on this device, but we could not connect it to your account. Check your connection and try again.",
       "noIdentityFound": "No identity found on this device.",
       "couldNotReadIdentity": "Could not read your identity. Please try again."
     },
@@ -145,7 +144,7 @@
     },
     "usernameStep": {
       "title": "Choose your username",
-      "subtitleOffline": "You're offline. You can set your username later when online.",
+      "subtitleOffline": "You're offline. Your account will be created with this username as soon as you're back online.",
       "subtitle": "Your username is required. You can change this later in settings.",
       "placeholder": "Username",
       "hint": "You can use a-z, 0-9. Minimum length is 4 characters.",
@@ -158,7 +157,12 @@
       "learnMore": "Learn more about usernames",
       "a11y": {
         "playAnimation": "Play animation"
-      }
+      },
+      "savedOffline": "You're offline. Your username is saved, and your account will be created with it as soon as you're back online.",
+      "offlineRetry": "You are offline. Reconnect and tap continue to save your username.",
+      "finishingSetup": "Finishing setting up your account — tap continue again in a moment.",
+      "taken": "That username was just taken. Choose another one.",
+      "saveFailed": "Couldn't save your username. Please try again."
     },
     "importStep": {
       "title": "Import Your Identity",

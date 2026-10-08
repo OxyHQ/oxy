@@ -20,9 +20,10 @@ import {
   persistOnboardingComplete,
   persistOnboardingFlow,
   persistIdentitySyncState,
+  persistPendingUsername,
 } from '@/hooks/identity/identityStore';
 import { RECOVERY_PHRASE_LENGTH } from '@/constants/auth';
-import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';
+import { extractAuthErrorMessage, isUsernameRequiredError } from '@/utils/auth/errorUtils';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
 import {
   ONBOARDING_IDENTITY_QUERY_KEY,
@@ -37,8 +38,8 @@ import {
  * user still enters their phrase, but instead of re-deriving the key locally we
  * fetch + decrypt their Oxy-stored ciphertext via
  * `oxyServices.restoreFromEncryptedBackup`, which persists the recovered key on
- * this device. We then establish a session (register-if-needed + sign-in) via
- * `syncIdentity`, exactly like the manual import path.
+ * this device. We then sign in via `syncIdentity`; a key without an account is
+ * registered at the username step, exactly like the manual import path.
  *
  * If a DIFFERENT identity already exists on this device, the SDK throws
  * `IdentityAlreadyExistsError` — we surface the same overwrite-consent prompt as
@@ -79,8 +80,12 @@ export default function RestoreFromBackupScreen() {
     }
   }, []);
 
+  /**
+   * Restore and sign in. Resolves `'needs-overwrite'` when a DIFFERENT identity
+   * is on this device, so the caller can ask before clobbering it.
+   */
   const runRestore = useCallback(
-    async (phrase: string, overwrite: boolean) => {
+    async (phrase: string, overwrite: boolean): Promise<'needs-overwrite' | void> => {
       if (!oxyServices) return;
       setError(null);
       setIsLoading(true);
@@ -98,6 +103,7 @@ export default function RestoreFromBackupScreen() {
         // skip the username wizard.
         await persistOnboardingComplete(false);
         await persistOnboardingFlow('import');
+        await persistPendingUsername(null);
         setSynced(false);
         await persistIdentitySyncState(false);
 
@@ -121,39 +127,26 @@ export default function RestoreFromBackupScreen() {
 
         const offline = await checkIfOffline();
         if (offline) {
-          router.replace('/(auth)/import-identity/notifications');
+          router.replace('/(auth)/import-identity/username');
           return;
         }
 
-        // Online: establish a session with the restored key (register-if-needed +
-        // sign in). Do not advance on sync failure — username would call
-        // authenticated APIs with no session (same guard as the phrase importer).
+        // Online: sign in with the restored key. A key with no account (the
+        // account was deleted) is not registered here: the username step
+        // creates it, with the username. Do not advance on any other failure.
         try {
           await syncIdentity();
-          await KeyManager.syncSharedIdentity();
           router.replace('/(auth)/import-identity/username');
-        } catch {
+        } catch (syncError: unknown) {
+          if (isUsernameRequiredError(syncError)) {
+            router.replace('/(auth)/import-identity/username');
+            return;
+          }
           setError(t('restoreBackup.syncFailed'));
         }
       } catch (err: unknown) {
         if (err instanceof IdentityAlreadyExistsError) {
-          // A different identity is on this device. Confirm before clobbering —
-          // the same consent gate as the manual importer.
-          alert(
-            t('restoreBackup.overwriteTitle'),
-            t('restoreBackup.overwriteBody'),
-            [
-              { text: t('restoreBackup.cancel'), style: 'cancel' },
-              {
-                text: t('restoreBackup.overwriteConfirm'),
-                style: 'destructive',
-                onPress: () => {
-                  void runRestore(phrase, true);
-                },
-              },
-            ],
-          );
-          return;
+          return 'needs-overwrite';
         }
         if (err instanceof IdentityUnavailableError) {
           router.replace('/(auth)');
@@ -186,7 +179,23 @@ export default function RestoreFromBackupScreen() {
       return;
     }
 
-    void runRestore(phrase, false);
+    if ((await runRestore(phrase, false)) !== 'needs-overwrite') return;
+    // A different identity is on this device. Confirm before clobbering —
+    // the same consent gate as the manual importer.
+    alert(
+      t('restoreBackup.overwriteTitle'),
+      t('restoreBackup.overwriteBody'),
+      [
+        { text: t('restoreBackup.cancel'), style: 'cancel' },
+        {
+          text: t('restoreBackup.overwriteConfirm'),
+          style: 'destructive',
+          onPress: () => {
+            void runRestore(phrase, true);
+          },
+        },
+      ],
+    );
   }, [phraseWords, runRestore, t]);
 
   return (

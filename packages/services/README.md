@@ -319,7 +319,7 @@ import {
 const { oxyServices: oxy } = useOxy();
 
 // Authentication (public-key based)
-await oxy.auth.registerKey(publicKey, signature, timestamp);
+await oxy.auth.registerKey(publicKey, signature, timestamp, username); // username required
 await oxy.auth.requestChallenge(publicKey);
 await oxy.auth.verifyChallenge(publicKey, challenge, signature, timestamp);
 await oxy.auth.isKeyRegistered(publicKey);

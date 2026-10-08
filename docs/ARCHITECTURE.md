@@ -389,7 +389,7 @@ Paths below are as mounted in `packages/api/src/server.ts` (no `/api` prefix).
 ### Authentication
 
 ```
-POST /auth/register               # Register with publicKey (identity)
+POST /auth/register               # Register with publicKey + username (both required)
 POST /auth/signup                 # Register with email/password
 POST /auth/login                  # Login with email/password
 POST /auth/challenge              # Get challenge for identity auth

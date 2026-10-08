@@ -174,6 +174,14 @@ export class SessionController {
         });
       }
 
+      // The username is required and written with the key in one insert: an
+      // account never exists without one (the email sign-up path in
+      // `routes/signIn.ts` holds the same invariant).
+      const normalizedUsername = typeof username === 'string' ? normalizeUsername(username) : '';
+      if (!isValidUsername(normalizedUsername)) {
+        return res.status(400).json({ message: USERNAME_INVALID_MESSAGE });
+      }
+
       // Validate public key format
       if (!SignatureService.isValidPublicKey(publicKey)) {
         return res.status(400).json({ message: 'Invalid public key format' });
@@ -236,29 +244,15 @@ export class SessionController {
         });
       }
 
-      let normalizedUsername: string | undefined;
-      if (username) {
-        if (typeof username !== 'string') {
-          return res.status(400).json({ message: 'Username must be a string' });
-        }
-
-        normalizedUsername = normalizeUsername(username);
-        if (!isValidUsername(normalizedUsername)) {
-          return res.status(400).json({ message: USERNAME_INVALID_MESSAGE });
-        }
-      }
-
-      if (normalizedUsername) {
-        // The Mongo-era `exactCaseInsensitiveUsernameRegex` scan becomes the
-        // expression `users_lower_username_key` indexes.
-        const [existingUsername] = await db
-          .select({ id: users.id })
-          .from(users)
-          .where(sql`lower(btrim(${users.username})) = lower(btrim(${normalizedUsername}))`)
-          .limit(1);
-        if (existingUsername) {
-          return res.status(409).json({ message: 'Username already taken' });
-        }
+      // The Mongo-era `exactCaseInsensitiveUsernameRegex` scan becomes the
+      // expression `users_lower_username_key` indexes.
+      const [existingUsername] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(sql`lower(btrim(${users.username})) = lower(btrim(${normalizedUsername}))`)
+        .limit(1);
+      if (existingUsername) {
+        return res.status(409).json({ message: 'Username already taken' });
       }
 
       // Create the account (identity is the publicKey) together with the origin
@@ -271,7 +265,7 @@ export class SessionController {
           .insert(users)
           .values({
             publicKey,
-            ...(normalizedUsername ? { username: normalizedUsername } : {}),
+            username: normalizedUsername,
           })
           .returning(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE));
         await tx.insert(userAuthMethods).values({

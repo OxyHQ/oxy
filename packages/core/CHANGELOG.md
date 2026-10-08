@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 4.5.0-oxy-one.1
+
+### Changed (breaking for `auth.registerKey` callers)
+
+- `auth.registerKey(publicKey, signature, timestamp, username)` takes the
+  account's username and sends it: `POST /auth/register` now requires it and
+  writes it in the same insert as the key, so an account never exists without
+  a username. A taken username is a 409 `Username already taken`. Commons is
+  the only caller.
+
 ## 4.4.0
 
 ### Added
