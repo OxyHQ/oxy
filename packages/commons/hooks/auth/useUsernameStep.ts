@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useOxy, useUpdateProfile } from '@oxy.so/services';
+import { useOxy } from '@oxy.so/services';
 import { generateSuggestedUsername } from '@/utils/auth/usernameUtils';
 import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
@@ -24,17 +24,11 @@ const SYNC_IN_PROGRESS_MESSAGE = 'Sync already in progress';
  * Offline, the choice is kept as the pending username (secure storage) and the
  * step says so; the reconnect sync (`useNetworkReconnect` → `syncIdentity`)
  * registers with it, and the onboarding guard then leaves the wizard.
- *
- * A key that already has an account and a session (an imported key) only sets
- * its username, through the `useUpdateProfile` mutation — NOT a direct
- * `users.updateMe` call — whose optimistic cache write keeps the root guard
- * from seeing a stale username-less user and bouncing the wizard.
  */
 export function useUsernameStep({ onDone }: { onDone: () => void }) {
   const { oxyServices, user } = useOxy();
   const { error: authFlowError, setAuthError } = useAuthFlowContext();
   const { syncIdentity } = useSyncIdentity();
-  const updateProfile = useUpdateProfile();
   const { t } = useTranslation();
 
   // Initialise once per mount, so re-renders never visibly regenerate the
@@ -71,24 +65,8 @@ export function useUsernameStep({ onDone }: { onDone: () => void }) {
     // A sync error stashed by the resume path is shown until the next attempt.
     setAuthError(null);
 
-    // The account already exists and is signed in: set its username.
-    if (oxyServices.session.accessToken) {
-      try {
-        await updateProfile.mutateAsync({ username: chosen });
-        onDone();
-      } catch (err: unknown) {
-        const offline = await checkIfOffline();
-        setUpdateError(
-          offline && isNetworkOrTimeoutError(err)
-            ? t('auth.usernameStep.offlineRetry')
-            : extractAuthErrorMessage(err, t('auth.usernameStep.saveFailed')),
-        );
-      }
-      return;
-    }
-
-    // No account yet: create it now, with this username. Offline, keep the
-    // choice; the reconnect sync registers with it.
+    // Create the account now, with this username. Offline, keep the choice;
+    // the reconnect sync registers with it.
     if (await checkIfOffline()) {
       await persistPendingUsername(chosen);
       setUpdateError(t('auth.usernameStep.savedOffline'));
@@ -113,14 +91,14 @@ export function useUsernameStep({ onDone }: { onDone: () => void }) {
     } finally {
       setIsRegistering(false);
     }
-  }, [username, oxyServices, updateProfile, syncIdentity, onDone, setAuthError, t]);
+  }, [username, oxyServices, syncIdentity, onDone, setAuthError, t]);
 
   return {
     username,
     setUsername,
     handleContinue,
     oxyServices,
-    isUpdating: updateProfile.isPending || isRegistering,
+    isUpdating: isRegistering,
     updateError: updateError ?? authFlowError,
   };
 }

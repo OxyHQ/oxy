@@ -2,11 +2,10 @@
  * The username step is what creates the account: a key without one is
  * registered here WITH the username (`syncIdentity({ username })`), never
  * before. Offline, the choice is kept as the pending username for the
- * reconnect sync. A key that already has an account and a session only sets
- * its username.
+ * reconnect sync.
  */
 import { act, renderHook } from '@testing-library/react';
-import { __getLanguageMocks, __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
+import { __resetOxyState, __setOxyState } from '@/__mocks__/oxy-services';
 
 const syncIdentityMock = jest.fn();
 jest.mock('@/hooks/identity/useSyncIdentity', () => ({
@@ -65,7 +64,6 @@ describe('useUsernameStep', () => {
 
     expect(syncIdentityMock).toHaveBeenCalledWith({ username: 'alice' });
     expect(onDone).toHaveBeenCalledTimes(1);
-    expect(__getLanguageMocks().updateProfileMutateAsync).not.toHaveBeenCalled();
   });
 
   it('offline: keeps the username pending and registers nothing', async () => {
@@ -92,19 +90,6 @@ describe('useUsernameStep', () => {
 
     expect(onDone).not.toHaveBeenCalled();
     expect(result.current.updateError).toBe('auth.usernameStep.taken');
-  });
-
-  it('a key with an account and a session only sets its username', async () => {
-    __setOxyState({ oxyServices: { 'session.accessToken': 'token' as unknown as jest.Mock } });
-    const { result, onDone } = await renderStep();
-
-    await act(async () => {
-      await result.current.handleContinue();
-    });
-
-    expect(__getLanguageMocks().updateProfileMutateAsync).toHaveBeenCalledWith({ username: 'alice' });
-    expect(syncIdentityMock).not.toHaveBeenCalled();
-    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   it('prefills the pending username chosen earlier', async () => {

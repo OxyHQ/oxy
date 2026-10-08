@@ -159,7 +159,6 @@
         "playAnimation": "Reproducir animación"
       },
       "savedOffline": "Estás sin conexión. Hemos guardado tu nombre de usuario y tu cuenta se creará con él en cuanto vuelvas a conectarte.",
-      "offlineRetry": "Estás sin conexión. Vuelve a conectarte y pulsa continuar para guardar tu nombre de usuario.",
       "finishingSetup": "Terminando de configurar tu cuenta: vuelve a pulsar continuar en un momento.",
       "taken": "Ese nombre de usuario se acaba de ocupar. Elige otro.",
       "saveFailed": "No se pudo guardar tu nombre de usuario. Inténtalo de nuevo."

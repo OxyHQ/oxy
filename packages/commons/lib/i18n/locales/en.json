@@ -159,7 +159,6 @@
         "playAnimation": "Play animation"
       },
       "savedOffline": "You're offline. Your username is saved, and your account will be created with it as soon as you're back online.",
-      "offlineRetry": "You are offline. Reconnect and tap continue to save your username.",
       "finishingSetup": "Finishing setting up your account — tap continue again in a moment.",
       "taken": "That username was just taken. Choose another one.",
       "saveFailed": "Couldn't save your username. Please try again."
