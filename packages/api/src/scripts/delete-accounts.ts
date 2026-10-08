@@ -18,8 +18,11 @@
  * - only `type = 'local'`, `kind = 'personal'`, `account_status = 'active'`
  *   accounts — never a federated, agent, automated or managed account, and
  *   never one already closed;
- * - never an account with a key (its owner deletes it by signing with the
- *   key) or with an email (its owner deletes it with an emailed code);
+ * - never an account with an email (its owner deletes it with an emailed
+ *   code), and never one with a key (its owner deletes it by signing with the
+ *   key) unless `--allow-key` is given. `--allow-key` is ONLY for accounts Oxy
+ *   itself created — test, emulator and E2E identities, and key registrations
+ *   abandoned before choosing a username — never a person's account;
  * - a live subscription, in-flight reservation or live BYOK connection refuses
  *   that account, as the route does;
  * - ANY refusal in the PLAN stops the whole run before anything is deleted.
@@ -35,6 +38,7 @@
  * live task definition with only `command` overridden):
  *   node packages/api/dist/scripts/delete-accounts.js alice bob            # dry run
  *   node packages/api/dist/scripts/delete-accounts.js alice bob --confirm  # delete
+ *   node packages/api/dist/scripts/delete-accounts.js <id> --allow-key      # a keyed test account
  *
  * Env: DATABASE_URL (and the API's usual env: Redis, S3 for mailbox data).
  */
@@ -50,25 +54,32 @@ import { logger } from '../utils/logger';
 export interface DeleteAccountsArgs {
   identifiers: string[];
   confirm: boolean;
+  /** Also plan accounts with a key (test identities Oxy created); never ones with an email. */
+  allowKey: boolean;
 }
+
+const USAGE = 'Usage: delete-accounts <username|id>... [--allow-key] [--confirm]';
 
 /** `argv` without the node binary and script path. */
 export function parseDeleteAccountsArgs(argv: readonly string[]): DeleteAccountsArgs {
   const identifiers: string[] = [];
   let confirm = false;
+  let allowKey = false;
   for (const arg of argv) {
     if (arg === '--confirm') {
       confirm = true;
+    } else if (arg === '--allow-key') {
+      allowKey = true;
     } else if (arg.startsWith('-')) {
-      throw new Error(`Unknown option ${arg}. Usage: delete-accounts <username|id>... [--confirm]`);
+      throw new Error(`Unknown option ${arg}. ${USAGE}`);
     } else if (arg.trim()) {
       identifiers.push(arg.trim());
     }
   }
   if (identifiers.length === 0) {
-    throw new Error('Name at least one account. Usage: delete-accounts <username|id>... [--confirm]');
+    throw new Error(`Name at least one account. ${USAGE}`);
   }
-  return { identifiers, confirm };
+  return { identifiers, confirm, allowKey };
 }
 
 export interface PlannedDeletion {
@@ -93,7 +104,10 @@ export interface DeletionPlan {
 }
 
 /** Resolve and check every identifier. Reads only. */
-export async function planAccountDeletions(identifiers: readonly string[]): Promise<DeletionPlan> {
+export async function planAccountDeletions(
+  identifiers: readonly string[],
+  { allowKey = false }: { allowKey?: boolean } = {}
+): Promise<DeletionPlan> {
   const planned: PlannedDeletion[] = [];
   const refused: RefusedDeletion[] = [];
   const seen = new Set<string>();
@@ -129,8 +143,8 @@ export async function planAccountDeletions(identifiers: readonly string[]): Prom
       refused.push({ identifier, reason: `account is ${account.accountStatus}` });
       continue;
     }
-    if (account.publicKey) {
-      refused.push({ identifier, reason: 'has a key: the owner can delete it with their key' });
+    if (account.publicKey && !allowKey) {
+      refused.push({ identifier, reason: 'has a key: the owner can delete it with their key (--allow-key for a test identity)' });
       continue;
     }
     if (account.email?.trim()) {
@@ -171,9 +185,12 @@ export interface DeleteAccountsReport {
 /**
  * Re-read the planned account under a row lock and say why it may no longer
  * be deleted, or `null` when it is still exactly what the plan checked: an
- * active local personal account with no key and no email.
+ * active local personal account with no email, and no key unless `allowKey`.
  */
-export async function recheckPlannedAccount(planned: PlannedDeletion): Promise<string | null> {
+export async function recheckPlannedAccount(
+  planned: PlannedDeletion,
+  { allowKey = false }: { allowKey?: boolean } = {}
+): Promise<string | null> {
   return getDb().transaction(async (tx) => {
     const [row] = await tx
       .select({
@@ -191,7 +208,7 @@ export async function recheckPlannedAccount(planned: PlannedDeletion): Promise<s
     if (!row) return 'no longer exists';
     if (row.type !== 'local' || row.kind !== 'personal') return 'is no longer a local personal account';
     if (row.accountStatus !== 'active') return `is now ${row.accountStatus}`;
-    if (row.publicKey) return 'has a key now';
+    if (row.publicKey && !allowKey) return 'has a key now';
     if (row.email?.trim()) return 'has an email now';
     if (row.username !== planned.username) return 'changed its username';
     return null;
@@ -203,12 +220,12 @@ export async function recheckPlannedAccount(planned: PlannedDeletion): Promise<s
  * account through the one deletion workflow.
  */
 export async function runAccountDeletions(args: DeleteAccountsArgs): Promise<DeleteAccountsReport> {
-  const plan = await planAccountDeletions(args.identifiers);
+  const plan = await planAccountDeletions(args.identifiers, { allowKey: args.allowKey });
   const report: DeleteAccountsReport = { confirm: args.confirm, plan, results: [] };
   if (!args.confirm || plan.refused.length > 0) return report;
 
   for (const account of plan.planned) {
-    const changed = await recheckPlannedAccount(account);
+    const changed = await recheckPlannedAccount(account, { allowKey: args.allowKey });
     if (changed) {
       report.aborted = { identifier: account.identifier, reason: `changed since the plan: ${changed}` };
       return report;

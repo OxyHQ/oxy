@@ -125,7 +125,9 @@ challenge, plus a fresh email code for `link_commons`):
 `packages/api/src/scripts/delete-accounts.ts` runs the same deletion workflow
 (`services/accountDeletion.service.ts`) for named accounts: usernames or ids,
 a dry run unless `--confirm`, and only `type = 'local'` and `kind = 'personal'`
-accounts. In production it runs as a one-off ECS task on the API's task
+accounts with no email. An account with a key is refused unless `--allow-key`,
+which is only for identities Oxy itself created (test, emulator and E2E keys, and
+key registrations abandoned before a username), never a person's account. In production it runs as a one-off ECS task on the API's task
 definition (`node packages/api/dist/scripts/delete-accounts.js …`).
 
 ## Mail
