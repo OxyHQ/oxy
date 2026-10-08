@@ -36,7 +36,7 @@ import { getAvatarPath, getAvatarPathsBatch } from '../senderAvatar.service';
 const unique = () => randomUUID().replace(/-/g, '');
 
 /** The path the proxy serves an external image through. */
-const proxied = (url: string) => `/email/proxy?url=${Buffer.from(url).toString('base64')}`;
+const proxied = (url: string) => `/email/proxy?url=${encodeURIComponent(Buffer.from(url).toString('base64'))}`;
 
 async function cachedRow(email: string) {
   const [row] = await getDb()
@@ -73,12 +73,13 @@ describe('senderAvatar.service — SSRF posture', () => {
     const domain = `d${unique().slice(0, 10)}.example`;
     const avatarPath = await getAvatarPath(`sender@${domain}`);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0][0])).toContain('https://www.gravatar.com/avatar/');
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes(`${domain}/favicon.ico`))).toBe(
       false,
     );
-    expect(avatarPath).toBe(proxied(`https://${domain}/favicon.ico`));
+    expect(avatarPath).toBeNull();
+    expect(fetchMock.mock.calls[1][0]).toBe(`https://api.clarity.surf/favicons/${domain}`);
   });
 
   it('rejects localhost and private IP domains for favicon fallback', async () => {
@@ -102,14 +103,14 @@ describe('senderAvatar.service — SSRF posture', () => {
     const email = `attacker@${domain}`;
 
     const startedAt = Date.now();
-    await expect(getAvatarPath(email)).resolves.toBe(proxied(`https://${domain}/favicon.ico`));
+    await expect(getAvatarPath(email)).resolves.toBeNull();
     const elapsed = Date.now() - startedAt;
 
     expect(mockResolveTxt).toHaveBeenCalledWith(`default._bimi.${domain}`);
     // Bounded, and actually bounded BY the timeout rather than by luck.
     expect(elapsed).toBeGreaterThanOrEqual(1500);
     expect(elapsed).toBeLessThan(6000);
-    expect(await cachedRow(email)).toMatchObject({ source: 'favicon' });
+    expect(await cachedRow(email)).toMatchObject({ source: 'none' });
   }, 15_000);
 });
 
@@ -217,5 +218,52 @@ describe('senderAvatar.service — the cache', () => {
 
   it('returns an empty map for an empty batch without touching the database', async () => {
     await expect(getAvatarPathsBatch([])).resolves.toEqual(new Map());
+  });
+});
+
+
+describe('senderAvatar.service — resource validity', () => {
+  it('parses adjacent BIMI tags and concatenated TXT segments', async () => {
+    mockResolveTxt.mockResolvedValue([['v=BIMI1;l=https://vmc.example/logo.svg;', 'a=https://vmc.example/certificate.pem']]);
+    const email = `bimi${unique().slice(0, 8)}@example.com`;
+    await expect(getAvatarPath(email)).resolves.toBe(proxied('https://vmc.example/logo.svg'));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['v=BIMI1;l=javascript:alert(1)', 'v=BIMI1;l=https://a.example/a.svg;l=https://b.example/b.svg'])('rejects invalid or ambiguous BIMI: %s', async (record) => {
+    mockResolveTxt.mockResolvedValue([[record]]);
+    await expect(getAvatarPath(`invalid${unique().slice(0, 8)}@example.com`)).resolves.toBeNull();
+  });
+
+  it('returns an available Clarity image and never probes sender-controlled hosts', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false });
+    fetchMock.mockResolvedValueOnce({ ok: true, headers: { get: () => 'image/png' } });
+    const domain = `d${unique().slice(0, 8)}.example`;
+    await expect(getAvatarPath(`sender@${domain}`)).resolves.toBe(proxied(`https://api.clarity.surf/favicons/${domain}`));
+    expect(fetchMock.mock.calls[1]).toEqual([
+      `https://api.clarity.surf/favicons/${domain}`,
+      expect.objectContaining({ method: 'HEAD', redirect: 'error' }),
+    ]);
+  });
+
+  it('does not advertise an HTML response as an avatar', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false });
+    fetchMock.mockResolvedValueOnce({ ok: true, headers: { get: () => 'text/html' } });
+    await expect(getAvatarPath(`html${unique().slice(0, 8)}@example.com`)).resolves.toBeNull();
+  });
+
+  it.each(['single', 'batch'])('renews broken cached BIMI and guessed favicon paths through the %s reader', async (reader) => {
+    for (const source of ['bimi', 'favicon'] as const) {
+      const email = `legacy${unique().slice(0, 8)}@example.com`;
+      const oldUrl = source === 'bimi'
+        ? 'https://vmc.example/logo.svg;a=https://vmc.example/certificate.pem'
+        : 'https://example.com/favicon.ico';
+      await getDb().insert(senderAvatars).values({
+        email, source, avatarPath: proxied(oldUrl), expiresAt: new Date(Date.now() + 60_000),
+      });
+      const path = reader === 'single' ? await getAvatarPath(email) : (await getAvatarPathsBatch([email])).get(email);
+      expect(path).toBeNull();
+      expect(await cachedRow(email)).toMatchObject({ source: 'none', avatarPath: null });
+    }
   });
 });

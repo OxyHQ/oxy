@@ -29,7 +29,7 @@ const PRIVATE_IPV4_RANGES: Array<[number, number]> = [
 /** Build a base64-encoded proxy path for an external URL. */
 function proxyPath(url: string): string {
   const encoded = Buffer.from(url, 'utf-8').toString('base64');
-  return `/email/proxy?url=${encoded}`;
+  return `/email/proxy?url=${encodeURIComponent(encoded)}`;
 }
 
 function ipv4ToInt(ip: string): number {
@@ -103,11 +103,16 @@ async function lookupBimi(domain: string): Promise<string | null> {
     );
     for (const parts of records) {
       const record = parts.join('');
-      if (!record.toLowerCase().startsWith('v=bimi1')) continue;
-      const logoMatch = record.match(/l=(\S+)/i);
-      if (logoMatch?.[1]) {
-        const logoUrl = logoMatch[1].replace(/;$/, '');
-        if (logoUrl.startsWith('https://')) return logoUrl;
+      if (!/^v=bimi1\s*(?:;|$)/i.test(record)) continue;
+      // BIMI tags are semicolon-delimited; whitespace between tags is optional.
+      const tags = record.split(';').map((tag) => tag.trim());
+      const logos = tags.filter((tag) => /^l\s*=/i.test(tag));
+      if (logos.length !== 1) continue;
+      try {
+        const logo = new URL(logos[0].slice(logos[0].indexOf('=') + 1).trim());
+        if (logo.protocol === 'https:' && !logo.username && !logo.password) return logo.href;
+      } catch {
+        // An invalid logo tag must not prevent the other avatar sources.
       }
     }
   } catch {
@@ -167,14 +172,43 @@ async function resolveAvatar(email: string): Promise<{ avatarPath: string | null
     // Gravatar check failed — continue
   }
 
-  // 4. Domain favicon — do not probe sender-controlled hosts from the API.
-  // The email proxy validates and fetches the URL only when the client requests it.
+  // 4. Clarity discovers and serves favicons. A guessed /favicon.ico is not
+  // evidence that an image exists. Probe only this fixed first-party origin,
+  // sending the public domain alone; never send an address or follow redirects.
   if (domain && isSafePublicHostname(domain)) {
-    const faviconUrl = `https://${domain}/favicon.ico`;
-    return { avatarPath: proxyPath(faviconUrl), source: 'favicon' };
+    const faviconUrl = `https://api.clarity.surf/favicons/${domain}`;
+    try {
+      const response = await fetch(faviconUrl, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(3000),
+        redirect: 'error',
+      });
+      if (response.ok && /^image\//i.test(response.headers.get('content-type') ?? '')) {
+        return { avatarPath: proxyPath(faviconUrl), source: 'favicon' };
+      }
+    } catch {
+      // No available icon: the client renders its normal initials fallback.
+    }
   }
 
   return { avatarPath: null, source: 'none' };
+}
+
+/** Reject legacy guessed favicons and BIMI URLs containing another record tag. */
+function isCurrentAvatar(cached: { avatarPath: string | null; source: string }): boolean {
+  if (cached.source !== 'favicon' && cached.source !== 'bimi') return true;
+  if (!cached.avatarPath) return false;
+  try {
+    const path = new URL(cached.avatarPath, 'https://api.oxy.so');
+    const encoded = path.searchParams.get('url');
+    if (path.pathname !== '/email/proxy' || !encoded) return false;
+    const url = new URL(Buffer.from(encoded.replace(/ /g, '+'), 'base64').toString('utf-8'));
+    return cached.source === 'bimi'
+      ? url.protocol === 'https:' && !url.href.includes(';')
+      : url.origin === 'https://api.clarity.surf' && url.pathname.startsWith('/favicons/');
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -192,11 +226,11 @@ export async function getAvatarPath(email: string): Promise<string | null> {
 
   // Check cache
   const [cached] = await getDb()
-    .select({ avatarPath: senderAvatars.avatarPath })
+    .select({ avatarPath: senderAvatars.avatarPath, source: senderAvatars.source })
     .from(senderAvatars)
     .where(and(sql`${senderAvatars.email} = ${normalized}`, senderAvatarIsFresh()))
     .limit(1);
-  if (cached) {
+  if (cached && isCurrentAvatar(cached)) {
     return cached.avatarPath;
   }
 
@@ -229,10 +263,10 @@ export async function getAvatarPathsBatch(emails: string[]): Promise<Map<string,
   // Bulk cache lookup — same freshness predicate as the single read, so a stale
   // row is a MISS here too rather than a served stale avatar.
   const cached = await getDb()
-    .select({ email: senderAvatars.email, avatarPath: senderAvatars.avatarPath })
+    .select({ email: senderAvatars.email, avatarPath: senderAvatars.avatarPath, source: senderAvatars.source })
     .from(senderAvatars)
     .where(and(inArray(senderAvatars.email, unique), senderAvatarIsFresh()));
-  const cachedMap = new Map(cached.map((c) => [c.email, c.avatarPath]));
+  const cachedMap = new Map(cached.filter(isCurrentAvatar).map((c) => [c.email, c.avatarPath]));
 
   const misses: string[] = [];
   for (const email of unique) {
