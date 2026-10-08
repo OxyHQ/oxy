@@ -231,8 +231,9 @@ router.use(signInRouter);
  *       Create a passwordless account bound to a local secp256k1 identity.
  *       The client generates a key pair (see `KeyManager` in `@oxy.so/core`),
  *       signs `register:{publicKey}:{timestamp}`, and submits the
- *       signature. Username and email are optional but recommended for
- *       discoverability.
+ *       signature together with the account's username. The username is
+ *       required and written in the same insert as the key, so an account
+ *       never exists without one.
  *     requestBody:
  *       required: true
  *       content:
@@ -243,6 +244,7 @@ router.use(signInRouter);
  *               - publicKey
  *               - signature
  *               - timestamp
+ *               - username
  *             properties:
  *               publicKey:
  *                 type: string
@@ -253,9 +255,6 @@ router.use(signInRouter);
  *               timestamp:
  *                 type: integer
  *                 description: Unix ms when the signature was produced (max 5 minutes old).
- *               email:
- *                 type: string
- *                 format: email
  *               username:
  *                 type: string
  *                 minLength: 3
@@ -269,14 +268,18 @@ router.use(signInRouter);
  *                   and currently advisory — the server logs but does not yet
  *                   reject a missing or invalid one.
  *     responses:
- *       200:
- *         description: Account created and the first session issued.
+ *       201:
+ *         description: Account created with its username; sign in with a challenge next.
+ *       400:
+ *         description: Missing or invalid username, or a malformed key.
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/AuthSuccess'
- *       400:
- *         description: Invalid signature, malformed key, or duplicate username/email.
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Invalid registration signature.
+ *       409:
+ *         description: Identity already registered, or username already taken.
  *         content:
  *           application/json:
  *             schema:

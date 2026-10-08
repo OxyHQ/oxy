@@ -47,28 +47,31 @@ async function signInAsDeviceIdentity(): Promise<{ user: User; sessionId: string
 
 // ==================== B. Holding the identity (Commons) ====================
 
-/** Register the local key if the server does not know it yet. */
-async function registerIfNeeded(publicKey: string): Promise<void> {
+/**
+ * Register the local key if the server does not know it yet. The username is
+ * required: the account is created with the key and the username together.
+ */
+async function registerIfNeeded(publicKey: string, username: string): Promise<void> {
   const { registered } = await oxy.auth.isKeyRegistered(publicKey);
   if (registered) return;
   const registration = await SignatureService.createRegistrationSignature();
-  await oxy.auth.registerKey(registration.publicKey, registration.signature, registration.timestamp);
+  await oxy.auth.registerKey(registration.publicKey, registration.signature, registration.timestamp, username);
 }
 
-async function createIdentity(): Promise<string[]> {
+async function createIdentity(username: string): Promise<string[]> {
   // Writes the key to this app's own secure storage (and, in Commons on
   // Android, to the identity signer store its identity host signs with).
   const { words, publicKey } = await RecoveryPhraseService.generateIdentityWithRecovery();
   // Fill the shared slot (the iOS keychain group other apps read).
   await KeyManager.syncSharedIdentity();
-  await registerIfNeeded(publicKey);
+  await registerIfNeeded(publicKey, username);
   return words;
 }
 
-async function importIdentity(phrase: string): Promise<void> {
+async function importIdentity(phrase: string, username: string): Promise<void> {
   const publicKey = await RecoveryPhraseService.restoreFromPhrase(phrase);
   await KeyManager.syncSharedIdentity();
-  await registerIfNeeded(publicKey);
+  await registerIfNeeded(publicKey, username);
 }
 
 // ==================== Auth context ====================
@@ -77,8 +80,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: () => Promise<void>;
-  create: () => Promise<string[]>;
-  importPhrase: (phrase: string) => Promise<void>;
+  create: (username: string) => Promise<string[]>;
+  importPhrase: (phrase: string, username: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -114,15 +117,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     signIn: () => withLoading(signIn),
-    create: () =>
+    create: (username) =>
       withLoading(async () => {
-        const words = await createIdentity();
+        const words = await createIdentity(username);
         await signIn();
         return words;
       }),
-    importPhrase: (phrase) =>
+    importPhrase: (phrase, username) =>
       withLoading(async () => {
-        await importIdentity(phrase);
+        await importIdentity(phrase, username);
         await signIn();
       }),
     signOut: () =>
@@ -148,10 +151,11 @@ export function useAuth() {
 function WelcomeScreen() {
   const { create, importPhrase, signIn } = useAuth();
   const [phrase, setPhrase] = useState('');
+  const [username, setUsername] = useState('');
 
   const handleCreate = async () => {
     try {
-      const words = await create();
+      const words = await create(username.trim());
       Alert.alert('Identity created', `Save your recovery phrase:\n\n${words.join(' ')}`);
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to create identity');
@@ -160,7 +164,7 @@ function WelcomeScreen() {
 
   const handleImport = async () => {
     try {
-      await importPhrase(phrase.trim());
+      await importPhrase(phrase.trim(), username.trim());
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to import identity');
     }
@@ -172,7 +176,14 @@ function WelcomeScreen() {
       <Button title="Sign in with Commons" onPress={signIn} />
       <View style={{ height: 20 }} />
       <Text style={{ marginBottom: 10 }}>Or hold the identity in this app (Commons only):</Text>
-      <Button title="Create new identity" onPress={handleCreate} />
+      <TextInput
+        style={{ borderWidth: 1, borderColor: '#ccc', padding: 10, marginBottom: 10 }}
+        autoCapitalize="none"
+        value={username}
+        onChangeText={setUsername}
+        placeholder="Username (required for a new account)"
+      />
+      <Button title="Create new identity" onPress={handleCreate} disabled={!username.trim()} />
       <TextInput
         style={{ borderWidth: 1, borderColor: '#ccc', padding: 10, marginVertical: 10, minHeight: 80 }}
         multiline

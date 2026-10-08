@@ -23,6 +23,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import type { Request, Response } from 'express';
+import { USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
 
 const mockCreateSession = jest.fn();
 const mockGetAccessToken = jest.fn();
@@ -284,8 +285,38 @@ beforeEach(() => {
 
 describe('register', () => {
   function registerBody(over: Record<string, unknown> = {}) {
-    return { publicKey: publicKey(), signature: 'sig', timestamp: Date.now(), ...over };
+    return { publicKey: publicKey(), signature: 'sig', timestamp: Date.now(), username: username(), ...over };
   }
+
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['invalid', 'not a handle!'],
+    ['not a string', 42],
+  ])('refuses a %s username with 400 and writes nothing', async (_label, value) => {
+    // An account never exists without a username: it is written with the key.
+    const body = registerBody({ username: value });
+    if (value === undefined) delete (body as Record<string, unknown>).username;
+    const res = captureRes();
+
+    await SessionController.register(request({ body }), asResponse(res));
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({ message: USERNAME_INVALID_MESSAGE });
+    expect(await accountIdByPublicKey(body.publicKey as string)).toBeUndefined();
+  });
+
+  it('stores the username normalized (trimmed)', async () => {
+    const name = username();
+    const body = registerBody({ username: `  ${name} ` });
+    const res = captureRes();
+
+    await SessionController.register(request({ body }), asResponse(res));
+
+    expect(res.statusCode).toBe(201);
+    const stored = await storedUser((await accountIdByPublicKey(body.publicKey as string)) as string);
+    expect(stored.username).toBe(name);
+  });
 
   it('creates the account, its identity auth method and a welcome notification', async () => {
     // An email in the body is ignored: a Commons account has none (ADR 0029 D3).
@@ -397,6 +428,28 @@ describe('register', () => {
     // on `lower(btrim(username))` is what closes that.
     expect(res.statusCode).toBe(409);
     expect(res.body).toEqual({ message: 'Username already taken' });
+  });
+
+  it('two concurrent registrations of one username: exactly one account exists', async () => {
+    // The username pre-check cannot close the race either; the
+    // `users_lower_username_key` violation maps to the same 409.
+    const name = username();
+    const first = captureRes();
+    const second = captureRes();
+
+    await Promise.all([
+      SessionController.register(request({ body: registerBody({ username: name }) }), asResponse(first)),
+      SessionController.register(request({ body: registerBody({ username: name }) }), asResponse(second)),
+    ]);
+
+    expect([first.statusCode, second.statusCode].sort()).toEqual([201, 409]);
+    const loser = first.statusCode === 409 ? first : second;
+    expect(loser.body).toEqual({ message: 'Username already taken' });
+    const rows = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(sql`lower(btrim(${users.username})) = ${name}`);
+    expect(rows).toHaveLength(1);
   });
 
   it('two concurrent registrations of one identity: exactly one account exists', async () => {

@@ -71,7 +71,7 @@ Routes are mounted without a prefix (e.g. `POST /auth/login`). A leading `/api/`
 ### Authentication
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/auth/register` | POST | Register new public-key identity |
+| `/auth/register` | POST | Register a new public-key account with its username (required) |
 | `/auth/signup` | POST | Password sign-up (email + username + password) |
 | `/auth/login` | POST | Password login (email/username + password) |
 | `/auth/challenge` | POST | Request public-key challenge |

@@ -119,7 +119,7 @@ export default function LinkAccountConfirmScreen() {
       // this phone already made and has not registered.
       let words: string[] | null;
       try {
-        words = (await createIdentity({ skipSync: true })).recoveryPhrase;
+        words = (await createIdentity()).recoveryPhrase;
       } catch (error) {
         if (!(error instanceof IdentityAlreadyExistsError)) throw error;
         words = (await KeyManager.getRecoveryMnemonic())?.split(' ') ?? null;

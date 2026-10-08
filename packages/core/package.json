@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/core",
-  "version": "4.5.0-oxy-one.0",
+  "version": "4.5.0-oxy-one.1",
   "description": "OxyHQ SDK Foundation — API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",

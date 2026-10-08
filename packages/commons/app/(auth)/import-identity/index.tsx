@@ -83,9 +83,10 @@ export default function ImportIdentityPhraseScreen() {
       const offline = await checkIfOffline();
       const result = await importIdentity(phrase, { skipSync: offline });
 
-      // Online but server sync failed: do not advance — username would call
-      // authenticated APIs with no session (same guard as create-identity).
-      if (!offline && !result.synced) {
+      // Online but the server could not be reached: do not advance. (A key
+      // with NO account is not a failure — `needsUsername` — it goes to the
+      // username step, which creates the account with the username.)
+      if (!offline && !result.synced && !result.needsUsername) {
         setAuthError(t('auth.errors.importSyncFailed'));
         return;
       }
@@ -96,12 +97,11 @@ export default function ImportIdentityPhraseScreen() {
       // already possess.
       setRecoveryPhraseAcknowledgedPersisted(true);
 
-      // Offline: skip username (deferred until reconnect). Online: choose username.
-      if (offline) {
-        router.replace('/(auth)/import-identity/notifications');
-      } else {
-        router.replace('/(auth)/import-identity/username');
-      }
+      // The username step: it creates the account for a key without one (and,
+      // offline, keeps the choice for the reconnect sync, or lets a user whose
+      // key already has an account skip). A key that signed in has its account;
+      // the onboarding guard leaves the wizard as soon as its username is known.
+      router.replace('/(auth)/import-identity/username');
     } catch (err: unknown) {
       if (err instanceof IdentityMayExistError) {
         router.replace('/(auth)/recover-identity');

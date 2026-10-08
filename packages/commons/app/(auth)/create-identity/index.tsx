@@ -5,10 +5,10 @@ import { useOxy } from '@oxy.so/services';
 import { IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
-import { IdentityMayExistError } from '@/hooks/identity/identityErrors';
+import { IdentityMayExistError, isUsernameTakenError } from '@/hooks/identity/identityErrors';
 import { CreatingStep } from '@/components/auth/CreatingStep';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
-import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';
+import { extractAuthErrorMessage, isUsernameRequiredError } from '@/utils/auth/errorUtils';
 import { CREATING_PROGRESS_INTERVAL_MS, CREATING_FINAL_DELAY_MS } from '@/constants/auth';
 import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 import { useIdentity } from '@/hooks/useIdentity';
@@ -21,6 +21,11 @@ import { useTranslation } from '@/lib/i18n';
  * phrase reveal screen (when a fresh identity was just generated) or
  * directly to the username step (when resuming an in-progress flow with
  * an existing identity).
+ *
+ * The key is generated LOCALLY and is NOT registered here (so this works
+ * offline): registration carries the username, so the account is created at
+ * the username step. A resume signs in a key that already has an account, or
+ * registers one with the pending username chosen earlier.
  *
  * The recovery phrase is stashed in `useAuthFlowContext().recoveryPhraseRef`
  * for the next screen to read. It is never persisted to storage.
@@ -88,6 +93,40 @@ export default function CreateIdentityScreen() {
     };
   }, [cleanupTimers]);
 
+  /**
+   * Resume an identity that already exists on this device (the app was closed
+   * mid-onboarding). Online and without a session, sync it: a key with an
+   * account signs in, and one without registers with the pending username if
+   * one was chosen. A key still waiting for its username goes to the username
+   * step, which creates the account. `false` when the resume stopped on an
+   * error the screen shows.
+   */
+  const resumeToUsername = useCallback(async (): Promise<boolean> => {
+    const offline = await checkIfOffline();
+    if (!isMountedRef.current) return false;
+
+    const sessionReady = isAuthenticated || Boolean(oxyServices?.session.accessToken);
+    if (!sessionReady && !offline) {
+      try {
+        await syncIdentity();
+      } catch (syncErr: unknown) {
+        if (isUsernameTakenError(syncErr)) {
+          // The pending username was taken meanwhile: choose another.
+          setAuthError(t('auth.usernameStep.taken'));
+        } else if (!isUsernameRequiredError(syncErr)) {
+          const errorMessage = extractAuthErrorMessage(syncErr, t('auth.errors.identityExistsSyncFailed'));
+          setAuthError(errorMessage);
+          setCreateError(errorMessage);
+          return false;
+        }
+      }
+    }
+
+    if (!isMountedRef.current) return false;
+    router.replace('/(auth)/create-identity/username');
+    return true;
+  }, [isAuthenticated, oxyServices, syncIdentity, setAuthError, router, t]);
+
   useEffect(() => {
     // Wait for status to be determined
     if (status === 'checking') return;
@@ -120,39 +159,9 @@ export default function CreateIdentityScreen() {
       if (hasNavigatedResumeRef.current) return;
       hasNavigatedResumeRef.current = true;
 
-      const checkAndNavigate = async () => {
-        const offline = await checkIfOffline();
-        if (!isMountedRef.current) return;
-
-        const hasSession = () => Boolean(oxyServices?.session.accessToken);
-        let sessionReady = isAuthenticated || hasSession();
-
-        if (!sessionReady && !offline && syncIdentity) {
-          try {
-            await syncIdentity();
-            sessionReady = hasSession();
-          } catch (syncErr: unknown) {
-            const errorMessage = extractAuthErrorMessage(syncErr);
-            setAuthError(errorMessage);
-            setCreateError(errorMessage);
-            hasNavigatedResumeRef.current = false;
-            return;
-          }
-        }
-
-        // Online resume without a session: username would call authenticated APIs.
-        if (!sessionReady && !offline) {
-          const syncErrorMessage = t('auth.errors.identityExistsSyncFailed');
-          setAuthError(syncErrorMessage);
-          setCreateError(syncErrorMessage);
-          hasNavigatedResumeRef.current = false;
-          return;
-        }
-
-        if (!isMountedRef.current) return;
-        router.replace('/(auth)/create-identity/username');
-      };
-      checkAndNavigate();
+      void resumeToUsername().then((resumed) => {
+        if (!resumed) hasNavigatedResumeRef.current = false;
+      });
       return;
     }
 
@@ -182,33 +191,15 @@ export default function CreateIdentityScreen() {
 
           creatingProgressRef.current = progressInterval as unknown as ReturnType<typeof setTimeout>;
 
-          // Detect connectivity up front so createIdentity can skip the ~19s
-          // DNS-timeout on the register/signIn round-trip when offline (the
-          // identity is still created locally; sync is deferred). `checkIfOffline`
-          // is already imported here safely — do NOT move this probe into
-          // `useIdentity`: it loads early in the provider tree and importing
-          // `networkUtils` there triggers a circular import that crashes
-          // OxyProvider at boot (see issue #605).
-          const offline = await checkIfOffline();
-          const result = await createIdentity({ skipSync: offline });
+          // Local only — no network round-trip, so this is the same online and
+          // offline. The account is created at the username step.
+          const result = await createIdentity();
 
           cleanupTimers();
 
           // Stash the phrase in memory only — the next screen will read it
           // from this ref and clear it after acknowledgement.
           recoveryPhraseRef.current = result.recoveryPhrase;
-
-          // Online but server sync failed: do not advance to recovery phrase —
-          // username would call authenticated APIs with no session.
-          if (!offline && !result.synced) {
-            if (!isMountedRef.current) return;
-            const syncErrorMessage = t('auth.errors.identityCreatedSyncFailed');
-            setAuthError(syncErrorMessage);
-            setCreateError(syncErrorMessage);
-            hasStartedCreateRef.current = false;
-            setCreatingProgress(0);
-            return;
-          }
 
           await new Promise(resolve => setTimeout(resolve, CREATING_FINAL_DELAY_MS));
 
@@ -243,32 +234,7 @@ export default function CreateIdentityScreen() {
           }
 
           if (err instanceof IdentityAlreadyExistsError) {
-            const offline = await checkIfOffline();
-            if (!isMountedRef.current) return;
-
-            const hasSession = () => Boolean(oxyServices?.session.accessToken);
-            let sessionReady = isAuthenticated || hasSession();
-
-            if (!sessionReady && !offline && syncIdentity) {
-              try {
-                await syncIdentity();
-                sessionReady = hasSession();
-              } catch (syncErr: unknown) {
-                const syncErrorMessage = extractAuthErrorMessage(syncErr);
-                setAuthError(syncErrorMessage);
-                setCreateError(syncErrorMessage);
-                return;
-              }
-            }
-
-            if (!sessionReady && !offline) {
-              const syncErrorMessage = t('auth.errors.identityExistsSyncFailed');
-              setAuthError(syncErrorMessage);
-              setCreateError(syncErrorMessage);
-              return;
-            }
-
-            router.replace('/(auth)/create-identity/username');
+            await resumeToUsername();
             return;
           }
 
@@ -292,15 +258,12 @@ export default function CreateIdentityScreen() {
     status,
     hasIdentity,
     createIdentity,
-    syncIdentity,
-    isAuthenticated,
-    oxyServices,
+    resumeToUsername,
     router,
     setAuthError,
     cleanupTimers,
     recoveryPhraseRef,
     retryNonce,
-    t,
   ]);
 
   // Render a neutral backdrop (not the "generating keys" copy) while the status

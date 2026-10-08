@@ -2,12 +2,13 @@ import { commonsDenyReasonSchema, deviceProofSchema, usernameSchema } from '@oxy
 import { z } from 'zod';
 import { ATTESTATION_PROVIDERS } from '../services/workloadAttestation.service';
 
-// POST /auth/register (public key)
+// POST /auth/register (public key). The username is REQUIRED: an account never
+// exists without one, so it is written in the same insert as the key.
 export const registerPublicKeySchema = z.object({
   publicKey: z.string().trim().min(1),
   signature: z.string().trim().min(1),
   timestamp: z.number(),
-  username: usernameSchema.optional(),
+  username: usernameSchema,
   // Optional and unenforced for now — see the comment at the check site in
   // `SessionController.register` for why and what flips it to required.
   powNonce: z.string().trim().min(1).max(64).optional(),

@@ -75,28 +75,30 @@ jest.mock('@/hooks/identity/identityStore', () => {
     getIdentitySyncStateFromStorage: jest.fn(async () => false),
     persistOnboardingComplete: jest.fn(async () => undefined),
     persistOnboardingFlow: jest.fn(async () => undefined),
+    persistPendingUsername: jest.fn(async () => undefined),
   };
 });
 
 // eslint-disable-next-line import/first
 import { useIdentity } from '@/hooks/useIdentity';
+// eslint-disable-next-line import/first
+import { persistPendingUsername } from '@/hooks/identity/identityStore';
 
 function createWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
 }
 
 async function callCreate(
-  create: (opts?: { skipSync?: boolean }) => Promise<unknown>,
-  opts?: { skipSync?: boolean },
+  create: () => Promise<unknown>,
 ): Promise<{ result?: unknown; error?: unknown }> {
   let result: unknown;
   let error: unknown;
   await act(async () => {
     try {
-      result = await create(opts);
+      result = await create();
     } catch (e) {
       error = e;
     }
@@ -201,20 +203,26 @@ describe('useIdentity — auto-create interlock', () => {
     expect(generateMock).not.toHaveBeenCalled();
   });
 
-  it('creates on a genuine fresh device (absent verdict + no marker)', async () => {
+  it('creates on a genuine fresh device (absent verdict + no marker), locally only', async () => {
     getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
     readIdentityMarkerMock.mockResolvedValue(null);
     generateMock.mockResolvedValue({ words: ['a', 'b', 'c'], publicKey: 'pub-new' });
+    const registerKey = jest.fn();
+    const isKeyRegistered = jest.fn();
+    __setOxyState({ oxyServices: { auth: { registerKey, isKeyRegistered } }, isAuthenticated: false });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    // `skipSync` keeps the happy path local (no register/signIn round-trip).
-    const { result: created, error } = await callCreate(result.current.createIdentity, {
-      skipSync: true,
-    });
+    const { result: created, error } = await callCreate(result.current.createIdentity);
     expect(error).toBeUndefined();
-    expect(created).toEqual({ recoveryPhrase: ['a', 'b', 'c'], synced: false });
+    expect(created).toEqual({ recoveryPhrase: ['a', 'b', 'c'] });
     expect(getIdentityStatusMock).toHaveBeenCalledWith({ bypassCache: true });
     expect(generateMock).toHaveBeenCalledTimes(1);
+    // Registration carries the username: creating the key never registers it.
+    expect(registerKey).not.toHaveBeenCalled();
+    expect(isKeyRegistered).not.toHaveBeenCalled();
+    expect(signInMock).not.toHaveBeenCalled();
+    // A username chosen for a previous identity is not this one's.
+    expect(persistPendingUsername).toHaveBeenCalledWith(null);
   });
 });
 
@@ -239,6 +247,48 @@ describe('useIdentity — importIdentity interlock', () => {
     const { error } = await callImportPhrase(result.current.importIdentity, VALID_PHRASE);
     expect(error).toBeInstanceOf(IdentityMayExistError);
     expect(restoreFromPhraseMock).not.toHaveBeenCalled();
+  });
+
+  it('online, a key WITHOUT an account is not registered: it needs the username step', async () => {
+    getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
+    const registerKey = jest.fn();
+    const isKeyRegistered = jest.fn(async () => ({ registered: false }));
+    __setOxyState({ oxyServices: { auth: { registerKey, isKeyRegistered } }, isAuthenticated: false });
+    const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
+
+    const { result: imported, error } = await callImportPhrase(result.current.importIdentity, VALID_PHRASE);
+    expect(error).toBeUndefined();
+    expect(imported).toEqual({ synced: false, needsUsername: true });
+    expect(isKeyRegistered).toHaveBeenCalledWith(VALID_PUBLIC_KEY);
+    expect(registerKey).not.toHaveBeenCalled();
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it('online, a key WITH an account signs in and is synced', async () => {
+    getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
+    const registerKey = jest.fn();
+    const isKeyRegistered = jest.fn(async () => ({ registered: true }));
+    signInMock.mockResolvedValue({ id: 'u1', username: 'alice' });
+    __setOxyState({ oxyServices: { auth: { registerKey, isKeyRegistered } }, isAuthenticated: false });
+    const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
+
+    const { result: imported, error } = await callImportPhrase(result.current.importIdentity, VALID_PHRASE);
+    expect(error).toBeUndefined();
+    expect(imported).toEqual({ synced: true, needsUsername: false });
+    expect(signInMock).toHaveBeenCalledWith(VALID_PUBLIC_KEY);
+    expect(registerKey).not.toHaveBeenCalled();
+  });
+
+  it('offline (skipSync) stores the key and makes no round-trip', async () => {
+    getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
+    const isKeyRegistered = jest.fn();
+    __setOxyState({ oxyServices: { auth: { registerKey: jest.fn(), isKeyRegistered } }, isAuthenticated: false });
+    const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
+
+    const { result: imported } = await callImportPhrase(result.current.importIdentity, VALID_PHRASE, { skipSync: true });
+    expect(imported).toEqual({ synced: false, needsUsername: false });
+    expect(restoreFromPhraseMock).toHaveBeenCalledTimes(1);
+    expect(isKeyRegistered).not.toHaveBeenCalled();
   });
 });
 
@@ -296,7 +346,7 @@ describe('useIdentity — importIdentityFromPrivateKey interlock', () => {
       { skipSync: true },
     );
     expect(error).toBeUndefined();
-    expect(imported).toEqual({ synced: false });
+    expect(imported).toEqual({ synced: false, needsUsername: false });
     expect(importKeyPairMock).toHaveBeenCalledWith(VALID_PRIVATE_KEY, undefined);
     expect(deleteRecoveryMnemonicMock).toHaveBeenCalledTimes(1);
   });

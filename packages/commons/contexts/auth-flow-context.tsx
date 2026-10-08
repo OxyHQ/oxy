@@ -5,7 +5,6 @@ interface AuthFlowContextValue {
   isSigningIn: boolean;
   setAuthError: (error: string | null) => void;
   setSigningIn: (signingIn: boolean) => void;
-  usernameRef: React.MutableRefObject<string>;
   /**
    * Recovery phrase generated during identity creation. Held in a ref so it
    * survives navigation but is NEVER persisted to storage — by design, the
@@ -31,7 +30,6 @@ export function AuthFlowProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [recoveryPhraseAcknowledged, setRecoveryPhraseAcknowledged] = useState(false);
-  const usernameRef = React.useRef<string>('');
   const recoveryPhraseRef = React.useRef<string[] | null>(null);
 
   // Defense in depth: scrub the in-memory phrase when the auth flow unmounts.
@@ -65,7 +63,6 @@ export function AuthFlowProvider({ children }: { children: ReactNode }) {
         isSigningIn,
         setAuthError,
         setSigningIn,
-        usernameRef,
         recoveryPhraseRef,
         acknowledgeRecoveryPhrase,
         recoveryPhraseAcknowledged,

@@ -219,8 +219,9 @@ Oxy app (for example Alia).
    **Expected:** nothing happens to Commons; no recovery screen, same key.
 3. Commons' own data: `adb shell pm clear so.oxy.commons`, then reopen.
    **Expected:** the identity is restored silently; the public key matches step 1.
-   Onboarding may resume at the username step until the session is minted. It
-   must never show the welcome or create screen.
+   Onboarding may resume at the username step until the session is minted (or,
+   for a key that never got an account, until a username is chosen: the account
+   is created there). It must never show the welcome or create screen.
 4. *Settings › Recovery phrase* reveals the same 12 words (the `mnemonic` round trip).
 5. Sign in with Oxy from Alia: Commons answers again once its signer store is
    refilled (`syncSharedIdentity`).

@@ -50,7 +50,6 @@
       "identityAlreadyExists": "Ya existe una identidad en este dispositivo. Usa tu identidad actual o elimínala desde ajustes antes de importar una nueva.",
       "importFailed": "No se pudo importar la identidad",
       "identityExistsSyncFailed": "Tu identidad existe en este dispositivo, pero no pudimos conectarla con tu cuenta. Comprueba tu conexión e inténtalo de nuevo.",
-      "identityCreatedSyncFailed": "Tu identidad se creó en este dispositivo, pero no pudimos conectarla con tu cuenta. Comprueba tu conexión e inténtalo de nuevo.",
       "noIdentityFound": "No se encontró ninguna identidad en este dispositivo.",
       "couldNotReadIdentity": "No se pudo leer tu identidad. Inténtalo de nuevo."
     },
@@ -145,7 +144,7 @@
     },
     "usernameStep": {
       "title": "Elige tu nombre de usuario",
-      "subtitleOffline": "Estás sin conexión. Puedes establecer tu nombre de usuario más tarde cuando vuelvas a conectarte.",
+      "subtitleOffline": "Estás sin conexión. Tu cuenta se creará con este nombre de usuario en cuanto vuelvas a conectarte.",
       "subtitle": "Tu nombre de usuario es obligatorio. Puedes cambiarlo más tarde en los ajustes.",
       "placeholder": "Nombre de usuario",
       "hint": "Puedes usar a-z, 0-9. La longitud mínima es de 4 caracteres.",
@@ -158,7 +157,11 @@
       "learnMore": "Más información sobre los nombres de usuario",
       "a11y": {
         "playAnimation": "Reproducir animación"
-      }
+      },
+      "savedOffline": "Estás sin conexión. Hemos guardado tu nombre de usuario y tu cuenta se creará con él en cuanto vuelvas a conectarte.",
+      "finishingSetup": "Terminando de configurar tu cuenta: vuelve a pulsar continuar en un momento.",
+      "taken": "Ese nombre de usuario se acaba de ocupar. Elige otro.",
+      "saveFailed": "No se pudo guardar tu nombre de usuario. Inténtalo de nuevo."
     },
     "importStep": {
       "title": "Importa tu identidad",

@@ -91,9 +91,11 @@ export const useNetworkReconnect = (options: UseNetworkReconnectOptions): void =
               }
             }
           } catch (syncError: unknown) {
-            // Skip sync silently if username is required (expected when offline onboarding)
+            // An unregistered key with no username chosen yet: expected (the
+            // key was made offline and the username step has not run). It is
+            // registered, with the username, once one is chosen.
             if (isUsernameRequiredError(syncError)) {
-              // Don't log or show error - username will be set later
+              // Don't log or show an error.
             } else if (!isTimeoutOrNetworkError(syncError)) {
               // Only log unexpected errors
               if (__DEV__) {

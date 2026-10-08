@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useOxy } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
@@ -14,7 +14,7 @@ import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 export default function ImportIdentityNotificationsScreen() {
   const colors = useColors();
   const { signIn, oxyServices, isAuthenticated } = useOxy();
-  const { error, isSigningIn, setAuthError, setSigningIn, usernameRef } = useAuthFlowContext();
+  const { error, isSigningIn, setAuthError, setSigningIn } = useAuthFlowContext();
 
   const backgroundColor = colors.background;
   const textColor = colors.text;
@@ -23,7 +23,6 @@ export default function ImportIdentityNotificationsScreen() {
   const { handleRequestNotifications, isRequestingNotifications } = useAuthHandlers({
     signIn,
     oxyServices,
-    usernameRef,
     setAuthError,
     setSigningIn,
     isAuthenticated,
