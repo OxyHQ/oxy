@@ -8181,7 +8181,7 @@
         ],
         "security": [],
         "summary": "Register a new account with a public key",
-        "description": "Create a passwordless account bound to a local secp256k1 identity. The client generates a key pair (see `KeyManager` in `@oxy.so/core`), signs `register:{publicKey}:{timestamp}`, and submits the signature. Username and email are optional but recommended for discoverability.\n",
+        "description": "Create a passwordless account bound to a local secp256k1 identity. The client generates a key pair (see `KeyManager` in `@oxy.so/core`), signs `register:{publicKey}:{timestamp}`, and submits the signature together with the account's username. The username is required and written in the same insert as the key, so an account never exists without one.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -8191,7 +8191,8 @@
                 "required": [
                   "publicKey",
                   "signature",
-                  "timestamp"
+                  "timestamp",
+                  "username"
                 ],
                 "properties": {
                   "publicKey": {
@@ -8205,10 +8206,6 @@
                   "timestamp": {
                     "type": "integer",
                     "description": "Unix ms when the signature was produced (max 5 minutes old)."
-                  },
-                  "email": {
-                    "type": "string",
-                    "format": "email"
                   },
                   "username": {
                     "type": "string",
@@ -8226,18 +8223,24 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Account created and the first session issued.",
+          "201": {
+            "description": "Account created with its username; sign in with a challenge next."
+          },
+          "400": {
+            "description": "Missing or invalid username, or a malformed key.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthSuccess"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           },
-          "400": {
-            "description": "Invalid signature, malformed key, or duplicate username/email.",
+          "401": {
+            "description": "Invalid registration signature."
+          },
+          "409": {
+            "description": "Identity already registered, or username already taken.",
             "content": {
               "application/json": {
                 "schema": {
