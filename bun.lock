@@ -570,7 +570,7 @@
       "version": "2.2.1",
       "dependencies": {
         "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || 4.11.0-oxy-one.0",
-        "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || 4.5.0-oxy-one.0",
+        "@oxy.so/core": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || 4.5.0-oxy-one.1",
       },
       "devDependencies": {
         "@biomejs/biome": "catalog:",
