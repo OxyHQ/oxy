@@ -32,6 +32,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import ts from 'typescript';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
@@ -119,6 +120,16 @@ function collectSubpaths(): Map<string, string[]> {
 describe('every @oxy.so/bloom subpath this package imports exists', () => {
   const exported = readBloomExports();
   const imported = collectSubpaths();
+
+  it('shares the application Bloom instance instead of resolving a nested provider context', () => {
+    // Bypass Jest's Bloom mapper: it intentionally redirects every import to a
+    // mock and would make two installed copies look like a single provider.
+    const appRequire = createRequire(path.resolve(PACKAGE_ROOT, '../../package.json'));
+    const servicesRequire = createRequire(path.join(PACKAGE_ROOT, 'package.json'));
+    const appBloom = fs.realpathSync(appRequire.resolve('@oxy.so/bloom/package.json'));
+    const servicesBloom = fs.realpathSync(servicesRequire.resolve('@oxy.so/bloom/package.json'));
+    expect(servicesBloom).toBe(appBloom);
+  });
 
   // Floors. A scan that read nothing reports the same clean pass as a scan that
   // read everything and found no problem, so pin both sides to a real number.
