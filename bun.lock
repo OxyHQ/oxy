@@ -732,7 +732,7 @@
       },
       "peerDependencies": {
         "@expo/vector-icons": "^15.0.3",
-        "@oxy.so/bloom": ">=6.2.1 <6.3.0 || >=7.1.2 <7.2.0 || >=7.7.0 <7.8.0 || >=7.13.1 <7.20.0",
+        "@oxy.so/bloom": ">=6.2.1 <6.3.0 || >=7.1.2 <7.2.0 || >=7.7.0 <7.8.0 || >=7.13.1 <7.21.0",
         "@oxy.so/core": "catalog:",
         "@react-native-async-storage/async-storage": "^2.0.0",
         "@react-native-community/netinfo": ">=11.4.1 <13.0.0",
