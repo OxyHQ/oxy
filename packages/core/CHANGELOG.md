@@ -10,6 +10,12 @@
   a username. A taken username is a 409 `Username already taken`. Commons is
   the only caller.
 
+### Fixed
+
+- `assets.upload` no longer times out at the client's 5s per-request default:
+  an upload is now bounded at 10 minutes (override with `options.timeout`), so
+  a video of a few dozen MB no longer fails with `Request timed out after 5000ms`.
+
 ## 4.4.0
 
 ### Added

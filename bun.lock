@@ -670,7 +670,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "11.2.0-oxy-one.1",
+      "version": "11.2.0-oxy-one.2",
       "dependencies": {
         "@expo/config-plugins": "catalog:",
         "@oxy.so/contracts": "workspace:4.11.0-oxy-one.0",

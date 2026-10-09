@@ -1,5 +1,14 @@
 # Changelog
 
+## [11.2.0-oxy-one.2] - 2026-10-10
+
+### Fixed
+
+- File uploads no longer fail at 5s with `Request timed out after 5000ms`: the
+  peer `@oxy.so/core` moves to 4.5.0-oxy-one.1, whose `assets.upload` allows
+  10 minutes. Also carries the Bloom 7.13.1–7.20.x peer lines admitted since
+  11.2.0-oxy-one.1.
+
 ## [11.0.0] - 2026-09-30
 
 Android apps no longer share the `so.oxy.shared` UID (OxyHQ/oxy#1388). They
