@@ -53,6 +53,13 @@ const DEFAULT_ASSET_URL_EXPIRES_IN_SECONDS = 3600;
 const ASSET_TTL = 5 * 60 * 1000;
 
 /**
+ * Default bound on one `POST /assets/upload`, in ms. The client's per-request
+ * default (5s) is sized for JSON calls; a video sent over a phone connection
+ * needs minutes, and timing it out at 5s failed every upload past a few MB.
+ */
+const ASSET_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
  * How long a resolved asset URL may stay in the SDK's GET cache, in ms: never
  * longer than the media token's lifetime, and discounted below it.
  */
@@ -85,6 +92,8 @@ export interface AssetUploadOptions {
   metadata?: AssetMetadata;
   /** Called with `100` once the upload completes. */
   onProgress?: (progress: number) => void;
+  /** Bound on the whole upload, in ms. Default {@link ASSET_UPLOAD_TIMEOUT_MS}. */
+  timeout?: number;
 }
 
 export interface AssetLinkTarget {
@@ -160,7 +169,10 @@ export class AssetsApi {
     if (options.metadata) formData.append('metadata', JSON.stringify(options.metadata));
 
     try {
-      const response = await this.ctx.request<{ file: UploadedAsset }>('POST', '/assets/upload', formData, { cache: false });
+      const response = await this.ctx.request<{ file: UploadedAsset }>('POST', '/assets/upload', formData, {
+        cache: false,
+        timeout: options.timeout ?? ASSET_UPLOAD_TIMEOUT_MS,
+      });
       options.onProgress?.(100);
       return response;
     } catch (error) {

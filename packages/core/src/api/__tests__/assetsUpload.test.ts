@@ -188,4 +188,31 @@ describe('oxy.assets.upload — uri descriptor', () => {
       }
     });
   });
+
+  describe('timeout', () => {
+    // The client's 5s default is for JSON calls; a 28 MB video timed out at it.
+    it('bounds the upload by minutes, not the 5s request default', async () => {
+      const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+      const capture = captureUpload(oxy);
+      try {
+        await oxy.assets.upload(new Blob([new Uint8Array([1])], { type: 'video/mp4' }));
+        expect(capture.requestSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ url: '/assets/upload', timeout: 10 * 60 * 1000 }),
+        );
+      } finally {
+        capture.restore();
+      }
+    });
+
+    it('lets the caller choose the bound', async () => {
+      const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
+      const capture = captureUpload(oxy);
+      try {
+        await oxy.assets.upload(new Blob([new Uint8Array([1])], { type: 'video/mp4' }), { timeout: 90_000 });
+        expect(capture.requestSpy).toHaveBeenCalledWith(expect.objectContaining({ timeout: 90_000 }));
+      } finally {
+        capture.restore();
+      }
+    });
+  });
 });
