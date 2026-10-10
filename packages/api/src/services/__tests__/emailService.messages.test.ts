@@ -149,6 +149,56 @@ describe('drafts', () => {
     expect(created.id).not.toBe(foreign.id);
     expect(created.userId).toBe(mine);
   });
+
+  it('refuses to bring back a draft that was sent or deleted while a client held its revision', async () => {
+    // A composer on another device still holds revision 1. Creating the draft
+    // again would put a message that already left back into Drafts.
+    const userId = await owner();
+    const draft = await emailService.saveDraft(userId, { subject: 'soon sent' });
+    await emailService.deleteSentDraft(userId, draft.id);
+
+    await expect(
+      emailService.saveDraft(userId, {
+        existingDraftId: draft.id,
+        expectedRevision: draft.draftRevision,
+        subject: 'late autosave',
+      }),
+    ).rejects.toMatchObject({ statusCode: 409, message: 'Draft was sent or deleted' });
+    const drafts = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .where(eq(messages.mailboxId, await mailboxIdFor(userId, '\\Drafts')));
+    expect(drafts).toEqual([]);
+  });
+});
+
+describe('deleteSentDraft', () => {
+  it('removes the caller`s draft and is a no-op the second time', async () => {
+    const userId = await owner();
+    const draft = await emailService.saveDraft(userId, { subject: 'to send' });
+
+    await emailService.deleteSentDraft(userId, draft.id);
+    await emailService.deleteSentDraft(userId, draft.id);
+
+    const rows = await getDb().select({ id: messages.id }).from(messages).where(eq(messages.id, draft.id));
+    expect(rows).toEqual([]);
+  });
+
+  it('never touches another user`s draft or a message that is not a draft', async () => {
+    const mine = await owner();
+    const theirs = await owner();
+    const foreign = await emailService.saveDraft(theirs, { subject: 'theirs' });
+    await emailService.ensureMailboxes(mine);
+    const received = await store(mine, await mailboxIdFor(mine, '\\Inbox'));
+
+    await emailService.deleteSentDraft(mine, foreign.id);
+    await emailService.deleteSentDraft(mine, received);
+
+    const rows = await getDb().select({ id: messages.id }).from(messages).where(eq(messages.id, foreign.id));
+    expect(rows).toHaveLength(1);
+    const kept = await getDb().select({ id: messages.id }).from(messages).where(eq(messages.id, received));
+    expect(kept).toHaveLength(1);
+  });
 });
 
 describe('snooze', () => {
