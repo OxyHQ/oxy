@@ -138,6 +138,16 @@ beforeEach(() => {
 });
 
 describe('GET /assets/:id', () => {
+  it.each(['private', 'public', 'unlisted'] as const)('reports stored visibility %s without changing it', async visibility => {
+    mockGetFile.mockResolvedValue({ ...fileRecord(), visibility });
+    const res = await request(app).get(`/assets/${FILE_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.file).toMatchObject({ id: FILE_ID, ownerUserId: OWNER_ID, visibility });
+    // Consumers must verify public media from this authoritative metadata.
+    // Omitting the field makes a correctly fail-closed consumer reject all files.
+    expect(Object.hasOwn(res.body.data.file, 'visibility')).toBe(true);
+  });
+
   it('emits a link with no row id, no parent pointer, and no null for an unset field', async () => {
     const res = await request(app).get(`/assets/${FILE_ID}`);
 
