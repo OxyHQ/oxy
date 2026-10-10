@@ -182,6 +182,7 @@ export function startSmtpInbound(): SMTPServer {
               name: mime.from?.name || '',
               address: senderAddress,
             },
+            replyTo: mime.replyTo,
             to: mime.to,
             cc: mime.cc,
             subject: mime.subject,

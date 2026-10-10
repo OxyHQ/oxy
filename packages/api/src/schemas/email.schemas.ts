@@ -201,7 +201,10 @@ export const updateEmailSettingsSchema = z.object({
 // POST /email/reminders
 export const createReminderSchema = z.object({
   text: z.string().trim().min(1),
-  remindAt: z.string().trim().min(1),
+  remindAt: z
+    .string()
+    .trim()
+    .refine((value) => !Number.isNaN(Date.parse(value)), 'Must be a valid date'),
   relatedMessageId: z.string().optional(),
 });
 
@@ -211,10 +214,22 @@ export const reminderIdParams = z.object({
 });
 
 // PUT /email/reminders/:reminderId
+// The fields the reminder actually has. This schema used to accept only a
+// `status` that nothing read, and — because validation replaces the body with
+// its parsed result — stripped the `completed`, `pinned` and `snoozedUntil`
+// the controller and the Inbox client both use: ticking a reminder off
+// answered 200 and changed nothing.
+const instantSchema = z
+  .string()
+  .trim()
+  .refine((value) => !Number.isNaN(Date.parse(value)), 'Must be a valid date');
+
 export const updateReminderSchema = z.object({
-  text: z.string().trim().optional(),
-  remindAt: z.string().trim().optional(),
-  status: z.enum(['pending', 'completed', 'dismissed']).optional(),
+  text: z.string().trim().min(1).optional(),
+  remindAt: instantSchema.optional(),
+  completed: z.boolean().optional(),
+  pinned: z.boolean().optional(),
+  snoozedUntil: instantSchema.nullable().optional(),
 });
 
 // ─── Contacts ──────────────────────────────────────────────────────

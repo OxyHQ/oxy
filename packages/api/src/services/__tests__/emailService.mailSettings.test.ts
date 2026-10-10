@@ -450,3 +450,43 @@ describe('contacts — the normalization Mongoose did with a setter', () => {
     await expect(emailService.searchContacts(userId, 'a')).resolves.toEqual([]);
   });
 });
+
+describe('filters — matching an address field', () => {
+  it('matches "equals" and "starts with" against the address of a sender who has a name', async () => {
+    // Storing a message kicks off card extraction and push; resolve them.
+    jest.requireMock('../cardExtraction.service').cardExtractionService.extractAndUpdate.mockResolvedValue(undefined);
+    jest.requireMock('../emailPushDelivery.service').sendInboxEmailPush.mockResolvedValue(undefined);
+    const username = `filters${unique().slice(0, 10)}`;
+    const [row] = await getDb().insert(users).values({ username, color: 'teal' }).returning({ id: users.id });
+    await emailService.createFilter(
+      row.id,
+      filterInput({
+        conditions: [{ field: 'from', operator: 'equals', value: 'Bob@Example.com' }],
+        actions: [{ type: 'star' }],
+      }),
+    );
+    await emailService.createFilter(
+      row.id,
+      filterInput({
+        conditions: [{ field: 'from', operator: 'starts-with', value: 'bob@' }],
+        actions: [{ type: 'mark-read' }],
+      }),
+    );
+
+    const stored = await emailService.storeIncomingMessage({
+      recipientUsername: username,
+      from: { name: 'Bob Builder', address: 'bob@example.com' },
+      to: [{ address: `${username}@oxy.so` }],
+      subject: 'Hi',
+      text: 'Hello',
+      messageId: `<filter-${unique()}@example.com>`,
+      date: new Date(),
+      headers: {},
+      rawSize: 10,
+    });
+    await emailService.applyFilters(row.id, stored.id);
+
+    const message = await emailService.getMessage(row.id, stored.id);
+    expect(message?.flags).toMatchObject({ starred: true, seen: true });
+  });
+});

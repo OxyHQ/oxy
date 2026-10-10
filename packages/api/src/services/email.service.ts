@@ -1016,6 +1016,16 @@ async function readMessageDto(db: Database, messageId: string): Promise<MessageD
   return dto;
 }
 
+
+/** What an address filter condition is compared with: each address, each name, and both together. */
+function addressCandidates(list: { name?: string | null; address: string }[]): string[] {
+  return list.flatMap(({ name, address }) => {
+    const lowerAddress = address.toLowerCase();
+    const lowerName = name?.trim().toLowerCase();
+    return lowerName ? [lowerAddress, lowerName, `${lowerName} ${lowerAddress}`] : [lowerAddress];
+  });
+}
+
 class EmailService {
   /**
    * Compute the storage footprint of a message: UTF-8 body bytes plus the
@@ -1918,6 +1928,8 @@ class EmailService {
   async storeIncomingMessage(params: {
     recipientUsername: string;
     from: EmailAddress;
+    /** The `Reply-To` header. The column existed and was read, but nothing wrote it. */
+    replyTo?: EmailAddress | null;
     to: EmailAddress[];
     cc?: EmailAddress[];
     subject: string;
@@ -2004,6 +2016,12 @@ class EmailService {
         messageId: params.messageId,
         fromName: params.from.name?.trim() ? params.from.name.trim() : null,
         fromAddress: params.from.address.trim().toLowerCase(),
+        ...(params.replyTo?.address.trim()
+          ? {
+              replyToName: params.replyTo.name?.trim() ? params.replyTo.name.trim() : null,
+              replyToAddress: params.replyTo.address.trim().toLowerCase(),
+            }
+          : {}),
         subject: params.subject,
         text: params.text,
         html: params.html,
@@ -3048,21 +3066,17 @@ class EmailService {
   ): boolean {
     const { field, operator, value } = condition;
 
-    let fieldValue: string;
+    let candidates: string[];
 
     switch (field) {
       case 'from':
-        fieldValue = `${message.from.name} ${message.from.address}`.toLowerCase();
+        candidates = addressCandidates([message.from]);
         break;
-      case 'to': {
-        const toAddrs = message.to.map(
-          (a) => `${a.name} ${a.address}`.toLowerCase()
-        );
-        fieldValue = toAddrs.join(' ');
+      case 'to':
+        candidates = addressCandidates(message.to);
         break;
-      }
       case 'subject':
-        fieldValue = message.subject.toLowerCase();
+        candidates = [message.subject.toLowerCase()];
         break;
       case 'has-attachment':
         // For has-attachment, operator is 'equals' and value is 'true' or 'false'
@@ -3076,21 +3090,26 @@ class EmailService {
     }
 
     const lowerValue = value.toLowerCase();
+    const matches = (candidate: string): boolean => {
+      switch (operator) {
+        case 'contains':
+          return candidate.includes(lowerValue);
+        case 'equals':
+          return candidate.trim() === lowerValue;
+        case 'starts-with':
+          return candidate.startsWith(lowerValue);
+        case 'ends-with':
+          return candidate.endsWith(lowerValue);
+        default:
+          return false;
+      }
+    };
 
-    switch (operator) {
-      case 'contains':
-        return fieldValue.includes(lowerValue);
-      case 'equals':
-        return fieldValue.trim() === lowerValue;
-      case 'not-contains':
-        return !fieldValue.includes(lowerValue);
-      case 'starts-with':
-        return fieldValue.startsWith(lowerValue);
-      case 'ends-with':
-        return fieldValue.endsWith(lowerValue);
-      default:
-        return false;
-    }
+    // An address field is matched against each address, each display name and
+    // the two together — not only `"<name> <address>"`, which made "equals
+    // bob@x.com" and "starts with bob@" never match a sender with a name.
+    if (operator === 'not-contains') return candidates.every((c) => !c.includes(lowerValue));
+    return candidates.some(matches);
   }
 
   /**
@@ -3473,6 +3492,12 @@ class EmailService {
             messageId: mime.messageId || `<imported-${uuidv4()}@${EMAIL_DOMAIN}>`,
             fromName: from.name?.trim() ? from.name.trim() : null,
             fromAddress: from.address.trim().toLowerCase(),
+            ...(mime.replyTo?.address.trim()
+              ? {
+                  replyToName: mime.replyTo.name.trim() || null,
+                  replyToAddress: mime.replyTo.address.trim().toLowerCase(),
+                }
+              : {}),
             subject: mime.subject || '(no subject)',
             text: mime.text || undefined,
             html: mime.html || undefined,

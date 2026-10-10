@@ -115,6 +115,26 @@ describe('parseInboundMime', () => {
   });
 });
 
+describe('Reply-To', () => {
+  it('is kept, so a reply goes where the sender asked', async () => {
+    const parsed = await parseInboundMime(
+      mime([
+        'From: Acme Support <no-reply@acme.example>',
+        'Reply-To: Ticket 42 <ticket-42@support.acme.example>',
+        'To: nate@oxy.so',
+        'Subject: Your ticket',
+        '',
+        'Hello',
+      ]),
+    );
+    expect(parsed.replyTo).toEqual({ name: 'Ticket 42', address: 'ticket-42@support.acme.example' });
+  });
+
+  it('is null when the sender set none', async () => {
+    expect((await parseInboundMime(RAMP)).replyTo).toBeNull();
+  });
+});
+
 describe('isAlternativeBody', () => {
   it('keeps an AMP part the sender deliberately attached as a file', () => {
     expect(isAlternativeBody({ contentType: 'text/x-amp-html', filename: 'email.amp.html', contentDisposition: 'attachment' })).toBe(false);

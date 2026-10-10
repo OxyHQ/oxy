@@ -17093,8 +17093,7 @@
                     "minLength": 1
                   },
                   "remindAt": {
-                    "type": "string",
-                    "minLength": 1
+                    "type": "string"
                   },
                   "relatedMessageId": {
                     "type": "string"
@@ -17295,17 +17294,22 @@
                 "type": "object",
                 "properties": {
                   "text": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "remindAt": {
                     "type": "string"
                   },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "pending",
-                      "completed",
-                      "dismissed"
+                  "completed": {
+                    "type": "boolean"
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "snoozedUntil": {
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   }
                 }
