@@ -21,7 +21,7 @@ import { applyCanonicalMediaMetadata, resolveFileMediaMetadata } from '../utils/
 import {
   deleteVariant,
   findFileById,
-  findVariantlessTwins,
+  findSameSpellingTwins,
   findVariantTwin,
   upsertVariantSet,
   updateFile,
@@ -364,9 +364,14 @@ export class VariantService {
   }
 
   /**
-   * Generate variants for a file
+   * Generate variants for a file.
+   *
+   * `reencode` encodes from the original even when a twin already has a set,
+   * and then gives the new set to every live same-spelling twin. It is the
+   * repair for renditions whose objects were lost: the twins name the same
+   * content-addressed objects, so copying from one would copy the loss.
    */
-  async generateVariants(fileId: string): Promise<void> {
+  async generateVariants(fileId: string, { reencode = false }: { reencode?: boolean } = {}): Promise<void> {
     try {
       const file = await findFileById(fileId);
       if (!file) {
@@ -382,7 +387,7 @@ export class VariantService {
       // Rows are per owner and share content-addressed storage: another live
       // row with these bytes whose renditions are already the spelling this
       // row's visibility needs gives them to this row without re-encoding.
-      const existingFile = await findVariantTwin(file.sha256, file.id, file.visibility);
+      const existingFile = reencode ? null : await findVariantTwin(file.sha256, file.id, file.visibility);
 
       if (existingFile && existingFile.variants.length > 0) {
         await this.copyVariantSet(existingFile, file);
@@ -408,7 +413,7 @@ export class VariantService {
         variantCount: file.variants.length 
       });
 
-      await this.shareVariantsWithTwins(file);
+      await this.shareVariantsWithTwins(file, { variantless: !reencode });
     } catch (error) {
       logger.error('Error generating variants:', error);
       throw error;
@@ -449,15 +454,16 @@ export class VariantService {
 
   /**
    * Hand a freshly generated rendition set to the other live rows for the same
-   * bytes that have none yet and need the same spelling — owners who uploaded
-   * the same content while this generation was running, whose own queued jobs
-   * then find the set already there. Best-effort: a twin that misses out
-   * generates (or copies) on its own job.
+   * bytes that need the same spelling. After an upload (`variantless`) that is
+   * the owners who uploaded the same content while this generation was running
+   * and have none yet, whose own queued jobs then find the set already there;
+   * after a re-encode it is every such twin (see `generateVariants`).
+   * Best-effort: a twin that misses out generates (or copies) on its own job.
    */
-  private async shareVariantsWithTwins(file: FileRecord): Promise<void> {
+  private async shareVariantsWithTwins(file: FileRecord, twins: { variantless: boolean }): Promise<void> {
     if (file.variants.length === 0) return;
     try {
-      for (const twin of await findVariantlessTwins(file.sha256, file.id, file.visibility)) {
+      for (const twin of await findSameSpellingTwins(file.sha256, file.id, file.visibility, twins)) {
         await this.copyVariantSet(file, twin);
       }
     } catch (error) {
