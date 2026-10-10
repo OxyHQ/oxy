@@ -143,6 +143,20 @@ describe('generateVariants reuses a twin\'s renditions', () => {
   });
 });
 
+describe('a re-encode never reuses a twin\'s renditions', () => {
+  it('encodes from the original even when a live same-spelling twin has a set', async () => {
+    const sha256 = sha();
+    await insertRow(sha256, { variantKeys: [`${variantDir(sha256, 'public')}thumb.webp`] });
+    const mine = await insertRow(sha256);
+
+    await new VariantService(s3).generateVariants(mine, { reencode: true });
+
+    // Nothing copied: the twin names the same content-addressed objects, so its
+    // set is lost exactly when this row's is. (No renderer for the fixture mime.)
+    expect(await variantKeysOf(mine)).toEqual([]);
+  });
+});
+
 describe('a finished generation is shared with twins still waiting', () => {
   it('hands its set to live same-spelling rows with none — and to nobody else', async () => {
     const sha256 = sha();
@@ -156,10 +170,32 @@ describe('a finished generation is shared with twins still waiting', () => {
     const share: unknown = Reflect.get(service, 'shareVariantsWithTwins');
     if (typeof share !== 'function') throw new Error('shareVariantsWithTwins is gone');
     const record = await findFileById(generated);
-    await (share as (file: FileRecord) => Promise<void>).call(service, record);
+    await (share as Share).call(service, record, { variantless: true });
 
     expect(await variantKeysOf(waiting)).toEqual(keys);
     expect(await variantKeysOf(privateTwin)).toEqual([]);
     expect(await variantKeysOf(tombstone)).toEqual([]);
   });
+
+  it('after a re-encode, replaces the set of every live same-spelling twin — and of nobody else', async () => {
+    const sha256 = sha();
+    const fresh = [`${variantDir(sha256, 'public')}thumb.webp`];
+    const lost = [`public/variants/2026/07/${sha256.slice(0, 2)}/${sha256}/thumb.webp`];
+    const generated = await insertRow(sha256, { variantKeys: fresh });
+    const brokenTwin = await insertRow(sha256, { variantKeys: lost });
+    const privateTwin = await insertRow(sha256, { visibility: 'private', variantKeys: [`${variantDir(sha256, 'bare')}thumb`] });
+    const tombstone = await insertRow(sha256, { status: 'deleted', variantKeys: lost });
+
+    const service = new VariantService(s3);
+    const share: unknown = Reflect.get(service, 'shareVariantsWithTwins');
+    if (typeof share !== 'function') throw new Error('shareVariantsWithTwins is gone');
+    const record = await findFileById(generated);
+    await (share as Share).call(service, record, { variantless: false });
+
+    expect(await variantKeysOf(brokenTwin)).toEqual(fresh);
+    expect(await variantKeysOf(privateTwin)).toEqual([`${variantDir(sha256, 'bare')}thumb`]);
+    expect(await variantKeysOf(tombstone)).toEqual(lost);
+  });
 });
+
+type Share = (file: FileRecord | null, twins: { variantless: boolean }) => Promise<void>;

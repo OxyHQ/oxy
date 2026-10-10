@@ -335,14 +335,19 @@ export async function findVariantTwin(
 const TWIN_CANDIDATES = 5;
 
 /**
- * Live rows for this content, other than `excludeFileId`, with NO renditions
- * yet and the same visibility spelling — the rows a finished generation can
- * hand its set to, so concurrent owners of one upload do not each encode it.
+ * Live rows for this content, other than `excludeFileId`, with the same
+ * visibility spelling — the rows a finished generation can hand its set to.
+ *
+ * `variantless` (the upload path) narrows them to rows with NO renditions yet,
+ * so concurrent owners of one upload do not each encode it. A re-encode passes
+ * `false`: twins name the same content-addressed objects, so when those are
+ * lost every twin is broken with them and every twin gets the new set.
  */
-export async function findVariantlessTwins(
+export async function findSameSpellingTwins(
   sha256: string,
   excludeFileId: string,
   visibility: FileRecord['visibility'],
+  { variantless }: { variantless: boolean },
 ): Promise<FileRecord[]> {
   const rows = await getDb()
     .select()
@@ -351,7 +356,9 @@ export async function findVariantlessTwins(
       eq(files.sha256, sha256),
       ne(files.id, excludeFileId),
       ne(files.status, 'deleted'),
-      notExists(getDb().select({ one: sql`1` }).from(fileVariants).where(eq(fileVariants.fileId, files.id))),
+      variantless
+        ? notExists(getDb().select({ one: sql`1` }).from(fileVariants).where(eq(fileVariants.fileId, files.id)))
+        : undefined,
     ));
   const wantPublic = visibility === 'public';
   return (await withChildren(rows)).filter((row) => (row.visibility === 'public') === wantPublic);
