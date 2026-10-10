@@ -881,31 +881,25 @@ export async function getUserActor(user: ActorSourceUser, domain: string = AP_DO
 let _assetService: AssetService | null = null;
 
 /**
- * Required env vars for federated avatar storage on S3.
- * These are validated at boot by `validateRequiredEnvVars()` in `config/env.ts`,
+ * Required env var for federated avatar storage on S3.
+ * It is validated at boot by `validateRequiredEnvVars()` in `config/env.ts`,
  * but we re-assert here so the failure mode is a loud throw at the call site
- * (with the relevant variable name) rather than an opaque AWS "missing credentials" error.
+ * (with the relevant variable name) rather than an opaque AWS error.
+ * Credentials are optional: without the static keys the S3 client resolves the
+ * ECS task role through the default provider chain.
  */
 function getAssetService(): AssetService {
   if (!_assetService) {
-    const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
     const bucketName = process.env.AWS_S3_BUCKET;
 
-    if (!accessKeyId) {
-      throw new Error('AWS_ACCESS_KEY_ID is required for the federation service');
-    }
-    if (!secretAccessKey) {
-      throw new Error('AWS_SECRET_ACCESS_KEY is required for the federation service');
-    }
     if (!bucketName) {
       throw new Error('AWS_S3_BUCKET is required for the federation service');
     }
 
     const s3 = createS3Service({
       region: process.env.AWS_REGION || 'us-east-1',
-      accessKeyId,
-      secretAccessKey,
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
       bucketName,
       endpointUrl: process.env.AWS_ENDPOINT_URL,
     });
