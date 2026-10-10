@@ -81,8 +81,8 @@ async function rows(f: Awaited<ReturnType<typeof fixture>>) {
 		.where(eq(applicationCredentials.applicationId, f.app.id));
 	return { app, credentials };
 }
-it("canonical Mercaria ceiling changes only the approved payments additions", () => {
-	expect(SEED_APPS.find((x) => x.name === "Mercaria")?.scopes).toEqual(NEXT);
+it("canonical Mercaria ceiling retains billing and the separately approved media import", () => {
+	expect(SEED_APPS.find((x) => x.name === "Mercaria")?.scopes).toEqual([...NEXT, "files:user-media:write"]);
 });
 it("prepare is read-only; apply and exact rollback preserve every unrelated field and credential", async () => {
 	const f = await fixture();

@@ -584,6 +584,8 @@ export const SEED_APPS: SeedAppSpec[] = [
     // Mercaria owns one canonical capability catalog. Its service credential
     // registers that catalog, validates live capability tickets and records
     // their execution audit; it receives no coordinator or ticket-mint scope.
+    // Staff-approved media import stores durable public product photos for the
+    // persisted store owner. Ordinary files:write does not authorize that act-as.
     scopes: [
       'user:read',
       'catalogs:write',
@@ -592,6 +594,7 @@ export const SEED_APPS: SeedAppSpec[] = [
       // Peable BillingProvider: merchant lookup/retrieve + the four mutations.
       'payments:read',
       'payments:write',
+      'files:user-media:write',
     ],
     capabilities: [catalogApplicationCapability('mercaria')],
   },
