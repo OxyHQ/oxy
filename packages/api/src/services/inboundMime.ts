@@ -53,6 +53,11 @@ export interface InboundAttachment {
 
 export interface InboundMime {
   from: InboundAddress | null;
+  /**
+   * The `Reply-To` header: where replies go. Support desks, mailing lists and
+   * no-reply senders rely on it; without it a reply goes to `From` and bounces.
+   */
+  replyTo: InboundAddress | null;
   to: InboundAddress[];
   cc: InboundAddress[];
   subject: string;
@@ -107,6 +112,7 @@ export function fromParsedMail(parsed: ParsedMail): InboundMime {
 
   return {
     from: addresses(parsed.from)[0] ?? null,
+    replyTo: addresses(parsed.replyTo).find((a) => a.address) ?? null,
     to: addresses(parsed.to),
     cc: addresses(parsed.cc),
     subject: parsed.subject || '',

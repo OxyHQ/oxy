@@ -127,6 +127,23 @@ async function inbox() {
 }
 
 describe('Inbox read API honours @oxy.so/contracts', () => {
+  it('carries the Reply-To a message arrived with, in the contract shape', async () => {
+    const stored = await emailService.storeIncomingMessage({
+      recipientUsername: user.username,
+      from: { name: 'Acme', address: 'no-reply@acme.example' },
+      replyTo: { name: 'Ticket 42', address: 'Ticket-42@Support.Acme.example' },
+      to: [{ address: `${user.username}@oxy.so` }],
+      subject: 'Your ticket',
+      text: 'Hello',
+      messageId: `<ticket-${unique()}@acme.example>`,
+      date: new Date('2026-09-25T05:56:22.000Z'),
+      headers: {},
+      rawSize: 100,
+    });
+    const parsed = emailMessageSchema.parse(overTheWire(stored));
+    expect(parsed.replyTo).toEqual({ name: 'Ticket 42', address: 'ticket-42@support.acme.example' });
+  });
+
   it('lists messages, including one with an attachment that has no Content-ID', async () => {
     const page = await emailService.listMessages(user.id, await inbox(), { limit: 50 });
     const parsed = z.array(emailMessageSchema).parse(overTheWire(page.data));
