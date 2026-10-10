@@ -706,22 +706,22 @@ jobs:
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/test-deploy-image-scope.mjs
 
-      # Every secret the API needs at boot must actually reach SSM
-      # (see scripts/check-deploy-secrets-sync.mjs).
+      # Runtime secrets live ONLY in SSM; the API deploy writes none and reads no
+      # repo secret (see scripts/check-deploy-secrets-sync.mjs).
       #
-      # deploy-aws.yml syncs GitHub secrets through two hand-maintained allowlists,
-      # and a name missing from either is silent: nothing is written, the deploy is
-      # green, and the ECS task later fails to start with
-      # `ResourceInitializationError: unable to pull secrets`. DATABASE_URL was in
-      # neither. Runs here rather than in the deploy workflow so the mismatch is
-      # caught on the pull request, before anything is pushed to main.
+      # Until 2026-10-10 deploy-aws.yml copied GitHub repo secrets into
+      # /oxy/oxy-api/* on every deploy. This refuses that step's return, direct
+      # or through a script the deploy runs, keeps the re-asserted task
+      # bindings exact, and makes every env var the API requires at boot name
+      # its SSM home. Runs here so a regression is caught on the pull request,
+      # before anything is pushed to main.
       #
-      # The gate's own fixture tests — mutated copies of the real workflow and
-      # env module. No install: the gate reads files and shells out to nothing.
-      - name: 'Deploy Secrets Sync: fixture tests'
+      # The gate's own fixture tests — mutated copies of the real workflow,
+      # scripts and env module. No install: the gate reads files only.
+      - name: 'Deploy Secrets (SSM only): fixture tests'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/test-check-deploy-secrets-sync.mjs
-      - name: 'Deploy Secrets Sync: check'
+      - name: 'Deploy Secrets (SSM only): check'
         if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
         run: bun scripts/check-deploy-secrets-sync.mjs
 

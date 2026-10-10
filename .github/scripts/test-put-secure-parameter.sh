@@ -76,8 +76,13 @@ if grep -Fq -- '--value "$v"' "$deploy_workflow" "$app_template"; then
   echo 'a deploy workflow still places a protected value in aws argv' >&2
   exit 1
 fi
-grep -Fq -- 'bash .github/scripts/put-secure-parameter.sh "$path" overwrite' "$deploy_workflow"
-grep -Fq -- '- ".github/scripts/put-secure-parameter.sh"' "$deploy_workflow"
+# The API deploy writes no SSM parameter: runtime secrets live only in SSM and
+# are set by their owner. Until 2026-10-10 it copied GitHub repo secrets in
+# through this writer; scripts/check-deploy-secrets-sync.mjs owns that refusal.
+if grep -Fq -- 'put-secure-parameter.sh' "$deploy_workflow"; then
+  echo 'deploy-aws.yml writes SSM again; runtime secrets live only in SSM' >&2
+  exit 1
+fi
 grep -Fq -- '--value file:///dev/stdin' "$app_template"
 if grep -Fq -- '--cli-input-json file:///dev/stdin' "$subject" "$app_template"; then
   echo 'a secure-parameter writer still uses the AWS CLI JSON stdin form that production rejects' >&2

@@ -6,18 +6,15 @@
  *
  * Fixtures are copies, not hand-written miniatures: a synthetic workflow would
  * drift away from `deploy-aws.yml` and start proving something about the
- * fixture instead of about the deploy. Each case copies the two real files into
- * a temp root, breaks exactly one thing, and asserts the gate goes red AND
- * names what is missing — a gate that fails without naming the variable is a
- * gate nobody can act on.
+ * fixture instead of about the deploy. Each case copies the real workflow, the
+ * real `.github/scripts/` and the real env module into a temp root, breaks
+ * exactly one thing, and asserts the gate goes red AND names what broke — a
+ * gate that fails without naming it is a gate nobody can act on.
  *
- * The `both-missing` case is the one that matters most: it reproduces the
- * `DATABASE_URL` shape exactly (absent from the env block AND from both name
- * lists), which is the state that shipped and that no check anywhere reported.
- *
- * The last two cases exist to keep the gate's own vacuity guards honest: each
- * one passes (exit 0, "consistent") if its guard is deleted, so neither guard
- * can rot into decoration.
+ * The first broken case restores the step that existed until 2026-10-10 and
+ * copied GitHub repo secrets into SSM on every deploy, byte for byte in shape.
+ * The vacuity cases at the end each pass (exit 0) if their guard is deleted,
+ * so no guard can rot into decoration.
  *
  * Offline and dependency-free. Fixtures are created under the OS temp dir.
  */
@@ -31,7 +28,9 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const checkScript = join(repoRoot, 'scripts', 'check-deploy-secrets-sync.mjs');
 const WORKFLOW = join('.github', 'workflows', 'deploy-aws.yml');
+const SCRIPTS = join('.github', 'scripts');
 const ENV_MODULE = join('packages', 'api', 'src', 'config', 'env.ts');
+const ROLLOUT_SCRIPT = join(SCRIPTS, 'deploy-ecs-image.sh');
 
 const fixturePrefix = join(tmpdir(), 'oxy-deploy-secrets-');
 const createdFixtures = [];
@@ -40,9 +39,9 @@ const failures = [];
 function createFixture() {
   const root = mkdtempSync(fixturePrefix);
   createdFixtures.push(root);
-  for (const relative of [WORKFLOW, ENV_MODULE]) {
+  for (const relative of [WORKFLOW, ENV_MODULE, SCRIPTS]) {
     mkdirSync(join(root, dirname(relative)), { recursive: true });
-    cpSync(join(repoRoot, relative), join(root, relative));
+    cpSync(join(repoRoot, relative), join(root, relative), { recursive: true });
   }
   return root;
 }
@@ -77,205 +76,128 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment) {
   }
 }
 
+/** Insert a step right before the ECR login, which every deploy runs. */
+const ECR_LOGIN = '      - name: Login to ECR\n';
+function addStep(text, step) {
+  return text.replace(ECR_LOGIN, `${step}\n${ECR_LOGIN}`);
+}
+
 // The real files must pass, or nothing below means anything.
-expectVerdict('unchanged', createFixture(), 0, 'Deploy secret sync is consistent');
+expectVerdict('unchanged', createFixture(), 0, 'Deploy secrets are SSM-only');
 
-// Half the bug: the value is exported but no list names it, so the loop never
-// iterates it.
-const noListEntry = createFixture();
-edit(noListEntry, WORKFLOW, 'secret-not-in-any-list', (text) => text.replace(' DATABASE_URL AWS_S3_BUCKET', ' AWS_S3_BUCKET'));
-expectVerdict(
-  'secret-not-in-any-list',
-  noListEntry,
-  1,
-  'DATABASE_URL has a SYNC_DATABASE_URL env entry but is not in API_SECRETS',
-);
-
-// The other half: the name is iterated but nothing exports its value, so it is
-// skipped as an empty placeholder — a warning, indistinguishable from a secret
-// that legitimately has no value yet.
-const noSyncEntry = createFixture();
-edit(noSyncEntry, WORKFLOW, 'listed-without-sync-entry', (text) =>
-  text.replace(/^\s+SYNC_DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}\n/m, ''));
-expectVerdict(
-  'listed-without-sync-entry',
-  noSyncEntry,
-  1,
-  'DATABASE_URL is in API_SECRETS but has no `SYNC_DATABASE_URL',
-);
-
-// The shape that actually shipped: absent from BOTH, so the two lists agree
-// with each other and only the boot contract can see the hole.
-const bothMissing = createFixture();
-edit(bothMissing, WORKFLOW, 'both-missing', (text) =>
-  text
-    .replace(/^\s+SYNC_DATABASE_URL: \$\{\{ secrets\.DATABASE_URL \}\}\n/m, '')
-    .replace(' DATABASE_URL AWS_S3_BUCKET', ' AWS_S3_BUCKET'));
-expectVerdict(
-  'both-missing',
-  bothMissing,
-  1,
-  'DATABASE_URL is required at boot by validateRequiredEnvVars() but deploy-aws.yml never syncs it to SSM.',
-);
-
-// Production-mandatory but outside the `required` array — DEVICE_ID_SALT must
-// still be synced even though dev boot installs a placeholder when unset.
-const deviceSaltMissing = createFixture();
-edit(deviceSaltMissing, WORKFLOW, 'device-salt-not-synced', (text) =>
-  text.replace(' DEVICE_ID_SALT OXY_PUBLIC_KEY', ' OXY_PUBLIC_KEY'));
-expectVerdict(
-  'device-salt-not-synced',
-  deviceSaltMissing,
-  1,
-  'DEVICE_ID_SALT is production-mandatory (validateRequiredEnvVars) but deploy-aws.yml never syncs it to SSM.',
-);
-
-// A typo'd secret reference writes the WRONG value under the right SSM name —
-// worse than not writing it, because nothing looks missing.
-const mismatched = createFixture();
-edit(mismatched, WORKFLOW, 'mismatched-secret-reference', (text) =>
-  text.replace('SYNC_DATABASE_URL: ${{ secrets.DATABASE_URL }}', 'SYNC_DATABASE_URL: ${{ secrets.DATABASE_URI }}'));
-expectVerdict(
-  'mismatched-secret-reference',
-  mismatched,
-  1,
-  'SYNC_DATABASE_URL reads ${{ secrets.DATABASE_URI }}',
-);
-
-// One name listed twice is written twice, which says the list is being edited
-// by hand without being read.
-const duplicated = createFixture();
-edit(duplicated, WORKFLOW, 'name-listed-twice', (text) =>
-  text.replace('API_SECRETS="ACCESS_TOKEN_SECRET', 'API_SECRETS="DATABASE_URL ACCESS_TOKEN_SECRET'));
-expectVerdict('name-listed-twice', duplicated, 1, 'DATABASE_URL appears twice in API_SECRETS');
-
-// ── /oxy/_shared/* is oxy-infra's, never this deploy's (incident 2026-09-27) ──
+// ── 1. No SSM write, directly or through a script the deploy runs ───────────
 //
-// A shared name restored as a well-formed SYNC_* entry plus a list entry
-// satisfies every parity check above; only the ownership check sees it.
-const sharedSyncedAgain = createFixture();
-edit(sharedSyncedAgain, WORKFLOW, 'shared-secret-synced-again', (text) =>
-  text
-    .replace(
-      '          SYNC_DATABASE_URL: ${{ secrets.DATABASE_URL }}',
-      '          SYNC_DATABASE_URL: ${{ secrets.DATABASE_URL }}\n          SYNC_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}',
-    )
-    .replace('API_SECRETS="ACCESS_TOKEN_SECRET', 'API_SECRETS="AWS_ACCESS_KEY_ID ACCESS_TOKEN_SECRET'));
-expectVerdict(
-  'shared-secret-synced-again',
-  sharedSyncedAgain,
-  1,
-  'AWS_ACCESS_KEY_ID is a /oxy/_shared/ parameter owned by oxy-infra',
-);
+// The step removed on 2026-10-10, in its own shape: a repo secret read into
+// the environment and piped into the SSM writer.
+const syncRestored = createFixture();
+edit(syncRestored, WORKFLOW, 'sync-step-restored', (text) =>
+  addStep(
+    text,
+    '      - name: Sync API deployment secrets -> SSM\n' +
+      '        env:\n' +
+      '          SYNC_DATABASE_URL: ${{ secrets.DATABASE_URL }}\n' +
+      '        run: |\n' +
+      '          printf \'%s\' "$SYNC_DATABASE_URL" | bash .github/scripts/put-secure-parameter.sh /oxy/$APP/DATABASE_URL overwrite',
+  ));
+expectVerdict('sync-step-restored', syncRestored, 1, 'writes or deletes an SSM parameter');
+expectVerdict('sync-step-restored (secret read)', syncRestored, 1, 'deploy-aws.yml reads secrets.DATABASE_URL');
 
-// The old shape: a SHARED_SECRETS list routed to /oxy/_shared/.
-const sharedListRestored = createFixture();
-edit(sharedListRestored, WORKFLOW, 'shared-list-restored', (text) =>
-  text.replace('          API_SECRETS="', '          SHARED_SECRETS=""\n          API_SECRETS="'));
-expectVerdict('shared-list-restored', sharedListRestored, 1, 'assigns SHARED_SECRETS again');
+const directWrite = createFixture();
+edit(directWrite, WORKFLOW, 'direct-put-parameter', (text) =>
+  addStep(text, '      - name: Write one\n        run: aws ssm put-parameter --name /oxy/oxy-api/X --type SecureString --value file:///dev/stdin --overwrite'));
+expectVerdict('direct-put-parameter', directWrite, 1, 'aws ssm put-parameter --name /oxy/oxy-api/X');
 
-// A write path into /oxy/_shared/ under any other name.
-const sharedPathWritten = createFixture();
-edit(sharedPathWritten, WORKFLOW, 'shared-path-written', (text) =>
-  text.replace('path="/oxy/$APP/$k"', 'path="/oxy/_shared/$k"'));
-expectVerdict('shared-path-written', sharedPathWritten, 1, 'names a /oxy/_shared/ path outside a task-definition ARN');
+const directDelete = createFixture();
+edit(directDelete, WORKFLOW, 'direct-delete-parameter', (text) =>
+  addStep(text, '      - name: Delete one\n        run: aws ssm delete-parameter --name /oxy/oxy-api/X'));
+expectVerdict('direct-delete-parameter', directDelete, 1, 'aws ssm delete-parameter --name /oxy/oxy-api/X');
 
-// The credential-control private key is provisioned directly in SSM. A
-// well-formed SYNC_* entry plus matching allow-list would satisfy the generic
-// parity checks, so this regression proves the SSM-only boundary independently.
-const ssmOnlyCopiedFromGitHub = createFixture();
-edit(ssmOnlyCopiedFromGitHub, WORKFLOW, 'ssm-only-copied-from-github', (text) =>
-  text
-    .replace(
-      '          SYNC_KAANA_EDGE_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_EDGE_SIGNING_PRIVATE_KEY }}',
-      '          SYNC_KAANA_EDGE_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_EDGE_SIGNING_PRIVATE_KEY }}\n' +
-        '          SYNC_KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY: ${{ secrets.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY }}',
-    )
-    .replace(
-      ' KAANA_EDGE_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY',
-      ' KAANA_EDGE_SIGNING_PRIVATE_KEY KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY CAPABILITY_TICKET_SIGNING_PRIVATE_KEY',
-    ),
-);
-expectVerdict(
-  'ssm-only-copied-from-github',
-  ssmOnlyCopiedFromGitHub,
-  1,
-  'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY is SSM-owned and must never be read or copied from GitHub Actions secrets',
-);
+// One hop removed: the rollout script itself starts writing. Nothing in the
+// workflow changes, so only the transitive scan can see it.
+const indirectWrite = createFixture();
+edit(indirectWrite, ROLLOUT_SCRIPT, 'write-inside-rollout-script', (text) =>
+  `${text}\naws ssm put-parameter --name "/oxy/$APP/X" --overwrite --value file:///dev/stdin\n`);
+expectVerdict('write-inside-rollout-script', indirectWrite, 1, '.github/scripts/deploy-ecs-image.sh:');
 
-// Removing the GitHub channel must not silently remove the ECS secret binding.
-const ssmOnlyBindingMissing = createFixture();
-edit(ssmOnlyBindingMissing, WORKFLOW, 'ssm-only-binding-missing', (text) =>
-  text.replace(
-    ',"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"',
-    '',
-  ),
-);
-expectVerdict(
-  'ssm-only-binding-missing',
-  ssmOnlyBindingMissing,
-  1,
-  'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY is missing its exact TASK_SECRET_OVERRIDES_JSON binding',
-);
+// ── 2. No repo secret but the CI-only allowlist ────────────────────────────
+const appSecretRead = createFixture();
+edit(appSecretRead, WORKFLOW, 'app-secret-read', (text) =>
+  addStep(text, '      - name: Read one\n        env:\n          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}\n        run: "true"'));
+expectVerdict('app-secret-read', appSecretRead, 1, 'deploy-aws.yml reads secrets.STRIPE_SECRET_KEY');
 
-// ── Bound GitHub secrets: refused when empty, and actually bound ────────────
-//
-// A name dropped from BOUND_API_SECRETS while its binding stays is the exact
-// start-unsafe shape: the sync then SKIPS an unset secret with a warning and the
-// deploy registers a revision naming a parameter that was never created.
-const boundGuardDropped = createFixture();
-edit(boundGuardDropped, WORKFLOW, 'bound-secret-guard-dropped', (text) =>
-  text.replace('BOUND_API_SECRETS="META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"', 'BOUND_API_SECRETS="META_IG_BUSINESS_ACCOUNT_ID"'));
-expectVerdict(
-  'bound-secret-guard-dropped',
-  boundGuardDropped,
-  1,
-  'META_GRAPH_ACCESS_TOKEN is bound into the task definition but is not in BOUND_API_SECRETS',
-);
+// A secret hidden inside a larger expression is still a read.
+const secretInExpression = createFixture();
+edit(secretInExpression, WORKFLOW, 'secret-inside-expression', (text) =>
+  addStep(text, "      - name: Read one\n        env:\n          X: ${{ github.event_name == 'push' && secrets.DATABASE_URL || '' }}\n        run: \"true\""));
+expectVerdict('secret-inside-expression', secretInExpression, 1, 'deploy-aws.yml reads secrets.DATABASE_URL');
 
-// The guard without the binding refuses deploys to protect nothing.
-const boundBindingMissing = createFixture();
-edit(boundBindingMissing, WORKFLOW, 'bound-secret-binding-missing', (text) =>
+const wholeContext = createFixture();
+edit(wholeContext, WORKFLOW, 'whole-secrets-context', (text) =>
+  addStep(text, '      - name: Read all\n        env:\n          ALL: ${{ toJSON(secrets) }}\n        run: "true"'));
+expectVerdict('whole-secrets-context', wholeContext, 1, 'toJSON(secrets)');
+
+const indexedContext = createFixture();
+edit(indexedContext, WORKFLOW, 'indexed-secrets-context', (text) =>
+  addStep(text, "      - name: Read one\n        env:\n          X: ${{ secrets[format('{0}', 'DATABASE_URL')] }}\n        run: \"true\""));
+expectVerdict('indexed-secrets-context', indexedContext, 1, 'reads the secrets context without a literal name');
+
+const inherited = createFixture();
+edit(inherited, WORKFLOW, 'secrets-inherit', (text) =>
+  text.replace('  deploy:\n', '  inherit-all:\n    uses: ./.github/workflows/ci.yml\n    secrets: inherit\n  deploy:\n'));
+expectVerdict('secrets-inherit', inherited, 1, 'passes `secrets: inherit`');
+
+// The job token is CI's own and stays allowed.
+const jobToken = createFixture();
+edit(jobToken, WORKFLOW, 'job-token-allowed', (text) =>
+  addStep(text, '      - name: Use the job token\n        env:\n          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n        run: "true"'));
+expectVerdict('job-token-allowed', jobToken, 0, 'Deploy secrets are SSM-only');
+
+// /oxy/_shared/* belongs to oxy-infra (incident 2026-09-27).
+const sharedPath = createFixture();
+edit(sharedPath, WORKFLOW, 'shared-path-named', (text) =>
+  addStep(text, '      - name: Shared\n        run: echo /oxy/_shared/REDIS_URL'));
+expectVerdict('shared-path-named', sharedPath, 1, 'names a /oxy/_shared/ path outside a task-definition ARN');
+
+// ── 3. Re-asserted bindings ────────────────────────────────────────────────
+const bindingMissing = createFixture();
+edit(bindingMissing, WORKFLOW, 'binding-missing', (text) =>
   text.replace(',"META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"', ''));
-expectVerdict(
-  'bound-secret-binding-missing',
-  boundBindingMissing,
-  1,
-  'META_IG_BUSINESS_ACCOUNT_ID is in BOUND_API_SECRETS but has no exact TASK_SECRET_OVERRIDES_JSON binding',
-);
+expectVerdict('binding-missing', bindingMissing, 1, 'META_IG_BUSINESS_ACCOUNT_ID is missing its exact TASK_SECRET_OVERRIDES_JSON binding');
 
-// A guarded name the sync never writes can never be satisfied.
-const boundNotSynced = createFixture();
-edit(boundNotSynced, WORKFLOW, 'bound-secret-not-synced', (text) =>
-  text
-    .replace(/^\s+SYNC_META_IG_BUSINESS_ACCOUNT_ID: \$\{\{ secrets\.META_IG_BUSINESS_ACCOUNT_ID \}\}\n/m, '')
-    .replace(' META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID"\n', ' META_GRAPH_ACCESS_TOKEN"\n'));
-expectVerdict(
-  'bound-secret-not-synced',
-  boundNotSynced,
-  1,
-  'META_IG_BUSINESS_ACCOUNT_ID is in BOUND_API_SECRETS but not in API_SECRETS',
-);
+const bindingRepointed = createFixture();
+edit(bindingRepointed, WORKFLOW, 'binding-repointed', (text) =>
+  text.replace(
+    '"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"',
+    '"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/kaana/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"',
+  ));
+expectVerdict('binding-repointed', bindingRepointed, 1, 'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY is missing its exact TASK_SECRET_OVERRIDES_JSON binding');
 
-// A list the gate can no longer read must be reported as such, not treated as
-// an empty allowlist.
-const brokenParse = createFixture();
-edit(brokenParse, WORKFLOW, 'unparseable-list', (text) => text.replace(/^\s*API_SECRETS="[^"]*"\n/m, ''));
-expectVerdict('unparseable-list', brokenParse, 1, 'no longer contains a API_SECRETS');
+const bindingNotSsm = createFixture();
+edit(bindingNotSsm, WORKFLOW, 'binding-not-ssm', (text) =>
+  text.replace('{"SERVICE_TOKEN_PRIVATE_KEY":', '{"EXTRA":"arn:aws:secretsmanager:us-west-2:237343248947:secret:x","SERVICE_TOKEN_PRIVATE_KEY":'));
+expectVerdict('binding-not-ssm', bindingNotSsm, 1, 'binds EXTRA to');
 
-// Same, on the boot-contract side.
+const overridesUnreadable = createFixture();
+edit(overridesUnreadable, WORKFLOW, 'overrides-unparseable', (text) =>
+  text.replace('{"SERVICE_TOKEN_PRIVATE_KEY":', '{SERVICE_TOKEN_PRIVATE_KEY:'));
+expectVerdict('overrides-unparseable', overridesUnreadable, 1, 'TASK_SECRET_OVERRIDES_JSON is not valid JSON');
+
+// ── 4. Every boot-required variable has a recorded home ────────────────────
+const newRequired = createFixture();
+edit(newRequired, ENV_MODULE, 'new-required-var-without-home', (text) =>
+  text.replace("    'DATABASE_URL',\n    'ACCESS_TOKEN_SECRET',", "    'DATABASE_URL',\n    'WEBHOOK_SIGNING_SECRET',\n    'ACCESS_TOKEN_SECRET',"));
+expectVerdict('new-required-var-without-home', newRequired, 1, 'WEBHOOK_SIGNING_SECRET is required at boot by validateRequiredEnvVars() but has no recorded home');
+
 const brokenEnvParse = createFixture();
 edit(brokenEnvParse, ENV_MODULE, 'unparseable-boot-contract', (text) =>
   text.replace('const required: (keyof RequiredEnvVars)[] = [', 'const requiredVars: (keyof RequiredEnvVars)[] = ['));
 expectVerdict('unparseable-boot-contract', brokenEnvParse, 1, 'no longer declares');
 
-// ── The two vacuity guards, each with a case that goes GREEN without it ─────
+// ── Vacuity guards, each with a case that goes GREEN without it ────────────
 //
-// A boot-contract regex that lands on a SHORTER array has no counterpart to
-// contradict it: everything it still sees is synced, so every other check
-// passes and the gate reports success while checking almost nothing. Here the
-// array is truncated to a single (synced) name — delete MINIMUM_REQUIRED_ENV_VARS
-// and this case exits 0.
+// A boot-contract regex that lands on a SHORTER array: everything it still sees
+// has a home, so every other check passes. Delete MINIMUM_REQUIRED_ENV_VARS and
+// this case exits 0.
 const truncatedContract = createFixture();
 edit(truncatedContract, ENV_MODULE, 'truncated-boot-contract', (text) =>
   text.replace(
@@ -284,28 +206,35 @@ edit(truncatedContract, ENV_MODULE, 'truncated-boot-contract', (text) =>
   ));
 expectVerdict('truncated-boot-contract', truncatedContract, 1, 'required env vars parsed out of');
 
-// And a regex that lands on a DIFFERENT array of the right size is invisible to
-// a count floor. Every name here is a real synced secret, so check (2) is happy;
-// only the sentinel notices the gate stopped reading the boot contract. Delete
-// REQUIRED_ENV_SENTINEL and this case exits 0.
+// A regex that lands on a DIFFERENT array of the right size. Every name here
+// has a home, so only the sentinel notices. Delete REQUIRED_ENV_SENTINEL and
+// this case exits 0.
 const wrongContractArray = createFixture();
 edit(wrongContractArray, ENV_MODULE, 'wrong-boot-contract-array', (text) =>
   text.replace(
     /const required: \(keyof RequiredEnvVars\)\[\] = \[[\s\S]*?\];/,
     "const required: (keyof RequiredEnvVars)[] = [\n" +
-    "    'STRIPE_SECRET_KEY',\n    'STRIPE_WEBHOOK_SECRET',\n    'DKIM_PRIVATE_KEY',\n" +
-    "    'DEVICE_ID_SALT',\n    'OXY_PUBLIC_KEY',\n    'OXY_PRIVATE_KEY',\n  ];",
+    "    'ACCESS_TOKEN_SECRET',\n    'REFRESH_TOKEN_SECRET',\n    'DEVICE_ID_SALT',\n" +
+    "    'AWS_REGION',\n    'AWS_S3_BUCKET',\n    'REDIS_URL',\n  ];",
   ));
 expectVerdict('wrong-boot-contract-array', wrongContractArray, 1, 'DATABASE_URL was not among the parsed required env vars');
+
+// A script scan that reaches nothing finds no write in it. Every script
+// reference spelled some other way: delete REACHED_SCRIPT_SENTINEL and this
+// case exits 0.
+const nothingReached = createFixture();
+edit(nothingReached, WORKFLOW, 'no-script-reached', (text) =>
+  text.replace(/\.github\/scripts\/([A-Za-z0-9_.-]+)\.(sh|mjs|py)/g, './ci/$1-moved.$2'));
+expectVerdict('no-script-reached', nothingReached, 1, 'deploy-ecs-image.sh was not among the scripts the deploy reaches');
 
 for (const fixture of createdFixtures) {
   if (fixture.startsWith(fixturePrefix)) rmSync(fixture, { recursive: true, force: true });
 }
 
 if (failures.length > 0) {
-  console.error('Deploy secret sync check tests failed:\n');
+  console.error('Deploy secrets check tests failed:\n');
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
 
-console.log(`Deploy secret sync check discriminated ${createdFixtures.length} fixture case(s).`);
+console.log(`Deploy secrets check discriminated ${createdFixtures.length} fixture case(s).`);
