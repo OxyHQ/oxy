@@ -9,17 +9,21 @@ import {
   inboxThreadSummaryResponseSchema,
   type InboxComposeRequest,
   type InboxDailyBriefRequest,
+  type InboxDailyBriefResponse,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { emailService, type MessageDto } from '../services/email.service';
 import {
+  briefFromModel,
   briefLanguage,
   dailyBriefSystemPrompt,
   dailyBriefUserPrompt,
+  emptyBrief,
   getInboxDailyBriefDigest,
 } from '../services/inboxDailyBrief.service';
+import { allocateRequestId } from '../services/inferenceEdge.service';
 import {
   executeInboxPointInference,
   inboxCompletionText,
@@ -28,7 +32,7 @@ import {
 } from '../services/inboxInference.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { containsAccountSecret } from '../utils/inboxAccountSecrets';
-import { NotFoundError } from '../utils/error';
+import { ApiError, NotFoundError } from '../utils/error';
 import { inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
 
 const router = Router();
@@ -168,22 +172,36 @@ router.post('/daily-brief', validate({ body: inboxDailyBriefRequestSchema }), as
     new Date(body.startAt),
     new Date(body.endAt),
   );
-  const input: InboxPointInferenceInput = {
+  const empty = emptyBrief(digest);
+  if (empty) {
+    response.json({ schemaVersion: 1, requestId: allocateRequestId(), ...empty } satisfies InboxDailyBriefResponse);
+    return;
+  }
+  const completion = await executeInboxPointInference({
     userId: userId(request),
     feature: 'daily_brief',
     messages: messages(
       dailyBriefSystemPrompt(briefLanguage(body.locale)),
       dailyBriefUserPrompt(digest, new Date()),
     ),
-    maxOutputTokens: 900,
+    maxOutputTokens: 1_200,
     temperature: 0.3,
+    responseFormat: JSON_FORMAT,
     signal: signalFor(response),
-  };
-  if (body.stream === true) {
-    await streamText(response, input);
-    return;
+  });
+  const brief = briefFromModel(inboxCompletionText(completion), digest);
+  if (!brief) {
+    throw new ApiError(502, 'Inbox AI did not return a usable brief.', 'INBOX_BRIEF_INVALID', {
+      requestId: completion.requestId,
+      retryable: true,
+    });
   }
-  response.json(textResponse(await executeInboxPointInference(input)));
+  response.json({
+    schemaVersion: 1,
+    requestId: completion.requestId,
+    ...(completion.generationId === undefined ? {} : { generationId: completion.generationId }),
+    ...brief,
+  } satisfies InboxDailyBriefResponse);
 }));
 
 router.post('/natural-search', validate({ body: inboxNaturalSearchRequestSchema }), asyncHandler(async (request: AuthRequest, response) => {

@@ -1452,6 +1452,8 @@ export type {
 export {
     inboxComposeRequestSchema,
     inboxDailyBriefRequestSchema,
+    inboxDailyBriefResponseSchema,
+    INBOX_DAILY_BRIEF_SECTIONS,
     inboxNaturalSearchRequestSchema,
     inboxMessageInferenceParamsSchema,
     inboxInferenceTextResponseSchema,
@@ -1464,6 +1466,8 @@ export {
 export type {
     InboxComposeRequest,
     InboxDailyBriefRequest,
+    InboxDailyBriefResponse,
+    InboxDailyBriefSection,
     InboxInferenceTextResponse,
     InboxNaturalSearchResponse,
     InboxSmartRepliesResponse,

@@ -15,7 +15,9 @@ import { messageAttachments } from '../../db/schema/messageAttachments';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import {
+  briefFromModel,
   briefLanguage,
+  maskDigits,
   DAILY_BRIEF_MAX_MESSAGES,
   dailyBriefUserPrompt,
   getInboxDailyBriefDigest,
@@ -206,5 +208,56 @@ describe('briefLanguage', () => {
     expect(briefLanguage('es-ES')).toBe('Spanish');
     expect(briefLanguage('pt')).toBe('Portuguese');
     expect(briefLanguage(undefined)).toBe('English');
+  });
+});
+
+describe('briefFromModel', () => {
+  const message = (id: string) => ({
+    id,
+    fromName: null,
+    fromAddress: `${id}@example.test`,
+    subject: id,
+    receivedAt: NOON,
+    unread: true,
+    starred: false,
+    answered: false,
+    hasAttachments: false,
+    card: null,
+    excerpt: '',
+    excerptWithheld: false,
+  });
+  const digest = {
+    today: { received: 10, unread: 10, starred: 0 },
+    messages: Array.from({ length: 10 }, (_, index) => message(`today-${index + 1}`)),
+    earlierUnread: { total: 0, messages: [] },
+  };
+
+  it('keeps each section within its limit and cuts a long summary at a word', () => {
+    const answer = JSON.stringify({
+      summary: `${'word '.repeat(120)}end`,
+      items: digest.messages.map((_, index) => ({ ref: `m${index + 1}`, section: 'needs_you', note: 'x' })),
+    });
+
+    const brief = briefFromModel(`Sure! ${answer}`, digest);
+
+    expect(brief?.summary.length).toBeLessThanOrEqual(400);
+    expect(brief?.summary.endsWith('word…')).toBe(true);
+    expect(brief?.items.map((item) => item.messageId)).toEqual(
+      ['today-1', 'today-2', 'today-3', 'today-4', 'today-5', 'today-6'],
+    );
+  });
+
+  it('is null for prose, malformed JSON or an empty summary', () => {
+    expect(briefFromModel('You have mail.', digest)).toBeNull();
+    expect(briefFromModel('{"summary": ', digest)).toBeNull();
+    expect(briefFromModel('{"summary": "  ", "items": []}', digest)).toBeNull();
+  });
+});
+
+describe('maskDigits', () => {
+  it('hides codes and card-like numbers, not short numbers', () => {
+    expect(maskDigits('Use the code 118512 to sign in')).toBe('Use the code •••• to sign in');
+    expect(maskDigits('Card 4242 4242 4242 4242')).toBe('Card ••••');
+    expect(maskDigits('Your 3 new messages')).toBe('Your 3 new messages');
   });
 });
