@@ -115,8 +115,25 @@ forbid(
 // ─── Prompt ───────────────────────────────────────────────────────────
 requireMatch(
   service,
-  /'<message>',[\s\S]*?'<\/message>',/,
+  /`<message ref="\$\{ref\}">`,[\s\S]*?'<\/message>',/,
   'each message must be fenced in the prompt',
+);
+requireMatch(
+  service,
+  /const subject = message\.excerptWithheld \? maskDigits\(message\.subject\) : message\.subject;/,
+  'a withheld message must not leak its code through the subject',
+);
+
+// ─── Answer ───────────────────────────────────────────────────────────
+requireMatch(
+  dailyBriefRoute,
+  /const brief = briefFromModel\(inboxCompletionText\(completion\), digest\);/,
+  'the model\'s answer must be resolved against the digest, never passed through',
+);
+requireMatch(
+  service,
+  /const message = byRef\.get\(ref\);\s*if \(!message \|\| taken\.has\(ref\)\) continue;/,
+  'only references the prompt gave may name a message, each once',
 );
 requireMatch(
   service,
@@ -132,8 +149,8 @@ requireMatch(
 );
 requireMatch(
   contract,
-  /startAt: inboxUtcTimestampSchema,\s*endAt: inboxUtcTimestampSchema,[\s\S]*?locale: z\.string\(\)\.regex\(\/\^\[A-Za-z\]\{2,3\}\(\?:-\[A-Za-z0-9\]\{2,8\}\)\*\$\/\)\.max\(35\)\.optional\(\),\s*stream: z\.boolean\(\)\.optional\(\),/,
-  'startAt and endAt must be required UTC timestamps; locale a bounded BCP 47 tag; both optional fields optional',
+  /startAt: inboxUtcTimestampSchema,\s*endAt: inboxUtcTimestampSchema,[\s\S]*?locale: z\.string\(\)\.regex\(\/\^\[A-Za-z\]\{2,3\}\(\?:-\[A-Za-z0-9\]\{2,8\}\)\*\$\/\)\.max\(35\)\.optional\(\),\s*\}\)\.strict\(\)/,
+  'startAt and endAt must be required UTC timestamps and locale an optional bounded BCP 47 tag, nothing else',
 );
 requireMatch(
   contract,

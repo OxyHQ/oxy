@@ -42,7 +42,6 @@ export const inboxDailyBriefRequestSchema = z.object({
   endAt: inboxUtcTimestampSchema,
   /** BCP 47 tag of the language the brief is written in; English when absent. */
   locale: z.string().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/).max(35).optional(),
-  stream: z.boolean().optional(),
 }).strict().superRefine((value, context) => {
   const durationMs = Date.parse(value.endAt) - Date.parse(value.startAt);
   if (!Number.isFinite(durationMs) || durationMs <= 0) {
@@ -87,6 +86,38 @@ export const inboxNaturalSearchResponseSchema = z.object({
   interpretation: z.string().max(1000),
 }).strict();
 
+/** Where the brief puts a message: it asks something of the owner, it is today's news, or it is still unread from before. */
+export const INBOX_DAILY_BRIEF_SECTIONS = ['needs_you', 'today', 'earlier'] as const;
+
+/**
+ * The Daily Brief as data, so a client draws it rather than printing a wall of
+ * text: a short summary, then the messages it mentions — each with the
+ * server's own copy of its sender, subject, time and unread state, so a client
+ * can show and open it, and a one-line note of why it matters.
+ */
+export const inboxDailyBriefResponseSchema = z.object({
+  schemaVersion: z.literal(1),
+  requestId: z.string().min(1).max(128),
+  generationId: z.string().min(1).max(128).optional(),
+  summary: z.string().max(400),
+  counts: z.object({
+    received: z.number().int().nonnegative(),
+    unread: z.number().int().nonnegative(),
+    starred: z.number().int().nonnegative(),
+    earlierUnread: z.number().int().nonnegative(),
+  }).strict(),
+  items: z.array(z.object({
+    messageId: inboxMessageIdSchema,
+    section: z.enum(INBOX_DAILY_BRIEF_SECTIONS),
+    note: z.string().max(200),
+    from: z.object({ name: z.string().max(998).nullable(), address: z.string().max(320) }).strict(),
+    subject: z.string().max(998),
+    receivedAt: z.string().datetime(),
+    unread: z.boolean(),
+    hasAttachments: z.boolean(),
+  }).strict()).max(20),
+}).strict();
+
 export const inboxSmartRepliesResponseSchema = z.object({
   replies: z.array(z.string().trim().min(1).max(500)).max(3),
 }).strict();
@@ -113,6 +144,8 @@ export const inboxInferenceStreamEventSchema = z.discriminatedUnion('type', [
 
 export type InboxComposeRequest = z.infer<typeof inboxComposeRequestSchema>;
 export type InboxDailyBriefRequest = z.infer<typeof inboxDailyBriefRequestSchema>;
+export type InboxDailyBriefResponse = z.infer<typeof inboxDailyBriefResponseSchema>;
+export type InboxDailyBriefSection = (typeof INBOX_DAILY_BRIEF_SECTIONS)[number];
 export type InboxInferenceTextResponse = z.infer<typeof inboxInferenceTextResponseSchema>;
 export type InboxNaturalSearchResponse = z.infer<typeof inboxNaturalSearchResponseSchema>;
 export type InboxSmartRepliesResponse = z.infer<typeof inboxSmartRepliesResponseSchema>;

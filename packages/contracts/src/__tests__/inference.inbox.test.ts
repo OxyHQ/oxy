@@ -1,6 +1,7 @@
 import {
   inboxComposeRequestSchema,
   inboxDailyBriefRequestSchema,
+  inboxDailyBriefResponseSchema,
   inboxInferenceStreamEventSchema,
   inboxMessageInferenceParamsSchema,
   inboxNaturalSearchResponseSchema,
@@ -31,8 +32,39 @@ describe('Inbox point-inference contracts', () => {
     ['23-hour DST day', '2026-03-29T00:00:00.000Z', '2026-03-29T23:00:00.000Z'],
     ['25-hour DST day', '2026-10-25T00:00:00.000Z', '2026-10-26T01:00:00.000Z'],
   ])('accepts client-computed UTC bounds for an %s', (_label, startAt, endAt) => {
-    expect(inboxDailyBriefRequestSchema.parse({ startAt, endAt, stream: true }))
-      .toEqual({ startAt, endAt, stream: true });
+    expect(inboxDailyBriefRequestSchema.parse({ startAt, endAt, locale: 'es' }))
+      .toEqual({ startAt, endAt, locale: 'es' });
+  });
+
+  it('refuses the streamed brief: the brief is structured data now', () => {
+    expect(inboxDailyBriefRequestSchema.safeParse({
+      startAt: '2026-09-02T00:00:00.000Z', endAt: '2026-09-03T00:00:00.000Z', stream: true,
+    }).success).toBe(false);
+  });
+
+  it('describes the brief as a summary and the messages it names', () => {
+    const brief = {
+      schemaVersion: 1,
+      requestId: 'req_brief',
+      summary: 'Two credit applications need a reply.',
+      counts: { received: 17, unread: 4, starred: 0, earlierUnread: 10 },
+      items: [{
+        messageId: 'msg_1',
+        section: 'needs_you',
+        note: 'NVIDIA asks you to confirm the AWS credit request.',
+        from: { name: 'NVIDIA Inception', address: 'inception@nvidia.com' },
+        subject: 'Request for $10,000 in AWS Cloud Credits',
+        receivedAt: '2026-10-10T07:00:00.000Z',
+        unread: true,
+        hasAttachments: false,
+      }],
+    };
+    expect(inboxDailyBriefResponseSchema.parse(brief)).toEqual(brief);
+    expect(inboxDailyBriefResponseSchema.safeParse({ ...brief, summary: 'x'.repeat(401) }).success)
+      .toBe(false);
+    expect(inboxDailyBriefResponseSchema.safeParse({
+      ...brief, items: [{ ...brief.items[0], section: 'urgent' }],
+    }).success).toBe(false);
   });
 
   it.each([

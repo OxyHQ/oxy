@@ -203,6 +203,7 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   kaanaCredentialValidationOutcomeSchema: 1,
   providerCredentialValidationOperationSchema: 1,
   // Authenticated Inbox point-inference response
+  inboxDailyBriefResponseSchema: 1,
   inboxInferenceTextResponseSchema: 1,
   // Account billing (ADR 0014)
   billingProfileSchema: 1,
@@ -1459,6 +1460,22 @@ const FIXTURES: Record<string, unknown> = {
     completedAt: "2026-08-15T08:00:01.000Z",
   },
 
+  inboxDailyBriefResponseSchema: {
+    schemaVersion: 1,
+    requestId: "req_brief_fixture",
+    summary: "Two credit applications need a reply.",
+    counts: { received: 17, unread: 4, starred: 0, earlierUnread: 10 },
+    items: [{
+      messageId: "msg_fixture",
+      section: "needs_you",
+      note: "Asks you to confirm the AWS credit request.",
+      from: { name: "NVIDIA Inception", address: "inception@nvidia.com" },
+      subject: "Request for $10,000 in AWS Cloud Credits",
+      receivedAt: "2026-10-10T07:00:00.000Z",
+      unread: true,
+      hasAttachments: false,
+    }],
+  },
   inboxInferenceTextResponseSchema: {
     schemaVersion: 1,
     requestId: "req_inbox_compose_01",

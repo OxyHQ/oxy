@@ -212,6 +212,36 @@ try {
     ".optional(),",
   );
   verdict(unboundedLocale, 1);
+
+  const subjectCode = fixture();
+  roots.push(subjectCode);
+  mutate(
+    subjectCode,
+    'packages/api/src/services/inboxDailyBrief.service.ts',
+    "message.excerptWithheld ? maskDigits(message.subject) : message.subject",
+    "message.subject",
+  );
+  verdict(subjectCode, 1);
+
+  const trustedModel = fixture();
+  roots.push(trustedModel);
+  mutate(
+    trustedModel,
+    'packages/api/src/routes/inboxInference.ts',
+    "const brief = briefFromModel(inboxCompletionText(completion), digest);",
+    "const brief = JSON.parse(inboxCompletionText(completion));",
+  );
+  verdict(trustedModel, 1);
+
+  const inventedRef = fixture();
+  roots.push(inventedRef);
+  mutate(
+    inventedRef,
+    'packages/api/src/services/inboxDailyBrief.service.ts',
+    "if (!message || taken.has(ref)) continue;",
+    "if (taken.has(ref)) continue;",
+  );
+  verdict(inventedRef, 1);
 } finally {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 }
