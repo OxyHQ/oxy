@@ -1,8 +1,7 @@
 /**
  * Subscription read/cancel — against a REAL Postgres.
  *
- * The Mongoose model mocks this suite used to carry could only assert the query
- * SHAPE. Two guarantees here are about stored state rather than call arguments —
+ * Two guarantees here are about stored state rather than call arguments —
  * that cancelling leaves the account's analytics-sharing preference EXACTLY as
  * the person set it (issue #1524), and that it CANCELS the legacy row
  * rather than deleting it — so they are asserted against real rows.

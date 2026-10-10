@@ -2,10 +2,9 @@
  * Application / credential scope vocabulary and the pure authorisation helpers
  * that operate on it.
  *
- * This module is intentionally DEPENDENCY-FREE (no Mongoose, no DB) so the scope
- * logic can be imported and unit-tested without loading a model. The
- * `Application` Mongoose schema imports `APPLICATION_SCOPES` from here for its
- * enum; the application routes and the service-token mint import the helpers.
+ * This module is intentionally DEPENDENCY-FREE (no DB) so the scope logic can
+ * be imported and unit-tested without loading the schema. The application
+ * routes and the service-token mint import the helpers.
  */
 
 /**

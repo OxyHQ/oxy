@@ -105,9 +105,8 @@ const V1_LEGACY_RECORD_TYPES: ReadonlySet<OxySignedRecordType> = new Set(['ident
  * sites then wrote that address into a projection —
  * `personhood_vouches.record_id`, `validation_votes.record_id`,
  * `verifiable_credentials.record_id` — as a reference to the proof. On a v1
- * envelope those references named a row that does not exist: Mongo accepted a
- * dangling reference silently, and the `?? ''` those call sites carried was a
- * vestigial guard from an older, optional `recordId` shape that could no longer
+ * envelope those references named a row that does not exist, and the `?? ''`
+ * those call sites carried was a vestigial guard from an older, optional `recordId` shape that could no longer
  * fire and hid the real defect. The version is entirely CLIENT-chosen, so any
  * client signing `{version: 1, type: 'personhood_vouch'}` produced one.
  *

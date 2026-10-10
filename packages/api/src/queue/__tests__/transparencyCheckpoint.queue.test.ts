@@ -2,7 +2,7 @@
  * Unit tests for transparency-checkpoint scheduling.
  *
  * Forces the in-process fallback path (no Redis) and mocks the service so we can
- * verify boot-time genesis publish and the missing-key visibility without Mongo.
+ * verify boot-time genesis publish and the missing-key visibility without a database.
  */
 
 const mockBuildCheckpoint = jest.fn();

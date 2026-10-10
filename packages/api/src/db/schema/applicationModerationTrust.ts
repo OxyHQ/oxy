@@ -49,8 +49,8 @@ export const applicationModerationTrust = pgTable(
       .references(() => applications.id, { onDelete: 'cascade' }),
     /**
      * Imported straight from `@oxy.so/contracts` rather than copied: the tuple is
-     * the shared cross-package vocabulary, and the Mongoose model reads the same
-     * one, so the two cannot drift.
+     * the shared cross-package vocabulary, so the CHECK and the API cannot
+     * drift.
      */
     standing: text({ enum: APPLICATION_MODERATION_STANDINGS }).notNull().default('sandbox'),
     /** How well the application's evidence survives scrutiny. */
@@ -70,8 +70,8 @@ export const applicationModerationTrust = pgTable(
     /**
      * The staff principal who last changed the gate. `SET NULL` — an audit
      * pointer must not be able to delete the standing it annotates, and NULL
-     * ("the reviewer's account is gone") is the state Mongo already produced
-     * silently as a dangling id.
+     * ("the reviewer's account is gone") is an honest state, never a dangling
+     * id.
      */
     reviewedByUserId: text().references(() => users.id, { onDelete: 'set null' }),
     reviewedAt: timestamptz(),

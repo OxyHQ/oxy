@@ -386,9 +386,8 @@ class DeviceSessionService {
    * A device's LIVE contexts, each joined to the person acting through it.
    *
    * The order is `added_at`, then the principal's `authuser`, then the context
-   * id. The first two reproduce the Mongo array order this replaced (a fresh add
-   * appended; a re-add rebuilt the array with a fresh `addedAt`, so both landed
-   * last), and the order is not cosmetic — `signout` elects `remaining[0]` as
+   * id. The first two give insertion order (a fresh add and a re-add both get
+   * a fresh `addedAt`, so both land last), and the order is not cosmetic — `signout` elects `remaining[0]` as
    * the next active account, so an unordered read would make that election
    * arbitrary. The context id is the third key because the second is no longer
    * a tiebreak on its own: a person's personal and delegated contexts share one
@@ -453,9 +452,8 @@ class DeviceSessionService {
    * Find or create the principal for `userId` on this device, and return its id.
    *
    * `ON CONFLICT … DO UPDATE … RETURNING`, never read-then-write: in Postgres one
-   * failed statement aborts the WHOLE transaction (`25P02`), so Mongo's
-   * read-the-row-back-after-a-duplicate-key recovery does not port. The insert
-   * is the read.
+   * failed statement aborts the WHOLE transaction (`25P02`), so reading the row
+   * back after a duplicate-key error is impossible. The insert is the read.
    *
    * A revoked principal signing back in is un-revoked rather than duplicated —
    * `UNIQUE(device_session_id, user_id)` means there is only ever one row per
@@ -592,9 +590,8 @@ class DeviceSessionService {
   /**
    * The device row for `deviceId`, created empty if it does not exist yet.
    *
-   * `on conflict do nothing` is the direct analogue of Mongo's
-   * `{ upsert: true, $setOnInsert: … }`: a concurrent creator wins harmlessly
-   * and both callers go on to read the same row.
+   * `on conflict do nothing`: a concurrent creator wins harmlessly and both
+   * callers go on to read the same row.
    */
   private async ensureDevice(db: Queryable, deviceId: string): Promise<DeviceSessionRow> {
     await this.ensureDeviceRecord(db, deviceId);
@@ -706,10 +703,8 @@ class DeviceSessionService {
     const activate = opts?.activate ?? 'always';
 
     // The session displaced by case 2, deactivated AFTER the transaction
-    // commits. Mongo did this before its (non-atomic) write; deferring it means
-    // a rolled-back transaction can no longer kill a session that is still
-    // referenced, and the observable order — displaced session dead, device set
-    // updated — is unchanged.
+    // commits, so a rolled-back transaction cannot kill a session that is still
+    // referenced.
     let displacedSessionId: string | null = null;
 
     const result = await this.withAuthuserRaceRetry(async () => {
@@ -2204,8 +2199,7 @@ class DeviceSessionService {
    * entry, and removes any managed accounts the user operated).
    *
    * The lookup is an indexed join on `device_account_contexts.account_id`
-   * (`device_account_contexts_account_id_idx`) — under Mongo the same question
-   * was a scan of every document's embedded `accounts.accountId`.
+   * (`device_account_contexts_account_id_idx`).
    */
   async purgeAccountFromAllDevices(userId: string): Promise<void> {
     const rows = await getDb()

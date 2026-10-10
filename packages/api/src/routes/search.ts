@@ -57,11 +57,10 @@ router.get('/', validate({ query: searchQuerySchema }), async (req: Request, res
           const view = toPublicUserView(row);
           return formatUserResponse({
             ...view,
-            // This surface has ALWAYS emitted only the public consent leaf —
-            // its Mongo `$project` named `privacySettings.fediverseSharing` and
-            // nothing else, while `POST /users/search` (a `.select()` that also
-            // carried the discoverability gate) emits both. The two differ on
-            // the wire today; the port keeps each exactly as it was.
+            // This surface emits only the public consent leaf,
+            // `privacySettings.fediverseSharing`, while `POST /users/search`
+            // also emits the discoverability gate. The two differ on the wire
+            // deliberately; keep each as it is.
             privacySettings: { fediverseSharing: view.privacySettings?.fediverseSharing },
           });
         })

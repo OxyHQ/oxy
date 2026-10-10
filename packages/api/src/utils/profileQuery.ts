@@ -7,20 +7,16 @@
  * the recommendation scorer. They live in `utils/` because they perform no I/O
  * and hold no state; they only build `SQL` fragments.
  *
- * ## What the port changed, and what it deliberately did not
+ * ## Predicate shapes
  *
- * Mongo spelled "not archived" as `{ $ne: 'archived' }`, which ALSO matches a
- * document where the field is absent. Every one of these columns is `NOT NULL`
- * with a default here, so the absent case does not exist and the predicate is an
- * exact equality — `= false` rather than `<> true`, and it means the same thing
- * for every row.
+ * Every flag column here is `NOT NULL` with a default, so there is no absent
+ * case and the predicate is an exact equality — `= false` rather than
+ * `<> true`, and it means the same thing for every row.
  *
- * The "non-empty string" tests are the same story. Mongo needed
- * `{ $type: 'string', $ne: '' }` because a field could hold anything or nothing;
- * the columns are `text` and `CONVENTIONS.md` forbids a `''` default, so the
- * only two states are a value and NULL — except for rows carried over by the
- * backfill, which is why the check is still written `is not null and <> ''`
- * rather than just `is not null`.
+ * The "non-empty string" tests: the columns are `text` and `CONVENTIONS.md`
+ * forbids a `''` default, so new rows have only two states, a value and NULL —
+ * but older rows can still hold `''`, which is why the check is written
+ * `is not null and <> ''` rather than just `is not null`.
  */
 
 import { and, eq, gte, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
@@ -35,9 +31,8 @@ export const FEDERATED_RECOMMENDATION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 
  * `column` holds a real value: present AND not the empty string.
  *
  * The `<> ''` half is not redundant. A `''` DEFAULT is forbidden by
- * `CONVENTIONS.md`, but Mongoose defaulted several of these fields to `''` and
- * the backfill carries the stored value verbatim, so an empty string is a state
- * that reaches this predicate from real data.
+ * `CONVENTIONS.md`, but older rows store `''` in several of these fields, so an
+ * empty string is a state that reaches this predicate from real data.
  */
 function nonEmpty(column: SQL | ReturnType<typeof sql>): SQL {
   return sql`${column} is not null and ${column} <> ''`;
@@ -115,12 +110,11 @@ export interface PeopleSearchMatchOptions {
  * Case-insensitive SUBSTRING match of `term` across the searchable profile
  * fields.
  *
- * `ILIKE '%term%'` and not a `tsvector`: `CONVENTIONS.md` requires a Mongo TEXT
- * INDEX to become `tsvector` + GIN, and this was never one. It was an unanchored
- * `/i` regex over `username` / `name.first` / `name.last` / `description`, which
- * no b-tree could serve either — a partial-word query (`ali` → `alice`) is the
- * documented behaviour, and a lexeme index would silently stop answering it.
- * The port is behaviour-for-behaviour; the access path is unchanged.
+ * `ILIKE '%term%'` and not a `tsvector`: this is an unanchored,
+ * case-insensitive substring match over `username` / `name.first` /
+ * `name.last` / `description`, which no b-tree could serve either — a
+ * partial-word query (`ali` → `alice`) is the documented behaviour, and a
+ * lexeme index would silently stop answering it.
  *
  * `term` is the caller's raw search text. It is escaped for LIKE here (`\`, `%`,
  * `_`) and bound as a parameter, so no input can widen the pattern or reach the
@@ -195,9 +189,8 @@ export function peopleSearchMatch(term: string, options: PeopleSearchMatchOption
   }
 
   if (includeLocations) {
-    // `locations` was an embedded array; it is a child table now, so the
-    // "any location matches" test is an EXISTS rather than Mongo's implicit
-    // any-element semantics on a dotted path.
+    // `locations` is a child table, so the "any location matches" test is an
+    // EXISTS.
     clauses.push(sql`exists (
       select 1 from ${userLocations}
       where ${qualified(userLocations.userId)} = ${qualified(users.id)}

@@ -1,10 +1,9 @@
 /**
  * `searchMessages`, against a REAL Postgres.
  *
- * Mongo's `$text` + `{score: {$meta: 'textScore'}}` becomes a `tsvector` match
- * plus an EXPLICIT `ts_rank` weight vector. That explicitness is the point:
- * `ts_rank`'s default `{0.1, 0.2, 0.4, 1.0}` happens to be the 10:1 A-over-D
- * ratio Mongo declared as `weights: {subject: 10, text: 1}`, but a default is a
+ * Search is a `tsvector` match plus an EXPLICIT `ts_rank` weight vector. That
+ * explicitness is the point: `ts_rank`'s default `{0.1, 0.2, 0.4, 1.0}` happens
+ * to give the intended 10:1 subject-over-body ratio, but a default is a
  * thing that can change underneath a search — and a wrongly-ranked query
  * compiles, runs, and returns the same ROWS in a different ORDER, which no
  * membership assertion can see. So the ordering is asserted, not just the set.
@@ -113,7 +112,7 @@ afterAll(async () => {
 });
 
 describe('searchMessages — the weighted text index', () => {
-  it('ranks a subject hit above a body hit, as Mongo weighted it 10:1', async () => {
+  it('ranks a subject hit above a body hit, weighted 10:1', async () => {
     // The assertion that matters is the ORDER. Both rows match either way; a
     // weight vector of B or C — or `ts_rank`'s argument order transposed —
     // returns the same two rows the other way round and nothing else notices.

@@ -9,11 +9,9 @@
  * expression on both sides. A plain `username = $1` is correct-looking,
  * case-SENSITIVE, and would not use the index.
  *
- * Behaviour difference this pins, deliberately: `check-username` and
- * `check-publickey` are now case-INSENSITIVE. Mongo indexed `username`
- * case-sensitively (so `Nate` and `nate` could coexist) while every lookup ran an
- * anchored `/i` regex; the expression index resolves that contradiction in favour
- * of one account per casing.
+ * Behaviour this pins, deliberately: `check-username` and `check-publickey` are
+ * case-INSENSITIVE, matching the expression index, so `Nate` and `nate` are one
+ * account.
  */
 
 import express from 'express';

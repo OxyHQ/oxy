@@ -63,9 +63,9 @@ afterAll(async () => {
 
 describe('user_locations — coordinates are named, not positional', () => {
   it('stores latitude and longitude in their own columns', async () => {
-    // The Mongo defect this fixes is positional: a 2dsphere index over
-    // `{ lat, lon }` reads the FIRST field as longitude, so every indexed point
-    // was transposed. Round-tripping through named columns is what proves the
+    // The defect this guards against is positional: a spatial index over
+    // `{ lat, lon }` that reads the FIRST field as longitude transposes every
+    // indexed point. Round-tripping through named columns is what proves the
     // ordering can no longer be misread — Barcelona is 41.39N 2.17E, and a
     // transposition would put it in the Indian Ocean.
     const userId = await insertUser();
@@ -110,7 +110,7 @@ describe('user_locations — coordinates are named, not positional', () => {
     ).resolves.toBeDefined();
   });
 
-  it('rejects half a coordinate, which Mongo permitted', async () => {
+  it('rejects half a coordinate', async () => {
     const userId = await insertUser();
     const error = await rejection(
       getDb().insert(userLocations).values({
@@ -142,7 +142,7 @@ describe('user_locations — coordinates are named, not positional', () => {
   });
 
   it('builds a search vector over name and formatted address', async () => {
-    // The replacement for Mongo's text index. A generated column, so it cannot
+    // The text search index. A generated column, so it cannot
     // be left unpopulated by a write path that forgets it.
     const userId = await insertUser();
     const token = `zx${unique().slice(0, 10)}`;
@@ -267,7 +267,7 @@ describe('user_ancestors — the materialized path', () => {
     ).resolves.toBeDefined();
   });
 
-  it('refuses an ancestor that does not exist — the guarantee Mongo never had', async () => {
+  it('refuses an ancestor that does not exist', async () => {
     const userId = await insertUser();
     const error = await rejection(
       getDb()

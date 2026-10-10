@@ -14,10 +14,8 @@
  *
  * ## `oauth` stays NULL as a WHOLE
  *
- * Mongoose declares the OAuth binding as its own sub-schema specifically so the
- * path stays `undefined` on a device-sign-in row instead of materialising an
- * empty object that reads as truthy. Flattening it to columns preserves exactly
- * that, and states it as a constraint the model could only ever hope for:
+ * The OAuth binding is absent on a device-sign-in row, never an empty object
+ * that reads as truthy. Flattened to columns, that is stated as a constraint:
  *
  *   - `auth_sessions_oauth_binding_check` — every `oauth_*` column is NULL
  *     together or present together. There is no half-bound request.
@@ -28,17 +26,16 @@
  *     (`routes/auth.ts:759`) already writes as a pair.
  *
  * `oauth_subject_account_id` is OUTSIDE the all-or-nothing group: it is optional
- * even within a bound request (`subjectAccountId` defaults to null in the
- * sub-schema), so folding it in would forbid an ordinary non-delegated OAuth
+ * even within a bound request (`subjectAccountId` defaults to null), so folding
+ * it in would forbid an ordinary non-delegated OAuth
  * request.
  *
  * ## Expiry
  *
- * Mongo TTL `{ expiresAt: 1 }, { expireAfterSeconds: 3600 }` — a one-hour grace
- * past the deadline so a late poll gets "expired" rather than "never existed".
- * Registered in `db/expiry.ts` with `retentionSeconds: 3600`.
- * `authSession.service.ts:280` filters `expiresAt > now` itself, so the sweep is
- * housekeeping.
+ * A one-hour grace past the deadline so a late poll gets "expired" rather than
+ * "never existed". Registered in `db/expiry.ts` with `retentionSeconds: 3600`.
+ * `authSession.service.ts:280` filters `expiresAt > now` itself, so the sweep
+ * is housekeeping.
  */
 
 import { sql } from 'drizzle-orm';
@@ -67,11 +64,10 @@ export const AUTH_SESSION_CHALLENGE_METHODS = ['S256'] as const;
 /**
  * Longest `requester_label` the approval screen will store.
  *
- * Mongoose's `maxlength: 64` is a fail-CLOSED guard, not formatting: every
+ * A fail-CLOSED guard, not formatting: every
  * derived label is a handful of characters ("Chrome on Windows"), so a future
  * writer that tried to persist a full User-Agent here fails instead of quietly
- * turning this column into a fingerprint. It survives the port as a CHECK, which
- * is safe for the backfill precisely because Mongoose already validated it.
+ * turning this column into a fingerprint. Enforced as a CHECK.
  */
 export const AUTH_SESSION_REQUESTER_LABEL_MAX_LENGTH = 64;
 
@@ -90,10 +86,9 @@ export const authSessions = pgTable(
      * The PUBLIC single-use approval handle carried in the QR / deep link. Safe
      * to display by construction — approving with it is key-signed.
      *
-     * Nullable + plain `UNIQUE`. Mongo needed `sparse: true` and no `default:
-     * null` because its sparse unique index collides on nulls; Postgres treats
-     * NULLs as DISTINCT, so the workaround does not travel and must NOT become
-     * `''`, which would collide for real.
+     * Nullable + plain `UNIQUE`. Postgres treats NULLs as DISTINCT, so absent
+     * handles never collide; absent must NOT become `''`, which would collide
+     * for real.
      */
     authorizeCode: text(),
     /** Browser Origin the request was started from; shown on the approval screen. */
@@ -189,7 +184,7 @@ export const authSessions = pgTable(
     index('auth_sessions_application_id_idx').on(t.applicationId),
     // Supports the expiry sweep in `db/expiry.ts`.
     index('auth_sessions_expires_at_idx').on(t.expiresAt),
-    // Mongo also declared `{sessionToken: 1, status: 1}`. Dropped as redundant:
+    // No `(session_token, status)` index: it would be redundant.
     // `auth_sessions_session_token_key` is UNIQUE, so the lookup already lands
     // on one row and `status` is a free check on it.
 
@@ -216,8 +211,7 @@ export const authSessions = pgTable(
       'auth_sessions_oauth_code_challenge_method_check',
       sql`${t.oauthCodeChallengeMethod} in (${sql.raw(AUTH_SESSION_CHALLENGE_METHODS.map((value) => `'${value}'`).join(', '))})`,
     ),
-    // The binding is present as a WHOLE or absent as a whole — the schema-level
-    // statement of what the Mongoose sub-schema achieved by staying `undefined`.
+    // The binding is present as a WHOLE or absent as a whole.
     check(
       'auth_sessions_oauth_binding_check',
       sql`(${t.oauthRedirectUri} is null and ${t.oauthCodeChallenge} is null and ${t.oauthCodeChallengeMethod} is null and ${t.oauthScopes} is null)
@@ -235,7 +229,7 @@ export const authSessions = pgTable(
       'auth_sessions_oauth_subject_requires_binding_check',
       sql`${t.oauthSubjectAccountId} is null or ${t.oauthRedirectUri} is not null`,
     ),
-    // The fail-closed length guard Mongoose declared as `maxlength: 64`.
+    // The fail-closed length guard on `requester_label`.
     check(
       'auth_sessions_requester_label_length_check',
       sql`${t.requesterLabel} is null or char_length(${t.requesterLabel}) <= ${sql.raw(String(AUTH_SESSION_REQUESTER_LABEL_MAX_LENGTH))}`,

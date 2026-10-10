@@ -61,7 +61,7 @@ jest.mock('../../services/repoLog.service', () => ({
 }));
 
 // nodeRegistry.service is a transitive import of the identity routes (F5a) and
-// is still Mongoose-backed (a sibling port).
+// a collaborator, not the subject.
 jest.mock('../../services/nodeRegistry.service', () => ({
   materializeNodeFromRecord: jest.fn(),
   getUserNode: jest.fn(() => Promise.resolve(null)),

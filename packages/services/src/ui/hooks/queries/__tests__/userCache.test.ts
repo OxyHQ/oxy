@@ -84,8 +84,8 @@ describe('upsertCachedUser — cold slot', () => {
 
   it('resolves the id from _id when id is absent', () => {
     const qc = makeClient();
-    upsertCachedUser(qc, { _id: 'mongo1', username: 'bob' }, '');
-    expect(readById(qc, 'mongo1')).toMatchObject({ id: 'mongo1', username: 'bob' });
+    upsertCachedUser(qc, { _id: 'legacy1', username: 'bob' }, '');
+    expect(readById(qc, 'legacy1')).toMatchObject({ id: 'legacy1', username: 'bob' });
   });
 
   it('is a no-op when no id can be resolved', () => {

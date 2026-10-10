@@ -15,10 +15,10 @@
  * the whole response collapsed to `null`. The PENDING case below is that EXACT
  * shape and MUST parse.
  *
- * Two port-specific hazards this now also covers: `authorized_session_id` /
+ * Two storage hazards this also covers: `authorized_session_id` /
  * `authorized_user_id` are NULLABLE columns (not absent fields), and `purpose`
- * is `NOT NULL DEFAULT 'device_sign_in'` — the `?? 'device_sign_in'` fallback for
- * pre-field Mongo documents does not travel.
+ * is `NOT NULL DEFAULT 'device_sign_in'`, so no missing-purpose fallback is
+ * needed.
  */
 
 import express from 'express';
@@ -221,8 +221,8 @@ describe('GET /auth/session/status/:sessionToken — @oxy.so/contracts sessionSt
 
   it('omits an absent optional rather than emitting null', async () => {
     // `serializePublicApplication` drops undefined/null optionals entirely, and
-    // Drizzle hands it `null` where Mongoose handed it `undefined` — so this is
-    // exactly where the port could have started emitting `termsUrl: null`.
+    // Drizzle hands it `null` for an unset column — so this is exactly where
+    // `termsUrl: null` could start leaking onto the wire.
     const applicationId = await application({ privacyPolicyUrl: null, termsUrl: null });
     const sessionToken = await authRequest({ applicationId });
 

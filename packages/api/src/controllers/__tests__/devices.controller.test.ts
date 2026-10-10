@@ -15,13 +15,12 @@
  * listing a device the user believes is gone — a stale credential rendered as a
  * live one.
  *
- * ## Grouping is now the ORDER BY, not a second pass
+ * ## Grouping is the ORDER BY, not a second pass
  *
  * `last_active_at` is `NOT NULL`, so `order by last_active_at desc` is a total
- * order and the first row per `device_id` is the most recently active one. The
- * Mongo version re-compared each session against the map because that column was
- * optional there. These cases pin the collapsed row's CONTENT, so a port that
- * kept the wrong session of a device fails.
+ * order and the first row per `device_id` is the most recently active one. These
+ * cases pin the collapsed row's CONTENT, so code that kept the wrong session of
+ * a device fails.
  *
  * The auth middleware, the session service's deactivation, the token decoder and
  * the socket emitter are mocked; the session rows are real.
@@ -267,8 +266,8 @@ describe('GET /devices', () => {
 
   it.each([
     ['NULL', null],
-    // `''` is representable — Mongoose stored these as free strings — and has
-    // always rendered as the placeholder. This case is what makes the `||` in
+    // `''` is representable — these are free strings — and renders as the
+    // placeholder. This case is what makes the `||` in
     // the controller deliberate rather than a `??` someone will "tidy up".
     ['empty-string', ''],
   ])('renders the placeholder for a %s device name', async (_label, deviceName) => {

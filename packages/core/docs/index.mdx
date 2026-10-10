@@ -101,7 +101,7 @@ if (!(await KeyManager.hasIdentity())) {
 
 ### User ids and profile handles
 
-Oxy API payloads may expose either `id` or Mongo-style `_id`. Use the identity helpers before storing user payloads in app state:
+Oxy API payloads may expose either `id` or a raw `_id`. Use the identity helpers before storing user payloads in app state:
 
 ```ts
 import { getNormalizedUserId, normalizeUserIdentity } from '@oxy.so/core';

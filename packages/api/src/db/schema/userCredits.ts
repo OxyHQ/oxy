@@ -22,18 +22,16 @@
  *
  * ## The concurrency guarantee lives in `db/credits.ts`
  *
- * `refreshCreditsIfNeeded` and `deductCredits` were OPTIMISTIC-CONCURRENCY
- * updates in Mongoose, not plain writes — a compare-and-set on `lastRefresh` and
- * a `$gte`-guarded `$inc`. A read-modify-write port would lose that silently and
+ * `refreshCreditsIfNeeded` and `deductCredits` are OPTIMISTIC-CONCURRENCY
+ * updates, not plain writes — a compare-and-set on `last_refresh` and a
+ * balance-guarded decrement. A read-modify-write would lose that silently and
  * let two racing deductions both succeed. The guarded statements are in
  * `db/credits.ts`; the CHECKs below are the second line, catching any OTHER
  * write path that would drive a balance negative.
  *
- * Those CHECKs are the one place this table adds a constraint Mongoose did not
- * have. That is deliberate: a negative credit balance is the exact failure the
- * guarded updates exist to prevent, so if the backfill finds one it should stop
- * and name it rather than carry it across — the same posture `CONVENTIONS.md`
- * records for two accounts whose usernames differ only by case.
+ * Those CHECKs are deliberate: a negative credit balance is the exact failure
+ * the guarded updates exist to prevent, so a write that would produce one fails
+ * and names the row rather than storing it.
  *
  * ## `ON DELETE CASCADE`
  *
@@ -59,8 +57,8 @@ export const userCredits = pgTable(
   'user_credits',
   {
     /**
-     * The account. Primary key AND foreign key — the Mongo `_id` was the user
-     * id verbatim, so there is no second identifier to invent.
+     * The account. Primary key AND foreign key — one row per user, so there is
+     * no second identifier to invent.
      */
     userId: text()
       .primaryKey()
@@ -85,14 +83,13 @@ export const userCredits = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // Mongo's sparse `{stripeCustomerId: 1}`, PARTIAL here for the same reason
-    // (most accounts have never touched Stripe) and additionally UNIQUE, which
-    // Mongo's was not. `billing.ts:387` resolves the account for a subscription
+    // PARTIAL (most accounts have never touched Stripe) and UNIQUE.
+    // `billing.ts:387` resolves the account for a subscription
     // webhook with `findOne({stripeCustomerId})` — a `findOne` IS a uniqueness
     // assumption, and if two accounts shared a customer id that webhook would
-    // credit whichever row came back first. Stating it here means the backfill
+    // credit whichever row came back first. Stating it here means such a write
     // fails and names the pair instead, which is the correct outcome: the
-    // application cannot tell them apart today either.
+    // application cannot tell them apart either.
     uniqueIndex('user_credits_stripe_customer_id_key')
       .on(t.stripeCustomerId)
       .where(sql`${t.stripeCustomerId} is not null`),

@@ -98,7 +98,7 @@ export function decodeToken(token: string): TokenDecoded | null {
 /**
  * Project an account document onto the optional-auth request identity.
  *
- * Two things it does, both preserved verbatim from the Mongo version:
+ * Two things it does:
  *
  *  - `_id` is resolved from `_id`, falling back to `id` ONLY when `id` is not
  *    the public key. On the account document `id` is `publicKey ?? _id`, so
@@ -107,8 +107,7 @@ export function decodeToken(token: string): TokenDecoded | null {
  *  - `id` is DROPPED from the projection, so nothing on an optional-auth path
  *    can read an ambiguous one.
  *
- * The `toObject()` branch is gone with the Mongoose documents that needed it —
- * every caller now hands over a plain object.
+ * Every caller hands over a plain object.
  */
 export function normalizeUser(user: AccountDocument | null | undefined): NormalizedUser | null {
   if (!user) return null;

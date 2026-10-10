@@ -21,8 +21,8 @@
  *     mutation it actually produces, field for field.
  *
  * No database: the plan module is pure, and the writer is generic over the
- * owner-id type precisely so a plain object can stand in for the Mongoose
- * document here.
+ * owner-id type precisely so a plain object can stand in for the application
+ * row here.
  */
 
 import {
@@ -67,8 +67,8 @@ function commonsFullyReconciled(): ApplicationRegistrationState {
 }
 
 /**
- * Stand-in for the Mongoose document. Structurally identical to the fields the
- * real writer touches, with `string` in place of `ObjectId` — the SAME
+ * Stand-in for the application row. Structurally identical to the fields the
+ * real writer touches — the SAME
  * `applyApplicationPlan` runs against it.
  */
 function mutableRecord(state: ApplicationRegistrationState): MutableApplicationFields<string> {

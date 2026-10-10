@@ -76,13 +76,13 @@ import { queryKeys } from './queryKeys';
  * A user-shaped object that can be upserted into the cache. Intentionally
  * permissive: it covers the SDK `User` PLUS the looser actor objects embedded on
  * posts / notifications / lists, where `name` may be a plain string and the id
- * may arrive as Mongo `_id`. Every field is optional — a sparse feed author is a
+ * may arrive as a raw `_id`. Every field is optional — a sparse feed author is a
  * valid `CacheableUser`. The index signature lets any additional `User` field
  * pass through untouched (so the upsert never has to know the full DTO shape).
  */
 export interface CacheableUser {
   id?: string;
-  /** Some sources (post/notification actors) carry the id as Mongo `_id`. */
+  /** Some sources (post/notification actors) carry the id as a raw `_id`. */
   _id?: string;
   username?: string;
   /**

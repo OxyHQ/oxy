@@ -561,7 +561,7 @@ describe('session-backed user tokens bind identity to the validated session', ()
     expect(req.user).toEqual({ id: VICTIM_ID });
   });
 
-  it('accepts a session identified by the raw Mongo _id shape', async () => {
+  it('accepts a session identified by the raw _id shape', async () => {
     jest
       .spyOn(oxy.session, 'validate')
       .mockResolvedValue(validSessionFor({ _id: VICTIM_ID } as unknown as User));

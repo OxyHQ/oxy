@@ -4,14 +4,12 @@
  * There was no suite for this file at all, which mattered because two of its
  * three guarantees are the kind that a mocked model cannot show:
  *
- *  - **Nobody is notified about their own action.** Under Mongo the test was
- *    `recipientId.toString() === actorId.toString()`, which compared an
- *    `ObjectId` to a string correctly only because of the `toString`. Ids are
- *    `text` now, so it is a plain comparison — and the case below proves it by
+ *  - **Nobody is notified about their own action.** Ids are `text`, so it is a
+ *    plain comparison — and the case below proves it by
  *    checking the TABLE is still empty, not that a branch was taken.
- *  - **The duplicate guard is the unique index, not a preceding read.** Mongo
- *    did `findOne` then `save`, so two concurrent emissions could both find
- *    nothing and one would throw `E11000` out of a method whose contract is to
+ *  - **The duplicate guard is the unique index, not a preceding read.** With a
+ *    read-then-write, two concurrent emissions could both find nothing and one
+ *    would throw a duplicate-key error out of a method whose contract is to
  *    return null. Here it is one `insert … on conflict do nothing`, so the
  *    concurrent case is exercisable: the two calls below run without awaiting in
  *    between and exactly one row exists afterwards, with neither call throwing.
@@ -116,7 +114,7 @@ describe('createNotification', () => {
   });
 
   it('survives two CONCURRENT emissions: one row, no throw', async () => {
-    // The race Mongo's read-then-write could not close. Both calls are started
+    // The race a read-then-write could not close. Both calls are started
     // before either resolves, so at least one takes the `do nothing` branch.
     const input = {
       recipientId: RECIPIENT_ID,
@@ -155,7 +153,7 @@ describe('createNotification', () => {
   });
 
   it('rejects an actor that names no account', async () => {
-    // `actor_id` is a real foreign key; Mongo happily stored a dangling id.
+    // `actor_id` is a real foreign key, so a dangling id is refused.
     await expect(
       NotificationService.createNotification({
         recipientId: RECIPIENT_ID,
@@ -223,9 +221,8 @@ describe('the typed factories', () => {
   });
 
   it('createWelcomeNotification attributes the welcome to a REAL system account', async () => {
-    // The Mongo version hardcoded the all-zero ObjectId as its system actor.
-    // `actor_id` is a foreign key now, so that sentinel names no row and the
-    // insert would be refused — the account is a parameter instead.
+    // `actor_id` is a foreign key, so a hardcoded sentinel id would name no row
+    // and the insert would be refused — the account is a parameter instead.
     const systemAccount = await insertUser();
 
     await NotificationService.createWelcomeNotification(RECIPIENT_ID, systemAccount);
@@ -240,7 +237,7 @@ describe('the typed factories', () => {
     ]);
   });
 
-  it('refuses the all-zero ObjectId sentinel the Mongo version used', async () => {
+  it('refuses an all-zero 24-hex sentinel as the system actor', async () => {
     // Stated as a case rather than a comment: the sentinel is not merely unused,
     // it is now unusable, and anybody reinstating it gets a red test rather than
     // a 500 in production.
@@ -315,8 +312,8 @@ describe('a deleted participant takes the notification with it', () => {
   });
 
   it('cascades on the actor', async () => {
-    // A notification attributed to a deleted account says nothing, and Mongo
-    // needed a cleanup job to say so.
+    // A notification attributed to a deleted account says nothing, so it goes
+    // with the account.
     await NotificationService.createNotification({
       recipientId: RECIPIENT_ID,
       actorId: ACTOR_ID,

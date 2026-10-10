@@ -4,13 +4,13 @@
  * Three things here are load-bearing and could each be subtly wrong while
  * looking right:
  *
- *   1. **The weighted text index.** Mongo's `weights: {subject: 10, text: 1}`
- *      becomes `setweight(..., 'A') || setweight(..., 'D')`. Postgres weights
+ *   1. **The weighted text index.** A subject hit ranks ten times a body hit,
+ *      via `setweight(..., 'A') || setweight(..., 'D')`. Postgres weights
  *      are fixed multipliers, so B or C would compile, index, and silently
  *      re-rank every search result — only a RANK comparison catches it.
  *   2. **The four hidden bodies.** `select: false` has no drizzle counterpart;
  *      `publicColumns` is the replacement, and it is worthless if the registry
- *      drifts from the columns Mongoose actually protected.
+ *      drifts from the columns that must stay hidden.
  *   3. **The child tables.** `to`/`cc`/`bcc` and `attachments` became rows
  *      precisely so they could be searched and joined; a `jsonb` port would
  *      pass a round-trip test and fail every one of those reads.
@@ -41,9 +41,9 @@ const GENERATED_ALWAYS = '428C9';
  *
  * Deriving them would make the assertion tautological: deleting a registry
  * entry would delete the expectation with it. This is the independent statement
- * of what Mongo protected.
+ * of which message bodies are protected.
  */
-const MONGOOSE_SELECT_FALSE_MESSAGE_FIELDS = ['text', 'html', 'headers', 'encryptedBody'] as const;
+const BASE_PROTECTED_MESSAGE_FIELDS = ['text', 'html', 'headers', 'encryptedBody'] as const;
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -93,8 +93,7 @@ async function insertMessage(
     .values({
       messageId: `<${unique()}@oxy.so>`,
       fromAddress: 'sender@example.com',
-      // NOT NULL with no default — the writer always supplies it, which is what
-      // Mongoose's application-side `default: ''` did.
+      // NOT NULL with no default — the writer always supplies it.
       subject: '',
       size: 2048,
       date: new Date(),
@@ -113,8 +112,8 @@ afterAll(async () => {
 });
 
 describe('messages — the weighted text index', () => {
-  it('ranks a subject match ten times a body match, as Mongo weighted it', async () => {
-    // Mongo: `weights: {subject: 10, text: 1}`. Postgres weights are FIXED
+  it('ranks a subject match ten times a body match', async () => {
+    // Intended weights: subject 10, text 1. Postgres weights are FIXED
     // multipliers — A=1.0, B=0.4, C=0.2, D=0.1 — so only the A/D pair
     // reproduces the ratio. B or C would index fine and quietly re-rank every
     // search result, which is why this compares RANKS and not just matches.
@@ -217,8 +216,8 @@ describe('messages — the weighted text index', () => {
 });
 
 describe('messages — the protected bodies', () => {
-  it('protects every column Mongoose marked `select: false`', () => {
-    for (const field of MONGOOSE_SELECT_FALSE_MESSAGE_FIELDS) {
+  it('protects every hidden body column', () => {
+    for (const field of BASE_PROTECTED_MESSAGE_FIELDS) {
       expect([...MESSAGES_PROTECTED_COLUMNS]).toContain(field);
     }
   });
@@ -226,13 +225,13 @@ describe('messages — the protected bodies', () => {
   it('protects the search vector too, and states why that is the only addition', () => {
     // `search_vector` is derived FROM `text` and carries every lexeme with its
     // position, so a guard on the source alone is not a guard. It is the ONLY
-    // entry beyond the Mongoose set — anything else appearing here is a
+    // entry beyond the base set — anything else appearing here is a
     // decision somebody must justify, not a silent addition.
-    const beyondMongoose = MESSAGES_PROTECTED_COLUMNS.filter(
-      (column) => !(MONGOOSE_SELECT_FALSE_MESSAGE_FIELDS as readonly string[]).includes(column),
+    const beyondBase = MESSAGES_PROTECTED_COLUMNS.filter(
+      (column) => !(BASE_PROTECTED_MESSAGE_FIELDS as readonly string[]).includes(column),
     );
 
-    expect(beyondMongoose).toEqual(['searchVector']);
+    expect(beyondBase).toEqual(['searchVector']);
   });
 
   it('withholds exactly those columns from publicColumns and nothing else', () => {
@@ -403,7 +402,7 @@ describe('message_recipients — one table, a kind discriminator, real order', (
   });
 });
 
-describe('message_attachments — the reverse lookup Mongo indexed for', () => {
+describe('message_attachments — the reverse lookup by file', () => {
   it('finds every message referencing one file, scoped to a user', async () => {
     const userId = await owner();
     const other = await owner();
@@ -456,7 +455,7 @@ describe('message_attachments — the reverse lookup Mongo indexed for', () => {
 });
 
 describe('messages — flags, arrays and the extracted card', () => {
-  it('stores the six flags as columns with the defaults Mongo declared', async () => {
+  it('stores the six flags as columns with their declared defaults', async () => {
     const userId = await owner();
     const mailboxId = await mailbox(userId);
     const id = await insertMessage({ userId, mailboxId });
@@ -498,7 +497,7 @@ describe('messages — flags, arrays and the extracted card', () => {
     expect(found.map((row) => row.id)).toEqual([tagged]);
   });
 
-  it('defaults both arrays to empty, never null — Mongo defaulted to []', async () => {
+  it('defaults both arrays to empty, never null', async () => {
     const userId = await owner();
     const mailboxId = await mailbox(userId);
     const id = await insertMessage({ userId, mailboxId });
@@ -531,9 +530,8 @@ describe('messages — flags, arrays and the extracted card', () => {
     expect(row.cardType).toBe('purchase');
     expect(row.cardData).toEqual({ total: '42.00', currency: 'EUR' });
 
-    // Mongo required `type` INSIDE the sub-document, so "a card exists" and
-    // "the card has a type" were one statement. Flattened to columns they are
-    // two, and the CHECK is what keeps them one.
+    // "A card exists" and "the card has a type" must be one statement.
+    // Flattened to columns they are two, and the CHECK is what keeps them one.
     const error = await rejection(
       getDb().execute(sql`
         insert into messages (id, user_id, mailbox_id, message_id, from_address, subject, size, date, card_data)
@@ -543,7 +541,7 @@ describe('messages — flags, arrays and the extracted card', () => {
     expect(pgConstraint(error)).toBe('messages_card_complete_check');
   });
 
-  it('refuses a negative size — Mongo`s `min: 0`', async () => {
+  it('refuses a negative size', async () => {
     const userId = await owner();
     const mailboxId = await mailbox(userId);
 
@@ -647,11 +645,11 @@ describe('messages — the partial indexes that replaced boolean-wide ones', () 
     `);
     const byName = new Map(rows.map((row) => [row.indexname, row.indexdef]));
 
-    // Mongo indexed BOTH values of each boolean; only one is ever queried.
+    // Only one value of each boolean is ever queried, so the index is partial.
     expect(byName.get('messages_unseen_idx')).toContain('WHERE');
     expect(byName.get('messages_unseen_idx')).toContain('NOT');
     expect(byName.get('messages_starred_idx')).toContain('WHERE');
-    // Mongo's two `sparse` cron indexes.
+    // The two cron indexes cover only rows that carry a time.
     expect(byName.get('messages_snoozed_until_idx')).toContain('IS NOT NULL');
     expect(byName.get('messages_scheduled_at_idx')).toContain('IS NOT NULL');
     // The listing index carries the sort every list actually issues.

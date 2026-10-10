@@ -41,12 +41,10 @@ import { users } from './users';
 /**
  * Stripe's subscription statuses — ALL of them, because this table is a mirror.
  *
- * Mongoose declared only the five this platform sells, and that enum was never
- * enforced: the webhook writes through `findOneAndUpdate` WITHOUT
- * `runValidators`, so Mongo happily stored `incomplete`, `incomplete_expired`
- * and `paused` whenever Stripe sent them. A CHECK constraint IS enforced, so
- * porting the narrow list would convert a silent write into a failed webhook —
- * Stripe would retry forever and the mirror would freeze at its previous value.
+ * Not just the five this platform sells: Stripe also sends `incomplete`,
+ * `incomplete_expired` and `paused`. A CHECK constraint IS enforced, so a narrow
+ * list would convert a silent write into a failed webhook — Stripe would retry
+ * forever and the mirror would freeze at its previous value.
  *
  * That stale value is the part that matters, and it is an ENTITLEMENT bug rather
  * than a bookkeeping one: a subscription that Stripe moved to `paused` would
@@ -77,9 +75,7 @@ export const billingSubscriptions = pgTable(
   {
     id: generatedId(),
     /**
-     * An untyped `String` in Mongoose — a logical reference to `User` that
-     * nothing enforced. It is a real foreign key here. See the migration report
-     * for the orphan audit this makes mandatory before the backfill.
+     * A real foreign key to `users`.
      */
     userId: text()
       .notNull()
@@ -89,8 +85,7 @@ export const billingSubscriptions = pgTable(
     stripeSubscriptionId: text().notNull(),
     stripePriceId: text().notNull(),
     /**
-     * Optional in Mongoose but written on every webhook, so NOT NULL with the
-     * same default the model declared.
+     * Written on every webhook, so NOT NULL, defaulting to `active`.
      */
     status: text({ enum: BILLING_SUBSCRIPTION_STATUSES }).notNull().default('active'),
     currentPeriodStart: timestamptz().notNull(),
@@ -124,10 +119,10 @@ export const billingSubscriptions = pgTable(
     unique('billing_subscriptions_stripe_subscription_id_key').on(t.stripeSubscriptionId),
     // "This user's live subscription" — `findOne({userId, status: {$in: [...]}})`
     // at `billing.ts:194`, `:216`, `subscriptionPlan.ts:28`,
-    // `subscription.controller.ts:26`, `:50`. Mongo's standalone `{userId}` is
-    // redundant against it: a btree serves any leading prefix.
+    // `subscription.controller.ts:26`, `:50`. No standalone `(user_id)` index:
+    // a btree serves any leading prefix.
     index('billing_subscriptions_user_id_status_idx').on(t.userId, t.status),
-    // Mongo's `{stripeCustomerId: 1}` is DROPPED. Nothing reads this table by
+    // No `(stripe_customer_id)` index. Nothing reads this table by
     // Stripe customer — the webhook resolves the account through
     // `user_credits.stripe_customer_id` (`billing.ts:387`) and then keys on
     // `stripe_subscription_id`. An index nothing queries is write cost, and

@@ -13,7 +13,7 @@ import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 
 /**
- * An Oxy file id: a uuid, a legacy Mongo ObjectId, or another bare token. No
+ * An Oxy file id: a uuid, a legacy 24-hex id, or another bare token. No
  * scheme, no slash, no dot — so no URL, data URI or path can pass.
  */
 const FILE_ID = /^[A-Za-z0-9_-]{1,128}$/;

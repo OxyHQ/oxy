@@ -120,14 +120,12 @@ function authorizeServiceAward(
  *    `Record<string, unknown>` and imported no reputation type from anywhere,
  *    so nothing but human attention connected the two.
  *  - The `schema.parse(dto)` call is the RUNTIME guard, for what the compiler
- *    cannot see: a mongoose path typed as required that is actually absent on
- *    an old document, and any key the type system was told about but the
- *    document contradicts.
+ *    cannot see: a value typed as required that is actually absent on an old
+ *    row, and any key the type system was told about but the row contradicts.
  *
- * Mongoose ids and dates are converted HERE, at the boundary — the contract
- * types every id as a string and every timestamp as an ISO 8601 string.
- * `Date.prototype.toJSON` already produced exactly `toISOString()`, so the
- * bytes on the wire are unchanged.
+ * Ids and dates are converted HERE, at the boundary — the contract types every
+ * id as a string and every timestamp as an ISO 8601 string, which is exactly
+ * what `Date.prototype.toJSON` / `toISOString()` produce.
  */
 
 /** Shape a transaction for the HTTP response. */

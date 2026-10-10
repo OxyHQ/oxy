@@ -13,7 +13,7 @@
  * mocked it and asserted on the arguments it was handed.
  *
  * `session.service` (token minting) and `deviceSession.service` (the deviceSecret
- * mint) are mocked: collaborators, not the subject. Nothing about MongoDB is
+ * mint) are mocked: collaborators, not the subject. The database is not
  * mocked.
  */
 

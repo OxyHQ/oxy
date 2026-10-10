@@ -33,7 +33,7 @@ export const emailFilterActions = pgTable(
      *
      * Its MEANING depends on `type`: a `mailboxes.id` for `move`, a label name
      * for `label`, an email address for `forward`. That is three different
-     * relations in one column — the shape Mongo left behind — so it carries no
+     * relations in one column — so it carries no
      * foreign key and the executor resolves it per type. Splitting it into
      * three nullable columns would encode the same union with three CHECKs and
      * no more integrity, since two of the three are not row ids at all.

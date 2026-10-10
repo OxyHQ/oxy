@@ -410,8 +410,7 @@ async function ensureChannel(
   applicationId: string,
   name: string,
 ): Promise<ChannelRow> {
-  // Mongoose stored this trimmed (`trim: true`), which Postgres has no
-  // counterpart for. `channelNameSchema` already refuses whitespace on every
+  // Stored trimmed; Postgres has no column-level trim. `channelNameSchema` already refuses whitespace on every
   // write path, so this only keeps the stored value's shape stated where it is
   // written rather than assumed.
   const trimmed = name.trim();
@@ -651,10 +650,10 @@ export async function rollback(
  * back to the update embedded in their binary. Replaces any existing directive
  * for the same tuple; `commitTime` is set to now.
  *
- * ONE idempotent statement, and that is the whole point. The Mongo shape —
- * `$pull` the old entry, then `$push` the new one — left a window in which the
- * directive did not exist at all: a device polling the manifest endpoint inside
- * it is handed the very update it was just rolled back from. It also let two
+ * ONE idempotent statement, and that is the whole point. Removing the old entry
+ * and then adding the new one would leave a window in which the directive did
+ * not exist at all: a device polling the manifest endpoint inside it is handed
+ * the very update it was just rolled back from. It would also let two
  * concurrent rollbacks leave two entries for the same tuple. Neither is
  * representable here: the `(channel_id, runtime_version, platform)` primary key
  * is the target of the conflict clause, so the row is updated in place and is
@@ -850,8 +849,7 @@ export async function listUpdates(
   if (platform) filters.push(eq(appUpdates.platform, platform));
 
   // The channel name comes back on the join rather than from a second pass over
-  // the results — the Mongo version had to resolve it separately because the
-  // channel was a bare id with nothing to join to.
+  // the results.
   const rows = await db
     .select({ ...updateColumns, channelName: updateChannels.name })
     .from(appUpdates)

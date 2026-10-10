@@ -200,7 +200,7 @@ function serializeMember(member: AccountMemberRow, source: 'direct' | 'inherited
     inherit: member.inherit,
     status: member.status,
     source,
-    // Mongoose omitted an unset optional; a nullable column reads back `null`.
+    // The wire omits an unset optional; a nullable column reads back `null`.
     invitedByUserId: member.invitedByUserId ?? undefined,
     joinedAt: member.joinedAt,
     createdAt: member.createdAt,
@@ -279,9 +279,8 @@ async function loadAccountContext(req: AccountContextRequest): Promise<{
   const operatorId = await resolveOperatorId(req);
   const id = req.params.id;
 
-  // The `isValidObjectId` guard is gone: it only ever prevented a Mongoose
-  // `CastError`, and a Postgres text id that matches no row is already the 404
-  // this endpoint documents.
+  // No id-shape guard: a text id that matches no row is already the 404 this
+  // endpoint documents.
   const [account] = await getDb()
     .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
     .from(users)

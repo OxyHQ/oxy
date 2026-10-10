@@ -8,24 +8,13 @@
  *
  * ## The guarantee this file exists for
  *
- * **A dead federated actor must be archivable whichever side of the cutover its
- * account was created on, and a real account must never be archivable at all.**
+ * **A dead federated actor must be archivable whether its id is a legacy 24-hex
+ * id or a uuid v7, and a real account must never be archivable at all.**
  *
- * Two defects worked against the first half, either one alone sufficient:
- *
- *  1. `federationActorGoneSchema` validated `oxyUserId` with `/^[a-f0-9]{24}$/i`
- *     inside `validate({ body })`, so a post-cutover account — whose id is the
- *     uuid v7 `generatedId()` mints — was answered 400 before the handler ran.
- *  2. The guard read `User.findById` (Mongo) while the surrounding system had
- *     moved to Postgres, so the read and the archived state it decides on lived
- *     in different databases.
- *
- * The previous suite could not have caught either: it replaced the model with an
- * in-memory map, seeded it with the literal ids `'a'.repeat(24)` / `'b'.repeat(24)`,
- * and asserted the ARGUMENTS of a mocked `updateOne` — a shape assertion, which
- * stays green no matter what the database ends up holding. Here the archive is
- * read back out of `users`, and the post-cutover ids are minted by the schema
- * itself and asserted not to be 24-hex, so nothing passes vacuously.
+ * A 24-hex pattern on `oxyUserId` in `federationActorGoneSchema` would answer a
+ * uuid v7 account 400 before the handler ran. Here the archive is read back out
+ * of `users`, and the uuid ids are minted by the schema itself and asserted not
+ * to be 24-hex, so nothing passes vacuously.
  *
  * ## What is still mocked, and why
  *

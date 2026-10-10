@@ -9,7 +9,6 @@
  *
  * ## `expires_at` is NOT a TTL, and must never be registered as one
  *
- * Mongo indexed it with a `partialFilterExpression`, not `expireAfterSeconds`.
  * A due strike is RESOLVED — `status` moves to `expired` and the ledger row
  * survives, because a minor error must not become a permanent condemnation and
  * must not become an erased one either. Adding this column to
@@ -19,10 +18,10 @@
  * ## `policy_version` is a foreign key now
  *
  * It names the Oxy Conduct Policy version the consequence was derived under, so
- * the consequence can be recomputed under it. In Mongo that was an unchecked
- * string; here it references `moderation_policies.policy_version` with
- * `ON DELETE RESTRICT` — a version may not be deleted while a strike was derived
- * under it. See `moderationPolicies.ts`.
+ * the consequence can be recomputed under it. It references
+ * `moderation_policies.policy_version` with `ON DELETE RESTRICT` — a version
+ * may not be deleted while a strike was derived under it. See
+ * `moderationPolicies.ts`.
  */
 
 import { sql } from 'drizzle-orm';
@@ -133,8 +132,8 @@ export const conductStrikes = pgTable(
       t.effectType,
       t.decisionRevision,
     ),
-    // Summing a user's active risk. Mongo also declared a standalone `{userId}`;
-    // dropped as redundant, since a btree serves any leading prefix.
+    // Summing a user's active risk. No standalone `(user_id)` index: a btree
+    // serves any leading prefix.
     index('conduct_strikes_user_id_status_idx').on(t.userId, t.status),
     // Repetition assessment: prior similar incidents for a subject, by family.
     index('conduct_strikes_user_id_family_created_at_idx').on(
@@ -144,10 +143,9 @@ export const conductStrikes = pgTable(
     ),
     // Reversal resolves every strike a decision revision produced.
     index('conduct_strikes_decision_id_decision_revision_idx').on(t.decisionId, t.decisionRevision),
-    // The resolution job: due active strikes, oldest first. Mongo's
-    // `partialFilterExpression: { status: 'active', expiresAt: { $exists: true } }`
-    // — partial here for the same reason, so the index holds only rows the job
-    // can act on.
+    // The resolution job: due active strikes, oldest first. Partial
+    // (`status = 'active'` with an `expires_at`), so the index holds only rows
+    // the job can act on.
     index('conduct_strikes_expires_at_idx')
       .on(t.expiresAt)
       .where(sql`${t.status} = 'active' and ${t.expiresAt} is not null`),

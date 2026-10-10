@@ -1,12 +1,9 @@
 /**
  * The node registry (F5a user nodes), against a REAL Postgres.
  *
- * The suite this replaces mocked `models/UserNode` and asserted on the ARGUMENTS
- * handed to `findOneAndUpdate` — `update.$set` — so it described a Mongoose call
- * shape rather than a stored row, and every one of those assertions would still
- * have passed against a service that wrote nothing. The model is not imported by
- * the service any more, so those mocks are also inert. What survives is the set
- * of guarantees, each now checked against rows written in the same test:
+ * An assertion on the ARGUMENTS of a write describes a call shape rather than
+ * a stored row, and would still pass against a service that wrote nothing. So
+ * each guarantee is checked against rows written in the same test:
  *
  *  - **A registration is an UPSERT, and re-registering is idempotent.** One row
  *    per account, `id` and `created_at` never move, and the projected fields are
@@ -15,14 +12,14 @@
  *    Oxy DB alone; a node that is down or has never been probed still resolves,
  *    which is what keeps a DID document readable.
  *  - **An absent optional is OMITTED, never `null`.** Drizzle returns `null`
- *    where a lean Mongoose document returned `undefined`, and `GET /nodes/me`
+ *    for an empty column, and `GET /nodes/me`
  *    serializes these fields straight onto the wire — a `null` there is a wire
  *    format change for every consumer. Asserted as an exact JSON body.
  *  - **`managed` and `controller` cannot disagree.** The schema CHECK makes the
  *    contradiction unrepresentable and the option carries ONE operator field.
- *  - **The liveness sweep takes never-probed nodes FIRST.** Mongo sorts a
- *    missing date ahead of every date; Postgres sorts NULLs LAST by default, so
- *    without the explicit `nulls first` a newly registered node is starved
+ *  - **The liveness sweep takes never-probed nodes FIRST.** Postgres sorts
+ *    NULLs LAST by default on an ascending sort, so without the explicit
+ *    `nulls first` a newly registered node is starved
  *    forever — a silent, unbounded regression.
  *
  * Only `safeFetch` is mocked: it is the network, and the point of the probe is
@@ -321,10 +318,9 @@ describe('materializeNodeFromRecord', () => {
 
 describe('an absent optional is OMITTED, never null — the /nodes/me wire contract', () => {
   it('returns no key at all for every unset column', async () => {
-    // Drizzle hands back `null` where a lean Mongoose document handed back
-    // `undefined`. `JSON.stringify` drops an undefined property and EMITS a null,
-    // so serializing the row as-is would put `"nodeDid": null` on a wire that has
-    // never carried one.
+    // Drizzle hands back `null` for an empty column. `JSON.stringify` drops an
+    // undefined property and EMITS a null, so serializing the row as-is would
+    // put `"nodeDid": null` on a wire that has never carried one.
     const userId = await account();
     const node = await materializeNodeFromRecord(userId, nodeRecord());
     if (!node) throw new Error('expected the node to materialize');
@@ -499,8 +495,8 @@ describe('probeLiveness', () => {
 
 describe('sweepNodeLiveness', () => {
   it('probes a NEVER-probed node before a recently-probed one', async () => {
-    // Mongo sorts a missing `lastProbeAt` ahead of every date on an ascending
-    // sort; Postgres puts NULLs LAST unless told otherwise. Without `nulls
+    // Postgres puts a NULL `lastProbeAt` LAST on an ascending sort unless told
+    // otherwise. Without `nulls
     // first`, a freshly registered node is never picked up by the sweep at all.
     const staleEndpoint = `https://stale-${Date.now()}.example.com`;
     const freshEndpoint = `https://fresh-${Date.now()}.example.com`;

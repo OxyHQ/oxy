@@ -15,25 +15,24 @@
  * point is that a caller stores whatever its feature needs. That is exactly the
  * case `CONVENTIONS.md` reserves `jsonb` for, and no CHECK constrains its type.
  *
- * **`{}` must survive the round trip.** Mongoose sets `minimize: false` on this
- * schema precisely so an empty object is STORED rather than stripped to
- * absent — a progress record that legitimately has no entries yet is not the
- * same thing as no record. `jsonb` preserves it natively; the pin is in
- * `__tests__/socialGraph.test.ts` so a future switch to `json`, `text` or an
+ * **`{}` must survive the round trip.** An empty object is STORED rather than
+ * stripped to absent — a progress record that legitimately has no entries yet
+ * is not the same thing as no record. `jsonb` preserves it natively; the pin is
+ * in `__tests__/socialGraph.test.ts` so a future switch to `json`, `text` or an
  * application-side "empty means null" shortcut goes red.
  *
  * ## The identifier validators became CHECK constraints
  *
- * `namespace` and `key` carried `match: /^[a-z0-9_-]{1,64}$/u` in Mongoose, so
- * every stored value already satisfies it and the constraint cannot reject a
- * backfilled row. Encoding it here is not the trim/lowercase case
+ * `namespace` and `key` must match `/^[a-z0-9_-]{1,64}$/u`, which the
+ * application has always validated, so every stored value already satisfies it.
+ * Encoding it here is not the trim/lowercase case
  * `CONVENTIONS.md` warns about — that warning is about SILENT normalization,
  * where a CHECK would turn a value the setter used to repair into a 500. This
  * was already a hard validator that REJECTED, so moving it into the schema
  * changes nothing except that a backfill or a `psql` session can no longer
  * bypass it.
  *
- * The pattern subsumes Mongoose's `trim`, `lowercase` and `maxlength: 64` in one
+ * The pattern subsumes trimming, lower-casing and a 64-character limit in one
  * expression: no uppercase, no whitespace, and 1–64 characters are all
  * unrepresentable outside it.
  */
@@ -52,10 +51,9 @@ import { users } from './users';
  * shorthand — `^`/`$` are explicit and `~` is the case-SENSITIVE operator, which
  * is what makes the lowercase requirement real.
  *
- * This is the SINGLE declaration — the Mongoose `match:` validator that carried
- * the other copy is gone. `__tests__/socialGraph.test.ts` holds this pattern and
- * the SQL the CHECK is built from in agreement, behaviourally, over a corpus
- * that straddles the boundary.
+ * This is the SINGLE declaration. `__tests__/socialGraph.test.ts` holds this
+ * pattern and the SQL the CHECK is built from in agreement, behaviourally, over
+ * a corpus that straddles the boundary.
  */
 export const APP_DATA_IDENTIFIER_SQL_PATTERN = '^[a-z0-9_-]{1,64}$';
 
@@ -90,9 +88,9 @@ export const userAppData = pgTable(
   (t) => [
     // One row per (user, namespace, key).
     unique('user_app_data_user_id_namespace_key_key').on(t.userId, t.namespace, t.key),
-    // Mongo also declared `{userId, namespace}` for listing a whole namespace.
-    // Dropped as redundant: it is a leading prefix of the unique above, and a
-    // btree serves any leading prefix — the same call `push_tokens` made.
+    // Listing a whole namespace needs no index of its own: `(user_id,
+    // namespace)` is a leading prefix of the unique above, and a btree serves
+    // any leading prefix — the same call `push_tokens` made.
 
     check(
       'user_app_data_namespace_check',

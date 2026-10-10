@@ -4,14 +4,10 @@
  *
  * Ported from `models/AuthChallenge.ts`.
  *
- * Mongo self-pruned these with a TTL index on `expiresAt`. Postgres has no
- * equivalent, so the table is registered in `db/expiry.ts` and swept — but the
- * sweep is HOUSEKEEPING ONLY here: every read path already filters
- * `expiresAt > now()` itself (`session.controller.ts:297`,
- * `authSession.service.ts:280`, `authLinking.ts:303`), exactly as it had to under
- * Mongo's ~60s-lagging TTL monitor. Those filters must survive the call-site
- * port; without them a challenge stays spendable for up to one sweep interval
- * past its deadline.
+ * The table is registered in `db/expiry.ts` and swept — but the sweep is
+ * HOUSEKEEPING ONLY here: every read path filters `expires_at > now()` itself.
+ * Those filters must stay; without them a challenge stays spendable for up to
+ * one sweep interval past its deadline.
  */
 
 import { sql } from 'drizzle-orm';
@@ -46,11 +42,8 @@ export const authChallenges = pgTable(
     publicKey: text().notNull(),
     challenge: text().notNull(),
     /**
-     * Mongo left this optional and every reader had to accept `null` for
-     * documents predating the field (`purpose: { $in: ['signin', null] }`). Here
-     * it is NOT NULL with the same default the model declared, so the backfill
-     * maps absent/null to `'signin'` once and readers compare with plain
-     * equality — the legacy null branch does not travel.
+     * NOT NULL, defaulting to `'signin'`, so readers compare with plain
+     * equality and never need a null branch.
      */
     purpose: text({ enum: AUTH_CHALLENGE_PURPOSES }).notNull().default('signin'),
     /** Explicit target and actor for the payload-bound agent proof. Account deletion retires it. */
@@ -75,11 +68,10 @@ export const authChallenges = pgTable(
     // Invalidate pending proofs when the governed account is archived/recovered.
     index('auth_challenges_account_id_idx').on(t.accountId).where(sql`${t.accountId} is not null`),
     unique('auth_challenges_challenge_key').on(t.challenge),
-    // Supports the expiry sweep in `db/expiry.ts` — the replacement for Mongo's
-    // TTL index on this column.
+    // Supports the expiry sweep in `db/expiry.ts`.
     index('auth_challenges_expires_at_idx').on(t.expiresAt),
-    // Mongo also declared a `{publicKey: 1, challenge: 1}` compound index. It
-    // was redundant there and is redundant here: every read is keyed on the
+    // No `(public_key, challenge)` index: it would be redundant, since every
+    // read is keyed on the
     // high-entropy `challenge`, which the unique index above answers directly.
     check(
       'auth_challenges_purpose_check',

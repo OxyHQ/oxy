@@ -13,20 +13,14 @@ import { logger } from '../../utils/logger';
  *    the min-interval does not launch another refresh.
  *  - A failing background refresh never throws out of resolveAndUpsert.
  *
- * ## Why the rewrite mattered here more than anywhere else
+ * ## Why every write assertion reads the row back
  *
- * The suite this replaces mocked `models/User` and asserted on the `$set`
- * PAYLOAD of `findOneAndUpdate`/`updateOne` — e.g.
- * `expect(updateArgs[1].$set).toMatchObject({ 'name.first': 'Alice Updated' })`.
- * Those assertions passed against a service whose write went to Mongo while
- * `routes/federation.ts` and `routes/profiles.ts` READ from Postgres: the exact
- * cross-store split this port closes was invisible to them, because no
- * assertion ever looked at a stored row.
- *
- * Worse, `'name.first'` is a Mongo DOT PATH. Drizzle keys `set()` by column
- * PROPERTY and silently ignores an unknown key, so a naive port of that literal
- * writes NOTHING and throws NOTHING. Every write assertion below therefore
- * reads the row back and checks `name_first` really moved.
+ * Drizzle keys `set()` by column PROPERTY and silently ignores an unknown key,
+ * so a write keyed by a dotted path like `'name.first'` writes NOTHING and
+ * throws NOTHING. An assertion on the write's PAYLOAD would pass anyway. Every
+ * write assertion below therefore reads the row back and checks `name_first`
+ * really moved — the same row `routes/federation.ts` and `routes/profiles.ts`
+ * read.
  *
  * The storm guard uses module-level state keyed by actor URI, which persists
  * across tests in this file. Each test therefore uses a UNIQUE handle/actor so
@@ -409,9 +403,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       userId,
     );
 
-    // The ROW, not the call payload. `name_first` is the column the Mongo dot
-    // path `'name.first'` used to name; a port that kept the dot path writes
-    // nothing here, and this assertion is what says so.
+    // The ROW, not the call payload. A write keyed by the dotted path
+    // `'name.first'` instead of the `nameFirst` property writes nothing here,
+    // and this assertion is what says so.
     const row = await storedUser(userId);
     expect(row).toMatchObject({
       nameFirst: 'Alice Updated',
@@ -471,8 +465,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     await federationService.resolveAndUpsert(fx.handle);
     await settleBackgroundWork();
 
-    // Mongo's `$unset` is a write of NULL here — "available" is what NULL means
-    // on these two columns.
+    // Clearing is a write of NULL — "available" is what NULL means on these two
+    // columns.
     const row = await storedUser(userId);
     expect(row?.unavailableAt).toBeNull();
     expect(row?.unavailableReason).toBeNull();

@@ -109,7 +109,7 @@ describe('the id format must not decide whether the trail is written', () => {
     expect(result?.userId).toBe(userId);
     expect(result?.eventType).toBe('sign_in');
     // …and actually STORED. The returned object alone cannot tell the two apart:
-    // the Mongo version returned a row-shaped value for events it never wrote.
+    // a row-shaped value can be returned for an event that was never written.
     const rows = await storedRows(userId);
     expect(rows).toHaveLength(1);
     expect(rows[0].eventDescription).toBe('User signed in');
@@ -336,9 +336,8 @@ describe('deduplication', () => {
     const first = await securityActivityService.logSignIn(userId, makeRequest(), 'device-1');
     const second = await securityActivityService.logSignIn(userId, makeRequest(), 'device-1');
 
-    // The Mongo version fabricated `_id: new Types.ObjectId()` here — a row-shaped
-    // value whose id named no record anywhere. The suppressed call now answers
-    // with the row that IS stored.
+    // The suppressed call answers with the row that IS stored, never a
+    // fabricated row-shaped value whose id names no record.
     expect(second?.id).toBe(first?.id);
     expect(await storedRows(userId)).toHaveLength(1);
   });
@@ -389,7 +388,7 @@ describe('a write that cannot land', () => {
     // the deleted regex only ever guessed at the id's SHAPE, and this id is
     // perfectly well-shaped. Audit logging must not break the operation it
     // describes, so the failure is logged and swallowed; `null` is how the
-    // caller can tell, which the Mongo version's fabricated document could not.
+    // caller can tell, which a fabricated document could not.
     const record = await securityActivityService.logSecurityEvent({
       userId: randomUUID(),
       eventType: 'sign_in',

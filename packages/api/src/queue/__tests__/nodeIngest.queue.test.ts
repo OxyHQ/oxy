@@ -171,8 +171,7 @@ describe('sweepPullNodes — which nodes are eligible', () => {
 
 describe('sweepPullNodes — ordering', () => {
   it('takes a NEVER-synced node before an old one, and an old one before a recent one', async () => {
-    // Mongo sorts a missing `lastSyncedAt` ahead of every date on an ascending
-    // sort; Postgres puts NULLs LAST unless told otherwise. Without `nulls
+    // Postgres puts NULLs LAST on an ascending sort unless told otherwise. Without `nulls
     // first` a freshly registered node sorts behind every node that has ever
     // been ingested — and since the sweep is bounded to
     // `NODE_INGEST_SWEEP_BATCH`, it is never picked up at all.

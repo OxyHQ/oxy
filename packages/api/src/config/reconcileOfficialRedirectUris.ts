@@ -50,15 +50,13 @@ export async function reconcileOfficialRedirectUris(): Promise<number> {
   for (const app of apps) {
     if (!isTrustedApplication(app)) continue;
 
-    // `websiteUrl` is NULL in Postgres where Mongo left it absent. Both mean "no
-    // canonical redirect surface declared" and the repair already accepts
-    // either, so the NULL travels rather than being laundered into `undefined`.
+    // `websiteUrl` may be NULL, meaning "no canonical redirect surface
+    // declared"; the repair accepts NULL as well as `undefined`, so the NULL
+    // travels rather than being laundered into `undefined`.
     const repairedUris = computeOfficialRedirectUriRepair(app.redirectUris, app.websiteUrl);
     if (!repairedUris) continue;
 
-    // A targeted column update replaces Mongoose's load-mutate-`save()`: the
-    // document round trip existed only because Mongoose needed a hydrated doc
-    // to write one field.
+    // A targeted column update: only the one field changes.
     await db
       .update(applications)
       .set({ redirectUris: repairedUris })

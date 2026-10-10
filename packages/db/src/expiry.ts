@@ -1,62 +1,57 @@
 /**
- * Expiry Sweep — the replacement for Mongo TTL indexes
+ * Expiry Sweep — time-based row retention
  *
- * Postgres has no TTL index. A consumer whose Mongo models relied on one needs
- * the same behaviour reproduced in Postgres, so the mechanism is defined ONCE
- * here: a caller builds a list of {@link ExpirySweepTarget}s — one per table
- * that used to carry a TTL index — and passes it to {@link sweepAllExpiredRows}.
+ * Postgres has no TTL index. A table whose rows must disappear after a
+ * deadline needs that behaviour done explicitly, so the mechanism is defined
+ * ONCE here: a caller builds a list of {@link ExpirySweepTarget}s — one per
+ * table with a retention rule — and passes it to {@link sweepAllExpiredRows}.
  * The registry itself belongs to the consumer, not this package, because it
  * names the consumer's own tables.
  *
- * ## THE RULE, because it is the quietest failure in a Mongo-to-Postgres port
+ * ## THE RULE, because it is the quietest failure there is
  *
- * **A TTL index is a behaviour of the SOURCE that does not survive the port.**
- * Mongo reaps; Postgres does not. A table ported without a registry entry grows
- * FOREVER — no error, no failing test, no symptom of any kind until disk. It is
- * structurally invisible because the thing doing the work was never in the
- * consumer's code to be missed: there is no deleted call site, no orphaned
- * function, nothing a reviewer diffing the port would see go absent.
+ * **Nothing reaps a table that has no registry entry.** A table that needs
+ * retention and lacks an entry grows FOREVER — no error, no failing test, no
+ * symptom of any kind until disk. It is structurally invisible: there is no
+ * call site to notice missing, nothing a reviewer would see go absent.
  *
- * So porting a collection is not done when its schema, migration and backfill
- * plan exist. If its Mongoose model declares `expireAfterSeconds`, it is done
- * only once a matching entry exists in the consumer's own registry — and a
- * consumer should gate that with a test that WALKS its schema for
- * `expireAfterSeconds` declarations, rather than one that names tables by hand
- * and can only fall as far behind as the last time someone remembered to
- * update it.
+ * So a table with a retention rule is not done when its schema and migration
+ * exist; it is done only once a matching entry exists in the consumer's own
+ * registry — and a consumer should gate that with a test that WALKS its
+ * schema for retention declarations, rather than one that names tables by
+ * hand and can only fall as far behind as the last time someone remembered
+ * to update it.
  *
  * ## The shape
  *
- * A Mongo TTL index is `{ <field>: 1 }, { expireAfterSeconds: N }` — delete a
- * document once `<field>` is more than N seconds in the past. A registry entry
- * is exactly that pair, so no semantic is lost in translation:
+ * A retention rule is "delete a row once `<column>` is more than N seconds in
+ * the past". A registry entry is exactly that pair:
  *
  *   { table, column, retentionSeconds }  →  delete where column <= now() - N
  *
- * Both common uses collapse into it: `expireAfterSeconds: 0` on a column that
+ * Both common uses collapse into it: `retentionSeconds: 0` on a column that
  * already stores the deadline (an `expiresAt` column — the column IS the
- * deadline), and `expireAfterSeconds: N` measured from a birth column
+ * deadline), and `retentionSeconds: N` measured from a birth column
  * (`createdAt` and similar).
  *
- * ## Every entry needs to be checked for INTENT, not just replicated
+ * ## Every entry needs to be checked for INTENT
  *
- * A Mongo TTL index DELETES the document — always, unconditionally, once the
- * deadline passes. Before adding a table to a registry, confirm that is really
- * what should happen: a TTL index can be written to mean "mark expired" and
- * quietly destroy history instead, and a TTL'd table that still holds
- * unprocessed work (an outbox, a queue) needs an explicit note about what a
- * stalled consumer plus this sweep does to that backlog — a registry entry
- * with no such note reads as "unconditionally safe to sweep."
+ * The sweep DELETES the row — always, unconditionally, once the deadline
+ * passes. Before adding a table to a registry, confirm that is really what
+ * should happen: "mark expired" written as a retention rule quietly destroys
+ * history instead, and a table that still holds unprocessed work (an outbox,
+ * a queue) needs an explicit note about what a stalled consumer plus this
+ * sweep does to that backlog — a registry entry with no such note reads as
+ * "unconditionally safe to sweep."
  *
  * ## Coexistence with reads
  *
- * Mongo's TTL monitor lags roughly its own check interval; this sweep lags one
- * call. A registry entry is only safe to add once its table's own read paths
- * are audited for depending on a swept row already being gone — every table
- * should either filter on its own deadline independently of the sweep, or be a
- * rolling view where an extra, not-yet-swept row is stale but never unsafe.
- * Adding a read that relies on absence turns the sweep interval into a
- * correctness window.
+ * This sweep lags one call. A registry entry is only safe to add once its
+ * table's own read paths are audited for depending on a swept row already
+ * being gone — every table should either filter on its own deadline
+ * independently of the sweep, or be a rolling view where an extra,
+ * not-yet-swept row is stale but never unsafe. Adding a read that relies on
+ * absence turns the sweep interval into a correctness window.
  *
  * ## Scheduling
  *
@@ -71,8 +66,7 @@ import { executeRows, type SqlExecutor } from './database';
 
 /**
  * Rows deleted per statement. Bounded so a large backlog cannot hold one long
- * transaction open — Mongo's TTL monitor deleted incrementally for the same
- * reason.
+ * transaction open.
  */
 const DEFAULT_BATCH_SIZE = 1000;
 
@@ -83,7 +77,7 @@ const DEFAULT_BATCH_SIZE = 1000;
  */
 const DEFAULT_MAX_BATCHES = 50;
 
-/** One table's expiry rule — the direct analogue of a Mongo TTL index. */
+/** One table's expiry rule. */
 export interface ExpirySweepTarget {
   readonly table: PgTable;
   /** The date column the retention is measured from. Must be indexed. */

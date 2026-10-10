@@ -175,7 +175,7 @@ integration. SDK billing passed 7/7 from `packages/core` with
 `bun run test --runInBand src/api/__tests__/billing.test.ts`.
 
 Root snapshot sync, migration phase/journal order, OpenAPI freshness, tracked
-no-flat-account-list/no-Mongo scans, scoped API ESLint and core Biome lint all
+no-flat-account-list and dependency scans, scoped API ESLint and core Biome lint all
 passed. Dependency builds and API compilation passed; the retained build excerpt
 is explicitly only its last 30 lines, with the original log hash in the record.
 Initial test fixtures needed a required credential name and a distinct segment

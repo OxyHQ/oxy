@@ -207,9 +207,8 @@ describe('appSignalsService.ingestAffinityEvents', () => {
   });
 
   it('dedups an eventId whose only difference is surrounding whitespace', async () => {
-    // `AppAffinityEventSeen.eventId` was `trim: true` in Mongoose; Postgres has
-    // no setter, so the trim is re-applied at this call site or the same id in
-    // two spellings folds twice.
+    // `eventId` is trimmed at this call site (Postgres has no setter), or the
+    // same id in two spellings folds twice.
     await appSignalsService.ingestAffinityEvents(APP_ID, [
       { fromUserId: FROM_ID, toUserId: TO_ID, type: 'like', eventId: 'evt_2' },
     ]);

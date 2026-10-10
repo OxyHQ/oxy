@@ -10,22 +10,21 @@ import { getEquivalentUserGroups } from './externalIdentityRegistry.service';
 /**
  * Authorization for reading a stored asset.
  *
- * ## The fail-open guard this port removes
+ * ## No id-shape guard — it would fail open
  *
- * `isUserBlocked` and `isUserRestricted` used to open with
+ * `isUserBlocked` and `isUserRestricted` must NOT open with
  *
  * ```ts
  * const objectIdRegex = /^[0-9a-f]{24}$/i;
  * if (!objectIdRegex.test(ownerId) || !objectIdRegex.test(viewerId)) return false;
  * ```
  *
- * and `false` from those methods means NOT BLOCKED / NOT RESTRICTED. So any id
- * that was not 24 hex characters SKIPPED block and restrict enforcement
- * entirely and the media was served — no error, no log. It was written to do two
- * things at once: recognise the `__federation__`-style sentinel owners, and stop
- * a non-ObjectId string reaching Mongo as a `CastError`. Both are gone here:
+ * because `false` from those methods means NOT BLOCKED / NOT RESTRICTED. Any id
+ * that is not 24 hex characters would SKIP block and restrict enforcement
+ * entirely and the media would be served — no error, no log. Neither thing such
+ * a guard might be for needs it:
  *
- * - A system-owned asset is now `owner_user_id is null` plus a `system_owner`
+ * - A system-owned asset is `owner_user_id is null` plus a `system_owner`
  *   value (`schema/files.ts`), so the sentinel is a NULL check rather than a
  *   guess at a string's shape — total, and impossible to get wrong for an id
  *   format nobody anticipated.
@@ -33,12 +32,11 @@ import { getEquivalentUserGroups } from './externalIdentityRegistry.service';
  *   bound parameters, so an id of any shape is a value, never a cast and never
  *   an operator.
  *
- * The guard is therefore deleted rather than adapted. It was inert only while
- * every id happened to be 24-hex; new rows carry uuid v7 ids
- * (`@oxy.so/db`'s `generatedId()`), which the regex rejects — under the old code every
- * post-cutover account would have silently bypassed block and restrict
- * enforcement on media. `__tests__/mediaPrivacyService.test.ts` pins this:
- * reinstate the regex and the blocked-viewer case goes red.
+ * Ids are either legacy 24-hex ids or uuid v7 (`@oxy.so/db`'s `generatedId()`),
+ * which the regex rejects — so with it, every uuid-id account would silently
+ * bypass block and restrict enforcement on media.
+ * `__tests__/mediaPrivacyService.test.ts` pins this: reinstate the regex and the
+ * blocked-viewer case goes red.
  */
 export class MediaPrivacyService {
   /**
@@ -194,10 +192,8 @@ export class MediaPrivacyService {
   /**
    * Does `followerId` follow `followedId`?
    *
-   * Mongo answered this by loading the target account and scanning its
-   * `followers[]` array — a whole user document (plus a userCache entry holding
-   * it) to learn one boolean. `users.followers[]` no longer exists: the edge
-   * lives in `user_follows`, where the compound unique makes this a point read.
+   * The edge lives in `user_follows`, where the compound unique makes this a
+   * point read.
    */
   private async isFollowing(
     followerId: string,
@@ -222,11 +218,9 @@ export class MediaPrivacyService {
   /**
    * Check entity-level permissions.
    *
-   * `authorId` is caller-supplied. Mongo needed an `ObjectId.isValid` gate here
-   * so a user-shaped value could not reach the query as a query OPERATOR; a
-   * bound `text` parameter cannot be one, and an id matching no follow edge is
-   * denied by the same branch a missing author was. The gate is therefore gone
-   * without any behaviour changing.
+   * `authorId` is caller-supplied. It is a bound `text` parameter, so it can
+   * never act as a query operator, and an id matching no follow edge is denied
+   * by the same branch as a missing author. No id-shape gate is needed.
    */
   private async checkEntityAccess(
     context: MediaAccessContext,

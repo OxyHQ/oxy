@@ -149,8 +149,7 @@ export const inferenceModelRevisions = pgTable(
      *
      * A partial unique index, so the many rows with `is_current = false` do not
      * collide with one another. `uniqueIndex().where(...)` is the sanctioned
-     * shape for a Mongo `partialFilterExpression`; here there was no Mongo
-     * original, but it is the same tool for the same job.
+     * shape for a partial uniqueness rule.
      */
     uniqueIndex('inference_model_revisions_one_current_per_model')
       .on(t.modelId)

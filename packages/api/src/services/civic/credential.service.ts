@@ -421,8 +421,8 @@ export async function issueOrgCredential(
 /**
  * Assemble the {@link DidUserInput} `buildDidDocument` needs for an account.
  *
- * The Mongoose document carried `authMethods[]` and `verifiedDomains[]` as
- * embedded arrays; both are child tables now, so the three reads are explicit.
+ * `authMethods[]` and `verifiedDomains[]` are child tables, so the three reads
+ * are explicit.
  * Only the fields the DID document is built from are selected — the rest of the
  * users row (including its protected columns) never enters this path.
  */
@@ -559,8 +559,8 @@ async function markExpired(id: string): Promise<void> {
  */
 export async function verifyCredential(idOrRecordId: string): Promise<CredentialVerification> {
   // Two lookups because the argument is EITHER a content address or a row id;
-  // the Mongo version needed an `isValidObjectId` guard before the second so
-  // Mongoose would not throw a `CastError`, and a text id simply matches no row.
+  // no id-shape guard is needed, since a text id that names no row simply
+  // matches no row.
   const [byRecordId] = await getDb()
     .select()
     .from(verifiableCredentials)
@@ -639,8 +639,8 @@ export async function revokeCredential(
   }
 
   // `status` and `revoked_at` move in ONE statement because the table's
-  // revocation CHECK requires them to agree — Mongo could store a revocation
-  // date on an active credential, and `verifyCredential` reads only the status.
+  // revocation CHECK requires them to agree — `verifyCredential` reads only the
+  // status, so a revocation date on an active credential would mislead.
   const [revoked] = await getDb()
     .update(verifiableCredentials)
     .set({ status: 'revoked', revokedAt: new Date() })

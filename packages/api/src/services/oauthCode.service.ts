@@ -16,14 +16,13 @@
  * All credential equality checks use `crypto.timingSafeEqual` to
  * eliminate timing leaks on code-binding mismatches.
  *
- * ## The single-use claim survived the port unchanged in SEMANTICS
+ * ## The single-use claim
  *
- * Mongo enforced it with `findOneAndUpdate({_id, usedAt: null}, …)`. Postgres
- * enforces it with `update … where id = $1 and used_at is null … returning`,
- * which is the same guarantee for the same reason: the predicate is evaluated
+ * Postgres enforces it with `update … where id = $1 and used_at is null …
+ * returning`: the predicate is evaluated
  * against the row the statement is about to write, under a row lock, so two
  * concurrent exchanges cannot both match. `returning` is what tells the loser
- * it lost — an empty array, exactly as Mongo's `null` did.
+ * it lost — an empty array.
  *
  * ## Expiry is filtered on the READ path, not left to the sweep
  *
@@ -279,8 +278,7 @@ export async function exchangeAuthCode(options: ExchangeCodeOptions): Promise<Ex
 
   // Atomic single-use claim — if a concurrent request races us, only the first
   // transitions `used_at` off NULL. The loser's `where` matches no row and
-  // `returning` hands it an empty array, which is the same signal Mongo's
-  // `null` was.
+  // `returning` hands it an empty array.
   const now = new Date();
   const [claimed] = await db
     .update(authCodes)

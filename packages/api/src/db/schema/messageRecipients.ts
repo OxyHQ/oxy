@@ -44,9 +44,9 @@ export const messageRecipients = pgTable(
     /** Display name, or NULL when the header carried only an address. */
     name: text(),
     /**
-     * The address. Mongoose stored it `lowercase: true, trim: true`; that is
-     * application behaviour with no Postgres counterpart, so the MIME parse and
-     * compose paths must re-apply it — see the same note on `messages`.
+     * The address, stored lower-cased and trimmed; that is application
+     * behaviour with no Postgres counterpart, so the MIME parse and compose
+     * paths must apply it — see the same note on `messages`.
      */
     address: text().notNull(),
   },

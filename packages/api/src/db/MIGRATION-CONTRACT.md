@@ -1,13 +1,9 @@
-# MongoDB → PostgreSQL migration — historical binding contract
+# Database contract — binding invariants
 
-> The port is complete and the API runtime is PostgreSQL-only. This file records
-> the constraints that governed the port and remains useful when auditing the
-> resulting schema; it is not a current Mongo operating or rollback runbook.
-
-Read this before auditing a port decision or changing the resulting schema. It
-lives in the repo on purpose: an earlier copy sat in a session scratchpad,
-evaporated when that session ended, and seven agents were handed a path to a file
-that no longer existed.
+The API's only database is PostgreSQL. This file records the invariants the
+schema and its migrations must hold. Read it before changing the schema or
+auditing a schema decision. `schema/CONVENTIONS.md` holds the per-table
+conventions that follow from it.
 
 Stack: Drizzle ORM over **`postgres.js`** (`drizzle-orm/postgres-js`), migrations
 applied by `src/db/migrate.ts` (never `drizzle-kit migrate` in production — the
@@ -19,53 +15,47 @@ Nate's two hard constraints, in his words:
 
 1. **"no quiero perder los vínculos relacionales de nada"** — no relational link may be lost.
 2. **"no quiero tricky things, no arrastrar cosas porque sí, todo limpio, eficiente y bien
-   estructurado sin cosas innecesarias"** — no Mongo baggage carried into Postgres.
+   estructurado sin cosas innecesarias"** — nothing carried along without a reason.
 
 When they conflict, STOP and escalate rather than resolving it silently.
 
-## Design as if Postgres were the original choice
+## Design the schema as Postgres
 
-Not a transliteration. Ported-but-wrong is worse than not ported.
-
-**Forbidden:** a compatibility layer that mimics the Mongoose API so call sites can
-stay unchanged; embedded id arrays as `jsonb` instead of junction tables; `jsonb`
-as a dumping ground for anything that had a known shape; `__v`; dead collections;
-denormalized counters inherited only because Mongo could not JOIN.
+**Forbidden:** a compatibility layer that mimics another data-access API so call
+sites can stay unchanged; embedded id arrays as `jsonb` instead of junction
+tables; `jsonb` as a dumping ground for anything that has a known shape; a
+document version counter (`__v`); dead tables; denormalized counters a JOIN can
+answer.
 
 **Required:** real FK constraints with an explicit `ON DELETE` decided per relation;
 junction tables for many-to-many; `NOT NULL` where the data is actually always
-present; partial unique indexes where Mongo had sparse/partial unique; an explicit
-expiry column plus a documented sweep where Mongo had a TTL; `tsvector` + GIN where
-Mongo had a text index.
+present; partial unique indexes for "unique when present"; an explicit expiry
+column plus a documented sweep for time-based retention; `tsvector` + GIN for
+full-text search.
 
 Standing repo rules apply: no `as any`, no `@ts-ignore`, no `!`, no `any` in
 signatures, no silent `catch {}`, no TODO/FIXME, no `console.log`.
 
 ## IDs — decided, do not relitigate
 
-Existing 24-char ObjectId hex strings are preserved **verbatim** in `text` columns.
-The backfill copies `_id` as-is: zero remapping, so every FK survives by
-construction. Remapping to uuid would need an old→new table applied across ~620
-collections, and any id NOT declared as a schema `ref` — a loose string id, an id
-inside a subdocument, an id in a `Mixed` field — would silently fail to remap and
-dangle. Ids are also published externally (DIDs, the signing input of every signed
-record, printed Oxy ID QRs, `cloud.oxy.so/<fileId>` URLs cached by remote fediverse
-instances), so changing them is unfixable from our side.
+Legacy 24-char hex ids are kept **verbatim** in `text` columns, so every FK holds
+by construction. Ids are also published externally (DIDs, the signing input of
+every signed record, printed Oxy ID QRs, `cloud.oxy.so/<fileId>` URLs cached by
+remote fediverse instances), so changing them is unfixable from our side.
 
-New rows post-cutover: **uuid v7**, generated in the application (PG17 has no native
+New rows: **uuid v7**, generated in the application (PG17 has no native
 `uuidv7()`).
 
-**`isValidObjectId` / `ObjectId.isValid` guards are DELETED** where they only
-prevented a Mongoose `CastError` — Postgres text ids simply match no rows, so the
-guard has no reason to exist. Keep explicit validation only where a 400 is a real
-documented contract; otherwise a malformed id now returns 404. Review each site:
-some branch on the result rather than merely rejecting. The `new Types.ObjectId(...)`
-sites are driver artifacts and disappear; they are not ported.
+**No `isValidObjectId` guard where it only screens an id's shape** — a `text` id
+that matches no row is simply not found, so the guard has no reason to exist.
+Keep explicit validation only where a 400 is a real documented contract;
+otherwise a malformed id returns 404. Any guard written for the 24-hex shape
+alone rejects uuid v7 ids.
 
-**SECURITY GATE:** `mediaPrivacyService.ts:96-101` and `:122-126` must lose their
-`/^[0-9a-f]{24}$/` guards BEFORE any non-hex id exists. They return `false` on a
-non-match, and `false` there means NOT BLOCKED / NOT RESTRICTED — a fail-open
-bypass of block and restrict enforcement on media, with no error and no log.
+**SECURITY:** `mediaPrivacyService.ts` must never gate block/restrict checks on
+a 24-hex shape. There, `false` means NOT BLOCKED / NOT RESTRICTED, so a
+shape guard that rejects a uuid v7 id is a fail-open bypass of block and
+restrict enforcement on media, with no error and no log.
 
 ## Settled decisions
 
@@ -80,26 +70,17 @@ bypass of block and restrict enforcement on media, with no error and no log.
 - **PostGIS is adopted** (Nate's explicit decision). `user_locations` keeps written
   `latitude`/`longitude` columns and the spatial column is
   `GENERATED ALWAYS AS (ST_MakePoint(longitude, latitude)::geography) STORED` plus a
-  GiST index — never a separately-written geo column, because the original Mongo
-  defect was a coordinate-ordering mistake and a generated column makes the swap
+  GiST index — never a separately-written geo column, because a coordinate-ordering
+  mistake is the defect to prevent and a generated column makes the swap
   unrepresentable. Any spatial test must verify ORDERING against an independently
   checkable real-world distance: a lat/lon swap yields a plausible point in the wrong
   hemisphere, so a test asserting only "a row came back" passes against the exact bug.
-- **The transactions fallback is deleted, not translated.** The `withTransaction`
-  helpers string-match the "no replica set" error and re-run SESSION-LESS, so those
-  paths currently run non-atomically.
-- **`select: false` is now `protectedColumns.ts`.** Drizzle enumerates columns
-  explicitly, so a naive port makes hidden columns leak.
+- **There is no non-transactional fallback.** Multi-write paths run in a real
+  transaction in every deployment.
+- **Hidden columns are `protectedColumns.ts`.** Drizzle enumerates columns
+  explicitly, so a bare `select()` would leak them.
 
-## Historical production safety during the port
-
-During code-porting, production MongoDB was not touched: it stayed live until a
-separately approved cutover, while local data was disposable and agents ran no
-production backfill. That was a migration constraint, not the current
-architecture. The API now opens only PostgreSQL; do not add a Mongo connection,
-URI, model or fallback as a rollback path.
-
-### Every migration declares which side of a deploy it runs on
+## Every migration declares which side of a deploy it runs on
 
 One line, in the `.sql` file, no default:
 

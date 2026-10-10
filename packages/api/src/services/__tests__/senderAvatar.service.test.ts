@@ -3,16 +3,15 @@
  *
  * Two separate concerns live here.
  *
- * **The SSRF posture**, which the Mongo-era tests already pinned: the API never
+ * **The SSRF posture**: the API never
  * probes a sender-controlled host, private and loopback hosts are refused, and
  * a hung BIMI resolver cannot stall the caller.
  *
- * **The expiry predicate, which is new and is the point of the port.**
- * `sender_avatars` is the table `db/schema/CONVENTIONS.md` names as its class-(B)
- * example: both reads returned the cached row with NO expiry filter, so the
- * only thing standing between a user and a stale avatar was Mongo's TTL monitor
- * having got there first — a background job as part of the table's CORRECTNESS.
- * The ported reads carry `senderAvatarIsFresh()`, so an expired row that the
+ * **The expiry predicate.** `sender_avatars` is the table
+ * `db/schema/CONVENTIONS.md` names as its class-(B) example: without an expiry
+ * filter on the reads, the only thing standing between a user and a stale
+ * avatar would be the sweep having got there first — a background job as part
+ * of the table's CORRECTNESS. The reads carry `senderAvatarIsFresh()`, so an expired row that the
  * sweep has not reached yet is a MISS. Both reads are asserted, because they
  * are separate queries and only one of them having the predicate is exactly the
  * shape that ships.

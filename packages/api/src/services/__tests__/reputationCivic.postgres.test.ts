@@ -1,25 +1,22 @@
 /**
- * The four guarantees this batch's port is load-bearing for, against a REAL
- * Postgres through the application's own pool — not `jest.mock('mongoose')`.
+ * Four load-bearing guarantees, against a REAL Postgres through the
+ * application's own pool.
  *
- * Each one is a property the Mongo version either could not express or actively
- * broke, so each is asserted against rows written in the same test rather than
- * against a spy:
+ * Each one is a property only the database can show, so each is asserted
+ * against rows written in the same test rather than against a spy:
  *
- *  1. **The signed-record append and the `repo_heads` advance are ATOMIC.** The
- *     Mongo `withTransaction` re-ran the pair session-lessly whenever the
- *     deployment had no replica set, so a failure between them could leave a head
- *     pointing at a record that was never stored — every later `prev` check then
- *     fails and the chain is forked for good.
+ *  1. **The signed-record append and the `repo_heads` advance are ATOMIC.** A
+ *     failure between them could otherwise leave a head pointing at a record
+ *     that was never stored — every later `prev` check then fails and the chain
+ *     is forked for good.
  *  2. **`{user_id, seq}` is the multi-device write-race backstop**, surfaced as
  *     `chain_conflict`, with the head left exactly where it was.
  *  3. **`award` is idempotent on `(application_id, source_action_id)`** through
  *     the partial unique index, and the whole award — ledger row plus balance
  *     recompute — commits or does not happen.
- *  4. **A content address a projection stores always names a stored row.** The
- *     `?? ''` five call sites carried was the symptom; the cause was that a v1
- *     append returns an address it never persists, so a v1 civic envelope
- *     produced a dangling reference Mongo accepted in silence.
+ *  4. **A content address a projection stores always names a stored row.** A
+ *     v1 append returns an address it never persists, so a v1 civic envelope
+ *     would produce a dangling reference; the foreign key refuses it.
  *
  * EVERY count assertion here is an exact NON-ZERO against rows written in the
  * same test. A zero is indistinguishable from the bare-column correlated-subquery
@@ -272,8 +269,8 @@ describe("the recordId root cause — a stored projection's address always names
   it('refuses a v1 envelope for a record type whose address is a foreign key', async () => {
     const voucher = await signer();
 
-    // Under Mongo this stored fine and handed back an address the ledger never
-    // held, which `personhood.service` then wrote into `personhood_vouches`.
+    // Accepting it would hand back an address the ledger never held, which
+    // `personhood.service` would then write into `personhood_vouches`.
     const outcome = await verifyAndStoreRecord(
       v1Envelope(voucher, {
         type: 'personhood_vouch',
@@ -483,8 +480,8 @@ describe('award — the idempotency guarantee and the transaction behind it', ()
   });
 
   it('trims the action key before looking up the rule', async () => {
-    // `trim: true` was Mongoose APPLICATION behaviour with no Postgres
-    // counterpart; the award re-applies it, so `' probe '` resolves `'probe'`.
+    // Trimming is APPLICATION behaviour with no Postgres counterpart; the award
+    // applies it, so `' probe '` resolves `'probe'`.
     mockTestRules.set('trimmed_probe', {
       actionType: 'trimmed_probe',
       points: 3,

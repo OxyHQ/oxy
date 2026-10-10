@@ -252,8 +252,7 @@ export class SessionController {
         });
       }
 
-      // The Mongo-era `exactCaseInsensitiveUsernameRegex` scan becomes the
-      // expression `users_lower_username_key` indexes.
+      // Case-insensitive, via the expression `users_lower_username_key` indexes.
       const [existingUsername] = await db
         .select({ id: users.id })
         .from(users)
@@ -266,8 +265,7 @@ export class SessionController {
       // Create the account (identity is the publicKey) together with the origin
       // auth method, so the account's provenance is captured consistently with
       // the social-auth path. One transaction: an account whose only credential
-      // failed to insert could never be signed into, and Mongo's embedded array
-      // made that atomicity implicit.
+      // failed to insert could never be signed into.
       const user = await db.transaction(async (tx) => {
         const [created] = await tx
           .insert(users)
@@ -326,8 +324,7 @@ export class SessionController {
       if (violated === 'users_lower_username_key') {
         return res.status(409).json({ message: 'Username already taken' });
       }
-      // One identity key authenticates exactly one account — a guarantee the
-      // Mongo array could not make, so it has no `E11000` counterpart above.
+      // One identity key authenticates exactly one account.
       if (violated === 'user_auth_methods_lower_method_public_key_key') {
         return res.status(409).json({ message: 'Identity already registered' });
       }
@@ -408,8 +405,8 @@ export class SessionController {
 
       // Find and validate the challenge. Scoped to signin-purpose challenges so
       // a `rotate_key` challenge cannot be spent to mint a session; `purpose` is
-      // NOT NULL DEFAULT 'signin' here, so the Mongo-era `{ $in: ['signin',
-      // null] }` legacy branch does not travel. `expires_at > now()` is filtered
+      // NOT NULL DEFAULT 'signin', so there is no missing-purpose branch.
+      // `expires_at > now()` is filtered
       // HERE rather than left to the `db/expiry.ts` sweep — the sweep lags one
       // interval, and a challenge spendable past its deadline is a live
       // credential.
@@ -447,9 +444,8 @@ export class SessionController {
 
       // Atomically burn the challenge. `used = false` is part of the FILTER, so
       // two concurrent verifications of one challenge cannot both mint a
-      // session — the loser updates no row. Mongo matched on `_id` alone, which
-      // made the "prevents race conditions" comment above it aspirational; the
-      // sibling key-signed approval path (`authSession.service.ts`) already
+      // session — the loser updates no row. A burn filtered on the id alone
+      // would not prevent that race; the sibling key-signed approval path (`authSession.service.ts`) already
       // guards this way, and single-use is the whole point of a challenge.
       const burned = await db
         .update(authChallenges)
@@ -897,8 +893,7 @@ export class SessionController {
       const MAX_BATCH_SIZE = 20;
       const limitedSessionIds = uniqueSessionIds.slice(0, MAX_BATCH_SIZE);
 
-      // Mongo's `.populate('userId', 'username email avatar name publicKey')`
-      // becomes a real join, and the projection becomes named columns:
+      // A real join with named columns:
       // `sessions` carries two live bearer tokens and `users` the
       // contact-discovery hashes, none of which this DTO may see
       // (`db/schema/protectedColumns.ts`).
@@ -1072,8 +1067,8 @@ export class SessionController {
         .from(userLinkMetadata)
         .where(eq(userLinkMetadata.userId, user.id))
         .orderBy(asc(userLinkMetadata.position));
-      // A preview with no image OMITS the key, as the Mongo subdocument did —
-      // `null` would be a new value on the wire.
+      // A preview with no image OMITS the key — `null` would be a new value on
+      // the wire.
       const linksMetadata = previews.map(({ image, ...preview }) => ({
         ...preview,
         ...(image === null ? {} : { image }),

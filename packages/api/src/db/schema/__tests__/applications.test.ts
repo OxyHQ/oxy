@@ -107,7 +107,7 @@ describe('applications — closed value sets and the three arrays', () => {
     expect(row.status).toBe('active');
     expect(row.isOfficial).toBe(false);
     expect(row.isInternal).toBe(false);
-    // Empty, not null: Mongoose defaulted all three to `[]`.
+    // Empty, not null: all three default to `[]`.
     expect(row.capabilities).toEqual([]);
     expect(row.redirectUris).toEqual([]);
     expect(row.scopes).toEqual([]);
@@ -283,8 +283,8 @@ describe('applications — what each ON DELETE means', () => {
       .from(applications)
       .where(eq(applications.id, applicationId));
 
-    // Under Mongo the row survived with a dangling owner, so its OAuth client
-    // and every service credential under it kept working with nobody able to
+    // A row surviving with a dangling owner would leave its OAuth client and
+    // every service credential under it working with nobody able to
     // administer or revoke them.
     expect(remaining).toEqual([]);
   });
@@ -712,7 +712,7 @@ describe('api_key_usage_events', () => {
     expect(names).toContain('created_at');
     // The absence IS the append-only contract.
     expect(names).not.toContain('updated_at');
-    // And the Mongoose field name does not travel — see the file header.
+    // And the old `timestamp` field name does not travel — see the file header.
     expect(names).not.toContain('timestamp');
     // #972 workstream 2.3 dropped `api_key_id` together with the
     // `developer_api_keys` table it referenced. Asserted against the MIGRATED
@@ -788,8 +788,8 @@ describe('api_key_usage_events', () => {
   });
 });
 
-describe('api_key_usage_events — the 90-day Mongo TTL, moved', () => {
-  it('is registered for sweeping with the retention Mongo enforced', () => {
+describe('api_key_usage_events — the 90-day retention', () => {
+  it('is registered for sweeping with the 90-day retention', () => {
     const target = EXPIRY_SWEEP_TARGETS.find(
       (entry) => getTableName(entry.table) === 'api_key_usage_events',
     );

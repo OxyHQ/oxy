@@ -8,12 +8,11 @@
  *
  * The lookup is written `lower(btrim(username)) = lower(btrim($1))` — the
  * EXPRESSION `users_lower_username_key` is built on. A plain `username = $1` is
- * correct-looking, case-sensitive, and does not use that index, which is
- * exactly what the Mongo version did: it compared `{ username }` for equality
- * against an address it had already lower-cased, so mail to `Nate@oxy.so` was
- * rejected at `RCPT TO` for an account stored as `Nate` — while the Cloudflare
- * webhook path (`routes/emailInbound.ts`, already ported) delivered the same
- * message. The two inbound routes now agree, and the case below is what says so.
+ * correct-looking, case-sensitive, and does not use that index — comparing it
+ * against an already lower-cased address would reject mail to `Nate@oxy.so` at
+ * `RCPT TO` for an account stored as `Nate`, while the Cloudflare webhook path
+ * (`routes/emailInbound.ts`) delivers the same message. The two inbound routes
+ * agree, and the case below is what says so.
  *
  * ## Why this tests a function rather than the server
  *
@@ -64,9 +63,9 @@ describe('findRecipientAccountId', () => {
   });
 
   it('accepts mail addressed in a DIFFERENT case than the stored username', async () => {
-    // The Mongo lookup rejected this: it compared a lower-cased address against
-    // a username stored with capitals. The webhook path accepted it, so the two
-    // inbound routes disagreed about whether the mailbox existed.
+    // A case-sensitive lookup would reject this: a lower-cased address against a
+    // username stored with capitals. The webhook path accepts it, so the two
+    // inbound routes must agree that the mailbox exists.
     const username = `MixedCase-${RUN}`;
     const id = await insertAccount(username);
 

@@ -23,7 +23,7 @@ What is missing is **an external witness**: nothing today stops Oxy from serving
 
 ### Why a Commons-owned chain is rejected
 
-1. **Validators.** A chain whose nodes are all operated by Oxy provides zero additional guarantee over the current MongoDB. It is a slower, permanently-public database. Making it real requires recruiting independent operators who cannot be switched off and who stay for years — an organizational problem no amount of code solves. Note that even the "own chain" projects are not standalone: Humanity Protocol and World Chain are rollups that publish to Ethereum and inherit its validator set.
+1. **Validators.** A chain whose nodes are all operated by Oxy provides zero additional guarantee over the current database. It is a slower, permanently-public database. Making it real requires recruiting independent operators who cannot be switched off and who stay for years — an organizational problem no amount of code solves. Note that even the "own chain" projects are not standalone: Humanity Protocol and World Chain are rollups that publish to Ethereum and inherit its validator set.
 2. **Privacy — the disqualifying reason.** Commons' civic layer records who physically attested whom (`realLife.service.ts`) and who vouched for whose personhood (`personhood.service.ts`). On a public chain that is a permanent, correlatable graph of real-world human contact. This directly contradicts the standing owner mandate that no user IP or location may be persisted because the threat model is state-actor harassment of users (`docs/superpowers/specs/2026-07-14-no-ip-storage-design.md`). An IP is deletable; a chain entry is not.
 3. **Erasure.** Immutability and the right to erasure cannot both hold for personal data. Profile records, credential contents, and revocations must remain deletable.
 4. **Key loss.** On-chain, the key *is* the account. Oxy deliberately built the opposite: an account-anchored DID with rotatable verification methods and a recovery ladder, after the 2026-07-18 vault-wipe incident.
@@ -66,7 +66,7 @@ Same standing as the no-IP rule. **This is not a default to be relaxed by a futu
   `leaf = sha256("oxy.leaf.v1" ‖ subjectDid ‖ ":" ‖ seq ‖ ":" ‖ headRecordId)`
   Domain-separated (RFC 6962-style leaf/node prefixes) so a leaf hash can never be reinterpreted as an interior node.
 - **Tree**: leaves ordered by `subjectDid` lexicographically so any third party can recompute the root from a snapshot deterministically. Interior nodes `sha256("oxy.node.v1" ‖ left ‖ right)`.
-- **Checkpoint** (new Mongo collection, append-only, never mutated):
+- **Checkpoint** (new table, append-only, never mutated):
   `{ index, periodEnd, treeSize, root, prevCheckpointHash, oxySignature, anchor?: { network, txid, confirmations, anchoredAt } }`
   `prevCheckpointHash = sha256(canonicalize(previous checkpoint without its anchor))` — the checkpoint sequence is itself a hash chain, so checkpoint history cannot be rewritten after an anchor exists. Signed with the Oxy key (`OXY_PRIVATE_KEY`), the same provenance key used for custodial DID and export attestations.
 

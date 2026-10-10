@@ -32,38 +32,23 @@
  * application now, not that they were the actor then — so
  * {@link resolveBindingProof} rejects it.
  *
- * ## The cutover bug this port removes
+ * ## No id-shape guard
  *
- * Every id here used to pass through a `mongoose.Types.ObjectId.isValid` check
- * before it was allowed to reach a query:
+ * Ids are either legacy 24-hex ids or **uuid v7** (`@oxy.so/db`'s
+ * `generatedId()`). A 24-hex format check before a query would make
+ * `resolveBindingProof` answer `no_binding_proof` BEFORE QUERYING for any
+ * uuid-id binding — so `applyModerationDecision` could not apply an effect at
+ * all for such an account, however well-formed the event, however real the
+ * binding row. The failure would be silent by construction: `no_binding_proof`
+ * is a legitimate outcome the emitter is supposed to record and stop retrying
+ * on.
  *
- * ```ts
- * function toObjectId(value: string, field: string): mongoose.Types.ObjectId {
- *   if (!mongoose.Types.ObjectId.isValid(value)) throw new BadRequestError(...);
- *   return new mongoose.Types.ObjectId(value);
- * }
- * // …and, at the top of resolveBindingProof:
- * if (!mongoose.Types.ObjectId.isValid(params.bindingProofId)) {
- *   return { ok: false, reason: 'no_binding_proof' };
- * }
- * ```
- *
- * That regex rejects the **uuid v7 every row created after the Postgres cutover
- * carries** (`@oxy.so/db`'s `generatedId()`). `resolveBindingProof`
- * therefore answered `no_binding_proof` BEFORE QUERYING for any post-cutover
- * binding — so `applyModerationDecision` could not apply an effect at all for
- * such an account, however well-formed the event, however real the seeded
- * binding row. The failure is silent by construction: `no_binding_proof` is a
- * legitimate outcome the emitter is supposed to record and stop retrying on.
- *
- * Both guards are DELETED rather than widened. They only ever existed to stop a
- * malformed string reaching Mongoose as a `CastError`; every id here is now a
- * `text` column compared against a bound parameter, so a malformed value is a
- * value that matches no row — the same "no such binding" outcome it always
- * produced — and the real integrity work is done by the foreign keys on
+ * Every id here is a `text` column compared against a bound parameter, so a
+ * malformed value is a value that matches no row — the "no such binding"
+ * outcome — and the real integrity work is done by the foreign keys on
  * `identity_bindings.application_id` and `.user_id`.
- * `__tests__/identityBinding.service.test.ts` pins this: reinstate either guard
- * and a moderation decision against a post-cutover account stops applying.
+ * `__tests__/identityBinding.service.test.ts` pins this: add such a guard and a
+ * moderation decision against a uuid-id account stops applying.
  */
 
 import { and, eq } from 'drizzle-orm';
@@ -120,7 +105,7 @@ export type BindingResolution = BindingResolved | BindingRejected;
  * Rebinding a local principal to a DIFFERENT Oxy user revokes the previous
  * binding rather than overwriting it: a past effect references that row, and its
  * original `verifiedAt` is what made the effect legitimate. The revoke and the
- * insert run in ONE transaction, which Mongo could not offer: the partial unique
+ * insert run in ONE transaction: the partial unique
  * index `identity_bindings_application_id_local_principal_id_active_key` admits
  * exactly one ACTIVE row per (application, local principal), so a crash between
  * the two statements would otherwise leave the principal bound to nobody.
@@ -150,10 +135,9 @@ export async function registerIdentityBinding(
   const bindingType = grant ? 'oauth_grant' : 'session_proof';
   const verifiedAt = grant?.firstGrantedAt ?? new Date();
 
-  // Mongoose declared `localPrincipalId` with `trim: true`, which applied to
-  // BOTH the write and the query filter it cast. Postgres has no counterpart, so
-  // per `schema/CONVENTIONS.md` the normalization is re-applied at the call
-  // site — otherwise a trailing space would silently create a SECOND binding for
+  // `localPrincipalId` is stored trimmed and must be looked up trimmed.
+  // Postgres has no column-level trim, so per `schema/CONVENTIONS.md` the
+  // normalization is applied at the call site — otherwise a trailing space would silently create a SECOND binding for
   // the same person and the partial unique index would not object.
   const localPrincipalId = String(params.localPrincipalId).trim();
 
@@ -189,9 +173,9 @@ export async function registerIdentityBinding(
   return db.transaction(async (tx) => {
     if (existing) {
       // `status` and `revoked_at` move together or the row fails the
-      // `identity_bindings_revoked_at_check` CHECK — Mongo could express
-      // neither half, so a row could read `active` while carrying a
-      // `revokedAt`, and the engine's "is not revoked" test reads `status`.
+      // `identity_bindings_revoked_at_check` CHECK — a row that read `active`
+      // while carrying a `revokedAt` would mislead, since the engine's "is not
+      // revoked" test reads `status`.
       await tx
         .update(identityBindings)
         .set({ status: 'revoked', revokedAt: new Date() })
@@ -244,9 +228,9 @@ export interface ResolveBindingParams {
  * record "delivered, no effect" and stop retrying instead of hammering a
  * permanent error.
  *
- * There is deliberately NO id-shape precheck. See the module header: the one
- * that used to stand here answered `no_binding_proof` without querying for every
- * post-cutover id, which is indistinguishable from a genuine miss.
+ * There is deliberately NO id-shape precheck. See the module header: one here
+ * would answer `no_binding_proof` without querying for every uuid id, which is
+ * indistinguishable from a genuine miss.
  */
 export async function resolveBindingProof(
   params: ResolveBindingParams,

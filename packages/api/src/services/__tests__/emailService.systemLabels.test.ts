@@ -4,12 +4,11 @@
  *
  * The risk that came with the constants: any code path that validates a label
  * by looking it up now rejects the eight built-in ones, because they have no
- * row to find. The risk that came with the port: Mongo could not `$addToSet`
- * and `$pull` the same field in one operation, so `updateMessageLabels` ran two
- * `updateOne` calls with a window between them. Postgres rewrites the array
- * once, which means the PRECEDENCE Mongo got from ordering — add, then remove —
- * has to be stated in the expression instead. A name in both lists must end up
- * removed, and an existing name must not be duplicated.
+ * row to find. The other risk: `updateMessageLabels` rewrites the array in ONE
+ * expression, so the PRECEDENCE between the two lists — add, then remove — has
+ * to be stated in the expression rather than coming from statement order. A
+ * name in both lists must end up removed, and an existing name must not be
+ * duplicated.
  *
  * Everything here runs against a real Postgres: the guarantees are about what
  * the column ends up holding, which a mocked `updateOne` cannot observe.
@@ -147,7 +146,7 @@ describe('updateMessageLabels — one statement, and its precedence', () => {
     expect(updated.labels).toEqual(['Updates', 'Travel']);
   });
 
-  it('removes a name that appears in BOTH lists — Mongo added then pulled', async () => {
+  it('removes a name that appears in BOTH lists — add, then remove', async () => {
     const userId = await owner();
     const messageId = await messageIn(userId, ['Work']);
 
@@ -233,7 +232,7 @@ describe('labels — the case-insensitive unique index', () => {
     expect(names.filter((name) => name === 'Work')).toHaveLength(1);
   });
 
-  it('refuses a name differing only in case — Mongo`s `strength: 2` collation', async () => {
+  it('refuses a name differing only in case', async () => {
     const userId = await owner();
     const name = `Receipts-${unique().slice(0, 6)}`;
     await emailService.createLabel(userId, name, '#abcdef');

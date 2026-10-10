@@ -4,12 +4,10 @@
  * This is the anti-sybil gate BOTH the real-life attestation flow and the jury
  * selection delegate to, so a false NEGATIVE here is a farm of fake accounts
  * attesting each other and a false POSITIVE is two strangers who can never
- * attest at all. The suite it replaces drove `Follow`/`Block`/`Session` through
- * an in-memory fixture keyed on the exact query shape the Mongoose code emitted,
- * which meant it re-stated the queries rather than the RULE — it could not tell
- * a predicate on the wrong column of `blocks` (both columns are user ids) from a
- * correct one, and it could not see the `is_active` filter at all because the
- * fixture never modelled an inactive session.
+ * attest at all. A fixture keyed on query shapes would re-state the queries
+ * rather than the RULE — it could not tell a predicate on the wrong column of
+ * `blocks` (both columns are user ids) from a correct one, and it could not see
+ * the `is_active` filter at all without modelling an inactive session.
  *
  * So every case below writes real rows and asserts the verdict. The two that
  * carry the most weight:

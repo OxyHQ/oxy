@@ -1,23 +1,19 @@
 /**
- * Subscription status projection — the OTHER half of removing the TTL index.
+ * Subscription status projection — expiry that relabels instead of deleting.
  *
- * `subscriptions` used to carry `index({ endDate: 1 }, { expireAfterSeconds: 0 })`.
- * A Mongo TTL index DELETES the document, so a subscription's record — what was
- * bought, when it started, what it entitled the buyer to — was destroyed the
- * moment its period closed. That was a data-loss bug, and the table is
- * deliberately ABSENT from `db/expiry.ts`'s registry (a test asserts it stays
- * absent) because that registry deletes rows, which is the behaviour being
- * removed.
+ * Deleting a subscription when its period closes would destroy its record —
+ * what was bought, when it started, what it entitled the buyer to. That is a
+ * data-loss bug, and the table is deliberately ABSENT from `db/expiry.ts`'s registry (a test asserts it stays
+ * absent) because that registry deletes rows, which must never happen here.
  *
- * What replaces it is a PROJECTION, not a deletion:
+ * Expiry here is a PROJECTION, not a deletion:
  *
  *   update subscriptions set status = 'expired'
  *   where status = 'active' and end_date <= now()
  *
  * The row survives; only the label catches up. `subscriptions_active_end_date_idx`
  * — a partial index on `end_date where status = 'active'` — is what makes the
- * predicate a range scan rather than a table scan, the same obligation Mongo's
- * TTL index carried.
+ * predicate a range scan rather than a table scan.
  *
  * ## This job is housekeeping, never correctness
  *
@@ -26,10 +22,6 @@
  * at serialization time. So a missed tick delays a label and entitles nobody —
  * class (A) in `db/expiry.ts`'s taxonomy. The projection exists for reads and
  * dashboards that GROUP BY status, which cannot express the derivation.
- *
- * That is a strictly stronger position than the TTL index held: Mongo's TTL
- * monitor lags about a minute, during which the lapsed document was still
- * present AND still `status: 'active'`, and nothing filtered it.
  *
  * A `GENERATED ALWAYS` column cannot do this — the expression would have to read
  * `now()`, which is not IMMUTABLE.

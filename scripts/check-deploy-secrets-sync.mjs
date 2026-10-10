@@ -138,10 +138,8 @@ const EXPECTED_TASK_SECRET_BINDINGS = new Map(
  * `test-check-deploy-secrets-sync.mjs` that goes green if it is deleted.
  */
 const MINIMUM_REQUIRED_ENV_VARS = 5;
-// `DATABASE_URL`, not `MONGODB_URI`: the sentinel has to be a name that will
-// still be in the required array. MONGODB_URI left the serving path on
-// 2026-08-02 and is no longer bound into ECS — only backfill/admin scripts read
-// it locally — so the sentinel moved rather than being dropped.
+// `DATABASE_URL`: the sentinel has to be a name that will always be in the
+// required array, and the API cannot serve without its database.
 const REQUIRED_ENV_SENTINEL = 'DATABASE_URL';
 // The script that performs every rollout. If the scan of reached scripts does
 // not see it, the scan is not reading what the deploy runs.

@@ -11,13 +11,12 @@
  *
  * ## Expiry — the retention IS the replay window
  *
- * Mongo TTL `expireAfterSeconds: 600` on `expiresAt`: the row deliberately
- * outlives its own deadline by ten minutes. Deleting it earlier would free the
- * hash for reuse, so this retention is a SECURITY parameter, not housekeeping —
- * shortening it reopens the replay window it exists to close. Registered in
- * `db/expiry.ts` with `retentionSeconds: 600`.
+ * The row deliberately outlives its own deadline by ten minutes. Deleting it
+ * earlier would free the hash for reuse, so this retention is a SECURITY
+ * parameter, not housekeeping — shortening it reopens the replay window it
+ * exists to close. Registered in `db/expiry.ts` with `retentionSeconds: 600`.
  *
- * `purpose` stays free-form `text`, as Mongoose declared it. It namespaces the
+ * `purpose` is free-form `text`. It namespaces the
  * nonce so one raw value used by two flows cannot collide, and only one flow
  * exists today (`realLife.service.ts:89`) — inventing a CHECK from a
  * single-element set would reject the next flow at insert time for no benefit.

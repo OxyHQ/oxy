@@ -25,9 +25,8 @@ export const blocks = pgTable(
   (t) => [
     unique('blocks_user_id_blocked_id_key').on(t.userId, t.blockedId),
     // The REVERSE lookup ("who has blocked me") — `graphExclusion.ts:47` and
-    // `user.service.ts:1661` both run it. Mongo could not serve it from the
-    // compound index above (wrong leading field) and had no other, so it was a
-    // full collection scan there. Added deliberately as a fix, not carried over.
+    // `user.service.ts:1661` both run it. The compound index above cannot serve
+    // it (wrong leading field), so it needs its own.
     index('blocks_blocked_id_idx').on(t.blockedId),
   ],
 );

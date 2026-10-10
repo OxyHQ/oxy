@@ -30,7 +30,7 @@
  *
  * The guard is REPLACED, not deleted, and `optionalAuth.ts` says why: unlike its
  * siblings in `securityActivityService` / `identityBinding.service`, this one is
- * not a Mongoose `CastError` artifact but the documented input contract of a
+ * not a driver-error artifact but the documented input contract of a
  * cross-principal delegation header. `isAccountIdFormat` accepts BOTH live
  * shapes, so both are asserted below — narrow it back to 24-hex and
  * `resolves a uuid v7 …` goes red.

@@ -136,8 +136,7 @@ describe('appSignalsService.ingestEndorsements', () => {
     ]);
     const edges = await readEdges(APP_ID);
     expect(edges).toHaveLength(1);
-    // `''` was Mongo's sentinel for "unset"; the port stores NULL and relies on
-    // the index being `NULLS NOT DISTINCT` to keep the idempotency guarantee.
+    // "Unset" is stored as NULL, relying on the index being `NULLS NOT DISTINCT` to keep the idempotency guarantee.
     expect(edges[0].sourceId).toBeNull();
 
     const second = await appSignalsService.ingestEndorsements(APP_ID, [

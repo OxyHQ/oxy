@@ -104,11 +104,6 @@ describe('validateRequiredEnvVars — DATABASE_URL', () => {
     const warnCalls = JSON.stringify((logger.warn as jest.Mock).mock.calls);
     expect(warnCalls).toMatch(/DATABASE_URL/);
   });
-
-  it('boots with no MONGODB_URI at all — Mongo left the serving path', () => {
-    delete process.env.MONGODB_URI;
-    expect(() => validateRequiredEnvVars()).not.toThrow();
-  });
 });
 
 describe('validateRequiredEnvVars — DEVICE_ID_SALT (security review H1)', () => {

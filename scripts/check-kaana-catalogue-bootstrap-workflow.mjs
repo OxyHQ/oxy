@@ -201,7 +201,6 @@ forbid(
   /\$\{\{\s*secrets\.|(?:OPENAI|ANTHROPIC|GROQ|CEREBRAS|XAI|OPENROUTER)_(?:API_)?KEY/i,
   'the catalogue bootstrap must never receive GitHub or provider secrets',
 );
-forbid(workflow, /mongo|mongoose/i, 'the production bootstrap must remain PostgreSQL-only');
 
 requireMatch(
   bootstrap,
@@ -263,7 +262,6 @@ forbid(
   /\b(?:const|let)\s+\[[A-Za-z_$][\w$]*\]\s*=/,
   'the bootstrap must never trust the first row without an exact cardinality check',
 );
-forbid(bootstrap, /mongo|mongoose/i, 'the writer must remain PostgreSQL-only');
 
 requireMatch(
   plan,

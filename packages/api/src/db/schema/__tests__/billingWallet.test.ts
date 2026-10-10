@@ -369,7 +369,7 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
     // also an indexed COLUMN, so a differing type already avoids a collision
     // without any predicate at all. Only two rows of the SAME non-renewal type
     // distinguish the two shapes — drop the clause and this insert starts
-    // failing, constraining rows Mongo deliberately left unconstrained.
+    // failing, constraining rows that are deliberately left unconstrained.
     await getDb().insert(billingTransactions).values(refund);
     await expect(getDb().insert(billingTransactions).values(refund)).resolves.toBeDefined();
   });
@@ -387,7 +387,7 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
     expect(indexdef).toContain('UNIQUE');
     expect(indexdef).toContain('stripe_subscription_id, stripe_subscription_period_start, type');
     expect(indexdef).toContain("type = 'subscription_payment'");
-    // The two `is not null` clauses reproduce Mongo's `$exists`. In Postgres they
+    // The two `is not null` clauses keep period-less rows out of the index. They
     // are index-SIZE fidelity rather than semantics — a btree already treats
     // NULLs as distinct, so a period-less row could never have collided (the case
     // below proves that end to end). A behavioural test therefore cannot hold
@@ -461,7 +461,7 @@ describe('user_credits — one Stripe customer resolves to one account', () => {
     ).resolves.toBeDefined();
   });
 
-  it('keys the row on the account id, with the Mongoose defaults', async () => {
+  it('keys the row on the account id, with the declared defaults', async () => {
     const userId = await owner();
     const [row] = await getDb().insert(userCredits).values({ userId }).returning();
 
@@ -566,10 +566,9 @@ describe('what deleting an account does to a financial row', () => {
 
 describe('subscriptions — expiry is derived, never a deletion', () => {
   it('is deliberately absent from the expiry sweep registry', () => {
-    // Mongo declared `index({endDate: 1}, {expireAfterSeconds: 0})`, which
-    // DELETES the document — destroying the record of what a user bought the
-    // moment the period closed. `db/expiry.ts` deletes rows too, so registering
-    // this table there would reintroduce exactly that bug under a new name.
+    // An expiry that DELETES the row destroys the record of what a user bought
+    // the moment the period closed. `db/expiry.ts` deletes rows, so registering
+    // this table there would introduce exactly that bug.
     expect(EXPIRY_SWEEP_TARGETS.filter((target) => target.table === subscriptions)).toEqual([]);
     // Non-empty registry, so this cannot pass because the registry broke.
     expect(EXPIRY_SWEEP_TARGETS.length).toBeGreaterThan(0);
@@ -633,8 +632,8 @@ describe('subscriptions — expiry is derived, never a deletion', () => {
         and indexname = 'subscriptions_active_end_date_idx'
     `);
 
-    // Mongo's TTL index carried the same obligation: without it the projection
-    // is a sequential scan of the whole table every interval.
+    // Without it the projection is a sequential scan of the whole table every
+    // interval.
     expect(rows).toHaveLength(1);
     expect(rows[0].indexdef).toContain('end_date');
     expect(rows[0].indexdef).toContain("WHERE (status = 'active'");
@@ -706,11 +705,9 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
    * can send — including the three this platform does not sell
    * (`incomplete`, `incomplete_expired`, `paused`).
    *
-   * Mongoose declared only the five sellable ones and never enforced them: the
-   * webhook writes through `findOneAndUpdate` WITHOUT `runValidators`, so Mongo
-   * stored whatever arrived. A CHECK *is* enforced, so porting the narrow list
-   * would have turned a silent write into a failed webhook — Stripe retrying
-   * forever while the mirror froze at its previous value. A subscription Stripe
+   * Only five are sellable, but a CHECK *is* enforced, so restricting it to
+   * the sellable list would turn every other status into a failed webhook —
+   * Stripe retrying forever while the mirror froze at its previous value. A subscription Stripe
    * had moved to `paused` would still read `active` here, and
    * `subscriptionPlan.ts` would keep granting premium to someone who stopped
    * paying. Widening grants nothing: only `active` and `trialing` ever count as

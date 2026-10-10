@@ -326,8 +326,7 @@ describe('GET /search — wire shape', () => {
         name: { displayName: 'Shape Row', first: 'Shape', last: 'Row', full: 'Shape Row' },
         // ONLY the public consent leaf. `isPrivateAccount`,
         // `discoverableByEmail` and the rest of the privacy block must not ride
-        // this surface — the Mongo `$project` named this one path and nothing
-        // else, and the port keeps it that way.
+        // this surface — only this one path is projected.
         privacySettings: { fediverseSharing: true },
         verified: true,
         // `publicUserColumns` does not select `languages`, so the normalizer

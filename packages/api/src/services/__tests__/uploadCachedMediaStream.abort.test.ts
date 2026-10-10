@@ -11,11 +11,9 @@
  * AbortSignal and only rejects once that signal fires — mirroring how the real
  * multipart `Upload.abort()` rejects `done()`.
  *
- * The dedup half changed shape in the port. It used to assert that the lookup
- * QUERY carried `status: { $ne: 'deleted' }`, and that a rejected dedup left a
- * mock object's fields untouched — statements about a Mongo filter and about an
- * in-memory object. Both are now read back out of the database, so what is
- * checked is the row a victim actually still owns.
+ * The dedup half is read back out of the database rather than asserted on a
+ * query filter or an in-memory object, so what is checked is the row a victim
+ * actually still owns.
  *
  * Rows are per OWNER: the dedup only ever reuses the uploader's own row, and a
  * different owner uploading the same bytes gets its own row sharing the stored

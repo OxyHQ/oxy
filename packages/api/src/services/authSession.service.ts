@@ -134,8 +134,8 @@ export type ClaimAuthSessionOutcome =
  *
  * `auth_sessions_oauth_binding_check` and `auth_sessions_oauth_purpose_check`
  * make an incomplete binding unrepresentable in the database, so the null
- * checks below are now a TYPE-level narrowing of nullable columns rather than
- * the only line of defence they were under Mongo.
+ * checks below are a TYPE-level narrowing of nullable columns rather than the
+ * only line of defence.
  */
 export function resolveOAuthContext(
   authSession: OAuthBindingSource,
@@ -190,8 +190,7 @@ export type DelegatedSubjectOutcome =
  * without one.
  *
  * A malformed `subjectAccountId` simply matches no row and comes back
- * `not_found` — the old `isValidObjectId` guard existed only to keep Mongoose
- * from throwing a CastError and has no Postgres counterpart.
+ * `not_found`; no id-shape guard is needed.
  *
  * `account.service` is imported LAZILY (mirroring `session.service`) so this
  * module's graph does not statically load the Account* models.
@@ -208,8 +207,7 @@ export async function verifyDelegatedSubject(
   if (!account || account.accountStatus === 'archived') {
     return { ok: false, reason: 'not_found' };
   }
-  // `kind` is NOT NULL DEFAULT 'personal' here, so the Mongo-era `!account.kind`
-  // branch for documents predating the field does not travel.
+  // `kind` is NOT NULL DEFAULT 'personal', so there is no missing-kind branch.
   if (!isDelegatedActAsEligibleKind(account.kind)) {
     return {
       ok: false,
@@ -465,8 +463,8 @@ export async function authorizeSessionWithSignedChallenge(
   // 1. Validate + cryptographically verify + atomically burn the challenge.
   //    Scope to signin-purpose challenges so a `rotate_key` challenge can NOT be
   //    spent to mint a session — the symmetric invariant to the rotate flow's
-  //    purpose scoping. `purpose` is NOT NULL DEFAULT 'signin' here, so the
-  //    Mongo-era `{ $in: ['signin', null] }` legacy branch does not travel.
+  //    purpose scoping. `purpose` is NOT NULL DEFAULT 'signin', so there is no
+  //    missing-purpose branch.
   //    `expires_at > now()` is filtered HERE, not left to the expiry sweep: the
   //    sweep lags one interval, and a challenge spendable past its deadline is a
   //    live credential.

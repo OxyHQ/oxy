@@ -4,8 +4,8 @@
  * overrides into the final, CLAMPED signal weights used by the scorer.
  *
  * This module is the SINGLE SOURCE OF TRUTH for every scoring constant, cap, and
- * normalization bound. It is intentionally DB-free (no Mongoose) so it can be
- * unit-tested in isolation and imported by the scorer without loading a model.
+ * normalization bound. It is intentionally DB-free so it can be unit-tested in
+ * isolation and imported by the scorer without loading the schema.
  */
 
 import { clamp, INFLUENCE_MIN, INFLUENCE_MAX } from './reputation.constants';

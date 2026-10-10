@@ -71,7 +71,7 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
     }
   });
 
-  // One instance of each of the seven checks, in a single real schema — the
+  // One instance of each of the six checks, in a single real schema — the
   // exact rows and rendered `column_default`/`data_type` text below were
   // read back from a real Postgres 17 instance before being pasted here,
   // not guessed: `information_schema` renders a bare `timestamp` column as
@@ -115,11 +115,8 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
         minimumColumns: 1,
       });
 
-      // `_id` and `__v` both start with `_`, not `[a-z]`, so each is
-      // simultaneously a `snake_case_column` AND a `mongoose_artifact`
-      // violation — the two checks are not mutually exclusive, and a
-      // fixture that only asserted one of them per column would leave that
-      // overlap unverified.
+      // `_id` and `__v` both start with `_`, not `[a-z]`, so each is a
+      // `snake_case_column` violation.
       expect(violations).toEqual(
         expect.arrayContaining([
           { check: 'snake_case_table', subject: 'BadTable' },
@@ -129,14 +126,12 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
           { check: 'timestamp_without_time_zone', subject: 'posts.created_at' },
           { check: 'empty_string_default', subject: 'posts.slug', detail: "''::text" },
           { check: 'missing_primary_key', subject: 'orphans' },
-          { check: 'mongoose_artifact', subject: 'posts._id' },
-          { check: 'mongoose_artifact', subject: 'posts.__v' },
         ]),
       );
-      // Nothing else: nine columns and three tables, no vacuity noise
+      // Nothing else: seven violations across three tables, no vacuity noise
       // (the floors above are met), no unrelated snake_case/timestamp/etc.
       // false positives from the surrounding healthy columns.
-      expect(violations).toHaveLength(9);
+      expect(violations).toHaveLength(7);
     } finally {
       await client.end({ timeout: 5 });
       await dropTestDatabase(url);

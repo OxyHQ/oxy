@@ -1,12 +1,8 @@
 /**
  * account.service tests — unified Account graph, against a REAL Postgres.
  *
- * This suite used to run against a hand-written in-memory emulator of the
- * Mongoose subset the service used, including array-field matching for the
- * embedded `ancestors` path. None of that survives the port, and rebuilding it
- * for Drizzle would be rebuilding the wrong thing: `ancestors` is now the
- * `user_ancestors` TABLE, membership resolution is a real query, and
- * `moveAccount` is a real transaction. An emulator can only assert the calls a
+ * `ancestors` is the `user_ancestors` TABLE, membership resolution is a real
+ * query, and `moveAccount` is a real transaction. An emulator can only assert the calls a
  * service makes; the properties worth protecting here — the subtree rewrite, the
  * last-owner guard, inheritance precedence, the rotation grace window — are
  * properties of stored ROWS.

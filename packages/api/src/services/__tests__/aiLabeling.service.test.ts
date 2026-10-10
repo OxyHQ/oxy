@@ -3,9 +3,8 @@
  *
  * ## The guarantee this file exists for
  *
- * **`$addToSet` is not `||`.** Mongo's operator appended each DISTINCT value
- * that the array did not already hold; `messages.labels` is a native `text[]`
- * now, and a plain concatenation would duplicate a label the message already
+ * **Adding a label is a set union, not `||`.** `messages.labels` is a native
+ * `text[]`, and a plain concatenation would duplicate a label the message already
  * carries — silently, on a column the inbox renders directly. The rebuild is
  * pinned from three directions here: an existing label is not re-added, the
  * existing ORDER survives, and duplicates inside one classifier answer collapse.

@@ -2,12 +2,9 @@
  * `GET /profiles/username/:username` — protected-column leak guard, over a REAL
  * row that actually carries every protected value.
  *
- * The subject is unchanged from the Mongo era; the mechanism it guards is not.
- * Mongoose's `select: false` kept `phone` / `refreshToken` / the contact hashes
- * out of a query result unless a caller named them, and this suite used to
- * reproduce that by applying the route's `.select()` string with MongoDB's
- * semantics. Drizzle enumerates columns instead, so the guarantee now rests on
- * the route selecting `publicUserColumns` — an INCLUSION list — and nothing in a
+ * `phone` / `refreshToken` / the contact hashes must stay out of the response.
+ * Drizzle enumerates columns, so the guarantee rests on the route selecting
+ * `publicUserColumns` — an INCLUSION list — and nothing in a
  * type checker notices if a future edit spreads the whole table in beside it.
  *
  * So the assertion is driven by the registry (`USERS_PROTECTED_COLUMNS`) rather

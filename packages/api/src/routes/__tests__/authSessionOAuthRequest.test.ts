@@ -3,9 +3,9 @@
  *
  * `POST /auth/session/create` may attach an `oauth` block, which turns the
  * request from a device sign-in into an OAuth authorization request that
- * finalizes into a single-use `AuthCode`. Two schema-level invariants now carry
- * what the Mongoose sub-schema achieved by staying `undefined`, and both are
- * asserted against the stored row here:
+ * finalizes into a single-use `AuthCode`. Two schema-level invariants keep a
+ * partial `oauth` binding unrepresentable, and both are asserted against the
+ * stored row here:
  *
  *  - `auth_sessions_oauth_binding_check` — every `oauth_*` column is NULL
  *    together or present together. There is no half-bound request.

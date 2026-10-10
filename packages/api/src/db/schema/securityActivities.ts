@@ -12,16 +12,16 @@
  * brute-forceable by anyone with server access. There is no IP column here and
  * none is to be added "for security"; that was a deliberate trade, not an
  * oversight. `user_agent` (a client string, not a network address) and
- * `device_id` are what remains, exactly as in the Mongo model.
+ * `device_id` are what remains.
  *
- * The one genuinely open surface is `metadata`, which is `Mixed` in Mongoose and
- * `jsonb` here: a writer could smuggle an address into it. That is a call-site
- * rule, not something a schema can state, and it is unchanged by this port.
+ * The one genuinely open surface is `metadata`, which is `jsonb`: a writer could
+ * smuggle an address into it. That is a call-site rule, not something a schema
+ * can state.
  *
  * ## `timestamp` → `occurred_at`
  *
- * The Mongoose field is called `timestamp`. It is renamed for two reasons, the
- * second measured rather than reasoned:
+ * The API field is called `timestamp`. The column is named `occurred_at` for
+ * two reasons, the second measured rather than reasoned:
  *
  * 1. It is the EVENT time (caller-supplied, defaulting to now), which is a
  *    different thing from `created_at`, the row's write time — and `timestamp`
@@ -36,10 +36,9 @@
  *
  * ## Expiry
  *
- * Mongo TTL `expireAfterSeconds: 730 * 24 * 60 * 60` on `timestamp` — a
- * two-year retention window measured from the EVENT, bounding growth while
+ * A two-year retention window measured from the EVENT, bounding growth while
  * keeping enough audit history. Registered in `db/expiry.ts` against
- * `occurred_at` with the same retention. Nothing reads this table with an
+ * `occurred_at`. Nothing reads this table with an
  * expiry predicate, and nothing needs to: the retention is about storage, not
  * about a row becoming unsafe to return.
  */
@@ -50,8 +49,8 @@ import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
 /**
- * The audit vocabulary, and the SINGLE declaration of it — the Mongoose model
- * that carried the other copy is gone. It renders the CHECK on `event_type`,
+ * The audit vocabulary, and the SINGLE declaration of it. It renders the CHECK
+ * on `event_type`,
  * and `check-drizzle-snapshot-sync` holds that rendering against the migration
  * the database was actually built from.
  */
@@ -79,14 +78,11 @@ export type SecurityEventSeverity = (typeof SECURITY_EVENT_SEVERITIES)[number];
  * The severity a writer records when it does not name one itself.
  *
  * It lives beside the vocabulary it is total over, for the same reason the
- * vocabulary does: `services/securityActivityService.ts` is the only consumer
- * and must not import mongoose to reach it. Declaring it
+ * vocabulary does: `services/securityActivityService.ts` is the only consumer.
+ * Declaring it
  * `Record<SecurityEventType, SecurityEventSeverity>` is what makes it total —
  * adding an event type above without a default fails `tsc` here rather than
  * silently landing every one of that type at `'low'`.
- *
- * `__tests__/authSession.test.ts` holds it against the Mongoose model's copy
- * until that model is deleted.
  */
 export const SECURITY_EVENT_SEVERITY_MAP: Record<SecurityEventType, SecurityEventSeverity> = {
   sign_in: 'low',
@@ -102,7 +98,7 @@ export const SECURITY_EVENT_SEVERITY_MAP: Record<SecurityEventType, SecurityEven
   suspicious_activity: 'critical',
 };
 
-/** Two years, matching the Mongo TTL this table's expiry entry replaces. */
+/** Two years — this table's expiry retention. */
 export const SECURITY_ACTIVITY_RETENTION_SECONDS = 730 * 24 * 60 * 60;
 
 export const securityActivities = pgTable(
@@ -118,7 +114,7 @@ export const securityActivities = pgTable(
     /**
      * Per-event detail. Genuinely shape-less — every event type carries a
      * different set of keys — which is the one thing `jsonb` is for. `{}` is a
-     * VALUE here ("no detail"), matching Mongoose's `default: {}`.
+     * VALUE here ("no detail").
      */
     metadata: jsonb().notNull().default({}),
     userAgent: text(),
@@ -148,8 +144,8 @@ export const securityActivities = pgTable(
     // Supports the expiry sweep in `db/expiry.ts`. None of the compounds above
     // can: each leads with `user_id`, and the sweep is a bare range scan.
     index('security_activities_occurred_at_idx').on(t.occurredAt),
-    // Mongo's field-level `{userId:1}`, `{eventType:1}` and `{deviceId:1}` are
-    // dropped: the compounds serve any leading `user_id` prefix, and every read
+    // No single-column `(user_id)`, `(event_type)` or `(device_id)` index: the
+    // compounds serve any leading `user_id` prefix, and every read
     // of this table is scoped to one account, so an unscoped index on eleven
     // event types or on a device id can never be the cheaper plan.
     check(

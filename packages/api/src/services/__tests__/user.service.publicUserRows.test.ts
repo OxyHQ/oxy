@@ -7,11 +7,8 @@
  * API emitted `bio: undefined` on every row while the serializer and the wire
  * contract both carried the field. Nothing errored.
  *
- * The suite this replaces asserted that the Mongoose `.select(...)` argument
- * equalled `PUBLIC_USER_PROFILE_SELECT`. That is the projection STRING, not the
- * emitted row — it could not tell a field that was selected from one that
- * survived to the DTO, and the projection it compared against is now vestigial
- * (`publicUserProjection.ts` keeps it only for the one unported Mongo reader).
+ * Asserting on a projection STRING says nothing about the emitted row — it
+ * cannot tell a field that was selected from one that survived to the DTO.
  *
  * Here one richly-populated account is put on the far side of each of the three
  * lists and the emitted DTO is compared field by field. The negative half is

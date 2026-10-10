@@ -263,10 +263,8 @@ router.post(
     // shows up as two distinct entries — the client may want to surface that
     // either signal contributed to the match.
     //
-    // Mongo's `type: { $in: ['local', null] }` becomes a plain equality: the
-    // `null` arm existed only for documents predating the field, and
-    // `users.type` is `NOT NULL DEFAULT 'local'`, so the legacy branch does not
-    // travel.
+    // A plain equality: `users.type` is `NOT NULL DEFAULT 'local'`, so there is
+    // no missing-type branch.
     const db = getDb();
     const callerId = req.user.id;
     const [emailMatches, phoneMatches] = await Promise.all([

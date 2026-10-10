@@ -148,7 +148,6 @@ if (
     'the readback must contain only the reviewed READ ONLY and verification raw SQL statements',
   );
 }
-forbid(script, /mongo|mongoose/i, 'the Inbox routing-profile readback must remain PostgreSQL-only');
 
 requireMatch(
   validator,

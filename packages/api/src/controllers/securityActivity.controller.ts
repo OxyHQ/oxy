@@ -1,10 +1,7 @@
 import { type Response } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import securityActivityService from '../services/securityActivityService';
-// The audit vocabulary comes from the TABLE, not from the mongoose model — the
-// schema module declares its own copy precisely so a consumer needs no mongoose
-// import, and `db/schema/__tests__/authSession.test.ts` holds the two copies in
-// agreement until the model is deleted.
+// The audit vocabulary comes from the TABLE's schema module.
 import { SECURITY_EVENT_TYPES } from '../db/schema/securityActivities';
 import { validatePagination } from '../utils/validation';
 import { sendPaginated } from '../utils/asyncHandler';
@@ -115,8 +112,8 @@ export const getSecurityActivity = async (req: AuthRequest, res: Response): Prom
 
     // Transform activities for response.
     //
-    // `occurredAt` is emitted as `timestamp`: the table renames the Mongoose
-    // field (see `db/schema/securityActivities.ts` for why), and that rename
+    // `occurredAt` is emitted as `timestamp`: the column is named `occurred_at`
+    // (see `db/schema/securityActivities.ts` for why), and that name
     // must never reach a client — every Oxy app consuming `GET
     // /security/activity` reads `timestamp`. The DTO is also a FIXED field set
     // rather than a spread of the row, so nothing a writer smuggled into the

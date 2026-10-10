@@ -6,13 +6,12 @@
  *
  * ## `entity_id` carries no foreign key, and that is permanent
  *
- * `entityId` is a bare ObjectId with NO `ref` in Mongoose, discriminated by
- * `entityType`. Two of the three types (`post`, `reply`) name rows in MENTION's
- * database, not this one — there is nothing local to reference. The third
- * (`profile`) names a `users` row, but a foreign key cannot be conditional on a
- * sibling column's value, and splitting the table three ways to gain one
- * constraint would fragment the recipient's single chronological feed for no
- * reader's benefit. It is therefore listed in
+ * `entityId` is a bare id discriminated by `entityType`. Two of the three types
+ * (`post`, `reply`) name rows in MENTION's database, not this one — there is
+ * nothing local to reference. The third (`profile`) names a `users` row, but a
+ * foreign key cannot be conditional on a sibling column's value, and splitting
+ * the table three ways to gain one constraint would fragment the recipient's
+ * single chronological feed for no reader's benefit. It is therefore listed in
  * `ID_COLUMNS_WITHOUT_FOREIGN_KEY` rather than left unclassified.
  *
  * The fourth, `app`, names nothing Oxy can resolve at all: `entity_id` is an
@@ -39,7 +38,7 @@ import {
 import { users } from './users';
 
 /**
- * What happened. Mongo's `type` enum, plus `system`: a message from an Oxy
+ * What happened. The activity types, plus `system`: a message from an Oxy
  * service about the recipient's own account (Oxy Move's "your migration
  * finished"), where the actor is the recipient and the entity is their profile.
  * The tuple is owned by `@oxy.so/contracts` so the SDK and the CHECK cannot drift.
@@ -47,7 +46,7 @@ import { users } from './users';
 export const NOTIFICATION_TYPES = OXY_NOTIFICATION_TYPES;
 
 /**
- * What `entity_id` points at: Mongo's `entityType` enum, plus `app` — an OPAQUE
+ * What `entity_id` points at: a post, reply or profile, plus `app` — an OPAQUE
  * id in the notifying application's own namespace (Oxy Move's job id), never
  * resolved by Oxy. `app` is valid only on a `system` notification (CHECK
  * below): an actor's like/reply/follow always names a real post or profile.
@@ -90,7 +89,7 @@ export const notifications = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // Mongo's duplicate guard: the same actor doing the same thing to the same
+    // The duplicate guard: the same actor doing the same thing to the same
     // entity notifies the recipient once, however many times it is emitted.
     unique('notifications_recipient_id_actor_id_type_entity_id_key').on(
       t.recipientId,

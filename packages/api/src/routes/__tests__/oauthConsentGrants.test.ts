@@ -3,15 +3,12 @@
  *
  * Covers `GET /auth/oauth/consent` (the server-authoritative decision),
  * `GET /auth/grants` (the revocable grant list), `DELETE /auth/grants/:id`, and
- * the `app_grants` upsert that `POST /auth/oauth/authorize` performs — the
- * replacement for Mongo's `$addToSet` + `$setOnInsert`, whose UNION and
- * first-granted-at semantics are the whole reason a returning user can skip the
- * consent screen safely.
+ * the `app_grants` upsert that `POST /auth/oauth/authorize` performs — whose
+ * scope UNION and set-once `first_granted_at` are the whole reason a returning
+ * user can skip the consent screen safely.
  *
- * The previous version mocked `models/AppGrant` and asserted on the
- * `findOneAndUpdate` payload shape. That proves the update was BUILT with
- * `$addToSet`; it can never show that the stored scope set is the union. Every
- * assertion here reads `app_grants` back out of Postgres.
+ * Every assertion here reads `app_grants` back out of Postgres, because only
+ * the stored row can show that the scope set is the union.
  */
 
 import express from 'express';

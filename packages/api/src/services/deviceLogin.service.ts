@@ -11,7 +11,7 @@
  *
  * `deviceSession.service` is imported LAZILY (only when finalizing a sign-in) so
  * that merely importing this helper — which the hot auth controllers do at module
- * load — never forces the `DeviceSession` Mongoose model to evaluate. This matches
+ * load — never forces `deviceSession.service`'s module graph to evaluate. This matches
  * the existing `session.service` lazy-`import('./account.service.js')` convention
  * and keeps unit tests that mock only the models they touch working unchanged.
  */

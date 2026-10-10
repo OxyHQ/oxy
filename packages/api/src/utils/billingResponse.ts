@@ -2,8 +2,8 @@
  * Wire serializers for the two Stripe-facing tables.
  *
  * `GET /billing/subscription`, `POST /billing/subscription/cancel` and
- * `GET /billing/transactions` used to hand a raw Mongoose document to
- * `res.json()`. Two things about that shape are contract and one is not:
+ * `GET /billing/transactions` serialize through here. Two things about the wire
+ * shape are contract and one is not:
  *
  *   - **`_id` IS contract.** `packages/console/src/hooks/use-billing.ts` declares
  *     `_id: string` on both `Subscription` and `Transaction`. It is the row key
@@ -13,9 +13,8 @@
  *     `amount_minor_units` / `plan_price_minor_units` so a reader cannot mistake
  *     minor units for currency. That rename stops HERE: the wire keeps `amount`
  *     and `plan.price`, with the same values it always carried.
- *   - **`__v` is NOT contract.** It is Mongoose's version counter, has no
- *     Postgres counterpart, and no consumer in this repo reads it. It does not
- *     travel.
+ *   - **`__v` is NOT contract.** It is a legacy document version counter with
+ *     no column, and no consumer in this repo reads it. It does not travel.
  *
  * Written as explicit DTO types rather than `Record<string, unknown>` so a
  * missing field, an undeclared one, or a `Date` where the wire promised a string
@@ -70,9 +69,8 @@ export interface BillingTransactionResponse {
 }
 
 /**
- * Mongoose omitted an unset optional field entirely rather than emitting
- * `null`, and the consumer types declare these as `?:`. A drizzle nullable
- * column reads back as `null`, so the two are reconciled here.
+ * The consumer types declare these as `?:` (an unset field is omitted), while a
+ * drizzle nullable column reads back as `null`, so the two are reconciled here.
  */
 function optional(value: string | null): string | undefined {
   return value ?? undefined;
