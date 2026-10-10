@@ -120,9 +120,10 @@ interface FakeS3 {
   deleteFile: jest.Mock<Promise<void>, [string]>;
   fileExists: jest.Mock<Promise<boolean>, [string]>;
   copyFile: jest.Mock<Promise<void>, [string, string]>;
+  downloadBuffer: jest.Mock<Promise<Buffer>, [string]>;
 }
 
-type FakeS3Input = Partial<Pick<FakeS3, 'uploadStream' | 'uploadBuffer' | 'fileExists' | 'copyFile' | 'deleteFile'>>;
+type FakeS3Input = Partial<Pick<FakeS3, 'uploadStream' | 'uploadBuffer' | 'fileExists' | 'copyFile' | 'deleteFile' | 'downloadBuffer'>>;
 
 function buildAssetService(input: FakeS3Input): { service: AssetService; fake: FakeS3 } {
   const fake: FakeS3 = {
@@ -135,6 +136,7 @@ function buildAssetService(input: FakeS3Input): { service: AssetService; fake: F
     deleteFile: jest.fn((): Promise<void> => Promise.resolve()),
     fileExists: jest.fn((): Promise<boolean> => Promise.resolve(true)),
     copyFile: jest.fn((): Promise<void> => Promise.resolve()),
+    downloadBuffer: jest.fn((): Promise<Buffer> => Promise.reject(new Error('no object'))),
     ...input,
   };
 
@@ -675,6 +677,58 @@ describe('AssetService visibility relocation', () => {
     expect(updated.storageKey).toBe('public/content/2026/06/ab/original.png');
     expect(updated.variants.map((v) => v.key)).toEqual(['public/variants/2026/06/ab/thumb.webp']);
     expect((await readFile(file.id)).storageKey).toBe('public/content/2026/06/ab/original.png');
+  });
+
+  it("copies an HLS rendition's segments along with its playlist, and keeps the old ones", async () => {
+    // Segments are not variant rows: the playlist is their only record. Moving
+    // the rows alone made a public ladder whose every segment 403'd on the CDN
+    // (a 3-minute reel, 2026-10-10: playlists under `public/`, 38 segments not).
+    const dir = 'variants/2026/10/16/ab/sha';
+    const playlist = '#EXTM3U\n#EXTINF:10,\nsegment_360p_000.ts\n#EXTINF:4,\nsegment_360p_001.ts\n#EXT-X-ENDLIST\n';
+    const present = new Set([
+      'content/2026/10/ab/original.mp4',
+      `${dir}/hls_360p.m3u8`,
+      `${dir}/segment_360p_000.ts`,
+      `${dir}/segment_360p_001.ts`,
+    ]);
+    const deleteFile = jest.fn((key: string): Promise<void> => {
+      present.delete(key);
+      return Promise.resolve();
+    });
+    const fileExists = jest.fn((key: string): Promise<boolean> => Promise.resolve(present.has(key)));
+    const copyFile = jest.fn((_from: string, to: string): Promise<void> => {
+      present.add(to);
+      return Promise.resolve();
+    });
+    const downloadBuffer = jest.fn((key: string): Promise<Buffer> =>
+      key.endsWith('hls_360p.m3u8') && present.has(key)
+        ? Promise.resolve(Buffer.from(playlist))
+        : Promise.reject(new Error(`no object ${key}`)));
+    const { service } = buildAssetService({ deleteFile, fileExists, copyFile, downloadBuffer });
+
+    const file = await insertFile({
+      sha256: hashOf(uniqueBody()),
+      ownerUserId: await insertUser(),
+      visibility: 'private',
+      mime: 'video/mp4',
+      ext: 'mp4',
+      storageKey: 'content/2026/10/ab/original.mp4',
+    });
+    await getDb().insert(fileVariants).values({
+      fileId: file.id,
+      type: 'hls_360p',
+      key: `${dir}/hls_360p.m3u8`,
+      readyAt: new Date(),
+    });
+
+    await service.updateFileVisibility(file.id, 'public');
+
+    expect(present.has(`public/${dir}/segment_360p_000.ts`)).toBe(true);
+    expect(present.has(`public/${dir}/segment_360p_001.ts`)).toBe(true);
+    // Content-addressed keys may be another owner's; the asset's own deletion
+    // sweeps the directory in both spellings.
+    expect(deleteFile).not.toHaveBeenCalledWith(`${dir}/segment_360p_000.ts`);
+    expect(present.has(`${dir}/segment_360p_000.ts`)).toBe(true);
   });
 });
 

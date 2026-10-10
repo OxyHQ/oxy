@@ -20,7 +20,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { billingSubscriptions } from '../../db/schema/billingSubscriptions';
 import { users } from '../../db/schema/users';
@@ -162,12 +162,29 @@ describe('existing premium identity colors and added mono benefit', () => {
 
   it('allows the `oxy` account itself with no subscription', async () => {
     // The brand account owns the preset; it is identified by username, and the
-    // comparison is case-insensitive.
-    const id = await makeUser({ username: 'OXY' });
+    // comparison is case-insensitive. There is one such row per database
+    // (`users_lower_username_key`), and other suites in the same worker create
+    // it and hang rows off it (`seedOxyApplicationScopes.test.ts`), so this case
+    // borrows that row when it exists — spelled `OXY` for the duration — and
+    // puts it back, rather than inserting a second `oxy` that cannot exist.
+    const [existing] = await getDb()
+      .select({ id: users.id, username: users.username, color: users.color })
+      .from(users)
+      .where(sql`lower(${users.username}) = 'oxy'`);
+    const id = existing?.id ?? (await makeUser({ username: 'OXY' }));
+    try {
+      if (existing) await getDb().update(users).set({ username: 'OXY' }).where(eq(users.id, id));
 
-    await userService.updateUserProfile(id, { color: 'oxy' });
+      await userService.updateUserProfile(id, { color: 'oxy' });
 
-    expect(await storedColor(id)).toBe('oxy');
+      expect(await storedColor(id)).toBe('oxy');
+    } finally {
+      if (existing) {
+        await getDb().update(users).set({ username: existing.username, color: existing.color }).where(eq(users.id, id));
+      } else {
+        await getDb().delete(users).where(eq(users.id, id));
+      }
+    }
   });
 
   it('does not extend that exemption to a merely oxy-ish username', async () => {

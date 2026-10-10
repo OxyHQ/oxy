@@ -118,8 +118,8 @@ export async function recordFileStorageDeletion(
  * Record the keys ONE asset stopped using when a visibility change copied its
  * objects to the other spelling (`public/` or not), inside the transaction that
  * repointed the row. Each old key is an OBJECT target — never its directory:
- * the directory also holds HLS segments the relocation did not move, and other
- * owners' renditions. The worker then deletes each spelling no live row uses,
+ * the directory also holds HLS segments, which the relocation copies but never
+ * deletes, and other owners' renditions. The worker then deletes each spelling no live row uses,
  * so a key another owner's row shares is kept.
  */
 export async function recordFileStorageRelocation(
