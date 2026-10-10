@@ -97,15 +97,8 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
-import {
-  priceVersionStatusSchema,
-  USAGE_UNITS,
-} from '@oxy.so/contracts';
-import {
-  currencyCode,
-  currencyCodeCheck,
-  exactAmount,
-} from './ledgerColumns';
+import { priceVersionStatusSchema, USAGE_UNITS } from '@oxy.so/contracts';
+import { currencyCode, currencyCodeCheck, exactAmount } from './ledgerColumns';
 
 /**
  * `draft | active | superseded`, taken from the wire contract's own enum rather
@@ -162,12 +155,12 @@ export const priceVersions = pgTable(
     index('price_versions_route_effective_from_idx').on(
       t.modelReference,
       t.provider,
-      t.effectiveFrom.desc()
+      t.effectiveFrom.desc(),
     ),
 
     check(
       'price_versions_status_check',
-      sql`${t.status} in (${sql.raw(inList(PRICE_VERSION_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(PRICE_VERSION_STATUSES))})`,
     ),
     check('price_versions_currency_check', currencyCodeCheck(t.currency)),
     check('price_versions_model_reference_check', sql`length(${t.modelReference}) > 0`),
@@ -175,22 +168,22 @@ export const priceVersions = pgTable(
     // A version must stop applying after it started applying.
     check(
       'price_versions_effective_window_check',
-      sql`${t.effectiveUntil} is null or ${t.effectiveUntil} > ${t.effectiveFrom}`
+      sql`${t.effectiveUntil} is null or ${t.effectiveUntil} > ${t.effectiveFrom}`,
     ),
     // A superseded version priced requests during a window that has CLOSED.
     // Left open it is indistinguishable from the current one when a receipt is
     // re-priced years later, which is the one job this record exists to do.
     check(
       'price_versions_superseded_window_check',
-      sql`${t.status} <> 'superseded' or ${t.effectiveUntil} is not null`
+      sql`${t.status} <> 'superseded' or ${t.effectiveUntil} is not null`,
     ),
     // A version cannot supersede itself: the chain would be a cycle of one and
     // "what did this replace" would never terminate.
     check(
       'price_versions_supersedes_self_check',
-      sql`${t.supersedesPriceVersionId} is null or ${t.supersedesPriceVersionId} <> ${t.id}`
+      sql`${t.supersedesPriceVersionId} is null or ${t.supersedesPriceVersionId} <> ${t.id}`,
     ),
-  ]
+  ],
 );
 
 export const priceVersionUnitPrices = pgTable(
@@ -218,12 +211,12 @@ export const priceVersionUnitPrices = pgTable(
 
     check(
       'price_version_unit_prices_unit_check',
-      sql`${t.unit} in (${sql.raw(inList(USAGE_UNITS))})`
+      sql`${t.unit} in (${sql.raw(inList(USAGE_UNITS))})`,
     ),
     check('price_version_unit_prices_amount_check', sql`${t.amount} >= 0`),
     // `per` divides in every settlement expression, so zero is a division by
     // zero at settle time — a 500 on a request whose money has already been
     // spent upstream.
     check('price_version_unit_prices_per_check', sql`${t.per} > 0`),
-  ]
+  ],
 );

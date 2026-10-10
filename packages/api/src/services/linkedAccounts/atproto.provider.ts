@@ -48,7 +48,9 @@ export interface AtprotoOAuthClientLike {
   callback(params: URLSearchParams): Promise<{ session: AtprotoSessionLike; state: string | null }>;
   oauthResolver: {
     identityResolver: {
-      resolve(identifier: string): Promise<{ did: string; handle: string; didDoc: { service?: unknown } }>;
+      resolve(
+        identifier: string,
+      ): Promise<{ did: string; handle: string; didDoc: { service?: unknown } }>;
     };
   };
 }
@@ -206,7 +208,9 @@ export interface AtprotoStartInput {
   returnTo: string;
 }
 
-export async function startAtprotoLink(input: AtprotoStartInput): Promise<{ authorizeUrl: string; expiresAt: Date }> {
+export async function startAtprotoLink(
+  input: AtprotoStartInput,
+): Promise<{ authorizeUrl: string; expiresAt: Date }> {
   const identifier = input.handle.trim().replace(/^@/, '');
   if (!identifier) throw new LinkedAccountStartRefusal('handle_unresolvable', 'handle is required');
   const client = await atprotoClient();
@@ -221,7 +225,10 @@ export async function startAtprotoLink(input: AtprotoStartInput): Promise<{ auth
     logger.info('[LinkedAccounts] atproto handle did not resolve', {
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new LinkedAccountStartRefusal('handle_unresolvable', 'that handle could not be resolved to a Bluesky account');
+    throw new LinkedAccountStartRefusal(
+      'handle_unresolvable',
+      'that handle could not be resolved to a Bluesky account',
+    );
   }
 
   const challenge = await mintChallenge({
@@ -231,7 +238,10 @@ export async function startAtprotoLink(input: AtprotoStartInput): Promise<{ auth
     returnTo: input.returnTo,
   });
   try {
-    const url = await client.authorize(identifier, { state: challenge.id, scope: ATPROTO_LINK_SCOPE });
+    const url = await client.authorize(identifier, {
+      state: challenge.id,
+      scope: ATPROTO_LINK_SCOPE,
+    });
     return { authorizeUrl: url.toString(), expiresAt: challenge.expiresAt };
   } catch (error) {
     await discardChallenge(challenge.id);
@@ -273,13 +283,25 @@ async function classifyAuthorizeFailure(error: unknown): Promise<LinkedAccountSt
   if (error instanceof OAuthResponseError) {
     const status = error.status;
     return status >= 400 && status < 500
-      ? new LinkedAccountStartRefusal('provider_rejected', `the Bluesky authorization server refused Oxy (${error.error ?? status})`)
-      : new LinkedAccountStartRefusal('provider_unavailable', `the Bluesky authorization server failed (${status})`);
+      ? new LinkedAccountStartRefusal(
+          'provider_rejected',
+          `the Bluesky authorization server refused Oxy (${error.error ?? status})`,
+        )
+      : new LinkedAccountStartRefusal(
+          'provider_unavailable',
+          `the Bluesky authorization server failed (${status})`,
+        );
   }
   if (error instanceof OAuthResolverError) {
-    return new LinkedAccountStartRefusal('provider_unavailable', "the account's authorization server could not be resolved");
+    return new LinkedAccountStartRefusal(
+      'provider_unavailable',
+      "the account's authorization server could not be resolved",
+    );
   }
-  return new LinkedAccountStartRefusal('provider_unavailable', 'the Bluesky authorization server could not be reached');
+  return new LinkedAccountStartRefusal(
+    'provider_unavailable',
+    'the Bluesky authorization server could not be reached',
+  );
 }
 
 function pdsHost(didDoc: { service?: unknown }): string | null {
@@ -310,7 +332,9 @@ export interface AtprotoCallbackResult {
  */
 export async function completeAtprotoLink(
   params: URLSearchParams,
-): Promise<AtprotoCallbackResult | { failure: LinkedAccountCallbackFailure; challengeId: string | null }> {
+): Promise<
+  AtprotoCallbackResult | { failure: LinkedAccountCallbackFailure; challengeId: string | null }
+> {
   const client = await atprotoClient();
   let session: AtprotoSessionLike | null = null;
   let challengeId: string | null = null;
@@ -333,14 +357,21 @@ export async function completeAtprotoLink(
 
   try {
     if (!challengeId) {
-      return { failure: new LinkedAccountCallbackFailure('verification_failed', 'callback carried no challenge'), challengeId: null };
+      return {
+        failure: new LinkedAccountCallbackFailure(
+          'verification_failed',
+          'callback carried no challenge',
+        ),
+        challengeId: null,
+      };
     }
     const did = session.did;
     let handle = did;
     let host: string | null = null;
     try {
       const identity = await client.oauthResolver.identityResolver.resolve(did);
-      if (identity.did === did && identity.handle && identity.handle !== 'handle.invalid') handle = identity.handle;
+      if (identity.did === did && identity.handle && identity.handle !== 'handle.invalid')
+        handle = identity.handle;
       host = pdsHost(identity.didDoc);
     } catch (error) {
       logger.info('[LinkedAccounts] atproto identity lookup failed after a verified callback', {
@@ -356,7 +387,10 @@ export async function completeAtprotoLink(
       .where(eq(linkedAccountOauthChallenges.id, challengeId))
       .limit(1);
     if (!row) {
-      return { failure: new LinkedAccountCallbackFailure('verification_failed', 'challenge vanished'), challengeId };
+      return {
+        failure: new LinkedAccountCallbackFailure('verification_failed', 'challenge vanished'),
+        challengeId,
+      };
     }
     return {
       challengeId,

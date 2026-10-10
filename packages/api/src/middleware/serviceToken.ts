@@ -1,5 +1,9 @@
 import { createPublicKey, verify as verifyBytes } from 'node:crypto';
-import { hasBoundedServiceTokenLifetime, OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '@oxy.so/core/server';
+import {
+  hasBoundedServiceTokenLifetime,
+  OXY_SERVICE_ENVIRONMENTS,
+  type OxyServiceEnvironment,
+} from '@oxy.so/core/server';
 import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
 
 /**
@@ -125,21 +129,24 @@ function verifyEd25519ServiceToken(token: string): UnverifiedServiceClaims | nul
     if (typeof header !== 'object' || header === null || Array.isArray(header)) return null;
     const record = header as Record<string, unknown>;
     if (
-      Object.keys(record).length !== 3
-      || record.alg !== 'EdDSA'
-      || record.typ !== 'JWT'
-      || typeof record.kid !== 'string'
-      || record.kid.length === 0
-    ) return null;
+      Object.keys(record).length !== 3 ||
+      record.alg !== 'EdDSA' ||
+      record.typ !== 'JWT' ||
+      typeof record.kid !== 'string' ||
+      record.kid.length === 0
+    )
+      return null;
     const jwk = serviceTokenPublicJwks().find((candidate) => candidate.kid === record.kid);
     if (!jwk) return null;
     const signature = Buffer.from(signatureSegment, 'base64url');
-    if (signature.toString('base64url') !== signatureSegment || signature.length !== 64) return null;
+    if (signature.toString('base64url') !== signatureSegment || signature.length !== 64)
+      return null;
     const publicKey = createPublicKey({ key: jwk, format: 'jwk' });
-    if (!verifyBytes(null, Buffer.from(`${headerSegment}.${payloadSegment}`), publicKey, signature)) return null;
+    if (!verifyBytes(null, Buffer.from(`${headerSegment}.${payloadSegment}`), publicKey, signature))
+      return null;
     const payload = decodeSegment(payloadSegment);
     return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
-      ? payload as UnverifiedServiceClaims
+      ? (payload as UnverifiedServiceClaims)
       : null;
   } catch {
     return null;
@@ -158,9 +165,10 @@ export function verifyServiceToken(token: string): ServiceTokenVerification {
   let header: { alg?: unknown } | null = null;
   try {
     const candidate = decodeSegment(token.split('.')[0] ?? '');
-    header = typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
-      ? candidate as { alg?: unknown }
-      : null;
+    header =
+      typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
+        ? (candidate as { alg?: unknown })
+        : null;
   } catch {
     return { ok: false, reason: 'invalid' };
   }
@@ -187,10 +195,13 @@ export function verifyServiceToken(token: string): ServiceTokenVerification {
     return { ok: false, reason: 'expired' };
   }
   if (
-    decoded.iss !== 'oxy-auth'
-    || !(decoded.aud === 'oxy-api' || (Array.isArray(decoded.aud) && decoded.aud.includes('oxy-api')))
-    || (decoded.nbf !== undefined && (!Number.isInteger(decoded.nbf) || decoded.nbf > now))
-    || !hasBoundedServiceTokenLifetime(decoded, now)
+    decoded.iss !== 'oxy-auth' ||
+    !(
+      decoded.aud === 'oxy-api' ||
+      (Array.isArray(decoded.aud) && decoded.aud.includes('oxy-api'))
+    ) ||
+    (decoded.nbf !== undefined && (!Number.isInteger(decoded.nbf) || decoded.nbf > now)) ||
+    !hasBoundedServiceTokenLifetime(decoded, now)
   ) {
     return { ok: false, reason: 'invalid' };
   }
@@ -206,7 +217,9 @@ export function verifyServiceToken(token: string): ServiceTokenVerification {
     !isExactNonEmptyString(decoded.ownerAccountId) ||
     !isOxyServiceEnvironment(decoded.environment) ||
     !Array.isArray(decoded.scopes) ||
-    !decoded.scopes.every((scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim()) ||
+    !decoded.scopes.every(
+      (scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim(),
+    ) ||
     new Set(decoded.scopes).size !== decoded.scopes.length
   ) {
     return { ok: false, reason: 'not_service' };

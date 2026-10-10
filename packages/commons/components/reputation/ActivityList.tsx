@@ -40,11 +40,13 @@ export function ActivityList({ transactions, isLoading, isError }: ActivityListP
   }
 
   if (!transactions || transactions.length === 0) {
-    return <EmptyState
-             icon={Icons.history}
-             description={t('civic.reputation.activity.empty')}
-             minHeight={STATE_MIN_HEIGHT}
-           />;
+    return (
+      <EmptyState
+        icon={Icons.history}
+        description={t('civic.reputation.activity.empty')}
+        minHeight={STATE_MIN_HEIGHT}
+      />
+    );
   }
 
   return (

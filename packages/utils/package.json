@@ -105,7 +105,6 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run typescript && bun run test && bun run build"
   },
   "devDependencies": {
-    "@biomejs/biome": "catalog:",
     "@types/jest": "^30.0.0",
     "jest": "^30.5.1",
     "ts-jest": "^29.4.12",

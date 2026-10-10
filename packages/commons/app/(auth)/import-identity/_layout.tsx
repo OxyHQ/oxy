@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 
 /**
  * Import Identity Flow Layout
- * 
+ *
  * Stack navigator for the import identity flow steps
  */
 export default function ImportIdentityLayout() {
@@ -20,4 +20,3 @@ export default function ImportIdentityLayout() {
     </Stack>
   );
 }
-

@@ -111,7 +111,9 @@ const SCOPE_JOB = 'scope';
  * `api-test` and inherits its skip.
  */
 const SCOPED_JOBS = Object.fromEntries(
-  Object.entries(SUITE_JOBS).flatMap(([suite, ids]) => ids.map((id) => [id, { scopeJob: SCOPE_JOB, output: suite }]))
+  Object.entries(SUITE_JOBS).flatMap(([suite, ids]) =>
+    ids.map((id) => [id, { scopeJob: SCOPE_JOB, output: suite }]),
+  ),
 );
 
 /** The only event allowed to skip anything. Everything else must run it all. */
@@ -137,7 +139,9 @@ let workflow;
 try {
   workflow = Bun.YAML.parse(read(WORKFLOW_PATH));
 } catch (error) {
-  console.error(`${WORKFLOW_PATH} is not parseable YAML (${error.message}); the gate cannot see any job.`);
+  console.error(
+    `${WORKFLOW_PATH} is not parseable YAML (${error.message}); the gate cannot see any job.`,
+  );
   process.exit(1);
 }
 
@@ -153,14 +157,14 @@ const jobIds = Object.keys(jobs);
 if (!jobIds.includes(GATE_JOB_ID)) {
   fail(
     `\`${GATE_JOB_ID}\` is not among the jobs parsed out of ${WORKFLOW_PATH} (found: ` +
-    `${jobIds.join(', ') || 'none'}). This gate is running, so it is in the file — the parse is ` +
-    'broken, and every check below it is reading an empty set.'
+      `${jobIds.join(', ') || 'none'}). This gate is running, so it is in the file — the parse is ` +
+      'broken, and every check below it is reading an empty set.',
   );
 }
 if (jobIds.length < MINIMUM_JOBS) {
   fail(
     `Only ${jobIds.length} job(s) parsed out of ${WORKFLOW_PATH} (expected at least ` +
-    `${MINIMUM_JOBS}). The parse is broken, not the workflow.`
+      `${MINIMUM_JOBS}). The parse is broken, not the workflow.`,
   );
 }
 
@@ -173,17 +177,17 @@ const pullRequest = triggers?.pull_request;
 if (pullRequest === undefined) {
   fail(
     `${WORKFLOW_PATH} no longer declares an \`on.pull_request\` trigger, so it does not run on ` +
-    'pull requests at all. The one required check would never report and every pull request ' +
-    'would be permanently unmergeable.'
+      'pull requests at all. The one required check would never report and every pull request ' +
+      'would be permanently unmergeable.',
   );
 } else if (pullRequest !== null && typeof pullRequest === 'object') {
   for (const key of ['paths', 'paths-ignore']) {
     if (key in pullRequest) {
       fail(
         `${WORKFLOW_PATH} filters \`on.pull_request\` by \`${key}\`. A path-filtered workflow does ` +
-        'not run when nothing matches, so the required `CI complete` check never reports and the ' +
-        'pull request can never be merged. Path-filter individual JOBS with `if:` instead — a ' +
-        'skipped job satisfies this gate, a missing workflow run does not.'
+          'not run when nothing matches, so the required `CI complete` check never reports and the ' +
+          'pull request can never be merged. Path-filter individual JOBS with `if:` instead — a ' +
+          'skipped job satisfies this gate, a missing workflow run does not.',
       );
     }
   }
@@ -192,7 +196,7 @@ if (pullRequest === undefined) {
   if (Array.isArray(branches) && !branches.includes('main')) {
     fail(
       `${WORKFLOW_PATH} restricts \`on.pull_request.branches\` to ${branches.join(', ')}, which ` +
-      'excludes `main`. The required check would never report on the branch that requires it.'
+        'excludes `main`. The required check would never report on the branch that requires it.',
     );
   }
 }
@@ -204,7 +208,7 @@ if (pullRequest === undefined) {
 if (triggers !== null && typeof triggers === 'object' && !('merge_group' in triggers)) {
   fail(
     `${WORKFLOW_PATH} no longer declares an \`on.merge_group\` trigger. The merge queue is the only ` +
-    'place the complete suite is guaranteed to run on the tree that lands.'
+      'place the complete suite is guaranteed to run on the tree that lands.',
   );
 }
 
@@ -215,14 +219,19 @@ for (const [id, { scopeJob, output }] of Object.entries(SCOPED_JOBS)) {
     fail(`\`${id}\` is a scoped job in scripts/ci-scope.mjs but not a job in ${WORKFLOW_PATH}.`);
     continue;
   }
-  const declaredNeeds = typeof job.needs === 'string' ? [job.needs] : Array.isArray(job.needs) ? job.needs : [];
+  const declaredNeeds =
+    typeof job.needs === 'string' ? [job.needs] : Array.isArray(job.needs) ? job.needs : [];
   const condition = typeof job.if === 'string' ? job.if.replace(/\s+/g, ' ') : '';
   const expected = `needs.${scopeJob}.outputs.${output} != 'false'`;
-  if (!declaredNeeds.includes(scopeJob) || !condition.includes(expected) || !condition.includes("github.event_name != 'pull_request'")) {
+  if (
+    !declaredNeeds.includes(scopeJob) ||
+    !condition.includes(expected) ||
+    !condition.includes("github.event_name != 'pull_request'")
+  ) {
     fail(
       `\`${id}\` must need \`${scopeJob}\` and run unless a pull request's scope said its own suite is out: ` +
         `its \`if:\` must contain \`github.event_name != 'pull_request' || ${expected}\` (found ` +
-        `${JSON.stringify(job.if ?? null)}, needs ${JSON.stringify(declaredNeeds)}).`
+        `${JSON.stringify(job.if ?? null)}, needs ${JSON.stringify(declaredNeeds)}).`,
     );
   }
 }
@@ -232,8 +241,8 @@ const eventName = process.env.EVENT_NAME;
 if (!eventName) {
   console.error(
     'EVENT_NAME is empty or unset. The job must pass `EVENT_NAME: ${{ github.event_name }}` — without ' +
-    'it this gate cannot tell a pull request (where the API suite may be scoped out) from the merge ' +
-    'queue (where nothing may be skipped).'
+      'it this gate cannot tell a pull request (where the API suite may be scoped out) from the merge ' +
+      'queue (where nothing may be skipped).',
   );
   process.exit(1);
 }
@@ -244,7 +253,7 @@ const rawNeeds = process.env.NEEDS_JSON;
 if (!rawNeeds) {
   console.error(
     'NEEDS_JSON is empty or unset. The job must pass `NEEDS_JSON: ${{ toJSON(needs) }}` — without ' +
-    'it this gate has no verdicts to read and would pass over a completely red run.'
+      'it this gate has no verdicts to read and would pass over a completely red run.',
   );
   process.exit(1);
 }
@@ -266,7 +275,7 @@ const needIds = Object.keys(needs);
 if (needIds.length === 0) {
   fail(
     'This job depends on nothing (`needs:` is empty), so it reports the verdict of zero jobs while ' +
-    'presenting as the gate for all of them.'
+      'presenting as the gate for all of them.',
   );
 }
 
@@ -276,8 +285,8 @@ const uncovered = expected.filter((id) => !needIds.includes(id));
 if (uncovered.length > 0) {
   fail(
     `${uncovered.length} job(s) in ${WORKFLOW_PATH} are not dependencies of \`${GATE_JOB_ID}\`: ` +
-    `${uncovered.join(', ')}. \`${GATE_JOB_ID}\` is the only check \`main\` requires, so a job it ` +
-    'does not need can fail without blocking anything. Add each one to its `needs:` list.'
+      `${uncovered.join(', ')}. \`${GATE_JOB_ID}\` is the only check \`main\` requires, so a job it ` +
+      'does not need can fail without blocking anything. Add each one to its `needs:` list.',
   );
 }
 
@@ -285,8 +294,8 @@ const unknown = needIds.filter((id) => !jobIds.includes(id));
 if (unknown.length > 0) {
   fail(
     `\`${GATE_JOB_ID}\` needs ${unknown.join(', ')}, which the parse of ${WORKFLOW_PATH} did not ` +
-    'find. GitHub rejects a `needs:` naming a job that does not exist, so this means the gate is ' +
-    'reading a different file than the one that ran.'
+      'find. GitHub rejects a `needs:` naming a job that does not exist, so this means the gate is ' +
+      'reading a different file than the one that ran.',
   );
 }
 
@@ -312,7 +321,8 @@ function dependenciesOf(jobId) {
  * The skip is only excused, never passed: a failed dependency still fails here.
  */
 function maySkip(jobId) {
-  if (jobs?.[jobId] !== null && typeof jobs?.[jobId] === 'object' && 'if' in jobs[jobId]) return true;
+  if (jobs?.[jobId] !== null && typeof jobs?.[jobId] === 'object' && 'if' in jobs[jobId])
+    return true;
   return dependenciesOf(jobId).some((id) => {
     const result = needs?.[id]?.result;
     return result !== undefined && result !== 'success';
@@ -333,8 +343,8 @@ for (const id of needIds.sort()) {
     if (fullSuiteRequired) {
       fail(
         `\`${id}\` was skipped on a \`${eventName}\` run. Only pull requests may skip a job; the merge ` +
-        'queue (and any push) must run the complete suite on the exact tree that lands, so a skip here ' +
-        'is a suite that never ran where it matters most.'
+          'queue (and any push) must run the complete suite on the exact tree that lands, so a skip here ' +
+          'is a suite that never ran where it matters most.',
       );
       continue;
     }
@@ -348,8 +358,8 @@ for (const id of needIds.sort()) {
       }
       fail(
         `\`${id}\` was skipped, but \`${scoped.scopeJob}\` did not decide it could be: it reported ` +
-        `${JSON.stringify(scope?.result)} with ${scoped.output}=${JSON.stringify(said)}. Only a scope job ` +
-        'that succeeded and said exactly `false` excuses this skip.'
+          `${JSON.stringify(scope?.result)} with ${scoped.output}=${JSON.stringify(said)}. Only a scope job ` +
+          'that succeeded and said exactly `false` excuses this skip.',
       );
       continue;
     }
@@ -359,8 +369,8 @@ for (const id of needIds.sort()) {
     }
     fail(
       `\`${id}\` was skipped, but it declares no \`if:\` and everything it needs succeeded — so nothing ` +
-      'explains why it did not run. Treating that as a pass is how a required check stops ' +
-      'checking: one `if: false` and this gate is green over a suite that never executed.'
+        'explains why it did not run. Treating that as a pass is how a required check stops ' +
+        'checking: one `if: false` and this gate is green over a suite that never executed.',
     );
     continue;
   }
@@ -373,14 +383,14 @@ for (const id of needIds.sort()) {
   if (result === 'cancelled') {
     fail(
       `\`${id}\` was cancelled, so it verified nothing. Cancellation is most common when pushes ` +
-      'race, which is exactly when merging on an unverified tree is most likely.'
+        'race, which is exactly when merging on an unverified tree is most likely.',
     );
     continue;
   }
 
   fail(
     `\`${id}\` reported ${JSON.stringify(result)}, which this gate does not recognise as a pass. ` +
-    'An unrecognised result is not good news.'
+      'An unrecognised result is not good news.',
   );
 }
 
@@ -389,13 +399,13 @@ if (problems.length > 0) {
   for (const problem of problems) console.error(`- ${problem}`);
   console.error(
     '\n`CI complete` is the only status check `main` requires. It is red, so this pull request' +
-    '\ncannot merge — which is the mechanism working, not a flake to re-run around.'
+      '\ncannot merge — which is the mechanism working, not a flake to re-run around.',
   );
   process.exit(1);
 }
 
 console.log(
   `CI is complete (${eventName}, ${fullSuiteRequired ? 'full suite: nothing skipped' : 'pull request'}): ` +
-  `${counts.success} job(s) passed, ${counts.skipped} skipped for a declared ` +
-  `reason, across all ${expected.length} job(s) in ${WORKFLOW_PATH}.`
+    `${counts.success} job(s) passed, ${counts.skipped} skipped for a declared ` +
+    `reason, across all ${expected.length} job(s) in ${WORKFLOW_PATH}.`,
 );

@@ -137,11 +137,11 @@ export const inferenceModelRevisions = pgTable(
 
     check(
       'inference_model_revisions_revision_format',
-      sql`${t.revision} ~ ${sql.raw(REVISION_CHECK_PATTERN)}`
+      sql`${t.revision} ~ ${sql.raw(REVISION_CHECK_PATTERN)}`,
     ),
     check(
       'inference_model_revisions_artifact_digest_format',
-      sql`${t.artifactDigest} is null or ${t.artifactDigest} ~ ${sql.raw(String.raw`'^sha256:[a-f0-9]{64}$'`)}`
+      sql`${t.artifactDigest} is null or ${t.artifactDigest} ~ ${sql.raw(String.raw`'^sha256:[a-f0-9]{64}$'`)}`,
     ),
 
     /**
@@ -167,15 +167,15 @@ export const inferenceModelRevisions = pgTable(
      */
     check(
       'inference_model_revisions_safety_is_whole',
-      sql`(${t.contentFilteringDefault} is null) = (${t.provenanceMarking} is null)`
+      sql`(${t.contentFilteringDefault} is null) = (${t.provenanceMarking} is null)`,
     ),
     check(
       'inference_model_revisions_content_filtering_check',
-      sql`${t.contentFilteringDefault} is null or ${t.contentFilteringDefault} in (${sql.raw(inList(CONTENT_FILTERING_DEFAULTS))})`
+      sql`${t.contentFilteringDefault} is null or ${t.contentFilteringDefault} in (${sql.raw(inList(CONTENT_FILTERING_DEFAULTS))})`,
     ),
     check(
       'inference_model_revisions_provenance_marking_check',
-      sql`${t.provenanceMarking} is null or ${t.provenanceMarking} in (${sql.raw(inList(PROVENANCE_MARKINGS))})`
+      sql`${t.provenanceMarking} is null or ${t.provenanceMarking} in (${sql.raw(inList(PROVENANCE_MARKINGS))})`,
     ),
 
     /**
@@ -185,12 +185,12 @@ export const inferenceModelRevisions = pgTable(
      */
     check(
       'inference_model_revisions_retired_after_released',
-      sql`${t.retiredAt} is null or ${t.retiredAt} > ${t.releasedAt}`
+      sql`${t.retiredAt} is null or ${t.retiredAt} > ${t.releasedAt}`,
     ),
 
     /** "Every revision of this model, newest first" — the catalogue's own read. */
     index('inference_model_revisions_model_id_released_at_idx').on(t.modelId, t.releasedAt),
-  ]
+  ],
 );
 
 export type InferenceModelRevisionRow = typeof inferenceModelRevisions.$inferSelect;

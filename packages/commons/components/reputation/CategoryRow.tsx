@@ -48,7 +48,7 @@ export function CategoryRow({
   const content = (
     <>
       <CircleIconBadge backgroundColor={withAlpha(color, 0.12)}>
-        <AppIcon name={icon} size='sm' fill={color} />
+        <AppIcon name={icon} size="sm" fill={color} />
       </CircleIconBadge>
 
       <View className="flex-1 gap-space-8">

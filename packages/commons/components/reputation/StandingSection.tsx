@@ -109,7 +109,8 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
       key: source.key,
       name: t(`civic.reputation.sources.${source.key}`),
       amount: source.points,
-      color: count <= 1 ? colors.success : mixColors(colors.success, colors.info, index / (count - 1)),
+      color:
+        count <= 1 ? colors.success : mixColors(colors.success, colors.info, index / (count - 1)),
       fraction: totalPositive > 0 ? source.points / totalPositive : 0,
     }));
   }, [positiveSources, totalPositive, colors, t]);
@@ -118,8 +119,14 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
   const isEmpty = categories.length === 0 && !penalty;
 
   const stats: StatColumn[] = [
-    { label: t('civic.reputation.stats.influence'), value: formatInfluenceMultiplier(balance.influence) },
-    { label: t('civic.reputation.stats.reliability'), value: formatReliabilityPercent(balance.reliability) },
+    {
+      label: t('civic.reputation.stats.influence'),
+      value: formatInfluenceMultiplier(balance.influence),
+    },
+    {
+      label: t('civic.reputation.stats.reliability'),
+      value: formatReliabilityPercent(balance.reliability),
+    },
   ];
 
   const progressCopy = (() => {
@@ -161,7 +168,13 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
           </Text>
         </View>
         {isOffline && (
-          <Badge appearance="subtle" tone="neutral" size="label-small" icon={Icons.offline} content={t('civic.reputation.offline')} />
+          <Badge
+            appearance="subtle"
+            tone="neutral"
+            size="label-small"
+            icon={Icons.offline}
+            content={t('civic.reputation.offline')}
+          />
         )}
       </View>
 

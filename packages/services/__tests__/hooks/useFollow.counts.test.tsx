@@ -20,9 +20,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const getUserById = jest.fn(async () => ({ _count: { followers: 7, following: 3 } }));
 
 const oxyServicesStub = {
-  follows: { status: jest.fn(async () => ({ isFollowing: false })), follow: jest.fn(async () => ({})), unfollow: jest.fn(async () => ({})) },
+  follows: {
+    status: jest.fn(async () => ({ isFollowing: false })),
+    follow: jest.fn(async () => ({})),
+    unfollow: jest.fn(async () => ({})),
+  },
   users: { get: getUserById },
-  session: { get userId() { return (jest.fn(() => 'me'))(); } },
+  session: {
+    get userId() {
+      return jest.fn(() => 'me')();
+    },
+  },
 };
 
 let ctx = {

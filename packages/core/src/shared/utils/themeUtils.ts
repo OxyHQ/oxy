@@ -51,10 +51,7 @@ export const normalizeTheme = (theme?: string | null): ThemeValue =>
  * normalizeColorScheme(undefined, undefined); // 'light'
  * ```
  */
-export const normalizeColorScheme = (
-  colorScheme?: string | null,
-  theme?: string
-): ThemeValue => {
+export const normalizeColorScheme = (colorScheme?: string | null, theme?: string): ThemeValue => {
   if (colorScheme === 'light' || colorScheme === 'dark') {
     return colorScheme;
   }
@@ -111,5 +108,4 @@ export const systemPrefersDarkMode = (): boolean => {
  * const theme = getSystemColorScheme();
  * ```
  */
-export const getSystemColorScheme = (): ThemeValue =>
-  systemPrefersDarkMode() ? 'dark' : 'light';
+export const getSystemColorScheme = (): ThemeValue => (systemPrefersDarkMode() ? 'dark' : 'light');

@@ -44,6 +44,6 @@ export function containsDeep(haystack: unknown, needle: string): boolean {
   if (haystack === null || typeof haystack !== 'object') return false;
   if (Array.isArray(haystack)) return haystack.some((item) => containsDeep(item, needle));
   return Object.values(haystack as Record<string, unknown>).some((value) =>
-    containsDeep(value, needle)
+    containsDeep(value, needle),
   );
 }

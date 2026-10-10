@@ -102,21 +102,22 @@ function award(payload: unknown, tokenType: 'service' | 'user'): Promise<JsonRes
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(payload);
   const issuedAt = Math.floor(Date.now() / 1_000);
-  const token = tokenType === 'service'
-    ? signServiceTokenEd25519({
-        type: 'service',
-        appId: 'app-dispatch',
-        appName: 'Test App',
-        credentialId: 'cred-dispatch',
-        ownerAccountId: 'owner-dispatch',
-        environment: 'production',
-        scopes: [],
-        iss: 'oxy-auth',
-        aud: 'oxy-api',
-        iat: issuedAt,
-        exp: issuedAt + 300,
-      })
-    : jwt.sign({ type: 'access' }, ACCESS_TOKEN_SECRET);
+  const token =
+    tokenType === 'service'
+      ? signServiceTokenEd25519({
+          type: 'service',
+          appId: 'app-dispatch',
+          appName: 'Test App',
+          credentialId: 'cred-dispatch',
+          ownerAccountId: 'owner-dispatch',
+          environment: 'production',
+          scopes: [],
+          iss: 'oxy-auth',
+          aud: 'oxy-api',
+          iat: issuedAt,
+          exp: issuedAt + 300,
+        })
+      : jwt.sign({ type: 'access' }, ACCESS_TOKEN_SECRET);
   return new Promise((resolve, reject) => {
     const req = http.request(
       {

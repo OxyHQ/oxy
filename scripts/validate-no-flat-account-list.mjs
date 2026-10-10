@@ -74,10 +74,10 @@
  * Usage:  bun scripts/validate-no-flat-account-list.mjs
  */
 
-import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * The tree to scan. Overridable so the self-test can point the REAL validator at
@@ -85,7 +85,7 @@ import { fileURLToPath } from "node:url";
  */
 const repositoryRoot = process.env.FLAT_ACCOUNT_LIST_VALIDATOR_ROOT
   ? resolve(process.env.FLAT_ACCOUNT_LIST_VALIDATOR_ROOT)
-  : resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
  * Fixture trees are a handful of files, so the real floors would fail every
@@ -93,7 +93,7 @@ const repositoryRoot = process.env.FLAT_ACCOUNT_LIST_VALIDATOR_ROOT
  * them, so a fixture run still catches a traversal that finds nothing, and the
  * floors that matter stay hard in every normal run.
  */
-const fixtureFloors = process.env.FLAT_ACCOUNT_LIST_VALIDATOR_FIXTURE_FLOORS === "1";
+const fixtureFloors = process.env.FLAT_ACCOUNT_LIST_VALIDATOR_FIXTURE_FLOORS === '1';
 
 /**
  * Names that left the packages in the ADR 0002 cutover. Each is verified absent
@@ -107,59 +107,59 @@ const fixtureFloors = process.env.FLAT_ACCOUNT_LIST_VALIDATOR_FIXTURE_FLOORS ===
  */
 const RETIRED_IDENTIFIERS = [
   {
-    name: "SwitchableAccount",
+    name: 'SwitchableAccount',
     was: "@oxy.so/core's flat switcher row — one ACCOUNT, with no answer to whose route it is",
-    instead: "SwitcherPrincipalRow / DeviceContext, grouped by the person who can operate them",
+    instead: 'SwitcherPrincipalRow / DeviceContext, grouped by the person who can operate them',
   },
   {
-    name: "SwitchableAccountUser",
-    was: "the profile half of that row, hydrated client-side from getUsersByIds()",
+    name: 'SwitchableAccountUser',
+    was: 'the profile half of that row, hydrated client-side from getUsersByIds()',
     instead: "the directory's own principal/context display fields, resolved by the server",
   },
   {
-    name: "ProjectSwitchableAccountsInput",
+    name: 'ProjectSwitchableAccountsInput',
     was: "the projection's input: the device session set plus the caller's account graph",
-    instead: "DeviceDirectory — one server-authoritative read model, no client union",
+    instead: 'DeviceDirectory — one server-authoritative read model, no client union',
   },
   {
-    name: "projectSwitchableAccounts",
+    name: 'projectSwitchableAccounts',
     was: "the client-side union of device sign-ins and the caller's graph, deduped by accountId",
     instead: "projectDevicePrincipals + buildSwitcherRows over the server's directory",
   },
   {
-    name: "switchableAccountIds",
-    was: "the id set that union produced, used to decide which profiles to fetch",
-    instead: "nothing — the directory arrives hydrated, so there is no second fetch to plan",
+    name: 'switchableAccountIds',
+    was: 'the id set that union produced, used to decide which profiles to fetch',
+    instead: 'nothing — the directory arrives hydrated, so there is no second fetch to plan',
   },
   {
-    name: "useSwitchableAccounts",
+    name: 'useSwitchableAccounts',
     was: "@oxy.so/services' hook over that projection",
-    instead: "useDeviceSwitcher",
+    instead: 'useDeviceSwitcher',
   },
   {
-    name: "UseSwitchableAccountsResult",
+    name: 'UseSwitchableAccountsResult',
     was: "that hook's return type",
-    instead: "UseDeviceSwitcherResult",
+    instead: 'UseDeviceSwitcherResult',
   },
   {
-    name: "useAccountStore",
+    name: 'useAccountStore',
     was: "the provider's second copy of the session facts, beside SessionClient's",
-    instead: "the OxyRuntime snapshot — one owner for the facts and the order they appear in",
+    instead: 'the OxyRuntime snapshot — one owner for the facts and the order they appear in',
   },
   {
-    name: "switchTo",
-    was: "the account-id-keyed switch on the dialog controller",
-    instead: "activateContext(contextId) — the `principal acting as account` pair",
+    name: 'switchTo',
+    was: 'the account-id-keyed switch on the dialog controller',
+    instead: 'activateContext(contextId) — the `principal acting as account` pair',
   },
   {
-    name: "session/accountProjection",
-    was: "the deleted module holding the projection",
-    instead: "session/deviceDirectory + session/deviceSwitcherRows",
+    name: 'session/accountProjection',
+    was: 'the deleted module holding the projection',
+    instead: 'session/deviceDirectory + session/deviceSwitcherRows',
   },
   {
-    name: "stores/accountStore",
+    name: 'stores/accountStore',
     was: "the deleted module holding the provider's account copy",
-    instead: "ui/runtime — createOxyRuntime and its snapshot",
+    instead: 'ui/runtime — createOxyRuntime and its snapshot',
   },
 ];
 
@@ -178,18 +178,18 @@ const RETIRED_IDENTIFIERS = [
  */
 const SCOPED_BANS = [
   {
-    file: "packages/core/src/session/accountDialogController.ts",
-    name: "listAccounts",
+    file: 'packages/core/src/session/accountDialogController.ts',
+    name: 'listAccounts',
     reason:
-      "the dialog reads GET /session/device/directory and nothing else. Fetching the caller's "
-      + "account graph here is what made a two-person device render one person's answer.",
+      "the dialog reads GET /session/device/directory and nothing else. Fetching the caller's " +
+      "account graph here is what made a two-person device render one person's answer.",
   },
   {
-    file: "packages/core/src/session/accountDialogController.ts",
-    name: "getUsersByIds",
+    file: 'packages/core/src/session/accountDialogController.ts',
+    name: 'getUsersByIds',
     reason:
-      "the directory arrives with names, handles and avatars already resolved. A profile "
-      + "hydration pass here means something is being assembled client-side again.",
+      'the directory arrives with names, handles and avatars already resolved. A profile ' +
+      'hydration pass here means something is being assembled client-side again.',
   },
 ];
 
@@ -215,11 +215,11 @@ const KNOWN_EXCEPTIONS = [
   // scanner would delete the assertion and leave the repository less protected
   // than before the guard existed.
   {
-    file: "packages/core/src/session/__tests__/accountDialogShape.test.ts",
+    file: 'packages/core/src/session/__tests__/accountDialogShape.test.ts',
     pattern: "expect('switchTo' in controller)",
     reason:
-      "The runtime assertion that the account-id-keyed switch is gone from the controller. "
-      + "A test cannot assert the absence of a member without naming the member.",
+      'The runtime assertion that the account-id-keyed switch is gone from the controller. ' +
+      'A test cannot assert the absence of a member without naming the member.',
   },
 ];
 
@@ -235,10 +235,26 @@ const KNOWN_EXCEPTIONS = [
  * a stripper that starts eating whole lines fails here first.
  */
 const REQUIRED_SENTINELS = [
-  { name: "activateContext", minimum: fixtureFloors ? 1 : 20, proves: "the contextId-keyed switch is wired" },
-  { name: "useDeviceSwitcher", minimum: fixtureFloors ? 1 : 8, proves: "the replacement hook is in use" },
-  { name: "buildSwitcherRows", minimum: fixtureFloors ? 1 : 3, proves: "rows are built from the directory" },
-  { name: "DeviceDirectory", minimum: fixtureFloors ? 1 : 20, proves: "the server read model is the source" },
+  {
+    name: 'activateContext',
+    minimum: fixtureFloors ? 1 : 20,
+    proves: 'the contextId-keyed switch is wired',
+  },
+  {
+    name: 'useDeviceSwitcher',
+    minimum: fixtureFloors ? 1 : 8,
+    proves: 'the replacement hook is in use',
+  },
+  {
+    name: 'buildSwitcherRows',
+    minimum: fixtureFloors ? 1 : 3,
+    proves: 'rows are built from the directory',
+  },
+  {
+    name: 'DeviceDirectory',
+    minimum: fixtureFloors ? 1 : 20,
+    proves: 'the server read model is the source',
+  },
 ];
 
 const MINIMUM_SOURCE_FILES = fixtureFloors ? 1 : 1500;
@@ -256,8 +272,8 @@ const SOURCE_FILE = /\.(?:tsx?|jsx?|mjs|cjs)$/;
  * to update this list.
  */
 const GUARD_OWN_FILES = new Set([
-  "scripts/validate-no-flat-account-list.mjs",
-  "scripts/test-validate-no-flat-account-list.mjs",
+  'scripts/validate-no-flat-account-list.mjs',
+  'scripts/test-validate-no-flat-account-list.mjs',
 ]);
 
 /**
@@ -276,25 +292,25 @@ function codeLinesOf(text) {
   const out = [];
   let inBlock = false;
 
-  for (const raw of text.split("\n")) {
+  for (const raw of text.split('\n')) {
     let rest = raw;
-    let code = "";
+    let code = '';
 
     while (rest.length > 0) {
       if (inBlock) {
-        const close = rest.indexOf("*/");
+        const close = rest.indexOf('*/');
         if (close === -1) {
-          rest = "";
+          rest = '';
           break;
         }
         rest = rest.slice(close + 2);
         inBlock = false;
         continue;
       }
-      const open = rest.indexOf("/*");
+      const open = rest.indexOf('/*');
       if (open === -1) {
         code += rest;
-        rest = "";
+        rest = '';
         break;
       }
       code += rest.slice(0, open);
@@ -302,7 +318,7 @@ function codeLinesOf(text) {
       inBlock = true;
     }
 
-    out.push(code.replace(/(?<!:)\/\/.*$/, ""));
+    out.push(code.replace(/(?<!:)\/\/.*$/, ''));
   }
 
   return out;
@@ -310,15 +326,15 @@ function codeLinesOf(text) {
 
 /** Every file git tracks, repo-relative — so ignored and generated files cannot count. */
 function trackedFiles() {
-  const listed = spawnSync("git", ["ls-files", "-z"], {
+  const listed = spawnSync('git', ['ls-files', '-z'], {
     cwd: repositoryRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
   if (listed.status !== 0) {
     throw new Error(`git ls-files failed in ${repositoryRoot}: ${listed.stderr ?? listed.error}`);
   }
-  return listed.stdout.split("\0").filter(Boolean);
+  return listed.stdout.split('\0').filter(Boolean);
 }
 
 /**
@@ -333,17 +349,17 @@ function trackedFiles() {
  */
 async function readTrackedFile(path) {
   try {
-    return await readFile(resolve(repositoryRoot, path), "utf8");
+    return await readFile(resolve(repositoryRoot, path), 'utf8');
   } catch (error) {
     failures.push(
-      `${path} is tracked by git but could not be read (${error.code ?? error.message}) — `
-      + "the working tree disagrees with the index, so this scan was incomplete",
+      `${path} is tracked by git but could not be read (${error.code ?? error.message}) — ` +
+        'the working tree disagrees with the index, so this scan was incomplete',
     );
     return null;
   }
 }
 
-const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * A whole-word match. `\b` around a name that starts or ends with `/` would
@@ -352,7 +368,7 @@ const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 function wordPattern(name) {
   const escaped = escapeForRegExp(name);
-  return name.includes("/") ? new RegExp(escaped) : new RegExp(`\\b${escaped}\\b`);
+  return name.includes('/') ? new RegExp(escaped) : new RegExp(`\\b${escaped}\\b`);
 }
 
 const findings = [];
@@ -361,8 +377,15 @@ const failures = [];
 const tracked = trackedFiles();
 const sources = tracked.filter((path) => SOURCE_FILE.test(path) && !GUARD_OWN_FILES.has(path));
 
-const retiredPatterns = RETIRED_IDENTIFIERS.map((entry) => ({ ...entry, pattern: wordPattern(entry.name) }));
-const sentinelPatterns = REQUIRED_SENTINELS.map((entry) => ({ ...entry, pattern: wordPattern(entry.name), seen: 0 }));
+const retiredPatterns = RETIRED_IDENTIFIERS.map((entry) => ({
+  ...entry,
+  pattern: wordPattern(entry.name),
+}));
+const sentinelPatterns = REQUIRED_SENTINELS.map((entry) => ({
+  ...entry,
+  pattern: wordPattern(entry.name),
+  seen: 0,
+}));
 const scopedByFile = new Map();
 for (const ban of SCOPED_BANS) {
   const existing = scopedByFile.get(ban.file) ?? [];
@@ -425,8 +448,8 @@ const unexcused = findings.filter((finding) => {
 for (const entry of KNOWN_EXCEPTIONS) {
   if (honoured.has(entry)) continue;
   failures.push(
-    `KNOWN_EXCEPTIONS still excuses "${entry.pattern}" in ${entry.file}, which no longer matches anything. `
-    + "The reference is gone or the file moved — delete the entry so the list keeps describing the tree.",
+    `KNOWN_EXCEPTIONS still excuses "${entry.pattern}" in ${entry.file}, which no longer matches anything. ` +
+      'The reference is gone or the file moved — delete the entry so the list keeps describing the tree.',
   );
 }
 
@@ -435,9 +458,9 @@ for (const entry of KNOWN_EXCEPTIONS) {
 for (const [file, bans] of scopedByFile) {
   if (bans[0].seenFile) continue;
   failures.push(
-    `SCOPED_BANS names ${file}, which is not a tracked source file here. `
-    + `The rules on it (${bans.map((ban) => ban.name).join(", ")}) have stopped running — `
-    + "point them at the file's new home, or delete them if the mechanism they guard is gone.",
+    `SCOPED_BANS names ${file}, which is not a tracked source file here. ` +
+      `The rules on it (${bans.map((ban) => ban.name).join(', ')}) have stopped running — ` +
+      "point them at the file's new home, or delete them if the mechanism they guard is gone.",
   );
 }
 
@@ -445,42 +468,42 @@ for (const [file, bans] of scopedByFile) {
 
 if (sources.length < MINIMUM_SOURCE_FILES) {
   failures.push(
-    `${sources.length} source files scanned is below the ${MINIMUM_SOURCE_FILES} floor — `
-    + "the file listing is probably broken, and a broken listing reports a clean tree",
+    `${sources.length} source files scanned is below the ${MINIMUM_SOURCE_FILES} floor — ` +
+      'the file listing is probably broken, and a broken listing reports a clean tree',
   );
 }
 
 for (const sentinel of sentinelPatterns) {
   if (sentinel.seen >= sentinel.minimum) continue;
   failures.push(
-    `${sentinel.name} was found on ${sentinel.seen} code lines, below the ${sentinel.minimum} floor `
-    + `(it proves ${sentinel.proves}). Either the replacement mechanism is being dismantled, or this `
-    + "scan is not reading the code it thinks it is — and an absence check that read nothing reports "
-    + "exactly what a clean tree reports.",
+    `${sentinel.name} was found on ${sentinel.seen} code lines, below the ${sentinel.minimum} floor ` +
+      `(it proves ${sentinel.proves}). Either the replacement mechanism is being dismantled, or this ` +
+      'scan is not reading the code it thinks it is — and an absence check that read nothing reports ' +
+      'exactly what a clean tree reports.',
   );
 }
 
 // ---------------------------------------------------------------------- verdict ---
 
 if (unexcused.length > 0 || failures.length > 0) {
-  console.error("Flat account-list guard failed:\n");
+  console.error('Flat account-list guard failed:\n');
   for (const finding of unexcused) {
     console.error(`  ${finding.file}:${finding.line}: ${finding.rule}`);
     console.error(`    ${finding.text}\n`);
   }
   for (const failure of failures) console.error(`  ${failure}\n`);
   console.error(
-    "  The account switcher renders GET /session/device/directory: principals, the contexts\n"
-    + "  each may act as, and a switch keyed on the pair. A client holds one caller's account\n"
-    + "  graph and cannot enumerate another principal's, so rebuilding the list here answers\n"
-    + "  with one person's accounts on a device holding two. See docs/adr/0002 and issue #937.\n",
+    '  The account switcher renders GET /session/device/directory: principals, the contexts\n' +
+      "  each may act as, and a switch keyed on the pair. A client holds one caller's account\n" +
+      "  graph and cannot enumerate another principal's, so rebuilding the list here answers\n" +
+      "  with one person's accounts on a device holding two. See docs/adr/0002 and issue #937.\n",
   );
   process.exit(1);
 }
 
 console.log(
-  `Flat account-list guard passed — ${sources.length} source files scanned; `
-  + `${RETIRED_IDENTIFIERS.length} retired identifiers and ${SCOPED_BANS.length} scoped bans absent; `
-  + `${honoured.size} of ${KNOWN_EXCEPTIONS.length} known exceptions honoured; `
-  + `sentinels present (${sentinelPatterns.map((s) => `${s.name}×${s.seen}`).join(", ")}).`,
+  `Flat account-list guard passed — ${sources.length} source files scanned; ` +
+    `${RETIRED_IDENTIFIERS.length} retired identifiers and ${SCOPED_BANS.length} scoped bans absent; ` +
+    `${honoured.size} of ${KNOWN_EXCEPTIONS.length} known exceptions honoured; ` +
+    `sentinels present (${sentinelPatterns.map((s) => `${s.name}×${s.seen}`).join(', ')}).`,
 );

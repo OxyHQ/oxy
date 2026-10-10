@@ -17,7 +17,9 @@ describe('the SDK icon families are decorative', () => {
   ] as const)('%s hides its glyph from assistive technology', (_family, Icon, name) => {
     const { container } = render(<Icon name={name as never} size={20} />);
 
-    expect(container.querySelector(`[data-icon="${name}"]`)?.getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelector(`[data-icon="${name}"]`)?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
   });
 
   it('keeps the glyph hidden even when a caller asks otherwise', () => {

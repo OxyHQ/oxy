@@ -29,7 +29,12 @@
 
 import { z } from 'zod';
 import { costCenterSchema } from './entitlement';
-import { currencyCodeSchema, exactDecimalSchema, usageSourceSchema, usageQuantitySchema } from './money';
+import {
+  currencyCodeSchema,
+  exactDecimalSchema,
+  usageSourceSchema,
+  usageQuantitySchema,
+} from './money';
 import { inferenceEnvironmentSchema, modelReferenceSchema } from './identifiers';
 import { inferenceRequestOutcomeSchema } from './usage';
 
@@ -117,30 +122,40 @@ export type ProviderCostSource = z.infer<typeof providerCostSourceSchema>;
 export type CostCenterUsage = z.infer<typeof costCenterUsageSchema>;
 
 /** A technical generation record for an internal request, never a financial receipt. */
-export const meteredGenerationSchema = z.object({
-  schemaVersion: z.literal(2),
-  kind: z.literal('metered_usage'),
-  meteredUsageId: z.string().min(1),
-  requestId: z.string().min(1),
-  generationId: z.string().min(1).optional(),
-  parentRequestId: z.string().min(1).optional(),
-  applicationId: z.string().min(1),
-  credentialId: z.string().min(1),
-  delegatedUserId: z.string().min(1).optional(),
-  environment: inferenceEnvironmentSchema,
-  economicTreatment: z.literal('internal_metered'),
-  economicPolicyVersion: z.string().min(1),
-  outcome: inferenceRequestOutcomeSchema,
-  usageSource: usageSourceSchema,
-  units: z.array(usageQuantitySchema),
-  resolvedModelReference: modelReferenceSchema,
-  servingProvider: z.string().min(1),
-  tariff: z.discriminatedUnion('status', [
-    z.object({ status: z.literal('quoted'), amount: exactDecimalSchema, currency: currencyCodeSchema,
-      priceVersionId: z.string().min(1) }).strict(),
-    z.object({ status: z.literal('unpriced'), priceVersionId: z.string().min(1).nullable() }).strict(),
-  ]),
-  customerCharge: z.object({ status: z.literal('not_charged') }).strict(),
-  settledAt: z.string().datetime(),
-}).strict();
+export const meteredGenerationSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    kind: z.literal('metered_usage'),
+    meteredUsageId: z.string().min(1),
+    requestId: z.string().min(1),
+    generationId: z.string().min(1).optional(),
+    parentRequestId: z.string().min(1).optional(),
+    applicationId: z.string().min(1),
+    credentialId: z.string().min(1),
+    delegatedUserId: z.string().min(1).optional(),
+    environment: inferenceEnvironmentSchema,
+    economicTreatment: z.literal('internal_metered'),
+    economicPolicyVersion: z.string().min(1),
+    outcome: inferenceRequestOutcomeSchema,
+    usageSource: usageSourceSchema,
+    units: z.array(usageQuantitySchema),
+    resolvedModelReference: modelReferenceSchema,
+    servingProvider: z.string().min(1),
+    tariff: z.discriminatedUnion('status', [
+      z
+        .object({
+          status: z.literal('quoted'),
+          amount: exactDecimalSchema,
+          currency: currencyCodeSchema,
+          priceVersionId: z.string().min(1),
+        })
+        .strict(),
+      z
+        .object({ status: z.literal('unpriced'), priceVersionId: z.string().min(1).nullable() })
+        .strict(),
+    ]),
+    customerCharge: z.object({ status: z.literal('not_charged') }).strict(),
+    settledAt: z.string().datetime(),
+  })
+  .strict();
 export type MeteredGeneration = z.infer<typeof meteredGenerationSchema>;

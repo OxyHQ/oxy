@@ -55,42 +55,80 @@ describe('OAuth bearer commit with real HTTP transport', () => {
         expect(params.get('redirect_uri')).toBe(REDIRECT);
         expect(params.get('code_verifier')).toBeTruthy();
         exchanges += 1;
-        res.end(JSON.stringify({ access_token: token(exchangeSubject), session_id: 'fixture-session',
-          expires_in: 300, user: { id: exchangeSubject, username: exchangeSubject === PERSON ? 'fixture-person' : 'fixture-organization' } }));
+        res.end(
+          JSON.stringify({
+            access_token: token(exchangeSubject),
+            session_id: 'fixture-session',
+            expires_in: 300,
+            user: {
+              id: exchangeSubject,
+              username: exchangeSubject === PERSON ? 'fixture-person' : 'fixture-organization',
+            },
+          }),
+        );
       } else if (req.method === 'GET' && req.url === '/users/me') {
         const bearer = req.headers.authorization;
-        const subject = bearer === `Bearer ${token(PERSON)}` ? PERSON
-          : bearer === `Bearer ${token(ORGANIZATION)}` ? ORGANIZATION : null;
-        if (!subject) { res.statusCode = 401; res.end(JSON.stringify({ message: 'Unauthorized' })); return; }
+        const subject =
+          bearer === `Bearer ${token(PERSON)}`
+            ? PERSON
+            : bearer === `Bearer ${token(ORGANIZATION)}`
+              ? ORGANIZATION
+              : null;
+        if (!subject) {
+          res.statusCode = 401;
+          res.end(JSON.stringify({ message: 'Unauthorized' }));
+          return;
+        }
         profileSubjects.push(subject);
-        res.end(JSON.stringify({ id: subject, username: subject === PERSON ? 'fixture-person' : 'fixture-organization' }));
+        res.end(
+          JSON.stringify({
+            id: subject,
+            username: subject === PERSON ? 'fixture-person' : 'fixture-organization',
+          }),
+        );
       } else {
         unexpectedRequests.push(`${req.method} ${req.url}`);
-        res.statusCode = 500; res.end(JSON.stringify({ message: 'Unexpected fixture request' }));
+        res.statusCode = 500;
+        res.end(JSON.stringify({ message: 'Unexpected fixture request' }));
       }
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Owned HTTP listener missing');
-    oxy = new OxyServices({ baseURL: `http://127.0.0.1:${address.port}`, enableCache: false, maxRetries: 0 });
+    oxy = new OxyServices({
+      baseURL: `http://127.0.0.1:${address.port}`,
+      enableCache: false,
+      maxRetries: 0,
+    });
     oxy.session.setAccessToken(token(PERSON));
   });
 
   afterEach(async () => {
     oxy?.dispose();
     server.closeAllConnections();
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
     expect(unexpectedRequests).toEqual([]);
   });
 
   async function consent() {
-    return requestOAuthConsent({ platform: 'native', mode: 'popup', oxyServices: oxy,
-      clientId: CLIENT, identityBound: false, expectedUserId: PERSON,
-      commitSession: async (session) => {
-        if (!session.accessToken) throw new Error('Fixture commit requires bearer');
-        oxy.session.setAccessToken(session.accessToken);
-        visibleSubject = session.userId;
-      } }, { redirectUri: REDIRECT, scopes: ['user:read'] });
+    return requestOAuthConsent(
+      {
+        platform: 'native',
+        mode: 'popup',
+        oxyServices: oxy,
+        clientId: CLIENT,
+        identityBound: false,
+        expectedUserId: PERSON,
+        commitSession: async (session) => {
+          if (!session.accessToken) throw new Error('Fixture commit requires bearer');
+          oxy.session.setAccessToken(session.accessToken);
+          visibleSubject = session.userId;
+        },
+      },
+      { redirectUri: REDIRECT, scopes: ['user:read'] },
+    );
   }
 
   it('rejects a different returned subject without replacing the previous bearer', async () => {
@@ -123,8 +161,12 @@ describe('OAuth bearer commit with real HTTP transport', () => {
   });
 
   it('preserves legacy direct exchange planting by default', async () => {
-    await oxy.auth.oauth.exchangeCode({ code: 'owned-code', clientId: CLIENT,
-      redirectUri: REDIRECT, codeVerifier: 'fixture-verifier' });
+    await oxy.auth.oauth.exchangeCode({
+      code: 'owned-code',
+      clientId: CLIENT,
+      redirectUri: REDIRECT,
+      codeVerifier: 'fixture-verifier',
+    });
     expect(exchanges).toBe(1);
     expect((await oxy.users.me()).id).toBe(ORGANIZATION);
   });

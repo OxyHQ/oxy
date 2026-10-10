@@ -63,9 +63,11 @@ export async function resolveConfig(args: CliArgs): Promise<ResolvedConfig> {
       {
         slug: () => p.text({ message: 'Package slug (workspace scope)', initialValue: slug }),
         scheme: () => p.text({ message: 'App URL scheme', initialValue: scheme }),
-        bundleId: () => p.text({ message: 'iOS/Android bundle identifier', initialValue: bundleId }),
+        bundleId: () =>
+          p.text({ message: 'iOS/Android bundle identifier', initialValue: bundleId }),
         domain: () => p.text({ message: 'Backend API domain', initialValue: domain }),
-        backend: () => p.confirm({ message: 'Include an Express + Socket.IO backend?', initialValue: backend }),
+        backend: () =>
+          p.confirm({ message: 'Include an Express + Socket.IO backend?', initialValue: backend }),
         deploy: () =>
           p.confirm({ message: 'Include the AWS deploy workflow?', initialValue: deploy }),
       },

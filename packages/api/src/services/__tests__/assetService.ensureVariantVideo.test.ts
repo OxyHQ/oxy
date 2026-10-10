@@ -64,8 +64,9 @@ describe('AssetService.ensureVariant — video mp4 renditions', () => {
   it('does not lazily generate a missing mp4 rendition', async () => {
     const service = buildService();
 
-    await expect(service.ensureVariant('file-video-1', '720p', VIDEO_FILE))
-      .rejects.toThrow('Video rendition 720p is not available');
+    await expect(service.ensureVariant('file-video-1', '720p', VIDEO_FILE)).rejects.toThrow(
+      'Video rendition 720p is not available',
+    );
 
     expect(mockIsVideoMp4Rendition).toHaveBeenCalledWith('720p');
     expect(mockEnsureVideoMp4Rendition).not.toHaveBeenCalled();

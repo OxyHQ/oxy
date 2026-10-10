@@ -1,14 +1,14 @@
-import { useCallback, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@oxy.so/services'
+import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@oxy.so/services';
 import type {
   InferenceEnvironment,
   ProviderConnection,
   ProviderCredentialValidationDeployment,
   ProviderCredentialValidationOperation,
-} from '@oxy.so/contracts'
-import type { ProviderConnectionView } from '@/lib/provider-connection'
-import { toProviderConnectionView } from '@/lib/provider-connection'
+} from '@oxy.so/contracts';
+import type { ProviderConnectionView } from '@/lib/provider-connection';
+import { toProviderConnectionView } from '@/lib/provider-connection';
 
 // ===========================================================================
 // BYOK provider connections (`/inference/provider-connections`, issue #972
@@ -34,7 +34,7 @@ import { toProviderConnectionView } from '@/lib/provider-connection'
  * kind has to travel to the client rather than be inferred from the id. See
  * {@link providerConnectionAuditAttribution}.
  */
-export type ProviderConnectionActorKind = 'user' | 'service' | 'platform'
+export type ProviderConnectionActorKind = 'user' | 'service' | 'platform';
 
 /** One entry of a connection's append-only trail. */
 export interface ProviderConnectionAuditEvent {
@@ -45,29 +45,27 @@ export interface ProviderConnectionAuditEvent {
     | 'used'
     | 'disabled'
     | 'enabled'
-    | 'revoked'
+    | 'revoked';
   /**
    * Who or what caused it. `null` on rows written before the column existed
    * (`0049`), never on a new one — the server's CHECK pairs each kind with the
    * presence or absence of `actorUserId`.
    */
-  readonly actorKind: ProviderConnectionActorKind | null
+  readonly actorKind: ProviderConnectionActorKind | null;
   /** Set only when `actorKind` is `user`; null for `service` and `platform` alike. */
-  readonly actorUserId: string | null
-  readonly environment: string
-  readonly createdAt: string
+  readonly actorUserId: string | null;
+  readonly environment: string;
+  readonly createdAt: string;
 }
 
 const queryKeys = {
-  accountConnections: (accountId: string) =>
-    ['provider-connections', accountId] as const,
-  audit: (connectionId: string) =>
-    ['provider-connection-audit', connectionId] as const,
+  accountConnections: (accountId: string) => ['provider-connections', accountId] as const,
+  audit: (connectionId: string) => ['provider-connection-audit', connectionId] as const,
   validationDeployments: (connectionId: string, applicationId: string) =>
     ['provider-connection-validation-deployments', connectionId, applicationId] as const,
   validation: (connectionId: string, applicationId: string) =>
     ['provider-connection-validation', connectionId, applicationId] as const,
-}
+};
 
 /** Exact customer-selectable catalogue rows. No default is selected. */
 export function useProviderValidationDeployments(
@@ -75,7 +73,7 @@ export function useProviderValidationDeployments(
   applicationId: string,
   enabled: boolean = true,
 ) {
-  const { oxyServices, isAuthenticated, isReady } = useAuth()
+  const { oxyServices, isAuthenticated, isReady } = useAuth();
   return useQuery({
     queryKey: queryKeys.validationDeployments(connectionId ?? '', applicationId),
     queryFn: () =>
@@ -88,7 +86,7 @@ export function useProviderValidationDeployments(
     enabled: isReady && isAuthenticated && !!connectionId && enabled,
     staleTime: 30_000,
     retry: 1,
-  })
+  });
 }
 
 /** Latest durable bootstrap outcome for the exact connection/application. */
@@ -97,7 +95,7 @@ export function useProviderCredentialValidation(
   applicationId: string,
   enabled: boolean = true,
 ) {
-  const { oxyServices, isAuthenticated, isReady } = useAuth()
+  const { oxyServices, isAuthenticated, isReady } = useAuth();
   return useQuery({
     queryKey: queryKeys.validation(connectionId ?? '', applicationId),
     queryFn: () =>
@@ -110,23 +108,23 @@ export function useProviderCredentialValidation(
     enabled: isReady && isAuthenticated && !!connectionId && enabled,
     staleTime: 5_000,
     retry: 1,
-  })
+  });
 }
 
 /** Create/retry explicitly with the exact selected catalogue deployment id. */
 export function useStartProviderCredentialValidation() {
-  const { oxyServices } = useAuth()
-  const queryClient = useQueryClient()
+  const { oxyServices } = useAuth();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
       connectionId,
       applicationId,
       deploymentId,
     }: {
-      connectionId: string
-      ownerAccountId: string
-      applicationId: string
-      deploymentId: string
+      connectionId: string;
+      ownerAccountId: string;
+      applicationId: string;
+      deploymentId: string;
     }) =>
       oxyServices.request<ProviderCredentialValidationOperation>(
         'POST',
@@ -137,13 +135,13 @@ export function useStartProviderCredentialValidation() {
     onSuccess: (_operation, { connectionId, ownerAccountId, applicationId }) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.accountConnections(ownerAccountId),
-      })
-      queryClient.invalidateQueries({ queryKey: queryKeys.audit(connectionId) })
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.audit(connectionId) });
       queryClient.invalidateQueries({
         queryKey: queryKeys.validation(connectionId, applicationId),
-      })
+      });
     },
-  })
+  });
 }
 
 /**
@@ -158,7 +156,7 @@ export function useAccountProviderConnections(
   accountId: string | undefined,
   enabled: boolean = true,
 ) {
-  const { oxyServices, isAuthenticated, isReady } = useAuth()
+  const { oxyServices, isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: queryKeys.accountConnections(accountId ?? ''),
@@ -174,7 +172,7 @@ export function useAccountProviderConnections(
     enabled: isReady && isAuthenticated && !!accountId && enabled,
     staleTime: 1000 * 30,
     retry: 1,
-  })
+  });
 }
 
 /**
@@ -189,15 +187,13 @@ export function useProviderConnectionAudit(
   limit: number = 50,
   enabled: boolean = true,
 ) {
-  const { oxyServices, isAuthenticated, isReady } = useAuth()
+  const { oxyServices, isAuthenticated, isReady } = useAuth();
 
   return useQuery({
     queryKey: queryKeys.audit(connectionId ?? ''),
     queryFn: async (): Promise<Array<ProviderConnectionAuditEvent>> =>
       (
-        await oxyServices.request<
-          Array<ProviderConnectionAuditEvent & { metadata?: unknown }>
-        >(
+        await oxyServices.request<Array<ProviderConnectionAuditEvent & { metadata?: unknown }>>(
           'GET',
           `/inference/provider-connections/${connectionId ?? ''}/audit`,
           { limit },
@@ -217,17 +213,17 @@ export function useProviderConnectionAudit(
     enabled: isReady && isAuthenticated && !!connectionId && enabled,
     staleTime: 1000 * 30,
     retry: 1,
-  })
+  });
 }
 
 /** What the create form collects. `secret` is the customer's own upstream credential. */
 export interface CreateProviderConnectionInput {
-  applicationId: string
-  ownerAccountId: string
-  provider: string
-  environment: InferenceEnvironment
-  secret: string
-  acknowledgeProviderTerms: boolean
+  applicationId: string;
+  ownerAccountId: string;
+  provider: string;
+  environment: InferenceEnvironment;
+  secret: string;
+  acknowledgeProviderTerms: boolean;
 }
 
 /**
@@ -237,9 +233,9 @@ export interface CreateProviderConnectionInput {
  * `ownerAccountId` carried on the input is only the cache key to invalidate.
  */
 export function useCreateApplicationProviderConnection() {
-  const { oxyServices } = useAuth()
-  const queryClient = useQueryClient()
-  const [isPending, setIsPending] = useState(false)
+  const { oxyServices } = useAuth();
+  const queryClient = useQueryClient();
+  const [isPending, setIsPending] = useState(false);
 
   const mutateAsync = useCallback(
     async ({
@@ -250,29 +246,29 @@ export function useCreateApplicationProviderConnection() {
       secret,
       acknowledgeProviderTerms,
     }: CreateProviderConnectionInput): Promise<ProviderConnectionView> => {
-      setIsPending(true)
+      setIsPending(true);
       try {
         const connection = await oxyServices.request<ProviderConnection>(
           'POST',
           `/inference/provider-connections/applications/${applicationId}`,
           { provider, environment, secret, acknowledgeProviderTerms },
           { retry: false, deduplicate: false },
-        )
-        return toProviderConnectionView(connection)
+        );
+        return toProviderConnectionView(connection);
       } finally {
         // A lost Kaana acknowledgement deliberately returns an error after Oxy
         // has persisted a quarantined row. Refresh even on failure so Console
         // exposes the recovery action instead of hiding that durable state.
         await queryClient.invalidateQueries({
           queryKey: queryKeys.accountConnections(ownerAccountId),
-        })
-        setIsPending(false)
+        });
+        setIsPending(false);
       }
     },
     [oxyServices, queryClient],
-  )
+  );
 
-  return { mutateAsync, isPending }
+  return { mutateAsync, isPending };
 }
 
 /**
@@ -282,9 +278,9 @@ export function useCreateApplicationProviderConnection() {
  * previous credential is gone the instant the store write lands.
  */
 export function useRotateProviderConnection() {
-  const { oxyServices } = useAuth()
-  const queryClient = useQueryClient()
-  const [isPending, setIsPending] = useState(false)
+  const { oxyServices } = useAuth();
+  const queryClient = useQueryClient();
+  const [isPending, setIsPending] = useState(false);
 
   const mutateAsync = useCallback(
     async ({
@@ -292,19 +288,19 @@ export function useRotateProviderConnection() {
       ownerAccountId,
       secret,
     }: {
-      connectionId: string
-      ownerAccountId: string
-      secret: string
+      connectionId: string;
+      ownerAccountId: string;
+      secret: string;
     }): Promise<ProviderConnectionView> => {
-      setIsPending(true)
+      setIsPending(true);
       try {
         const connection = await oxyServices.request<ProviderConnection>(
           'POST',
           `/inference/provider-connections/${connectionId}/rotate`,
           { secret },
           { retry: false, deduplicate: false },
-        )
-        return toProviderConnectionView(connection)
+        );
+        return toProviderConnectionView(connection);
       } finally {
         await Promise.all([
           queryClient.invalidateQueries({
@@ -313,14 +309,14 @@ export function useRotateProviderConnection() {
           queryClient.invalidateQueries({
             queryKey: queryKeys.audit(connectionId),
           }),
-        ])
-        setIsPending(false)
+        ]);
+        setIsPending(false);
       }
     },
     [oxyServices, queryClient],
-  )
+  );
 
-  return { mutateAsync, isPending }
+  return { mutateAsync, isPending };
 }
 
 /**
@@ -333,9 +329,9 @@ export function useRotateProviderConnection() {
  * variables or request-deduplication keys.
  */
 export function useReconcileProviderConnection() {
-  const { oxyServices } = useAuth()
-  const queryClient = useQueryClient()
-  const [isPending, setIsPending] = useState(false)
+  const { oxyServices } = useAuth();
+  const queryClient = useQueryClient();
+  const [isPending, setIsPending] = useState(false);
 
   const mutateAsync = useCallback(
     async ({
@@ -343,19 +339,19 @@ export function useReconcileProviderConnection() {
       ownerAccountId,
       secret,
     }: {
-      connectionId: string
-      ownerAccountId: string
-      secret?: string
+      connectionId: string;
+      ownerAccountId: string;
+      secret?: string;
     }): Promise<ProviderConnectionView> => {
-      setIsPending(true)
+      setIsPending(true);
       try {
         const connection = await oxyServices.request<ProviderConnection>(
           'POST',
           `/inference/provider-connections/${connectionId}/reconcile`,
           secret === undefined ? {} : { secret },
           { retry: false, deduplicate: false },
-        )
-        return toProviderConnectionView(connection)
+        );
+        return toProviderConnectionView(connection);
       } finally {
         await Promise.all([
           queryClient.invalidateQueries({
@@ -364,14 +360,14 @@ export function useReconcileProviderConnection() {
           queryClient.invalidateQueries({
             queryKey: queryKeys.audit(connectionId),
           }),
-        ])
-        setIsPending(false)
+        ]);
+        setIsPending(false);
       }
     },
     [oxyServices, queryClient],
-  )
+  );
 
-  return { mutateAsync, isPending }
+  return { mutateAsync, isPending };
 }
 
 /**
@@ -382,17 +378,17 @@ export function useReconcileProviderConnection() {
  * this lane keeps working in a deployment where create and rotate refuse.
  */
 export function useSetProviderConnectionEnabled() {
-  const { oxyServices } = useAuth()
-  const queryClient = useQueryClient()
+  const { oxyServices } = useAuth();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({
       connectionId,
       enabled,
     }: {
-      connectionId: string
-      ownerAccountId: string
-      enabled: boolean
+      connectionId: string;
+      ownerAccountId: string;
+      enabled: boolean;
     }): Promise<ProviderConnectionView> =>
       oxyServices
         .request<ProviderConnection>(
@@ -405,10 +401,10 @@ export function useSetProviderConnectionEnabled() {
     onSuccess: (_connection, { connectionId, ownerAccountId }) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.accountConnections(ownerAccountId),
-      })
-      queryClient.invalidateQueries({ queryKey: queryKeys.audit(connectionId) })
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.audit(connectionId) });
     },
-  })
+  });
 }
 
 /**
@@ -421,15 +417,15 @@ export function useSetProviderConnectionEnabled() {
  * unexplainable and would take its own trail with it.
  */
 export function useRevokeProviderConnection() {
-  const { oxyServices } = useAuth()
-  const queryClient = useQueryClient()
+  const { oxyServices } = useAuth();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({
       connectionId,
     }: {
-      connectionId: string
-      ownerAccountId: string
+      connectionId: string;
+      ownerAccountId: string;
     }): Promise<ProviderConnectionView> =>
       oxyServices
         .request<ProviderConnection>(
@@ -442,8 +438,8 @@ export function useRevokeProviderConnection() {
     onSuccess: (_connection, { connectionId, ownerAccountId }) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.accountConnections(ownerAccountId),
-      })
-      queryClient.invalidateQueries({ queryKey: queryKeys.audit(connectionId) })
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.audit(connectionId) });
     },
-  })
+  });
 }

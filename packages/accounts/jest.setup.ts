@@ -10,7 +10,6 @@
 import { TextDecoder, TextEncoder } from 'node:util';
 
 declare global {
-  // eslint-disable-next-line no-var
   var __DEV__: boolean;
 }
 

@@ -202,7 +202,7 @@ class TopicService {
     name: string,
     type: TopicType,
     source: TopicSource,
-    displayName?: string
+    displayName?: string,
   ): Promise<TopicRecord> {
     const normalizedName = name.toLowerCase().trim();
     const display = displayName ?? name.charAt(0).toUpperCase() + name.slice(1);
@@ -248,7 +248,7 @@ class TopicService {
    */
   async resolveNames(
     names: Array<{ name: string; type: TopicType }>,
-    source: TopicSource = 'ai'
+    source: TopicSource = 'ai',
   ): Promise<Map<string, TopicRecord>> {
     // Deduplicate by lowercase name
     const unique = new Map<string, TopicType>();
@@ -333,7 +333,10 @@ class TopicService {
             .orderBy(asc(topics.displayName))
             .offset(offset)
             .limit(limit),
-      db.select({ total: countDistinct(topics.id) }).from(topics).where(where),
+      db
+        .select({ total: countDistinct(topics.id) })
+        .from(topics)
+        .where(where),
     ]);
 
     return { topics: rows.map(toTopicRecord), total: counted?.total ?? 0 };
@@ -364,10 +367,12 @@ class TopicService {
    */
   async updateBySlug(
     slug: string,
-    update: Partial<Pick<
-      typeof topics.$inferInsert,
-      'description' | 'translations' | 'icon' | 'image' | 'aliases' | 'displayName'
-    >>
+    update: Partial<
+      Pick<
+        typeof topics.$inferInsert,
+        'description' | 'translations' | 'icon' | 'image' | 'aliases' | 'displayName'
+      >
+    >,
   ): Promise<TopicRecord | null> {
     const [row] = await getDb()
       .update(topics)

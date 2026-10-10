@@ -1,4 +1,7 @@
-import { OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS, type OxyServiceEnvironment } from '@oxy.so/core/server';
+import {
+  OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS,
+  type OxyServiceEnvironment,
+} from '@oxy.so/core/server';
 
 import { signServiceTokenEd25519 } from '../config/serviceTokenSigning';
 import type { ServiceTier } from '../middleware/serviceToken';

@@ -4,9 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  KeyboardAwareScrollViewWrapper,
-} from '@/components/ui';
+import { KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 
@@ -78,21 +76,42 @@ export function ImportPhraseStep({
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={onImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{t('auth.importStep.import')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          onPress={onImport}
+          disabled={isLoading}
+          loading={isLoading}
+          className="mt-space-32"
+        >
+          {t('auth.importStep.import')}
+        </Button>
 
         {onLinkWebAccount && (
-          <Button appearance="subtle" onPress={onLinkWebAccount} disabled={isLoading}>{t('linkAccount.entry')}</Button>
+          <Button appearance="subtle" onPress={onLinkWebAccount} disabled={isLoading}>
+            {t('linkAccount.entry')}
+          </Button>
         )}
 
         {onRestoreFromBackup && (
-          <Button appearance="subtle" onPress={onRestoreFromBackup} disabled={isLoading}>{t('restoreBackup.entry')}</Button>
+          <Button appearance="subtle" onPress={onRestoreFromBackup} disabled={isLoading}>
+            {t('restoreBackup.entry')}
+          </Button>
         )}
 
         {onImportPrivateKey && (
-          <Button appearance="subtle" onPress={onImportPrivateKey} disabled={isLoading}>{t('importPrivateKey.entry')}</Button>
+          <Button appearance="subtle" onPress={onImportPrivateKey} disabled={isLoading}>
+            {t('importPrivateKey.entry')}
+          </Button>
         )}
 
-        <Button appearance="subtle" onPress={() => router.push('/(auth)/create-identity')} disabled={isLoading}>{t('auth.importStep.createInstead')}</Button>
+        <Button
+          appearance="subtle"
+          onPress={() => router.push('/(auth)/create-identity')}
+          disabled={isLoading}
+        >
+          {t('auth.importStep.createInstead')}
+        </Button>
       </KeyboardAwareScrollViewWrapper>
     </View>
   );
@@ -131,4 +150,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

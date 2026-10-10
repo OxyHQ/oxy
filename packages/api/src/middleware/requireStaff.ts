@@ -84,33 +84,39 @@ const CAPABILITY_DESCRIPTIONS: Record<StaffCapability, string> = {
  * endpoint rather than a broken one.
  */
 export const requireStaffCapability = (capability: StaffCapability) => {
-  return asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
-    const userId = req.user?._id;
-    if (req.user?.isStaff !== true || typeof userId !== 'string' || userId.length === 0) {
-      res.status(403).json({
-        error: 'Forbidden',
-        message: 'This operation requires Oxy platform staff privileges',
-      });
-      return;
-    }
+  return asyncHandler(
+    async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+      const userId = req.user?._id;
+      if (req.user?.isStaff !== true || typeof userId !== 'string' || userId.length === 0) {
+        res.status(403).json({
+          error: 'Forbidden',
+          message: 'This operation requires Oxy platform staff privileges',
+        });
+        return;
+      }
 
-    const [row] = await getDb()
-      .select({ staffCapabilities: users.staffCapabilities, isStaff: users.isStaff })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+      const [row] = await getDb()
+        .select({ staffCapabilities: users.staffCapabilities, isStaff: users.isStaff })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
 
-    // A missing row is refused, not treated as an absent capability list: the
-    // authenticated account no longer exists, and `[]` would be the same answer
-    // this guard gives a staff member who simply holds nothing.
-    if (row === undefined || row.isStaff !== true || !row.staffCapabilities.includes(capability)) {
-      res.status(403).json({
-        error: 'Forbidden',
-        message: `This operation requires the ${capability} staff capability (${CAPABILITY_DESCRIPTIONS[capability]}). Platform staff status alone does not grant it.`,
-      });
-      return;
-    }
+      // A missing row is refused, not treated as an absent capability list: the
+      // authenticated account no longer exists, and `[]` would be the same answer
+      // this guard gives a staff member who simply holds nothing.
+      if (
+        row === undefined ||
+        row.isStaff !== true ||
+        !row.staffCapabilities.includes(capability)
+      ) {
+        res.status(403).json({
+          error: 'Forbidden',
+          message: `This operation requires the ${capability} staff capability (${CAPABILITY_DESCRIPTIONS[capability]}). Platform staff status alone does not grant it.`,
+        });
+        return;
+      }
 
-    next();
-  });
+      next();
+    },
+  );
 };

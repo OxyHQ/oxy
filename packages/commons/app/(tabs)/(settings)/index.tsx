@@ -4,10 +4,7 @@ import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useOxy } from '@oxy.so/services';
-import {
-  Screen,
-  StackHeader,
-} from '@/components/ui';
+import { Screen, StackHeader } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { DeviceBackupWarning } from '@/components/identity/DeviceBackupWarning';
@@ -75,13 +72,13 @@ export default function SettingsScreen() {
       {/* Key-management actions */}
       <SettingsListGroup title={t('vault.home.manageKeys')}>
         <SettingsListItem
-          icon={<Icons.shield size='md' fill={colors.text} />}
+          icon={<Icons.shield size="md" fill={colors.text} />}
           title={t('vault.home.actions.backupRecovery')}
           description={t('vault.home.actions.backupRecoverySubtitle')}
           onPress={handleBackupRecovery}
         />
         <SettingsListItem
-          icon={<Icons.key size='md' fill={colors.text} />}
+          icon={<Icons.key size="md" fill={colors.text} />}
           title={t('rotateKey.settingsEntry')}
           description={t('rotateKey.settingsEntrySubtitle')}
           onPress={handleRotateKey}
@@ -91,19 +88,19 @@ export default function SettingsScreen() {
       {/* Trust & verification — Fase 3 personhood + Fase 4 credentials */}
       <SettingsListGroup title={t('civic.personhood.settingsSection')}>
         <SettingsListItem
-          icon={<Icons.vouched size='md' fill={colors.text} />}
+          icon={<Icons.vouched size="md" fill={colors.text} />}
           title={t('civic.personhood.settingsEntry')}
           description={t('civic.personhood.settingsEntrySubtitle')}
           onPress={handlePersonhood}
         />
         <SettingsListItem
-          icon={<Icons.credential size='md' fill={colors.text} />}
+          icon={<Icons.credential size="md" fill={colors.text} />}
           title={t('civic.credentials.settingsEntry')}
           description={t('civic.credentials.settingsEntrySubtitle')}
           onPress={handleCredentials}
         />
         <SettingsListItem
-          icon={<Icons.node size='md' fill={colors.text} />}
+          icon={<Icons.node size="md" fill={colors.text} />}
           title={t('civic.nodes.settingsEntry')}
           description={t('civic.nodes.settingsEntrySubtitle')}
           onPress={handleNode}
@@ -113,13 +110,13 @@ export default function SettingsScreen() {
       {/* Account management — opens the SDK's in-app account surface */}
       <SettingsListGroup title={t('vault.home.account')} footer={t('vault.home.accountSubtitle')}>
         <SettingsListItem
-          icon={<Icons.settings size='md' fill={colors.text} />}
+          icon={<Icons.settings size="md" fill={colors.text} />}
           title={t('vault.home.actions.manageAccount')}
           description={t('vault.home.actions.manageAccountSubtitle')}
           onPress={handleManageAccount}
         />
         <SettingsListItem
-          icon={<Icons.delete size='md' fill={colors.error} />}
+          icon={<Icons.delete size="md" fill={colors.error} />}
           title={t('vault.home.actions.deleteAccount')}
           description={t('vault.home.actions.deleteAccountSubtitle')}
           onPress={handleDeleteAccount}

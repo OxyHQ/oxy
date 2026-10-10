@@ -49,7 +49,14 @@ describe('OxyServices.verifyChallenge token planting', () => {
       throw new Error(`unexpected request to ${url}`);
     });
 
-    const session = await oxy.auth.verifyChallenge('pubkey', 'challenge', 'sig', 123, 'Device', 'fp');
+    const session = await oxy.auth.verifyChallenge(
+      'pubkey',
+      'challenge',
+      'sig',
+      123,
+      'Device',
+      'fp',
+    );
 
     // Response still carries the access token for callers that want it.
     expect(session.accessToken).toBe('access_verify');
@@ -149,9 +156,18 @@ describe('OxyServices.verifyChallenge token planting', () => {
       throw new Error(`unexpected request to ${url}`);
     });
 
-    const verified = await oxy.auth.verifyChallenge('pubkey', 'challenge', 'sig', 1, undefined, undefined, undefined, {
-      plantTokens: false,
-    });
+    const verified = await oxy.auth.verifyChallenge(
+      'pubkey',
+      'challenge',
+      'sig',
+      1,
+      undefined,
+      undefined,
+      undefined,
+      {
+        plantTokens: false,
+      },
+    );
     const claimed = await oxy.auth.claimSession('session-token-abc', { plantTokens: false });
 
     expect(verified.accessToken).toBe('access_verify');

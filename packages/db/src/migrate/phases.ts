@@ -111,7 +111,7 @@ export interface MigrationPhaseReadResult {
  */
 export function readMigrationPhases(
   tags: readonly string[],
-  folder: string
+  folder: string,
 ): MigrationPhaseReadResult {
   const phases = new Map<string, DeployPhase>();
   const problems: string[] = [];
@@ -124,7 +124,7 @@ export function readMigrationPhases(
       contents = readFileSync(path, 'utf8');
     } catch (error) {
       problems.push(
-        `${tag}: cannot read ${path} (${error instanceof Error ? error.message : String(error)}).`
+        `${tag}: cannot read ${path} (${error instanceof Error ? error.message : String(error)}).`,
       );
       continue;
     }
@@ -138,9 +138,9 @@ export function readMigrationPhases(
     if (values.length === 0) {
       problems.push(
         `${tag}: no deploy-phase marker. Add exactly one line reading ` +
-        `\`${phaseMarkerLine('pre')}\` (additive — safe while the previous image serves) or ` +
-        `\`${phaseMarkerLine('post')}\` (drops/renames/narrows — only safe once the new image is live) ` +
-        `to ${tag}.sql.`
+          `\`${phaseMarkerLine('pre')}\` (additive — safe while the previous image serves) or ` +
+          `\`${phaseMarkerLine('post')}\` (drops/renames/narrows — only safe once the new image is live) ` +
+          `to ${tag}.sql.`,
       );
       continue;
     }
@@ -148,7 +148,7 @@ export function readMigrationPhases(
     if (values.length > 1) {
       problems.push(
         `${tag}: ${values.length} deploy-phase markers (${values.join(', ')}). \
-Exactly one, or the file does not say which side of the deploy it belongs on.`
+Exactly one, or the file does not say which side of the deploy it belongs on.`,
       );
       continue;
     }
@@ -156,7 +156,7 @@ Exactly one, or the file does not say which side of the deploy it belongs on.`
     const value = values[0];
     if (!isDeployPhase(value)) {
       problems.push(
-        `${tag}: unrecognised deploy phase "${value}". Use one of: ${DEPLOY_PHASES.join(', ')}.`
+        `${tag}: unrecognised deploy phase "${value}". Use one of: ${DEPLOY_PHASES.join(', ')}.`,
       );
       continue;
     }
@@ -213,15 +213,14 @@ export interface MigrationRunPlan<T> {
 export function planMigrationRun<T extends { tag: string }>(
   pending: readonly T[],
   phases: ReadonlyMap<string, DeployPhase>,
-  run: MigrationRun
+  run: MigrationRun,
 ): MigrationRunPlan<T> {
   const undeclared = pending.filter((entry) => !phases.has(entry.tag));
   if (undeclared.length > 0) {
     return {
       apply: [],
       deferred: [],
-      blocked:
-        `${undeclared.length} pending migration(s) do not declare a deploy phase: \
+      blocked: `${undeclared.length} pending migration(s) do not declare a deploy phase: \
 ${undeclared.map((entry) => entry.tag).join(', ')}. \
 Refusing to guess which side of a deploy they belong on.`,
     };
@@ -237,8 +236,7 @@ Refusing to guess which side of a deploy they belong on.`,
       return {
         apply: [],
         deferred: [],
-        blocked:
-          `${stranded.map((entry) => entry.tag).join(', ')} \
+        blocked: `${stranded.map((entry) => entry.tag).join(', ')} \
 ${stranded.length === 1 ? 'is a pre-deploy migration that is' : 'are pre-deploy migrations that are'} \
 still pending after the rollout. The pre-deploy migration step did not apply \
 it, so the image now serving is reading a schema this database does not have. \
@@ -259,8 +257,7 @@ Failing so the deployment rolls back to the image that matches.`,
     return {
       apply: [],
       deferred: [],
-      blocked:
-        `${stranded.tag} is a pre-deploy migration queued behind the post-deploy migration \
+      blocked: `${stranded.tag} is a pre-deploy migration queued behind the post-deploy migration \
 ${pending[firstPost].tag}, which is not applied yet. Applying ${stranded.tag} would \
 require applying ${pending[firstPost].tag} first — the ledger records progress as a \
 high-water mark and cannot skip one — and that would break the image currently \

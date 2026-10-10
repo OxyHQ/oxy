@@ -10,7 +10,7 @@
 import { readFileSync, unlinkSync } from 'node:fs';
 import { dropTestDatabase } from './src/db/testDatabase';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// biome-ignore lint/style/noCommonJs: jest.workerCount.cjs is a CommonJS helper shared with the Jest config
 const { OXY_JEST_DATABASE_MANIFEST } = require('./jest.workerCount.cjs');
 
 export default async function globalTeardown(): Promise<void> {

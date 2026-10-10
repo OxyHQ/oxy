@@ -25,7 +25,11 @@ jest.mock('../../middleware/auth', () => ({
     if (currentUserId) req.user = { id: currentUserId };
     next();
   },
-  serviceAuthMiddleware: (req: { serviceApp?: { appId: string } }, _res: unknown, next: () => void) => {
+  serviceAuthMiddleware: (
+    req: { serviceApp?: { appId: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     if (currentServiceAppId) req.serviceApp = { appId: currentServiceAppId };
     next();
   },
@@ -93,7 +97,9 @@ let server: http.Server;
 
 beforeAll(async () => {
   process.env.SERVICE_TOKEN_SIGNING_KEY_ID = 'users-delete-test';
-  process.env.SERVICE_TOKEN_PRIVATE_KEY = signingKey.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  process.env.SERVICE_TOKEN_PRIVATE_KEY = signingKey.privateKey
+    .export({ type: 'pkcs8', format: 'pem' })
+    .toString();
   delete process.env.SERVICE_TOKEN_PUBLIC_JWKS;
   await connectPostgres();
   const app = express();
@@ -115,7 +121,13 @@ interface CallResult {
   body: {
     data: {
       retained?: boolean;
-      events: Array<{ eventId: string; userId: string; username: string | null; type: string; token: string }>;
+      events: Array<{
+        eventId: string;
+        userId: string;
+        username: string | null;
+        type: string;
+        token: string;
+      }>;
     };
   };
 }
@@ -136,8 +148,12 @@ async function call(method: string, path: string, body?: unknown): Promise<CallR
       },
       (res) => {
         let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data ? JSON.parse(data) : undefined }));
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: data ? JSON.parse(data) : undefined }),
+        );
       },
     );
     req.on('error', reject);
@@ -185,10 +201,19 @@ describe('DELETE /users/me records an account.deleted event', () => {
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ retained: false });
 
-    expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.id))).toHaveLength(0);
-    const events = await getDb().select().from(accountEvents).where(eq(accountEvents.userId, person.id));
+    expect(
+      await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.id)),
+    ).toHaveLength(0);
+    const events = await getDb()
+      .select()
+      .from(accountEvents)
+      .where(eq(accountEvents.userId, person.id));
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ type: 'account.deleted', username: person.username, retained: false });
+    expect(events[0]).toMatchObject({
+      type: 'account.deleted',
+      username: person.username,
+      retained: false,
+    });
     const deliveries = await getDb()
       .select({ applicationId: accountEventDeliveries.applicationId })
       .from(accountEventDeliveries)
@@ -197,14 +222,20 @@ describe('DELETE /users/me records an account.deleted event', () => {
 
     // The relying party then reads it from its pull feed.
     currentServiceAppId = mentionAppId;
-    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'queueMicrotask'] });
+    jest.useFakeTimers({
+      doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'queueMicrotask'],
+    });
     jest.setSystemTime(Date.now() + ACCOUNT_EVENT_FEED_SETTLE_MS + 1_000);
     try {
       const feed = await call('GET', '/account-events?limit=200');
       expect(feed.status).toBe(200);
       const ours = feed.body.data.events.filter((event) => event.userId === person.id);
       expect(ours).toHaveLength(1);
-      expect(ours[0]).toMatchObject({ eventId: events[0]!.id, username: person.username, type: 'account.deleted' });
+      expect(ours[0]).toMatchObject({
+        eventId: events[0]!.id,
+        username: person.username,
+        type: 'account.deleted',
+      });
       expect(typeof ours[0]!.token).toBe('string');
     } finally {
       jest.useRealTimers();
@@ -218,8 +249,12 @@ describe('DELETE /users/me records an account.deleted event', () => {
 
     const response = await call('DELETE', '/users/me', deleteBody(person.username!));
     expect(response.status).toBe(401);
-    expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.id))).toHaveLength(1);
-    expect(await getDb().select().from(accountEvents).where(eq(accountEvents.userId, person.id))).toHaveLength(0);
+    expect(
+      await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.id)),
+    ).toHaveLength(1);
+    expect(
+      await getDb().select().from(accountEvents).where(eq(accountEvents.userId, person.id)),
+    ).toHaveLength(0);
   });
 });
 
@@ -232,26 +267,41 @@ describe('DELETE /users/me and a wallet', () => {
   it('deletes an account whose wallet is empty and never used — the wallet goes with it', async () => {
     const { person } = await seed();
     currentUserId = person.id;
-    const [wallet] = await getDb().insert(wallets).values({ userId: person.id }).returning({ id: wallets.id });
+    const [wallet] = await getDb()
+      .insert(wallets)
+      .values({ userId: person.id })
+      .returning({ id: wallets.id });
 
     const response = await call('DELETE', '/users/me', deleteBody(person.username!));
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ retained: false });
-    expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.id))).toHaveLength(0);
-    expect(await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id))).toHaveLength(0);
+    expect(
+      await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.id)),
+    ).toHaveLength(0);
+    expect(
+      await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id)),
+    ).toHaveLength(0);
   });
 
   it('archives, as before, an account whose wallet holds a balance — the wallet is kept', async () => {
     const { person } = await seed();
     currentUserId = person.id;
-    const [wallet] = await getDb().insert(wallets).values({ userId: person.id, balance: '1.5' }).returning({ id: wallets.id });
+    const [wallet] = await getDb()
+      .insert(wallets)
+      .values({ userId: person.id, balance: '1.5' })
+      .returning({ id: wallets.id });
 
     const response = await call('DELETE', '/users/me', deleteBody(person.username!));
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ retained: true });
-    const [row] = await getDb().select({ status: users.accountStatus }).from(users).where(eq(users.id, person.id));
+    const [row] = await getDb()
+      .select({ status: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, person.id));
     expect(row).toEqual({ status: 'archived' });
-    expect(await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id))).toHaveLength(1);
+    expect(
+      await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id)),
+    ).toHaveLength(1);
   });
 });
 

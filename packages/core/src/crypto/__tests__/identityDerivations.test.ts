@@ -12,7 +12,11 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { deriveSecp256k1PublicKey, signSecp256k1Digest, verifySecp256k1Digest } from '@oxy.so/protocol/secp256k1';
+import {
+  deriveSecp256k1PublicKey,
+  signSecp256k1Digest,
+  verifySecp256k1Digest,
+} from '@oxy.so/protocol/secp256k1';
 import {
   SCOPED_SEED_KDF_SALT,
   SOCIAL_RECEIVE_CHAIN_CODE_KEY,
@@ -40,7 +44,10 @@ interface Vectors {
   }>;
 }
 
-const VECTORS_PATH = resolve(__dirname, '../../../../commons/modules/oxy-identity-host/vectors.json');
+const VECTORS_PATH = resolve(
+  __dirname,
+  '../../../../commons/modules/oxy-identity-host/vectors.json',
+);
 const vectors = JSON.parse(readFileSync(VECTORS_PATH, 'utf8')) as Vectors;
 const toHex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
 const N = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
@@ -78,10 +85,15 @@ describe('identity derivations match the Commons identity host vectors', () => {
 
       for (const social of identity.socialReceive) {
         const child = deriveSocialReceiveKey(identity.privateKey, social.index);
-        expect(child).toEqual({ privateKey: social.childPrivateKey, publicKey: social.childPublicKey });
+        expect(child).toEqual({
+          privateKey: social.childPrivateKey,
+          publicKey: social.childPublicKey,
+        });
         const signed = signSocialReceiveDigest(identity.privateKey, social.index, social.digest);
         expect(signed).toEqual({ signature: social.signature, publicKey: social.childPublicKey });
-        expect(verifySecp256k1Digest(social.childPublicKey, social.digest, social.signature)).toBe(true);
+        expect(verifySecp256k1Digest(social.childPublicKey, social.digest, social.signature)).toBe(
+          true,
+        );
         // FairCoin relays only low-S input signatures (BIP 62).
         expect(derS(social.signature) <= N / 2n).toBe(true);
       }
@@ -98,8 +110,14 @@ describe('identity derivations match the Commons identity host vectors', () => {
   test('pins the Peable wallet seeds', () => {
     const aa = vectors.identities.find((v) => v.privateKey === 'aa'.repeat(32));
     expect(aa?.scopedSeeds).toEqual([
-      { info: 'oxypay/faircoin/v1', seed: '4b90d900a11b0a1737ed643db3446e5f28035d86f1a4fda92474ea8ab152adf5' },
-      { info: 'peable/faircoin/v1', seed: '3282e7b8585d3de14fc8856debc352b7b238eccd5c861ec33c92a443857e6040' },
+      {
+        info: 'oxypay/faircoin/v1',
+        seed: '4b90d900a11b0a1737ed643db3446e5f28035d86f1a4fda92474ea8ab152adf5',
+      },
+      {
+        info: 'peable/faircoin/v1',
+        seed: '3282e7b8585d3de14fc8856debc352b7b238eccd5c861ec33c92a443857e6040',
+      },
     ]);
   });
 

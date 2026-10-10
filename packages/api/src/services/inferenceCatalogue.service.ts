@@ -61,7 +61,11 @@ import {
 } from '@oxy.so/contracts';
 import type { SelectedRow } from '@oxy.so/db';
 import { getDb } from '../config/postgres';
-import { privateAutoCatalogueApproval, privateAutoHash, type PrivateAutoCatalogueContext } from './privateAutoExecution.service';
+import {
+  privateAutoCatalogueApproval,
+  privateAutoHash,
+  type PrivateAutoCatalogueContext,
+} from './privateAutoExecution.service';
 import { privateCommissioningAudience } from './scopedExecution.service';
 import {
   DEPLOYMENT_REQUEST_PARAMETERS,
@@ -93,12 +97,12 @@ import type {
 
 type RealtimeSessionKindValue = (typeof REALTIME_SESSION_KINDS)[number];
 type RealtimeSessionTransportValue = (typeof REALTIME_SESSION_TRANSPORTS)[number];
-import {
-  classifyApplicationTier,
-  type ApplicationClassification,
-} from '../utils/applicationTier';
+import { classifyApplicationTier, type ApplicationClassification } from '../utils/applicationTier';
 import { resolveProviderConnectionForApplication } from './inferenceProviderConnection.service';
-import { type DeploymentLiveness, isDeploymentPublished } from './kaanaDeploymentPublication.service';
+import {
+  type DeploymentLiveness,
+  isDeploymentPublished,
+} from './kaanaDeploymentPublication.service';
 import type { RoutingProfilePowerLevel } from '../db/schema/inferenceRoutingProfiles';
 import {
   AUTO_CEILING,
@@ -196,7 +200,7 @@ export type CatalogueApplicationPrincipal = ApplicationClassification;
  * same application differently.
  */
 export function resolveCatalogueViewer(
-  application: CatalogueApplicationPrincipal | undefined
+  application: CatalogueApplicationPrincipal | undefined,
 ): CatalogueViewer {
   const tier = classifyApplicationTier(application);
   if (tier === 'third_party') return PUBLIC_CATALOGUE_VIEWER;
@@ -232,11 +236,15 @@ const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
  * request may measure one exact source-reviewed route after real legal review;
  * it does not change the public permission or assert unmeasured scorecards.
  */
-function selectableDeploymentWhere(viewer: CatalogueViewer, scopedExecution?: import('@oxy.so/contracts').ScopedExecutionAudience, privateAuto?: PrivateAutoCatalogueContext) {
+function selectableDeploymentWhere(
+  viewer: CatalogueViewer,
+  scopedExecution?: import('@oxy.so/contracts').ScopedExecutionAudience,
+  privateAuto?: PrivateAutoCatalogueContext,
+) {
   const availability = viewer.scopes.includes('platform_internal')
     ? or(
         inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]),
-        sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
+        sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`,
       )
     : inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]);
 
@@ -244,40 +252,53 @@ function selectableDeploymentWhere(viewer: CatalogueViewer, scopedExecution?: im
   if (privateAuto !== undefined) {
     const approval = privateAutoCatalogueApproval(privateAuto);
     if (approval === undefined || scopedExecution !== undefined) return sql`false`;
-    return and(availability,
+    return and(
+      availability,
       eq(inferenceDeployments.internalRouteId, approval.deploymentId),
       eq(inferenceDeployments.providerSlug, approval.provider),
       eq(inferenceDeployments.priceVersionId, approval.priceVersionId),
       sql`${inferenceDeployments.privateAutoSourceApproval} = ${JSON.stringify(approval)}::jsonb`,
       sql`${inferenceDeployments.scopedExecution} IS NULL`,
-      eq(inferenceDeployments.permissionState, 'pending_review'), eq(inferenceDeployments.status, 'disabled'),
-      eq(inferenceDeployments.availabilityScope, 'platform_internal'), sql`${inferenceDeployments.autoApprovalPolicyId} IS NULL`,
+      eq(inferenceDeployments.permissionState, 'pending_review'),
+      eq(inferenceDeployments.status, 'disabled'),
+      eq(inferenceDeployments.availabilityScope, 'platform_internal'),
+      sql`${inferenceDeployments.autoApprovalPolicyId} IS NULL`,
       eq(inferenceDeployments.legalReviewStatus, 'approved'),
       eq(inferenceDeployments.legalReviewEvidenceRef, approval.review.legalReviewEvidenceRef),
       eq(inferenceDeployments.retainsPayloads, approval.review.retainsPayloads),
       eq(inferenceDeployments.retentionDays, approval.review.retentionDays),
       eq(inferenceDeployments.trainsOnCustomerData, approval.review.trainsOnCustomerData),
-      eq(inferenceDeployments.zeroDataRetentionAvailable, approval.review.zeroDataRetentionAvailable));
+      eq(
+        inferenceDeployments.zeroDataRetentionAvailable,
+        approval.review.zeroDataRetentionAvailable,
+      ),
+    );
   }
   return and(
     availability,
     sql`${inferenceDeployments.privateAutoSourceApproval} IS NULL`,
-    scopedExecution === undefined ? sql`${inferenceDeployments.scopedExecution} IS NULL` : and(
-      eq(inferenceDeployments.internalRouteId, scopedExecution.deploymentId),
-      sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(scopedExecution)}::jsonb`
-    ),
+    scopedExecution === undefined
+      ? sql`${inferenceDeployments.scopedExecution} IS NULL`
+      : and(
+          eq(inferenceDeployments.internalRouteId, scopedExecution.deploymentId),
+          sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(scopedExecution)}::jsonb`,
+        ),
     or(
-      and(eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
-        inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES])),
-      commissioning === undefined ? sql`false` : and(
-        eq(inferenceDeployments.permissionState, 'pending_review'),
-        eq(inferenceDeployments.status, 'disabled'),
-        eq(inferenceDeployments.availabilityScope, 'platform_internal'),
-        eq(inferenceDeployments.legalReviewStatus, 'approved'),
-        sql`length(trim(${inferenceDeployments.legalReviewEvidenceRef})) > 0`,
-        sql`${inferenceDeployments.autoApprovalPolicyId} IS NULL`
-      )
-    )
+      and(
+        eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
+        inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES]),
+      ),
+      commissioning === undefined
+        ? sql`false`
+        : and(
+            eq(inferenceDeployments.permissionState, 'pending_review'),
+            eq(inferenceDeployments.status, 'disabled'),
+            eq(inferenceDeployments.availabilityScope, 'platform_internal'),
+            eq(inferenceDeployments.legalReviewStatus, 'approved'),
+            sql`length(trim(${inferenceDeployments.legalReviewEvidenceRef})) > 0`,
+            sql`${inferenceDeployments.autoApprovalPolicyId} IS NULL`,
+          ),
+    ),
   );
 }
 
@@ -344,9 +365,11 @@ export type RoutingConstraint = keyof RoutingConstraints;
  */
 export const UNFILTERED_ROUTING_CONTROLS = {
   schemaVersion: 'The wire shape’s version, not a customer control.',
-  routingPolicyId: 'The policy’s identity. Recorded on the envelope and the receipt, never matched against a route.',
+  routingPolicyId:
+    'The policy’s identity. Recorded on the envelope and the receipt, never matched against a route.',
   policyVersion: 'The customer’s own revision number. Same.',
-  scope: 'Which account or application the policy governs — already resolved before a route is looked for.',
+  scope:
+    'Which account or application the policy governs — already resolved before a route is looked for.',
   updatedAt: 'When the version was written.',
   defaultTarget:
     'ENFORCED, but at the edge rather than here: it decides WHICH model reference is resolved when the caller named none (`inferenceEdge.service.ts`), so it is an input to this resolution and never a filter over its candidates.',
@@ -551,7 +574,7 @@ export interface CandidatePrice {
  * ceiling that passes while the customer is billed more.
  */
 async function loadCandidatePrices(
-  priceVersionIds: readonly string[]
+  priceVersionIds: readonly string[],
 ): Promise<ReadonlyMap<string, CandidatePrice>> {
   if (priceVersionIds.length === 0) return new Map();
 
@@ -564,10 +587,7 @@ async function loadCandidatePrices(
       per: priceVersionUnitPrices.per,
     })
     .from(priceVersions)
-    .leftJoin(
-      priceVersionUnitPrices,
-      eq(priceVersionUnitPrices.priceVersionId, priceVersions.id)
-    )
+    .leftJoin(priceVersionUnitPrices, eq(priceVersionUnitPrices.priceVersionId, priceVersions.id))
     .where(inArray(priceVersions.id, [...priceVersionIds]))
     .orderBy(asc(priceVersions.id), asc(priceVersionUnitPrices.unit));
 
@@ -616,7 +636,7 @@ function scaledAmount(amount: string): bigint {
   const [, integerDigits, fractionDigits = ''] = match;
   if (fractionDigits.length > INFERENCE_MONEY_SCALE) {
     throw new Error(
-      `amount ${amount} carries more than ${INFERENCE_MONEY_SCALE} fractional digits`
+      `amount ${amount} carries more than ${INFERENCE_MONEY_SCALE} fractional digits`,
     );
   }
   return BigInt(integerDigits + fractionDigits.padEnd(INFERENCE_MONEY_SCALE, '0'));
@@ -638,7 +658,7 @@ function scaledAmount(amount: string): bigint {
  */
 function exceedsRate(
   rate: { readonly amount: string; readonly per: number },
-  ceiling: { readonly amount: string; readonly per: number }
+  ceiling: { readonly amount: string; readonly per: number },
 ): boolean {
   return (
     scaledAmount(rate.amount) * BigInt(ceiling.per) >
@@ -731,7 +751,7 @@ function exceedsUnitCeiling(ceiling: UnitPrice, price: CandidatePrice | undefine
  */
 function exceedsRequestCeiling(
   ceiling: { readonly amount: string; readonly currency: string },
-  price: CandidatePrice | undefined
+  price: CandidatePrice | undefined,
 ): boolean {
   if (price === undefined) return true;
 
@@ -764,7 +784,7 @@ function exceedsRequestCeiling(
 export function violatedConstraints(
   constraints: RoutingConstraints,
   candidate: ConstrainedCandidate,
-  price: CandidatePrice | undefined
+  price: CandidatePrice | undefined,
 ): RoutingConstraint[] {
   const violated: RoutingConstraint[] = [];
 
@@ -909,13 +929,13 @@ interface ConstrainedCandidates<T> {
  */
 async function applyRoutingConstraints<T extends ConstrainedCandidate>(
   constraints: RoutingConstraints,
-  candidates: readonly T[]
+  candidates: readonly T[],
 ): Promise<ConstrainedCandidates<T>> {
   const prices = await loadCandidatePrices([
     ...new Set(
       candidates.flatMap((candidate) =>
-        candidate.priceVersionId === null ? [] : [candidate.priceVersionId]
-      )
+        candidate.priceVersionId === null ? [] : [candidate.priceVersionId],
+      ),
     ),
   ]);
 
@@ -991,13 +1011,15 @@ export const CUSTOMER_SAFE_DEPLOYMENT_COLUMNS = {
  */
 export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
   scopedExecution: 'PROTECTED. Private one-use audience; never customer-facing.',
-  privateAutoSourceApproval: 'PROTECTED. Private Auto source-review restriction; never customer-facing.',
+  privateAutoSourceApproval:
+    'PROTECTED. Private Auto source-review restriction; never customer-facing.',
   id: 'The route’s own row id. `deploymentIdSchema` calls it opaque to customers: which concrete endpoint served a request is operational detail, and only the customer-safe subset of it is ever attributed back.',
   modelRevisionId:
     'An internal row id. The customer sees the revision LABEL (`2026-05-01`), which is the thing they pin; the id would be a second, private name for it.',
   permissionState:
     'The approval workflow’s own state. A customer sees a route or does not; showing them that one is `suspended` discloses a commercial or incident decision.',
-  permissionStateChangedAt: 'When that decision was last taken. Same disclosure, with a date on it.',
+  permissionStateChangedAt:
+    'When that decision was last taken. Same disclosure, with a date on it.',
   permissionStateChangedByUserId: 'Which staff member took it. Never customer-facing.',
   permissionStateNote: 'Why they took it, in prose written for staff.',
   legalReviewStatus:
@@ -1022,7 +1044,8 @@ export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
   upstreamWholesaleCostCurrency: 'PROTECTED. Half of the wholesale rate.',
   upstreamWholesaleCostUnit: 'PROTECTED. The unit the wholesale rate is quoted per.',
   upstreamWholesaleCostPer: 'PROTECTED. The denominator of the wholesale rate.',
-  createdAt: 'When the row was written. Internal bookkeeping, not a published fact about the model.',
+  createdAt:
+    'When the row was written. Internal bookkeeping, not a published fact about the model.',
   updatedAt: 'The same.',
 };
 
@@ -1145,10 +1168,11 @@ function aggregateDataPolicy(deployments: readonly CustomerSafeDeploymentRow[]) 
     retentionDays: Math.max(...deployments.map((deployment) => deployment.retentionDays)),
     trainsOnCustomerData: deployments.some((deployment) => deployment.trainsOnCustomerData),
     zeroDataRetentionAvailable: deployments.every(
-      (deployment) => deployment.zeroDataRetentionAvailable
+      (deployment) => deployment.zeroDataRetentionAvailable,
     ),
-    subprocessors: [...new Set(deployments.flatMap((deployment) => deployment.subprocessors ?? []))]
-      .sort(),
+    subprocessors: [
+      ...new Set(deployments.flatMap((deployment) => deployment.subprocessors ?? [])),
+    ].sort(),
     ...(onlyPolicyUrl === null ? {} : { policyUrl: onlyPolicyUrl }),
   };
 }
@@ -1174,7 +1198,7 @@ function aggregateDataPolicy(deployments: readonly CustomerSafeDeploymentRow[]) 
  * opposite treatment of the same row, and gets it: see {@link CandidatePrice}.
  */
 async function loadPriceSnapshots(
-  priceVersionIds: readonly string[]
+  priceVersionIds: readonly string[],
 ): Promise<ReadonlyMap<string, PriceSnapshot>> {
   const prices = await loadCandidatePrices(priceVersionIds);
 
@@ -1204,7 +1228,7 @@ async function loadPriceSnapshots(
           per: unitPrice.per,
           currency: price.currency,
         })),
-      })
+      }),
     );
   }
 
@@ -1242,20 +1266,24 @@ function buildCatalogueEntry(
   availableRevisions: readonly CatalogueRevisionRow[],
   deployments: readonly CatalogueDeploymentRow[],
   providersBySlug: ReadonlyMap<string, CatalogueProviderRow>,
-  evaluations: readonly { suite: string; metric: string; score: string; evaluatedAt: Date | null; reportUrl: string | null }[],
-  priceSnapshotsByVersionId: ReadonlyMap<string, PriceSnapshot>
+  evaluations: readonly {
+    suite: string;
+    metric: string;
+    score: string;
+    evaluatedAt: Date | null;
+    reportUrl: string | null;
+  }[],
+  priceSnapshotsByVersionId: ReadonlyMap<string, PriceSnapshot>,
 ): ModelCatalogueEntry | null {
   if (model.modelId === null || deployments.length === 0) return null;
 
   const priceVersionIds = new Set(deployments.map((deployment) => deployment.joinPriceVersionId));
   const onlyPriceVersionId = priceVersionIds.size === 1 ? [...priceVersionIds][0] : null;
   const pricing =
-    onlyPriceVersionId === null
-      ? undefined
-      : priceSnapshotsByVersionId.get(onlyPriceVersionId);
+    onlyPriceVersionId === null ? undefined : priceSnapshotsByVersionId.get(onlyPriceVersionId);
   const availabilityScopes = new Set(deployments.map((deployment) => deployment.availabilityScope));
   const commercialPermissions = new Set(
-    deployments.map((deployment) => deployment.commercialPermission)
+    deployments.map((deployment) => deployment.commercialPermission),
   );
 
   const regions = [...new Set(deployments.flatMap((deployment) => deployment.regions))].sort();
@@ -1264,14 +1292,17 @@ function buildCatalogueEntry(
     .sort()
     .flatMap((slug) => {
       const provider = providersBySlug.get(slug);
-      const providerDeployments = deployments.filter((candidate) => candidate.providerSlug === slug);
+      const providerDeployments = deployments.filter(
+        (candidate) => candidate.providerSlug === slug,
+      );
       if (provider === undefined || providerDeployments.length === 0) return [];
       return [
         {
           slug: provider.slug,
           displayName: provider.displayName,
-          regions: [...new Set(providerDeployments.flatMap((deployment) => deployment.regions))]
-            .sort(),
+          regions: [
+            ...new Set(providerDeployments.flatMap((deployment) => deployment.regions)),
+          ].sort(),
           dataPolicy: aggregateDataPolicy(providerDeployments),
         },
       ];
@@ -1340,9 +1371,7 @@ function buildCatalogueEntry(
     servingProviders,
     dataPolicy: aggregateDataPolicy(deployments),
     ...(pricing === undefined ? {} : { pricing }),
-    ...(availabilityScopes.size === 1
-      ? { availabilityScope: [...availabilityScopes][0] }
-      : {}),
+    ...(availabilityScopes.size === 1 ? { availabilityScope: [...availabilityScopes][0] } : {}),
     ...(commercialPermissions.size === 1
       ? { commercialPermission: [...commercialPermissions][0] }
       : {}),
@@ -1367,7 +1396,8 @@ function buildCatalogueEntry(
         : { evaluatedAt: evaluation.evaluatedAt.toISOString() }),
       ...(evaluation.reportUrl === null ? {} : { reportUrl: evaluation.reportUrl }),
     })),
-    ...(currentRevision.contentFilteringDefault === null || currentRevision.provenanceMarking === null
+    ...(currentRevision.contentFilteringDefault === null ||
+    currentRevision.provenanceMarking === null
       ? {}
       : {
           safety: {
@@ -1379,7 +1409,9 @@ function buildCatalogueEntry(
             provenanceMarking: currentRevision.provenanceMarking,
           },
         }),
-    ...(currentRevision.modelCardUrl === null ? {} : { modelCardUrl: currentRevision.modelCardUrl }),
+    ...(currentRevision.modelCardUrl === null
+      ? {}
+      : { modelCardUrl: currentRevision.modelCardUrl }),
   };
 
   return modelCatalogueEntrySchema.parse(entry);
@@ -1434,7 +1466,7 @@ export const CATALOGUED: CatalogueAvailability = { kind: 'catalogued' };
 export async function servableDeploymentRowIds(
   viewer: CatalogueViewer,
   liveness: DeploymentLiveness,
-  now: number = Date.now()
+  now: number = Date.now(),
 ): Promise<ReadonlySet<string>> {
   if (viewer.scopes.length === 0 || liveness.status === 'unavailable') return new Set();
   const rows = await getDb()
@@ -1468,12 +1500,12 @@ export async function servableDeploymentRowIds(
     .from(inferenceDeployments)
     .innerJoin(
       inferenceModelRevisions,
-      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id),
     )
     .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
     .leftJoin(
       inferenceDeploymentRoutingScores,
-      eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+      eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId),
     )
     .leftJoin(priceVersions, eq(inferenceDeployments.priceVersionId, priceVersions.id))
     .where(selectableDeploymentWhere(viewer));
@@ -1509,7 +1541,7 @@ export async function servableDeploymentRowIds(
 
 export async function listCatalogueForViewer(
   viewer: CatalogueViewer,
-  availability: CatalogueAvailability
+  availability: CatalogueAvailability,
 ): Promise<ModelCatalogueEntry[]> {
   // A viewer with no scopes can see nothing. Stated as an early return rather
   // than left to `inArray(col, [])`, which drizzle renders as a literal `false`
@@ -1534,7 +1566,7 @@ export async function listCatalogueForViewer(
     .from(inferenceDeployments)
     .innerJoin(
       inferenceModelRevisions,
-      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id),
     )
     .where(selectableDeploymentWhere(viewer));
 
@@ -1629,9 +1661,7 @@ export async function listCatalogueForViewer(
     .select({ slug: inferenceProviders.slug, displayName: inferenceProviders.displayName })
     .from(inferenceProviders)
     .where(
-      inArray(inferenceProviders.slug, [
-        ...new Set(deploymentRows.map((row) => row.providerSlug)),
-      ])
+      inArray(inferenceProviders.slug, [...new Set(deploymentRows.map((row) => row.providerSlug))]),
     );
   const providersBySlug = new Map(providerRows.map((row) => [row.slug, row]));
 
@@ -1659,13 +1689,13 @@ export async function listCatalogueForViewer(
   const priceSnapshotsByVersionId = await loadPriceSnapshots([
     ...new Set(
       deploymentRows.flatMap((row) =>
-        row.joinPriceVersionId === null ? [] : [row.joinPriceVersionId]
-      )
+        row.joinPriceVersionId === null ? [] : [row.joinPriceVersionId],
+      ),
     ),
   ]);
 
   const powerClasses = await powerClassesOf(
-    modelRows.flatMap((model) => (model.modelId === null ? [] : [model.modelId]))
+    modelRows.flatMap((model) => (model.modelId === null ? [] : [model.modelId])),
   );
 
   const entries: ModelCatalogueEntry[] = [];
@@ -1681,7 +1711,7 @@ export async function listCatalogueForViewer(
     // retired revision is not offered, whatever its permission state says.
     const availableRevisionIds = new Set(availableRevisions.map((revision) => revision.id));
     const deployments = deploymentRows.filter(
-      (row) => row.joinModelId === model.id && availableRevisionIds.has(row.joinRevisionId)
+      (row) => row.joinModelId === model.id && availableRevisionIds.has(row.joinRevisionId),
     );
 
     const entry = buildCatalogueEntry(
@@ -1691,7 +1721,7 @@ export async function listCatalogueForViewer(
       deployments,
       providersBySlug,
       evaluationRows.filter((row) => row.modelRevisionId === currentRevision.id),
-      priceSnapshotsByVersionId
+      priceSnapshotsByVersionId,
     );
     if (entry === null) continue;
     const powerClass = powerClasses.get(entry.modelId);
@@ -1712,7 +1742,7 @@ export async function listCatalogueForViewer(
 export async function getCatalogueEntryForViewer(
   viewer: CatalogueViewer,
   modelId: string,
-  availability: CatalogueAvailability
+  availability: CatalogueAvailability,
 ): Promise<ModelCatalogueEntry | undefined> {
   const entries = await listCatalogueForViewer(viewer, availability);
   return entries.find((entry) => entry.modelId === modelId);
@@ -1759,7 +1789,7 @@ export interface SelectedRoute {
 export async function selectRouteForViewer(
   viewer: CatalogueViewer,
   modelReference: string,
-  constraints: RoutingConstraints
+  constraints: RoutingConstraints,
 ): Promise<SelectedRoute | undefined> {
   // Compatibility projection for internal callers/tests. There is deliberately
   // no second selector here: the authoritative resolver applies exact identity,
@@ -1771,7 +1801,7 @@ export async function selectRouteForViewer(
     TEXT_COMPLETION_MODALITY,
     'balanced',
     UNCONSTRAINED_EDGE_CAPACITY,
-    undefined
+    undefined,
   );
   if (resolution.status !== 'resolved') return undefined;
   return {
@@ -1841,21 +1871,19 @@ export interface EdgeRoute {
   /** The price version a hold is sized against and a receipt is settled at. */
   readonly priceVersionId: string;
   /** Exact Kaana generation; present only on an authenticated BYOK route. */
-  readonly customerProviderCredential?: NonNullable<
-    AuthorizedRoute['customerProviderCredential']
-  >;
+  readonly customerProviderCredential?: NonNullable<AuthorizedRoute['customerProviderCredential']>;
   readonly maxContextTokens: number;
   readonly maxOutputTokens: number;
   /**
-  * What the model accepts and produces. Non-empty by CHECK on `inference_models`,
-  * which also constrains the values to `INFERENCE_MODALITIES`.
-  *
-  * Typed `string[]` and NOT the modality union, deliberately. These arrive from
-  * the database as `text[]`, so a union type here would be a claim about stored
-  * data that nothing in this process verifies — the same shape of mistake as a
-  * required field on a wire type that the wire may omit. Every use is a
-  * membership test or an error message, neither of which needs the narrower type.
-  */
+   * What the model accepts and produces. Non-empty by CHECK on `inference_models`,
+   * which also constrains the values to `INFERENCE_MODALITIES`.
+   *
+   * Typed `string[]` and NOT the modality union, deliberately. These arrive from
+   * the database as `text[]`, so a union type here would be a claim about stored
+   * data that nothing in this process verifies — the same shape of mistake as a
+   * required field on a wire type that the wire may omit. Every use is a
+   * membership test or an error message, neither of which needs the narrower type.
+   */
   readonly inputModalities: readonly string[];
   readonly outputModalities: readonly string[];
   /**
@@ -1933,7 +1961,7 @@ export function requestParametersOf(request: {
  */
 export function firstUnacceptedParameter(
   acceptedParameters: readonly string[] | null,
-  carried: readonly DeploymentRequestParameter[]
+  carried: readonly DeploymentRequestParameter[],
 ): DeploymentRequestParameter | undefined {
   if (acceptedParameters === null) return undefined;
   return carried.find((parameter) => !acceptedParameters.includes(parameter));
@@ -2003,7 +2031,7 @@ export function capabilityAdmits(
     readonly realtimeTransports: readonly string[] | null;
     readonly realtimeSessionKinds: readonly string[] | null;
   },
-  requirement: EdgeModalityRequirement
+  requirement: EdgeModalityRequirement,
 ): boolean {
   if (requirement.apiFormat !== undefined) {
     if (declared.apiFormats === null) {
@@ -2210,16 +2238,22 @@ export async function resolveEdgeRoute(
   modality: EdgeModalityRequirement,
   optimiseFor: RoutingPolicy['optimiseFor'] | RoutingProfile['optimiseFor'],
   capacity: EdgeCapacityRequirement,
-  requestContext: AuthenticatedEdgeRoutingContext | undefined
+  requestContext: AuthenticatedEdgeRoutingContext | undefined,
 ): Promise<EdgeRouteResolution> {
   if (viewer.scopes.length === 0) {
     return { status: 'unknown-model', modelReference };
   }
 
   const privateApproval = privateAutoCatalogueApproval(requestContext?.privateAuto);
-  if (requestContext?.privateAuto !== undefined && (privateApproval === undefined || requestContext.scopedExecution !== undefined ||
-    requestContext.applicationId !== privateApproval.principal.applicationId || requestContext.environment !== privateApproval.principal.environment ||
-    modelReference !== privateApproval.modelReference)) return { status: 'unknown-model', modelReference };
+  if (
+    requestContext?.privateAuto !== undefined &&
+    (privateApproval === undefined ||
+      requestContext.scopedExecution !== undefined ||
+      requestContext.applicationId !== privateApproval.principal.applicationId ||
+      requestContext.environment !== privateApproval.principal.environment ||
+      modelReference !== privateApproval.modelReference)
+  )
+    return { status: 'unknown-model', modelReference };
   const separator = modelReference.indexOf('@');
   const modelId = separator === -1 ? modelReference : modelReference.slice(0, separator);
   const pinnedRevision = separator === -1 ? undefined : modelReference.slice(separator + 1);
@@ -2253,8 +2287,7 @@ export async function resolveEdgeRoute(
       joinedPriceEffectiveUntil: priceVersions.effectiveUntil,
       priceScore: inferenceDeploymentRoutingScores.priceScore,
       latencyScore: inferenceDeploymentRoutingScores.latencyScore,
-      latencyMeasurementWindowEnd:
-        inferenceDeploymentRoutingScores.latencyMeasurementWindowEnd,
+      latencyMeasurementWindowEnd: inferenceDeploymentRoutingScores.latencyMeasurementWindowEnd,
       latencyValidUntil: inferenceDeploymentRoutingScores.latencyValidUntil,
       throughputScore: inferenceDeploymentRoutingScores.throughputScore,
       throughputMeasurementWindowEnd:
@@ -2285,15 +2318,24 @@ export async function resolveEdgeRoute(
     .from(inferenceDeployments)
     .innerJoin(
       inferenceModelRevisions,
-      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id),
     )
     .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
     .leftJoin(
       inferenceDeploymentRoutingScores,
-      eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+      eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId),
     )
     .leftJoin(priceVersions, eq(CONSTRAINT_COLUMNS.priceVersionId, priceVersions.id))
-    .where(and(selectableDeploymentWhere(deploymentViewer, requestContext?.scopedExecution, requestContext?.privateAuto), eq(inferenceModels.modelId, modelId)));
+    .where(
+      and(
+        selectableDeploymentWhere(
+          deploymentViewer,
+          requestContext?.scopedExecution,
+          requestContext?.privateAuto,
+        ),
+        eq(inferenceModels.modelId, modelId),
+      ),
+    );
 
   const candidates = rows.filter((row) => {
     if (row.retiredAt !== null) return false;
@@ -2314,9 +2356,11 @@ export async function resolveEdgeRoute(
   // produces embeddings, and before this filter existed an embeddings request
   // could resolve a chat-only model's route and be held against its price.
   const capable = candidates.filter(
-    (row) => (privateApproval === undefined || row.commercialUseAllowed === privateApproval.review.commercialUseAllowed) &&
+    (row) =>
+      (privateApproval === undefined ||
+        row.commercialUseAllowed === privateApproval.review.commercialUseAllowed) &&
       row.inputModalities.includes(modality.input) &&
-      (modality.output === undefined || row.outputModalities.includes(modality.output))
+      (modality.output === undefined || row.outputModalities.includes(modality.output)),
   );
   if (capable.length === 0) {
     return {
@@ -2372,10 +2416,7 @@ export async function resolveEdgeRoute(
     const providerConnection = await resolution;
     if (providerConnection.status !== 'resolved') continue;
     const { connection } = providerConnection;
-    if (
-      connection.credentialHandle === undefined ||
-      connection.credentialRevision === undefined
-    ) {
+    if (connection.credentialHandle === undefined || connection.credentialRevision === undefined) {
       continue;
     }
     connected.push({
@@ -2399,9 +2440,7 @@ export async function resolveEdgeRoute(
   // cannot poison the otherwise complete envelope with irrelevant evidence.
   const capacityCompatible = connected.filter((candidate) => {
     const outputTokens =
-      capacity.outputTokens === 'model-maximum'
-        ? candidate.maxOutputTokens
-        : capacity.outputTokens;
+      capacity.outputTokens === 'model-maximum' ? candidate.maxOutputTokens : capacity.outputTokens;
     return (
       candidate.maxOutputTokens >= outputTokens &&
       candidate.maxContextTokens >= capacity.inputTokens + outputTokens
@@ -2444,19 +2483,26 @@ export async function resolveEdgeRoute(
     .from(inferenceDeployments)
     .where(
       and(
-        or(eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
-          privateApproval === undefined ? sql`false` : and(
-            eq(inferenceDeployments.permissionState, 'pending_review'), eq(inferenceDeployments.status, 'disabled'),
-            eq(inferenceDeployments.internalRouteId, privateApproval.deploymentId),
-            sql`${inferenceDeployments.privateAutoSourceApproval} = ${JSON.stringify(privateApproval)}::jsonb`
-          ),
-          commissioningAudience === undefined ? sql`false` : and(
-            eq(inferenceDeployments.permissionState, 'pending_review'),
-            eq(inferenceDeployments.internalRouteId, commissioningAudience.deploymentId),
-            sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(commissioningAudience)}::jsonb`
-          )),
-        inArray(inferenceDeployments.internalRouteId, exactDeploymentIds)
-      )
+        or(
+          eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
+          privateApproval === undefined
+            ? sql`false`
+            : and(
+                eq(inferenceDeployments.permissionState, 'pending_review'),
+                eq(inferenceDeployments.status, 'disabled'),
+                eq(inferenceDeployments.internalRouteId, privateApproval.deploymentId),
+                sql`${inferenceDeployments.privateAutoSourceApproval} = ${JSON.stringify(privateApproval)}::jsonb`,
+              ),
+          commissioningAudience === undefined
+            ? sql`false`
+            : and(
+                eq(inferenceDeployments.permissionState, 'pending_review'),
+                eq(inferenceDeployments.internalRouteId, commissioningAudience.deploymentId),
+                sql`${inferenceDeployments.scopedExecution} = ${JSON.stringify(commissioningAudience)}::jsonb`,
+              ),
+        ),
+        inArray(inferenceDeployments.internalRouteId, exactDeploymentIds),
+      ),
     );
   const mappingCounts = new Map<string, number>();
   for (const mapping of admittedMappings) {
@@ -2474,8 +2520,11 @@ export async function resolveEdgeRoute(
     };
   }
 
-  if (capacityCompatible.some((candidate) => candidate.permissionState === 'pending_review') &&
-    privateCommissioningAudience(requestContext?.scopedExecution) === undefined && privateApproval === undefined) {
+  if (
+    capacityCompatible.some((candidate) => candidate.permissionState === 'pending_review') &&
+    privateCommissioningAudience(requestContext?.scopedExecution) === undefined &&
+    privateApproval === undefined
+  ) {
     return { status: 'unknown-model', modelReference };
   }
   const now = Date.now();
@@ -2566,39 +2615,77 @@ export async function resolveEdgeRoute(
     internalRouteId: string,
     priceVersionId: string,
     routingScore: number,
-    fundingPriority: InferenceFundingPriority
+    fundingPriority: InferenceFundingPriority,
   ): EdgeRoute => ({
     deploymentId: internalRouteId,
     ...(requestContext?.scopedExecution === undefined ||
-      (row.permissionState !== 'approved' && !(row.permissionState === 'pending_review' &&
-        row.deploymentStatus === 'disabled' && privateCommissioningAudience(requestContext.scopedExecution) !== undefined)) ||
-      row.legalReviewStatus !== 'approved' || row.legalReviewEvidenceRef === null || row.autoApprovalPolicyId !== null ? {} : {
-      scopedCatalogueEvidence: {
-        modelRevisionId: row.modelRevisionId, deploymentId: internalRouteId, priceVersionId,
-        commercialPermission: row.commercialPermission,
-        ...(row.permissionState === 'pending_review' ? { permissionState: 'pending_review' as const,
-          admission: 'private_commissioning' as const, deploymentStatus: 'disabled' as const } :
-          { permissionState: 'approved' as const }),
-        legalReviewStatus: 'approved' as const, legalReviewEvidenceRef: row.legalReviewEvidenceRef,
-        eligibility: { availabilityScope: row.availabilityScope, licenseId: row.licenseId,
-          commercialUseAllowed: row.commercialUseAllowed, retainsPayloads: row.retainsPayloads,
-          retentionDays: row.retentionDays, trainsOnCustomerData: row.trainsOnCustomerData,
-          zeroDataRetentionAvailable: row.zeroDataRetentionAvailable, policyAdmitted: true as const,
-          capabilityAdmitted: true as const, privacyAdmitted: true as const },
-      },
-    }),
-    ...(privateApproval === undefined ? {} : { privateAutoCatalogueEvidence: {
-      admission: 'private_auto_classifier' as const, permissionState: 'pending_review' as const,
-      deploymentStatus: 'disabled' as const, sourceApprovalSha256: privateAutoHash(privateApproval),
-      modelRevisionId: row.modelRevisionId, deploymentId: internalRouteId, priceVersionId,
-      commercialPermission: row.commercialPermission, legalReviewStatus: 'approved' as const,
-      legalReviewEvidenceRef: privateApproval.review.legalReviewEvidenceRef,
-      eligibility: { availabilityScope: row.availabilityScope, licenseId: row.licenseId,
-        commercialUseAllowed: row.commercialUseAllowed, retainsPayloads: row.retainsPayloads,
-        retentionDays: row.retentionDays, trainsOnCustomerData: row.trainsOnCustomerData,
-        zeroDataRetentionAvailable: row.zeroDataRetentionAvailable, policyAdmitted: true as const,
-        capabilityAdmitted: true as const, privacyAdmitted: true as const },
-    } }),
+    (row.permissionState !== 'approved' &&
+      !(
+        row.permissionState === 'pending_review' &&
+        row.deploymentStatus === 'disabled' &&
+        privateCommissioningAudience(requestContext.scopedExecution) !== undefined
+      )) ||
+    row.legalReviewStatus !== 'approved' ||
+    row.legalReviewEvidenceRef === null ||
+    row.autoApprovalPolicyId !== null
+      ? {}
+      : {
+          scopedCatalogueEvidence: {
+            modelRevisionId: row.modelRevisionId,
+            deploymentId: internalRouteId,
+            priceVersionId,
+            commercialPermission: row.commercialPermission,
+            ...(row.permissionState === 'pending_review'
+              ? {
+                  permissionState: 'pending_review' as const,
+                  admission: 'private_commissioning' as const,
+                  deploymentStatus: 'disabled' as const,
+                }
+              : { permissionState: 'approved' as const }),
+            legalReviewStatus: 'approved' as const,
+            legalReviewEvidenceRef: row.legalReviewEvidenceRef,
+            eligibility: {
+              availabilityScope: row.availabilityScope,
+              licenseId: row.licenseId,
+              commercialUseAllowed: row.commercialUseAllowed,
+              retainsPayloads: row.retainsPayloads,
+              retentionDays: row.retentionDays,
+              trainsOnCustomerData: row.trainsOnCustomerData,
+              zeroDataRetentionAvailable: row.zeroDataRetentionAvailable,
+              policyAdmitted: true as const,
+              capabilityAdmitted: true as const,
+              privacyAdmitted: true as const,
+            },
+          },
+        }),
+    ...(privateApproval === undefined
+      ? {}
+      : {
+          privateAutoCatalogueEvidence: {
+            admission: 'private_auto_classifier' as const,
+            permissionState: 'pending_review' as const,
+            deploymentStatus: 'disabled' as const,
+            sourceApprovalSha256: privateAutoHash(privateApproval),
+            modelRevisionId: row.modelRevisionId,
+            deploymentId: internalRouteId,
+            priceVersionId,
+            commercialPermission: row.commercialPermission,
+            legalReviewStatus: 'approved' as const,
+            legalReviewEvidenceRef: privateApproval.review.legalReviewEvidenceRef,
+            eligibility: {
+              availabilityScope: row.availabilityScope,
+              licenseId: row.licenseId,
+              commercialUseAllowed: row.commercialUseAllowed,
+              retainsPayloads: row.retainsPayloads,
+              retentionDays: row.retentionDays,
+              trainsOnCustomerData: row.trainsOnCustomerData,
+              zeroDataRetentionAvailable: row.zeroDataRetentionAvailable,
+              policyAdmitted: true as const,
+              capabilityAdmitted: true as const,
+              privacyAdmitted: true as const,
+            },
+          },
+        }),
     routingScore,
     fundingPriority,
     modelReference: composeModelReference(resolvedModelId, row.revision),
@@ -2620,7 +2707,10 @@ export async function resolveEdgeRoute(
   });
 
   // Revalidate source authority after every asynchronous catalogue/price lookup.
-  if (privateApproval !== undefined && privateAutoCatalogueApproval(requestContext?.privateAuto) === undefined) {
+  if (
+    privateApproval !== undefined &&
+    privateAutoCatalogueApproval(requestContext?.privateAuto) === undefined
+  ) {
     return { status: 'unknown-model', modelReference };
   }
   const chosen = ranked[0];
@@ -2650,12 +2740,11 @@ export async function resolveEdgeRoute(
       return {
         status: 'routing-evidence-unavailable',
         modelReference,
-        reason:
-          internalRouteId === null ? 'missing-exact-deployment-id' : 'missing-price',
+        reason: internalRouteId === null ? 'missing-exact-deployment-id' : 'missing-price',
       };
     }
     alternates.push(
-      edgeRouteOf(candidate, resolvedModelId, internalRouteId, priceVersionId, score, fundingRank)
+      edgeRouteOf(candidate, resolvedModelId, internalRouteId, priceVersionId, score, fundingRank),
     );
   }
 
@@ -2667,7 +2756,7 @@ export async function resolveEdgeRoute(
       chosen.candidate.internalRouteId,
       chosen.candidate.priceVersionId,
       chosen.score,
-      chosen.fundingRank
+      chosen.fundingRank,
     ),
     alternates,
   };
@@ -2686,9 +2775,7 @@ type RoutingScoreResolution =
 
 export type InferenceFundingPriority = 1 | 2 | 3 | 4;
 
-const FUNDING_CLASS_RANK: Readonly<
-  Record<InferenceFundingClass, InferenceFundingPriority>
-> = {
+const FUNDING_CLASS_RANK: Readonly<Record<InferenceFundingClass, InferenceFundingPriority>> = {
   free_entitlement: 1,
   discounted_payg: 2,
   promotional_credit: 3,
@@ -2713,7 +2800,7 @@ export function fundingPriorityFor(
     readonly fundingObservedAt: Date | null;
     readonly fundingValidUntil: Date | null;
   },
-  now: number
+  now: number,
 ): FundingPriorityResolution {
   const rank =
     candidate.fundingClass === null
@@ -2722,10 +2809,7 @@ export function fundingPriorityFor(
   if (rank === undefined || candidate.fundingState !== 'available') {
     return { status: 'unavailable' };
   }
-  if (
-    candidate.fundingRemaining !== null &&
-    /^0(?:\.0+)?$/.test(candidate.fundingRemaining)
-  ) {
+  if (candidate.fundingRemaining !== null && /^0(?:\.0+)?$/.test(candidate.fundingRemaining)) {
     return { status: 'unavailable' };
   }
   if (
@@ -2763,7 +2847,7 @@ function routingScoreFor(
     readonly balancedValidUntil: Date | null;
   },
   optimiseFor: RoutingPolicy['optimiseFor'] | RoutingProfile['optimiseFor'],
-  now: number
+  now: number,
 ): RoutingScoreResolution {
   if (
     candidate.internalRouteId === null ||
@@ -2847,8 +2931,14 @@ function sortedModalities(values: readonly string[]): readonly string[] {
  */
 export async function powerLevelCandidates(
   viewer: CatalogueViewer,
-  levels: readonly ConcretePowerLevel[]
-): Promise<{ readonly modelReference: string; readonly priority: number; readonly level: ConcretePowerLevel }[]> {
+  levels: readonly ConcretePowerLevel[],
+): Promise<
+  {
+    readonly modelReference: string;
+    readonly priority: number;
+    readonly level: ConcretePowerLevel;
+  }[]
+> {
   if (viewer.scopes.length === 0) return [];
   const candidates: {
     readonly modelReference: string;
@@ -2859,7 +2949,7 @@ export async function powerLevelCandidates(
   for (const [priority, level] of levels.entries()) {
     for (const modelId of await powerClassModelIds(
       POWER_LEVEL_CLASS[level],
-      selectableDeploymentWhere(viewer)
+      selectableDeploymentWhere(viewer),
     )) {
       // `xhigh` shares `high`'s class; a model is listed once, at its first level.
       if (seen.has(modelId)) continue;
@@ -2879,7 +2969,7 @@ function listedLevelsOf(powerLevel: RoutingProfilePowerLevel): ConcretePowerLeve
 /** Canonical model ids with at least one servable route for this viewer. */
 async function servableModelIds(
   viewer: CatalogueViewer,
-  liveness: DeploymentLiveness
+  liveness: DeploymentLiveness,
 ): Promise<ReadonlySet<string>> {
   const deploymentIds = await servableDeploymentRowIds(viewer, liveness);
   if (deploymentIds.size === 0) return new Set();
@@ -2888,7 +2978,7 @@ async function servableModelIds(
     .from(inferenceDeployments)
     .innerJoin(
       inferenceModelRevisions,
-      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id),
     )
     .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
     .where(inArray(inferenceDeployments.id, [...deploymentIds]));
@@ -2911,7 +3001,7 @@ async function servableModelIds(
  */
 export async function listRoutingProfiles(
   viewer: CatalogueViewer,
-  availability: CatalogueAvailability
+  availability: CatalogueAvailability,
 ): Promise<RoutingProfile[]> {
   const db = getDb();
 
@@ -2954,13 +3044,13 @@ export async function listRoutingProfiles(
     .from(inferenceRoutingProfileCandidates)
     .leftJoin(
       inferenceModelRevisions,
-      eq(inferenceRoutingProfileCandidates.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceRoutingProfileCandidates.modelRevisionId, inferenceModelRevisions.id),
     )
     .where(
       inArray(
         inferenceRoutingProfileCandidates.routingProfileId,
-        profileRows.map((profile) => profile.id)
-      )
+        profileRows.map((profile) => profile.id),
+      ),
     )
     .orderBy(asc(inferenceRoutingProfileCandidates.priority));
 
@@ -2976,8 +3066,8 @@ export async function listRoutingProfiles(
           ? [candidate.unpinnedModelId]
           : candidate.pinnedRevisionModelId !== null
             ? [candidate.pinnedRevisionModelId]
-            : []
-      )
+            : [],
+      ),
     ),
   ];
   const canonicalModelIds = new Map(
@@ -2988,7 +3078,7 @@ export async function listRoutingProfiles(
             .select({ id: inferenceModels.id, modelId: inferenceModels.modelId })
             .from(inferenceModels)
             .where(inArray(inferenceModels.id, referencedModelRowIds))
-        ).map((row) => [row.id, row.modelId] as const)
+        ).map((row) => [row.id, row.modelId] as const),
   );
 
   const profiles: RoutingProfile[] = [];
@@ -3036,7 +3126,7 @@ export async function listRoutingProfiles(
         isProductPreset: profile.isProductPreset,
         ...(profile.powerLevel === null ? {} : { powerLevel: profile.powerLevel }),
         ...(profile.reasoningEffort === null ? {} : { reasoningEffort: profile.reasoningEffort }),
-      })
+      }),
     );
   }
   return profiles;
@@ -3078,7 +3168,7 @@ export type EdgeRoutingProfileResolution =
  * returned without candidates for the edge to resolve per request.
  */
 async function resolveRoutingProfileForEdgeWhere(
-  profileWhere: SQL<unknown>
+  profileWhere: SQL<unknown>,
 ): Promise<EdgeRoutingProfileResolution> {
   const db = getDb();
   const [profile] = await db
@@ -3119,7 +3209,7 @@ async function resolveRoutingProfileForEdgeWhere(
     .from(inferenceRoutingProfileCandidates)
     .leftJoin(
       inferenceModelRevisions,
-      eq(inferenceRoutingProfileCandidates.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceRoutingProfileCandidates.modelRevisionId, inferenceModelRevisions.id),
     )
     .where(eq(inferenceRoutingProfileCandidates.routingProfileId, profile.id))
     .orderBy(asc(inferenceRoutingProfileCandidates.priority));
@@ -3141,14 +3231,13 @@ async function resolveRoutingProfileForEdgeWhere(
         .select({ id: inferenceModels.id, modelId: inferenceModels.modelId })
         .from(inferenceModels)
         .where(inArray(inferenceModels.id, [...new Set(referencedModelRowIds)]))
-    ).map((row) => [row.id, row.modelId] as const)
+    ).map((row) => [row.id, row.modelId] as const),
   );
 
   const candidates: RoutingProfile['candidates'][number][] = [];
   for (const candidate of candidateRows) {
     const modelRowId = candidate.unpinnedModelId ?? candidate.pinnedRevisionModelId;
-    const canonicalModelId =
-      modelRowId === null ? undefined : canonicalModelIds.get(modelRowId);
+    const canonicalModelId = modelRowId === null ? undefined : canonicalModelIds.get(modelRowId);
     const pinnedCandidate = candidate.pinnedRevisionId !== null;
     if (
       canonicalModelId === undefined ||
@@ -3181,9 +3270,7 @@ async function resolveRoutingProfileForEdgeWhere(
 }
 
 /** Resolve the existing public compatibility selector by its canonical slug. */
-export function resolveRoutingProfileForEdge(
-  slug: string
-): Promise<EdgeRoutingProfileResolution> {
+export function resolveRoutingProfileForEdge(slug: string): Promise<EdgeRoutingProfileResolution> {
   return resolveRoutingProfileForEdgeWhere(eq(inferenceRoutingProfiles.slug, slug));
 }
 
@@ -3195,9 +3282,7 @@ export function resolveRoutingProfileForEdge(
  * unknown — an unknown or whitespace-modified ID therefore fails closed.
  */
 export function resolveRoutingProfileForEdgeById(
-  routingProfileId: string
+  routingProfileId: string,
 ): Promise<EdgeRoutingProfileResolution> {
-  return resolveRoutingProfileForEdgeWhere(
-    eq(inferenceRoutingProfiles.id, routingProfileId)
-  );
+  return resolveRoutingProfileForEdgeWhere(eq(inferenceRoutingProfiles.id, routingProfileId));
 }

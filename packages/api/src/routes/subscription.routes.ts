@@ -14,17 +14,24 @@ router.use(authMiddleware);
  * GET /api/subscription/:userId
  * Get user subscription
  */
-router.get('/:userId', validate({ params: subscriptionUserIdParams }), asyncHandler(async (req, res) => {
-  await getSubscription(req as AuthRequest, res);
-}));
+router.get(
+  '/:userId',
+  validate({ params: subscriptionUserIdParams }),
+  asyncHandler(async (req, res) => {
+    await getSubscription(req as AuthRequest, res);
+  }),
+);
 
 /**
  * DELETE /api/subscription/:userId
  * Cancel user subscription
  */
-router.delete('/:userId', validate({ params: subscriptionUserIdParams }), asyncHandler(async (req, res) => {
-  await cancelSubscription(req as AuthRequest, res);
-}));
+router.delete(
+  '/:userId',
+  validate({ params: subscriptionUserIdParams }),
+  asyncHandler(async (req, res) => {
+    await cancelSubscription(req as AuthRequest, res);
+  }),
+);
 
 export default router;
-

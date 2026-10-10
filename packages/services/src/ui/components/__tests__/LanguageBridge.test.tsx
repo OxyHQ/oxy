@@ -24,7 +24,9 @@ beforeEach(() => {
 it('resolves and reports the account language on mount', () => {
   mockCurrentLanguage = 'es-ES';
   const onChange = jest.fn();
-  render(<LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />);
+  render(
+    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
+  );
 
   expect(onChange).toHaveBeenCalledWith('es-ES');
 });
@@ -32,7 +34,9 @@ it('resolves and reports the account language on mount', () => {
 it('coerces a locale the host never shipped a catalog for, by base language', () => {
   mockCurrentLanguage = 'es-MX';
   const onChange = jest.fn();
-  render(<LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />);
+  render(
+    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
+  );
 
   expect(onChange).toHaveBeenCalledWith('es-ES');
 });
@@ -40,7 +44,9 @@ it('coerces a locale the host never shipped a catalog for, by base language', ()
 it('falls back to the caller default when nothing matches, even by base', () => {
   mockCurrentLanguage = 'ja-JP';
   const onChange = jest.fn();
-  render(<LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />);
+  render(
+    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
+  );
 
   expect(onChange).toHaveBeenCalledWith('en-US');
 });
@@ -54,11 +60,15 @@ it('calls back again only when the RESOLVED locale changes', () => {
 
   // Same resolved locale, brand-new callback identity (the common case for an
   // inline arrow function) — must not re-fire.
-  rerender(<LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={() => {}} />);
+  rerender(
+    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={() => {}} />,
+  );
   expect(onChange).toHaveBeenCalledTimes(1);
 
   mockCurrentLanguage = 'fr-FR';
-  rerender(<LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />);
+  rerender(
+    <LanguageBridge supportedLocales={HOST_CATALOG} fallbackLocale="en-US" onChange={onChange} />,
+  );
   expect(onChange).toHaveBeenCalledTimes(2);
   expect(onChange).toHaveBeenLastCalledWith('fr-FR');
 });

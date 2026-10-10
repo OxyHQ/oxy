@@ -44,8 +44,6 @@ export const reminders = pgTable(
     // both are always present, so it indexed everything and the `sparse` flag
     // did nothing. The predicate the cron actually uses is `completed = false`,
     // so that is what this index carries.
-    index('reminders_due_idx')
-      .on(t.remindAt)
-      .where(sql`not ${t.completed}`),
-  ]
+    index('reminders_due_idx').on(t.remindAt).where(sql`not ${t.completed}`),
+  ],
 );

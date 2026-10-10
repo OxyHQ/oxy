@@ -124,17 +124,13 @@ export function PlaygroundRunReceipt({
           value={`${Math.round(run.roundTripMs)} ms`}
           hint="measured in your browser, network included"
         />
-        {run.generationId !== undefined && (
-          <Fact label="Generation" value={run.generationId} />
-        )}
+        {run.generationId !== undefined && <Fact label="Generation" value={run.generationId} />}
       </div>
 
       <div>
         <p className="text-xs text-muted-foreground mb-2">Units metered</p>
         {run.usage.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            The response reported no metered units.
-          </p>
+          <p className="text-sm text-muted-foreground">The response reported no metered units.</p>
         ) : (
           <div className="divide-y divide-border rounded-lg border border-border">
             {run.usage.map((quantity) => (
@@ -142,9 +138,7 @@ export function PlaygroundRunReceipt({
                 key={quantity.unit}
                 className="flex items-center justify-between gap-4 px-3 py-2"
               >
-                <span className="text-sm text-foreground">
-                  {quantity.unit.replace(/_/g, ' ')}
-                </span>
+                <span className="text-sm text-foreground">{quantity.unit.replace(/_/g, ' ')}</span>
                 <span className="text-sm font-mono text-foreground">
                   {formatCount(quantity.quantity)}
                 </span>
@@ -159,16 +153,11 @@ export function PlaygroundRunReceipt({
           <div>
             <p className="text-sm font-medium text-foreground">Billed amount</p>
             <p className="text-xs text-muted-foreground">
-              A second call to <code className="font-mono">GET /v1/generations</code> with the
-              same credential.
+              A second call to <code className="font-mono">GET /v1/generations</code> with the same
+              credential.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onFetchReceipt}
-            disabled={isFetchingReceipt}
-          >
+          <Button variant="outline" size="sm" onClick={onFetchReceipt} disabled={isFetchingReceipt}>
             {isFetchingReceipt ? 'Fetching…' : 'Fetch receipt'}
           </Button>
         </div>
@@ -195,10 +184,10 @@ export function PlaygroundRunReceipt({
           <div className="rounded-lg border border-border p-3">
             <p className="text-sm text-foreground">No receipt was written for this request.</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Expected while charging is not armed: requests are metered and priced, but no
-              receipt, reservation or ledger entry is written. A credential without the
-              <code className="font-mono"> inference:usage:read </code> scope also gets this
-              answer, and the two are deliberately indistinguishable.
+              Expected while charging is not armed: requests are metered and priced, but no receipt,
+              reservation or ledger entry is written. A credential without the
+              <code className="font-mono"> inference:usage:read </code> scope also gets this answer,
+              and the two are deliberately indistinguishable.
             </p>
           </div>
         )}
@@ -223,15 +212,9 @@ export function PlaygroundRunReceipt({
                 }
               />
               <Fact label="Outcome" value={receipt.receipt.outcome} />
-              <Fact
-                label="Usage source"
-                value={receipt.receipt.usageSource.replace(/_/g, ' ')}
-              />
+              <Fact label="Usage source" value={receipt.receipt.usageSource.replace(/_/g, ' ')} />
               <Fact label="Environment" value={receipt.receipt.environment} />
-              <Fact
-                label="Settled"
-                value={new Date(receipt.receipt.settledAt).toLocaleString()}
-              />
+              <Fact label="Settled" value={new Date(receipt.receipt.settledAt).toLocaleString()} />
             </div>
 
             <div>

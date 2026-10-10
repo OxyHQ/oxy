@@ -8,8 +8,8 @@
  *   3. the DOM environment is set up last so React + the components have
  *      `window` / `document` to render into.
  */
-import "./setup-contracts-source"
-import "./setup-core-source"
-import "./setup-services-mock"
-import "./setup-mocks"
-import "./setup-dom"
+import './setup-contracts-source';
+import './setup-core-source';
+import './setup-services-mock';
+import './setup-mocks';
+import './setup-dom';

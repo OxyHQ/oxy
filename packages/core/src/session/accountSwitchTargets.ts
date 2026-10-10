@@ -17,11 +17,7 @@
  */
 
 import { isOperatorSwitchTargetKind } from '@oxy.so/contracts';
-import type {
-  AccountRelationship,
-  AccountKind,
-  AccountMember,
-} from '../api/accounts';
+import type { AccountRelationship, AccountKind, AccountMember } from '../api/accounts';
 
 /**
  * Whether the caller can BECOME this account — the one question every account
@@ -55,9 +51,10 @@ import type {
  * Takes a structural subset rather than a whole {@link AccountNode} so a caller
  * holding an already-projected row can ask it too.
  */
-export function isSwitchTargetAccount(
-  node: { kind?: AccountKind | null; relationship?: AccountRelationship },
-): boolean {
+export function isSwitchTargetAccount(node: {
+  kind?: AccountKind | null;
+  relationship?: AccountRelationship;
+}): boolean {
   return node.relationship === 'self' || isOperatorSwitchTargetKind(node.kind);
 }
 
@@ -72,13 +69,11 @@ export function isSwitchTargetAccount(
  * API always resolves effective permissions for owned accounts, but test
  * fixtures and stale rows may omit the membership blob.
  */
-export function canSwitchIntoAccount(
-  node: {
-    kind?: AccountKind | null;
-    relationship?: AccountRelationship;
-    callerMembership?: AccountMember | null;
-  },
-): boolean {
+export function canSwitchIntoAccount(node: {
+  kind?: AccountKind | null;
+  relationship?: AccountRelationship;
+  callerMembership?: AccountMember | null;
+}): boolean {
   if (node.relationship === 'self') {
     return true;
   }

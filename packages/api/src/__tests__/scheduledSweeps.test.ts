@@ -128,7 +128,9 @@ describe('the entrypoint this suite reads', () => {
 
 describe('the reservation expiry sweep is registered', () => {
   it('schedules expireReservations on its own interval', () => {
-    expect(SERVER_CODE).toContain("import { expireReservations } from './services/inferenceLedger.service'");
+    expect(SERVER_CODE).toContain(
+      "import { expireReservations } from './services/inferenceLedger.service'",
+    );
     expect(SERVER_CODE).toContain('expireReservations()');
     expect(SERVER_CODE).toContain('RESERVATION_EXPIRY_SWEEP_INTERVAL_MS');
     // Unref'd, like every other sweep: an interval that keeps the event loop

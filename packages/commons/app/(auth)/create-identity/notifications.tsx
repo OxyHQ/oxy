@@ -29,7 +29,10 @@ export default function CreateIdentityNotificationsScreen() {
   });
 
   return (
-    <View style={[styles.container, { backgroundColor }]} pointerEvents={isSigningIn ? 'none' : 'auto'}>
+    <View
+      style={[styles.container, { backgroundColor }]}
+      pointerEvents={isSigningIn ? 'none' : 'auto'}
+    >
       <NotificationsStep
         error={error}
         onRequestNotifications={handleRequestNotifications}

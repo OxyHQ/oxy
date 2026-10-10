@@ -106,9 +106,7 @@ export function toBillingProfile(row: BillingProfileRow): BillingProfile {
   });
 }
 
-export function toAutoRechargeAttempt(
-  row: BillingAutoRechargeAttemptRow
-): AutoRechargeAttempt {
+export function toAutoRechargeAttempt(row: BillingAutoRechargeAttemptRow): AutoRechargeAttempt {
   return autoRechargeAttemptSchema.parse({
     schemaVersion: 1,
     id: row.id,
@@ -178,7 +176,7 @@ export type AccountBillingResolution =
  * fixed by provisioning one.
  */
 export async function resolveAccountBillingState(
-  accountId: string
+  accountId: string,
 ): Promise<AccountBillingResolution> {
   const db = getDb();
 
@@ -221,7 +219,7 @@ export async function resolveAccountBillingState(
 async function loadBillingState(
   db: DatabaseOrTransaction,
   requestedAccountId: string,
-  billing: BillingAccount
+  billing: BillingAccount,
 ): Promise<AccountBillingState | undefined> {
   const [profile] = await db
     .select()
@@ -264,7 +262,7 @@ export type ProvisionAccountBillingResult =
  * key violation surfacing as a 500 on a typo'd id.
  */
 export async function provisionAccountBilling(
-  input: ProvisionAccountBillingInput
+  input: ProvisionAccountBillingInput,
 ): Promise<ProvisionAccountBillingResult> {
   const db = getDb();
   const [account] = await db
@@ -280,7 +278,7 @@ export async function provisionAccountBilling(
   const state = await loadBillingState(db, input.accountId, billing);
   if (state === undefined) {
     throw new Error(
-      `billing profile for account ${input.accountId} vanished immediately after provisioning`
+      `billing profile for account ${input.accountId} vanished immediately after provisioning`,
     );
   }
   return { status: 'provisioned', state };
@@ -323,7 +321,7 @@ export type UpdateBillingProfileResult =
  */
 export async function updateBillingProfile(
   accountId: string,
-  patch: BillingProfilePatch
+  patch: BillingProfilePatch,
 ): Promise<UpdateBillingProfileResult> {
   return getDb().transaction(async (tx): Promise<UpdateBillingProfileResult> => {
     const [current] = await tx
@@ -468,7 +466,7 @@ export async function findAutoRechargeCandidates(limit = 50): Promise<AutoRechar
             < bp.auto_recharge_threshold
       order by ab.purchased_balance asc
       limit ${limit}
-    `
+    `,
   );
 
   return rows.map((row) => ({
@@ -509,7 +507,7 @@ export type ClaimAutoRechargeResult =
  */
 export async function claimAutoRecharge(
   candidate: AutoRechargeCandidate,
-  now = new Date()
+  now = new Date(),
 ): Promise<ClaimAutoRechargeResult> {
   const idempotencyKey = `recharge:${candidate.accountId}:${candidate.currency}:${autoRechargeWindowStart(now)}`;
 
@@ -537,18 +535,15 @@ export async function claimAutoRecharge(
  * intent — deliberately, so that a balance is only ever credited by the
  * processor's own confirmation and never by this optimistic path.
  */
-export async function settleAutoRecharge(
-  attemptId: string,
-  externalRef: string
-): Promise<void> {
+export async function settleAutoRecharge(attemptId: string, externalRef: string): Promise<void> {
   await getDb()
     .update(billingAutoRechargeAttempts)
     .set({ status: 'succeeded', externalRef, updatedAt: new Date() })
     .where(
       and(
         eq(billingAutoRechargeAttempts.id, attemptId),
-        eq(billingAutoRechargeAttempts.status, 'pending')
-      )
+        eq(billingAutoRechargeAttempts.status, 'pending'),
+      ),
     );
 }
 
@@ -560,10 +555,7 @@ export async function settleAutoRecharge(
  * card-testing and to the customer as a wall of decline notifications. The next
  * window is soon enough.
  */
-export async function failAutoRecharge(
-  attemptId: string,
-  failureCode?: string
-): Promise<void> {
+export async function failAutoRecharge(attemptId: string, failureCode?: string): Promise<void> {
   await getDb()
     .update(billingAutoRechargeAttempts)
     .set({
@@ -574,15 +566,15 @@ export async function failAutoRecharge(
     .where(
       and(
         eq(billingAutoRechargeAttempts.id, attemptId),
-        eq(billingAutoRechargeAttempts.status, 'pending')
-      )
+        eq(billingAutoRechargeAttempts.status, 'pending'),
+      ),
     );
 }
 
 /** An account's recent automatic top-ups, newest first. */
 export async function listAutoRechargeAttempts(
   accountId: string,
-  limit = 20
+  limit = 20,
 ): Promise<BillingAutoRechargeAttemptRow[]> {
   return getDb()
     .select()

@@ -29,9 +29,10 @@ export function useDeviceItems({ devices }: UseDeviceItemsArgs): GroupedItem[] {
     return groupDevicesByType(devices, 'Unknown Device').map((group) => {
       const icon = getDeviceIcon(group.type);
       const typeLabel = group.type.charAt(0).toUpperCase() + group.type.slice(1);
-      const subtitle = group.names.length > 0
-        ? group.names.join(', ') + (group.count > group.names.length ? '...' : '')
-        : `${group.count} device(s)`;
+      const subtitle =
+        group.names.length > 0
+          ? group.names.join(', ') + (group.count > group.names.length ? '...' : '')
+          : `${group.count} device(s)`;
 
       return {
         id: `device-${group.type}`,

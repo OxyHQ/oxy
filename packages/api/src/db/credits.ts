@@ -52,7 +52,7 @@ function wholeNonNegative(amount: number): SQL {
  */
 export async function refreshCreditsIfNeeded(
   db: DatabaseOrTransaction,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
   await assertBillingDatabaseNamespace(db);
   const [row] = await db
@@ -65,8 +65,8 @@ export async function refreshCreditsIfNeeded(
     .where(
       and(
         eq(userCredits.userId, userId),
-        sql`${userCredits.creditsLastRefresh} <= now() - make_interval(hours => ${CREDIT_REFRESH_INTERVAL_HOURS})`
-      )
+        sql`${userCredits.creditsLastRefresh} <= now() - make_interval(hours => ${CREDIT_REFRESH_INTERVAL_HOURS})`,
+      ),
     )
     .returning({ userId: userCredits.userId });
 
@@ -86,7 +86,7 @@ export async function addCredits(
   db: DatabaseOrTransaction,
   userId: string,
   amount: number,
-  kind: CreditKind
+  kind: CreditKind,
 ): Promise<boolean> {
   await assertBillingDatabaseNamespace(db);
   // The arithmetic runs in `numeric` and is cast back at the end: the guard has
@@ -113,7 +113,7 @@ export async function addCredits(
 export async function deductCredits(
   db: DatabaseOrTransaction,
   userId: string,
-  amount: number
+  amount: number,
 ): Promise<boolean> {
   await assertBillingDatabaseNamespace(db);
   return spendSubscriptionTrackedCredits(db, userId, amount);

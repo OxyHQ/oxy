@@ -43,7 +43,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string; isStaff: boolean } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: currentUserId, id: currentUserId, isStaff: false };
     next();
@@ -140,7 +140,7 @@ function request(path: string): Promise<HttpResponse> {
         res.on('end', () => {
           resolve({ status: res.statusCode ?? 0, raw });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -154,7 +154,7 @@ function tag(): string {
 
 async function seedAccount(
   kind: 'personal' | 'organization' | 'project',
-  parentAccountId?: string
+  parentAccountId?: string,
 ): Promise<string> {
   const [row] = await getDb()
     .insert(users)
@@ -205,7 +205,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });

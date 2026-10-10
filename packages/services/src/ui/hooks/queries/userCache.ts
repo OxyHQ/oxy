@@ -66,11 +66,11 @@
  * It is a cache write only — zero network, one `setQueryData` per key.
  */
 
-import type { UserNameResponse, UserProfileUpdate } from "@oxy.so/contracts";
-import type { UpdateAccountInput } from "@oxy.so/core";
-import type { QueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "../../stores/authStore";
-import { queryKeys } from "./queryKeys";
+import type { UserNameResponse, UserProfileUpdate } from '@oxy.so/contracts';
+import type { UpdateAccountInput } from '@oxy.so/core';
+import type { QueryClient } from '@tanstack/react-query';
+import { useAuthStore } from '../../stores/authStore';
+import { queryKeys } from './queryKeys';
 
 /**
  * A user-shaped object that can be upserted into the cache. Intentionally
@@ -81,30 +81,30 @@ import { queryKeys } from "./queryKeys";
  * pass through untouched (so the upsert never has to know the full DTO shape).
  */
 export interface CacheableUser {
-	id?: string;
-	/** Some sources (post/notification actors) carry the id as Mongo `_id`. */
-	_id?: string;
-	username?: string;
-	/**
-	 * Canonical structured name (`UserNameResponse`) OR a plain display string on
-	 * the looser actor objects. Normalized to the object shape on write.
-	 */
-	name?: string | UserNameResponse;
-	/** Avatar file id. `null`/`''` are treated as "no avatar" (never degrade). */
-	avatar?: string | null;
-	/** Social counts. A partial `_count` never replaces a fuller one. */
-	_count?: { followers?: number; following?: number } | null;
-	/**
-	 * Viewer-relative follow relationship. Present ONLY on an authenticated
-	 * single-profile fetch; `null`/absent for anon/self/bulk/feed. Never stripped
-	 * from an existing entry by a source that lacks it.
-	 */
-	relationship?: { isFollowing?: boolean; followsYou?: boolean } | null;
-	[key: string]: unknown;
+  id?: string;
+  /** Some sources (post/notification actors) carry the id as Mongo `_id`. */
+  _id?: string;
+  username?: string;
+  /**
+   * Canonical structured name (`UserNameResponse`) OR a plain display string on
+   * the looser actor objects. Normalized to the object shape on write.
+   */
+  name?: string | UserNameResponse;
+  /** Avatar file id. `null`/`''` are treated as "no avatar" (never degrade). */
+  avatar?: string | null;
+  /** Social counts. A partial `_count` never replaces a fuller one. */
+  _count?: { followers?: number; following?: number } | null;
+  /**
+   * Viewer-relative follow relationship. Present ONLY on an authenticated
+   * single-profile fetch; `null`/absent for anon/self/bulk/feed. Never stripped
+   * from an existing entry by a source that lacks it.
+   */
+  relationship?: { isFollowing?: boolean; followsYou?: boolean } | null;
+  [key: string]: unknown;
 }
 
 /** The degraded display-name sentinel (ghost-author rule). */
-const DEGRADED_DISPLAY_NAME = "Unknown user";
+const DEGRADED_DISPLAY_NAME = 'Unknown user';
 
 /**
  * The profile fields a user can genuinely EMPTY through a real Oxy write, and
@@ -123,12 +123,12 @@ const DEGRADED_DISPLAY_NAME = "Unknown user";
  * clears the ordered category list), and `color` via its nullable field.
  */
 export const CLEARABLE_USER_FIELDS = [
-	"avatar",
-	"bio",
-	"description",
-	"color",
-	"accountCategories",
-	"name.displayName",
+  'avatar',
+  'bio',
+  'description',
+  'color',
+  'accountCategories',
+  'name.displayName',
 ] as const;
 
 /** A field nameable in {@link UpsertCachedUserOptions.cleared}. */
@@ -140,72 +140,68 @@ export type ClearableUserField = (typeof CLEARABLE_USER_FIELDS)[number];
  * values immediately instead of waiting for a refetch that merges the same
  * sparse payload.
  */
-export function clearedFieldsFromProfileUpdate(
-	updates: UserProfileUpdate,
-): ClearableUserField[] {
-	const cleared: ClearableUserField[] = [];
-	if ("avatar" in updates && !isMeaningful(updates.avatar)) {
-		cleared.push("avatar");
-	}
-	if ("bio" in updates && !isMeaningful(updates.bio)) {
-		cleared.push("bio");
-	}
-	if ("description" in updates && !isMeaningful(updates.description)) {
-		cleared.push("description");
-	}
-	if ("color" in updates && updates.color === null) {
-		cleared.push("color");
-	}
-	if (
-		updates.name !== undefined &&
-		"displayName" in updates.name &&
-		!isMeaningful(updates.name.displayName)
-	) {
-		cleared.push("name.displayName");
-	}
-	return cleared;
+export function clearedFieldsFromProfileUpdate(updates: UserProfileUpdate): ClearableUserField[] {
+  const cleared: ClearableUserField[] = [];
+  if ('avatar' in updates && !isMeaningful(updates.avatar)) {
+    cleared.push('avatar');
+  }
+  if ('bio' in updates && !isMeaningful(updates.bio)) {
+    cleared.push('bio');
+  }
+  if ('description' in updates && !isMeaningful(updates.description)) {
+    cleared.push('description');
+  }
+  if ('color' in updates && updates.color === null) {
+    cleared.push('color');
+  }
+  if (
+    updates.name !== undefined &&
+    'displayName' in updates.name &&
+    !isMeaningful(updates.name.displayName)
+  ) {
+    cleared.push('name.displayName');
+  }
+  return cleared;
 }
 
 /**
  * Same contract as {@link clearedFieldsFromProfileUpdate} for managed-account
  * `PATCH /accounts/:id` writes (`null` clears avatar/bio/category).
  */
-export function clearedFieldsFromAccountUpdate(
-	input: UpdateAccountInput,
-): ClearableUserField[] {
-	const cleared: ClearableUserField[] = [];
-	if ("avatar" in input && !isMeaningful(input.avatar)) {
-		cleared.push("avatar");
-	}
-	if ("bio" in input && !isMeaningful(input.bio)) {
-		cleared.push("bio");
-	}
-	if (
-		"accountCategories" in input &&
-		Array.isArray(input.accountCategories) &&
-		input.accountCategories.length === 0
-	) {
-		cleared.push("accountCategories");
-	}
-	if (
-		input.name !== undefined &&
-		"displayName" in input.name &&
-		!isMeaningful(input.name.displayName)
-	) {
-		cleared.push("name.displayName");
-	}
-	return cleared;
+export function clearedFieldsFromAccountUpdate(input: UpdateAccountInput): ClearableUserField[] {
+  const cleared: ClearableUserField[] = [];
+  if ('avatar' in input && !isMeaningful(input.avatar)) {
+    cleared.push('avatar');
+  }
+  if ('bio' in input && !isMeaningful(input.bio)) {
+    cleared.push('bio');
+  }
+  if (
+    'accountCategories' in input &&
+    Array.isArray(input.accountCategories) &&
+    input.accountCategories.length === 0
+  ) {
+    cleared.push('accountCategories');
+  }
+  if (
+    input.name !== undefined &&
+    'displayName' in input.name &&
+    !isMeaningful(input.name.displayName)
+  ) {
+    cleared.push('name.displayName');
+  }
+  return cleared;
 }
 
 /** Options for {@link upsertCachedUser}. */
 export interface UpsertCachedUserOptions {
-	/**
-	 * Fields the write that produced this user DELIBERATELY emptied. For each,
-	 * an incoming empty value stops meaning "this source does not carry it" and
-	 * starts meaning "it is empty" — so the stale value is dropped rather than
-	 * preserved. Everything not named here keeps the anti-degradation guard.
-	 */
-	cleared?: readonly ClearableUserField[];
+  /**
+   * Fields the write that produced this user DELIBERATELY emptied. For each,
+   * an incoming empty value stops meaning "this source does not carry it" and
+   * starts meaning "it is empty" — so the stale value is dropped rather than
+   * preserved. Everything not named here keeps the anti-degradation guard.
+   */
+  cleared?: readonly ClearableUserField[];
 }
 
 /** A cache entry always carries a resolved string `id`. */
@@ -218,34 +214,28 @@ type CachedUser = CacheableUser & { id: string; name?: UserNameResponse };
  * meaningful (a real `verified: false` or `_count.followers: 0`).
  */
 function isMeaningful(value: unknown): boolean {
-	if (value === undefined || value === null) return false;
-	if (typeof value === "string") return value.trim() !== "";
-	return true;
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
 }
 
 /** A display name is meaningful only when non-empty AND not the degraded sentinel. */
 function isMeaningfulDisplayName(value: unknown): value is string {
-	return (
-		typeof value === "string" &&
-		value.trim() !== "" &&
-		value !== DEGRADED_DISPLAY_NAME
-	);
+  return typeof value === 'string' && value.trim() !== '' && value !== DEGRADED_DISPLAY_NAME;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Normalize the polymorphic `name` (string | object | nullish) to the canonical object shape. */
-function normalizeName(
-	name: CacheableUser["name"],
-): UserNameResponse | undefined {
-	if (name === undefined || name === null) return undefined;
-	if (typeof name === "string") {
-		const trimmed = name.trim();
-		return trimmed ? { displayName: trimmed } : undefined;
-	}
-	return name;
+function normalizeName(name: CacheableUser['name']): UserNameResponse | undefined {
+  if (name === undefined || name === null) return undefined;
+  if (typeof name === 'string') {
+    const trimmed = name.trim();
+    return trimmed ? { displayName: trimmed } : undefined;
+  }
+  return name;
 }
 
 /**
@@ -255,12 +245,12 @@ function normalizeName(
  * object so the cache never holds a bare-string name).
  */
 function toCachedUser(user: CacheableUser, fallbackId: string): CachedUser {
-	const { name: rawName, ...rest } = user;
-	const id = String(user.id ?? user._id ?? fallbackId);
-	const name = normalizeName(rawName);
-	const normalized: CachedUser = { ...rest, id };
-	if (name !== undefined) normalized.name = name;
-	return normalized;
+  const { name: rawName, ...rest } = user;
+  const id = String(user.id ?? user._id ?? fallbackId);
+  const name = normalizeName(rawName);
+  const normalized: CachedUser = { ...rest, id };
+  if (name !== undefined) normalized.name = name;
+  return normalized;
 }
 
 /**
@@ -268,8 +258,8 @@ function toCachedUser(user: CacheableUser, fallbackId: string): CachedUser {
  * when no id can be resolved (nothing to key on).
  */
 function normalizeIncoming(user: CacheableUser): CachedUser | null {
-	const cached = toCachedUser(user, "");
-	return cached.id ? cached : null;
+  const cached = toCachedUser(user, '');
+  return cached.id ? cached : null;
 }
 
 /**
@@ -279,11 +269,11 @@ function normalizeIncoming(user: CacheableUser): CachedUser | null {
  * changes what a later merge sees.
  */
 function omitDisplayName(name: UserNameResponse): UserNameResponse {
-	const result: UserNameResponse = {};
-	for (const [key, value] of Object.entries(name)) {
-		if (key !== "displayName") result[key] = value;
-	}
-	return result;
+  const result: UserNameResponse = {};
+  for (const [key, value] of Object.entries(name)) {
+    if (key !== 'displayName') result[key] = value;
+  }
+  return result;
 }
 
 /**
@@ -300,43 +290,41 @@ function omitDisplayName(name: UserNameResponse): UserNameResponse {
  * a caller passing a bare user object may carry no `name` key at all.
  */
 function mergeName(
-	existing: UserNameResponse | undefined,
-	incoming: UserNameResponse | undefined,
-	clearDisplayName: boolean,
+  existing: UserNameResponse | undefined,
+  incoming: UserNameResponse | undefined,
+  clearDisplayName: boolean,
 ): UserNameResponse | undefined {
-	if (incoming === undefined) {
-		if (!clearDisplayName || existing === undefined) return existing;
-		return omitDisplayName(existing);
-	}
-	if (existing === undefined) return incoming;
-	const merged: UserNameResponse = { ...existing };
-	for (const [key, value] of Object.entries(incoming)) {
-		if (key === "displayName") continue;
-		if (isMeaningful(value)) merged[key] = value;
-	}
-	// Never let an empty / `'Unknown user'` displayName overwrite a real one —
-	// unless the caller declared that the user cleared it.
-	if (isMeaningfulDisplayName(incoming.displayName)) {
-		merged.displayName = incoming.displayName;
-		return merged;
-	}
-	return clearDisplayName ? omitDisplayName(merged) : merged;
+  if (incoming === undefined) {
+    if (!clearDisplayName || existing === undefined) return existing;
+    return omitDisplayName(existing);
+  }
+  if (existing === undefined) return incoming;
+  const merged: UserNameResponse = { ...existing };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (key === 'displayName') continue;
+    if (isMeaningful(value)) merged[key] = value;
+  }
+  // Never let an empty / `'Unknown user'` displayName overwrite a real one —
+  // unless the caller declared that the user cleared it.
+  if (isMeaningfulDisplayName(incoming.displayName)) {
+    merged.displayName = incoming.displayName;
+    return merged;
+  }
+  return clearDisplayName ? omitDisplayName(merged) : merged;
 }
 
 /** Merge `_count` field-by-field so a partial count never replaces a fuller one. */
 function mergeCount(
-	existing: CacheableUser["_count"],
-	incoming: CacheableUser["_count"],
-): CacheableUser["_count"] {
-	if (!isPlainObject(incoming)) return existing;
-	const merged: { followers?: number; following?: number } = {
-		...(isPlainObject(existing) ? existing : {}),
-	};
-	if (typeof incoming.followers === "number")
-		merged.followers = incoming.followers;
-	if (typeof incoming.following === "number")
-		merged.following = incoming.following;
-	return merged;
+  existing: CacheableUser['_count'],
+  incoming: CacheableUser['_count'],
+): CacheableUser['_count'] {
+  if (!isPlainObject(incoming)) return existing;
+  const merged: { followers?: number; following?: number } = {
+    ...(isPlainObject(existing) ? existing : {}),
+  };
+  if (typeof incoming.followers === 'number') merged.followers = incoming.followers;
+  if (typeof incoming.following === 'number') merged.following = incoming.following;
+  return merged;
 }
 
 /**
@@ -344,18 +332,16 @@ function mergeCount(
  * or an anon/self/bulk `null`) must NEVER strip an existing viewer relationship.
  */
 function mergeRelationship(
-	existing: CacheableUser["relationship"],
-	incoming: CacheableUser["relationship"],
-): CacheableUser["relationship"] {
-	if (!isPlainObject(incoming)) return existing;
-	const merged: { isFollowing?: boolean; followsYou?: boolean } = {
-		...(isPlainObject(existing) ? existing : {}),
-	};
-	if (typeof incoming.isFollowing === "boolean")
-		merged.isFollowing = incoming.isFollowing;
-	if (typeof incoming.followsYou === "boolean")
-		merged.followsYou = incoming.followsYou;
-	return merged;
+  existing: CacheableUser['relationship'],
+  incoming: CacheableUser['relationship'],
+): CacheableUser['relationship'] {
+  if (!isPlainObject(incoming)) return existing;
+  const merged: { isFollowing?: boolean; followsYou?: boolean } = {
+    ...(isPlainObject(existing) ? existing : {}),
+  };
+  if (typeof incoming.isFollowing === 'boolean') merged.isFollowing = incoming.isFollowing;
+  if (typeof incoming.followsYou === 'boolean') merged.followsYou = incoming.followsYou;
+  return merged;
 }
 
 /**
@@ -372,83 +358,76 @@ function mergeRelationship(
  * omits it entirely) and would otherwise survive from `existing` untouched.
  */
 function mergeUsers(
-	existing: CachedUser,
-	incoming: CachedUser,
-	options?: {
-		includeRelationship?: boolean;
-		cleared?: readonly ClearableUserField[];
-	},
+  existing: CachedUser,
+  incoming: CachedUser,
+  options?: {
+    includeRelationship?: boolean;
+    cleared?: readonly ClearableUserField[];
+  },
 ): CachedUser {
-	const includeRelationship = options?.includeRelationship ?? true;
-	const cleared = options?.cleared;
-	const merged: CachedUser = { ...existing };
-	for (const [key, value] of Object.entries(incoming)) {
-		if (key === "name" || key === "_count" || key === "relationship") continue;
-		if (key === "id") {
-			merged.id = incoming.id;
-			continue;
-		}
-		if (isMeaningful(value)) merged[key] = value;
-	}
-	const name = mergeName(
-		existing.name,
-		incoming.name,
-		cleared?.includes("name.displayName") ?? false,
-	);
-	if (name !== undefined) merged.name = name;
-	const count = mergeCount(existing._count, incoming._count);
-	if (count !== undefined) merged._count = count;
-	if (includeRelationship) {
-		const relationship = mergeRelationship(
-			existing.relationship,
-			incoming.relationship,
-		);
-		if (relationship !== undefined) merged.relationship = relationship;
-	} else {
-		merged.relationship = undefined;
-	}
-	if (cleared) {
-		for (const field of cleared) {
-			if (field === "name.displayName") continue; // handled by `mergeName`.
-			if (!isMeaningful(incoming[field])) delete merged[field];
-		}
-	}
-	return merged;
+  const includeRelationship = options?.includeRelationship ?? true;
+  const cleared = options?.cleared;
+  const merged: CachedUser = { ...existing };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (key === 'name' || key === '_count' || key === 'relationship') continue;
+    if (key === 'id') {
+      merged.id = incoming.id;
+      continue;
+    }
+    if (isMeaningful(value)) merged[key] = value;
+  }
+  const name = mergeName(
+    existing.name,
+    incoming.name,
+    cleared?.includes('name.displayName') ?? false,
+  );
+  if (name !== undefined) merged.name = name;
+  const count = mergeCount(existing._count, incoming._count);
+  if (count !== undefined) merged._count = count;
+  if (includeRelationship) {
+    const relationship = mergeRelationship(existing.relationship, incoming.relationship);
+    if (relationship !== undefined) merged.relationship = relationship;
+  } else {
+    merged.relationship = undefined;
+  }
+  if (cleared) {
+    for (const field of cleared) {
+      if (field === 'name.displayName') continue; // handled by `mergeName`.
+      if (!isMeaningful(incoming[field])) delete merged[field];
+    }
+  }
+  return merged;
 }
 
 /** Merge-upsert a normalized user into one cache key (see module docs for semantics). */
 function upsertOneKey(
-	queryClient: QueryClient,
-	key: readonly unknown[],
-	incoming: CachedUser,
-	options: {
-		includeRelationship: boolean;
-		cleared?: readonly ClearableUserField[];
-	},
+  queryClient: QueryClient,
+  key: readonly unknown[],
+  incoming: CachedUser,
+  options: {
+    includeRelationship: boolean;
+    cleared?: readonly ClearableUserField[];
+  },
 ): void {
-	const mergeOpts = {
-		includeRelationship: options.includeRelationship,
-		cleared: options.cleared,
-	};
-	const existing = queryClient.getQueryData<CacheableUser>(key);
-	if (existing === undefined) {
-		// Cold slot: seed the full incoming object, STALE, so react-query refetches
-		// the full authoritative profile (relationship, counts, createdAt, …).
-		const seeded = mergeUsers({ id: incoming.id }, incoming, mergeOpts);
-		queryClient.setQueryData<CachedUser>(key, seeded, { updatedAt: 0 });
-		return;
-	}
-	// Existing entry: merge and leave its freshness lifecycle untouched. The
-	// existing entry is keyed by `incoming.id`, so use it as the fallback id.
-	const merged = mergeUsers(
-		toCachedUser(existing, incoming.id),
-		incoming,
-		mergeOpts,
-	);
-	const dataUpdatedAt = queryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
-	queryClient.setQueryData<CachedUser>(key, merged, {
-		updatedAt: dataUpdatedAt,
-	});
+  const mergeOpts = {
+    includeRelationship: options.includeRelationship,
+    cleared: options.cleared,
+  };
+  const existing = queryClient.getQueryData<CacheableUser>(key);
+  if (existing === undefined) {
+    // Cold slot: seed the full incoming object, STALE, so react-query refetches
+    // the full authoritative profile (relationship, counts, createdAt, …).
+    const seeded = mergeUsers({ id: incoming.id }, incoming, mergeOpts);
+    queryClient.setQueryData<CachedUser>(key, seeded, { updatedAt: 0 });
+    return;
+  }
+  // Existing entry: merge and leave its freshness lifecycle untouched. The
+  // existing entry is keyed by `incoming.id`, so use it as the fallback id.
+  const merged = mergeUsers(toCachedUser(existing, incoming.id), incoming, mergeOpts);
+  const dataUpdatedAt = queryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
+  queryClient.setQueryData<CachedUser>(key, merged, {
+    updatedAt: dataUpdatedAt,
+  });
 }
 
 /**
@@ -459,7 +438,7 @@ function upsertOneKey(
  * empty string is honoured (anonymous scope).
  */
 function resolveViewerId(viewerId?: string): string {
-	return viewerId ?? useAuthStore.getState().user?.id ?? "";
+  return viewerId ?? useAuthStore.getState().user?.id ?? '';
 }
 
 /**
@@ -477,35 +456,35 @@ function resolveViewerId(viewerId?: string): string {
  *                    the wire (see the module docs).
  */
 export function upsertCachedUser(
-	queryClient: QueryClient,
-	user: CacheableUser,
-	viewerId?: string,
-	options?: UpsertCachedUserOptions,
+  queryClient: QueryClient,
+  user: CacheableUser,
+  viewerId?: string,
+  options?: UpsertCachedUserOptions,
 ): void {
-	const incoming = normalizeIncoming(user);
-	if (!incoming) return;
-	const cleared = options?.cleared;
+  const incoming = normalizeIncoming(user);
+  if (!incoming) return;
+  const cleared = options?.cleared;
 
-	// By-id identity entry (read by `useUserById`). Not viewer-scoped — never store
-	// the viewer-relative `relationship` here or one viewer's follow state leaks
-	// into every other viewer's by-id cache entry.
-	upsertOneKey(queryClient, queryKeys.users.detail(incoming.id), incoming, {
-		includeRelationship: false,
-		cleared,
-	});
+  // By-id identity entry (read by `useUserById`). Not viewer-scoped — never store
+  // the viewer-relative `relationship` here or one viewer's follow state leaks
+  // into every other viewer's by-id cache entry.
+  upsertOneKey(queryClient, queryKeys.users.detail(incoming.id), incoming, {
+    includeRelationship: false,
+    cleared,
+  });
 
-	const username = incoming.username;
-	if (typeof username === "string" && username.trim() !== "") {
-		// By-username entry (read by `useUserByUsername`). Viewer-scoped because the
-		// authenticated single-profile fetch embeds the viewer `relationship`. Build
-		// the key through the SAME helper the hook uses so username normalization
-		// (`trim().toLowerCase()`) matches byte-for-byte.
-		const key = queryKeys.users.byUsername(username, resolveViewerId(viewerId));
-		upsertOneKey(queryClient, key, incoming, {
-			includeRelationship: true,
-			cleared,
-		});
-	}
+  const username = incoming.username;
+  if (typeof username === 'string' && username.trim() !== '') {
+    // By-username entry (read by `useUserByUsername`). Viewer-scoped because the
+    // authenticated single-profile fetch embeds the viewer `relationship`. Build
+    // the key through the SAME helper the hook uses so username normalization
+    // (`trim().toLowerCase()`) matches byte-for-byte.
+    const key = queryKeys.users.byUsername(username, resolveViewerId(viewerId));
+    upsertOneKey(queryClient, key, incoming, {
+      includeRelationship: true,
+      cleared,
+    });
+  }
 }
 
 /**
@@ -518,13 +497,13 @@ export function upsertCachedUser(
  * declaration could not be true of every user in the array anyway.
  */
 export function upsertCachedUsers(
-	queryClient: QueryClient,
-	users: readonly CacheableUser[] | null | undefined,
-	viewerId?: string,
+  queryClient: QueryClient,
+  users: readonly CacheableUser[] | null | undefined,
+  viewerId?: string,
 ): void {
-	if (!Array.isArray(users) || users.length === 0) return;
-	const resolvedViewerId = resolveViewerId(viewerId);
-	for (const user of users) {
-		if (user) upsertCachedUser(queryClient, user, resolvedViewerId);
-	}
+  if (!Array.isArray(users) || users.length === 0) return;
+  const resolvedViewerId = resolveViewerId(viewerId);
+  for (const user of users) {
+    if (user) upsertCachedUser(queryClient, user, resolvedViewerId);
+  }
 }

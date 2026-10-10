@@ -134,7 +134,7 @@ export const REPUTATION_RULES: readonly ReputationRuleDefinition[] = Object.free
 ]);
 
 const BY_ACTION_TYPE: ReadonlyMap<string, ReputationRuleDefinition> = new Map(
-  REPUTATION_RULES.map((rule) => [rule.actionType, rule])
+  REPUTATION_RULES.map((rule) => [rule.actionType, rule]),
 );
 
 /** The rule for `actionType`, or `undefined` when no rule prices it. */

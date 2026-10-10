@@ -4,11 +4,7 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { useStore } from 'zustand';
 import { useTheme } from '@oxy.so/bloom/theme';
-import {
-  useDialogFrame,
-  useDialogHeader,
-  type DialogHeaderConfig,
-} from '@oxy.so/bloom/dialog';
+import { useDialogFrame, useDialogHeader, type DialogHeaderConfig } from '@oxy.so/bloom/dialog';
 import type { SurfaceControls } from '@oxy.so/bloom/surfaces';
 import type { RouteName } from '../navigation/routes';
 import { getScreenComponent } from '../navigation/routes';
@@ -21,10 +17,7 @@ import {
   presentRoute,
   replaceWithinOrPresent,
 } from '../navigation/surfaces';
-import {
-  SurfaceHeaderContext,
-  type SurfaceHeaderContent,
-} from '../hooks/useSurfaceHeader';
+import { SurfaceHeaderContext, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
 import { SurfaceFrameWidthContext } from '../hooks/useSurfaceFrameWidth';
 import type { BaseScreenProps } from '../types/navigation';
 
@@ -111,11 +104,7 @@ export interface SurfaceScreenProps {
  * effect) rather than a captured-controls call, so a dismiss requested before
  * this surface mounted still resolves the Bloom surface exactly once.
  */
-function SurfaceScreen({
-  navStack,
-  surface,
-  dismissOnBackdrop = true,
-}: SurfaceScreenProps) {
+function SurfaceScreen({ navStack, surface, dismissOnBackdrop = true }: SurfaceScreenProps) {
   const theme = useTheme();
   const state = useStore(navStack.store);
   const top = state.frames[state.frames.length - 1];
@@ -222,7 +211,11 @@ function SurfaceScreen({
   }, [config.frameSize, viewportHeight, screenWidth]);
   useDialogFrame(
     useMemo(
-      () => ({ key: `${top.route}#${top.step}#${screenWidth ?? ''}`, morph: config.morph, size: frameSize }),
+      () => ({
+        key: `${top.route}#${top.step}#${screenWidth ?? ''}`,
+        morph: config.morph,
+        size: frameSize,
+      }),
       [top.route, top.step, screenWidth, config.morph, frameSize],
     ),
   );
@@ -267,7 +260,19 @@ function SurfaceScreen({
       theme: theme.mode,
       ...rest,
     };
-  }, [navigate, goBack, replace, canGoBack, setStep, present, dismiss, theme.mode, top.route, top.step, top.props]);
+  }, [
+    navigate,
+    goBack,
+    replace,
+    canGoBack,
+    setStep,
+    present,
+    dismiss,
+    theme.mode,
+    top.route,
+    top.step,
+    top.props,
+  ]);
 
   if (!ScreenComponent) return null;
 

@@ -95,9 +95,13 @@ export default function PaymentsScreen() {
 
   if (isInitialLoading || oxyLoading) {
     return (
-      <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+      <View
+        style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}
+      >
         <ActivityIndicator size="large" color={colors.tint} />
-        <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('payments.loading')}</ThemedText>
+        <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+          {t('payments.loading')}
+        </ThemedText>
       </View>
     );
   }

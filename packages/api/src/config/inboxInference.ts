@@ -2,10 +2,10 @@ import {
   KAANA_INITIAL_MODEL_REFERENCE,
   KAANA_INITIAL_ROUTING_PROFILE_IDS,
   KAANA_INITIAL_ROUTING_PROFILES,
-} from "./kaanaInitialCatalogue";
+} from './kaanaInitialCatalogue';
 
 /** Exact Oxy application identity assigned to Inbox in production. */
-export const INBOX_APPLICATION_ID = "6a37b3e61ddfd195b656819b";
+export const INBOX_APPLICATION_ID = '6a37b3e61ddfd195b656819b';
 
 /**
  * The routing profile every Inbox point-inference feature targets: the
@@ -20,15 +20,13 @@ export const INBOX_APPLICATION_ID = "6a37b3e61ddfd195b656819b";
  * `allowedRoutingProfileIds` when that list is non-empty
  * (docs/inference/inbox-point-inference.md).
  */
-export const INBOX_ROUTING_PROFILE_ID = "power-instant";
+export const INBOX_ROUTING_PROFILE_ID = 'power-instant';
 
 const reviewedRoutingProfile = KAANA_INITIAL_ROUTING_PROFILES.find(
   (profile) => profile.id === KAANA_INITIAL_ROUTING_PROFILE_IDS.default,
 );
 if (reviewedRoutingProfile === undefined) {
-  throw new Error(
-    "The reviewed Inbox routing profile is absent from the Kaana catalogue",
-  );
+  throw new Error('The reviewed Inbox routing profile is absent from the Kaana catalogue');
 }
 
 /**

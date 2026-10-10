@@ -22,10 +22,7 @@ import {
   type DidDocument,
   type Secp256k1VerificationMethod,
 } from '@oxy.so/contracts';
-import type {
-  ResolvedVerificationMethods,
-  VerificationMethodResolver,
-} from '../identity/resolver';
+import type { ResolvedVerificationMethods, VerificationMethodResolver } from '../identity/resolver';
 import { type NodeFetch, readBoundedJson } from './httpFetch';
 import {
   DEFAULT_CLIENT_MAX_REDIRECTS,
@@ -95,9 +92,7 @@ function isSecp256k1Vm(
  */
 function collectCurrentPublicKeys(doc: DidDocument): string[] {
   const byId = new Map(
-    doc.verificationMethod
-      .filter(isSecp256k1Vm)
-      .map((vm) => [vm.id, vm.publicKeyHex] as const),
+    doc.verificationMethod.filter(isSecp256k1Vm).map((vm) => [vm.id, vm.publicKeyHex] as const),
   );
   const keys: string[] = [];
   for (const id of doc.assertionMethod) {

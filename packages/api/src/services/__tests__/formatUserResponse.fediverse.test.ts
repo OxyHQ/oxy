@@ -9,7 +9,6 @@
  * exact field name and default-true-when-absent semantics.
  */
 
-
 jest.mock('../../utils/userCache', () => ({
   __esModule: true,
   default: { invalidate: jest.fn() },
@@ -31,12 +30,18 @@ describe('formatUserResponse fediverseSharing', () => {
   });
 
   it('is false only when explicitly disabled', () => {
-    const dto = userService.formatUserResponse({ ...base, privacySettings: { fediverseSharing: false } } as never);
+    const dto = userService.formatUserResponse({
+      ...base,
+      privacySettings: { fediverseSharing: false },
+    } as never);
     expect(dto.fediverseSharing).toBe(false);
   });
 
   it('does not leak the rest of privacySettings publicly', () => {
-    const dto = userService.formatUserResponse({ ...base, privacySettings: { fediverseSharing: true, isPrivateAccount: true } } as never);
+    const dto = userService.formatUserResponse({
+      ...base,
+      privacySettings: { fediverseSharing: true, isPrivateAccount: true },
+    } as never);
     expect(dto.privacySettings).toBeUndefined();
   });
 });

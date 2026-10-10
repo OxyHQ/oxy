@@ -7,7 +7,7 @@ const DEFAULT_WINDOW_MS = 10_000;
 
 export function createSocketRateLimiter(
   maxEvents = DEFAULT_MAX_EVENTS,
-  windowMs = DEFAULT_WINDOW_MS
+  windowMs = DEFAULT_WINDOW_MS,
 ) {
   // Fallback in-memory store when Redis is unavailable
   const localClients = new Map<string, { count: number; resetAt: number }>();

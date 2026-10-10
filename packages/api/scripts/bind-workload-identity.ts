@@ -148,7 +148,10 @@ async function run(invocation: BindWorkloadIdentityInvocation): Promise<void> {
   // because it is the one value somebody reading this output has come to get.
   logger.info('[BindWorkloadIdentity] tokens from this binding will carry', {
     credentialId: result.binding.attestationId,
-    scopes: result.binding.scopes.length > 0 ? result.binding.scopes : '(the application\'s non-privileged grants)',
+    scopes:
+      result.binding.scopes.length > 0
+        ? result.binding.scopes
+        : "(the application's non-privileged grants)",
   });
   emit({ mode: 'bind', ...result });
 }

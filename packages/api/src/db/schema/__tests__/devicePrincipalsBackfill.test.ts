@@ -44,7 +44,7 @@ const MIGRATION = join(
   '..',
   '..',
   'drizzle',
-  '0028_device_principals_and_contexts.sql'
+  '0028_device_principals_and_contexts.sql',
 );
 
 /**
@@ -143,7 +143,9 @@ async function contextsOf(deviceSessionId: string): Promise<ContextRow[]> {
   `;
 }
 
-async function conflictsFor(deviceId: string): Promise<Array<{ conflict: string; subject_id: string }>> {
+async function conflictsFor(
+  deviceId: string,
+): Promise<Array<{ conflict: string; subject_id: string }>> {
   return sql<Array<{ conflict: string; subject_id: string }>>`
     select conflict, subject_id from device_principal_backfill_conflicts
      where device_id = ${deviceId} order by conflict
@@ -167,43 +169,99 @@ beforeAll(async () => {
   corpus.personal = await device('personal');
   actor.p1 = await user('personal');
   actor.p2 = await user('personal');
-  await entry({ deviceSessionId: corpus.personal.id, accountId: actor.p1, sessionId: 's-p1', authuser: 0, addedAt: T0 });
-  await entry({ deviceSessionId: corpus.personal.id, accountId: actor.p2, sessionId: 's-p2', authuser: 1, addedAt: T1 });
+  await entry({
+    deviceSessionId: corpus.personal.id,
+    accountId: actor.p1,
+    sessionId: 's-p1',
+    authuser: 0,
+    addedAt: T0,
+  });
+  await entry({
+    deviceSessionId: corpus.personal.id,
+    accountId: actor.p2,
+    sessionId: 's-p2',
+    authuser: 1,
+    addedAt: T1,
+  });
   await sql`update device_sessions set active_account_id = ${actor.p2} where id = ${corpus.personal.id}`;
 
   // --- delegated: a person, and an organization they operate ----------------
   corpus.delegated = await device('delegated');
   actor.operator = await user('personal');
   actor.org = await user('organization');
-  await entry({ deviceSessionId: corpus.delegated.id, accountId: actor.operator, sessionId: 's-op', authuser: 0, addedAt: T0 });
-  await entry({ deviceSessionId: corpus.delegated.id, accountId: actor.org, sessionId: 's-org', authuser: 1, operatedByUserId: actor.operator, addedAt: T1 });
+  await entry({
+    deviceSessionId: corpus.delegated.id,
+    accountId: actor.operator,
+    sessionId: 's-op',
+    authuser: 0,
+    addedAt: T0,
+  });
+  await entry({
+    deviceSessionId: corpus.delegated.id,
+    accountId: actor.org,
+    sessionId: 's-org',
+    authuser: 1,
+    operatedByUserId: actor.operator,
+    addedAt: T1,
+  });
   await sql`update device_sessions set active_account_id = ${actor.org} where id = ${corpus.delegated.id}`;
 
   // --- operatorOnly: the operator was never signed in here as themselves ----
   corpus.operatorOnly = await device('operator-only');
   actor.absentOperator = await user('personal');
   actor.org2 = await user('organization');
-  await entry({ deviceSessionId: corpus.operatorOnly.id, accountId: actor.org2, sessionId: 's-org2', authuser: 0, operatedByUserId: actor.absentOperator, addedAt: T0 });
+  await entry({
+    deviceSessionId: corpus.operatorOnly.id,
+    accountId: actor.org2,
+    sessionId: 's-org2',
+    authuser: 0,
+    operatedByUserId: actor.absentOperator,
+    addedAt: T0,
+  });
   await sql`update device_sessions set active_account_id = ${actor.org2} where id = ${corpus.operatorOnly.id}`;
 
   // --- orgPrincipal: a legacy entry for an org with no operator recorded -----
   corpus.orgPrincipal = await device('org-principal');
   actor.org3 = await user('organization');
-  await entry({ deviceSessionId: corpus.orgPrincipal.id, accountId: actor.org3, sessionId: 's-org3', authuser: 0, addedAt: T0 });
+  await entry({
+    deviceSessionId: corpus.orgPrincipal.id,
+    accountId: actor.org3,
+    sessionId: 's-org3',
+    authuser: 0,
+    addedAt: T0,
+  });
 
   // --- ghostActive: active_account_id names an account with no entry --------
   corpus.ghostActive = await device('ghost-active');
   actor.present = await user('personal');
   actor.ghost = await user('personal');
-  await entry({ deviceSessionId: corpus.ghostActive.id, accountId: actor.present, sessionId: 's-present', authuser: 0, addedAt: T0 });
+  await entry({
+    deviceSessionId: corpus.ghostActive.id,
+    accountId: actor.present,
+    sessionId: 's-present',
+    authuser: 0,
+    addedAt: T0,
+  });
   await sql`update device_sessions set active_account_id = ${actor.ghost} where id = ${corpus.ghostActive.id}`;
 
   // --- slotClash: two people at authuser 0, which the flat table permitted ---
   corpus.slotClash = await device('slot-clash');
   actor.early = await user('personal');
   actor.late = await user('personal');
-  await entry({ deviceSessionId: corpus.slotClash.id, accountId: actor.early, sessionId: 's-early', authuser: 0, addedAt: T0 });
-  await entry({ deviceSessionId: corpus.slotClash.id, accountId: actor.late, sessionId: 's-late', authuser: 0, addedAt: T1 });
+  await entry({
+    deviceSessionId: corpus.slotClash.id,
+    accountId: actor.early,
+    sessionId: 's-early',
+    authuser: 0,
+    addedAt: T0,
+  });
+  await entry({
+    deviceSessionId: corpus.slotClash.id,
+    accountId: actor.late,
+    sessionId: 's-late',
+    authuser: 0,
+    addedAt: T1,
+  });
 
   // --- personalSlotAbove: the person's OWN slot is higher than the org's ----
   // A device with a long enough sign-in/out history can leave a delegated entry
@@ -212,22 +270,47 @@ beforeAll(async () => {
   corpus.personalSlotAbove = await device('personal-slot-above');
   actor.xp = await user('personal');
   actor.xorg = await user('organization');
-  await entry({ deviceSessionId: corpus.personalSlotAbove.id, accountId: actor.xorg, sessionId: 's-x-org', authuser: 0, operatedByUserId: actor.xp, addedAt: T0 });
-  await entry({ deviceSessionId: corpus.personalSlotAbove.id, accountId: actor.xp, sessionId: 's-xp', authuser: 1, addedAt: T1 });
+  await entry({
+    deviceSessionId: corpus.personalSlotAbove.id,
+    accountId: actor.xorg,
+    sessionId: 's-x-org',
+    authuser: 0,
+    operatedByUserId: actor.xp,
+    addedAt: T0,
+  });
+  await entry({
+    deviceSessionId: corpus.personalSlotAbove.id,
+    accountId: actor.xp,
+    sessionId: 's-xp',
+    authuser: 1,
+    addedAt: T1,
+  });
 
   // --- gap: slot 1 was freed by a sign-out and must stay free ---------------
   corpus.gap = await device('gap');
   actor.g0 = await user('personal');
   actor.g2 = await user('personal');
-  await entry({ deviceSessionId: corpus.gap.id, accountId: actor.g0, sessionId: 's-g0', authuser: 0, addedAt: T0 });
-  await entry({ deviceSessionId: corpus.gap.id, accountId: actor.g2, sessionId: 's-g2', authuser: 2, addedAt: T1 });
+  await entry({
+    deviceSessionId: corpus.gap.id,
+    accountId: actor.g0,
+    sessionId: 's-g0',
+    authuser: 0,
+    addedAt: T0,
+  });
+  await entry({
+    deviceSessionId: corpus.gap.id,
+    accountId: actor.g2,
+    sessionId: 's-g2',
+    authuser: 2,
+    addedAt: T1,
+  });
 
   const statements = backfillStatements();
   if (statements.length !== BACKFILL_STATEMENT_COUNT) {
     throw new Error(
       `Expected ${BACKFILL_STATEMENT_COUNT} data statements in 0028, found ${statements.length}. ` +
         'Either the migration changed or the classifier stopped recognising it — ' +
-        'a suite that runs zero statements passes by examining nothing.'
+        'a suite that runs zero statements passes by examining nothing.',
     );
   }
   for (const statement of statements) {
@@ -255,7 +338,7 @@ describe('an ordinary all-personal device', () => {
     ]);
   });
 
-  it('points active_context_id at the active account\'s context', async () => {
+  it("points active_context_id at the active account's context", async () => {
     const [row] = await sql`
       select c.account_id from device_sessions ds
         join device_account_contexts c on c.id = ds.active_context_id
@@ -294,7 +377,7 @@ describe('a person operating an organization', () => {
     expect(row).toEqual({ account_id: actor.org, principal_user_id: actor.operator });
   });
 
-  it('reports nothing — releasing the org\'s slot is the design, not a loss', async () => {
+  it("reports nothing — releasing the org's slot is the design, not a loss", async () => {
     expect(await conflictsFor(corpus.delegated.deviceId)).toEqual([]);
   });
 });
@@ -447,9 +530,30 @@ describe('the two checks whose answer is known', () => {
     const pathological = await device('pathological');
     const operator = await user('personal');
     const org = await user('organization');
-    await entry({ deviceSessionId: pathological.id, accountId: org, sessionId: 's-a', authuser: 0, operatedByUserId: operator, addedAt: T0 });
-    await entry({ deviceSessionId: pathological.id, accountId: org, sessionId: 's-b', authuser: 1, operatedByUserId: operator, addedAt: T1 });
-    await entry({ deviceSessionId: pathological.id, accountId: await user('personal'), sessionId: 's-c', authuser: 2, operatedByUserId: 'no-such-user', addedAt: T1 });
+    await entry({
+      deviceSessionId: pathological.id,
+      accountId: org,
+      sessionId: 's-a',
+      authuser: 0,
+      operatedByUserId: operator,
+      addedAt: T0,
+    });
+    await entry({
+      deviceSessionId: pathological.id,
+      accountId: org,
+      sessionId: 's-b',
+      authuser: 1,
+      operatedByUserId: operator,
+      addedAt: T1,
+    });
+    await entry({
+      deviceSessionId: pathological.id,
+      accountId: await user('personal'),
+      sessionId: 's-c',
+      authuser: 2,
+      operatedByUserId: 'no-such-user',
+      addedAt: T1,
+    });
 
     const [orphanCheck, duplicateCheck] = backfillStatements();
     await sql.unsafe(orphanCheck);

@@ -105,7 +105,9 @@ export default function CredentialDetailScreen() {
           description={t('civic.credentials.detail.notFoundBody')}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleBack}>{t('common.back')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleBack}>
+                {t('common.back')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -184,7 +186,19 @@ export default function CredentialDetailScreen() {
         )}
 
         {/* Verify action */}
-        <Button appearance="outline" tone="accent" size="lg" icon={Icons.search} onPress={() => void verify.verify()} loading={verify.state === 'verifying'} style={fullWidthControl}>{verify.state === 'verifying' ? t('civic.credentials.verify.verifying') : t('civic.credentials.verify.cta')}</Button>
+        <Button
+          appearance="outline"
+          tone="accent"
+          size="lg"
+          icon={Icons.search}
+          onPress={() => void verify.verify()}
+          loading={verify.state === 'verifying'}
+          style={fullWidthControl}
+        >
+          {verify.state === 'verifying'
+            ? t('civic.credentials.verify.verifying')
+            : t('civic.credentials.verify.cta')}
+        </Button>
 
         {/* Claims */}
         <Section title={t('civic.credentials.detail.claimsTitle')}>
@@ -209,12 +223,16 @@ export default function CredentialDetailScreen() {
         {/* Issuer */}
         <Section title={t('civic.credentials.detail.issuerTitle')}>
           <View style={styles.issuerRow}>
-            <Icons.verifiedOutline size='md' fill={colors.identityIconPublicKey} />
+            <Icons.verifiedOutline size="md" fill={colors.identityIconPublicKey} />
             <View className="flex-1 gap-space-2">
               <Text style={[styles.issuerName, { color: colors.text }]} numberOfLines={1}>
                 {issuerDisplay || t('civic.credentials.unknownIssuer')}
               </Text>
-              <Text style={[styles.issuerDid, { color: colors.textSecondary }]} selectable numberOfLines={1}>
+              <Text
+                style={[styles.issuerDid, { color: colors.textSecondary }]}
+                selectable
+                numberOfLines={1}
+              >
                 {credential.issuerDid}
               </Text>
             </View>
@@ -225,7 +243,11 @@ export default function CredentialDetailScreen() {
         <Section title={t('civic.credentials.detail.datesTitle')}>
           <GroupedList>
             {issuedOn.length > 0 && (
-              <DateRow colors={colors} icon="scheduled" label={t('civic.credentials.issuedOn', { date: issuedOn })} />
+              <DateRow
+                colors={colors}
+                icon="scheduled"
+                label={t('civic.credentials.issuedOn', { date: issuedOn })}
+              />
             )}
             {credential.status === 'revoked' && revokedOn.length > 0 ? (
               <DateRow
@@ -240,7 +262,9 @@ export default function CredentialDetailScreen() {
                 icon="unscheduled"
                 tone={credential.status === 'expired' ? colors.warning : undefined}
                 label={t(
-                  credential.status === 'expired' ? 'civic.credentials.expiredOn' : 'civic.credentials.expiresOn',
+                  credential.status === 'expired'
+                    ? 'civic.credentials.expiredOn'
+                    : 'civic.credentials.expiresOn',
                   { date: expiresOn },
                 )}
               />
@@ -252,7 +276,11 @@ export default function CredentialDetailScreen() {
 
         {/* Record id */}
         <Section title={t('civic.credentials.detail.recordLabel')}>
-          <Text style={[styles.recordValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
+          <Text
+            style={[styles.recordValue, { color: colors.textSecondary }]}
+            selectable
+            numberOfLines={2}
+          >
             {credential.recordId}
           </Text>
         </Section>
@@ -260,9 +288,7 @@ export default function CredentialDetailScreen() {
         {/* Revoke — issuer-only, active-only */}
         {canRevoke && revoke.state !== 'done' && (
           <View className="gap-space-12">
-            <Admonition type="error">
-              {t('civic.credentials.revoke.confirmBody')}
-            </Admonition>
+            <Admonition type="error">{t('civic.credentials.revoke.confirmBody')}</Admonition>
             {revoke.biometricFailed && (
               <Text style={[styles.inlineWarn, { color: colors.warning }]}>
                 {t('civic.credentials.revoke.biometricFailed')}
@@ -273,7 +299,17 @@ export default function CredentialDetailScreen() {
                 {t(`civic.credentials.revoke.error.${revoke.errorCode ?? 'generic'}`)}
               </Text>
             )}
-            <Button appearance="solid" tone="danger" size="lg" icon={Icons.personhood} onPress={handleRevoke} loading={revoke.state === 'revoking'} style={fullWidthControl}>{t('civic.credentials.revoke.cta')}</Button>
+            <Button
+              appearance="solid"
+              tone="danger"
+              size="lg"
+              icon={Icons.personhood}
+              onPress={handleRevoke}
+              loading={revoke.state === 'revoking'}
+              style={fullWidthControl}
+            >
+              {t('civic.credentials.revoke.cta')}
+            </Button>
             {revoke.state === 'revoking' && (
               <Text style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
                 {t('civic.credentials.revoke.submitting')}
@@ -284,7 +320,7 @@ export default function CredentialDetailScreen() {
 
         {revoke.state === 'done' && (
           <View style={styles.revokeDone}>
-            <Icons.checkCircle size='md' fill={colors.success} />
+            <Icons.checkCircle size="md" fill={colors.success} />
             <Text style={[styles.revokeDoneText, { color: colors.textSecondary }]}>
               {t('civic.credentials.revoke.doneBody')}
             </Text>
@@ -316,7 +352,7 @@ interface DateRowProps {
 function DateRow({ colors, icon, label, tone }: DateRowProps) {
   return (
     <View style={styles.dateRow}>
-      <AppIcon name={icon} size='md' fill={tone ?? colors.textTertiary} />
+      <AppIcon name={icon} size="md" fill={tone ?? colors.textTertiary} />
       <Text style={[styles.dateText, { color: tone ?? colors.text }]}>{label}</Text>
     </View>
   );

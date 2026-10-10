@@ -27,41 +27,58 @@ function verdict(name, root, expectedCode, expectedText) {
   let code = 0;
   let output = '';
   try {
-    output = execFileSync('node', [check], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    output = execFileSync('node', [check], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   } catch (error) {
     code = error.status ?? 1;
     output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
   }
   if (code !== expectedCode || !output.includes(expectedText)) {
-    failures.push(`${name}: expected exit ${expectedCode} containing ${JSON.stringify(expectedText)}; got ${code}\n${output}`);
+    failures.push(
+      `${name}: expected exit ${expectedCode} containing ${JSON.stringify(expectedText)}; got ${code}\n${output}`,
+    );
   }
 }
 
 verdict('real workflow', fixture(), 0, 'Kaana DNS boundary is exact');
 verdict(
   'DNS-only apex',
-  fixture((value) => value.replace('KAANA_ALB_DNS"].rstrip("."), True', 'KAANA_ALB_DNS"].rstrip("."), False')),
+  fixture((value) =>
+    value.replace('KAANA_ALB_DNS"].rstrip("."), True', 'KAANA_ALB_DNS"].rstrip("."), False'),
+  ),
   1,
   'apex must stay proxied through Cloudflare',
 );
 verdict(
   'proxied validation',
-  fixture((value) => value.replace('VAL_VALUE"].rstrip("."), False', 'VAL_VALUE"].rstrip("."), True')),
+  fixture((value) =>
+    value.replace('VAL_VALUE"].rstrip("."), False', 'VAL_VALUE"].rstrip("."), True'),
+  ),
   1,
   'validation CNAME must stay DNS-only',
 );
 verdict(
   'stale read-back proxy variable',
-  fixture((value) => value.replace('for kind, name, value, proxied in wanted:', 'for kind, name, value, _ in wanted:')),
+  fixture((value) =>
+    value.replace(
+      'for kind, name, value, proxied in wanted:',
+      'for kind, name, value, _ in wanted:',
+    ),
+  ),
   1,
-  'read-back must retain each record\'s exact proxy mode',
+  "read-back must retain each record's exact proxy mode",
 );
 verdict(
   'Cloudflare API error swallowed',
-  fixture((value) => value.replace(
-    'sys.exit(f"{method} {path} -> HTTP {error.code}: {payload[:400]}")',
-    'return json.loads(payload)',
-  )),
+  fixture((value) =>
+    value.replace(
+      'sys.exit(f"{method} {path} -> HTTP {error.code}: {payload[:400]}")',
+      'return json.loads(payload)',
+    ),
+  ),
   1,
   'Cloudflare API errors must fail closed',
 );

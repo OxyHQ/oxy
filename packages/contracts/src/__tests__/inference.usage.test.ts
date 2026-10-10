@@ -136,9 +136,9 @@ describe('money is exact', () => {
     expect(safeParseContract(unitPriceSchema, priceSnapshot.unitPrices[0])).toEqual(
       priceSnapshot.unitPrices[0],
     );
-    expect(
-      unitPriceSchema.safeParse({ ...priceSnapshot.unitPrices[0], per: 0 }).success,
-    ).toBe(false);
+    expect(unitPriceSchema.safeParse({ ...priceSnapshot.unitPrices[0], per: 0 }).success).toBe(
+      false,
+    );
   });
 });
 

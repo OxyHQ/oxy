@@ -11,25 +11,25 @@ import { COMMONS_DENY_REASONS, commonsDenyReasonSchema } from '../index';
  * These tests pin the exact membership and the rejection of everything else.
  */
 describe('commonsDenyReasonSchema', () => {
-    it('is exactly { declined, not_me }', () => {
-        expect([...COMMONS_DENY_REASONS]).toEqual(['declined', 'not_me']);
-        expect(commonsDenyReasonSchema.options).toEqual([...COMMONS_DENY_REASONS]);
-    });
+  it('is exactly { declined, not_me }', () => {
+    expect([...COMMONS_DENY_REASONS]).toEqual(['declined', 'not_me']);
+    expect(commonsDenyReasonSchema.options).toEqual([...COMMONS_DENY_REASONS]);
+  });
 
-    it.each([...COMMONS_DENY_REASONS])('accepts %s', (reason) => {
-        expect(commonsDenyReasonSchema.parse(reason)).toBe(reason);
-    });
+  it.each([...COMMONS_DENY_REASONS])('accepts %s', (reason) => {
+    expect(commonsDenyReasonSchema.parse(reason)).toBe(reason);
+  });
 
-    it.each([
-        ['free-form text', 'the app looked phishy'],
-        ['an out-of-set value', 'suspicious'],
-        ['an empty string', ''],
-        ['a differently-cased member', 'Declined'],
-        ['a non-string', 42],
-        ['null', null],
-        ['undefined', undefined],
-        ['an object', { reason: 'not_me' }],
-    ])('rejects %s', (_label, value) => {
-        expect(commonsDenyReasonSchema.safeParse(value).success).toBe(false);
-    });
+  it.each([
+    ['free-form text', 'the app looked phishy'],
+    ['an out-of-set value', 'suspicious'],
+    ['an empty string', ''],
+    ['a differently-cased member', 'Declined'],
+    ['a non-string', 42],
+    ['null', null],
+    ['undefined', undefined],
+    ['an object', { reason: 'not_me' }],
+  ])('rejects %s', (_label, value) => {
+    expect(commonsDenyReasonSchema.safeParse(value).success).toBe(false);
+  });
 });

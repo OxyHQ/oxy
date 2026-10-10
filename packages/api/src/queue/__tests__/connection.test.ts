@@ -1,7 +1,4 @@
-import {
-  getAssetVariantQueueConnectionOptions,
-  getQueueConnectionOptions,
-} from '../connection';
+import { getAssetVariantQueueConnectionOptions, getQueueConnectionOptions } from '../connection';
 
 describe('queue Redis isolation', () => {
   const originalNodeEnv = process.env.NODE_ENV;

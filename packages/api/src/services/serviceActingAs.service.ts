@@ -123,14 +123,18 @@ export interface ServiceActingAsCredentialContext {
 
 /** One durable pair generation. Keep the row across revoke/delete/regrant. */
 export async function bumpServiceActingAsEpoch(
-  userId: string, applicationId: string, db: Executor,
+  userId: string,
+  applicationId: string,
+  db: Executor,
 ): Promise<string> {
-  const [row] = await db.insert(serviceActingAsAuthorityEpochs)
+  const [row] = await db
+    .insert(serviceActingAsAuthorityEpochs)
     .values({ userId, applicationId, epoch: BigInt(1) })
     .onConflictDoUpdate({
       target: [serviceActingAsAuthorityEpochs.userId, serviceActingAsAuthorityEpochs.applicationId],
       set: { epoch: sql`${serviceActingAsAuthorityEpochs.epoch} + 1`, updatedAt: new Date() },
-    }).returning({ epoch: serviceActingAsAuthorityEpochs.epoch });
+    })
+    .returning({ epoch: serviceActingAsAuthorityEpochs.epoch });
   return row.epoch.toString();
 }
 
@@ -143,54 +147,106 @@ export async function resolveServiceActingAsGrant(
   // Every authority read, including epoch, closure, credential/workload ceiling,
   // belongs to one snapshot. Mixing several READ COMMITTED snapshots could
   // pair the pre-revoke grant with the post-revoke epoch.
-  return getDb().transaction(async (tx) => {
-    const [generation] = await tx.select({ epoch: serviceActingAsAuthorityEpochs.epoch })
-      .from(serviceActingAsAuthorityEpochs).where(and(
-        eq(serviceActingAsAuthorityEpochs.userId, userId),
-        eq(serviceActingAsAuthorityEpochs.applicationId, applicationId),
-      )).limit(1);
-    const denied: ServiceActingAsGrant = { authorized: false, scopes: [], epoch: generation?.epoch.toString() ?? '0' };
-    const [revocation] = await tx.select({ id: serviceActingAsRevocations.id })
-      .from(serviceActingAsRevocations).where(and(
-        eq(serviceActingAsRevocations.userId, userId),
-        eq(serviceActingAsRevocations.applicationId, applicationId),
-      )).limit(1);
-    if (revocation) return denied;
-    const [subject] = await tx.select({ status: users.accountStatus, fence: accountClosureFences.accountId })
-      .from(users).leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
-      .where(eq(users.id, userId)).limit(1);
-    if (!subject || subject.status !== 'active' || subject.fence !== null) return denied;
-    const [application] = await tx.select({ id: applications.id, ownerId: applications.ownerAccountId,
-      scopes: applications.scopes, status: applications.status }).from(applications)
-      .where(eq(applications.id, applicationId)).limit(1);
-    if (!application || application.status !== 'active') return denied;
-    const [owner] = await tx.select({ status: users.accountStatus, fence: accountClosureFences.accountId })
-      .from(users).leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
-      .where(eq(users.id, application.ownerId)).limit(1);
-    if (!owner || owner.status !== 'active' || owner.fence !== null) return denied;
-    const [grant] = await tx.select({ scopes: appGrants.scopes }).from(appGrants)
-      .where(and(eq(appGrants.userId, userId), eq(appGrants.applicationId, applicationId))).limit(1);
-    if (!grant?.scopes.includes(SERVICE_ACTING_AS_SCOPE)) return denied;
-    let liveScopes: readonly string[] = application.scopes;
-    if (credential) {
-      if (credential.ownerAccountId !== application.ownerId) return denied;
-      if (isWorkloadAttestationHandle(credential.credentialId)) {
-        const binding = await resolveLiveAgencyWorkloadByHandle(applicationId, credential.credentialId, new Date(), tx);
-        if (!binding || credential.environment !== workloadTokenEnvironment()) return denied;
-        liveScopes = binding.scopes;
-      } else {
-        const [key] = await tx.select().from(applicationCredentials).where(and(
-          eq(applicationCredentials.id, credential.credentialId),
-          eq(applicationCredentials.applicationId, applicationId),
-        )).limit(1);
-        if (!key || key.type !== 'service' || key.environment !== credential.environment || !isCredentialUsable(key)) return denied;
-        liveScopes = key.scopes.length ? intersectScopes(key.scopes, application.scopes) : application.scopes;
+  return getDb().transaction(
+    async (tx) => {
+      const [generation] = await tx
+        .select({ epoch: serviceActingAsAuthorityEpochs.epoch })
+        .from(serviceActingAsAuthorityEpochs)
+        .where(
+          and(
+            eq(serviceActingAsAuthorityEpochs.userId, userId),
+            eq(serviceActingAsAuthorityEpochs.applicationId, applicationId),
+          ),
+        )
+        .limit(1);
+      const denied: ServiceActingAsGrant = {
+        authorized: false,
+        scopes: [],
+        epoch: generation?.epoch.toString() ?? '0',
+      };
+      const [revocation] = await tx
+        .select({ id: serviceActingAsRevocations.id })
+        .from(serviceActingAsRevocations)
+        .where(
+          and(
+            eq(serviceActingAsRevocations.userId, userId),
+            eq(serviceActingAsRevocations.applicationId, applicationId),
+          ),
+        )
+        .limit(1);
+      if (revocation) return denied;
+      const [subject] = await tx
+        .select({ status: users.accountStatus, fence: accountClosureFences.accountId })
+        .from(users)
+        .leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (!subject || subject.status !== 'active' || subject.fence !== null) return denied;
+      const [application] = await tx
+        .select({
+          id: applications.id,
+          ownerId: applications.ownerAccountId,
+          scopes: applications.scopes,
+          status: applications.status,
+        })
+        .from(applications)
+        .where(eq(applications.id, applicationId))
+        .limit(1);
+      if (!application || application.status !== 'active') return denied;
+      const [owner] = await tx
+        .select({ status: users.accountStatus, fence: accountClosureFences.accountId })
+        .from(users)
+        .leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
+        .where(eq(users.id, application.ownerId))
+        .limit(1);
+      if (!owner || owner.status !== 'active' || owner.fence !== null) return denied;
+      const [grant] = await tx
+        .select({ scopes: appGrants.scopes })
+        .from(appGrants)
+        .where(and(eq(appGrants.userId, userId), eq(appGrants.applicationId, applicationId)))
+        .limit(1);
+      if (!grant?.scopes.includes(SERVICE_ACTING_AS_SCOPE)) return denied;
+      let liveScopes: readonly string[] = application.scopes;
+      if (credential) {
+        if (credential.ownerAccountId !== application.ownerId) return denied;
+        if (isWorkloadAttestationHandle(credential.credentialId)) {
+          const binding = await resolveLiveAgencyWorkloadByHandle(
+            applicationId,
+            credential.credentialId,
+            new Date(),
+            tx,
+          );
+          if (!binding || credential.environment !== workloadTokenEnvironment()) return denied;
+          liveScopes = binding.scopes;
+        } else {
+          const [key] = await tx
+            .select()
+            .from(applicationCredentials)
+            .where(
+              and(
+                eq(applicationCredentials.id, credential.credentialId),
+                eq(applicationCredentials.applicationId, applicationId),
+              ),
+            )
+            .limit(1);
+          if (
+            !key ||
+            key.type !== 'service' ||
+            key.environment !== credential.environment ||
+            !isCredentialUsable(key)
+          )
+            return denied;
+          liveScopes = key.scopes.length
+            ? intersectScopes(key.scopes, application.scopes)
+            : application.scopes;
+        }
       }
-    }
-    const scopes = intersectScopes(grant.scopes, liveScopes);
-    if (!scopes.includes(SERVICE_ACTING_AS_SCOPE)) return denied;
-    return { authorized: true, scopes, epoch: denied.epoch };
-  }, { isolationLevel: 'repeatable read', accessMode: 'read only' });
+      const scopes = intersectScopes(grant.scopes, liveScopes);
+      if (!scopes.includes(SERVICE_ACTING_AS_SCOPE)) return denied;
+      return { authorized: true, scopes, epoch: denied.epoch };
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' },
+  );
 }
 
 /**
@@ -213,15 +269,24 @@ export async function revokeServiceActingAs(
 ): Promise<void> {
   const write = async (tx: Executor) => {
     // Unknown applications preserve idempotent revoke without an existence oracle.
-    const [application] = await tx.select({ id: applications.id }).from(applications)
-      .where(eq(applications.id, applicationId)).limit(1);
+    const [application] = await tx
+      .select({ id: applications.id })
+      .from(applications)
+      .where(eq(applications.id, applicationId))
+      .limit(1);
     if (!application) return;
     await bumpServiceActingAsEpoch(userId, applicationId, tx);
-    await tx.delete(appGrants).where(and(eq(appGrants.userId, userId), eq(appGrants.applicationId, applicationId)));
+    await tx
+      .delete(appGrants)
+      .where(and(eq(appGrants.userId, userId), eq(appGrants.applicationId, applicationId)));
     const now = new Date();
-    await tx.insert(serviceActingAsRevocations).values({ userId, applicationId, revokedAt: now })
-      .onConflictDoUpdate({ target: [serviceActingAsRevocations.userId, serviceActingAsRevocations.applicationId],
-        set: { revokedAt: now, updatedAt: now } });
+    await tx
+      .insert(serviceActingAsRevocations)
+      .values({ userId, applicationId, revokedAt: now })
+      .onConflictDoUpdate({
+        target: [serviceActingAsRevocations.userId, serviceActingAsRevocations.applicationId],
+        set: { revokedAt: now, updatedAt: now },
+      });
   };
   if (db) await write(db);
   else await getDb().transaction(write);
@@ -248,14 +313,14 @@ export async function revokeServiceActingAs(
 export async function clearServiceActingAsRevocation(
   userId: string,
   applicationId: string,
-  db: Executor = getDb()
+  db: Executor = getDb(),
 ): Promise<void> {
   await db
     .delete(serviceActingAsRevocations)
     .where(
       and(
         eq(serviceActingAsRevocations.userId, userId),
-        eq(serviceActingAsRevocations.applicationId, applicationId)
-      )
+        eq(serviceActingAsRevocations.applicationId, applicationId),
+      ),
     );
 }

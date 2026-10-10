@@ -21,9 +21,13 @@ function makeNext(): NextFunction {
 
 describe('@oxy.so/core/server auth helpers', () => {
   it('reads the current user id from userId, user.id, or user._id', () => {
-    expect(getOxyUserId({ userId: 'user-from-request' } as OxyAuthRequest)).toBe('user-from-request');
+    expect(getOxyUserId({ userId: 'user-from-request' } as OxyAuthRequest)).toBe(
+      'user-from-request',
+    );
     expect(getOxyUserId({ user: { id: 'user-from-id' } } as OxyAuthRequest)).toBe('user-from-id');
-    expect(getOxyUserId({ user: { id: '', _id: 'user-from-mongo-id' } } as OxyAuthRequest)).toBe('user-from-mongo-id');
+    expect(getOxyUserId({ user: { id: '', _id: 'user-from-mongo-id' } } as OxyAuthRequest)).toBe(
+      'user-from-mongo-id',
+    );
     expect(getOxyUserId({ user: { id: '' } } as OxyAuthRequest)).toBeNull();
   });
 

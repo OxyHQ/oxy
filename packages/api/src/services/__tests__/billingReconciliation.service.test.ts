@@ -93,11 +93,7 @@ async function seedAccount(): Promise<Fixture> {
 }
 
 /** Record a top-up on the Oxy side, with its processor reference. */
-async function recordPayment(
-  fixture: Fixture,
-  externalRef: string,
-  amount: string
-): Promise<void> {
+async function recordPayment(fixture: Fixture, externalRef: string, amount: string): Promise<void> {
   const result = await recordTopUp({
     idempotencyKey: `stripe:payment_intent:${externalRef}`,
     accountId: fixture.accountId,
@@ -117,7 +113,7 @@ async function recordPayment(
 function processorPayment(
   externalRef: string,
   amountMinorUnits: number,
-  customerRef: string | null
+  customerRef: string | null,
 ): ProcessorPayment {
   return {
     externalKind: 'payment_intent',
@@ -131,7 +127,7 @@ function processorPayment(
 
 async function reconcile(
   fixture: Fixture,
-  payments: readonly ProcessorPayment[]
+  payments: readonly ProcessorPayment[],
 ): ReturnType<typeof reconcilePayments> {
   return reconcilePayments({
     ledger: fakeLedger(payments),
@@ -338,7 +334,7 @@ describe('a pass that dies says so', () => {
         currency: 'USD',
         periodStart: PERIOD_START,
         periodEnd: PERIOD_END,
-      })
+      }),
     ).rejects.toThrow('processor unavailable');
 
     const [run] = await getDb()
@@ -370,9 +366,7 @@ describe('reconciliation repairs nothing', () => {
       .limit(1);
     expect(balance).toBeDefined();
 
-    const secondPass = await reconcile(fixture, [
-      processorPayment(ref, 5000, fixture.customerRef),
-    ]);
+    const secondPass = await reconcile(fixture, [processorPayment(ref, 5000, fixture.customerRef)]);
     // Still missing. A pass that had "helpfully" recorded it would report clean.
     expect(secondPass.discrepancies.map((entry) => entry.kind)).toEqual(['missing_in_ledger']);
   });
@@ -418,8 +412,8 @@ describe('the scheduled pass', () => {
         and(
           isNull(billingReconciliationRuns.accountId),
           eq(billingReconciliationRuns.periodStart, DUE_WINDOW_START),
-          eq(billingReconciliationRuns.periodEnd, DUE_WINDOW_END)
-        )
+          eq(billingReconciliationRuns.periodEnd, DUE_WINDOW_END),
+        ),
       )
       .orderBy(desc(billingReconciliationRuns.startedAt));
   }
@@ -436,8 +430,8 @@ describe('the scheduled pass', () => {
       .where(
         and(
           isNull(billingReconciliationRuns.accountId),
-          eq(billingReconciliationRuns.periodStart, DUE_WINDOW_START)
-        )
+          eq(billingReconciliationRuns.periodStart, DUE_WINDOW_START),
+        ),
       );
   });
 
@@ -464,7 +458,7 @@ describe('the scheduled pass', () => {
     const [first, second] = await Promise.all([runDue(), runDue()]);
 
     const outcomes = [first, second].map((result) =>
-      result.status === 'ran' ? result.outcome : undefined
+      result.status === 'ran' ? result.outcome : undefined,
     );
     // One task did the work; the other found the window taken and wrote nothing.
     expect(outcomes.filter((outcome) => outcome?.reconciled === 1)).toHaveLength(1);

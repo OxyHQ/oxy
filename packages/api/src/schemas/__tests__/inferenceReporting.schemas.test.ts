@@ -274,19 +274,19 @@ describe('a usage row carries units, never money', () => {
 describe('a report states where its numbers came from', () => {
   it('refuses a usage report claiming the financial ledger', () => {
     expect(
-      usageReportSchema.safeParse({ ...usageReport, source: 'financial_ledger' }).success
+      usageReportSchema.safeParse({ ...usageReport, source: 'financial_ledger' }).success,
     ).toBe(false);
     expect(
-      usageReportSchema.safeParse({ ...usageReport, consistency: 'authoritative' }).success
+      usageReportSchema.safeParse({ ...usageReport, consistency: 'authoritative' }).success,
     ).toBe(false);
   });
 
   it('refuses a spend report claiming eventual consistency', () => {
+    expect(spendReportSchema.safeParse({ ...spendReport, consistency: 'eventual' }).success).toBe(
+      false,
+    );
     expect(
-      spendReportSchema.safeParse({ ...spendReport, consistency: 'eventual' }).success
-    ).toBe(false);
-    expect(
-      spendReportSchema.safeParse({ ...spendReport, source: 'usage_telemetry_rollups' }).success
+      spendReportSchema.safeParse({ ...spendReport, source: 'usage_telemetry_rollups' }).success,
     ).toBe(false);
   });
 
@@ -300,7 +300,7 @@ describe('a report states where its numbers came from', () => {
 
   it('refuses a rewritten eventual-consistency note', () => {
     expect(
-      usageReportSchema.safeParse({ ...usageReport, note: 'usage is always accurate' }).success
+      usageReportSchema.safeParse({ ...usageReport, note: 'usage is always accurate' }).success,
     ).toBe(false);
   });
 });
@@ -320,16 +320,14 @@ describe('every metered unit has a reported total', () => {
 
   it('refuses a unit total the contract does not name', () => {
     expect(usageUnitTotalsSchema.safeParse(zeroUnits).success).toBe(true);
-    expect(
-      usageUnitTotalsSchema.safeParse({ ...zeroUnits, thoughts: 1 }).success
-    ).toBe(false);
+    expect(usageUnitTotalsSchema.safeParse({ ...zeroUnits, thoughts: 1 }).success).toBe(false);
   });
 
   it('refuses a usage row missing one unit', () => {
     const partial: Record<string, unknown> = { ...zeroUnits };
     delete partial.output_tokens;
     expect(
-      usageAggregateRowSchema.safeParse({ ...usageReport.rows[0], units: partial }).success
+      usageAggregateRowSchema.safeParse({ ...usageReport.rows[0], units: partial }).success,
     ).toBe(false);
   });
 });
@@ -378,7 +376,7 @@ describe('grouping and flags are read exactly as written', () => {
   it('refuses a dimension it does not serve', () => {
     expect(
       usageReportQuery.safeParse({ from: '2026-08-01', to: '2026-08-02', groupBy: 'latency' })
-        .success
+        .success,
     ).toBe(false);
     // `resolvedModel` is a SPEND dimension; a rollup keys on the REQUESTED model.
     expect(
@@ -386,7 +384,7 @@ describe('grouping and flags are read exactly as written', () => {
         from: '2026-08-01',
         to: '2026-08-02',
         groupBy: 'resolvedModel',
-      }).success
+      }).success,
     ).toBe(false);
   });
 
@@ -413,27 +411,25 @@ describe('grouping and flags are read exactly as written', () => {
         from: '2026-08-01',
         to: '2026-08-02',
         includeDescendants: 'yes',
-      }).success
+      }).success,
     ).toBe(false);
   });
 });
 
 describe('a report window is bounded', () => {
   it('accepts an ordinary month', () => {
-    expect(usageReportQuery.safeParse({ from: '2026-08-01', to: '2026-08-31' }).success).toBe(
-      true
-    );
+    expect(usageReportQuery.safeParse({ from: '2026-08-01', to: '2026-08-31' }).success).toBe(true);
   });
 
   it('refuses a backwards range', () => {
     expect(usageReportQuery.safeParse({ from: '2026-08-31', to: '2026-08-01' }).success).toBe(
-      false
+      false,
     );
   });
 
   it('refuses a range past the ceiling', () => {
     expect(usageReportQuery.safeParse({ from: '2024-01-01', to: '2026-08-01' }).success).toBe(
-      false
+      false,
     );
   });
 });
@@ -459,31 +455,27 @@ describe('a budget body cannot express a contradiction', () => {
 
   it('refuses an account scope naming an application', () => {
     expect(
-      spendingLimitCreateBody.safeParse({ ...account, scopeApplicationId: 'app_1' }).success
+      spendingLimitCreateBody.safeParse({ ...account, scopeApplicationId: 'app_1' }).success,
     ).toBe(false);
   });
 
   it('refuses a ceiling of zero, which would refuse every request', () => {
-    expect(spendingLimitCreateBody.safeParse({ ...account, limitAmount: '0' }).success).toBe(
-      false
-    );
+    expect(spendingLimitCreateBody.safeParse({ ...account, limitAmount: '0' }).success).toBe(false);
     expect(spendingLimitCreateBody.safeParse({ ...account, limitAmount: '0.01' }).success).toBe(
-      true
+      true,
     );
   });
 
   it('refuses a float or a negative ceiling', () => {
-    expect(spendingLimitCreateBody.safeParse({ ...account, limitAmount: 100 }).success).toBe(
-      false
-    );
+    expect(spendingLimitCreateBody.safeParse({ ...account, limitAmount: 100 }).success).toBe(false);
     expect(spendingLimitCreateBody.safeParse({ ...account, limitAmount: '-1' }).success).toBe(
-      false
+      false,
     );
   });
 
   it('refuses an alert threshold outside the closed set, and sorts the rest', () => {
     expect(
-      spendingLimitCreateBody.safeParse({ ...account, alertThresholdBps: [3000] }).success
+      spendingLimitCreateBody.safeParse({ ...account, alertThresholdBps: [3000] }).success,
     ).toBe(false);
     const parsed = spendingLimitCreateBody.parse({
       ...account,
@@ -498,9 +490,7 @@ describe('a budget body cannot express a contradiction', () => {
   });
 
   it('refuses an attempt to re-point a budget by editing its scope', () => {
-    expect(
-      spendingLimitUpdateBody.safeParse({ scopeApplicationId: 'app_2' }).success
-    ).toBe(false);
+    expect(spendingLimitUpdateBody.safeParse({ scopeApplicationId: 'app_2' }).success).toBe(false);
   });
 });
 
@@ -525,7 +515,7 @@ describe('a balance is never one number', () => {
       const bucket: Record<string, unknown> = { ...accountBalance.balances[0] };
       delete bucket[field];
       expect(
-        accountBalanceSchema.safeParse({ ...accountBalance, balances: [bucket] }).success
+        accountBalanceSchema.safeParse({ ...accountBalance, balances: [bucket] }).success,
       ).toBe(false);
     }
   });
@@ -536,7 +526,7 @@ describe('a balance is never one number', () => {
         ...accountBalance,
         provisioned: false,
         billingAccountId: undefined,
-      }).success
+      }).success,
     ).toBe(false);
   });
 
@@ -550,7 +540,7 @@ describe('a balance is never one number', () => {
         accountId: 'acct_9',
         provisioned: false,
         balances: [],
-      }).success
+      }).success,
     ).toBe(true);
   });
 });

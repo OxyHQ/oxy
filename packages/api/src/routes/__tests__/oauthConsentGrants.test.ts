@@ -100,7 +100,11 @@ const REDIRECT = 'https://app.example.com/callback';
 
 let server: http.Server;
 
-function send(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<JsonResponse> {
+function send(
+  method: 'GET' | 'POST' | 'DELETE',
+  path: string,
+  body?: unknown,
+): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const payload = body === undefined ? undefined : JSON.stringify(body);
   return new Promise((resolve, reject) => {
@@ -166,8 +170,8 @@ async function storedRevocation(userId: string, applicationId: string) {
     .where(
       and(
         eq(serviceActingAsRevocations.userId, userId),
-        eq(serviceActingAsRevocations.applicationId, applicationId)
-      )
+        eq(serviceActingAsRevocations.applicationId, applicationId),
+      ),
     )
     .limit(1);
   return row;
@@ -234,11 +238,13 @@ describe('GET /auth/oauth/consent', () => {
 
   it('skips consent when a prior grant COVERS the requested scopes', async () => {
     const { clientId, applicationId } = await client();
-    await getDb().insert(appGrants).values({
-      userId: authenticatedUser?._id ?? '',
-      applicationId,
-      scopes: ['user:read', 'files:read'],
-    });
+    await getDb()
+      .insert(appGrants)
+      .values({
+        userId: authenticatedUser?._id ?? '',
+        applicationId,
+        scopes: ['user:read', 'files:read'],
+      });
 
     const res = await send('GET', consentUrl(clientId, 'user:read'));
 
@@ -247,11 +253,13 @@ describe('GET /auth/oauth/consent', () => {
 
   it('requires consent again when a NEW scope is requested', async () => {
     const { clientId, applicationId } = await client();
-    await getDb().insert(appGrants).values({
-      userId: authenticatedUser?._id ?? '',
-      applicationId,
-      scopes: ['user:read'],
-    });
+    await getDb()
+      .insert(appGrants)
+      .values({
+        userId: authenticatedUser?._id ?? '',
+        applicationId,
+        scopes: ['user:read'],
+      });
 
     const res = await send('GET', consentUrl(clientId, 'user:read files:read'));
 
@@ -261,11 +269,13 @@ describe('GET /auth/oauth/consent', () => {
   it('reads only THIS user grant — another user consent never counts', async () => {
     const { clientId, applicationId } = await client();
     const [other] = await getDb().insert(users).values({}).returning({ id: users.id });
-    await getDb().insert(appGrants).values({
-      userId: other.id,
-      applicationId,
-      scopes: ['user:read'],
-    });
+    await getDb()
+      .insert(appGrants)
+      .values({
+        userId: other.id,
+        applicationId,
+        scopes: ['user:read'],
+      });
 
     const res = await send('GET', consentUrl(clientId, 'user:read'));
 
@@ -392,16 +402,18 @@ describe('GET /auth/grants', () => {
     const first = await client({ name: 'Older App', icon: 'icon-older' });
     const second = await client({ name: 'Newer App', icon: 'icon-newer' });
     const older = new Date(Date.now() - 60 * 60 * 1000);
-    await getDb().insert(appGrants).values([
-      {
-        userId,
-        applicationId: first.applicationId,
-        scopes: ['user:read'],
-        firstGrantedAt: older,
-        lastUsedAt: older,
-      },
-      { userId, applicationId: second.applicationId, scopes: ['files:read'] },
-    ]);
+    await getDb()
+      .insert(appGrants)
+      .values([
+        {
+          userId,
+          applicationId: first.applicationId,
+          scopes: ['user:read'],
+          firstGrantedAt: older,
+          lastUsedAt: older,
+        },
+        { userId, applicationId: second.applicationId, scopes: ['files:read'] },
+      ]);
 
     const res = await send('GET', '/auth/grants');
 
@@ -411,7 +423,11 @@ describe('GET /auth/grants', () => {
       second.applicationId,
       first.applicationId,
     ]);
-    expect(data[0]).toMatchObject({ name: 'Newer App', logoUrl: 'icon-newer', scopes: ['files:read'] });
+    expect(data[0]).toMatchObject({
+      name: 'Newer App',
+      logoUrl: 'icon-newer',
+      scopes: ['files:read'],
+    });
     expect(typeof data[0].firstGrantedAt).toBe('string');
     expect(typeof data[0].lastUsedAt).toBe('string');
   });
@@ -437,7 +453,9 @@ describe('DELETE /auth/grants/:applicationId', () => {
   it('revokes the grant so the next authorize prompts for consent again', async () => {
     const userId = authenticatedUser?._id ?? '';
     const { clientId, applicationId } = await client();
-    await getDb().insert(appGrants).values({ userId, applicationId, scopes: ['user:read'] });
+    await getDb()
+      .insert(appGrants)
+      .values({ userId, applicationId, scopes: ['user:read'] });
 
     const res = await send('DELETE', `/auth/grants/${applicationId}`);
 
@@ -534,12 +552,17 @@ describe('follow scopes are never auto-approved, for anybody', () => {
   it('lets the USER\u2019s grant do the authorizing, for a trusted app too', async () => {
     // Once consented, the returning-user path applies as it does for anyone —
     // the grant is what authorizes, which is the whole claim being made here.
-    const { clientId, applicationId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
-    await getDb().insert(appGrants).values({
-      userId: authenticatedUser?._id ?? '',
-      applicationId,
-      scopes: ['follows:read'],
+    const { clientId, applicationId } = await client({
+      isOfficial: true,
+      scopes: FOLLOW_APP_SCOPES,
     });
+    await getDb()
+      .insert(appGrants)
+      .values({
+        userId: authenticatedUser?._id ?? '',
+        applicationId,
+        scopes: ['follows:read'],
+      });
 
     const res = await send('GET', consentUrl(clientId, 'follows:read'));
 
@@ -550,7 +573,10 @@ describe('follow scopes are never auto-approved, for anybody', () => {
     // A trusted app normally records none, because it never prompted. Here it
     // did prompt, and a permission the user granted but cannot find or withdraw
     // would be worse than one they were never asked for.
-    const { clientId, applicationId } = await client({ isOfficial: true, scopes: FOLLOW_APP_SCOPES });
+    const { clientId, applicationId } = await client({
+      isOfficial: true,
+      scopes: FOLLOW_APP_SCOPES,
+    });
 
     await send('POST', '/auth/oauth/authorize', {
       clientId,
@@ -578,11 +604,13 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
       type: 'first_party',
       scopes: ['user:read', 'acting-as:offline'],
     });
-    await getDb().insert(appGrants).values({
-      userId,
-      applicationId,
-      scopes: ['user:read', 'acting-as:offline'],
-    });
+    await getDb()
+      .insert(appGrants)
+      .values({
+        userId,
+        applicationId,
+        scopes: ['user:read', 'acting-as:offline'],
+      });
 
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
       epoch: '0',
@@ -609,10 +637,12 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
       scopes: ['user:read', 'acting-as:offline'],
     });
     const [other] = await getDb().insert(users).values({}).returning({ id: users.id });
-    await getDb().insert(appGrants).values([
-      { userId, applicationId, scopes: ['acting-as:offline'] },
-      { userId: other.id, applicationId, scopes: ['acting-as:offline'] },
-    ]);
+    await getDb()
+      .insert(appGrants)
+      .values([
+        { userId, applicationId, scopes: ['acting-as:offline'] },
+        { userId: other.id, applicationId, scopes: ['acting-as:offline'] },
+      ]);
 
     await send('DELETE', `/auth/grants/${applicationId}`);
 
@@ -755,9 +785,7 @@ describe('POST /auth/oauth/authorize — undoing a revocation', () => {
       scopes: ['user:read', 'acting-as:offline'],
     });
     const [other] = await getDb().insert(users).values({}).returning({ id: users.id });
-    await getDb()
-      .insert(serviceActingAsRevocations)
-      .values({ userId: other.id, applicationId });
+    await getDb().insert(serviceActingAsRevocations).values({ userId: other.id, applicationId });
 
     await send('POST', '/auth/oauth/authorize', {
       clientId,

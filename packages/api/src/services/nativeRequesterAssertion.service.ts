@@ -118,7 +118,11 @@ export type ReplayStoreResult<T> =
 
 export interface RequesterAssertionStore {
   /** Stores the record for `ttlSeconds`; refuses to overwrite an existing jti. */
-  put(jti: string, record: RequesterAssertionRecord, ttlSeconds: number): Promise<ReplayStoreResult<boolean>>;
+  put(
+    jti: string,
+    record: RequesterAssertionRecord,
+    ttlSeconds: number,
+  ): Promise<ReplayStoreResult<boolean>>;
   /** Atomically reads and deletes. `value: null` when absent (never minted, expired or already used). */
   take(jti: string): Promise<ReplayStoreResult<RequesterAssertionRecord | null>>;
 }
@@ -128,7 +132,10 @@ export interface RequesterAssertionDependencies {
   readonly now: () => Date;
   readonly signing: () => RequesterAssertionSigning;
   /** Live app + credential + trust + owner state; `null` when no longer usable. */
-  readonly resolvePrincipal: (applicationId: string, credentialId: string) => Promise<LiveServicePrincipal | null>;
+  readonly resolvePrincipal: (
+    applicationId: string,
+    credentialId: string,
+  ) => Promise<LiveServicePrincipal | null>;
   /**
    * The same question for an ATTESTED caller: live binding + app + trust + owner
    * state; `null` when no longer usable. Looked up by `(provider, subject)` —
@@ -195,7 +202,10 @@ export type IntrospectionResult =
     }
   | { readonly active: false; readonly reason: IntrospectionRefusal };
 
-function sessionBelongsToApplication(sessionApplicationId: string | null, applicationId: string): boolean {
+function sessionBelongsToApplication(
+  sessionApplicationId: string | null,
+  applicationId: string,
+): boolean {
   return sessionApplicationId === null || sessionApplicationId === applicationId;
 }
 
@@ -235,9 +245,14 @@ async function liveEntryPrincipal(
   match: NativeProductAgentEntryPointMatch,
 ): Promise<'service_principal_not_live' | 'missing_inference_scope' | null> {
   const { entry, principal } = match;
-  const live = principal.kind === 'credential'
-    ? await deps.resolvePrincipal(entry.applicationId, principal.credentialId)
-    : await deps.resolveWorkloadPrincipal(entry.applicationId, principal.provider, principal.subject);
+  const live =
+    principal.kind === 'credential'
+      ? await deps.resolvePrincipal(entry.applicationId, principal.credentialId)
+      : await deps.resolveWorkloadPrincipal(
+          entry.applicationId,
+          principal.provider,
+          principal.subject,
+        );
   if (!live) return 'service_principal_not_live';
   if (!live.scopes.includes(REQUIRED_SERVICE_SCOPE)) return 'missing_inference_scope';
   return null;
@@ -250,18 +265,27 @@ async function liveEntryPrincipal(
 export async function mintRequesterAssertion(
   deps: RequesterAssertionDependencies,
   input: {
-    readonly caller: { readonly applicationId: string; readonly credentialId: string; readonly scopes: readonly string[] };
+    readonly caller: {
+      readonly applicationId: string;
+      readonly credentialId: string;
+      readonly scopes: readonly string[];
+    };
     readonly agentId: string;
     readonly subjectToken: string;
   },
 ): Promise<MintResult> {
-  const match = nativeProductAgentEntryPoint(input.caller.applicationId, input.caller.credentialId, input.agentId);
+  const match = nativeProductAgentEntryPoint(
+    input.caller.applicationId,
+    input.caller.credentialId,
+    input.agentId,
+  );
   if (!match) return { ok: false, reason: 'unknown_entry_point' };
   const entry = match.entry;
   // The token's own scopes, then the live ceiling: a scope staff removed must
   // not survive in an hour-old token, and a scope never minted into the token
   // must not be conjured from the credential.
-  if (!input.caller.scopes.includes(REQUIRED_SERVICE_SCOPE)) return { ok: false, reason: 'missing_inference_scope' };
+  if (!input.caller.scopes.includes(REQUIRED_SERVICE_SCOPE))
+    return { ok: false, reason: 'missing_inference_scope' };
   const principalRefusal = await liveEntryPrincipal(deps, match);
   if (principalRefusal) return { ok: false, reason: principalRefusal };
 
@@ -270,12 +294,14 @@ export async function mintRequesterAssertion(
   if (!sessionBelongsToApplication(validated.applicationId, entry.applicationId)) {
     return { ok: false, reason: 'subject_session_other_application' };
   }
-  if (validated.accountStatus !== 'active') return { ok: false, reason: 'subject_account_inactive' };
+  if (validated.accountStatus !== 'active')
+    return { ok: false, reason: 'subject_account_inactive' };
 
   // `validateSubjectToken` may answer from a per-task cache. A sign-out on
   // another task must stop a mint now, not when that entry ages out.
   const live = await deps.loadLiveSession(validated.sessionId);
-  if (!live || live.accountId !== validated.subjectAccountId) return { ok: false, reason: 'subject_session_not_live' };
+  if (!live || live.accountId !== validated.subjectAccountId)
+    return { ok: false, reason: 'subject_session_not_live' };
   if (!sessionBelongsToApplication(live.applicationId, entry.applicationId)) {
     return { ok: false, reason: 'subject_session_other_application' };
   }
@@ -313,14 +339,19 @@ export async function mintRequesterAssertion(
     cid: presentedCredentialId(match.principal),
     agentId: entry.agentId,
   };
-  const stored = await deps.store.put(claims.jti, {
-    sessionId: validated.sessionId,
-    requesterAccountId: claims.sub,
-    applicationId: claims.azp,
-    credentialId: claims.cid,
-    agentId: claims.agentId,
-  }, REQUESTER_ASSERTION_TTL_SECONDS);
-  if (stored.status !== 'ok' || !stored.value) return { ok: false, reason: 'replay_store_unavailable' };
+  const stored = await deps.store.put(
+    claims.jti,
+    {
+      sessionId: validated.sessionId,
+      requesterAccountId: claims.sub,
+      applicationId: claims.azp,
+      credentialId: claims.cid,
+      agentId: claims.agentId,
+    },
+    REQUESTER_ASSERTION_TTL_SECONDS,
+  );
+  if (stored.status !== 'ok' || !stored.value)
+    return { ok: false, reason: 'replay_store_unavailable' };
 
   return {
     ok: true,
@@ -379,10 +410,10 @@ export async function introspectRequesterAssertion(
   const record = taken.value;
   if (!record) return { active: false, reason: 'not_found_or_replayed' };
   if (
-    record.requesterAccountId !== claims.sub
-    || record.applicationId !== claims.azp
-    || record.credentialId !== claims.cid
-    || record.agentId !== claims.agentId
+    record.requesterAccountId !== claims.sub ||
+    record.applicationId !== claims.azp ||
+    record.credentialId !== claims.cid ||
+    record.agentId !== claims.agentId
   ) {
     return { active: false, reason: 'record_mismatch' };
   }

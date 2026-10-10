@@ -13,9 +13,7 @@ describe('prettyActionType', () => {
 
 describe('payloadEntries', () => {
   it('flattens a payload into prettified key + stringified value rows', () => {
-    expect(
-      payloadEntries({ subject_user: 'u1', points: 25, ok: true }),
-    ).toEqual([
+    expect(payloadEntries({ subject_user: 'u1', points: 25, ok: true })).toEqual([
       { key: 'Subject User', value: 'u1' },
       { key: 'Points', value: '25' },
       { key: 'Ok', value: 'true' },

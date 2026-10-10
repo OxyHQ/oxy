@@ -26,21 +26,28 @@ async function sharedFixture() {
   const [alice, bob, carol] = [await insertUser(), await insertUser(), await insertUser()];
   const sha256 = sha();
   const storageKey = `public/content/2026/09/${sha256.slice(0, 2)}/${sha256}.png`;
-  const [source] = await getDb().insert(files).values({
-    sha256,
-    size: 42,
-    mime: 'image/png',
-    ext: '.png',
-    ownerUserId: alice,
-    visibility: 'public',
-    storageKey,
-    originalName: 'alice.png',
-    metadata: { media: { width: 4, height: 3 }, source: 'federation', serviceAppId: 'app-alice' },
-  }).returning();
+  const [source] = await getDb()
+    .insert(files)
+    .values({
+      sha256,
+      size: 42,
+      mime: 'image/png',
+      ext: '.png',
+      ownerUserId: alice,
+      visibility: 'public',
+      storageKey,
+      originalName: 'alice.png',
+      metadata: { media: { width: 4, height: 3 }, source: 'federation', serviceAppId: 'app-alice' },
+    })
+    .returning();
   const variantKey = `public/variants/2026/09/${sha256.slice(0, 2)}/${sha256}/thumb.webp`;
-  await getDb().insert(fileVariants).values({ fileId: source.id, type: 'thumb', key: variantKey, readyAt: new Date() });
+  await getDb()
+    .insert(fileVariants)
+    .values({ fileId: source.id, type: 'thumb', key: variantKey, readyAt: new Date() });
   const link = (createdBy: string, entityId: string, onApp = app) =>
-    getDb().insert(fileLinks).values({ fileId: source.id, app: onApp, entityType: 'post', entityId, createdBy });
+    getDb()
+      .insert(fileLinks)
+      .values({ fileId: source.id, app: onApp, entityType: 'post', entityId, createdBy });
   await link(alice, 'a-1');
   await link(bob, 'b-1');
   await link(bob, 'b-2');
@@ -49,7 +56,10 @@ async function sharedFixture() {
 }
 
 async function liveRowsFor(sha256: string) {
-  return getDb().select().from(files).where(and(eq(files.sha256, sha256), ne(files.status, 'deleted')));
+  return getDb()
+    .select()
+    .from(files)
+    .where(and(eq(files.sha256, sha256), ne(files.status, 'deleted')));
 }
 
 async function linksOf(fileId: string) {
@@ -78,15 +88,17 @@ describe('report (the dry run)', () => {
     const summary = await runFileOwnerSplit({ mode: 'report', batchSize: 50, app: f.app, emit });
 
     expect(summary).toMatchObject({ pairs: 1, linksScanned: 2, rowsCreated: 0, finished: true });
-    expect(records).toEqual([expect.objectContaining({
-      sourceFileId: f.source.id,
-      ownerUserId: f.bob,
-      fileId: null,
-      links: [
-        { app: f.app, entityType: 'post', entityId: 'b-1' },
-        { app: f.app, entityType: 'post', entityId: 'b-2' },
-      ],
-    })]);
+    expect(records).toEqual([
+      expect.objectContaining({
+        sourceFileId: f.source.id,
+        ownerUserId: f.bob,
+        fileId: null,
+        links: [
+          { app: f.app, entityType: 'post', entityId: 'b-1' },
+          { app: f.app, entityType: 'post', entityId: 'b-2' },
+        ],
+      }),
+    ]);
     expect(await liveRowsFor(f.sha256)).toHaveLength(1);
   });
 });
@@ -96,7 +108,12 @@ describe('create-rows', () => {
     const f = await sharedFixture();
     const { records, emit } = collect();
 
-    const summary = await runFileOwnerSplit({ mode: 'create-rows', batchSize: 50, app: f.app, emit });
+    const summary = await runFileOwnerSplit({
+      mode: 'create-rows',
+      batchSize: 50,
+      app: f.app,
+      emit,
+    });
 
     expect(summary).toMatchObject({ pairs: 1, rowsCreated: 1, rowsReused: 0, linksRepointed: 0 });
     const bobRowId = records[0].fileId;
@@ -111,8 +128,14 @@ describe('create-rows', () => {
     });
     // Intrinsic metadata only — never the original's application metadata,
     // which is what the federated delete route authorizes by.
-    expect(bobRow.metadata).toEqual({ media: { width: 4, height: 3 }, splitFromFileId: f.source.id });
-    const variants = await getDb().select().from(fileVariants).where(eq(fileVariants.fileId, bobRowId));
+    expect(bobRow.metadata).toEqual({
+      media: { width: 4, height: 3 },
+      splitFromFileId: f.source.id,
+    });
+    const variants = await getDb()
+      .select()
+      .from(fileVariants)
+      .where(eq(fileVariants.fileId, bobRowId));
     expect(variants.map((v) => v.key)).toEqual([f.variantKey]);
     // Nothing that references the original moved.
     expect(await linksOf(f.source.id)).toEqual(['a-1', 'b-1', 'b-2', 'c-1']);
@@ -125,7 +148,12 @@ describe('create-rows', () => {
     await runFileOwnerSplit({ mode: 'create-rows', batchSize: 50, app: f.app, emit: first.emit });
     const second = collect();
 
-    const summary = await runFileOwnerSplit({ mode: 'create-rows', batchSize: 50, app: f.app, emit: second.emit });
+    const summary = await runFileOwnerSplit({
+      mode: 'create-rows',
+      batchSize: 50,
+      app: f.app,
+      emit: second.emit,
+    });
 
     expect(summary).toMatchObject({ rowsCreated: 0, rowsReused: 1 });
     expect(second.records[0].fileId).toBe(first.records[0].fileId);
@@ -134,9 +162,17 @@ describe('create-rows', () => {
 
   it('reuses the row the account already holds for those bytes', async () => {
     const f = await sharedFixture();
-    const [own] = await getDb().insert(files).values({
-      sha256: f.sha256, size: 42, mime: 'image/png', ext: '.png', ownerUserId: f.bob, storageKey: f.storageKey,
-    }).returning({ id: files.id });
+    const [own] = await getDb()
+      .insert(files)
+      .values({
+        sha256: f.sha256,
+        size: 42,
+        mime: 'image/png',
+        ext: '.png',
+        ownerUserId: f.bob,
+        storageKey: f.storageKey,
+      })
+      .returning({ id: files.id });
     const { records, emit } = collect();
 
     await runFileOwnerSplit({ mode: 'create-rows', batchSize: 50, app: f.app, emit });
@@ -148,10 +184,20 @@ describe('create-rows', () => {
     const f = await sharedFixture();
     const { records, emit } = collect();
 
-    const firstPart = await runFileOwnerSplit({ mode: 'create-rows', batchSize: 1, maxBatches: 1, app: f.app, emit });
+    const firstPart = await runFileOwnerSplit({
+      mode: 'create-rows',
+      batchSize: 1,
+      maxBatches: 1,
+      app: f.app,
+      emit,
+    });
     expect(firstPart.finished).toBe(false);
     const rest = await runFileOwnerSplit({
-      mode: 'create-rows', batchSize: 1, app: f.app, after: firstPart.lastLinkId ?? undefined, emit,
+      mode: 'create-rows',
+      batchSize: 1,
+      app: f.app,
+      after: firstPart.lastLinkId ?? undefined,
+      emit,
     });
 
     expect(rest.finished).toBe(true);
@@ -163,15 +209,21 @@ describe('create-rows', () => {
 
 describe('repoint-links', () => {
   it('refuses to run without an application to scope it to', async () => {
-    await expect(runFileOwnerSplit({ mode: 'repoint-links', batchSize: 50, emit: () => undefined }))
-      .rejects.toThrow('--app');
+    await expect(
+      runFileOwnerSplit({ mode: 'repoint-links', batchSize: 50, emit: () => undefined }),
+    ).rejects.toThrow('--app');
   });
 
-  it('moves only that application\'s cross-owner links to the linking account\'s own row', async () => {
+  it("moves only that application's cross-owner links to the linking account's own row", async () => {
     const f = await sharedFixture();
     const { records, emit } = collect();
 
-    const summary = await runFileOwnerSplit({ mode: 'repoint-links', batchSize: 50, app: f.app, emit });
+    const summary = await runFileOwnerSplit({
+      mode: 'repoint-links',
+      batchSize: 50,
+      app: f.app,
+      emit,
+    });
 
     expect(summary).toMatchObject({ linksRepointed: 2 });
     const bobRowId = records[0].fileId;
@@ -181,7 +233,12 @@ describe('repoint-links', () => {
     expect(await linksOf(f.source.id)).toEqual(['a-1', 'c-1']);
 
     // Nothing left to do for that application.
-    const again = await runFileOwnerSplit({ mode: 'repoint-links', batchSize: 50, app: f.app, emit: () => undefined });
+    const again = await runFileOwnerSplit({
+      mode: 'repoint-links',
+      batchSize: 50,
+      app: f.app,
+      emit: () => undefined,
+    });
     expect(again).toMatchObject({ linksScanned: 0, pairs: 0, finished: true });
   });
 
@@ -191,9 +248,20 @@ describe('repoint-links', () => {
     await runFileOwnerSplit({ mode: 'create-rows', batchSize: 50, app: f.app, emit: created.emit });
     const bobRowId = created.records[0].fileId;
     if (!bobRowId) throw new Error('no row');
-    await getDb().insert(fileLinks).values({ fileId: bobRowId, app: f.app, entityType: 'post', entityId: 'b-1', createdBy: f.bob });
+    await getDb().insert(fileLinks).values({
+      fileId: bobRowId,
+      app: f.app,
+      entityType: 'post',
+      entityId: 'b-1',
+      createdBy: f.bob,
+    });
 
-    await runFileOwnerSplit({ mode: 'repoint-links', batchSize: 50, app: f.app, emit: () => undefined });
+    await runFileOwnerSplit({
+      mode: 'repoint-links',
+      batchSize: 50,
+      app: f.app,
+      emit: () => undefined,
+    });
 
     expect(await linksOf(bobRowId)).toEqual(['b-1', 'b-2']);
     expect(await linksOf(f.source.id)).toEqual(['a-1', 'c-1']);

@@ -54,7 +54,8 @@ jest.mock('../../middleware/auth', () => ({
 // optionalAuthMiddleware is a pass-through; getMediaViewerUserId uses the REAL
 // scoped-token verifier so the single-asset binding is genuinely exercised.
 jest.mock('../../middleware/optionalAuth', () => {
-  const { verifyMediaToken, MEDIA_TOKEN_QUERY_PARAM } = jest.requireActual('../../utils/mediaToken');
+  const { verifyMediaToken, MEDIA_TOKEN_QUERY_PARAM } =
+    jest.requireActual('../../utils/mediaToken');
   return {
     optionalAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
     getUserId: () => undefined,
@@ -123,17 +124,16 @@ interface RawResponse {
   body: string;
 }
 
-async function request(
-  server: http.Server,
-  path: string,
-): Promise<RawResponse> {
+async function request(server: http.Server, path: string): Promise<RawResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     const req = http.request(
       { method: 'GET', host: '127.0.0.1', port: address.port, path },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           resolve({
             status: res.statusCode ?? 0,
@@ -149,11 +149,7 @@ async function request(
   });
 }
 
-async function postJson(
-  server: http.Server,
-  path: string,
-  payload: unknown,
-): Promise<RawResponse> {
+async function postJson(server: http.Server, path: string, payload: unknown): Promise<RawResponse> {
   const address = server.address() as AddressInfo;
   const bodyStr = JSON.stringify(payload);
   return new Promise((resolve, reject) => {
@@ -163,11 +159,16 @@ async function postJson(
         host: '127.0.0.1',
         port: address.port,
         path,
-        headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(bodyStr) },
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(bodyStr),
+        },
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           resolve({
             status: res.statusCode ?? 0,
@@ -308,7 +309,10 @@ describe('GET /assets/:id/stream — scoped media token acceptance', () => {
     streamBytes('PRIVATEBYTES');
     const mt = signMediaToken(PRIVATE_FILE_ID, VIEWER_ID);
 
-    const res = await request(server, `/assets/${PRIVATE_FILE_ID}/stream?mt=${encodeURIComponent(mt)}`);
+    const res = await request(
+      server,
+      `/assets/${PRIVATE_FILE_ID}/stream?mt=${encodeURIComponent(mt)}`,
+    );
 
     expect(res.status).toBe(200);
     expect(res.body).toBe('PRIVATEBYTES');
@@ -321,7 +325,10 @@ describe('GET /assets/:id/stream — scoped media token acceptance', () => {
     // Token authorizes OTHER_FILE_ID; requested asset is PRIVATE_FILE_ID.
     const mt = signMediaToken(OTHER_FILE_ID, VIEWER_ID);
 
-    const res = await request(server, `/assets/${PRIVATE_FILE_ID}/stream?mt=${encodeURIComponent(mt)}`);
+    const res = await request(
+      server,
+      `/assets/${PRIVATE_FILE_ID}/stream?mt=${encodeURIComponent(mt)}`,
+    );
 
     expect(res.status).toBe(403);
     // Viewer resolved to anonymous → access check ran with undefined.
@@ -340,7 +347,10 @@ describe('GET /assets/:id/stream — scoped media token acceptance', () => {
       jest.useRealTimers();
     }
 
-    const res = await request(server, `/assets/${PRIVATE_FILE_ID}/stream?mt=${encodeURIComponent(mt)}`);
+    const res = await request(
+      server,
+      `/assets/${PRIVATE_FILE_ID}/stream?mt=${encodeURIComponent(mt)}`,
+    );
 
     expect(res.status).toBe(403);
     expect(mockGetObjectStreamRange).not.toHaveBeenCalled();
@@ -351,7 +361,10 @@ describe('GET /assets/:id/stream — scoped media token acceptance', () => {
     // Well-formed, unexpired token — but for a user who is not the owner.
     const mt = signMediaToken(PRIVATE_FILE_ID, STRANGER_ID);
 
-    const res = await request(server, `/assets/${PRIVATE_FILE_ID}/stream?mt=${encodeURIComponent(mt)}`);
+    const res = await request(
+      server,
+      `/assets/${PRIVATE_FILE_ID}/stream?mt=${encodeURIComponent(mt)}`,
+    );
 
     expect(res.status).toBe(403);
     expect(mockCanUserAccessFile).toHaveBeenCalledWith(PRIVATE_FILE, STRANGER_ID, undefined);
@@ -380,10 +393,7 @@ describe('POST /assets/batch-access — variant-aware, scoped, per-file', () => 
   });
 
   it('resolves a mixed public/private batch — scoped mt for private, CDN for public, both variant-aware', async () => {
-    mockGetFilesByIds.mockResolvedValue([
-      { ...PRIVATE_FILE, mime: 'image/jpeg' },
-      PUBLIC_FILE,
-    ]);
+    mockGetFilesByIds.mockResolvedValue([{ ...PRIVATE_FILE, mime: 'image/jpeg' }, PUBLIC_FILE]);
 
     const res = await postJson(server, '/assets/batch-access', {
       files: [
@@ -469,7 +479,9 @@ describe('POST /assets/batch-access — variant-aware, scoped, per-file', () => 
     mockGetFileUrl.mockImplementation((fileId: string) => {
       if (fileId === PUBLIC_FILE_ID) {
         return Promise.reject(
-          new Error('Failed to download buffer from S3: NoSuchKey: The specified key does not exist.'),
+          new Error(
+            'Failed to download buffer from S3: NoSuchKey: The specified key does not exist.',
+          ),
         );
       }
       return Promise.resolve(null);
@@ -492,7 +504,9 @@ describe('POST /assets/batch-access — variant-aware, scoped, per-file', () => 
 
     // The other tile resolves normally in the same batch.
     expect(results[PRIVATE_FILE_ID].allowed).toBe(true);
-    expect(new URL(results[PRIVATE_FILE_ID].url).pathname).toBe(`/assets/${PRIVATE_FILE_ID}/stream`);
+    expect(new URL(results[PRIVATE_FILE_ID].url).pathname).toBe(
+      `/assets/${PRIVATE_FILE_ID}/stream`,
+    );
   });
 
   it('rejects a batch over the 100-file cap with 400', async () => {

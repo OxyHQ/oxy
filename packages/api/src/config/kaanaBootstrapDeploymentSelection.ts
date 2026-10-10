@@ -16,6 +16,7 @@ export function requireSingleLogicalDeployment<Row>(
     );
   }
   const row = rows[0];
-  if (row === undefined) throw new Error(`Deployment ${deploymentId} could not be read after create`);
+  if (row === undefined)
+    throw new Error(`Deployment ${deploymentId} could not be read after create`);
   return row;
 }

@@ -141,9 +141,7 @@ export interface RunColdBootOptions<S> {
  *      - `{ kind: 'skip' }` → continue.
  *   4. After the loop with no winner → `{ kind: 'unauthenticated' }`.
  */
-export async function runColdBoot<S>(
-  options: RunColdBootOptions<S>
-): Promise<ColdBootOutcome<S>> {
+export async function runColdBoot<S>(options: RunColdBootOptions<S>): Promise<ColdBootOutcome<S>> {
   const { steps, onStepError, overallDeadlineMs, onStepDeadline } = options;
 
   // Arm the optional overall deadline. The budget is SHARED across the whole

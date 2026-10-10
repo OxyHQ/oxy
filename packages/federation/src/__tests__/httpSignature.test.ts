@@ -117,9 +117,7 @@ const fetchPublicKey = async (keyId: string) =>
 
 /** Reproduce how Express lowercases req.headers, folding content-type as a real header. */
 function lowerHeaders(headers: Record<string, string>): Record<string, string> {
-  const lowered = Object.fromEntries(
-    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
-  );
+  const lowered = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
   if (lowered.digest && !lowered['content-type']) {
     lowered['content-type'] = DEFAULT_SIGNED_CONTENT_TYPE;
   }

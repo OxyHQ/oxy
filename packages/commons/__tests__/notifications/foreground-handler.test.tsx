@@ -73,7 +73,10 @@ describe('foreground notification presentation', () => {
     await waitFor(() => expect(installForegroundNotificationHandler).toHaveBeenCalled());
 
     expect(
-      __getForegroundDecision()({ type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE, notificationId: 'n-fg-1' }),
+      __getForegroundDecision()({
+        type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE,
+        notificationId: 'n-fg-1',
+      }),
     ).toBe('show');
     expect(__getForegroundDecision()({ type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE })).toBe('suppress');
   });
@@ -85,7 +88,10 @@ describe('foreground notification presentation', () => {
     ],
     ['a foreign scheme', pushPayload('evil://approve?code=x')],
     ['a missing authorize code', pushPayload('oxycommons://approve?v=1')],
-    ['an already-stale link', pushPayload(`oxycommons://approve?code=x&exp=${Date.now() - 60_000}`)],
+    [
+      'an already-stale link',
+      pushPayload(`oxycommons://approve?code=x&exp=${Date.now() - 60_000}`),
+    ],
     ['a payload that is not an object', 'oxycommons://approve?code=x'],
     ['an empty payload', {}],
   ])('suppresses %s — the documented default for everything else', async (_label, data) => {

@@ -263,10 +263,7 @@ describe('two workers running at once', () => {
       if (inFlight >= 2) release();
       // Bounded, so a worker that claimed nothing cannot hang the run — it
       // surfaces as the `claimed` expectation below instead.
-      await Promise.race([
-        overlapping,
-        new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
-      ]);
+      await Promise.race([overlapping, new Promise<void>((resolve) => setTimeout(resolve, 2_000))]);
     });
 
     const [a, b] = await Promise.all([

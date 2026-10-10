@@ -4,44 +4,50 @@ import { useAuthStore } from '../stores/authStore';
 import type { UserProfileUpdate } from '@oxy.so/contracts';
 
 interface ProfileLocation {
-    id: string;
-    name: string;
-    label?: string;
-    coordinates?: { lat: number; lon: number };
+  id: string;
+  name: string;
+  label?: string;
+  coordinates?: { lat: number; lon: number };
 }
 
 interface ProfileLinkMetadata {
-    url: string;
-    title?: string;
-    description?: string;
-    image?: string;
-    id: string;
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  id: string;
 }
 
 export interface ProfileUpdateData {
-    firstName?: string;
-    lastName?: string;
-    username?: string;
-    email?: string;
-    bio?: string;
-    locations?: ProfileLocation[];
-    links?: string[];
-    linksMetadata?: ProfileLinkMetadata[];
-    avatar?: string;
-    phone?: string;
-    address?: string;
-    birthday?: string;
-    dateOfBirth?: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  email?: string;
+  bio?: string;
+  locations?: ProfileLocation[];
+  links?: string[];
+  linksMetadata?: ProfileLinkMetadata[];
+  avatar?: string;
+  phone?: string;
+  address?: string;
+  birthday?: string;
+  dateOfBirth?: string;
 }
 
 type ProfileFieldValue = string | ProfileLocation[] | ProfileLinkMetadata[];
 
 function isProfileLocationArray(value: ProfileFieldValue): value is ProfileLocation[] {
-    return Array.isArray(value) && value.every((item) => typeof item === 'object' && item !== null && 'name' in item);
+  return (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === 'object' && item !== null && 'name' in item)
+  );
 }
 
 function isProfileLinkMetadataArray(value: ProfileFieldValue): value is ProfileLinkMetadata[] {
-    return Array.isArray(value) && value.every((item) => typeof item === 'object' && item !== null && 'url' in item);
+  return (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === 'object' && item !== null && 'url' in item)
+  );
 }
 
 /**
@@ -49,135 +55,141 @@ function isProfileLinkMetadataArray(value: ProfileFieldValue): value is ProfileL
  * Provides functions to update profile fields and handle saving
  */
 export const useProfileEditing = () => {
-    const updateProfileMutation = useUpdateProfile();
+  const updateProfileMutation = useUpdateProfile();
 
-    /**
-     * Save profile updates to the server using TanStack Query
-     */
-    const saveProfile = useCallback(async (updates: ProfileUpdateData) => {
-        // Prepare update object
-        const updateData: UserProfileUpdate = {};
+  /**
+   * Save profile updates to the server using TanStack Query
+   */
+  const saveProfile = useCallback(
+    async (updates: ProfileUpdateData) => {
+      // Prepare update object
+      const updateData: UserProfileUpdate = {};
 
-        if (updates.username !== undefined) {
-            updateData.username = updates.username;
-        }
-        if (updates.email !== undefined) {
-            updateData.email = updates.email;
-        }
-        if (updates.bio !== undefined) {
-            updateData.bio = updates.bio;
-        }
-        if (updates.locations !== undefined) {
-            updateData.locations = updates.locations;
-        }
-        if (updates.links !== undefined) {
-            updateData.links = updates.links;
-        }
-        if (updates.linksMetadata !== undefined) {
-            updateData.linksMetadata = updates.linksMetadata;
-        }
-        if (updates.avatar !== undefined) {
-            updateData.avatar = updates.avatar;
-        }
-        if (updates.phone !== undefined) {
-            updateData.phone = updates.phone;
-        }
-        if (updates.address !== undefined) {
-            updateData.address = updates.address;
-        }
-        if (updates.birthday !== undefined) {
-            updateData.birthday = updates.birthday;
-        }
-        if (updates.dateOfBirth !== undefined) {
-            // '' clears it — `updateData.dateOfBirth` is `string | null`
-            // per the contract, and there is no separate blank sentinel for
-            // a structured date the way `blankToNull` gives every free-text
-            // field.
-            updateData.dateOfBirth = updates.dateOfBirth === '' ? null : updates.dateOfBirth;
-        }
+      if (updates.username !== undefined) {
+        updateData.username = updates.username;
+      }
+      if (updates.email !== undefined) {
+        updateData.email = updates.email;
+      }
+      if (updates.bio !== undefined) {
+        updateData.bio = updates.bio;
+      }
+      if (updates.locations !== undefined) {
+        updateData.locations = updates.locations;
+      }
+      if (updates.links !== undefined) {
+        updateData.links = updates.links;
+      }
+      if (updates.linksMetadata !== undefined) {
+        updateData.linksMetadata = updates.linksMetadata;
+      }
+      if (updates.avatar !== undefined) {
+        updateData.avatar = updates.avatar;
+      }
+      if (updates.phone !== undefined) {
+        updateData.phone = updates.phone;
+      }
+      if (updates.address !== undefined) {
+        updateData.address = updates.address;
+      }
+      if (updates.birthday !== undefined) {
+        updateData.birthday = updates.birthday;
+      }
+      if (updates.dateOfBirth !== undefined) {
+        // '' clears it — `updateData.dateOfBirth` is `string | null`
+        // per the contract, and there is no separate blank sentinel for
+        // a structured date the way `blankToNull` gives every free-text
+        // field.
+        updateData.dateOfBirth = updates.dateOfBirth === '' ? null : updates.dateOfBirth;
+      }
 
-        // Handle name field
-        if (updates.firstName !== undefined || updates.lastName !== undefined) {
-            const currentUser = useAuthStore.getState().user;
-            const currentName = currentUser?.name;
-            updateData.name = {
-                first: updates.firstName ?? (typeof currentName === 'object' ? currentName?.first : '') ?? '',
-                last: updates.lastName ?? (typeof currentName === 'object' ? currentName?.last : '') ?? '',
-            };
-        }
+      // Handle name field
+      if (updates.firstName !== undefined || updates.lastName !== undefined) {
+        const currentUser = useAuthStore.getState().user;
+        const currentName = currentUser?.name;
+        updateData.name = {
+          first:
+            updates.firstName ?? (typeof currentName === 'object' ? currentName?.first : '') ?? '',
+          last:
+            updates.lastName ?? (typeof currentName === 'object' ? currentName?.last : '') ?? '',
+        };
+      }
 
-        try {
-            await updateProfileMutation.mutateAsync(updateData);
-            return true;
-        } catch (error: unknown) {
-            // Error toast is handled by the mutation
-            return false;
-        }
-    }, [updateProfileMutation]);
+      try {
+        await updateProfileMutation.mutateAsync(updateData);
+        return true;
+      } catch (error: unknown) {
+        // Error toast is handled by the mutation
+        return false;
+      }
+    },
+    [updateProfileMutation],
+  );
 
-    /**
-     * Update a single profile field
-     */
-    const updateField = useCallback(async (field: string, value: ProfileFieldValue) => {
-        const updates: ProfileUpdateData = {};
-        
-        switch (field) {
-            case 'firstName':
-                if (typeof value !== 'string') return false;
-                updates.firstName = value;
-                break;
-            case 'username':
-                if (typeof value !== 'string') return false;
-                updates.username = value;
-                break;
-            case 'email':
-                if (typeof value !== 'string') return false;
-                updates.email = value;
-                break;
-            case 'bio':
-                if (typeof value !== 'string') return false;
-                updates.bio = value;
-                break;
-            case 'phone':
-                if (typeof value !== 'string') return false;
-                updates.phone = value;
-                break;
-            case 'address':
-                if (typeof value !== 'string') return false;
-                updates.address = value;
-                break;
-            case 'birthday':
-                if (typeof value !== 'string') return false;
-                updates.birthday = value;
-                break;
-            case 'dateOfBirth':
-                // '' clears it (the picker's "no complete date selected"
-                // state) — `updateUserProfile`'s `dateOfBirth` block treats
-                // an empty string the same as `null`.
-                if (typeof value !== 'string') return false;
-                updates.dateOfBirth = value;
-                break;
-            case 'location':
-                if (!isProfileLocationArray(value)) return false;
-                updates.locations = value;
-                break;
-            case 'links':
-                if (!isProfileLinkMetadataArray(value)) return false;
-                updates.linksMetadata = value;
-                updates.links = value.map((link) => link.url);
-                break;
-            default:
-                return false;
-        }
+  /**
+   * Update a single profile field
+   */
+  const updateField = useCallback(
+    async (field: string, value: ProfileFieldValue) => {
+      const updates: ProfileUpdateData = {};
 
-        return await saveProfile(updates);
-    }, [saveProfile]);
+      switch (field) {
+        case 'firstName':
+          if (typeof value !== 'string') return false;
+          updates.firstName = value;
+          break;
+        case 'username':
+          if (typeof value !== 'string') return false;
+          updates.username = value;
+          break;
+        case 'email':
+          if (typeof value !== 'string') return false;
+          updates.email = value;
+          break;
+        case 'bio':
+          if (typeof value !== 'string') return false;
+          updates.bio = value;
+          break;
+        case 'phone':
+          if (typeof value !== 'string') return false;
+          updates.phone = value;
+          break;
+        case 'address':
+          if (typeof value !== 'string') return false;
+          updates.address = value;
+          break;
+        case 'birthday':
+          if (typeof value !== 'string') return false;
+          updates.birthday = value;
+          break;
+        case 'dateOfBirth':
+          // '' clears it (the picker's "no complete date selected"
+          // state) — `updateUserProfile`'s `dateOfBirth` block treats
+          // an empty string the same as `null`.
+          if (typeof value !== 'string') return false;
+          updates.dateOfBirth = value;
+          break;
+        case 'location':
+          if (!isProfileLocationArray(value)) return false;
+          updates.locations = value;
+          break;
+        case 'links':
+          if (!isProfileLinkMetadataArray(value)) return false;
+          updates.linksMetadata = value;
+          updates.links = value.map((link) => link.url);
+          break;
+        default:
+          return false;
+      }
 
-    return {
-        saveProfile,
-        updateField,
-        isSaving: updateProfileMutation.isPending,
-    };
+      return await saveProfile(updates);
+    },
+    [saveProfile],
+  );
+
+  return {
+    saveProfile,
+    updateField,
+    isSaving: updateProfileMutation.isPending,
+  };
 };
-
-

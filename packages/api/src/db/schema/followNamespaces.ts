@@ -53,5 +53,5 @@ export const followNamespaces = pgTable(
     // now the table that CREATES a namespace: a single lowercase segment, so
     // `a.b` cannot claim to be its own namespace and then register `a.b.c`.
     check('follow_namespaces_shape_check', sql`${t.namespace} ~ '^[a-z][a-z0-9_]*$'`),
-  ]
+  ],
 );

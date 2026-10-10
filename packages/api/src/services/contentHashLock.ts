@@ -37,7 +37,9 @@ export async function withContentHashLock<T>(
   fn: (tx: Transaction) => Promise<T>,
 ): Promise<T> {
   return getDb().transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${LOCK_NAMESPACE + sha256}, 0))`);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${LOCK_NAMESPACE + sha256}, 0))`,
+    );
     return fn(tx);
   });
 }

@@ -31,7 +31,11 @@ export function WalletBalanceCard({
     <View style={[styles.walletCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.walletIconWrapper}>
         <View style={[styles.walletIconContainer, { backgroundColor: colors.sidebarIconPayments }]}>
-          <MaterialCommunityIcons name="wallet-outline" size={48} color={darkenColor(colors.sidebarIconPayments)} />
+          <MaterialCommunityIcons
+            name="wallet-outline"
+            size={48}
+            color={darkenColor(colors.sidebarIconPayments)}
+          />
         </View>
       </View>
 
@@ -46,17 +50,13 @@ export function WalletBalanceCard({
 
       <View style={styles.walletSummaryCards}>
         <View style={[styles.summaryCard, { backgroundColor: colors.background }]}>
-          <Text style={[styles.summaryCardValue, { color: colors.text }]}>
-            {transactionCount}
-          </Text>
+          <Text style={[styles.summaryCardValue, { color: colors.text }]}>{transactionCount}</Text>
           <Text style={[styles.summaryCardLabel, { color: colors.textSecondary }]}>
             {t('payments.wallet.transactions')}
           </Text>
         </View>
         <View style={[styles.summaryCard, { backgroundColor: colors.background }]}>
-          <Text style={[styles.summaryCardValue, { color: colors.text }]}>
-            {paymentCount}
-          </Text>
+          <Text style={[styles.summaryCardValue, { color: colors.text }]}>{paymentCount}</Text>
           <Text style={[styles.summaryCardLabel, { color: colors.textSecondary }]}>
             {t('payments.wallet.payments')}
           </Text>

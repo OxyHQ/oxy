@@ -101,7 +101,7 @@ describe('inviteMember', () => {
     await familyService.acceptInvite(family.id, invited.id, memberId);
 
     await expect(
-      familyService.inviteMember(family.id, memberId, await personalUser())
+      familyService.inviteMember(family.id, memberId, await personalUser()),
     ).rejects.toThrow(/only the family organizer/i);
   });
 
@@ -109,7 +109,7 @@ describe('inviteMember', () => {
     const { family } = await familyService.createFamily(await personalUser());
 
     await expect(
-      familyService.inviteMember(family.id, await personalUser(), await personalUser())
+      familyService.inviteMember(family.id, await personalUser(), await personalUser()),
     ).rejects.toThrow(/not a member of this family/i);
   });
 
@@ -118,7 +118,7 @@ describe('inviteMember', () => {
     const { family } = await familyService.createFamily(organizerId);
 
     await expect(
-      familyService.inviteMember(family.id, organizerId, await organizationAccount())
+      familyService.inviteMember(family.id, organizerId, await organizationAccount()),
     ).rejects.toThrow(/only personal accounts/i);
   });
 
@@ -127,7 +127,7 @@ describe('inviteMember', () => {
     const { family } = await familyService.createFamily(organizerId);
 
     await expect(familyService.inviteMember(family.id, organizerId, organizerId)).rejects.toThrow(
-      /cannot invite yourself/i
+      /cannot invite yourself/i,
     );
   });
 
@@ -139,7 +139,7 @@ describe('inviteMember', () => {
     await familyService.acceptInvite(family.id, invited.id, memberId);
 
     await expect(familyService.inviteMember(family.id, organizerId, memberId)).rejects.toThrow(
-      /already a member/i
+      /already a member/i,
     );
   });
 
@@ -150,7 +150,7 @@ describe('inviteMember', () => {
     await familyService.inviteMember(family.id, organizerId, memberId);
 
     await expect(familyService.inviteMember(family.id, organizerId, memberId)).rejects.toThrow(
-      /already been invited/i
+      /already been invited/i,
     );
   });
 
@@ -189,7 +189,7 @@ describe('acceptInvite', () => {
     const invited = await familyService.inviteMember(family.id, organizerId, memberId);
 
     await expect(
-      familyService.acceptInvite(family.id, invited.id, await personalUser())
+      familyService.acceptInvite(family.id, invited.id, await personalUser()),
     ).rejects.toThrow(/not your invitation/i);
   });
 
@@ -201,7 +201,7 @@ describe('acceptInvite', () => {
     await familyService.acceptInvite(family.id, invited.id, memberId);
 
     await expect(familyService.acceptInvite(family.id, invited.id, memberId)).rejects.toThrow(
-      /no longer pending/i
+      /no longer pending/i,
     );
   });
 
@@ -245,7 +245,7 @@ describe('declineInvite', () => {
     const invited = await familyService.inviteMember(family.id, organizerId, memberId);
 
     await expect(
-      familyService.declineInvite(family.id, invited.id, await personalUser())
+      familyService.declineInvite(family.id, invited.id, await personalUser()),
     ).rejects.toThrow(/not your invitation/i);
   });
 });
@@ -273,7 +273,7 @@ describe('getMyFamilies', () => {
         `${organizerId}:active`,
         `${memberId}:active`,
         `${pendingId}:invited`,
-      ])
+      ]),
     );
   });
 
@@ -299,7 +299,7 @@ describe('getMyFamilies', () => {
     const rosters = await familyService.getMyFamilies(memberId);
 
     expect(rosters.map((r) => r.family.id).sort()).toEqual(
-      [firstFamily.id, secondFamily.id].sort()
+      [firstFamily.id, secondFamily.id].sort(),
     );
   });
 });
@@ -356,22 +356,21 @@ describe('removeMember', () => {
     const invitedB = await familyService.inviteMember(family.id, organizerId, memberBId);
     await familyService.acceptInvite(family.id, invitedB.id, memberBId);
 
-    await expect(
-      familyService.removeMember(family.id, invitedB.id, memberAId)
-    ).rejects.toThrow(/only the family organizer/i);
+    await expect(familyService.removeMember(family.id, invitedB.id, memberAId)).rejects.toThrow(
+      /only the family organizer/i,
+    );
   });
 
   it('refuses removing oneself — that is what leave is for', async () => {
     const organizerId = await personalUser();
     const memberId = await personalUser();
-    const { family, membership: organizerMembership } = await familyService.createFamily(
-      organizerId
-    );
+    const { family, membership: organizerMembership } =
+      await familyService.createFamily(organizerId);
     const invited = await familyService.inviteMember(family.id, organizerId, memberId);
     await familyService.acceptInvite(family.id, invited.id, memberId);
 
     await expect(
-      familyService.removeMember(family.id, organizerMembership.id, organizerId)
+      familyService.removeMember(family.id, organizerMembership.id, organizerId),
     ).rejects.toThrow(/use post .*\/leave/i);
   });
 });
@@ -408,7 +407,7 @@ describe('leaveFamily', () => {
     await familyService.acceptInvite(family.id, invited.id, memberId);
 
     await expect(familyService.leaveFamily(family.id, organizerId)).rejects.toThrow(
-      /remove the other members/i
+      /remove the other members/i,
     );
   });
 
@@ -416,7 +415,7 @@ describe('leaveFamily', () => {
     const { family } = await familyService.createFamily(await personalUser());
 
     await expect(familyService.leaveFamily(family.id, await personalUser())).rejects.toThrow(
-      /not a member of this family/i
+      /not a member of this family/i,
     );
   });
 

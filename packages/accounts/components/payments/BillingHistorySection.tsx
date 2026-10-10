@@ -25,34 +25,42 @@ export function BillingHistorySection({ payments }: BillingHistorySectionProps) 
   const colors = useColors();
   const { t } = useTranslation();
 
-  const getPaymentStatusColor = useCallback((status: string): string => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-      case 'succeeded':
-      case 'paid':
-        return colors.success;
-      case 'pending':
-      case 'processing':
-        return colors.warning;
-      case 'failed':
-      case 'declined':
-        return colors.error;
-      default:
-        return colors.textSecondary;
-    }
-  }, [colors]);
+  const getPaymentStatusColor = useCallback(
+    (status: string): string => {
+      switch (status.toLowerCase()) {
+        case 'completed':
+        case 'succeeded':
+        case 'paid':
+          return colors.success;
+        case 'pending':
+        case 'processing':
+          return colors.warning;
+        case 'failed':
+        case 'declined':
+          return colors.error;
+        default:
+          return colors.textSecondary;
+      }
+    },
+    [colors],
+  );
 
-  const getPaymentStatusLabel = useCallback((status: string): string => {
-    const lower = status.toLowerCase();
-    const key = `payments.status.${lower}`;
-    const translated = t(key);
-    if (translated !== key) return translated;
-    return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-  }, [t]);
+  const getPaymentStatusLabel = useCallback(
+    (status: string): string => {
+      const lower = status.toLowerCase();
+      const key = `payments.status.${lower}`;
+      const translated = t(key);
+      if (translated !== key) return translated;
+      return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    },
+    [t],
+  );
 
   const items = useMemo(() => {
     return payments.map((payment, index) => {
-      const date = payment.timestamp ? formatDate(payment.timestamp) : t('payments.history.unknownDate');
+      const date = payment.timestamp
+        ? formatDate(payment.timestamp)
+        : t('payments.history.unknownDate');
       const amount = payment.amount.toFixed(2);
       const status = payment.status || 'completed';
 

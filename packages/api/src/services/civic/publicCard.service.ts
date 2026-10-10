@@ -16,7 +16,12 @@
  * pre-prod); in production it is always present — exactly like the export bundle.
  */
 
-import type { PublicCard, SignedPublicCard, ExportAttestation, PersonhoodStatus as PersonhoodStatusValue } from '@oxy.so/contracts';
+import type {
+  PublicCard,
+  SignedPublicCard,
+  ExportAttestation,
+  PersonhoodStatus as PersonhoodStatusValue,
+} from '@oxy.so/contracts';
 import { signedPublicCardSchema } from '@oxy.so/contracts';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { canonicalize } from '@oxy.so/protocol';
@@ -80,17 +85,12 @@ export async function buildSignedPublicCard(userId: string): Promise<SignedPubli
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
-  if (
-    !user ||
-    user.accountStatus === 'archived' ||
-    user.reputationTier === 'restricted'
-  ) {
+  if (!user || user.accountStatus === 'archived' || user.reputationTier === 'restricted') {
     return null;
   }
 
   const formatted = formatUserResponse(user);
-  const displayName =
-    formatted?.name?.displayName ?? getNormalizedUserHandle(formatted) ?? '';
+  const displayName = formatted?.name?.displayName ?? getNormalizedUserHandle(formatted) ?? '';
   const username = formatted?.username;
   const avatarId = formatted?.avatar;
 

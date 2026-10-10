@@ -5,8 +5,22 @@
 
 process.env.DEVICE_ID_SALT = 'sign-in-crypto-test-salt-0123456789abcdefghij';
 
-import { hashPassword, needsRehash, verifyPassword, verifyPasswordOrDummy } from '../password.service';
-import { base32Decode, base32Encode, hotp, isAuthenticatorCode, matchTotpStep, newBackupCode, totpCodeAt, totpStep } from '../totp.service';
+import {
+  hashPassword,
+  needsRehash,
+  verifyPassword,
+  verifyPasswordOrDummy,
+} from '../password.service';
+import {
+  base32Decode,
+  base32Encode,
+  hotp,
+  isAuthenticatorCode,
+  matchTotpStep,
+  newBackupCode,
+  totpCodeAt,
+  totpStep,
+} from '../totp.service';
 import { _setScryptConcurrencyForTests } from '../password.service';
 import { SERVER_KEY_LABELS, derivedServerKey, serverHmacHex } from '../../utils/serverKey';
 import { openSecret, sealSecret } from '../../utils/secretBox';
@@ -61,9 +75,15 @@ describe('TOTP (RFC 6238, SHA-1)', () => {
     const now = new Date(1_800_000_000_000);
     const step = totpStep(now);
     expect(matchTotpStep(rfcSecret, totpCodeAt(secret, now), now, null)).toBe(step);
-    expect(matchTotpStep(rfcSecret, totpCodeAt(secret, new Date(now.getTime() - 30_000)), now, null)).toBe(step - 1);
-    expect(matchTotpStep(rfcSecret, totpCodeAt(secret, new Date(now.getTime() + 30_000)), now, null)).toBe(step + 1);
-    expect(matchTotpStep(rfcSecret, totpCodeAt(secret, new Date(now.getTime() - 90_000)), now, null)).toBeNull();
+    expect(
+      matchTotpStep(rfcSecret, totpCodeAt(secret, new Date(now.getTime() - 30_000)), now, null),
+    ).toBe(step - 1);
+    expect(
+      matchTotpStep(rfcSecret, totpCodeAt(secret, new Date(now.getTime() + 30_000)), now, null),
+    ).toBe(step + 1);
+    expect(
+      matchTotpStep(rfcSecret, totpCodeAt(secret, new Date(now.getTime() - 90_000)), now, null),
+    ).toBeNull();
     // Replay: the step was already used.
     expect(matchTotpStep(rfcSecret, totpCodeAt(secret, now), now, step)).toBeNull();
     expect(matchTotpStep(rfcSecret, 'abcdef', now, null)).toBeNull();
@@ -115,7 +135,12 @@ describe('scrypt concurrency', () => {
   it('fails fast with a 503 instead of queueing without bound', async () => {
     _setScryptConcurrencyForTests(1);
     const outcomes = await Promise.all(
-      Array.from({ length: 40 }, () => hashPassword('parallel password').then(() => 'hashed', (error: { statusCode?: number }) => error.statusCode)),
+      Array.from({ length: 40 }, () =>
+        hashPassword('parallel password').then(
+          () => 'hashed',
+          (error: { statusCode?: number }) => error.statusCode,
+        ),
+      ),
     );
     expect(outcomes.filter((outcome) => outcome === 503).length).toBeGreaterThan(0);
     expect(outcomes.filter((outcome) => outcome === 'hashed').length).toBeGreaterThan(0);
@@ -125,7 +150,11 @@ describe('scrypt concurrency', () => {
 
 describe('server keys', () => {
   it('derive one key per label, and fail closed without the server secret', () => {
-    expect(derivedServerKey(SERVER_KEY_LABELS.emailCode).equals(derivedServerKey(SERVER_KEY_LABELS.totpBackupCode))).toBe(false);
+    expect(
+      derivedServerKey(SERVER_KEY_LABELS.emailCode).equals(
+        derivedServerKey(SERVER_KEY_LABELS.totpBackupCode),
+      ),
+    ).toBe(false);
     const saved = process.env.DEVICE_ID_SALT;
     delete process.env.DEVICE_ID_SALT;
     try {

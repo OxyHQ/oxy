@@ -30,8 +30,8 @@ async function main(): Promise<void> {
   if (!url) {
     throw new ConfigurationError(
       'DATABASE_URL is required to create extensions. Start a local Postgres ' +
-      'with:\n  docker compose -f ../../docker-compose.dev.yml up -d postgres\n' +
-      'then set DATABASE_URL in packages/api/.env (see .env.example).'
+        'with:\n  docker compose -f ../../docker-compose.dev.yml up -d postgres\n' +
+        'then set DATABASE_URL in packages/api/.env (see .env.example).',
     );
   }
   await ensureExtensions(url, REQUIRED_EXTENSIONS);

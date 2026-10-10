@@ -113,7 +113,9 @@ function postJson(server: http.Server, path: string, body: unknown): Promise<Jso
       },
       (res) => {
         let chunks = '';
-        res.on('data', (c) => { chunks += c; });
+        res.on('data', (c) => {
+          chunks += c;
+        });
         res.on('end', () => {
           try {
             const parsed = chunks.length > 0 ? JSON.parse(chunks) : {};
@@ -122,7 +124,7 @@ function postJson(server: http.Server, path: string, body: unknown): Promise<Jso
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(raw);
@@ -167,7 +169,11 @@ const FILE_TRASHED = '64f0000000000000000000a3';
 const FILE_MISSING = '64f0000000000000000000a4';
 const OTHER_USER_ID = '64b0000000000000000000bb';
 
-function makeFile(id: string, status: 'active' | 'trash' | 'deleted', ownerUserId = mockTestUserId): {
+function makeFile(
+  id: string,
+  status: 'active' | 'trash' | 'deleted',
+  ownerUserId = mockTestUserId,
+): {
   id: string;
   status: 'active' | 'trash' | 'deleted';
   originalName: string;
@@ -207,16 +213,20 @@ describe('POST /email/messages — attachment resolution', () => {
     });
 
     expect(res.status).toBe(202);
-    expect(res.body.data).toEqual(
-      expect.objectContaining({ messageId: 'sent-1', queued: false }),
-    );
+    expect(res.body.data).toEqual(expect.objectContaining({ messageId: 'sent-1', queued: false }));
 
     expect(mockGetFilesByIds).toHaveBeenCalledWith([FILE_OWN]);
     expect(mockCanUserAccessFile).not.toHaveBeenCalled();
 
     expect(mockSmtpSend).toHaveBeenCalledTimes(1);
     const sendArg = mockSmtpSend.mock.calls[0][0] as {
-      attachments: Array<{ fileId: string; name: string; contentType: string; size: number; isInline: boolean }>;
+      attachments: Array<{
+        fileId: string;
+        name: string;
+        contentType: string;
+        size: number;
+        isInline: boolean;
+      }>;
     };
     expect(sendArg.attachments).toEqual([
       {
@@ -290,7 +300,9 @@ describe('POST /email/messages — attachment resolution', () => {
     const res = await postJson(server, '/email/messages', {
       to: [{ address: 'bob@example.com' }],
       subject: 'Hi',
-      attachments: [{ s3Key: 'legacy/key.pdf', filename: 'old.pdf', contentType: 'application/pdf', size: 10 }],
+      attachments: [
+        { s3Key: 'legacy/key.pdf', filename: 'old.pdf', contentType: 'application/pdf', size: 10 },
+      ],
     });
 
     expect(res.status).toBe(400);

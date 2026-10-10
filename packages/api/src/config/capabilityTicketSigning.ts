@@ -1,7 +1,8 @@
 import { createPrivateKey, createPublicKey, type KeyObject } from 'node:crypto';
 
 export const CAPABILITY_TICKET_SIGNING_KEY_ID_VARIABLE = 'CAPABILITY_TICKET_SIGNING_KEY_ID';
-export const CAPABILITY_TICKET_SIGNING_PRIVATE_KEY_VARIABLE = 'CAPABILITY_TICKET_SIGNING_PRIVATE_KEY';
+export const CAPABILITY_TICKET_SIGNING_PRIVATE_KEY_VARIABLE =
+  'CAPABILITY_TICKET_SIGNING_PRIVATE_KEY';
 
 export interface CapabilityTicketSigningConfig {
   readonly keyId: string;
@@ -17,18 +18,23 @@ export interface CapabilityTicketSigningConfig {
   };
 }
 
-let cached: {
-  readonly keyId: string;
-  readonly privateKeySource: string;
-  readonly config: CapabilityTicketSigningConfig;
-} | undefined;
+let cached:
+  | {
+      readonly keyId: string;
+      readonly privateKeySource: string;
+      readonly config: CapabilityTicketSigningConfig;
+    }
+  | undefined;
 
 export function capabilityTicketSigningConfig(): CapabilityTicketSigningConfig {
   const keyId = process.env[CAPABILITY_TICKET_SIGNING_KEY_ID_VARIABLE]?.trim() ?? '';
-  const privateKeySource = process.env[CAPABILITY_TICKET_SIGNING_PRIVATE_KEY_VARIABLE]?.trim() ?? '';
+  const privateKeySource =
+    process.env[CAPABILITY_TICKET_SIGNING_PRIVATE_KEY_VARIABLE]?.trim() ?? '';
   if (cached?.keyId === keyId && cached.privateKeySource === privateKeySource) return cached.config;
   if (!/^[A-Za-z0-9._-]{1,128}$/.test(keyId)) {
-    throw new Error(`${CAPABILITY_TICKET_SIGNING_KEY_ID_VARIABLE} must be 1-128 URL-safe characters`);
+    throw new Error(
+      `${CAPABILITY_TICKET_SIGNING_KEY_ID_VARIABLE} must be 1-128 URL-safe characters`,
+    );
   }
   const pem = privateKeySource.includes('-----BEGIN')
     ? privateKeySource
@@ -37,10 +43,14 @@ export function capabilityTicketSigningConfig(): CapabilityTicketSigningConfig {
   try {
     privateKey = createPrivateKey(pem);
   } catch {
-    throw new Error(`${CAPABILITY_TICKET_SIGNING_PRIVATE_KEY_VARIABLE} must contain an Ed25519 private key`);
+    throw new Error(
+      `${CAPABILITY_TICKET_SIGNING_PRIVATE_KEY_VARIABLE} must contain an Ed25519 private key`,
+    );
   }
   if (privateKey.asymmetricKeyType !== 'ed25519') {
-    throw new Error(`${CAPABILITY_TICKET_SIGNING_PRIVATE_KEY_VARIABLE} must contain an Ed25519 private key`);
+    throw new Error(
+      `${CAPABILITY_TICKET_SIGNING_PRIVATE_KEY_VARIABLE} must contain an Ed25519 private key`,
+    );
   }
   const publicKey = createPublicKey(privateKey);
   const exported = publicKey.export({ format: 'jwk' });

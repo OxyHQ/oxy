@@ -9,8 +9,18 @@
 
 /** Phrases that mark sign-in and verification mail. */
 export const ACCOUNT_SECRET_WORDS = [
-  'password', 'passcode', 'one-time code', 'one time code', 'otp', '2fa', 'mfa',
-  'verification code', 'security code', 'reset', 'verify your', 'confirm your account',
+  'password',
+  'passcode',
+  'one-time code',
+  'one time code',
+  'otp',
+  '2fa',
+  'mfa',
+  'verification code',
+  'security code',
+  'reset',
+  'verify your',
+  'confirm your account',
 ] as const;
 
 /** Shapes of a secret: a US SSN, a card number, a labelled short code. */
@@ -33,7 +43,9 @@ export function hasSixDigitCodeBeforeSecurityWord(content: string): boolean {
 /** True when `content` (subject and body, any case) looks like it holds a secret. */
 export function containsAccountSecret(content: string): boolean {
   const lower = content.toLowerCase();
-  return ACCOUNT_SECRET_WORDS.some((word) => lower.includes(word))
-    || ACCOUNT_SECRET_PATTERNS.some((pattern) => pattern.test(content))
-    || hasSixDigitCodeBeforeSecurityWord(content);
+  return (
+    ACCOUNT_SECRET_WORDS.some((word) => lower.includes(word)) ||
+    ACCOUNT_SECRET_PATTERNS.some((pattern) => pattern.test(content)) ||
+    hasSixDigitCodeBeforeSecurityWord(content)
+  );
 }

@@ -512,7 +512,7 @@ async function reconcileExisting(
       'subject_bound_elsewhere',
       `${existing.provider} subject ${existing.subject} is already bound to application ` +
         `${existing.applicationId}; refusing to repoint it at ${request.applicationId}. ` +
-        'Repointing would hand one service another service\'s identity without either noticing. ' +
+        "Repointing would hand one service another service's identity without either noticing. " +
         'Delete the existing binding first if the move is intended.',
     );
   }
@@ -593,7 +593,9 @@ function describeScopeChange(before: readonly string[], after: readonly string[]
 
 /** Postgres's unique_violation. */
 function isUniqueViolation(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505';
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505'
+  );
 }
 
 /**
@@ -724,7 +726,10 @@ export async function listWorkloadIdentityBindings(
     .select(BINDING_COLUMNS)
     .from(applicationWorkloadIdentities)
     .where(eq(applicationWorkloadIdentities.applicationId, applicationId))
-    .orderBy(asc(applicationWorkloadIdentities.provider), asc(applicationWorkloadIdentities.subject));
+    .orderBy(
+      asc(applicationWorkloadIdentities.provider),
+      asc(applicationWorkloadIdentities.subject),
+    );
   return rows.map(withAttestationId);
 }
 
@@ -805,7 +810,9 @@ export function parseScopeList(raw: string): string[] {
  *     step — which carries no `--scopes`, because it predates the column —
  *     revoke the authority somebody granted that morning.
  */
-export function parseBindWorkloadIdentityArgv(argv: readonly string[]): BindWorkloadIdentityInvocation {
+export function parseBindWorkloadIdentityArgv(
+  argv: readonly string[],
+): BindWorkloadIdentityInvocation {
   const values = new Map<string, string>();
   let list = false;
 
@@ -848,13 +855,17 @@ export function parseBindWorkloadIdentityArgv(argv: readonly string[]): BindWork
       values.has('--scopes') ||
       values.has('--expires-at')
     ) {
-      throw new WorkloadBindingUsageError('--list reads one application\'s bindings; it writes nothing.');
+      throw new WorkloadBindingUsageError(
+        "--list reads one application's bindings; it writes nothing.",
+      );
     }
     return { mode: 'list', applicationId };
   }
 
   if (subject === undefined) {
-    throw new WorkloadBindingUsageError('--role-arn (or --subject) is required unless --list is given.');
+    throw new WorkloadBindingUsageError(
+      '--role-arn (or --subject) is required unless --list is given.',
+    );
   }
 
   const description = values.get('--description');

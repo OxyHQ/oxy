@@ -142,8 +142,18 @@ function isRelayTransportFailure(error: unknown): boolean {
   if (isAuthenticationFailure(error)) return true;
   if (typeof error !== 'object' || error === null) return false;
   const e = error as { code?: unknown; responseCode?: unknown };
-  if (typeof e.code === 'string'
-    && ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'ENOTFOUND', 'EHOSTUNREACH'].includes(e.code)) {
+  if (
+    typeof e.code === 'string' &&
+    [
+      'ECONNREFUSED',
+      'ECONNRESET',
+      'ETIMEDOUT',
+      'ESOCKET',
+      'EDNS',
+      'ENOTFOUND',
+      'EHOSTUNREACH',
+    ].includes(e.code)
+  ) {
     return true;
   }
   // 421 "service not available" and 451 are the shapes a provider uses when it
@@ -161,7 +171,7 @@ class SmtpOutboundService {
         'Outbound email is not configured on this server: SMTP_RELAY_HOST is unset. ' +
           'Nodemailer removed the legacy `{ direct: true }` MX-resolution path, so a relay ' +
           'is mandatory; set SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS. ' +
-          'The host accepts a comma-separated list for failover.'
+          'The host accepts a comma-separated list for failover.',
       );
     }
     return SMTP_RELAYS;
@@ -215,7 +225,10 @@ class SmtpOutboundService {
         if (i > 0) {
           logger.warn('Outbound email delivered through a fallback relay', {
             relay: relay.name,
-            skipped: relays.slice(0, i).map((r) => r.name).join(', '),
+            skipped: relays
+              .slice(0, i)
+              .map((r) => r.name)
+              .join(', '),
           });
         }
         return { relayMessageId: relayAssignedMessageId(relay.host, info.response) };
@@ -309,7 +322,9 @@ class SmtpOutboundService {
   ): Promise<{ messageId: string; queued: boolean }> {
     try {
       const attachments = await this.resolveAttachments(message.attachments || []);
-      const { relayMessageId } = await this.deliverThroughRelays(this.mailOptionsFor(message, messageId, attachments));
+      const { relayMessageId } = await this.deliverThroughRelays(
+        this.mailOptionsFor(message, messageId, attachments),
+      );
 
       const size = Buffer.byteLength((message.text || '') + (message.html || ''), 'utf8');
       await emailService.storeSentMessage(message.userId, {
@@ -348,7 +363,10 @@ class SmtpOutboundService {
         );
         throw error;
       }
-      logger.error('Email send failed, queuing for retry', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        'Email send failed, queuing for retry',
+        error instanceof Error ? error : new Error(String(error)),
+      );
       const nextAttemptAt = new Date(Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[0]);
       if (outboxId) {
         await markEmailOutboxFailed(outboxId, error, nextAttemptAt);
@@ -373,7 +391,9 @@ class SmtpOutboundService {
   async sendRaw(message: OutboundMessage): Promise<{ relayMessageId: string | null }> {
     const messageId = message.messageId ?? `<${uuidv4()}@${EMAIL_DOMAIN}>`;
     const attachments = await this.resolveAttachments(message.attachments || []);
-    const delivered = await this.deliverThroughRelays(this.mailOptionsFor(message, messageId, attachments));
+    const delivered = await this.deliverThroughRelays(
+      this.mailOptionsFor(message, messageId, attachments),
+    );
 
     logger.info('Raw email sent', {
       messageId,
@@ -388,7 +408,12 @@ class SmtpOutboundService {
    * queued: what it carries is short-lived, so a send that fails now is
    * reported now rather than delivered stale.
    */
-  async sendSystem(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
+  async sendSystem(message: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+  }): Promise<void> {
     await this.deliverThroughRelays({
       messageId: `<${uuidv4()}@${EMAIL_DOMAIN}>`,
       from: `Oxy <noreply@${EMAIL_DOMAIN}>`,
@@ -426,7 +451,7 @@ class SmtpOutboundService {
       `  Date: ${now}`,
       '',
       'This is a Message Disposition Notification (MDN) confirming that',
-      'the message was displayed by the recipient\'s mail client.',
+      "the message was displayed by the recipient's mail client.",
     ].join('\r\n');
 
     // Machine-readable part (RFC 3798 Section 3.2.6)
@@ -484,9 +509,14 @@ class SmtpOutboundService {
   }
 
   private async resolveAttachments(
-    attachments: MessageAttachment[]
+    attachments: MessageAttachment[],
   ): Promise<Array<{ filename: string; content: Buffer; contentType: string; cid?: string }>> {
-    type ResolvedAttachment = { filename: string; content: Buffer; contentType: string; cid?: string };
+    type ResolvedAttachment = {
+      filename: string;
+      content: Buffer;
+      contentType: string;
+      cid?: string;
+    };
 
     const results = await Promise.all(
       attachments.map(async (att): Promise<ResolvedAttachment | null> => {
@@ -504,11 +534,11 @@ class SmtpOutboundService {
           logger.error(
             'Failed to fetch attachment from Oxy file manager',
             err instanceof Error ? err : new Error(String(err)),
-            { fileId: att.fileId }
+            { fileId: att.fileId },
           );
           return null;
         }
-      })
+      }),
     );
 
     return results.filter((r): r is ResolvedAttachment => r !== null);

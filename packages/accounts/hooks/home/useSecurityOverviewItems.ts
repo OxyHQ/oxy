@@ -60,7 +60,10 @@ export function useSecurityOverviewItems({
         id: 'biometric',
         icon: Platform.OS === 'ios' ? 'face-recognition' : 'fingerprint',
         iconColor: biometricEnabled ? colors.success : colors.sidebarIconSecurity,
-        title: Platform.OS === 'ios' ? t('home.securityOverview.faceTouchId') : t('home.securityOverview.biometricAuth'),
+        title:
+          Platform.OS === 'ios'
+            ? t('home.securityOverview.faceTouchId')
+            : t('home.securityOverview.biometricAuth'),
         subtitle: biometricSubtitle,
         onPress: handleSecurity,
       });
@@ -69,11 +72,15 @@ export function useSecurityOverviewItems({
     // How the account gets back in: Commons' recovery phrase for a
     // self-custodied account, its email (a code) for one without a key.
     // Unknown status shows no verdict.
-    const recoveryNeedsAttention = rootStatus !== undefined && !rootStatus.rootLinked && !rootStatus.recoveryEmail;
+    const recoveryNeedsAttention =
+      rootStatus !== undefined && !rootStatus.rootLinked && !rootStatus.recoveryEmail;
     let recoverySubtitle = '';
     if (rootStatus === undefined) recoverySubtitle = t('home.securityOverview.recoveryChecking');
     else if (rootStatus.rootLinked) recoverySubtitle = t('home.securityOverview.recoveryInCommons');
-    else if (rootStatus.recoveryEmail) recoverySubtitle = t('home.securityOverview.recoveryEmail', { email: rootStatus.recoveryEmail });
+    else if (rootStatus.recoveryEmail)
+      recoverySubtitle = t('home.securityOverview.recoveryEmail', {
+        email: rootStatus.recoveryEmail,
+      });
     else recoverySubtitle = t('home.securityOverview.recoveryNotSecured');
     items.push({
       id: 'recovery',
@@ -86,16 +93,32 @@ export function useSecurityOverviewItems({
     });
 
     // Security status based on recommendations
-    const hasSecurityIssues = recoveryNeedsAttention || (Platform.OS !== 'web' && hasBiometricHardware && !biometricEnabled && canEnableBiometric);
+    const hasSecurityIssues =
+      recoveryNeedsAttention ||
+      (Platform.OS !== 'web' && hasBiometricHardware && !biometricEnabled && canEnableBiometric);
     items.push({
       id: 'security-status',
       icon: 'shield-lock-outline',
       iconColor: hasSecurityIssues ? colors.sidebarIconPayments : colors.success,
       title: t('home.securityOverview.securityStatus'),
-      subtitle: hasSecurityIssues ? t('home.securityOverview.needsAttention') : t('home.securityOverview.protected'),
+      subtitle: hasSecurityIssues
+        ? t('home.securityOverview.needsAttention')
+        : t('home.securityOverview.protected'),
       onPress: handleSecurity,
     });
 
     return items;
-  }, [biometricEnabled, canEnableBiometric, hasBiometricHardware, biometricLoading, colors.sidebarIconSecurity, colors.sidebarIconPayments, colors.success, rootStatus, handleLinkCommons, handleSecurity, t]);
+  }, [
+    biometricEnabled,
+    canEnableBiometric,
+    hasBiometricHardware,
+    biometricLoading,
+    colors.sidebarIconSecurity,
+    colors.sidebarIconPayments,
+    colors.success,
+    rootStatus,
+    handleLinkCommons,
+    handleSecurity,
+    t,
+  ]);
 }

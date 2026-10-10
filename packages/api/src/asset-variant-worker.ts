@@ -11,10 +11,7 @@ import { startWorkerActivity, stopWorkerActivity } from './services/workerActivi
 import { shutdownTelemetry } from './telemetry';
 import { closePostgres } from './config/postgres';
 import { closeRedis } from './config/redis';
-import {
-  startAssetVariantWorker,
-  stopAssetVariantWorker,
-} from './queue/assetVariants.queue';
+import { startAssetVariantWorker, stopAssetVariantWorker } from './queue/assetVariants.queue';
 import { logger } from './utils/logger';
 import { waitForDatabaseConnection } from './utils/dbConnection';
 

@@ -36,7 +36,9 @@ import type { OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 import { createSessionClient } from '../../src/ui/session';
 
-const mockedCreateSessionClient = createSessionClient as jest.MockedFunction<typeof createSessionClient>;
+const mockedCreateSessionClient = createSessionClient as jest.MockedFunction<
+  typeof createSessionClient
+>;
 
 const ACCOUNT_A1 = 'user-a1';
 const ACCOUNT_A2 = 'user-a2';
@@ -109,19 +111,40 @@ function buildFakeClient(initial: DeviceSessionState) {
 
   const switchAccount = jest.fn(async (accountId: string) => {
     if (!state) return;
-    state = { ...state, activeAccountId: accountId, revision: state.revision + 1, updatedAt: Date.now() };
+    state = {
+      ...state,
+      activeAccountId: accountId,
+      revision: state.revision + 1,
+      updatedAt: Date.now(),
+    };
     notify();
   });
 
   const signOut = jest.fn(async (target: { accountId: string } | { all: true }) => {
     if (!state) return;
     if ('all' in target) {
-      state = { ...state, accounts: [], activeAccountId: null, revision: state.revision + 1, updatedAt: Date.now() };
+      state = {
+        ...state,
+        accounts: [],
+        activeAccountId: null,
+        revision: state.revision + 1,
+        updatedAt: Date.now(),
+      };
     } else {
       const remaining = state.accounts.filter((account) => account.accountId !== target.accountId);
-      const activeStillPresent = remaining.some((account) => account.accountId === state?.activeAccountId);
-      const nextActive = activeStillPresent ? state.activeAccountId : (remaining[0]?.accountId ?? null);
-      state = { ...state, accounts: remaining, activeAccountId: nextActive, revision: state.revision + 1, updatedAt: Date.now() };
+      const activeStillPresent = remaining.some(
+        (account) => account.accountId === state?.activeAccountId,
+      );
+      const nextActive = activeStillPresent
+        ? state.activeAccountId
+        : (remaining[0]?.accountId ?? null);
+      state = {
+        ...state,
+        accounts: remaining,
+        activeAccountId: nextActive,
+        revision: state.revision + 1,
+        updatedAt: Date.now(),
+      };
     }
     notify();
   });
@@ -171,8 +194,9 @@ function buildFakeClient(initial: DeviceSessionState) {
 
 function buildStub(baseURL: string) {
   let currentToken: string | null = null;
-  const getUsersByIds = jest.fn(async (ids: string[]): Promise<User[]> =>
-    ids.map((id) => ({ id, username: `user-${id}` } as User)),
+  const getUsersByIds = jest.fn(
+    async (ids: string[]): Promise<User[]> =>
+      ids.map((id) => ({ id, username: `user-${id}` }) as User),
   );
   // Who `GET /users/me` answers as. A mint MOVES it, exactly as the real
   // endpoint does: the bearer planted by the commit belongs to the newly
@@ -208,39 +232,79 @@ function buildStub(baseURL: string) {
       // `installAuthRefreshHandler` (SDK-owned unified refresh) installs the one
       // core refresh handler on the client's HttpService at mount.
       http: {
-        setTokens: (token: string) => { currentToken = token; },
+        setTokens: (token: string) => {
+          currentToken = token;
+        },
         setAuthRefreshHandler: jest.fn(),
         refreshAccessToken: jest.fn(async () => null),
       },
       baseURL: baseURL,
       getSessionBaseUrl: () => baseURL,
-      session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; }, logoutAll: logoutAllSessions },
-cache: { clear: jest.fn() },
-apps: { getPublic: jest.fn(async () => ({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) },
-devices: { mintToken: jest.fn(async () => ({
-        accessToken: 'a1.access.token',
-        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-        nextDeviceSecret: 'a1.next.secret',
-        state: {
-          deviceId: 'dev-1',
-          accounts: [{ accountId: ACCOUNT_A1, sessionId: SESSION_A1, authuser: 0 }],
-          activeAccountId: ACCOUNT_A1,
-          revision: 1,
-          updatedAt: Date.now(),
+      session: {
+        get accessToken() {
+          return (() => currentToken)();
         },
-      })) },
+        get accessTokenExpiry() {
+          return (() => null)();
+        },
+        onChange: () => () => undefined,
+        setDeviceCredentialProvider: () => () => undefined,
+        setAccessToken: (token: string) => {
+          currentToken = token;
+        },
+        clear: () => {
+          currentToken = null;
+        },
+        logoutAll: logoutAllSessions,
+      },
+      cache: { clear: jest.fn() },
+      apps: {
+        getPublic: jest.fn(async () => ({
+          id: 'registered-fixture',
+          name: 'Registered Fixture',
+          type: 'first_party',
+          isOfficial: false,
+          isInternal: false,
+          scopes: [],
+        })),
+      },
+      devices: {
+        mintToken: jest.fn(async () => ({
+          accessToken: 'a1.access.token',
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+          nextDeviceSecret: 'a1.next.secret',
+          state: {
+            deviceId: 'dev-1',
+            accounts: [{ accountId: ACCOUNT_A1, sessionId: SESSION_A1, authuser: 0 }],
+            activeAccountId: ACCOUNT_A1,
+            revision: 1,
+            updatedAt: Date.now(),
+          },
+        })),
+      },
       auth: { signInWithCommonsIdentity: jest.fn(async () => null) },
-      users: { me: jest.fn(
-        async (): Promise<User> => ({ id: currentAccountId, username: `user-${currentAccountId}` } as User),
-      ), bySession: jest.fn(
-        async (): Promise<User> => ({ id: currentAccountId, username: `user-${currentAccountId}` } as User),
-      ), getMany: getUsersByIds },
+      users: {
+        me: jest.fn(
+          async (): Promise<User> =>
+            ({ id: currentAccountId, username: `user-${currentAccountId}` }) as User,
+        ),
+        bySession: jest.fn(
+          async (): Promise<User> =>
+            ({ id: currentAccountId, username: `user-${currentAccountId}` }) as User,
+        ),
+        getMany: getUsersByIds,
+      },
       accounts: { list: jest.fn(async () => []), actAs: switchToAccount },
     },
   };
 }
 
-let captured: { isAuthenticated: boolean; activeSessionId: string | null; sessionsLength: number; userId: string | undefined } = {
+let captured: {
+  isAuthenticated: boolean;
+  activeSessionId: string | null;
+  sessionsLength: number;
+  userId: string | undefined;
+} = {
   isAuthenticated: false,
   activeSessionId: null,
   sessionsLength: 0,
@@ -271,7 +335,11 @@ function renderProvider(oxyServices: unknown, baseURL: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider oxyServices={oxyServices as never} baseURL={baseURL} clientId="oxy_test_registered">
+      <OxyRuntimeProvider
+        oxyServices={oxyServices as never}
+        baseURL={baseURL}
+        clientId="oxy_test_registered"
+      >
         <Capture />
       </OxyRuntimeProvider>
     </QueryClientProvider>,
@@ -319,7 +387,11 @@ async function bootWithDeviceState(deviceState: DeviceSessionState) {
   const fake = buildFakeClient(deviceState);
   mockedCreateSessionClient.mockReturnValue({
     client: fake.fakeClient as never,
-    host: { setCurrentAccountId: jest.fn(), setDeviceCredential: jest.fn(), getDeviceCredential: () => null } as never,
+    host: {
+      setCurrentAccountId: jest.fn(),
+      setDeviceCredential: jest.fn(),
+      getDeviceCredential: () => null,
+    } as never,
   });
 
   const baseURL = nextBaseURL();
@@ -338,7 +410,12 @@ describe('Mutations routed through SessionClient (Task 3)', () => {
   beforeEach(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
-    captured = { isAuthenticated: false, activeSessionId: null, sessionsLength: 0, userId: undefined };
+    captured = {
+      isAuthenticated: false,
+      activeSessionId: null,
+      sessionsLength: 0,
+      userId: undefined,
+    };
     oxyApi = null;
     useAuthStore.getState().logout();
     mockedCreateSessionClient.mockReset();
@@ -432,7 +509,12 @@ describe('switchToAccount unifies org/managed-account switching through the devi
   beforeEach(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
-    captured = { isAuthenticated: false, activeSessionId: null, sessionsLength: 0, userId: undefined };
+    captured = {
+      isAuthenticated: false,
+      activeSessionId: null,
+      sessionsLength: 0,
+      userId: undefined,
+    };
     oxyApi = null;
     useAuthStore.getState().logout();
     mockedCreateSessionClient.mockReset();
@@ -459,7 +541,9 @@ describe('switchToAccount unifies org/managed-account switching through the devi
     expect(fake.addCurrentAccount.mock.calls.length).toBe(addCurrentAccountCallsBefore);
     // Shared post-switch side effects still ran (`refreshAccounts` calls
     // `oxyServices.listAccounts()`).
-    await waitFor(() => expect(stub.accounts.list.mock.calls.length).toBeGreaterThan(listAccountsCallsBefore));
+    await waitFor(() =>
+      expect(stub.accounts.list.mock.calls.length).toBeGreaterThan(listAccountsCallsBefore),
+    );
   });
 
   it('switchToAccount(ACCOUNT_A3) — NOT yet on the device — keeps the first-time mint path and activates it via registerAndActivate', async () => {
@@ -482,6 +566,8 @@ describe('switchToAccount unifies org/managed-account switching through the devi
     // No additional cold-boot-style membership-only registration.
     expect(fake.addCurrentAccount.mock.calls.length).toBe(addCurrentAccountCallsBefore);
     // Shared post-switch side effects still ran, same as the already-on-device branch.
-    await waitFor(() => expect(stub.accounts.list.mock.calls.length).toBeGreaterThan(listAccountsCallsBefore));
+    await waitFor(() =>
+      expect(stub.accounts.list.mock.calls.length).toBeGreaterThan(listAccountsCallsBefore),
+    );
   });
 });

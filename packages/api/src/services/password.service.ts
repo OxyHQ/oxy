@@ -107,12 +107,21 @@ interface Parsed extends Params {
 function parse(stored: string): Parsed | null {
   const parts = stored.split('$');
   // ['', 'scrypt', 'v=1', 'ln=15,r=8,p=3', salt, hash]
-  if (parts.length !== 6 || parts[0] !== '' || parts[1] !== SCHEME || parts[2] !== `v=${VERSION}`) return null;
+  if (parts.length !== 6 || parts[0] !== '' || parts[1] !== SCHEME || parts[2] !== `v=${VERSION}`)
+    return null;
   const match = /^ln=(\d{1,2}),r=(\d{1,2}),p=(\d{1,2})$/.exec(parts[3]);
   if (!match) return null;
   const params = { logN: Number(match[1]), r: Number(match[2]), p: Number(match[3]) };
   // Refuse parameters a tampered row could use to exhaust memory or CPU.
-  if (params.logN < 10 || params.logN > 17 || params.r < 1 || params.r > 16 || params.p < 1 || params.p > 16) return null;
+  if (
+    params.logN < 10 ||
+    params.logN > 17 ||
+    params.r < 1 ||
+    params.r > 16 ||
+    params.p < 1 ||
+    params.p > 16
+  )
+    return null;
   const salt = Buffer.from(parts[4], 'base64url');
   const key = Buffer.from(parts[5], 'base64url');
   if (salt.length < SALT_BYTES || key.length !== KEY_BYTES) return null;
@@ -139,7 +148,10 @@ let dummyHash: Promise<string> | null = null;
  * Verify against `stored`, or — when there is nothing to verify against — spend
  * the same work on a throwaway hash and answer false.
  */
-export async function verifyPasswordOrDummy(password: string, stored: string | null): Promise<boolean> {
+export async function verifyPasswordOrDummy(
+  password: string,
+  stored: string | null,
+): Promise<boolean> {
   if (stored) return verifyPassword(password, stored);
   dummyHash ??= hashPassword(crypto.randomBytes(24).toString('base64url'));
   await verifyPassword(password, await dummyHash);
@@ -147,7 +159,10 @@ export async function verifyPasswordOrDummy(password: string, stored: string | n
 }
 
 /** The account's stored hash, or null. */
-export async function readPasswordHash(userId: string, db: DatabaseOrTransaction = getDb()): Promise<string | null> {
+export async function readPasswordHash(
+  userId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<string | null> {
   const [row] = await db
     .select({ passwordHash: userPasswords.passwordHash })
     .from(userPasswords)
@@ -157,10 +172,17 @@ export async function readPasswordHash(userId: string, db: DatabaseOrTransaction
 }
 
 /** Set (or replace) the account's password. */
-export async function storePassword(userId: string, password: string, now: Date = new Date()): Promise<void> {
+export async function storePassword(
+  userId: string,
+  password: string,
+  now: Date = new Date(),
+): Promise<void> {
   const passwordHash = await hashPassword(password);
   await getDb()
     .insert(userPasswords)
     .values({ userId, passwordHash, changedAt: now })
-    .onConflictDoUpdate({ target: userPasswords.userId, set: { passwordHash, changedAt: now, updatedAt: now } });
+    .onConflictDoUpdate({
+      target: userPasswords.userId,
+      set: { passwordHash, changedAt: now, updatedAt: now },
+    });
 }

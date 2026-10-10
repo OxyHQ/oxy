@@ -1,5 +1,9 @@
 import type { createEcosystemTraffic, EcosystemTrafficOptions } from '@oxy.so/core/server';
-import { observeAssetJob, startWorkerActivity, stopWorkerActivity } from '../workerActivity.service';
+import {
+  observeAssetJob,
+  startWorkerActivity,
+  stopWorkerActivity,
+} from '../workerActivity.service';
 
 type Publisher = ReturnType<typeof createEcosystemTraffic>;
 const keys = ['AWS_REGION', 'OXY_ACTIVITY_API_KEY', 'OXY_ACTIVITY_API_SECRET', 'NODE_ENV'] as const;
@@ -7,16 +11,23 @@ let original: Array<string | undefined>;
 const record = jest.fn();
 const stop = jest.fn(async () => undefined);
 const installFetch = jest.fn();
-const create = jest.fn((_options: EcosystemTrafficOptions) => ({ record, stop, installFetch }) as unknown as Publisher);
+const create = jest.fn(
+  (_options: EcosystemTrafficOptions) => ({ record, stop, installFetch }) as unknown as Publisher,
+);
 
 beforeEach(() => {
-  original = keys.map(key => process.env[key]);
-  keys.forEach(key => { delete process.env[key]; });
+  original = keys.map((key) => process.env[key]);
+  keys.forEach((key) => {
+    delete process.env[key];
+  });
   jest.clearAllMocks();
 });
 afterEach(async () => {
   await stopWorkerActivity();
-  keys.forEach((key, index) => { if (original[index] === undefined) delete process.env[key]; else process.env[key] = original[index]; });
+  keys.forEach((key, index) => {
+    if (original[index] === undefined) delete process.env[key];
+    else process.env[key] = original[index];
+  });
 });
 function enable() {
   process.env.AWS_REGION = 'us-west-2';
@@ -63,7 +74,15 @@ test('jobs report bounded media infrastructure metadata and legacy jobs retain u
   observeAssetJob('eu-west-1');
   observeAssetJob(undefined);
   observeAssetJob({ fileId: 'private-file', userId: 'private-user' });
-  expect(record.mock.calls[0][0]).toEqual({ scope: 'internal', direction: 'inbound', activityType: 'media', sourceService: 'oxy-api', sourceRegion: 'eu-west-1', targetService: 'oxy-asset-variant-worker', targetRegion: 'us-west-2' });
+  expect(record.mock.calls[0][0]).toEqual({
+    scope: 'internal',
+    direction: 'inbound',
+    activityType: 'media',
+    sourceService: 'oxy-api',
+    sourceRegion: 'eu-west-1',
+    targetService: 'oxy-asset-variant-worker',
+    targetRegion: 'us-west-2',
+  });
   expect(record.mock.calls[1][0].sourceRegion).toBeUndefined();
   expect(record.mock.calls[2][0].sourceRegion).toBeUndefined();
   expect(JSON.stringify(record.mock.calls)).not.toMatch(/private|dedicated/);

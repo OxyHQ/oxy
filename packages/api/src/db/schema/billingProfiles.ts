@@ -127,11 +127,11 @@ export const billingProfiles = pgTable(
 
     check(
       'billing_profiles_billing_mode_check',
-      sql`${t.billingMode} in (${sql.raw(inList(BILLING_MODES))})`
+      sql`${t.billingMode} in (${sql.raw(inList(BILLING_MODES))})`,
     ),
     check(
       'billing_profiles_status_check',
-      sql`${t.status} in (${sql.raw(inList(BILLING_PROFILE_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(BILLING_PROFILE_STATUSES))})`,
     ),
     check('billing_profiles_currency_check', currencyCodeCheck(t.currency)),
     check('billing_profiles_credit_limit_check', sql`${t.creditLimit} >= 0`),
@@ -142,12 +142,12 @@ export const billingProfiles = pgTable(
     check(
       'billing_profiles_auto_recharge_check',
       sql`not ${t.autoRechargeEnabled}
-        or (${t.autoRechargeThreshold} is not null and ${t.autoRechargeAmount} is not null)`
+        or (${t.autoRechargeThreshold} is not null and ${t.autoRechargeAmount} is not null)`,
     ),
     check(
       'billing_profiles_auto_recharge_amounts_check',
       sql`(${t.autoRechargeThreshold} is null or ${t.autoRechargeThreshold} >= 0)
-        and (${t.autoRechargeAmount} is null or ${t.autoRechargeAmount} > 0)`
+        and (${t.autoRechargeAmount} is null or ${t.autoRechargeAmount} > 0)`,
     ),
-  ]
+  ],
 );

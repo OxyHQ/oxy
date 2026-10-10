@@ -1,10 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Animated, {
-  useSharedValue,
-  withTiming,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
+import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Checkbox } from 'expo-checkbox';
 import { useColors } from '@/hooks/useColors';
@@ -36,10 +32,7 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const colors = useColors();
   const { t } = useTranslation();
-  const rotatingTexts = useMemo(
-    () => ROTATING_TEXT_KEYS.map((key) => t(key)),
-    [t],
-  );
+  const rotatingTexts = useMemo(() => ROTATING_TEXT_KEYS.map((key) => t(key)), [t]);
 
   const backgroundColor = colors.background;
   const textColor = colors.text;
@@ -73,7 +66,10 @@ export default function WelcomeScreen() {
   const containerStyle = useMemo(() => ({ backgroundColor }), [backgroundColor]);
   const textStyleMemo = useMemo(() => [styles.text, { color: textColor }], [textColor]);
   const rotatingTextStyleMemo = useMemo(() => ({ ...styles.text, color: textColor }), [textColor]);
-  const checkboxTextStyleMemo = useMemo(() => [styles.checkboxText, { color: textColor }], [textColor]);
+  const checkboxTextStyleMemo = useMemo(
+    () => [styles.checkboxText, { color: textColor }],
+    [textColor],
+  );
 
   // Consolidated entrance animation
   useEffect(() => {
@@ -103,7 +99,6 @@ export default function WelcomeScreen() {
       clearTimeout(t2);
       clearTimeout(t3);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleContinue = useCallback(() => {
@@ -123,7 +118,7 @@ export default function WelcomeScreen() {
   }, [router]);
 
   const toggleTermsAccepted = useCallback(() => {
-    setTermsAccepted(prev => !prev);
+    setTermsAccepted((prev) => !prev);
   }, []);
 
   return (
@@ -179,16 +174,24 @@ export default function WelcomeScreen() {
             accessibilityLabel={t('auth.welcome.termsAgree')}
             accessibilityState={{ checked: termsAccepted }}
           >
-            <Text style={checkboxTextStyleMemo}>
-              {t('auth.welcome.termsAgree')}
-            </Text>
+            <Text style={checkboxTextStyleMemo}>{t('auth.welcome.termsAgree')}</Text>
           </TouchableOpacity>
         </View>
 
         <View className="flex-row gap-space-12">
-          <Button appearance="outline" tone="neutral" onPress={handleDecline} className="flex-1">{t('auth.welcome.decline')}</Button>
+          <Button appearance="outline" tone="neutral" onPress={handleDecline} className="flex-1">
+            {t('auth.welcome.decline')}
+          </Button>
 
-          <Button appearance="solid" tone="accent" onPress={handleContinue} disabled={!termsAccepted} className="flex-1">{t('auth.welcome.accept')}</Button>
+          <Button
+            appearance="solid"
+            tone="accent"
+            onPress={handleContinue}
+            disabled={!termsAccepted}
+            className="flex-1"
+          >
+            {t('auth.welcome.accept')}
+          </Button>
         </View>
 
         <TouchableOpacity

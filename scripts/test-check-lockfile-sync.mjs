@@ -87,7 +87,15 @@ function createFixture() {
   for (const args of [
     ['init', '-q', '.'],
     ['add', '-A'],
-    ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', 'commit', '-qm', 'fixture'],
+    [
+      '-c',
+      'user.email=fixture@example.invalid',
+      '-c',
+      'user.name=fixture',
+      'commit',
+      '-qm',
+      'fixture',
+    ],
   ]) {
     const step = runCommand('git', args, root);
     if (step.code !== 0) throw new Error(`Fixture git ${args[0]} failed: ${step.output}`);
@@ -103,7 +111,9 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment) {
     return;
   }
   if (!output.includes(expectedFragment)) {
-    failures.push(`${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`);
+    failures.push(
+      `${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`,
+    );
     return;
   }
   // Layer 2 installs to reach its verdict. A failing run must not leave the
@@ -135,7 +145,11 @@ expectVerdict(
 // A renamed workspace leaves every dependent's recorded range pointing at a name
 // that no longer exists.
 const renameFixture = createFixture();
-writeManifest(renameFixture, 'packages/beta', { name: 'beta-renamed', private: true, version: '2.0.0' });
+writeManifest(renameFixture, 'packages/beta', {
+  name: 'beta-renamed',
+  private: true,
+  version: '2.0.0',
+});
 expectVerdict(
   'workspace-renamed',
   renameFixture,
@@ -146,7 +160,11 @@ expectVerdict(
 // A declared workspace the lockfile never recorded.
 const addedFixture = createFixture();
 writeManifest(addedFixture, 'packages/gamma', { name: 'gamma', private: true, version: '3.0.0' });
-writeManifest(addedFixture, '.', rootManifest({ workspaces: ['packages/alpha', 'packages/beta', 'packages/gamma'] }));
+writeManifest(
+  addedFixture,
+  '.',
+  rootManifest({ workspaces: ['packages/alpha', 'packages/beta', 'packages/gamma'] }),
+);
 expectVerdict(
   'workspace-added',
   addedFixture,
@@ -169,7 +187,12 @@ expectVerdict('trusted-dependencies-added', trustedFixture, 1, 'trustedDependenc
 // invisible to the manifest comparison, caught by the install.
 const removedFixture = createFixture();
 writeManifest(removedFixture, 'packages/alpha', { name: 'alpha', private: true, version: '1.0.0' });
-expectVerdict('dependency-removed', removedFixture, 1, 'is OUT OF SYNC with the package.json files');
+expectVerdict(
+  'dependency-removed',
+  removedFixture,
+  1,
+  'is OUT OF SYNC with the package.json files',
+);
 
 // An already-modified lockfile makes attribution impossible, so it must refuse
 // rather than blame the commit for what was altered beforehand.

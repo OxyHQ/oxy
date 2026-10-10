@@ -27,10 +27,7 @@
  * the user cache, the session service and the socket emitter are mocked.
  */
 
-import {
-  generateSecp256k1KeyPair,
-  normalizeSecp256k1PublicKey,
-} from '@oxy.so/protocol/secp256k1';
+import { generateSecp256k1KeyPair, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
@@ -86,7 +83,12 @@ interface JsonResponse {
   body: Record<string, unknown>;
 }
 
-async function request(server: http.Server, method: string, path: string, payload?: unknown): Promise<JsonResponse> {
+async function request(
+  server: http.Server,
+  method: string,
+  path: string,
+  payload?: unknown,
+): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = payload === undefined ? undefined : JSON.stringify(payload);
   return new Promise((resolve, reject) => {
@@ -96,14 +98,19 @@ async function request(server: http.Server, method: string, path: string, payloa
         host: '127.0.0.1',
         port: address.port,
         path,
-        headers: body !== undefined
-          ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
-          : {},
+        headers:
+          body !== undefined
+            ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
+            : {},
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }));
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
       },
     );
     req.on('error', reject);
@@ -266,7 +273,12 @@ function buildCompleteBody(params: {
       challenge: params.challenge,
       timestamp: params.timestamp,
     }),
-    newKeyProof: signNewKeyProof({ newPrivateKey, newPublicKey, challenge: params.challenge, timestamp: params.timestamp }),
+    newKeyProof: signNewKeyProof({
+      newPrivateKey,
+      newPublicKey,
+      challenge: params.challenge,
+      timestamp: params.timestamp,
+    }),
     timestamp: params.timestamp,
     ...(params.signOutEverywhere ? { signOutEverywhere: true } : {}),
   };
@@ -294,18 +306,22 @@ describe('POST /auth/rotate/complete — happy path', () => {
   it('replaces the identity key IN PLACE: same row, new key, challenge spent, backup gone', async () => {
     const newKeyPair = generateSecp256k1KeyPair();
     const newPublicKey = newKeyPair.publicKey;
-    const [identityBefore] = (await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity');
-    await getDb().insert(identityBackups).values({
-      userId: currentUserId,
-      lookupIdHash: `hash-${randomUUID()}`,
-      publicKeyHint: oldPublicKey.slice(0, 8),
-      ciphertext: 'deadbeef',
-      nonce: 'cafe',
-      algorithm: 'xchacha20poly1305',
-      kdfInfo: 'oxy-identity-backup',
-      version: 1,
-      clientCreatedAt: '2026-01-01T00:00:00.000Z',
-    });
+    const [identityBefore] = (await storedAuthMethods(currentUserId)).filter(
+      (m) => m.type === 'identity',
+    );
+    await getDb()
+      .insert(identityBackups)
+      .values({
+        userId: currentUserId,
+        lookupIdHash: `hash-${randomUUID()}`,
+        publicKeyHint: oldPublicKey.slice(0, 8),
+        ciphertext: 'deadbeef',
+        nonce: 'cafe',
+        algorithm: 'xchacha20poly1305',
+        kdfInfo: 'oxy-identity-backup',
+        version: 1,
+        clientCreatedAt: '2026-01-01T00:00:00.000Z',
+      });
 
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
@@ -342,7 +358,9 @@ describe('POST /auth/rotate/complete — happy path', () => {
     expect(backups).toHaveLength(0);
 
     // The derived DID reflects the new key IMMEDIATELY.
-    const vms = (await storedDidDocument(currentUserId)).verificationMethod as Array<{ publicKeyHex?: string }>;
+    const vms = (await storedDidDocument(currentUserId)).verificationMethod as Array<{
+      publicKeyHex?: string;
+    }>;
     expect(vms.some((vm) => vm.publicKeyHex === newPublicKey)).toBe(true);
     expect(vms.some((vm) => vm.publicKeyHex === oldPublicKey)).toBe(false);
   });
@@ -358,7 +376,13 @@ describe('POST /auth/rotate/complete — happy path', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+      }),
     );
 
     expect(res.status).toBe(200);
@@ -374,10 +398,21 @@ describe('security invariant — proof-of-possession of the new key', () => {
     const newPublicKey = newKeyPair.publicKey;
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
-    const signature = signRotation({ privateKey: oldPrivateKey, oldPublicKey, newPublicKey, challenge, timestamp });
+    const signature = signRotation({
+      privateKey: oldPrivateKey,
+      oldPublicKey,
+      newPublicKey,
+      challenge,
+      timestamp,
+    });
 
     // No newKeyProof field.
-    const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey, challenge, signature, timestamp });
+    const res = await request(server, 'POST', '/auth/rotate/complete', {
+      newPublicKey,
+      challenge,
+      signature,
+      timestamp,
+    });
 
     expect(res.status).toBe(400);
     expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
@@ -390,11 +425,28 @@ describe('security invariant — proof-of-possession of the new key', () => {
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
 
-    const signature = signRotation({ privateKey: oldPrivateKey, oldPublicKey, newPublicKey, challenge, timestamp });
+    const signature = signRotation({
+      privateKey: oldPrivateKey,
+      oldPublicKey,
+      newPublicKey,
+      challenge,
+      timestamp,
+    });
     // Proof signed by a DIFFERENT key than newPublicKey.
-    const newKeyProof = signNewKeyProof({ newPrivateKey: impostor.privateKey, newPublicKey, challenge, timestamp });
+    const newKeyProof = signNewKeyProof({
+      newPrivateKey: impostor.privateKey,
+      newPublicKey,
+      challenge,
+      timestamp,
+    });
 
-    const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey, challenge, signature, newKeyProof, timestamp });
+    const res = await request(server, 'POST', '/auth/rotate/complete', {
+      newPublicKey,
+      challenge,
+      signature,
+      newKeyProof,
+      timestamp,
+    });
 
     expect(res.status).toBe(400);
     expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
@@ -414,14 +466,23 @@ describe('security invariant — key re-encoding is canonicalized', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, newPublicKey: compressed, challenge, timestamp }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        newPublicKey: compressed,
+        challenge,
+        timestamp,
+      }),
     );
 
     expect(res.status).toBe(200);
     // Stored + returned in canonical form, NOT the re-encoding that was sent.
     expect(res.body.publicKey).toBe(canonical);
     expect((await storedUser(currentUserId)).publicKey).toBe(canonical);
-    const [identity] = (await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity');
+    const [identity] = (await storedAuthMethods(currentUserId)).filter(
+      (m) => m.type === 'identity',
+    );
     expect(identity.methodPublicKey).toBe(canonical);
   });
 
@@ -440,7 +501,14 @@ describe('security invariant — key re-encoding is canonicalized', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair: victimKeyPair, oldPublicKey, newPublicKey: victimCompressed, challenge, timestamp }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair: victimKeyPair,
+        oldPublicKey,
+        newPublicKey: victimCompressed,
+        challenge,
+        timestamp,
+      }),
     );
 
     expect(res.status).toBe(409);
@@ -454,7 +522,13 @@ describe('security invariant — oldPublicKey is server-derived', () => {
     const attacker = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp });
+    const body = buildCompleteBody({
+      oldPrivateKey,
+      newKeyPair,
+      oldPublicKey,
+      challenge,
+      timestamp,
+    });
 
     const res = await request(server, 'POST', '/auth/rotate/complete', {
       ...body,
@@ -473,10 +547,27 @@ describe('security invariant — oldPublicKey is server-derived', () => {
     const timestamp = Date.now();
 
     // Old-key signature by the WRONG key; new-key proof is valid.
-    const signature = signRotation({ privateKey: attacker.privateKey, oldPublicKey, newPublicKey, challenge, timestamp });
-    const newKeyProof = signNewKeyProof({ newPrivateKey: newKeyPair.privateKey, newPublicKey, challenge, timestamp });
+    const signature = signRotation({
+      privateKey: attacker.privateKey,
+      oldPublicKey,
+      newPublicKey,
+      challenge,
+      timestamp,
+    });
+    const newKeyProof = signNewKeyProof({
+      newPrivateKey: newKeyPair.privateKey,
+      newPublicKey,
+      challenge,
+      timestamp,
+    });
 
-    const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey, challenge, signature, newKeyProof, timestamp });
+    const res = await request(server, 'POST', '/auth/rotate/complete', {
+      newPublicKey,
+      challenge,
+      signature,
+      newKeyProof,
+      timestamp,
+    });
 
     expect(res.status).toBe(400);
     expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
@@ -495,7 +586,13 @@ describe('security invariant — oldPublicKey is server-derived', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+      }),
     );
 
     expect(res.status).toBe(200);
@@ -508,19 +605,27 @@ describe('security invariant — purpose scoping', () => {
     const newKeyPair = generateSecp256k1KeyPair();
     // Seed a SIGNIN-purpose challenge directly (as the signin flow would).
     const challenge = `signin-${randomUUID()}`;
-    await getDb().insert(authChallenges).values({
-      publicKey: oldPublicKey,
-      challenge,
-      purpose: 'signin',
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      used: false,
-    });
+    await getDb()
+      .insert(authChallenges)
+      .values({
+        publicKey: oldPublicKey,
+        challenge,
+        purpose: 'signin',
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        used: false,
+      });
 
     const res = await request(
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+      }),
     );
 
     expect(res.status).toBe(401);
@@ -533,20 +638,28 @@ describe('security invariant — purpose scoping', () => {
     const strangerKeyPair = generateSecp256k1KeyPair();
     const strangerPublicKey = strangerKeyPair.publicKey;
     const challenge = `foreign-${randomUUID()}`;
-    await getDb().insert(authChallenges).values({
-      publicKey: strangerPublicKey,
-      challenge,
-      purpose: 'rotate_key',
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      used: false,
-    });
+    await getDb()
+      .insert(authChallenges)
+      .values({
+        publicKey: strangerPublicKey,
+        challenge,
+        purpose: 'rotate_key',
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        used: false,
+      });
 
     const newKeyPair = generateSecp256k1KeyPair();
     const res = await request(
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+      }),
     );
 
     expect(res.status).toBe(401);
@@ -566,7 +679,13 @@ describe('security invariant — single-use challenge', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair: firstKeyPair, oldPublicKey, challenge, timestamp }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair: firstKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp,
+      }),
     );
     expect(res1.status).toBe(200);
 
@@ -576,7 +695,13 @@ describe('security invariant — single-use challenge', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey: firstKeyPair.privateKey, newKeyPair: secondKeyPair, oldPublicKey: first, challenge, timestamp }),
+      buildCompleteBody({
+        oldPrivateKey: firstKeyPair.privateKey,
+        newKeyPair: secondKeyPair,
+        oldPublicKey: first,
+        challenge,
+        timestamp,
+      }),
     );
 
     expect(res2.status).toBe(401);
@@ -596,7 +721,13 @@ describe('security invariant — single-use challenge', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+      }),
     );
 
     expect(res.status).toBe(401);
@@ -637,7 +768,13 @@ describe('conflict + validation guards', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+      }),
     );
 
     expect(res.status).toBe(409);
@@ -647,10 +784,27 @@ describe('conflict + validation guards', () => {
   it('rejects rotating to the SAME key (400)', async () => {
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
-    const signature = signRotation({ privateKey: oldPrivateKey, oldPublicKey, newPublicKey: oldPublicKey, challenge, timestamp });
-    const newKeyProof = signNewKeyProof({ newPrivateKey: oldPrivateKey, newPublicKey: oldPublicKey, challenge, timestamp });
+    const signature = signRotation({
+      privateKey: oldPrivateKey,
+      oldPublicKey,
+      newPublicKey: oldPublicKey,
+      challenge,
+      timestamp,
+    });
+    const newKeyProof = signNewKeyProof({
+      newPrivateKey: oldPrivateKey,
+      newPublicKey: oldPublicKey,
+      challenge,
+      timestamp,
+    });
 
-    const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey: oldPublicKey, challenge, signature, newKeyProof, timestamp });
+    const res = await request(server, 'POST', '/auth/rotate/complete', {
+      newPublicKey: oldPublicKey,
+      challenge,
+      signature,
+      newKeyProof,
+      timestamp,
+    });
 
     expect(res.status).toBe(400);
     expect((await storedChallenge(challenge)).used).toBe(false);
@@ -659,9 +813,21 @@ describe('conflict + validation guards', () => {
   it('rejects an invalid newPublicKey (400)', async () => {
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
-    const signature = signRotation({ privateKey: oldPrivateKey, oldPublicKey, newPublicKey: 'not-a-key', challenge, timestamp });
+    const signature = signRotation({
+      privateKey: oldPrivateKey,
+      oldPublicKey,
+      newPublicKey: 'not-a-key',
+      challenge,
+      timestamp,
+    });
 
-    const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey: 'not-a-key', challenge, signature, newKeyProof: 'deadbeef', timestamp });
+    const res = await request(server, 'POST', '/auth/rotate/complete', {
+      newPublicKey: 'not-a-key',
+      challenge,
+      signature,
+      newKeyProof: 'deadbeef',
+      timestamp,
+    });
 
     expect(res.status).toBe(400);
     expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
@@ -671,16 +837,18 @@ describe('conflict + validation guards', () => {
 describe('signOutEverywhere', () => {
   /** An active session row for the account (both token columns are unique + NOT NULL). */
   async function activeSession(sessionId: string): Promise<void> {
-    await getDb().insert(sessions).values({
-      sessionId,
-      userId: currentUserId,
-      deviceId: `dev-${randomUUID()}`,
-      deviceType: 'web',
-      platform: 'web',
-      accessToken: `at-${randomUUID()}`,
-      refreshToken: `rt-${randomUUID()}`,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-    });
+    await getDb()
+      .insert(sessions)
+      .values({
+        sessionId,
+        userId: currentUserId,
+        deviceId: `dev-${randomUUID()}`,
+        deviceType: 'web',
+        platform: 'web',
+        accessToken: `at-${randomUUID()}`,
+        refreshToken: `rt-${randomUUID()}`,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
   }
 
   it('revokes other sessions and pushes a sessions_removed event on success', async () => {
@@ -696,12 +864,22 @@ describe('signOutEverywhere', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now(), signOutEverywhere: true }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+        signOutEverywhere: true,
+      }),
     );
 
     expect(res.status).toBe(200);
     expect(mockDeactivateAll).toHaveBeenCalledWith(currentUserId, undefined);
-    const [userId, payload] = mockEmitSessionUpdate.mock.calls[0] as [string, { type: string; sessionIds: string[] }];
+    const [userId, payload] = mockEmitSessionUpdate.mock.calls[0] as [
+      string,
+      { type: string; sessionIds: string[] },
+    ];
     expect(userId).toBe(currentUserId);
     expect(payload.type).toBe('sessions_removed');
     expect([...payload.sessionIds].sort()).toEqual([s2, s3].sort());
@@ -727,7 +905,14 @@ describe('signOutEverywhere', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now(), signOutEverywhere: true }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+        signOutEverywhere: true,
+      }),
     );
 
     expect(res.status).toBe(200);
@@ -744,7 +929,13 @@ describe('signOutEverywhere', () => {
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+      buildCompleteBody({
+        oldPrivateKey,
+        newKeyPair,
+        oldPublicKey,
+        challenge,
+        timestamp: Date.now(),
+      }),
     );
 
     expect(res.status).toBe(200);

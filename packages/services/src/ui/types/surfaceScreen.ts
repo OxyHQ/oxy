@@ -30,7 +30,10 @@ export interface SurfaceScreenProps<K extends RouteName> {
   /** Dismiss THIS surface, resolving its `present()` promise with `result`. */
   dismiss: (result?: SurfaceResult<K>) => void;
   /** Present a NEW surface on top of the stack (DEPTH); resolves with its result. */
-  present: <T extends RouteName>(route: T, props?: SurfaceProps<T>) => Promise<SurfaceResult<T> | undefined>;
+  present: <T extends RouteName>(
+    route: T,
+    props?: SurfaceProps<T>,
+  ) => Promise<SurfaceResult<T> | undefined>;
   /** The current wizard step of this frame. */
   step: number;
   /** Set the current wizard step. */

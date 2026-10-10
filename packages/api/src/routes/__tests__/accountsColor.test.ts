@@ -32,7 +32,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: actingUserId, id: actingUserId };
     next();
@@ -103,7 +103,7 @@ function uniqueBotUsername(prefix: string): string {
 function send(
   method: 'POST' | 'PATCH' | 'GET',
   path: string,
-  payload?: Record<string, unknown>
+  payload?: Record<string, unknown>,
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = payload === undefined ? '' : JSON.stringify(payload);
@@ -131,7 +131,7 @@ function send(
             body: raw ? (JSON.parse(raw) as JsonResponse['body']) : {},
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end(body);
@@ -147,10 +147,7 @@ async function seedPersonalAccount(): Promise<string> {
 }
 
 /** A bot account owned by `ownerUserId`, optionally born with a stored color. */
-async function seedBotAccount(
-  ownerUserId: string,
-  color = 'teal'
-): Promise<string> {
+async function seedBotAccount(ownerUserId: string, color = 'teal'): Promise<string> {
   const [bot] = await getDb()
     .insert(users)
     .values({
@@ -168,7 +165,7 @@ async function seedBotAccount(
 async function addMember(
   accountId: string,
   memberUserId: string,
-  role: AccountRole
+  role: AccountRole,
 ): Promise<void> {
   await getDb().insert(accountMembers).values({
     accountId,
@@ -186,7 +183,7 @@ async function addMember(
  * below would only be testing the gate again.
  */
 async function withReservedColourHeld(
-  assertion: (botAccountId: string) => Promise<void>
+  assertion: (botAccountId: string) => Promise<void>,
 ): Promise<void> {
   const operator = await seedPersonalAccount();
   const bot = await seedBotAccount(operator, 'oxy');
@@ -250,9 +247,7 @@ describe('POST /accounts — an account born with a color', () => {
     });
 
     expect(res.status).toBe(201);
-    expect(USER_COLOR_PRESETS).toContain(
-      await storedColor(res.body.account?.accountId ?? '')
-    );
+    expect(USER_COLOR_PRESETS).toContain(await storedColor(res.body.account?.accountId ?? ''));
   });
 
   test('refuses a color outside the preset catalogue, and creates nothing', async () => {

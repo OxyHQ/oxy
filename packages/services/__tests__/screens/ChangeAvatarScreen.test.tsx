@@ -39,7 +39,10 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
   useOxy: () => ({
     user: { avatar: 'file-current', username: 'nate' },
     oxyServices: {
-      assets: { publicUrl: (id: string) => `https://cdn.example/${id}`, url: (...a: unknown[]) => assetGetUrl(...a) },
+      assets: {
+        publicUrl: (id: string) => `https://cdn.example/${id}`,
+        url: (...a: unknown[]) => assetGetUrl(...a),
+      },
     },
   }),
 }));
@@ -76,8 +79,7 @@ import ChangeAvatarScreen from '../../src/ui/screens/ChangeAvatarScreen';
 const navigate = jest.fn();
 const dismiss = jest.fn();
 
-const renderScreen = () =>
-  render(<ChangeAvatarScreen navigate={navigate} dismiss={dismiss} />);
+const renderScreen = () => render(<ChangeAvatarScreen navigate={navigate} dismiss={dismiss} />);
 
 /** Press a source row by its (key-echoed) title. */
 const pressRow = async (titleKey: string) => {

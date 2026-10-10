@@ -14,117 +14,119 @@ import { useCurrentUser } from '../hooks/queries/useAccountQueries';
 import type { User } from '@oxy.so/core';
 
 interface SearchSettings {
-    safeSearch: boolean;
-    searchPersonalization: boolean;
+  safeSearch: boolean;
+  searchPersonalization: boolean;
 }
 
-const SearchSettingsScreen: React.FC<BaseScreenProps> = ({
-    onClose,
-    goBack,
-}) => {
-    // Search settings are persisted on the ACTIVE account's profile (the
-    // org/project/bot when switched, else the personal user); reads/writes
-    // authenticate as the active session, which IS that account.
-    const { oxyServices, user } = useOxy();
-    const { t } = useI18n();
+const SearchSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
+  // Search settings are persisted on the ACTIVE account's profile (the
+  // org/project/bot when switched, else the personal user); reads/writes
+  // authenticate as the active session, which IS that account.
+  const { oxyServices, user } = useOxy();
+  const { t } = useI18n();
 
-    useSurfaceHeader({ title: t('searchSettings.title') || 'Search Settings' });
-    const bloomTheme = useTheme();
+  useSurfaceHeader({ title: t('searchSettings.title') || 'Search Settings' });
+  const bloomTheme = useTheme();
 
-    // Use the existing useSettingToggles hook for toggle management
-    const { values: settings, toggle, savingKeys, setValues } = useSettingToggles<SearchSettings>({
-        initialValues: { safeSearch: false, searchPersonalization: true },
-        onSave: async (key, value) => {
-            if (!user?.id || !oxyServices) return;
+  // Use the existing useSettingToggles hook for toggle management
+  const {
+    values: settings,
+    toggle,
+    savingKeys,
+    setValues,
+  } = useSettingToggles<SearchSettings>({
+    initialValues: { safeSearch: false, searchPersonalization: true },
+    onSave: async (key, value) => {
+      if (!user?.id || !oxyServices) return;
 
-            const fieldMap: Record<keyof SearchSettings, string> = {
-                safeSearch: 'autoFilter',
-                searchPersonalization: 'dataSharing',
-            };
+      const fieldMap: Record<keyof SearchSettings, string> = {
+        safeSearch: 'autoFilter',
+        searchPersonalization: 'dataSharing',
+      };
 
-            await oxyServices.users.updateMe({
-                privacySettings: {
-                    [fieldMap[key]]: value,
-                },
-            });
+      await oxyServices.users.updateMe({
+        privacySettings: {
+          [fieldMap[key]]: value,
         },
-        errorMessage: (key) => t(`searchSettings.${key}.error`) || `Failed to update ${key}`,
+      });
+    },
+    errorMessage: (key) => t(`searchSettings.${key}.error`) || `Failed to update ${key}`,
+  });
+
+  const isSaving = savingKeys.size > 0;
+
+  // The profile comes from the shared React Query cache (the same entry every
+  // account surface reads), not a fetch of its own on every mount.
+  const currentUser = useCurrentUser({ enabled: Boolean(user?.id) });
+  const isLoading = Boolean(user?.id) && currentUser.isPending;
+  const privacySettings = (
+    currentUser.data as
+      | (User & { privacySettings?: { autoFilter?: boolean; dataSharing?: boolean } })
+      | undefined
+  )?.privacySettings;
+  useEffect(() => {
+    if (!privacySettings) return;
+    setValues({
+      safeSearch: privacySettings.autoFilter ?? false,
+      searchPersonalization: privacySettings.dataSharing ?? true,
     });
+  }, [privacySettings, setValues]);
 
-    const isSaving = savingKeys.size > 0;
-
-    // The profile comes from the shared React Query cache (the same entry every
-    // account surface reads), not a fetch of its own on every mount.
-    const currentUser = useCurrentUser({ enabled: Boolean(user?.id) });
-    const isLoading = Boolean(user?.id) && currentUser.isPending;
-    const privacySettings = (currentUser.data as (User & { privacySettings?: { autoFilter?: boolean; dataSharing?: boolean } }) | undefined)
-        ?.privacySettings;
-    useEffect(() => {
-        if (!privacySettings) return;
-        setValues({
-            safeSearch: privacySettings.autoFilter ?? false,
-            searchPersonalization: privacySettings.dataSharing ?? true,
-        });
-    }, [privacySettings, setValues]);
-
-    if (isLoading) {
-        return (
-            <>
-                <Loading size="lg" color={bloomTheme.colors.text} />
-            </>
-        );
-    }
-
+  if (isLoading) {
     return (
-        <>
-
-            <View className="px-screen-margin pb-space-24">
-                    {/* SafeSearch */}
-                    <SettingsListGroup title={t('searchSettings.safeSearch.title') || 'SafeSearch'}>
-                        <SettingsListItem
-                            icon={
-                                <SettingsIcon
-                                    name="shield-search"
-                                    color={bloomTheme.colors.success}
-                                />
-                            }
-                            title={t('searchSettings.safeSearch.label') || 'Enable SafeSearch'}
-                            description={t('searchSettings.safeSearch.description') || 'Filter out explicit content from search results'}
-                            rightElement={
-                                <Switch
-                                    checked={settings.safeSearch}
-                                    onCheckedChange={() => toggle('safeSearch')}
-                                    disabled={isSaving}
-                                />
-                            }
-                            showChevron={false}
-                        />
-                    </SettingsListGroup>
-
-                    {/* Search Personalization */}
-                    <SettingsListGroup title={t('searchSettings.personalization.title') || 'Search Personalization'}>
-                        <SettingsListItem
-                            icon={
-                                <SettingsIcon
-                                    name="account-search"
-                                    color={bloomTheme.colors.primary}
-                                />
-                            }
-                            title={t('searchSettings.personalization.label') || 'Personalized Search'}
-                            description={t('searchSettings.personalization.description') || 'Use your activity to improve search results'}
-                            rightElement={
-                                <Switch
-                                    checked={settings.searchPersonalization}
-                                    onCheckedChange={() => toggle('searchPersonalization')}
-                                    disabled={isSaving}
-                                />
-                            }
-                            showChevron={false}
-                        />
-                    </SettingsListGroup>
-                </View>
-        </>
+      <>
+        <Loading size="lg" color={bloomTheme.colors.text} />
+      </>
     );
+  }
+
+  return (
+    <>
+      <View className="px-screen-margin pb-space-24">
+        {/* SafeSearch */}
+        <SettingsListGroup title={t('searchSettings.safeSearch.title') || 'SafeSearch'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="shield-search" color={bloomTheme.colors.success} />}
+            title={t('searchSettings.safeSearch.label') || 'Enable SafeSearch'}
+            description={
+              t('searchSettings.safeSearch.description') ||
+              'Filter out explicit content from search results'
+            }
+            rightElement={
+              <Switch
+                checked={settings.safeSearch}
+                onCheckedChange={() => toggle('safeSearch')}
+                disabled={isSaving}
+              />
+            }
+            showChevron={false}
+          />
+        </SettingsListGroup>
+
+        {/* Search Personalization */}
+        <SettingsListGroup
+          title={t('searchSettings.personalization.title') || 'Search Personalization'}
+        >
+          <SettingsListItem
+            icon={<SettingsIcon name="account-search" color={bloomTheme.colors.primary} />}
+            title={t('searchSettings.personalization.label') || 'Personalized Search'}
+            description={
+              t('searchSettings.personalization.description') ||
+              'Use your activity to improve search results'
+            }
+            rightElement={
+              <Switch
+                checked={settings.searchPersonalization}
+                onCheckedChange={() => toggle('searchPersonalization')}
+                disabled={isSaving}
+              />
+            }
+            showChevron={false}
+          />
+        </SettingsListGroup>
+      </View>
+    </>
+  );
 };
 
 export default React.memo(SearchSettingsScreen);

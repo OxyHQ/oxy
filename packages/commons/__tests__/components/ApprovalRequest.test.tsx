@@ -48,7 +48,14 @@ function renderRequest(overrides: Partial<ApprovalRequestProps> = {}) {
     onOpenLink: jest.fn(),
     ...overrides,
   };
-  return { props, ...render(<LocaleProvider><ApprovalRequest {...props} /></LocaleProvider>) };
+  return {
+    props,
+    ...render(
+      <LocaleProvider>
+        <ApprovalRequest {...props} />
+      </LocaleProvider>,
+    ),
+  };
 }
 
 describe('ApprovalRequest', () => {
@@ -153,7 +160,11 @@ describe('ApprovalRequest', () => {
   it('never implies the identity became the organization', () => {
     const { container, getByTestId } = renderRequest({
       info: makeInfo({
-        subjectAccount: { id: 'acct-9', username: 'oxycollective', displayName: 'The Oxy Collective' },
+        subjectAccount: {
+          id: 'acct-9',
+          username: 'oxycollective',
+          displayName: 'The Oxy Collective',
+        },
       }),
     });
 
@@ -185,7 +196,11 @@ describe('ApprovalRequest', () => {
   it('names the identity generically when the vault identity has no name yet', () => {
     const { getByTestId } = renderRequest({
       info: makeInfo({
-        subjectAccount: { id: 'acct-9', username: 'oxycollective', displayName: 'The Oxy Collective' },
+        subjectAccount: {
+          id: 'acct-9',
+          username: 'oxycollective',
+          displayName: 'The Oxy Collective',
+        },
       }),
       identityName: null,
     });

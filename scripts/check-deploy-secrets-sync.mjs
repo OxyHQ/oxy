@@ -120,7 +120,10 @@ const EXPECTED_TASK_SECRET_BINDINGS = new Map(
     ['CAPABILITY_TICKET_SIGNING_PRIVATE_KEY', '/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY'],
     ['CAPABILITY_TICKET_SIGNING_KEY_ID', '/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID'],
     ['KAANA_EDGE_SIGNING_PRIVATE_KEY', '/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY'],
-    ['KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY', '/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY'],
+    [
+      'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
+      '/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
+    ],
     ['INBOX_APPLICATION_KEY', '/oxy/inbox/OXY_APPLICATION_KEY'],
     ['INBOX_APPLICATION_SECRET', '/oxy/inbox/OXY_APPLICATION_SECRET'],
     ['QUEUE_REDIS_URL', '/oxy/_shared/QUEUE_REDIS_URL'],
@@ -175,7 +178,9 @@ function executableLines(text, path = '') {
 function referencedScripts(text, path = '') {
   const names = new Set();
   for (const { line } of executableLines(text, path)) {
-    for (const match of line.matchAll(/(?:\.github\/scripts\/)?([A-Za-z0-9_.-]+\.(?:sh|mjs|js|py))\b/g)) {
+    for (const match of line.matchAll(
+      /(?:\.github\/scripts\/)?([A-Za-z0-9_.-]+\.(?:sh|mjs|js|py))\b/g,
+    )) {
       if (existsSync(join(SCRIPTS_DIR, match[1]))) names.add(match[1]);
     }
   }
@@ -184,9 +189,13 @@ function referencedScripts(text, path = '') {
 
 /** The names in `validateRequiredEnvVars()`'s `required` array. */
 function parseRequiredEnvVars(envModule) {
-  const block = envModule.match(/const required:\s*\(keyof RequiredEnvVars\)\[\]\s*=\s*\[([\s\S]*?)\];/);
+  const block = envModule.match(
+    /const required:\s*\(keyof RequiredEnvVars\)\[\]\s*=\s*\[([\s\S]*?)\];/,
+  );
   if (!block) {
-    fail(`${ENV_MODULE_PATH} no longer declares \`const required: (keyof RequiredEnvVars)[] = [...]\`; the gate cannot read the boot contract.`);
+    fail(
+      `${ENV_MODULE_PATH} no longer declares \`const required: (keyof RequiredEnvVars)[] = [...]\`; the gate cannot read the boot contract.`,
+    );
     return [];
   }
   return [...block[1].matchAll(/'([A-Za-z0-9_]+)'/g)].map((match) => match[1]);
@@ -196,7 +205,9 @@ function parseRequiredEnvVars(envModule) {
 function parseTaskSecretOverrides(workflow) {
   const match = workflow.match(/^\s*TASK_SECRET_OVERRIDES_JSON:\s*>-\s*\n\s*(\{.*\})\s*$/m);
   if (!match) {
-    fail('deploy-aws.yml no longer contains a one-line `TASK_SECRET_OVERRIDES_JSON: >-` object; the gate cannot read the re-asserted bindings.');
+    fail(
+      'deploy-aws.yml no longer contains a one-line `TASK_SECRET_OVERRIDES_JSON: >-` object; the gate cannot read the re-asserted bindings.',
+    );
     return null;
   }
   try {
@@ -215,7 +226,7 @@ for (const { line, number } of executableLines(workflow)) {
   if (SSM_MUTATION.test(line)) {
     fail(
       `deploy-aws.yml:${number} writes or deletes an SSM parameter (${line.trim()}). Runtime secrets live ONLY in SSM ` +
-      'and are set by their owner with `aws ssm put-parameter --overwrite`; the deploy never writes one.',
+        'and are set by their owner with `aws ssm put-parameter --overwrite`; the deploy never writes one.',
     );
   }
 }
@@ -228,19 +239,25 @@ while (queue.length > 0) {
   const text = read(join(SCRIPTS_DIR, name));
   for (const { line, number } of executableLines(text, name)) {
     if (SSM_MUTATION.test(line)) {
-      fail(`.github/scripts/${name}:${number}, which the deploy runs, writes or deletes an SSM parameter (${line.trim()}).`);
+      fail(
+        `.github/scripts/${name}:${number}, which the deploy runs, writes or deletes an SSM parameter (${line.trim()}).`,
+      );
     }
   }
   for (const next of referencedScripts(text, name)) queue.push(next);
 }
 if (!reached.has(REACHED_SCRIPT_SENTINEL)) {
-  fail(`${REACHED_SCRIPT_SENTINEL} was not among the scripts the deploy reaches — the scan is not reading what the deploy runs.`);
+  fail(
+    `${REACHED_SCRIPT_SENTINEL} was not among the scripts the deploy reaches — the scan is not reading what the deploy runs.`,
+  );
 }
 
 // ── 2. No repo secret but the CI-only allowlist, never the whole context ───
 for (const { line, number } of executableLines(workflow)) {
   if (/^\s*secrets:\s*inherit\b/.test(line)) {
-    fail(`deploy-aws.yml:${number} passes \`secrets: inherit\`; that hands every repo secret to the callee.`);
+    fail(
+      `deploy-aws.yml:${number} passes \`secrets: inherit\`; that hands every repo secret to the callee.`,
+    );
   }
 }
 for (const expression of workflow.matchAll(/\$\{\{([\s\S]*?)\}\}/g)) {
@@ -256,7 +273,7 @@ for (const expression of workflow.matchAll(/\$\{\{([\s\S]*?)\}\}/g)) {
     } else if (!CI_ONLY_SECRETS.has(name)) {
       fail(
         `deploy-aws.yml reads secrets.${name}. Runtime secrets live ONLY in SSM (/oxy/oxy-api/${name}), bound by the task ` +
-        `definition; the deploy reads no repo secret but ${[...CI_ONLY_SECRETS].join(', ')}.`,
+          `definition; the deploy reads no repo secret but ${[...CI_ONLY_SECRETS].join(', ')}.`,
       );
     }
   }
@@ -265,7 +282,9 @@ for (const expression of workflow.matchAll(/\$\{\{([\s\S]*?)\}\}/g)) {
 // fine; any other executable mention of the path is a candidate write.
 for (const { line, number } of executableLines(workflow)) {
   if (/(?<!parameter)\/oxy\/_shared\//.test(line)) {
-    fail(`deploy-aws.yml:${number} names a /oxy/_shared/ path outside a task-definition ARN; app deploys never write shared parameters, which oxy-infra owns.`);
+    fail(
+      `deploy-aws.yml:${number} names a /oxy/_shared/ path outside a task-definition ARN; app deploys never write shared parameters, which oxy-infra owns.`,
+    );
   }
 }
 
@@ -274,12 +293,16 @@ const overrides = parseTaskSecretOverrides(workflow);
 if (overrides) {
   for (const [name, arn] of EXPECTED_TASK_SECRET_BINDINGS) {
     if (overrides[name] !== arn) {
-      fail(`${name} is missing its exact TASK_SECRET_OVERRIDES_JSON binding to ${arn} (found ${JSON.stringify(overrides[name] ?? null)}).`);
+      fail(
+        `${name} is missing its exact TASK_SECRET_OVERRIDES_JSON binding to ${arn} (found ${JSON.stringify(overrides[name] ?? null)}).`,
+      );
     }
   }
   for (const [name, value] of Object.entries(overrides)) {
     if (typeof value !== 'string' || !value.startsWith(`${SSM_ARN_PREFIX}/oxy/`)) {
-      fail(`TASK_SECRET_OVERRIDES_JSON binds ${name} to ${JSON.stringify(value)}, which is not an SSM parameter under ${SSM_ARN_PREFIX}/oxy/.`);
+      fail(
+        `TASK_SECRET_OVERRIDES_JSON binds ${name} to ${JSON.stringify(value)}, which is not an SSM parameter under ${SSM_ARN_PREFIX}/oxy/.`,
+      );
     }
   }
 }
@@ -287,10 +310,14 @@ if (overrides) {
 // ── 4. Every boot-required variable has a recorded home ───────────────────
 const requiredEnvVars = parseRequiredEnvVars(envModule);
 if (requiredEnvVars.length > 0 && requiredEnvVars.length < MINIMUM_REQUIRED_ENV_VARS) {
-  fail(`Only ${requiredEnvVars.length} required env vars parsed out of ${ENV_MODULE_PATH} (expected at least ${MINIMUM_REQUIRED_ENV_VARS}). The parse is broken, not the source.`);
+  fail(
+    `Only ${requiredEnvVars.length} required env vars parsed out of ${ENV_MODULE_PATH} (expected at least ${MINIMUM_REQUIRED_ENV_VARS}). The parse is broken, not the source.`,
+  );
 }
 if (requiredEnvVars.length > 0 && !requiredEnvVars.includes(REQUIRED_ENV_SENTINEL)) {
-  fail(`${REQUIRED_ENV_SENTINEL} was not among the parsed required env vars — the gate is reading the wrong array in ${ENV_MODULE_PATH}.`);
+  fail(
+    `${REQUIRED_ENV_SENTINEL} was not among the parsed required env vars — the gate is reading the wrong array in ${ENV_MODULE_PATH}.`,
+  );
 }
 for (const name of [...requiredEnvVars, ...PRODUCTION_MANDATORY_SECRETS]) {
   if (SSM_OWNED_BOOT_SECRETS.has(name)) continue;
@@ -298,8 +325,8 @@ for (const name of [...requiredEnvVars, ...PRODUCTION_MANDATORY_SECRETS]) {
   if (INFRA_OWNED_SHARED_SECRETS.includes(name)) continue;
   fail(
     `${name} is required at boot by validateRequiredEnvVars() but has no recorded home. If it is a secret, write ` +
-    `/oxy/oxy-api/${name} (SecureString) with \`aws ssm put-parameter\` FIRST, bind it in the task definition, and record ` +
-    'it in SSM_OWNED_BOOT_SECRETS in scripts/check-deploy-secrets-sync.mjs; if it is not, record why in SUPPLIED_AS_PLAIN_ENV.',
+      `/oxy/oxy-api/${name} (SecureString) with \`aws ssm put-parameter\` FIRST, bind it in the task definition, and record ` +
+      'it in SSM_OWNED_BOOT_SECRETS in scripts/check-deploy-secrets-sync.mjs; if it is not, record why in SUPPLIED_AS_PLAIN_ENV.',
   );
 }
 
@@ -308,14 +335,14 @@ if (problems.length > 0) {
   for (const problem of problems) console.error(`- ${problem}`);
   console.error(
     '\nRuntime secrets live ONLY in SSM /oxy/oxy-api/* (oxy-infra docs/runbooks/46-app-secrets-in-ssm.md);' +
-    '\nthe deploy reads them through the task definition and writes none.',
+      '\nthe deploy reads them through the task definition and writes none.',
   );
   process.exit(1);
 }
 
 console.log(
   `Deploy secrets are SSM-only: no SSM write in deploy-aws.yml or the ${reached.size} scripts it reaches, ` +
-  `no repo secret read but ${[...CI_ONLY_SECRETS].join(', ')}, ` +
-  `all ${EXPECTED_TASK_SECRET_BINDINGS.size} re-asserted bindings exact, ` +
-  `and all ${requiredEnvVars.length} boot-required env vars have a recorded home.`,
+    `no repo secret read but ${[...CI_ONLY_SECRETS].join(', ')}, ` +
+    `all ${EXPECTED_TASK_SECRET_BINDINGS.size} re-asserted bindings exact, ` +
+    `and all ${requiredEnvVars.length} boot-required env vars have a recorded home.`,
 );

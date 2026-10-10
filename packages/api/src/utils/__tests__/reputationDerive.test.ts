@@ -21,10 +21,7 @@ import {
   TRUST_TIER_TRUSTED_MIN,
   NEUTRAL_REPORT_ACCURACY,
 } from '../reputation.constants';
-import {
-  CONTEXTUAL_WEIGHT_MAX,
-  CONTEXTUAL_WEIGHT_MIN,
-} from '../moderation.constants';
+import { CONTEXTUAL_WEIGHT_MAX, CONTEXTUAL_WEIGHT_MIN } from '../moderation.constants';
 import type { ReputationReliability } from '@oxy.so/contracts';
 
 const NEUTRAL: ReputationReliability = {
@@ -45,7 +42,7 @@ function tierOf(
   total: number,
   verified: boolean,
   reliability: ReputationReliability,
-  conductStanding: ConductStanding = 'good'
+  conductStanding: ConductStanding = 'good',
 ) {
   return deriveTrustTier({
     total,
@@ -171,8 +168,16 @@ describe('deriveInfluence (#219 capped weights)', () => {
 
   it('reportWeight rises with accurate reports and falls with rejected ones', () => {
     const total = 500;
-    const accurate = computeReliability({ accurateReports: 10, rejectedReports: 0, reportAbuseCount: 0 });
-    const inaccurate = computeReliability({ accurateReports: 0, rejectedReports: 10, reportAbuseCount: 0 });
+    const accurate = computeReliability({
+      accurateReports: 10,
+      rejectedReports: 0,
+      reportAbuseCount: 0,
+    });
+    const inaccurate = computeReliability({
+      accurateReports: 0,
+      rejectedReports: 10,
+      reportAbuseCount: 0,
+    });
 
     const accurateWeight = deriveInfluence(total, 'high_trust', accurate).reportWeight;
     const neutralWeight = deriveInfluence(total, 'high_trust', NEUTRAL).reportWeight;
@@ -254,7 +259,7 @@ describe('contribution and conduct are independent axes', () => {
         verified: true,
         reliability: NEUTRAL,
         conductStanding: 'restricted',
-      })
+      }),
     ).toBe('restricted');
   });
 
@@ -269,7 +274,7 @@ describe('contribution and conduct are independent axes', () => {
         verified: false,
         reliability: NEUTRAL,
         conductStanding: 'watch',
-      })
+      }),
     ).toBe('new');
   });
 
@@ -283,7 +288,7 @@ describe('contribution and conduct are independent axes', () => {
         verified: false,
         reliability: NEUTRAL,
         conductStanding: 'good',
-      })
+      }),
     ).toBe('restricted');
   });
 });

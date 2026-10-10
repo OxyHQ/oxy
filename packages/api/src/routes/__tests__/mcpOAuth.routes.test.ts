@@ -5,10 +5,7 @@
  */
 
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
-import {
-  mcpOAuthConsentResponseSchema,
-  type AppCapabilityCatalog,
-} from '@oxy.so/contracts';
+import { mcpOAuthConsentResponseSchema, type AppCapabilityCatalog } from '@oxy.so/contracts';
 import { and, eq } from 'drizzle-orm';
 import express from 'express';
 import request from 'supertest';
@@ -80,37 +77,56 @@ async function fixture(): Promise<{
   appId: string;
 }> {
   const username = `mcp-owner-${randomUUID()}`;
-  const [owner] = await getDb().insert(users).values({
-    username,
-    nameDisplay: 'Route Test Workspace',
-    color: 'teal',
-  }).returning({ id: users.id });
+  const [owner] = await getDb()
+    .insert(users)
+    .values({
+      username,
+      nameDisplay: 'Route Test Workspace',
+      color: 'teal',
+    })
+    .returning({ id: users.id });
   principalUserId = owner.id;
   approvingSessionId = randomUUID();
-  await getDb().insert(sessions).values({ sessionId: approvingSessionId, userId: owner.id,
-    deviceId: randomUUID(), deviceType: 'web', platform: 'web', accessToken: randomUUID(), refreshToken: randomUUID(), expiresAt: new Date(Date.now() + 3_600_000) });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId: approvingSessionId,
+      userId: owner.id,
+      deviceId: randomUUID(),
+      deviceType: 'web',
+      platform: 'web',
+      accessToken: randomUUID(),
+      refreshToken: randomUUID(),
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
   const appSlug = `mcp-route-${randomUUID()}`;
   const resource = `https://${appSlug}.example.test`;
   const resourceAppName = `MCP route resource ${randomUUID()}`;
-  const [application] = await getDb().insert(applications).values({
-    name: resourceAppName,
-    ownerAccountId: owner.id,
-    status: 'active',
-    isInternal: true,
-    scopes: ['catalogs:write'],
-    capabilities: [`catalog:${appSlug}`],
-  }).returning({ id: applications.id });
+  const [application] = await getDb()
+    .insert(applications)
+    .values({
+      name: resourceAppName,
+      ownerAccountId: owner.id,
+      status: 'active',
+      isInternal: true,
+      scopes: ['catalogs:write'],
+      capabilities: [`catalog:${appSlug}`],
+    })
+    .returning({ id: applications.id });
   serviceApplicationId = application.id;
-  const [credential] = await getDb().insert(applicationCredentials).values({
-    applicationId: application.id,
-    name: 'MCP route service credential',
-    publicKey: `oxy_dk_${randomUUID()}`,
-    secretHash: 'test-only-secret-hash',
-    type: 'service',
-    environment: 'production',
-    scopes: ['catalogs:write'],
-    status: 'active',
-  }).returning({ id: applicationCredentials.id });
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: 'MCP route service credential',
+      publicKey: `oxy_dk_${randomUUID()}`,
+      secretHash: 'test-only-secret-hash',
+      type: 'service',
+      environment: 'production',
+      scopes: ['catalogs:write'],
+      status: 'active',
+    })
+    .returning({ id: applicationCredentials.id });
   serviceCredentialId = credential.id;
   const catalog: AppCapabilityCatalog = {
     schemaVersion: '1',
@@ -156,18 +172,20 @@ async function fixture(): Promise<{
     ],
     events: [],
   };
-  await getDb().insert(appCapabilityCatalogRegistrations).values({
-    appSlug,
-    version: catalog.version,
-    audience: catalog.audience,
-    catalog,
-    digest: '1'.repeat(64),
-    signature: 'test-signature',
-    registeredByApplicationId: application.id,
-    registeredByCredentialId: credential.id,
-    deployedAt: new Date(),
-    active: true,
-  });
+  await getDb()
+    .insert(appCapabilityCatalogRegistrations)
+    .values({
+      appSlug,
+      version: catalog.version,
+      audience: catalog.audience,
+      catalog,
+      digest: '1'.repeat(64),
+      signature: 'test-signature',
+      registeredByApplicationId: application.id,
+      registeredByCredentialId: credential.id,
+      deployedAt: new Date(),
+      active: true,
+    });
   return {
     resource,
     redirectUri: 'http://127.0.0.1:43123/oauth/callback',
@@ -178,10 +196,12 @@ async function fixture(): Promise<{
 
 beforeAll(async () => {
   process.env.CAPABILITY_TICKET_SIGNING_KEY_ID = 'mcp-oauth-route-test';
-  process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY = keyPair.privateKey.export({
-    format: 'pem',
-    type: 'pkcs8',
-  }).toString();
+  process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY = keyPair.privateKey
+    .export({
+      format: 'pem',
+      type: 'pkcs8',
+    })
+    .toString();
   process.env.OXY_API_URL = 'https://api.oxy.so';
   await connectPostgres();
 });
@@ -209,13 +229,15 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
   });
   expect(discovery.body.scopes_supported).toContain('resource.read');
 
-  const registration = await request(app).post('/auth/mcp/oauth/register').send({
-    client_name: 'Route test MCP client',
-    redirect_uris: [input.redirectUri],
-    grant_types: ['authorization_code', 'refresh_token'],
-    response_types: ['code'],
-    token_endpoint_auth_method: 'none',
-  });
+  const registration = await request(app)
+    .post('/auth/mcp/oauth/register')
+    .send({
+      client_name: 'Route test MCP client',
+      redirect_uris: [input.redirectUri],
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    });
   expect(registration.status).toBe(201);
   const clientId = registration.body.client_id as string;
   expect(clientId).toMatch(/^oxy_mcp_/);
@@ -261,13 +283,15 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
         application: { name: input.resourceAppName },
       },
       capabilities: ['resource.read', 'resource.write'],
-      writeActions: [{
-        name: 'updateResource',
-        version: '1.0.0',
-        description: 'Update the selected account resource.',
-        requiredCapabilities: ['resource.write'],
-        effect: 'write',
-      }],
+      writeActions: [
+        {
+          name: 'updateResource',
+          version: '1.0.0',
+          description: 'Update the selected account resource.',
+          requiredCapabilities: ['resource.write'],
+          effect: 'write',
+        },
+      ],
     },
   });
 
@@ -290,17 +314,14 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
   expect(authorization.body).toMatchObject({ state: 'client-state' });
   expect(typeof authorization.body.code).toBe('string');
 
-  const token = await request(app)
-    .post('/auth/mcp/oauth/token')
-    .type('form')
-    .send({
-      grant_type: 'authorization_code',
-      code: authorization.body.code,
-      client_id: clientId,
-      redirect_uri: input.redirectUri,
-      code_verifier: verifier,
-      resource: input.resource,
-    });
+  const token = await request(app).post('/auth/mcp/oauth/token').type('form').send({
+    grant_type: 'authorization_code',
+    code: authorization.body.code,
+    client_id: clientId,
+    redirect_uri: input.redirectUri,
+    code_verifier: verifier,
+    resource: input.resource,
+  });
   expect(token.status).toBe(200);
   expect(token.headers['cache-control']).toBe('no-store');
   expect(token.body).toMatchObject({
@@ -322,7 +343,9 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
     resource: input.resource,
   });
 
-  await getDb().update(applicationCredentials).set({ status: 'revoked', revokedAt: new Date() })
+  await getDb()
+    .update(applicationCredentials)
+    .set({ status: 'revoked', revokedAt: new Date() })
     .where(eq(applicationCredentials.id, serviceCredentialId));
   const afterServiceRevocation = await request(app)
     .post('/auth/mcp/oauth/introspect')
@@ -333,22 +356,26 @@ it('publishes discovery and completes a resource-bound public-client flow', asyn
 });
 
 it('rejects insecure remote redirect URIs at dynamic registration', async () => {
-  const response = await request(app).post('/auth/mcp/oauth/register').send({
-    client_name: 'Insecure MCP client',
-    redirect_uris: ['http://client.example/callback'],
-    token_endpoint_auth_method: 'none',
-  });
+  const response = await request(app)
+    .post('/auth/mcp/oauth/register')
+    .send({
+      client_name: 'Insecure MCP client',
+      redirect_uris: ['http://client.example/callback'],
+      token_endpoint_auth_method: 'none',
+    });
   expect(response.status).toBe(400);
   expect(response.body).toMatchObject({ error: 'invalid_request' });
 });
 
 it('requires the selected account and never presents an unrequested write action', async () => {
   const input = await fixture();
-  const registration = await request(app).post('/auth/mcp/oauth/register').send({
-    client_name: 'Read-only MCP client',
-    redirect_uris: [input.redirectUri],
-    token_endpoint_auth_method: 'none',
-  });
+  const registration = await request(app)
+    .post('/auth/mcp/oauth/register')
+    .send({
+      client_name: 'Read-only MCP client',
+      redirect_uris: [input.redirectUri],
+      token_endpoint_auth_method: 'none',
+    });
   const clientId = registration.body.client_id as string;
 
   const readOnlyConsent = await request(app)
@@ -388,11 +415,13 @@ async function issueAccessToken(
   input: Awaited<ReturnType<typeof fixture>>,
   scope = 'resource.read',
 ): Promise<string> {
-  const registration = await request(app).post('/auth/mcp/oauth/register').send({
-    client_name: 'Viewer graph MCP client',
-    redirect_uris: [input.redirectUri],
-    token_endpoint_auth_method: 'none',
-  });
+  const registration = await request(app)
+    .post('/auth/mcp/oauth/register')
+    .send({
+      client_name: 'Viewer graph MCP client',
+      redirect_uris: [input.redirectUri],
+      token_endpoint_auth_method: 'none',
+    });
   const clientId = registration.body.client_id as string;
   const verifier = 'v'.repeat(64);
   const authorization = await request(app)
@@ -409,17 +438,14 @@ async function issueAccessToken(
       codeChallengeMethod: 'S256',
     });
   expect(authorization.status).toBe(200);
-  const token = await request(app)
-    .post('/auth/mcp/oauth/token')
-    .type('form')
-    .send({
-      grant_type: 'authorization_code',
-      code: authorization.body.code,
-      client_id: clientId,
-      redirect_uri: input.redirectUri,
-      code_verifier: verifier,
-      resource: input.resource,
-    });
+  const token = await request(app).post('/auth/mcp/oauth/token').type('form').send({
+    grant_type: 'authorization_code',
+    code: authorization.body.code,
+    client_id: clientId,
+    redirect_uri: input.redirectUri,
+    code_verifier: verifier,
+    resource: input.resource,
+  });
   expect(token.status).toBe(200);
   return token.body.access_token as string;
 }
@@ -428,11 +454,14 @@ describe('POST /auth/mcp/oauth/connections/viewer-graph', () => {
   it('answers the connected account its own blocks, only for the resource this service registered', async () => {
     const input = await fixture();
     const viewerId = principalUserId;
-    const [blocked] = await getDb().insert(users).values({
-      username: `mcp-blocked-${randomUUID()}`,
-      nameDisplay: 'Blocked account',
-      color: 'teal',
-    }).returning({ id: users.id });
+    const [blocked] = await getDb()
+      .insert(users)
+      .values({
+        username: `mcp-blocked-${randomUUID()}`,
+        nameDisplay: 'Blocked account',
+        color: 'teal',
+      })
+      .returning({ id: users.id });
     await getDb().insert(blocks).values({ userId: viewerId, blockedId: blocked.id });
     const accessToken = await issueAccessToken(input);
 
@@ -460,7 +489,9 @@ describe('POST /auth/mcp/oauth/connections/viewer-graph', () => {
     principalUserId = viewerId;
 
     // Revoking the grant ends the read on the very next call.
-    await getDb().update(mcpOauthGrants).set({ revokedAt: new Date() })
+    await getDb()
+      .update(mcpOauthGrants)
+      .set({ revokedAt: new Date() })
       .where(eq(mcpOauthGrants.effectiveAccountId, viewerId));
     const revoked = await request(app)
       .post('/auth/mcp/oauth/connections/viewer-graph')
@@ -483,17 +514,22 @@ describe('POST /auth/mcp/oauth/connections/viewer-graph', () => {
 
 describe('POST /auth/mcp/oauth/connections/follow', () => {
   async function localUser(type: 'local' | 'federated' = 'local'): Promise<string> {
-    const [row] = await getDb().insert(users).values({
-      username: `mcp-follow-${randomUUID()}`,
-      nameDisplay: 'Follow target',
-      color: 'teal',
-      type,
-    }).returning({ id: users.id });
+    const [row] = await getDb()
+      .insert(users)
+      .values({
+        username: `mcp-follow-${randomUUID()}`,
+        nameDisplay: 'Follow target',
+        color: 'teal',
+        type,
+      })
+      .returning({ id: users.id });
     return row.id;
   }
 
   async function follows(followerId: string, followedId: string): Promise<boolean> {
-    const rows = await getDb().select({ id: userFollows.id }).from(userFollows)
+    const rows = await getDb()
+      .select({ id: userFollows.id })
+      .from(userFollows)
       .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId)));
     return rows.length > 0;
   }
@@ -511,15 +547,35 @@ describe('POST /auth/mcp/oauth/connections/follow', () => {
     const target = await localUser();
     const token = await issueAccessToken(input, 'resource.read resource.write');
 
-    const first = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    const first = await follow({
+      token,
+      tool: 'updateResource',
+      target_user_id: target,
+      action: 'follow',
+    });
     expect(first.status).toBe(200);
-    expect(first.body).toEqual({ account_id: viewerId, target_user_id: target, action: 'follow', changed: true });
+    expect(first.body).toEqual({
+      account_id: viewerId,
+      target_user_id: target,
+      action: 'follow',
+      changed: true,
+    });
     expect(await follows(viewerId, target)).toBe(true);
 
-    const again = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    const again = await follow({
+      token,
+      tool: 'updateResource',
+      target_user_id: target,
+      action: 'follow',
+    });
     expect(again.body).toMatchObject({ changed: false });
 
-    const undo = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'unfollow' });
+    const undo = await follow({
+      token,
+      tool: 'updateResource',
+      target_user_id: target,
+      action: 'unfollow',
+    });
     expect(undo.body).toMatchObject({ action: 'unfollow', changed: true });
     expect(await follows(viewerId, target)).toBe(false);
   });
@@ -531,7 +587,12 @@ describe('POST /auth/mcp/oauth/connections/follow', () => {
     const readOnly = await issueAccessToken(input, 'resource.read');
 
     for (const tool of ['updateResource', 'readResource', 'not-a-tool']) {
-      const response = await follow({ token: readOnly, tool, target_user_id: target, action: 'follow' });
+      const response = await follow({
+        token: readOnly,
+        tool,
+        target_user_id: target,
+        action: 'follow',
+      });
       expect(response.status).toBe(403);
       expect(response.body).toMatchObject({ error: 'invalid_scope' });
     }
@@ -544,17 +605,32 @@ describe('POST /auth/mcp/oauth/connections/follow', () => {
     const token = await issueAccessToken(input, 'resource.read resource.write');
     const federated = await localUser('federated');
 
-    const remote = await follow({ token, tool: 'updateResource', target_user_id: federated, action: 'follow' });
+    const remote = await follow({
+      token,
+      tool: 'updateResource',
+      target_user_id: federated,
+      action: 'follow',
+    });
     expect(remote.status).toBe(409);
     expect(await follows(viewerId, federated)).toBe(false);
 
-    const self = await follow({ token, tool: 'updateResource', target_user_id: viewerId, action: 'follow' });
+    const self = await follow({
+      token,
+      tool: 'updateResource',
+      target_user_id: viewerId,
+      action: 'follow',
+    });
     expect(self.status).toBe(400);
 
     const target = await localUser();
     const owningApplicationId = serviceApplicationId;
     await fixture();
-    const foreign = await follow({ token, tool: 'updateResource', target_user_id: target, action: 'follow' });
+    const foreign = await follow({
+      token,
+      tool: 'updateResource',
+      target_user_id: target,
+      action: 'follow',
+    });
     expect(foreign.status).toBe(401);
     expect(await follows(viewerId, target)).toBe(false);
     serviceApplicationId = owningApplicationId;

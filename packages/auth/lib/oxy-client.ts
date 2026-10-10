@@ -16,5 +16,4 @@
  * `packages/api/scripts/register-commons-clients.ts`.
  */
 export const OXY_CLIENT_ID =
-  import.meta.env.VITE_OXY_CLIENT_ID ||
-  "oxy_dk_86e915fc05782683064b255fd5bac278a5a606bd85662202"
+  import.meta.env.VITE_OXY_CLIENT_ID || 'oxy_dk_86e915fc05782683064b255fd5bac278a5a606bd85662202';

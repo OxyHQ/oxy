@@ -55,7 +55,12 @@ async function registerIfNeeded(publicKey: string, username: string): Promise<vo
   const { registered } = await oxy.auth.isKeyRegistered(publicKey);
   if (registered) return;
   const registration = await SignatureService.createRegistrationSignature();
-  await oxy.auth.registerKey(registration.publicKey, registration.signature, registration.timestamp, username);
+  await oxy.auth.registerKey(
+    registration.publicKey,
+    registration.signature,
+    registration.timestamp,
+    username,
+  );
 }
 
 async function createIdentity(username: string): Promise<string[]> {
@@ -185,7 +190,13 @@ function WelcomeScreen() {
       />
       <Button title="Create new identity" onPress={handleCreate} disabled={!username.trim()} />
       <TextInput
-        style={{ borderWidth: 1, borderColor: '#ccc', padding: 10, marginVertical: 10, minHeight: 80 }}
+        style={{
+          borderWidth: 1,
+          borderColor: '#ccc',
+          padding: 10,
+          marginVertical: 10,
+          minHeight: 80,
+        }}
         multiline
         value={phrase}
         onChangeText={setPhrase}
@@ -204,7 +215,11 @@ function DashboardScreen({ user }: { user: User }) {
   return (
     <View style={{ flex: 1, padding: 20 }}>
       <Text style={{ fontSize: 20, fontWeight: 'bold', marginVertical: 20 }}>{displayName}</Text>
-      <Button title={loading ? 'Signing out...' : 'Sign out'} onPress={signOut} disabled={loading} />
+      <Button
+        title={loading ? 'Signing out...' : 'Sign out'}
+        onPress={signOut}
+        disabled={loading}
+      />
     </View>
   );
 }

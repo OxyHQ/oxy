@@ -5,10 +5,7 @@
  * directions.
  */
 
-import {
-  FEDERATION_BRIDGE_TRUST,
-  bridgeVouchesForNetwork,
-} from '../federationBridgeTrust';
+import { FEDERATION_BRIDGE_TRUST, bridgeVouchesForNetwork } from '../federationBridgeTrust';
 
 describe('FEDERATION_BRIDGE_TRUST', () => {
   it('names each bridge host once', () => {
@@ -16,11 +13,12 @@ describe('FEDERATION_BRIDGE_TRUST', () => {
     expect(new Set(hosts).size).toBe(hosts.length);
   });
 
-  it.each(
-    FEDERATION_BRIDGE_TRUST.map((entry) => [entry.host, entry.networkDomain] as const),
-  )('%s vouches for %s', (host, networkDomain) => {
-    expect(bridgeVouchesForNetwork(host, networkDomain)).toBe(true);
-  });
+  it.each(FEDERATION_BRIDGE_TRUST.map((entry) => [entry.host, entry.networkDomain] as const))(
+    '%s vouches for %s',
+    (host, networkDomain) => {
+      expect(bridgeVouchesForNetwork(host, networkDomain)).toBe(true);
+    },
+  );
 });
 
 describe('bridgeVouchesForNetwork', () => {

@@ -20,7 +20,9 @@ export function SignInSection({ items }: SignInSectionProps) {
 
   return (
     <Section title={t('security.sections.howYouSignIn')}>
-      <ThemedText style={styles.sectionSubtitle}>{t('security.sections.howYouSignInSubtitle')}</ThemedText>
+      <ThemedText style={styles.sectionSubtitle}>
+        {t('security.sections.howYouSignInSubtitle')}
+      </ThemedText>
       <AccountCard>
         <GroupedSection items={items} />
       </AccountCard>

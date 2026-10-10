@@ -261,7 +261,10 @@ export function createNodeApp(deps: NodeAppDependencies): NodeApp {
         mode: config.mode,
         version: config.protocolId,
         serviceType: config.serviceType,
-        head: head && head.headRecordId !== null ? { seq: head.seq, headRecordId: head.headRecordId } : null,
+        head:
+          head && head.headRecordId !== null
+            ? { seq: head.seq, headRecordId: head.headRecordId }
+            : null,
       });
     } catch (error) {
       next(error);
@@ -288,7 +291,10 @@ export function createNodeApp(deps: NodeAppDependencies): NodeApp {
       const since = firstQueryValue(req.query.since);
       const limit = parseLimit(req.query.limit);
       const head = await store.getHead(subject);
-      const headWire = head && head.headRecordId !== null ? { seq: head.seq, headRecordId: head.headRecordId } : null;
+      const headWire =
+        head && head.headRecordId !== null
+          ? { seq: head.seq, headRecordId: head.headRecordId }
+          : null;
 
       const sinceSeq = await resolveSinceSeq(store, subject, since);
       if (sinceSeq === null) {
@@ -305,80 +311,92 @@ export function createNodeApp(deps: NodeAppDependencies): NodeApp {
   });
 
   // ── Owner write: a single signed envelope ────────────────────────────────────
-  app.post(NODE_RECORDS_PATH, writeRateLimit, jsonParser, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const verification = await verifyNodeRecordEnvelope(req.body);
-      if (!verification.ok) {
-        res.status(400).json({ error: verification.reason });
-        return;
-      }
-      if (!ownerAuth.isOwnerKey(verification.envelope.publicKey)) {
-        res.status(403).json({ error: 'not_owner' });
-        return;
-      }
-      if (!isCollectionAllowed(config, verification.envelope.collection ?? '')) {
-        res.status(403).json({ error: 'foreign_collection' });
-        return;
-      }
-      const outcome = await store.append(subject, verification.envelope, verification.recordId);
-      if (!outcome.ok) {
-        res.status(appendStatus(outcome.reason)).json({ error: outcome.reason });
-        return;
-      }
-      res.status(201).json({ recordId: outcome.recordId, seq: outcome.seq });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // ── Owner write: a batch push (verified + appended in order) ──────────────────
-  app.post(NODE_SYNC_PUSH_PATH, writeRateLimit, jsonParser, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const body: unknown = req.body;
-      const items =
-        typeof body === 'object' && body !== null && Array.isArray((body as { records?: unknown }).records)
-          ? (body as { records: unknown[] }).records
-          : null;
-      if (!items) {
-        res.status(400).json({ error: 'invalid_batch' });
-        return;
-      }
-      if (items.length > MAX_SYNC_BATCH) {
-        res.status(400).json({ error: 'batch_too_large' });
-        return;
-      }
-
-      const results: Array<
-        { ok: true; recordId: string; seq: number } | { ok: false; reason: string }
-      > = [];
-      for (const item of items) {
-        const verification = await verifyNodeRecordEnvelope(item);
+  app.post(
+    NODE_RECORDS_PATH,
+    writeRateLimit,
+    jsonParser,
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const verification = await verifyNodeRecordEnvelope(req.body);
         if (!verification.ok) {
-          results.push({ ok: false, reason: verification.reason });
-          continue;
+          res.status(400).json({ error: verification.reason });
+          return;
         }
         if (!ownerAuth.isOwnerKey(verification.envelope.publicKey)) {
-          results.push({ ok: false, reason: 'not_owner' });
-          continue;
+          res.status(403).json({ error: 'not_owner' });
+          return;
         }
         if (!isCollectionAllowed(config, verification.envelope.collection ?? '')) {
-          results.push({ ok: false, reason: 'foreign_collection' });
-          continue;
+          res.status(403).json({ error: 'foreign_collection' });
+          return;
         }
         const outcome = await store.append(subject, verification.envelope, verification.recordId);
-        results.push(
-          outcome.ok
-            ? { ok: true, recordId: outcome.recordId, seq: outcome.seq }
-            : { ok: false, reason: outcome.reason },
-        );
+        if (!outcome.ok) {
+          res.status(appendStatus(outcome.reason)).json({ error: outcome.reason });
+          return;
+        }
+        res.status(201).json({ recordId: outcome.recordId, seq: outcome.seq });
+      } catch (error) {
+        next(error);
       }
+    },
+  );
 
-      const accepted = results.filter((result) => result.ok).length;
-      res.json({ accepted, results });
-    } catch (error) {
-      next(error);
-    }
-  });
+  // ── Owner write: a batch push (verified + appended in order) ──────────────────
+  app.post(
+    NODE_SYNC_PUSH_PATH,
+    writeRateLimit,
+    jsonParser,
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const body: unknown = req.body;
+        const items =
+          typeof body === 'object' &&
+          body !== null &&
+          Array.isArray((body as { records?: unknown }).records)
+            ? (body as { records: unknown[] }).records
+            : null;
+        if (!items) {
+          res.status(400).json({ error: 'invalid_batch' });
+          return;
+        }
+        if (items.length > MAX_SYNC_BATCH) {
+          res.status(400).json({ error: 'batch_too_large' });
+          return;
+        }
+
+        const results: Array<
+          { ok: true; recordId: string; seq: number } | { ok: false; reason: string }
+        > = [];
+        for (const item of items) {
+          const verification = await verifyNodeRecordEnvelope(item);
+          if (!verification.ok) {
+            results.push({ ok: false, reason: verification.reason });
+            continue;
+          }
+          if (!ownerAuth.isOwnerKey(verification.envelope.publicKey)) {
+            results.push({ ok: false, reason: 'not_owner' });
+            continue;
+          }
+          if (!isCollectionAllowed(config, verification.envelope.collection ?? '')) {
+            results.push({ ok: false, reason: 'foreign_collection' });
+            continue;
+          }
+          const outcome = await store.append(subject, verification.envelope, verification.recordId);
+          results.push(
+            outcome.ok
+              ? { ok: true, recordId: outcome.recordId, seq: outcome.seq }
+              : { ok: false, reason: outcome.reason },
+          );
+        }
+
+        const accepted = results.filter((result) => result.ok).length;
+        res.json({ accepted, results });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   // ── Serve a content-addressed blob ───────────────────────────────────────────
   app.get(`${NODE_BLOBS_PATH}/:hash`, async (req: Request, res: Response, next: NextFunction) => {

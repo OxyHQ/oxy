@@ -14,7 +14,10 @@ const INSTRUCTIONS = {
 };
 
 const domains = {
-  list: jest.fn(async () => [] as Array<{ domain: string; verifiedAt: string; method: 'dns-txt' | 'well-known' }>),
+  list: jest.fn(
+    async () =>
+      [] as Array<{ domain: string; verifiedAt: string; method: 'dns-txt' | 'well-known' }>,
+  ),
   requestVerification: jest.fn(async (_domain: string) => INSTRUCTIONS),
   verify: jest.fn(async (domain: string) => ({
     verified: true,
@@ -25,7 +28,11 @@ const domains = {
 
 jest.mock('../../src/ui/context/OxyContext', () => ({
   __esModule: true,
-  useOxy: () => ({ user: { id: 'u1' }, isAuthenticated: true, oxyServices: { identity: { domains } } }),
+  useOxy: () => ({
+    user: { id: 'u1' },
+    isAuthenticated: true,
+    oxyServices: { identity: { domains } },
+  }),
 }));
 
 jest.mock('../../src/ui/hooks/useI18n', () => ({
@@ -48,7 +55,9 @@ import DomainsScreen from '../../src/ui/screens/DomainsScreen';
 
 const renderScreen = () =>
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
       <DomainsScreen />
     </QueryClientProvider>,
   );
@@ -58,14 +67,20 @@ beforeEach(() => jest.clearAllMocks());
 describe('DomainsScreen', () => {
   it('requests a verification, shows both proofs, verifies and refreshes the list', async () => {
     renderScreen();
-    fireEvent.change(await screen.findByTestId('domains-input'), { target: { value: 'Example.com ' } });
+    fireEvent.change(await screen.findByTestId('domains-input'), {
+      target: { value: 'Example.com ' },
+    });
     fireEvent.click(screen.getByTestId('domains-request'));
 
     expect((await screen.findByTestId('domains-dns-value')).textContent).toBe('oxy-verify=tok');
-    expect(screen.getByTestId('domains-wellknown-url').textContent).toBe(INSTRUCTIONS.wellKnown.url);
+    expect(screen.getByTestId('domains-wellknown-url').textContent).toBe(
+      INSTRUCTIONS.wellKnown.url,
+    );
     expect(domains.requestVerification).toHaveBeenCalledWith('example.com');
 
-    domains.list.mockResolvedValueOnce([{ domain: 'example.com', verifiedAt: '2026-09-26T00:00:00.000Z', method: 'dns-txt' }]);
+    domains.list.mockResolvedValueOnce([
+      { domain: 'example.com', verifiedAt: '2026-09-26T00:00:00.000Z', method: 'dns-txt' },
+    ]);
     fireEvent.click(screen.getByTestId('domains-verify'));
 
     await waitFor(() => expect(domains.verify).toHaveBeenCalledWith('example.com'));
@@ -74,9 +89,14 @@ describe('DomainsScreen', () => {
   });
 
   it('keeps the proof on screen when the domain is not verified yet', async () => {
-    domains.verify.mockResolvedValueOnce({ verified: false, domain: { domain: 'example.com', verifiedAt: '', method: 'dns-txt' } });
+    domains.verify.mockResolvedValueOnce({
+      verified: false,
+      domain: { domain: 'example.com', verifiedAt: '', method: 'dns-txt' },
+    });
     renderScreen();
-    fireEvent.change(await screen.findByTestId('domains-input'), { target: { value: 'example.com' } });
+    fireEvent.change(await screen.findByTestId('domains-input'), {
+      target: { value: 'example.com' },
+    });
     fireEvent.click(screen.getByTestId('domains-request'));
     fireEvent.click(await screen.findByTestId('domains-verify'));
 

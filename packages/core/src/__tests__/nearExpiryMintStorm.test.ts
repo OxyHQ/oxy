@@ -28,7 +28,8 @@ const TOKEN_TTL_SECONDS = 15 * 60;
 const MINT_BUDGET_PER_MINUTE = 30;
 
 function createJwt(payload: Record<string, unknown>): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.signature`;
 }
 
@@ -53,7 +54,11 @@ function createMintServer(rotateWithinSeconds: number): {
   let serial = 0;
   const issue = (): string => {
     serial += 1;
-    return createJwt({ userId: 'u', jti: `t${serial}`, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS });
+    return createJwt({
+      userId: 'u',
+      jti: `t${serial}`,
+      exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
+    });
   };
   let stored = issue();
   const mints: number[] = [];
@@ -67,7 +72,10 @@ function createMintServer(rotateWithinSeconds: number): {
       }
       mints.push(now);
       // `getAccessToken`: hand back the stored token unless it has expired.
-      if (expOf(stored) - Math.floor(now / 1000) < (rotateWithinSeconds > 0 ? rotateWithinSeconds : 0)) {
+      if (
+        expOf(stored) - Math.floor(now / 1000) <
+        (rotateWithinSeconds > 0 ? rotateWithinSeconds : 0)
+      ) {
         stored = issue();
       }
       return { status: 200, token: stored };
@@ -113,7 +121,11 @@ describe('a busy app across an access token expiry', () => {
       });
     }) as typeof fetch;
 
-    const oxy = new OxyServices({ baseURL: 'https://api.mention.earth', enableCache: false, enableRetry: false });
+    const oxy = new OxyServices({
+      baseURL: 'https://api.mention.earth',
+      enableCache: false,
+      enableRetry: false,
+    });
     oxy.session.setAccessToken(server.storedToken());
     oxy.http.setAuthRefreshHandler(async (reason) => {
       const answer = server.mint();

@@ -24,21 +24,20 @@ export function ScrollProvider({ children }: { children: ReactNode }) {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   };
 
-  const value = useMemo(() => ({
-    isScrolled,
-    setIsScrolled,
-    scrollRef,
-    scrollToTop,
-    scrollY,
-    scrollDirection,
-    headerHeight,
-  }), [isScrolled, scrollY, scrollDirection, headerHeight]);
-
-  return (
-    <ScrollContext.Provider value={value}>
-      {children}
-    </ScrollContext.Provider>
+  const value = useMemo(
+    () => ({
+      isScrolled,
+      setIsScrolled,
+      scrollRef,
+      scrollToTop,
+      scrollY,
+      scrollDirection,
+      headerHeight,
+    }),
+    [isScrolled, scrollY, scrollDirection, headerHeight],
   );
+
+  return <ScrollContext.Provider value={value}>{children}</ScrollContext.Provider>;
 }
 
 export function useScrollContext() {
@@ -48,4 +47,3 @@ export function useScrollContext() {
   }
   return context;
 }
-

@@ -82,7 +82,7 @@ jest.mock('pino', () => {
 });
 
 /** Bound in `beforeAll`, after `NODE_ENV` is pinned. See the header. */
-let logger: (typeof import('../logger'))['logger'];
+let logger: typeof import('../logger')['logger'];
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 
@@ -177,7 +177,7 @@ describe('the logger redacts credential-shaped field names', () => {
       const upstream = lines[0].json.upstream as Record<string, unknown>;
       expect(upstream[field]).toBe(CENSOR);
       expect(upstream.provider).toBe(CONTROL_VALUE);
-    }
+    },
   );
 
   it('censors the two request headers a middleware would log', () => {

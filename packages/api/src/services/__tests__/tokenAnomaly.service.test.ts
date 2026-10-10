@@ -128,7 +128,7 @@ async function seedConsumer(): Promise<Consumer> {
 async function seedEvent(
   consumer: Consumer,
   createdAt: Date,
-  tokens: { input?: number; cachedInput?: number; output?: number; reasoning?: number }
+  tokens: { input?: number; cachedInput?: number; output?: number; reasoning?: number },
 ): Promise<void> {
   await getDb()
     .insert(inferenceUsageEvents)
@@ -162,7 +162,7 @@ async function seedEvent(
 async function seedRollupDay(
   consumer: Consumer,
   day: Date,
-  tokens: { input?: number; output?: number }
+  tokens: { input?: number; output?: number },
 ): Promise<void> {
   await getDb()
     .insert(inferenceUsageDailyRollups)
@@ -228,7 +228,7 @@ describe('the configured multiple', () => {
       // which is how an alert channel becomes noise nobody reads. A typo must not
       // disable the detector silently either — hence the default, not a throw.
       expect(resolveTokenAnomalyMultiple()).toBe(DEFAULT_TOKEN_ANOMALY_MULTIPLE);
-    }
+    },
   );
 
   it('matches the spend half, so the two signals are comparable', () => {
@@ -314,9 +314,13 @@ describe('an hour above the account’s own daily median', () => {
 
     // The pair: one more day of history and the SAME spike is flagged. Without
     // this, "not flagged" is also what a detector reading no rows at all reports.
-    await seedRollupDay(consumer, new Date(midnight.getTime() - MINIMUM_TOKEN_BASELINE_DAYS * DAY_MS), {
-      input: 1_000,
-    });
+    await seedRollupDay(
+      consumer,
+      new Date(midnight.getTime() - MINIMUM_TOKEN_BASELINE_DAYS * DAY_MS),
+      {
+        input: 1_000,
+      },
+    );
     const after = await detectTokenAnomalies();
     expect(after.map((entry) => entry.accountId)).toContain(consumer.accountId);
   });
@@ -470,8 +474,8 @@ describe('the sweep records once per spike and never blocks', () => {
       .where(
         and(
           eq(applicationCredentials.id, consumer.credentialId),
-          eq(applicationCredentials.applicationId, consumer.applicationId)
-        )
+          eq(applicationCredentials.applicationId, consumer.applicationId),
+        ),
       )
       .limit(1);
     expect(credential.status).toBe('active');

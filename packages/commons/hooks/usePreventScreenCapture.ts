@@ -20,7 +20,6 @@ type ScreenCaptureApi = Pick<
 function loadScreenCapture(): ScreenCaptureApi | null {
   if (Platform.OS === 'web') return null;
   if (!requireOptionalNativeModule('ExpoScreenCapture')) return null;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('expo-screen-capture') as ScreenCaptureApi;
 }
 

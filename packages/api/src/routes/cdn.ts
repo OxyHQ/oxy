@@ -94,7 +94,7 @@ router.get(
     // Cacheable redirect: bodiless, and not rangeable. See `sendAssetRedirect`.
     res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
     return sendAssetRedirect(res, cdnUrl);
-  })
+  }),
 );
 
 export default router;

@@ -106,9 +106,7 @@ if (emitted.length > 0) {
     encoding: 'utf8',
   });
   if (restore.status !== 0) {
-    console.error(
-      'WARNING: could not restore drizzle/meta/_journal.json — check `git status`.'
-    );
+    console.error('WARNING: could not restore drizzle/meta/_journal.json — check `git status`.');
   }
 }
 
@@ -117,7 +115,7 @@ if (tablesRead < MIN_TABLES_READ) {
   fail(
     `drizzle-kit reported only ${tablesRead} tables (floor ${MIN_TABLES_READ}). ` +
       'It did not read the schema, so its silence means nothing.',
-    output
+    output,
   );
 }
 
@@ -133,10 +131,10 @@ if (emitted.length > 0 || !output.includes('No schema changes')) {
       'Fix by generating that migration instead of hand-writing it, or — if the SQL\n' +
       'must stay hand-written — by generating it, keeping the SNAPSHOT, and trimming\n' +
       'the SQL to only what has not been applied (see 0020_follow_events_claim).',
-    output
+    output,
   );
 }
 
 console.log(
-  `✓ Schema and snapshots agree: drizzle-kit read ${tablesRead} tables and has nothing to emit.`
+  `✓ Schema and snapshots agree: drizzle-kit read ${tablesRead} tables and has nothing to emit.`,
 );

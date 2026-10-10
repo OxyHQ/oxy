@@ -142,7 +142,8 @@ describe('isAllowedOrigin', () => {
   });
 
   it('accepts validated OXY_EXTRA_ALLOWED_ORIGINS entries', () => {
-    process.env.OXY_EXTRA_ALLOWED_ORIGINS = 'https://partner.example.com, https://emergency.oxy.dev';
+    process.env.OXY_EXTRA_ALLOWED_ORIGINS =
+      'https://partner.example.com, https://emergency.oxy.dev';
     expect(isAllowedOrigin('https://partner.example.com')).toBe(true);
     expect(isAllowedOrigin('https://emergency.oxy.dev')).toBe(true);
   });
@@ -193,7 +194,7 @@ describe('requireSameSiteOrigin', () => {
 
   async function request(
     method: string,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
   ): Promise<GuardResponse> {
     const address = server.address() as AddressInfo;
     return new Promise((resolve, reject) => {
@@ -201,7 +202,9 @@ describe('requireSameSiteOrigin', () => {
         { method, host: '127.0.0.1', port: address.port, path: '/test', headers },
         (res) => {
           let raw = '';
-          res.on('data', (chunk) => { raw += chunk; });
+          res.on('data', (chunk) => {
+            raw += chunk;
+          });
           res.on('end', () => {
             let parsed: Record<string, unknown> = {};
             if (raw.length > 0) {
@@ -213,7 +216,7 @@ describe('requireSameSiteOrigin', () => {
             }
             resolve({ status: res.statusCode ?? 0, body: parsed });
           });
-        }
+        },
       );
       req.on('error', reject);
       req.end();
@@ -248,7 +251,7 @@ describe('requireSameSiteOrigin', () => {
         origin: 'https://evil.com',
         path: '/test',
         method: 'POST',
-      })
+      }),
     );
   });
 
@@ -337,7 +340,7 @@ describe('requireSameSiteOrigin', () => {
       expect.objectContaining({
         origin: 'https://evil.com',
         mode: 'log-only',
-      })
+      }),
     );
   });
 });

@@ -19,10 +19,7 @@ import { join } from 'node:path';
  * stable way to guard the one configuration line that matters — the same
  * source-assertion approach `@oxy.so/core` uses for its shipped-regex policy.
  */
-const ROOT_LAYOUT_SOURCE = readFileSync(
-  join(__dirname, '..', '..', 'app', '_layout.tsx'),
-  'utf8',
-);
+const ROOT_LAYOUT_SOURCE = readFileSync(join(__dirname, '..', '..', 'app', '_layout.tsx'), 'utf8');
 
 describe('Commons root layout', () => {
   it('mounts exactly one OxyProvider', () => {
@@ -63,6 +60,8 @@ describe('Commons root layout', () => {
     expect(ROOT_LAYOUT_SOURCE.match(/takeLaunchNotificationData\(\)/g)).toHaveLength(1);
     expect(ROOT_LAYOUT_SOURCE).toMatch(/coldLaunchApprovalCode\(launchData\)/);
     expect(ROOT_LAYOUT_SOURCE).toMatch(/systemNotificationIdFromPush\(launchData\)/);
-    expect(ROOT_LAYOUT_SOURCE).toMatch(/useSystemNotificationTaps\([^)]*launchSystemNotificationId\)/);
+    expect(ROOT_LAYOUT_SOURCE).toMatch(
+      /useSystemNotificationTaps\([^)]*launchSystemNotificationId\)/,
+    );
   });
 });

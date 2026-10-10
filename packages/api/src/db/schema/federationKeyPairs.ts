@@ -53,5 +53,5 @@ export const federationKeyPairs = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [unique('federation_key_pairs_key_id_key').on(t.keyId)]
+  (t) => [unique('federation_key_pairs_key_id_key').on(t.keyId)],
 );

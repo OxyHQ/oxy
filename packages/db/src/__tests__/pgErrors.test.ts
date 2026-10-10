@@ -26,8 +26,9 @@ describe('pgErrors', () => {
   });
 
   it('reads constraint_name, the wire field, not `constraint`', () => {
-    expect(constraintNameOf(wrapped(UNIQUE_VIOLATION, 'sessions_token_unique')))
-      .toBe('sessions_token_unique');
+    expect(constraintNameOf(wrapped(UNIQUE_VIOLATION, 'sessions_token_unique'))).toBe(
+      'sessions_token_unique',
+    );
   });
 
   it('matches a unique violation only on the NAMED constraint when one is given', () => {

@@ -1,6 +1,12 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { Alert02Icon, ArrowLeft01Icon, ArrowRight01Icon, Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
+import {
+  Alert02Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Copy01Icon,
+  Tick02Icon,
+} from '@hugeicons/core-free-icons';
 import { useState } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@/components/ui/button';
@@ -24,9 +30,7 @@ function CodeBlock({ code, language: _language = 'bash' }: { code: string; langu
 
   return (
     <div className="relative group">
-      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono">
-        {code}
-      </pre>
+      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono">{code}</pre>
       <Button
         variant="ghost"
         size="icon"
@@ -64,9 +68,13 @@ function AuthenticationPage() {
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">Application credentials</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Every integration authenticates as an <strong className="text-foreground">application</strong>, and
-          each application holds one or more credentials. Create and manage them in
-          the <Link to="/apps" className="text-primary hover:underline">Applications</Link> section.
+          Every integration authenticates as an{' '}
+          <strong className="text-foreground">application</strong>, and each application holds one
+          or more credentials. Create and manage them in the{' '}
+          <Link to="/apps" className="text-primary hover:underline">
+            Applications
+          </Link>{' '}
+          section.
         </p>
         <p className="text-sm text-muted-foreground mb-4">
           A credential is a <em>pair</em>, and the two halves are not interchangeable:
@@ -97,8 +105,8 @@ clientSecret  shown once, at create and rotate time         secret`}
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">How to authenticate</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Whichever route you take, the value you finally put in
-          the <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization</code> header is a
+          Whichever route you take, the value you finally put in the{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization</code> header is a
           short-lived <strong className="text-foreground">token</strong>:
         </p>
         <CodeBlock code="Authorization: Bearer <token>" />
@@ -107,9 +115,10 @@ clientSecret  shown once, at create and rotate time         secret`}
           Server to server — exchange your credential for a service token
         </h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Post the credential pair to <code className="text-xs bg-muted px-1 py-0.5 rounded">/auth/service-token</code>.
-          You get back a JWT valid for one hour; re-mint it when it expires. This requires
-          a <code className="text-xs bg-muted px-1 py-0.5 rounded">service</code> credential on an
+          Post the credential pair to{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">/auth/service-token</code>. You get
+          back a JWT valid for one hour; re-mint it when it expires. This requires a{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">service</code> credential on an
           application Oxy has approved for it.
         </p>
         <CodeBlock
@@ -123,21 +132,21 @@ curl https://api.oxy.so/some/endpoint \\
   -H "Authorization: Bearer $OXY_SERVICE_TOKEN"`}
         />
         <p className="text-sm text-muted-foreground mt-4">
-          To act on behalf of one of your users, add
-          an <code className="text-xs bg-muted px-1 py-0.5 rounded">X-Oxy-User-Id</code> header to
-          the delegated request.
+          To act on behalf of one of your users, add an{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">X-Oxy-User-Id</code> header to the
+          delegated request.
         </p>
 
         <h3 className="text-base font-semibold text-foreground mt-6 mb-2">
           On behalf of a user — OAuth 2.0 with PKCE
         </h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Send the user to <code className="text-xs bg-muted px-1 py-0.5 rounded">auth.oxy.so</code> with
-          your <code className="text-xs bg-muted px-1 py-0.5 rounded">client_id</code> and a PKCE
-          challenge, then exchange the returned code
-          at <code className="text-xs bg-muted px-1 py-0.5 rounded">/auth/oauth/token</code> for a
-          user access token. Public clients (mobile, SPA) send only
-          the <code className="text-xs bg-muted px-1 py-0.5 rounded">client_id</code> and prove
+          Send the user to <code className="text-xs bg-muted px-1 py-0.5 rounded">auth.oxy.so</code>{' '}
+          with your <code className="text-xs bg-muted px-1 py-0.5 rounded">client_id</code> and a
+          PKCE challenge, then exchange the returned code at{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">/auth/oauth/token</code> for a user
+          access token. Public clients (mobile, SPA) send only the{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">client_id</code> and prove
           possession with the PKCE verifier — never with the secret, which such a client cannot
           keep. Confidential clients send the secret from their backend.
         </p>
@@ -161,11 +170,11 @@ curl https://api.oxy.so/some/endpoint \\
   -d '{"model": "${MODEL_ID_PLACEHOLDER}", "input": "hello"}'`}
         />
         <p className="text-sm text-muted-foreground mt-4">
-          A machine credential must name its scopes — there is no fallback to the application's
-          full set — and the effective set is still intersected with the application's own.
-          It is the only credential type that accepts an expiry, and its rotation grace window is
-          opt-in rather than the platform's fixed seven days, because the usual reason to rotate an
-          API key is that it leaked.
+          A machine credential must name its scopes — there is no fallback to the application's full
+          set — and the effective set is still intersected with the application's own. It is the
+          only credential type that accepts an expiry, and its rotation grace window is opt-in
+          rather than the platform's fixed seven days, because the usual reason to rotate an API key
+          is that it leaked.
         </p>
 
         <InferenceAvailabilityNotice className="mt-4" />
@@ -181,33 +190,56 @@ curl https://api.oxy.so/some/endpoint \\
         </p>
         <div className="space-y-3">
           <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:invoke</Badge>
-            <p className="text-sm text-muted-foreground">Run inference requests, billed to the owning account</p>
-          </div>
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:models:read</Badge>
-            <p className="text-sm text-muted-foreground">List available models</p>
-          </div>
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:usage:read</Badge>
-            <p className="text-sm text-muted-foreground">Read this application's inference usage and costs</p>
-          </div>
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:routing:read</Badge>
-            <p className="text-sm text-muted-foreground">Read routing profiles and provider descriptors</p>
-          </div>
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:providers:read</Badge>
-            <p className="text-sm text-muted-foreground">Read connected inference providers, never their secrets</p>
-          </div>
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:routing:write</Badge>
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">
+              inference:invoke
+            </Badge>
             <p className="text-sm text-muted-foreground">
-              Change routing profiles. Staff approval required — it decides where other tenants' requests are served from.
+              Run inference requests, billed to the owning account
             </p>
           </div>
           <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:providers:write</Badge>
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">
+              inference:models:read
+            </Badge>
+            <p className="text-sm text-muted-foreground">List available models</p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">
+              inference:usage:read
+            </Badge>
+            <p className="text-sm text-muted-foreground">
+              Read this application's inference usage and costs
+            </p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">
+              inference:routing:read
+            </Badge>
+            <p className="text-sm text-muted-foreground">
+              Read routing profiles and provider descriptors
+            </p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">
+              inference:providers:read
+            </Badge>
+            <p className="text-sm text-muted-foreground">
+              Read connected inference providers, never their secrets
+            </p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">
+              inference:routing:write
+            </Badge>
+            <p className="text-sm text-muted-foreground">
+              Change routing profiles. Staff approval required — it decides where other tenants'
+              requests are served from.
+            </p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">
+              inference:providers:write
+            </Badge>
             <p className="text-sm text-muted-foreground">
               Manage provider and BYOK connections. Staff approval required.
             </p>
@@ -220,7 +252,9 @@ curl https://api.oxy.so/some/endpoint \\
         <h2 className="text-lg font-semibold text-foreground mb-4">Rate Limits</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Each credential has configurable rate limits. When you exceed the rate limit, the API will
-          return a <code className="text-xs bg-muted px-1 py-0.5 rounded">429 Too Many Requests</code> response.
+          return a{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">429 Too Many Requests</code>{' '}
+          response.
         </p>
         <p className="text-sm text-muted-foreground mb-4">
           Rate limit headers are included in every response:
@@ -278,13 +312,13 @@ X-RateLimit-Reset: 1234567890`}
       {/* Error Handling */}
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">Authentication Errors</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Common authentication errors:
-        </p>
+        <p className="text-sm text-muted-foreground mb-4">Common authentication errors:</p>
         <div className="space-y-3">
           <div className="p-3 rounded-lg border">
             <div className="flex items-center gap-2 mb-1">
-              <Badge variant="destructive" className="text-xs">401</Badge>
+              <Badge variant="destructive" className="text-xs">
+                401
+              </Badge>
               <span className="text-sm font-medium">Unauthorized</span>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -294,7 +328,9 @@ X-RateLimit-Reset: 1234567890`}
           </div>
           <div className="p-3 rounded-lg border">
             <div className="flex items-center gap-2 mb-1">
-              <Badge variant="destructive" className="text-xs">403</Badge>
+              <Badge variant="destructive" className="text-xs">
+                403
+              </Badge>
               <span className="text-sm font-medium">Forbidden</span>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -303,7 +339,9 @@ X-RateLimit-Reset: 1234567890`}
           </div>
           <div className="p-3 rounded-lg border">
             <div className="flex items-center gap-2 mb-1">
-              <Badge variant="destructive" className="text-xs">429</Badge>
+              <Badge variant="destructive" className="text-xs">
+                429
+              </Badge>
               <span className="text-sm font-medium">Too Many Requests</span>
             </div>
             <p className="text-xs text-muted-foreground">Rate limit exceeded</p>
@@ -326,7 +364,9 @@ X-RateLimit-Reset: 1234567890`}
             to="/apps"
             className="flex items-center justify-between py-3 hover:bg-muted/50 -mx-3 px-3 rounded-lg transition-colors"
           >
-            <span className="text-sm text-foreground">Manage your applications and credentials</span>
+            <span className="text-sm text-foreground">
+              Manage your applications and credentials
+            </span>
             <HugeiconsIcon icon={ArrowRight01Icon} size={16} className="text-muted-foreground" />
           </Link>
         </div>

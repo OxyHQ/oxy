@@ -28,14 +28,14 @@ export function RecentActivitySection({ items, onPressIn }: RecentActivitySectio
   }
 
   return (
-    <HorizontalScrollSection
-      onPressIn={onPressIn}
-      contentContainerStyle={styles.contentContainer}
-    >
+    <HorizontalScrollSection onPressIn={onPressIn} contentContainerStyle={styles.contentContainer}>
       {items.map((item) => (
         <TouchableOpacity
           key={item.id}
-          style={[styles.activityCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[
+            styles.activityCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
           onPressIn={onPressIn}
           onPress={item.onPress}
           activeOpacity={0.7}
@@ -43,17 +43,18 @@ export function RecentActivitySection({ items, onPressIn }: RecentActivitySectio
           accessibilityLabel={item.subtitle ? `${item.title}, ${item.subtitle}` : item.title}
         >
           <View style={[styles.activityIcon, { backgroundColor: item.iconColor }]}>
-            <MaterialCommunityIcons name={item.icon} size={20} color={darkenColor(item.iconColor)} />
+            <MaterialCommunityIcons
+              name={item.icon}
+              size={20}
+              color={darkenColor(item.iconColor)}
+            />
           </View>
           <View style={styles.activityContent}>
-            <Text 
-              style={[styles.activityTitle, { color: colors.text }]}
-              numberOfLines={1}
-            >
+            <Text style={[styles.activityTitle, { color: colors.text }]} numberOfLines={1}>
               {item.title}
             </Text>
             {item.subtitle && (
-              <Text 
+              <Text
                 style={[styles.activitySubtitle, { color: colors.textSecondary }]}
                 numberOfLines={1}
               >
@@ -103,4 +104,3 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   } as const,
 });
-

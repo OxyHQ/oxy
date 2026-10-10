@@ -72,7 +72,7 @@ function mutateJournal(root, caseName, mutate) {
   const after = `${JSON.stringify(journal, null, 2)}\n`;
   if (after === before) {
     failures.push(
-      `${caseName}: the fixture edit changed nothing — the mutation never happened, so the case proves nothing.`
+      `${caseName}: the fixture edit changed nothing — the mutation never happened, so the case proves nothing.`,
     );
     return;
   }
@@ -83,7 +83,11 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment, script = 
   let code = 0;
   let output = '';
   try {
-    output = execFileSync('bun', [script], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    output = execFileSync('bun', [script], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   } catch (error) {
     code = error.status ?? 1;
     output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
@@ -93,7 +97,9 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment, script = 
     return;
   }
   if (!output.includes(expectedFragment)) {
-    failures.push(`${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`);
+    failures.push(
+      `${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`,
+    );
   }
 }
 
@@ -134,7 +140,7 @@ if (journalTail) {
     swapped,
     1,
     `${journalTail.last.tag} has when=${journalTail.previous.when}, which is not newer than ` +
-    `${journalTail.previous.tag}'s when=${journalTail.last.when}`
+      `${journalTail.previous.tag}'s when=${journalTail.last.when}`,
   );
 }
 
@@ -155,7 +161,7 @@ if (journalTail) {
     regenerated,
     1,
     `${journalTail.last.tag} has when=${REGENERATED_WHEN}, which is not newer than ` +
-    `${journalTail.previous.tag}'s when=${journalTail.previous.when}`
+      `${journalTail.previous.tag}'s when=${journalTail.previous.when}`,
   );
 }
 
@@ -179,12 +185,7 @@ mutateJournal(reordered, 'idx-out-of-order', (journal) => {
     journal.entries[last - 1],
   ];
 });
-expectVerdict(
-  'idx-out-of-order',
-  reordered,
-  1,
-  'so the journal is not in ascending `idx` order'
-);
+expectVerdict('idx-out-of-order', reordered, 1, 'so the journal is not in ascending `idx` order');
 
 // ── The mirror-image failure: a migration nothing will ever read ───────────
 // Deliberately numbered far past anything real, so this fixture cannot collide
@@ -193,7 +194,7 @@ const ORPHAN_TAG = '9999_orphan_no_journal_entry';
 const orphanFile = createFixture();
 writeFileSync(
   join(orphanFile, DRIZZLE, `${ORPHAN_TAG}.sql`),
-  '-- oxy:deploy-phase=pre\nALTER TABLE "users" ADD COLUMN "orphan" text;\n'
+  '-- oxy:deploy-phase=pre\nALTER TABLE "users" ADD COLUMN "orphan" text;\n',
 );
 expectVerdict('orphan-sql-file', orphanFile, 1, `${ORPHAN_TAG}.sql has no entry in`);
 
@@ -201,12 +202,7 @@ expectVerdict('orphan-sql-file', orphanFile, 1, `${ORPHAN_TAG}.sql has no entry 
 // reported as what it costs, which is a migrator that fails in production.
 const missingFile = createFixture();
 rmSync(join(missingFile, DRIZZLE, '0030_browser_hub_handle.sql'));
-expectVerdict(
-  'journal-entry-without-file',
-  missingFile,
-  1,
-  'names 0030_browser_hub_handle but'
-);
+expectVerdict('journal-entry-without-file', missingFile, 1, 'names 0030_browser_hub_handle but');
 
 // ── The gate's own guards, each with a case that goes GREEN without it ─────
 //
@@ -251,7 +247,7 @@ expectVerdict(
   isolated,
   0,
   'Migration journal order is sound',
-  join(isolated, GATE)
+  join(isolated, GATE),
 );
 
 for (const fixture of createdFixtures) {
@@ -264,4 +260,6 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`Migration journal order check discriminated ${createdFixtures.length} fixture case(s).`);
+console.log(
+  `Migration journal order check discriminated ${createdFixtures.length} fixture case(s).`,
+);

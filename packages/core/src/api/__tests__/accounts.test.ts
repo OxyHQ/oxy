@@ -8,18 +8,27 @@ import type { AccountMember, AccountNode, SwitchAccountResult } from '../account
 import type { User } from '../../models/interfaces';
 
 function makeJwt(payload: Record<string, unknown>): string {
-  const encode = (value: Record<string, unknown>): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: Record<string, unknown>): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ exp: Math.floor(Date.now() / 1000) + 3600, ...payload })}.sig`;
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(status >= 400 ? { error: { code: 'FORBIDDEN', message: 'nope' } } : { data }), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
+  return new Response(
+    JSON.stringify(status >= 400 ? { error: { code: 'FORBIDDEN', message: 'nope' } } : { data }),
+    {
+      status,
+      headers: { 'content-type': 'application/json' },
+    },
+  );
 }
 
-const user: User = { id: 'acc1', publicKey: 'pk-acc1', username: 'oxy-org', name: { displayName: 'Oxy Org' } };
+const user: User = {
+  id: 'acc1',
+  publicKey: 'pk-acc1',
+  username: 'oxy-org',
+  name: { displayName: 'Oxy Org' },
+};
 
 const member: AccountMember = {
   _id: 'm1',
@@ -51,7 +60,11 @@ describe('oxy.accounts', () => {
 
   const call = (i: number) => {
     const [url, init] = fetchMock.mock.calls[i];
-    return { url: String(url), method: init?.method, body: init?.body ? JSON.parse(String(init.body)) : undefined };
+    return {
+      url: String(url),
+      method: init?.method,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    };
   };
 
   beforeEach(() => {
@@ -106,7 +119,10 @@ describe('oxy.accounts', () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(switched));
       const result = await oxy.accounts.actAs('acc1');
 
-      expect(call(1)).toMatchObject({ url: 'http://test.invalid/accounts/acc1/switch', method: 'POST' });
+      expect(call(1)).toMatchObject({
+        url: 'http://test.invalid/accounts/acc1/switch',
+        method: 'POST',
+      });
       expect(oxy.session.accessToken).toBe(switched.accessToken);
       expect(result.authuser).toBe(1);
       expect(result.user.id).toBe('acc1');
@@ -130,8 +146,13 @@ describe('oxy.accounts', () => {
       fetchMock.mockResolvedValueOnce(jsonResponse({ accounts: [] }));
       await oxy.accounts.list();
       fetchMock.mockResolvedValueOnce(jsonResponse({ account: node }));
-      await expect(oxy.accounts.create({ kind: 'organization', username: 'org' })).resolves.toEqual(node);
-      expect(call(1)).toMatchObject({ method: 'POST', body: { kind: 'organization', username: 'org' } });
+      await expect(oxy.accounts.create({ kind: 'organization', username: 'org' })).resolves.toEqual(
+        node,
+      );
+      expect(call(1)).toMatchObject({
+        method: 'POST',
+        body: { kind: 'organization', username: 'org' },
+      });
 
       fetchMock.mockResolvedValueOnce(jsonResponse({ accounts: [node] }));
       await expect(oxy.accounts.list()).resolves.toEqual([node]);
@@ -143,7 +164,11 @@ describe('oxy.accounts', () => {
       await oxy.accounts.get('acc1');
       fetchMock.mockResolvedValueOnce(jsonResponse({ account: node }));
       await oxy.accounts.update('acc1', { bio: 'x' });
-      expect(call(1)).toMatchObject({ url: 'http://test.invalid/accounts/acc1', method: 'PATCH', body: { bio: 'x' } });
+      expect(call(1)).toMatchObject({
+        url: 'http://test.invalid/accounts/acc1',
+        method: 'PATCH',
+        body: { bio: 'x' },
+      });
 
       fetchMock.mockResolvedValueOnce(jsonResponse({ account: node }));
       await oxy.accounts.get('acc1');
@@ -189,15 +214,26 @@ describe('oxy.accounts', () => {
       await oxy.accounts.members.list('child1');
 
       fetchMock.mockResolvedValueOnce(jsonResponse({ member }));
-      await expect(oxy.accounts.members.invite('acc1', { usernameOrEmail: 'bob', role: 'viewer' })).resolves.toEqual(member);
+      await expect(
+        oxy.accounts.members.invite('acc1', { usernameOrEmail: 'bob', role: 'viewer' }),
+      ).resolves.toEqual(member);
       fetchMock.mockResolvedValueOnce(jsonResponse({ member }));
       await oxy.accounts.members.update('acc1', 'm/1', { role: 'admin' });
       fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
       await oxy.accounts.members.remove('acc1', 'm1');
 
-      expect(call(1)).toMatchObject({ url: 'http://test.invalid/accounts/acc1/members', method: 'POST' });
-      expect(call(2)).toMatchObject({ url: 'http://test.invalid/accounts/acc1/members/m%2F1', method: 'PATCH' });
-      expect(call(3)).toMatchObject({ url: 'http://test.invalid/accounts/acc1/members/m1', method: 'DELETE' });
+      expect(call(1)).toMatchObject({
+        url: 'http://test.invalid/accounts/acc1/members',
+        method: 'POST',
+      });
+      expect(call(2)).toMatchObject({
+        url: 'http://test.invalid/accounts/acc1/members/m%2F1',
+        method: 'PATCH',
+      });
+      expect(call(3)).toMatchObject({
+        url: 'http://test.invalid/accounts/acc1/members/m1',
+        method: 'DELETE',
+      });
 
       fetchMock.mockResolvedValueOnce(jsonResponse({ members: [] }));
       await expect(oxy.accounts.members.list('child1')).resolves.toEqual([]);
@@ -207,6 +243,10 @@ describe('oxy.accounts', () => {
 
   it('rejects with OxyApiError carrying the status and code', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(null, 403));
-    await expect(oxy.accounts.get('acc1')).rejects.toMatchObject({ name: 'OxyApiError', status: 403, code: 'FORBIDDEN' });
+    await expect(oxy.accounts.get('acc1')).rejects.toMatchObject({
+      name: 'OxyApiError',
+      status: 403,
+      code: 'FORBIDDEN',
+    });
   });
 });

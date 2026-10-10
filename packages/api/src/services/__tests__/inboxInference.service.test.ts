@@ -26,10 +26,18 @@ jest.mock('../../config/postgres', () => ({
   }),
 }));
 jest.mock('../../db/schema/applications', () => ({
-  applications: { name: 'applications', id: 'applications.id', type: 'type', isInternal: 'isInternal' },
+  applications: {
+    name: 'applications',
+    id: 'applications.id',
+    type: 'type',
+    isInternal: 'isInternal',
+  },
 }));
 jest.mock('../../db/schema/inferenceRoutingProfiles', () => ({
-  inferenceRoutingProfiles: { name: 'inference_routing_profiles', id: 'inference_routing_profiles.id' },
+  inferenceRoutingProfiles: {
+    name: 'inference_routing_profiles',
+    id: 'inference_routing_profiles.id',
+  },
 }));
 jest.mock('drizzle-orm', () => ({
   eq: (column: unknown, value: unknown) => ({ column, value }),

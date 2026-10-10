@@ -3,12 +3,8 @@ import { normalizeProfileLinks, type ProfileLink } from '../profileLinks';
 describe('normalizeProfileLinks', () => {
   describe('linksMetadata path (preferred)', () => {
     it('maps title + url and uses the entry id when present', () => {
-      const result = normalizeProfileLinks([
-        { url: 'https://oxy.so', title: 'Oxy', id: 'abc' },
-      ]);
-      expect(result).toEqual<ProfileLink[]>([
-        { id: 'abc', title: 'Oxy', url: 'https://oxy.so' },
-      ]);
+      const result = normalizeProfileLinks([{ url: 'https://oxy.so', title: 'Oxy', id: 'abc' }]);
+      expect(result).toEqual<ProfileLink[]>([{ id: 'abc', title: 'Oxy', url: 'https://oxy.so' }]);
     });
 
     it('falls back to the index when an entry has no id', () => {
@@ -24,9 +20,7 @@ describe('normalizeProfileLinks', () => {
 
     it('omits title when absent', () => {
       const result = normalizeProfileLinks([{ url: 'https://no-title.example' }]);
-      expect(result).toEqual<ProfileLink[]>([
-        { id: '0', url: 'https://no-title.example' },
-      ]);
+      expect(result).toEqual<ProfileLink[]>([{ id: '0', url: 'https://no-title.example' }]);
       expect(result[0]).not.toHaveProperty('title');
     });
 
@@ -52,9 +46,7 @@ describe('normalizeProfileLinks', () => {
     });
 
     it('omits description and image when absent', () => {
-      const result = normalizeProfileLinks([
-        { url: 'https://min.example', title: 'Min' },
-      ]);
+      const result = normalizeProfileLinks([{ url: 'https://min.example', title: 'Min' }]);
       expect(result).toEqual<ProfileLink[]>([
         { id: '0', title: 'Min', url: 'https://min.example' },
       ]);
@@ -93,35 +85,25 @@ describe('normalizeProfileLinks', () => {
 
     it('trims surrounding whitespace from urls', () => {
       const result = normalizeProfileLinks([{ url: '  https://trim.example  ' }]);
-      expect(result).toEqual<ProfileLink[]>([
-        { id: '0', url: 'https://trim.example' },
-      ]);
+      expect(result).toEqual<ProfileLink[]>([{ id: '0', url: 'https://trim.example' }]);
     });
 
     it('does NOT add a scheme to bare urls', () => {
       const result = normalizeProfileLinks([{ url: 'oxy.so', title: 'Bare' }]);
-      expect(result).toEqual<ProfileLink[]>([
-        { id: '0', title: 'Bare', url: 'oxy.so' },
-      ]);
+      expect(result).toEqual<ProfileLink[]>([{ id: '0', title: 'Bare', url: 'oxy.so' }]);
     });
   });
 
   describe('legacy links path (no linksMetadata)', () => {
     it('maps strings to { id, url } without title/description/image', () => {
-      const result = normalizeProfileLinks(undefined, [
-        'https://a.example',
-        'https://b.example',
-      ]);
+      const result = normalizeProfileLinks(undefined, ['https://a.example', 'https://b.example']);
       expect(result).toEqual<ProfileLink[]>([
         { id: '0', url: 'https://a.example' },
         { id: '1', url: 'https://b.example' },
       ]);
       expect(
         result.every(
-          (link) =>
-            !('title' in link) &&
-            !('description' in link) &&
-            !('image' in link),
+          (link) => !('title' in link) && !('description' in link) && !('image' in link),
         ),
       ).toBe(true);
     });
@@ -152,9 +134,7 @@ describe('normalizeProfileLinks', () => {
 
     it('falls through to legacy links when linksMetadata is empty', () => {
       const result = normalizeProfileLinks([], ['https://legacy.example']);
-      expect(result).toEqual<ProfileLink[]>([
-        { id: '0', url: 'https://legacy.example' },
-      ]);
+      expect(result).toEqual<ProfileLink[]>([{ id: '0', url: 'https://legacy.example' }]);
     });
 
     it('returns [] (does NOT fall back to links) when linksMetadata is non-empty but every entry is dropped', () => {

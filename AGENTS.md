@@ -28,7 +28,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Pack with `bun pm pack`, never `npm pack`.
 - Anything that re-resolves passes `--minimum-release-age=0`.
 - Never publish a tarball you did not build in the same command — #publishing
-- TS strict; Biome `--error-on-warnings`; commit `bun.lock` with its `package.json`; path-scope `git add`, never `git add -A` — #coding-standards
+- TS strict; Biome formats and lints (`bun run lint`; SDK `src/` `--error-on-warnings`); commit `bun.lock` with its `package.json`; path-scope `git add`, never `git add -A` — #coding-standards
 
 **Package boundaries** — #package-boundaries
 - `@oxy.so/contracts` and `@oxy.so/core` never import `react`, `react-native` or `expo-*`.

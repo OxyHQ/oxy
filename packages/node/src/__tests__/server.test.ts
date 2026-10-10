@@ -20,7 +20,12 @@ import {
 import { createApp } from '../app';
 import { NodeStore } from '../store/nodeStore';
 import type { NodeConfig } from '../config';
-import { buildSignedEnvelope, generateTestKeyPair, recordIdOf, type TestKeyPair } from './helpers/signEnvelope';
+import {
+  buildSignedEnvelope,
+  generateTestKeyPair,
+  recordIdOf,
+  type TestKeyPair,
+} from './helpers/signEnvelope';
 
 function makeConfig(ownerPublicKey: string): NodeConfig {
   return {
@@ -42,7 +47,10 @@ function makeConfig(ownerPublicKey: string): NodeConfig {
 }
 
 /** Build the owner-signed headers authorizing a blob pin. */
-async function ownerBlobPinHeaders(owner: TestKeyPair, hash: string): Promise<Record<string, string>> {
+async function ownerBlobPinHeaders(
+  owner: TestKeyPair,
+  hash: string,
+): Promise<Record<string, string>> {
   const timestamp = Date.now();
   const signature = await signMessage(`oxy-node:blob-pin:${hash}:${timestamp}`, owner.privateKey);
   return {
@@ -60,7 +68,11 @@ describe('node HTTP API', () => {
   beforeEach(() => {
     store = new NodeStore(':memory:');
     owner = generateTestKeyPair();
-    app = createApp({ store, config: makeConfig(owner.publicKey), logger: pino({ level: 'silent' }) });
+    app = createApp({
+      store,
+      config: makeConfig(owner.publicKey),
+      logger: pino({ level: 'silent' }),
+    });
   });
 
   afterEach(() => {
@@ -199,11 +211,14 @@ describe('node HTTP API', () => {
     expect(put.status).toBe(201);
     expect(put.body).toEqual({ hash, size: bytes.length });
 
-    const get = await request(app).get(`/blobs/${hash}`).buffer(true).parse((res, cb) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', () => cb(null, Buffer.concat(chunks)));
-    });
+    const get = await request(app)
+      .get(`/blobs/${hash}`)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
     expect(get.status).toBe(200);
     expect(Buffer.isBuffer(get.body) ? get.body : Buffer.from(get.body)).toEqual(bytes);
   });

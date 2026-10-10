@@ -72,7 +72,7 @@ function resolvePrivateKeyPem(): string | null {
 
   if (!pem.includes('-----BEGIN')) {
     logger.error(
-      'UPDATES_CODE_SIGNING_PRIVATE_KEY did not decode to a PEM private key; code signing disabled'
+      'UPDATES_CODE_SIGNING_PRIVATE_KEY did not decode to a PEM private key; code signing disabled',
     );
     cachedPrivateKeyPem = null;
     return null;

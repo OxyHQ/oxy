@@ -9,7 +9,11 @@
  * thing standing between that misreading and a live shared session being
  * overwritten, so they are written to fail loudly rather than shrink quietly.
  */
-import { createMemoryAuthStateStore, type AuthStateStore, type PersistedAuthState } from '../authStateStore';
+import {
+  createMemoryAuthStateStore,
+  type AuthStateStore,
+  type PersistedAuthState,
+} from '../authStateStore';
 import {
   createSharedMirroringAuthStateStore,
   decideSharedDeviceJoin,
@@ -27,7 +31,10 @@ const OTHER: SharedDeviceCredential = { deviceId: 'dev-other', deviceSecret: 'ds
 
 const PRESENT: SharedDeviceCredentialRead = { state: 'present', credential: CRED };
 const ABSENT: SharedDeviceCredentialRead = { state: 'absent' };
-const UNAVAILABLE: SharedDeviceCredentialRead = { state: 'unavailable', cause: new Error('keychain locked') };
+const UNAVAILABLE: SharedDeviceCredentialRead = {
+  state: 'unavailable',
+  cause: new Error('keychain locked'),
+};
 const UNSUPPORTED: SharedDeviceCredentialRead = { state: 'unsupported' };
 
 /** Every read state, so a new one cannot be added without deciding what it means. */
@@ -64,7 +71,9 @@ describe('readLocalDeviceCredential', () => {
     expect(readLocalDeviceCredential(null)).toBeNull();
     expect(readLocalDeviceCredential({ sessionId: 's', userId: 'u' })).toBeNull();
     expect(readLocalDeviceCredential({ sessionId: 's', userId: 'u', deviceId: 'd' })).toBeNull();
-    expect(readLocalDeviceCredential({ sessionId: 's', userId: 'u', deviceSecret: 'x' })).toBeNull();
+    expect(
+      readLocalDeviceCredential({ sessionId: 's', userId: 'u', deviceSecret: 'x' }),
+    ).toBeNull();
     expect(readLocalDeviceCredential(localWith(CRED))).toEqual(CRED);
   });
 });
@@ -72,7 +81,11 @@ describe('readLocalDeviceCredential', () => {
 describe('normalizeSharedDeviceSessionRead', () => {
   test('narrows a well-formed present payload', () => {
     expect(
-      normalizeSharedDeviceSessionRead({ status: 'present', deviceId: 'dev-x', deviceSecret: 'ds-x' }),
+      normalizeSharedDeviceSessionRead({
+        status: 'present',
+        deviceId: 'dev-x',
+        deviceSecret: 'ds-x',
+      }),
     ).toEqual({ state: 'present', credential: { deviceId: 'dev-x', deviceSecret: 'ds-x' } });
   });
 
@@ -89,8 +102,14 @@ describe('normalizeSharedDeviceSessionRead', () => {
     ['an unknown status', { status: 'maybe' }],
     ['present with no deviceId', { status: 'present', deviceSecret: 'ds-x' }],
     ['present with no deviceSecret', { status: 'present', deviceId: 'dev-x' }],
-    ['present with an empty deviceSecret', { status: 'present', deviceId: 'dev-x', deviceSecret: '' }],
-    ['present with a non-string deviceId', { status: 'present', deviceId: 7, deviceSecret: 'ds-x' }],
+    [
+      'present with an empty deviceSecret',
+      { status: 'present', deviceId: 'dev-x', deviceSecret: '' },
+    ],
+    [
+      'present with a non-string deviceId',
+      { status: 'present', deviceId: 7, deviceSecret: 'ds-x' },
+    ],
     ['an explicit unavailable', { status: 'unavailable', reason: 'keystore' }],
   ])('reports %s as unavailable, never absent', (_label, raw) => {
     const read = normalizeSharedDeviceSessionRead(raw);
@@ -102,7 +121,10 @@ describe('normalizeSharedDeviceSessionRead', () => {
 
 describe('decideSharedDeviceJoin', () => {
   test('adopts when the slot holds a credential and this app has none', () => {
-    expect(decideSharedDeviceJoin(localWith(null), PRESENT)).toEqual({ action: 'adopt', credential: CRED });
+    expect(decideSharedDeviceJoin(localWith(null), PRESENT)).toEqual({
+      action: 'adopt',
+      credential: CRED,
+    });
     expect(decideSharedDeviceJoin(null, PRESENT)).toEqual({ action: 'adopt', credential: CRED });
   });
 
@@ -125,7 +147,10 @@ describe('decideSharedDeviceJoin', () => {
   });
 
   test('skips an empty slot', () => {
-    expect(decideSharedDeviceJoin(localWith(null), ABSENT)).toEqual({ action: 'skip', reason: 'shared-empty' });
+    expect(decideSharedDeviceJoin(localWith(null), ABSENT)).toEqual({
+      action: 'skip',
+      reason: 'shared-empty',
+    });
   });
 
   test('never moves an app that already holds its own credential — in ANY slot state', () => {
@@ -170,7 +195,10 @@ describe('decideSharedDevicePublish', () => {
   });
 
   test('is a no-op when the slot already holds exactly this credential', () => {
-    expect(decideSharedDevicePublish(CRED, PRESENT)).toEqual({ action: 'skip', reason: 'already-current' });
+    expect(decideSharedDevicePublish(CRED, PRESENT)).toEqual({
+      action: 'skip',
+      reason: 'already-current',
+    });
   });
 
   test('leaves a slot owned by a DIFFERENT device session alone', () => {
@@ -187,7 +215,9 @@ describe('decideSharedDevicePublish', () => {
 describe('publishProvenDeviceCredential', () => {
   test('writes into an empty slot', async () => {
     const shared = makeSharedStore(ABSENT);
-    await expect(publishProvenDeviceCredential({ shared: shared.store, credential: CRED })).resolves.toEqual({
+    await expect(
+      publishProvenDeviceCredential({ shared: shared.store, credential: CRED }),
+    ).resolves.toEqual({
       status: 'published',
     });
     expect(shared.publish).toHaveBeenCalledWith(CRED);
@@ -196,7 +226,9 @@ describe('publishProvenDeviceCredential', () => {
 
   test('does not call publish at all when the slot is unreadable', async () => {
     const shared = makeSharedStore(UNAVAILABLE);
-    await expect(publishProvenDeviceCredential({ shared: shared.store, credential: CRED })).resolves.toEqual({
+    await expect(
+      publishProvenDeviceCredential({ shared: shared.store, credential: CRED }),
+    ).resolves.toEqual({
       status: 'skipped',
       reason: 'shared-unreadable',
     });
@@ -221,7 +253,11 @@ describe('createSharedMirroringAuthStateStore', () => {
   function harness(initial: SharedDeviceCredentialRead = ABSENT) {
     const local = createMemoryAuthStateStore();
     const shared = makeSharedStore(initial);
-    return { local, shared, store: createSharedMirroringAuthStateStore({ local, shared: shared.store }) };
+    return {
+      local,
+      shared,
+      store: createSharedMirroringAuthStateStore({ local, shared: shared.store }),
+    };
   }
 
   test('mirrors a saved credential into the shared slot', async () => {
@@ -262,7 +298,10 @@ describe('createSharedMirroringAuthStateStore', () => {
       clear: async () => undefined,
     };
     const shared = makeSharedStore(ABSENT);
-    const store = createSharedMirroringAuthStateStore({ local: failingLocal, shared: shared.store });
+    const store = createSharedMirroringAuthStateStore({
+      local: failingLocal,
+      shared: shared.store,
+    });
     await expect(store.save(localWith(CRED))).resolves.toBe(false);
     expect(shared.publish).toHaveBeenCalledWith(CRED);
   });
@@ -275,7 +314,10 @@ describe('createSharedMirroringAuthStateStore', () => {
       publish: async () => true,
       clear: async () => undefined,
     };
-    const store = createSharedMirroringAuthStateStore({ local: createMemoryAuthStateStore(), shared });
+    const store = createSharedMirroringAuthStateStore({
+      local: createMemoryAuthStateStore(),
+      shared,
+    });
     await expect(store.save(localWith(CRED))).resolves.toBe(true);
   });
 

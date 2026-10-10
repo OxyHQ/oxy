@@ -22,10 +22,14 @@ describe('retryAsync default shouldRetry predicate', () => {
     const apiError = { message: 'Not found', code: 'NOT_FOUND', status: 404 };
 
     await expect(
-      retryAsync(async () => {
-        attempts++;
-        throw apiError;
-      }, 3, 50)
+      retryAsync(
+        async () => {
+          attempts++;
+          throw apiError;
+        },
+        3,
+        50,
+      ),
     ).rejects.toBe(apiError);
 
     expect(attempts).toBe(1);
@@ -41,10 +45,14 @@ describe('retryAsync default shouldRetry predicate', () => {
     };
 
     await expect(
-      retryAsync(async () => {
-        attempts++;
-        throw axiosError;
-      }, 3, 50)
+      retryAsync(
+        async () => {
+          attempts++;
+          throw axiosError;
+        },
+        3,
+        50,
+      ),
     ).rejects.toBe(axiosError);
 
     expect(attempts).toBe(1);
@@ -54,10 +62,14 @@ describe('retryAsync default shouldRetry predicate', () => {
     for (const status of [400, 401, 403, 422]) {
       let attempts = 0;
       await expect(
-        retryAsync(async () => {
-          attempts++;
-          throw { message: 'client', code: 'X', status };
-        }, 2, 10)
+        retryAsync(
+          async () => {
+            attempts++;
+            throw { message: 'client', code: 'X', status };
+          },
+          2,
+          10,
+        ),
       ).rejects.toBeDefined();
       expect(attempts).toBe(1);
     }
@@ -66,10 +78,14 @@ describe('retryAsync default shouldRetry predicate', () => {
   it('retries on flat-shape 500 errors until maxRetries', async () => {
     let attempts = 0;
     await expect(
-      retryAsync(async () => {
-        attempts++;
-        throw { message: 'boom', code: 'INTERNAL_ERROR', status: 500 };
-      }, 2, 1)
+      retryAsync(
+        async () => {
+          attempts++;
+          throw { message: 'boom', code: 'INTERNAL_ERROR', status: 500 };
+        },
+        2,
+        1,
+      ),
     ).rejects.toBeDefined();
     expect(attempts).toBe(3); // initial + 2 retries
   });
@@ -77,10 +93,14 @@ describe('retryAsync default shouldRetry predicate', () => {
   it('retries on nested-shape 503 errors until maxRetries', async () => {
     let attempts = 0;
     await expect(
-      retryAsync(async () => {
-        attempts++;
-        throw { message: 'unavailable', response: { status: 503 } };
-      }, 2, 1)
+      retryAsync(
+        async () => {
+          attempts++;
+          throw { message: 'unavailable', response: { status: 503 } };
+        },
+        2,
+        1,
+      ),
     ).rejects.toBeDefined();
     expect(attempts).toBe(3);
   });
@@ -88,33 +108,45 @@ describe('retryAsync default shouldRetry predicate', () => {
   it('retries on network-style errors without any status (TypeError)', async () => {
     let attempts = 0;
     await expect(
-      retryAsync(async () => {
-        attempts++;
-        throw new TypeError('Failed to fetch');
-      }, 2, 1)
+      retryAsync(
+        async () => {
+          attempts++;
+          throw new TypeError('Failed to fetch');
+        },
+        2,
+        1,
+      ),
     ).rejects.toBeDefined();
     expect(attempts).toBe(3);
   });
 
   it('returns the successful result without extra attempts', async () => {
     let attempts = 0;
-    const result = await retryAsync(async () => {
-      attempts++;
-      return 'ok' as const;
-    }, 3, 1);
+    const result = await retryAsync(
+      async () => {
+        attempts++;
+        return 'ok' as const;
+      },
+      3,
+      1,
+    );
     expect(result).toBe('ok');
     expect(attempts).toBe(1);
   });
 
   it('recovers after a transient 5xx followed by success', async () => {
     let attempts = 0;
-    const result = await retryAsync(async () => {
-      attempts++;
-      if (attempts < 2) {
-        throw { message: 'transient', status: 502 };
-      }
-      return 'recovered' as const;
-    }, 3, 1);
+    const result = await retryAsync(
+      async () => {
+        attempts++;
+        if (attempts < 2) {
+          throw { message: 'transient', status: 502 };
+        }
+        return 'recovered' as const;
+      },
+      3,
+      1,
+    );
     expect(result).toBe('recovered');
     expect(attempts).toBe(2);
   });
@@ -129,8 +161,8 @@ describe('retryAsync default shouldRetry predicate', () => {
         },
         5,
         1,
-        () => false
-      )
+        () => false,
+      ),
     ).rejects.toBeDefined();
     expect(attempts).toBe(1);
   });
@@ -138,10 +170,14 @@ describe('retryAsync default shouldRetry predicate', () => {
   it('ignores non-numeric status fields instead of treating them as 4xx', async () => {
     let attempts = 0;
     await expect(
-      retryAsync(async () => {
-        attempts++;
-        throw { message: 'weird', status: 'oops' as unknown as number };
-      }, 2, 1)
+      retryAsync(
+        async () => {
+          attempts++;
+          throw { message: 'weird', status: 'oops' as unknown as number };
+        },
+        2,
+        1,
+      ),
     ).rejects.toBeDefined();
     // Non-numeric status must NOT be interpreted as 4xx — should retry normally.
     expect(attempts).toBe(3);
@@ -188,7 +224,9 @@ describe('handleHttpError preserves HTTP status for retry predicates', () => {
 
 describe('retryAsync refuses to retry a cancellation', () => {
   it('stops after one attempt on a cancellation, whatever the retry budget', async () => {
-    const operation = jest.fn(async () => { throw createCancelledError(); });
+    const operation = jest.fn(async () => {
+      throw createCancelledError();
+    });
 
     await expect(retryAsync(operation, { maxRetries: 3, baseDelay: 1 })).rejects.toMatchObject({
       code: ErrorCodes.CANCELLED,
@@ -200,7 +238,9 @@ describe('retryAsync refuses to retry a cancellation', () => {
   });
 
   it('refuses a cancellation even when a custom shouldRetry says yes', async () => {
-    const operation = jest.fn(async () => { throw createCancelledError(); });
+    const operation = jest.fn(async () => {
+      throw createCancelledError();
+    });
 
     await expect(
       retryAsync(operation, { maxRetries: 3, baseDelay: 1, shouldRetry: () => true }),
@@ -223,10 +263,16 @@ describe('retryAsync refuses to retry a cancellation', () => {
 });
 
 describe('retryAsync timeout policy', () => {
-  afterEach(() => { jest.restoreAllMocks(); });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   const timeoutError = (): Error => {
-    const error = new Error('timed out') as Error & { code?: string; timeout?: boolean; status?: number };
+    const error = new Error('timed out') as Error & {
+      code?: string;
+      timeout?: boolean;
+      status?: number;
+    };
     error.code = ErrorCodes.TIMEOUT;
     error.timeout = true;
     error.status = 0;
@@ -234,14 +280,18 @@ describe('retryAsync timeout policy', () => {
   };
 
   it('does not retry a timeout by default', async () => {
-    const operation = jest.fn(async () => { throw timeoutError(); });
+    const operation = jest.fn(async () => {
+      throw timeoutError();
+    });
 
     await expect(retryAsync(operation, { maxRetries: 3, baseDelay: 1 })).rejects.toBeDefined();
     expect(operation).toHaveBeenCalledTimes(1);
   });
 
   it('retries a timeout when asked to', async () => {
-    const operation = jest.fn(async () => { throw timeoutError(); });
+    const operation = jest.fn(async () => {
+      throw timeoutError();
+    });
 
     await expect(
       retryAsync(operation, { maxRetries: 2, baseDelay: 1, retryOnTimeout: true }),
@@ -253,7 +303,9 @@ describe('retryAsync timeout policy', () => {
     // Jitter pinned so the backoff is exactly baseDelay * 2**attempt; otherwise
     // this measures Math.random() rather than the deadline.
     jest.spyOn(Math, 'random').mockReturnValue(0);
-    const operation = jest.fn(async () => { throw new Error('5xx-ish'); });
+    const operation = jest.fn(async () => {
+      throw new Error('5xx-ish');
+    });
 
     const started = Date.now();
     await expect(
@@ -269,7 +321,9 @@ describe('retryAsync timeout policy', () => {
 
 describe('retryAsync keeps its positional signature working', () => {
   it('accepts the legacy (operation, maxRetries, baseDelay, shouldRetry) call', async () => {
-    const operation = jest.fn(async () => { throw new Error('transient'); });
+    const operation = jest.fn(async () => {
+      throw new Error('transient');
+    });
 
     await expect(retryAsync(operation, 2, 1)).rejects.toThrow('transient');
     // In-tree callers pass positionally, so the options object had to be an

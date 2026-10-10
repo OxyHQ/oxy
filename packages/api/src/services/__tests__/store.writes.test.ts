@@ -58,14 +58,12 @@ async function publishedApp(): Promise<{ slug: string; applicationId: string; ow
     .values({ name: `App ${randomUUID().slice(0, 8)}`, ownerAccountId: ownerId })
     .returning({ id: applications.id });
   const slug = `listing-${randomUUID().slice(0, 8)}`;
-  await getDb()
-    .insert(appListings)
-    .values({
-      applicationId: application.id,
-      slug,
-      status: 'published',
-      publishedAt: new Date(),
-    });
+  await getDb().insert(appListings).values({
+    applicationId: application.id,
+    slug,
+    status: 'published',
+    publishedAt: new Date(),
+  });
   return { slug, applicationId: application.id, ownerId };
 }
 
@@ -74,15 +72,17 @@ async function grantRole(
   accountId: string,
   memberId: string,
   role: 'editor' | 'viewer',
-  deltas: { permissionRevokes?: string[] } = {}
+  deltas: { permissionRevokes?: string[] } = {},
 ) {
-  await getDb().insert(accountMembers).values({
-    accountId,
-    memberUserId: memberId,
-    role,
-    status: 'active',
-    permissionRevokes: deltas.permissionRevokes ?? [],
-  });
+  await getDb()
+    .insert(accountMembers)
+    .values({
+      accountId,
+      memberUserId: memberId,
+      role,
+      status: 'active',
+      permissionRevokes: deltas.permissionRevokes ?? [],
+    });
 }
 
 describe('writing a review', () => {
@@ -107,7 +107,10 @@ describe('writing a review', () => {
 
     expect(second.id).toBe(first.id);
     expect(second.body).toBe('Fixed now');
-    const stored = await getDb().select().from(appReviews).where(eq(appReviews.applicationId, applicationId));
+    const stored = await getDb()
+      .select()
+      .from(appReviews)
+      .where(eq(appReviews.applicationId, applicationId));
     expect(stored).toHaveLength(1);
   });
 
@@ -115,7 +118,10 @@ describe('writing a review', () => {
     const { slug, applicationId } = await publishedApp();
     const userId = await insertUser();
     await upsertReview({ slug, userId, rating: 1, body: 'Abusive' });
-    await getDb().update(appReviews).set({ status: 'hidden' }).where(eq(appReviews.applicationId, applicationId));
+    await getDb()
+      .update(appReviews)
+      .set({ status: 'hidden' })
+      .where(eq(appReviews.applicationId, applicationId));
 
     const rewritten = await upsertReview({ slug, userId, rating: 5, body: 'Polite now' });
 
@@ -149,10 +155,12 @@ describe('writing a review', () => {
       .values({ name: `App ${randomUUID().slice(0, 8)}`, ownerAccountId: ownerId })
       .returning({ id: applications.id });
     const slug = `draft-${randomUUID().slice(0, 8)}`;
-    await getDb().insert(appListings).values({ applicationId: application.id, slug, status: 'draft' });
+    await getDb()
+      .insert(appListings)
+      .values({ applicationId: application.id, slug, status: 'draft' });
 
     await expect(upsertReview({ slug, userId: await insertUser(), rating: 5 })).rejects.toThrow(
-      NotFoundError
+      NotFoundError,
     );
   });
 });
@@ -165,13 +173,17 @@ describe('withdrawing a review', () => {
 
     await deleteOwnReview({ slug, userId });
 
-    expect(await getDb().select().from(appReviews).where(eq(appReviews.applicationId, applicationId))).toEqual([]);
+    expect(
+      await getDb().select().from(appReviews).where(eq(appReviews.applicationId, applicationId)),
+    ).toEqual([]);
   });
 
   it('says so when there is nothing of yours to withdraw', async () => {
     const { slug } = await publishedApp();
 
-    await expect(deleteOwnReview({ slug, userId: await insertUser() })).rejects.toThrow(NotFoundError);
+    await expect(deleteOwnReview({ slug, userId: await insertUser() })).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('withdraws only the caller’s own, never a neighbour’s', async () => {
@@ -193,7 +205,11 @@ describe('the publisher’s reply is the account graph’s decision', () => {
     const { slug, ownerId } = await publishedApp();
     const reviewId = (await upsertReview({ slug, userId: await insertUser(), rating: 2 })).id;
 
-    const reply = await upsertReply({ reviewId, authorUserId: ownerId, body: 'Sorry, fixed in 2.1' });
+    const reply = await upsertReply({
+      reviewId,
+      authorUserId: ownerId,
+      body: 'Sorry, fixed in 2.1',
+    });
 
     expect(reply.reviewId).toBe(reviewId);
     const page = await listReviews({ slug, limit: 10, offset: 0, sort: 'recent' });
@@ -206,7 +222,9 @@ describe('the publisher’s reply is the account graph’s decision', () => {
     await grantRole(ownerId, editor, 'editor');
     const reviewId = (await upsertReview({ slug, userId: await insertUser(), rating: 3 })).id;
 
-    await expect(upsertReply({ reviewId, authorUserId: editor, body: 'Noted' })).resolves.toMatchObject({
+    await expect(
+      upsertReply({ reviewId, authorUserId: editor, body: 'Noted' }),
+    ).resolves.toMatchObject({
       body: 'Noted',
     });
   });
@@ -223,10 +241,10 @@ describe('the publisher’s reply is the account graph’s decision', () => {
     const reviewId = (await upsertReview({ slug, userId: await insertUser(), rating: 3 })).id;
 
     await expect(
-      upsertReply({ reviewId, authorUserId: revoked, body: 'Not mine to answer' })
+      upsertReply({ reviewId, authorUserId: revoked, body: 'Not mine to answer' }),
     ).rejects.toThrow(ForbiddenError);
     await expect(
-      upsertReply({ reviewId, authorUserId: control, body: 'Answered' })
+      upsertReply({ reviewId, authorUserId: control, body: 'Answered' }),
     ).resolves.toMatchObject({ body: 'Answered' });
   });
 
@@ -237,7 +255,7 @@ describe('the publisher’s reply is the account graph’s decision', () => {
     const reviewId = (await upsertReview({ slug, userId: await insertUser(), rating: 3 })).id;
 
     await expect(upsertReply({ reviewId, authorUserId: viewer, body: 'Nope' })).rejects.toThrow(
-      ForbiddenError
+      ForbiddenError,
     );
   });
 
@@ -246,11 +264,11 @@ describe('the publisher’s reply is the account graph’s decision', () => {
     const author = await insertUser();
     const reviewId = (await upsertReview({ slug, userId: author, rating: 1 })).id;
 
-    await expect(upsertReply({ reviewId, authorUserId: author, body: 'I answer myself' })).rejects.toThrow(
-      ForbiddenError
-    );
     await expect(
-      upsertReply({ reviewId, authorUserId: await insertUser(), body: 'Hello' })
+      upsertReply({ reviewId, authorUserId: author, body: 'I answer myself' }),
+    ).rejects.toThrow(ForbiddenError);
+    await expect(
+      upsertReply({ reviewId, authorUserId: await insertUser(), body: 'Hello' }),
     ).rejects.toThrow(ForbiddenError);
   });
 
@@ -263,7 +281,10 @@ describe('the publisher’s reply is the account graph’s decision', () => {
     await upsertReply({ reviewId, authorUserId: ownerId, body: 'First answer' });
     const second = await upsertReply({ reviewId, authorUserId: editor, body: 'Better answer' });
 
-    const stored = await getDb().select().from(appReviewReplies).where(eq(appReviewReplies.reviewId, reviewId));
+    const stored = await getDb()
+      .select()
+      .from(appReviewReplies)
+      .where(eq(appReviewReplies.reviewId, reviewId));
     expect(stored).toHaveLength(1);
     expect(stored[0].authorUserId).toBe(editor);
     expect(second.body).toBe('Better answer');
@@ -279,12 +300,18 @@ describe('the publisher’s reply is the account graph’s decision', () => {
     await expect(deleteReply({ reviewId, authorUserId: viewer })).rejects.toThrow(ForbiddenError);
     await deleteReply({ reviewId, authorUserId: ownerId });
 
-    expect(await getDb().select().from(appReviewReplies).where(eq(appReviewReplies.reviewId, reviewId))).toEqual([]);
+    expect(
+      await getDb().select().from(appReviewReplies).where(eq(appReviewReplies.reviewId, reviewId)),
+    ).toEqual([]);
   });
 
   it('answers 404 for a review that does not exist, without consulting a role', async () => {
     await expect(
-      upsertReply({ reviewId: `missing-${randomUUID()}`, authorUserId: await insertUser(), body: 'x' })
+      upsertReply({
+        reviewId: `missing-${randomUUID()}`,
+        authorUserId: await insertUser(),
+        body: 'x',
+      }),
     ).rejects.toThrow(NotFoundError);
   });
 });
@@ -296,14 +323,18 @@ describe('a reviewer who has authorized the app is marked as one', () => {
     const passerby = await insertUser();
     await upsertReview({ slug, userId: consenting, rating: 5 });
     await upsertReview({ slug, userId: passerby, rating: 1 });
-    await getDb().insert(appGrants).values({ userId: consenting, applicationId, scopes: ['read'] });
+    await getDb()
+      .insert(appGrants)
+      .values({ userId: consenting, applicationId, scopes: ['read'] });
 
     const withGrant = await listReviews({ slug, limit: 10, offset: 0, sort: 'recent' });
     const marks = new Map(withGrant!.items.map((item) => [item.author.id, item.authorUsesApp]));
     expect(marks.get(consenting)).toBe(true);
     expect(marks.get(passerby)).toBe(false);
 
-    await getDb().delete(appGrants).where(and(eq(appGrants.userId, consenting), eq(appGrants.applicationId, applicationId)));
+    await getDb()
+      .delete(appGrants)
+      .where(and(eq(appGrants.userId, consenting), eq(appGrants.applicationId, applicationId)));
 
     const afterRevoke = await listReviews({ slug, limit: 10, offset: 0, sort: 'recent' });
     expect(afterRevoke!.items.every((item) => item.authorUsesApp === false)).toBe(true);

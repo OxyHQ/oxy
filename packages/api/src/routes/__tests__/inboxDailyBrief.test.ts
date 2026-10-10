@@ -50,7 +50,13 @@ const DIGEST = {
   ],
   earlierUnread: {
     total: 1,
-    messages: [digestMessage({ id: 'msg_old', subject: 'Contract to sign', receivedAt: new Date('2026-09-01T09:00:00.000Z') })],
+    messages: [
+      digestMessage({
+        id: 'msg_old',
+        subject: 'Contract to sign',
+        receivedAt: new Date('2026-09-01T09:00:00.000Z'),
+      }),
+    ],
   },
 } as const;
 
@@ -69,11 +75,7 @@ const mockExecute = jest.fn();
 const mockListMessages = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (
-    request: { user?: { id: string } },
-    _response: unknown,
-    next: () => void,
-  ) => {
+  authMiddleware: (request: { user?: { id: string } }, _response: unknown, next: () => void) => {
     request.user = { id: TEST_USER_ID };
     next();
   },
@@ -119,29 +121,34 @@ function postJson(server: http.Server, body: unknown): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const encoded = Buffer.from(JSON.stringify(body), 'utf8');
   return new Promise((resolve, reject) => {
-    const request = http.request({
-      method: 'POST',
-      host: '127.0.0.1',
-      port: address.port,
-      path: '/daily-brief',
-      headers: {
-        'content-type': 'application/json',
-        'content-length': encoded.length,
+    const request = http.request(
+      {
+        method: 'POST',
+        host: '127.0.0.1',
+        port: address.port,
+        path: '/daily-brief',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': encoded.length,
+        },
       },
-    }, (response) => {
-      let raw = '';
-      response.on('data', (chunk) => { raw += chunk; });
-      response.on('end', () => {
-        try {
-          resolve({
-            status: response.statusCode ?? 0,
-            body: raw ? JSON.parse(raw) as Record<string, unknown> : {},
-          });
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
+      (response) => {
+        let raw = '';
+        response.on('data', (chunk) => {
+          raw += chunk;
+        });
+        response.on('end', () => {
+          try {
+            resolve({
+              status: response.statusCode ?? 0,
+              body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+            });
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
     request.on('error', reject);
     request.end(encoded);
   });
@@ -235,10 +242,16 @@ describe('POST /email/ai/daily-brief', () => {
 
   it('writes in English when no locale is sent, and refuses a malformed one', async () => {
     await postJson(server, { startAt: START_AT, endAt: END_AT });
-    const input = mockExecute.mock.calls[0]?.[0] as { messages: Array<{ content: Array<{ text: string }> }> };
+    const input = mockExecute.mock.calls[0]?.[0] as {
+      messages: Array<{ content: Array<{ text: string }> }>;
+    };
     expect(input.messages[0]?.content[0]?.text).toContain('in English');
 
-    const refused = await postJson(server, { startAt: START_AT, endAt: END_AT, locale: 'es; drop' });
+    const refused = await postJson(server, {
+      startAt: START_AT,
+      endAt: END_AT,
+      locale: 'es; drop',
+    });
     expect(refused.status).toBe(400);
     expect(mockExecute).toHaveBeenCalledTimes(1);
   });
@@ -263,7 +276,10 @@ describe('POST /email/ai/daily-brief', () => {
   });
 
   it('fails retryably when the model does not answer with a brief', async () => {
-    mockExecute.mockResolvedValue({ requestId: 'request_prose', text: 'Here is your brief: lots of mail.' });
+    mockExecute.mockResolvedValue({
+      requestId: 'request_prose',
+      text: 'Here is your brief: lots of mail.',
+    });
 
     const response = await postJson(server, { startAt: START_AT, endAt: END_AT });
 

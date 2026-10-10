@@ -11,7 +11,6 @@ jest.mock(
   { virtual: true },
 );
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const withOxyIdentityHost = require('../../plugins/withOxyIdentityHost') as (config: unknown) => {
   modResults: { manifest: Manifest };
 };

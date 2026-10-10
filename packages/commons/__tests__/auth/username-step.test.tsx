@@ -16,12 +16,16 @@ jest.mock('react-native', () => {
     ...actual,
     View: (props: {
       testID?: string;
-      onLayout?: (event: { nativeEvent: { layout: { x: number; y: number; width: number; height: number } } }) => void;
+      onLayout?: (event: {
+        nativeEvent: { layout: { x: number; y: number; width: number; height: number } };
+      }) => void;
     }) => {
       const { onLayout, testID } = props;
       ReactModule.useEffect(() => {
         if (testID === 'username-below-input') {
-          onLayout?.({ nativeEvent: { layout: { x: 0, y: 0, width: 320, height: BELOW_INPUT_HEIGHT } } });
+          onLayout?.({
+            nativeEvent: { layout: { x: 0, y: 0, width: 320, height: BELOW_INPUT_HEIGHT } },
+          });
         }
       }, [onLayout, testID]);
       return actual.View(props);
@@ -36,7 +40,7 @@ jest.mock('lottie-react-native', () => {
     __esModule: true,
     default: ReactModule.forwardRef(function MockLottie(
       _props: unknown,
-      ref: React.ForwardedRef<{ play: () => void; reset: () => void }>
+      ref: React.ForwardedRef<{ play: () => void; reset: () => void }>,
     ) {
       ReactModule.useImperativeHandle(ref, () => ({
         play: jest.fn(),
@@ -80,11 +84,7 @@ jest.mock('@/components/ui', () => {
       onPress?: () => void;
       disabled?: boolean;
     }) =>
-      ReactModule.createElement(
-        'button',
-        { type: 'button', onClick: onPress, disabled },
-        children
-      ),
+      ReactModule.createElement('button', { type: 'button', onClick: onPress, disabled }, children),
     KeyboardAwareScrollViewWrapper: ({
       children,
       bottomOffset,
@@ -132,7 +132,7 @@ function renderStep(onContinue: () => void | Promise<void>) {
       oxyServices={null}
       backgroundColor="#fff"
       textColor="#000"
-    />
+    />,
   );
 }
 
@@ -161,9 +161,7 @@ describe('UsernameStep', () => {
     });
 
     expect(onContinue).toHaveBeenCalledTimes(1);
-    const confirmButton = screen
-      .getByText('auth.usernameStep.confirm')
-      .closest('button');
+    const confirmButton = screen.getByText('auth.usernameStep.confirm').closest('button');
     expect(confirmButton?.disabled).toBe(false);
   });
 
@@ -195,9 +193,7 @@ describe('UsernameStep', () => {
   it('uses the Bloom Dialog action for the username explainer close button', () => {
     renderStep(jest.fn());
 
-    expect(mockDialogActions).toEqual([
-      { label: 'common.close', color: 'cancel' },
-    ]);
+    expect(mockDialogActions).toEqual([{ label: 'common.close', color: 'cancel' }]);
   });
 
   it('cancels delayed confirmation after unmount', () => {

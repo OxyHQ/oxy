@@ -1,18 +1,10 @@
-import {
-  runColdBoot,
-  type ColdBootStep,
-  type ColdBootStepResult,
-} from '../coldBoot';
+import { runColdBoot, type ColdBootStep, type ColdBootStepResult } from '../coldBoot';
 
 interface TestSession {
   readonly userId: string;
 }
 
-function sessionStep(
-  id: string,
-  userId: string,
-  onRun?: () => void
-): ColdBootStep<TestSession> {
+function sessionStep(id: string, userId: string, onRun?: () => void): ColdBootStep<TestSession> {
   return {
     id,
     run: async (): Promise<ColdBootStepResult<TestSession>> => {

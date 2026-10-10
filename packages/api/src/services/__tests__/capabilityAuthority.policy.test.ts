@@ -24,16 +24,24 @@ function tool(input: Partial<CatalogTool> = {}): CatalogTool {
 
 describe('capability authority policy', () => {
   it('always applies the most restrictive autonomy', () => {
-    expect(mostRestrictiveAutonomy(['autonomous', 'execute_on_request'])).toBe('execute_on_request');
+    expect(mostRestrictiveAutonomy(['autonomous', 'execute_on_request'])).toBe(
+      'execute_on_request',
+    );
     expect(mostRestrictiveAutonomy(['draft', 'autonomous', 'read_only'])).toBe('read_only');
   });
 
   it('lets a semantic package cover new non-sensitive tools', () => {
-    expect(grantAllowsTool(tool(), {
-      capabilityPackages: ['read'],
-      capabilities: [],
-      overrides: [],
-    }, undefined)).toBe(true);
+    expect(
+      grantAllowsTool(
+        tool(),
+        {
+          capabilityPackages: ['read'],
+          capabilities: [],
+          overrides: [],
+        },
+        undefined,
+      ),
+    ).toBe(true);
   });
 
   it('requires explicit capabilities for sensitive packages', () => {
@@ -43,24 +51,42 @@ describe('capability authority policy', () => {
       requiredCapabilities: ['payments.send'],
       effect: 'financial',
     });
-    expect(grantAllowsTool(financeTool, {
-      capabilityPackages: ['finance'],
-      capabilities: [],
-      overrides: [],
-    }, financeTool)).toBe(false);
-    expect(grantAllowsTool(financeTool, {
-      capabilityPackages: ['finance'],
-      capabilities: ['payments.send'],
-      overrides: [],
-    }, financeTool)).toBe(true);
+    expect(
+      grantAllowsTool(
+        financeTool,
+        {
+          capabilityPackages: ['finance'],
+          capabilities: [],
+          overrides: [],
+        },
+        financeTool,
+      ),
+    ).toBe(false);
+    expect(
+      grantAllowsTool(
+        financeTool,
+        {
+          capabilityPackages: ['finance'],
+          capabilities: ['payments.send'],
+          overrides: [],
+        },
+        financeTool,
+      ),
+    ).toBe(true);
   });
 
   it('gives a tool denial precedence over packages and capabilities', () => {
-    expect(grantAllowsTool(tool(), {
-      capabilityPackages: ['read'],
-      capabilities: ['email.read'],
-      overrides: [{ tool: 'readEmail', decision: 'deny' }],
-    }, tool())).toBe(false);
+    expect(
+      grantAllowsTool(
+        tool(),
+        {
+          capabilityPackages: ['read'],
+          capabilities: ['email.read'],
+          overrides: [{ tool: 'readEmail', decision: 'deny' }],
+        },
+        tool(),
+      ),
+    ).toBe(false);
   });
 
   it('never lets a tool allow override replace an explicit sensitive capability', () => {
@@ -70,20 +96,32 @@ describe('capability authority policy', () => {
       requiredCapabilities: ['payments.send'],
       effect: 'financial',
     });
-    expect(grantAllowsTool(financeTool, {
-      capabilityPackages: [],
-      capabilities: [],
-      overrides: [{ tool: 'sendPayment', decision: 'allow' }],
-    }, financeTool)).toBe(false);
+    expect(
+      grantAllowsTool(
+        financeTool,
+        {
+          capabilityPackages: [],
+          capabilities: [],
+          overrides: [{ tool: 'sendPayment', decision: 'allow' }],
+        },
+        financeTool,
+      ),
+    ).toBe(false);
   });
 
   it('does not carry an allow override across changed authorization semantics', () => {
     const boundTool = tool();
     const changedTool = tool({ effect: 'write' });
-    expect(grantAllowsTool(changedTool, {
-      capabilityPackages: [],
-      capabilities: [],
-      overrides: [{ tool: 'readEmail', decision: 'allow' }],
-    }, boundTool)).toBe(false);
+    expect(
+      grantAllowsTool(
+        changedTool,
+        {
+          capabilityPackages: [],
+          capabilities: [],
+          overrides: [{ tool: 'readEmail', decision: 'allow' }],
+        },
+        boundTool,
+      ),
+    ).toBe(false);
   });
 });

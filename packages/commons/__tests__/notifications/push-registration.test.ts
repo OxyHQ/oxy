@@ -43,8 +43,14 @@ function makeEnvironment(overrides: Partial<PushTokenEnvironment> = {}): PushTok
   };
 }
 
-const CHANNEL = { name: 'Sign-in requests', description: 'Alerts when another device asks to sign in as you' };
-const ACCOUNT_CHANNEL = { name: 'Account updates', description: 'Messages from Oxy about your account' };
+const CHANNEL = {
+  name: 'Sign-in requests',
+  description: 'Alerts when another device asks to sign in as you',
+};
+const ACCOUNT_CHANNEL = {
+  name: 'Account updates',
+  description: 'Messages from Oxy about your account',
+};
 const CHANNELS = { approval: CHANNEL, account: ACCOUNT_CHANNEL };
 const OPTIONS = { clientId: 'oxy_dk_commons', deviceId: 'device-1', channels: CHANNELS };
 
@@ -164,7 +170,9 @@ describe('registerInstallationPushToken', () => {
 
   it('propagates a registry rejection so the caller can log it', async () => {
     const registry = makeRegistry();
-    registry.notifications.registerPushToken.mockRejectedValue(new Error('registerPushToken expects an Expo push token'));
+    registry.notifications.registerPushToken.mockRejectedValue(
+      new Error('registerPushToken expects an Expo push token'),
+    );
 
     await expect(
       registerInstallationPushToken(registry, makeEnvironment(), OPTIONS),

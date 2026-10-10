@@ -36,32 +36,40 @@ async function giveBillingSubscription(
   userId: string,
   values: { planName: string; status: 'active' | 'trialing' | 'canceled' | 'past_due' },
 ): Promise<void> {
-  await getDb().insert(billingSubscriptions).values({
-    userId,
-    stripeCustomerId: `cus_${userId}`,
-    stripeSubscriptionId: `sub_${userId}`,
-    stripePriceId: 'price_test',
-    status: values.status,
-    currentPeriodStart: new Date(Date.now() - DAY_MS),
-    currentPeriodEnd: new Date(Date.now() + 30 * DAY_MS),
-    planName: values.planName,
-    planCreditsPerMonth: 10_000,
-    planPriceMinorUnits: 2999,
-    planCurrency: 'usd',
-  });
+  await getDb()
+    .insert(billingSubscriptions)
+    .values({
+      userId,
+      stripeCustomerId: `cus_${userId}`,
+      stripeSubscriptionId: `sub_${userId}`,
+      stripePriceId: 'price_test',
+      status: values.status,
+      currentPeriodStart: new Date(Date.now() - DAY_MS),
+      currentPeriodEnd: new Date(Date.now() + 30 * DAY_MS),
+      planName: values.planName,
+      planCreditsPerMonth: 10_000,
+      planPriceMinorUnits: 2999,
+      planCurrency: 'usd',
+    });
 }
 
 async function giveLegacySubscription(
   userId: string,
-  values: { plan: 'basic' | 'pro' | 'business'; status: 'active' | 'canceled' | 'expired'; endDate: Date },
+  values: {
+    plan: 'basic' | 'pro' | 'business';
+    status: 'active' | 'canceled' | 'expired';
+    endDate: Date;
+  },
 ): Promise<void> {
-  await getDb().insert(subscriptions).values({
-    userId,
-    plan: values.plan,
-    status: values.status,
-    startDate: new Date(Date.now() - 30 * DAY_MS),
-    endDate: values.endDate,
-  });
+  await getDb()
+    .insert(subscriptions)
+    .values({
+      userId,
+      plan: values.plan,
+      status: values.status,
+      startDate: new Date(Date.now() - 30 * DAY_MS),
+      endDate: values.endDate,
+    });
 }
 
 describe('resolveUserSubscriptionPlan', () => {

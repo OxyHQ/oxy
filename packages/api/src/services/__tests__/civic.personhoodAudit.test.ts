@@ -61,7 +61,9 @@ const SWEEP_ATTEMPTS = 3;
 
 async function makeAccount(): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({ id, username: `au${id.slice(0, 12)}` });
+  await getDb()
+    .insert(users)
+    .values({ id, username: `au${id.slice(0, 12)}` });
   return id;
 }
 
@@ -196,58 +198,54 @@ describe('openPersonhoodAudit', () => {
 });
 
 describe('sweepPersonhoodAudits', () => {
-  it(
-    'audits real persons, never an account that is not one, and never twice at once',
-    async () => {
-      const realPersons: string[] = [];
-      for (let i = 0; i < REAL_PERSON_COHORT; i += 1) {
-        realPersons.push(await makeJudged(true));
-      }
-      const impostors: string[] = [];
-      for (let i = 0; i < IMPOSTOR_COHORT; i += 1) {
-        impostors.push(await makeJudged(false));
-      }
+  it('audits real persons, never an account that is not one, and never twice at once', async () => {
+    const realPersons: string[] = [];
+    for (let i = 0; i < REAL_PERSON_COHORT; i += 1) {
+      realPersons.push(await makeJudged(true));
+    }
+    const impostors: string[] = [];
+    for (let i = 0; i < IMPOSTOR_COHORT; i += 1) {
+      impostors.push(await makeJudged(false));
+    }
 
-      // The sample is random over a shared table, so the ONE probabilistic step
-      // is bounded rather than assumed: retry until the draw touches this
-      // cohort. Everything asserted afterwards is deterministic.
-      let opened = 0;
-      let audited: Awaited<ReturnType<typeof auditsFor>> = [];
-      for (let attempt = 0; attempt < SWEEP_ATTEMPTS && audited.length === 0; attempt += 1) {
-        opened += await sweepPersonhoodAudits();
-        audited = await auditsFor(realPersons);
+    // The sample is random over a shared table, so the ONE probabilistic step
+    // is bounded rather than assumed: retry until the draw touches this
+    // cohort. Everything asserted afterwards is deterministic.
+    let opened = 0;
+    let audited: Awaited<ReturnType<typeof auditsFor>> = [];
+    for (let attempt = 0; attempt < SWEEP_ATTEMPTS && audited.length === 0; attempt += 1) {
+      opened += await sweepPersonhoodAudits();
+      audited = await auditsFor(realPersons);
+    }
+
+    expect(audited.length).toBeGreaterThan(0);
+    // The counter never under-reports what it opened.
+    expect(opened).toBeGreaterThanOrEqual(audited.length);
+
+    for (const audit of audited) {
+      expect(audit.sourceActionId).toBe(`personhood_audit:${audit.subjectUserId}`);
+      expect(audit.payload).toEqual({
+        kind: 'personhood_audit',
+        subjectDid: buildUserDid(audit.subjectUserId),
+      });
+    }
+
+    // Deterministic, whatever the draw did: the sample is taken `where
+    // is_real_person`, so an account with a sub-θ verdict can never appear.
+    expect(await auditsFor(impostors)).toEqual([]);
+
+    // Re-running must not fork any subject's audit across two open juries.
+    await sweepPersonhoodAudits();
+    const afterSecondSweep = await auditsFor(realPersons);
+    const openPerSubject = new Map<string, number>();
+    for (const audit of afterSecondSweep) {
+      if (audit.status === 'pending' || audit.status === 'quorum_met') {
+        openPerSubject.set(audit.subjectUserId, (openPerSubject.get(audit.subjectUserId) ?? 0) + 1);
       }
-
-      expect(audited.length).toBeGreaterThan(0);
-      // The counter never under-reports what it opened.
-      expect(opened).toBeGreaterThanOrEqual(audited.length);
-
-      for (const audit of audited) {
-        expect(audit.sourceActionId).toBe(`personhood_audit:${audit.subjectUserId}`);
-        expect(audit.payload).toEqual({
-          kind: 'personhood_audit',
-          subjectDid: buildUserDid(audit.subjectUserId),
-        });
-      }
-
-      // Deterministic, whatever the draw did: the sample is taken `where
-      // is_real_person`, so an account with a sub-θ verdict can never appear.
-      expect(await auditsFor(impostors)).toEqual([]);
-
-      // Re-running must not fork any subject's audit across two open juries.
-      await sweepPersonhoodAudits();
-      const afterSecondSweep = await auditsFor(realPersons);
-      const openPerSubject = new Map<string, number>();
-      for (const audit of afterSecondSweep) {
-        if (audit.status === 'pending' || audit.status === 'quorum_met') {
-          openPerSubject.set(audit.subjectUserId, (openPerSubject.get(audit.subjectUserId) ?? 0) + 1);
-        }
-      }
-      expect([...openPerSubject.values()].every((count) => count === 1)).toBe(true);
-      expect(openPerSubject.size).toBeGreaterThan(0);
-    },
-    120_000,
-  );
+    }
+    expect([...openPerSubject.values()].every((count) => count === 1)).toBe(true);
+    expect(openPerSubject.size).toBeGreaterThan(0);
+  }, 120_000);
 });
 
 describe('resolvePersonhoodAuditOutcome', () => {

@@ -26,9 +26,7 @@ import { dirname, join, resolve } from 'node:path';
 const SRC_DIR = resolve(__dirname, '..');
 const ROOT_ENTRY = join(SRC_DIR, 'index.ts');
 
-const packageJson = JSON.parse(
-  readFileSync(resolve(SRC_DIR, '..', 'package.json'), 'utf8'),
-) as {
+const packageJson = JSON.parse(readFileSync(resolve(SRC_DIR, '..', 'package.json'), 'utf8')) as {
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
 };
 
@@ -218,9 +216,13 @@ describe('crypto.native optional-peer degradation', () => {
       });
       jest.doMock('expo-crypto', () => fakeCrypto, { virtual: true });
       jest.doMock('expo-secure-store', () => fakeSecureStore, { virtual: true });
-      jest.doMock('@react-native-async-storage/async-storage', () => ({ default: fakeAsyncStorage }), {
-        virtual: true,
-      });
+      jest.doMock(
+        '@react-native-async-storage/async-storage',
+        () => ({ default: fakeAsyncStorage }),
+        {
+          virtual: true,
+        },
+      );
 
       const mod = require(MODULE_PATH) as typeof import('../platform/crypto.native');
 

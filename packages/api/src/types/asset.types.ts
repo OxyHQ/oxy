@@ -1,6 +1,6 @@
 /**
  * Asset Types
- * 
+ *
  * Centralized type definitions for asset-related operations.
  */
 
@@ -39,4 +39,3 @@ export interface AssetDeleteSummary {
   remainingLinks: number;
   variants: string[];
 }
-

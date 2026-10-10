@@ -9,7 +9,6 @@ jest.mock('@/lib/biometricAuth', () => ({
   authenticate: (...args: [string?]) => authenticateMock(...args),
 }));
 
-// eslint-disable-next-line import/first
 import {
   useMyNode,
   useRegisterNode,
@@ -133,7 +132,10 @@ describe('useRegisterNode', () => {
     const { result } = renderHook(() => useRegisterNode('reason'), { wrapper: makeWrapper() });
 
     await act(async () => {
-      await result.current.register({ endpoint: 'https://node.example.com', nodePublicKey: NODE_PUBLIC_KEY });
+      await result.current.register({
+        endpoint: 'https://node.example.com',
+        nodePublicKey: NODE_PUBLIC_KEY,
+      });
     });
 
     expect(services.registerNode).not.toHaveBeenCalled();
@@ -197,7 +199,9 @@ describe('useProvisionVault', () => {
   it('classifies a 503 config-unavailable rejection into managed_unavailable', async () => {
     install({
       provisionManagedVault: jest.fn(async () => {
-        const err = new Error('Managed vaults are not available right now') as Error & { status: number };
+        const err = new Error('Managed vaults are not available right now') as Error & {
+          status: number;
+        };
         err.status = 503;
         throw err;
       }),
@@ -286,21 +290,23 @@ describe('useSyncNode', () => {
 
 describe('nodeErrorCode', () => {
   it('maps the SDK 503 + message to managed_unavailable', () => {
-    const err = new Error('Managed vaults are not available right now') as Error & { status: number };
+    const err = new Error('Managed vaults are not available right now') as Error & {
+      status: number;
+    };
     err.status = 503;
     expect(nodeErrorCode(err)).toBe('managed_unavailable');
   });
 
   it('maps the unmaterialized-registration message to invalid_endpoint', () => {
-    expect(nodeErrorCode(new Error('Node registration stored but the node could not be materialized.'))).toBe(
-      'invalid_endpoint',
-    );
+    expect(
+      nodeErrorCode(new Error('Node registration stored but the node could not be materialized.')),
+    ).toBe('invalid_endpoint');
   });
 
   it('maps the no-user guard to not_authenticated', () => {
-    expect(nodeErrorCode(new Error('No authenticated user — sign in before registering a node.'))).toBe(
-      'not_authenticated',
-    );
+    expect(
+      nodeErrorCode(new Error('No authenticated user — sign in before registering a node.')),
+    ).toBe('not_authenticated');
   });
 
   it('falls back to generic for an unmodelled error', () => {

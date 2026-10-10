@@ -41,7 +41,10 @@ const croppedResult = {
 };
 
 const makeOxyServices = () => ({
-  assets: { url: jest.fn().mockResolvedValue({ url: 'https://cdn.example/pic.png' }), upload: jest.fn().mockResolvedValue({ id: 'uploaded-1' }) },
+  assets: {
+    url: jest.fn().mockResolvedValue({ url: 'https://cdn.example/pic.png' }),
+    upload: jest.fn().mockResolvedValue({ id: 'uploaded-1' }),
+  },
 });
 
 const renderPicker = (oxyServices: ReturnType<typeof makeOxyServices>) =>

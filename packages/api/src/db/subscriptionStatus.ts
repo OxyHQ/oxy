@@ -72,7 +72,7 @@ export interface SubscriptionExpiryOptions {
  */
 export async function projectExpiredSubscriptions(
   db: Database,
-  options: SubscriptionExpiryOptions = {}
+  options: SubscriptionExpiryOptions = {},
 ): Promise<SubscriptionExpiryResult> {
   const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
   const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES;

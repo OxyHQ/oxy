@@ -29,9 +29,9 @@ import { z } from 'zod';
  * challenge the client must sign with its CURRENT key, plus its expiry.
  */
 export const rotateKeyChallengeResponseSchema = z.object({
-    challenge: z.string(),
-    /** ISO-8601 expiry timestamp. */
-    expiresAt: z.string(),
+  challenge: z.string(),
+  /** ISO-8601 expiry timestamp. */
+  expiresAt: z.string(),
 });
 
 export type RotateKeyChallengeResponse = z.infer<typeof rotateKeyChallengeResponseSchema>;
@@ -55,27 +55,27 @@ export type RotateKeyChallengeResponse = z.infer<typeof rotateKeyChallengeRespon
  * key Y.
  */
 export const rotateKeyCompleteRequestSchema = z.object({
-    newPublicKey: z.string().trim().min(1),
-    challenge: z.string().trim().min(1),
-    signature: z.string().trim().min(1),
-    /** Proof-of-possession: the NEW key signs the rotate_key_new payload. */
-    newKeyProof: z.string().trim().min(1),
-    timestamp: z.number(),
-    /**
-     * When true, all OTHER active sessions for the account are revoked after a
-     * successful rotation (the rotating device stays signed in). Use it when the
-     * old key is presumed compromised.
-     */
-    signOutEverywhere: z.boolean().optional(),
+  newPublicKey: z.string().trim().min(1),
+  challenge: z.string().trim().min(1),
+  signature: z.string().trim().min(1),
+  /** Proof-of-possession: the NEW key signs the rotate_key_new payload. */
+  newKeyProof: z.string().trim().min(1),
+  timestamp: z.number(),
+  /**
+   * When true, all OTHER active sessions for the account are revoked after a
+   * successful rotation (the rotating device stays signed in). Use it when the
+   * old key is presumed compromised.
+   */
+  signOutEverywhere: z.boolean().optional(),
 });
 
 export type RotateKeyCompleteRequest = z.infer<typeof rotateKeyCompleteRequestSchema>;
 
 /** Response of `POST /auth/rotate/complete`: the account's new (rotated) public key. */
 export const rotateKeyCompleteResponseSchema = z.object({
-    success: z.boolean(),
-    publicKey: z.string(),
-    message: z.string(),
+  success: z.boolean(),
+  publicKey: z.string(),
+  message: z.string(),
 });
 
 export type RotateKeyCompleteResponse = z.infer<typeof rotateKeyCompleteResponseSchema>;

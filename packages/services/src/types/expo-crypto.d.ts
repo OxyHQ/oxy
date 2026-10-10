@@ -12,18 +12,16 @@ declare module 'expo-crypto' {
   export function digestStringAsync(
     algorithm: CryptoDigestAlgorithm | 'MD5' | 'SHA1' | 'SHA256' | 'SHA384' | 'SHA512',
     data: string,
-    options?: { encoding?: 'base64' | 'hex' }
+    options?: { encoding?: 'base64' | 'hex' },
   ): Promise<string>;
 
   export function digestString(
     algorithm: CryptoDigestAlgorithm | 'MD5' | 'SHA1' | 'SHA256' | 'SHA384' | 'SHA512',
     data: string,
-    options?: { encoding?: 'base64' | 'hex' }
+    options?: { encoding?: 'base64' | 'hex' },
   ): string;
 
   export function getRandomBytes(byteCount: number): Uint8Array;
   export function getRandomBytesAsync(byteCount: number): Promise<Uint8Array>;
   export function randomUUID(): string;
 }
-
-

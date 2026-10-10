@@ -106,5 +106,5 @@ export const accountBalances = pgTable(
     check('account_balances_promotional_check', sql`${t.promotionalBalance} >= 0`),
     check('account_balances_reserved_check', sql`${t.reservedBalance} >= 0`),
     check('account_balances_invoiced_outstanding_check', sql`${t.invoicedOutstanding} >= 0`),
-  ]
+  ],
 );

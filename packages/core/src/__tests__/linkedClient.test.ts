@@ -10,7 +10,8 @@ function createServices(): OxyServices {
 }
 
 function createJwt(payload: Record<string, unknown>): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.signature`;
 }
 
@@ -174,11 +175,13 @@ describe('OxyServices.createLinkedClient', () => {
     const oxy = createServices();
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.alia.onl' });
 
-    await expect(linked.client.requestAuthenticatedResponse({
-      method: 'POST',
-      url: '/alia/chat',
-      body: '{}',
-    })).rejects.toMatchObject({
+    await expect(
+      linked.client.requestAuthenticatedResponse({
+        method: 'POST',
+        url: '/alia/chat',
+        body: '{}',
+      }),
+    ).rejects.toMatchObject({
       code: 'AUTH_REQUIRED',
       status: 401,
     });
@@ -231,7 +234,9 @@ describe('OxyServices.createLinkedClient', () => {
     oxy.http.setAuthRefreshHandler(async () => null);
     const linked = oxy.createLinkedClient({ baseURL: 'https://api.syra.fm' });
 
-    await expect(linked.client.put('/api/queue/current', { trackId: 'track_1' }, { retry: false })).rejects.toMatchObject({
+    await expect(
+      linked.client.put('/api/queue/current', { trackId: 'track_1' }, { retry: false }),
+    ).rejects.toMatchObject({
       message: 'MISSING_TOKEN',
       status: 401,
     });
@@ -295,7 +300,9 @@ describe('OxyServices.createLinkedClient', () => {
     await linked.client.get('profile/settings/me');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://api.mention.earth/profile/settings/me');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.mention.earth/profile/settings/me',
+    );
 
     linked.dispose();
   });

@@ -56,7 +56,9 @@ describe('the native splash and icons', () => {
     const config = await fs.readFile(path.join(frontend, 'app.config.js'), 'utf8');
 
     expect(config).toContain("require('@oxy.so/expo-splash/config')");
-    expect(config).toMatch(/oxySplashScreenPlugin\(\{\s*image:\s*'\.\/assets\/images\/splash-logo\.png'/);
+    expect(config).toMatch(
+      /oxySplashScreenPlugin\(\{\s*image:\s*'\.\/assets\/images\/splash-logo\.png'/,
+    );
     // The branding plugin augments the resources the splash tuple generates, so
     // it must come right after it.
     expect(config).toMatch(/oxySplashScreenPlugin\([^)]*\),\s*'@oxy\.so\/expo-splash',/);
@@ -71,7 +73,10 @@ describe('the native splash and icons', () => {
     // Vacuity floor: icon, adaptive foreground/background/monochrome, favicon, splash.
     expect(new Set(assets).size).toBeGreaterThanOrEqual(6);
     for (const asset of assets) {
-      expect({ asset, exists: existsSync(path.join(frontend, asset)) }).toEqual({ asset, exists: true });
+      expect({ asset, exists: existsSync(path.join(frontend, asset)) }).toEqual({
+        asset,
+        exists: true,
+      });
     }
   });
 
@@ -114,7 +119,14 @@ describe('the prebuilt native projects', () => {
       await fs.mkdir(path.join(frontend, native), { recursive: true });
       await fs.writeFile(path.join(frontend, native, 'build.gradle'), '');
     }
-    const ignored = await run(['git', 'ls-files', '--others', '--ignored', '--exclude-standard', '--directory']);
+    const ignored = await run([
+      'git',
+      'ls-files',
+      '--others',
+      '--ignored',
+      '--exclude-standard',
+      '--directory',
+    ]);
     expect(ignored.split('\n').filter(Boolean).sort()).toEqual([
       'packages/frontend/android/',
       'packages/frontend/ios/',

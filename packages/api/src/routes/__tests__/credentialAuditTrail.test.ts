@@ -115,7 +115,7 @@ interface JsonResponse {
 async function request(
   method: string,
   path: string,
-  options: { payload?: unknown } = {}
+  options: { payload?: unknown } = {},
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(options.payload ?? {});
@@ -148,7 +148,7 @@ async function request(
           }
           resolve({ status: res.statusCode ?? 0, raw, body: parsed });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -165,7 +165,7 @@ function asCaller(userId: string): void {
     (
       req: { headers: Record<string, string | undefined>; user?: unknown },
       res: { status: (code: number) => { json: (body: unknown) => void } },
-      next: () => void
+      next: () => void,
     ) => {
       if (req.headers.authorization?.slice('Bearer '.length) !== SESSION_BEARER) {
         res.status(401).json({ error: 'Authentication required' });
@@ -173,7 +173,7 @@ function asCaller(userId: string): void {
       }
       req.user = { _id: { toString: () => userId }, isStaff: false };
       next();
-    }
+    },
   );
 }
 
@@ -214,7 +214,7 @@ interface CreatedCredential {
  */
 async function createCredential(
   applicationId: string,
-  type: 'machine' | 'confidential' = 'machine'
+  type: 'machine' | 'confidential' = 'machine',
 ): Promise<CreatedCredential> {
   const response = await request('POST', `/applications/${applicationId}/credentials`, {
     payload: {
@@ -239,7 +239,7 @@ async function createCredential(
 async function readTrail(
   applicationId: string,
   credentialId: string,
-  query = ''
+  query = '',
 ): Promise<JsonResponse> {
   return request('GET', `/applications/${applicationId}/credentials/${credentialId}/audit${query}`);
 }
@@ -256,7 +256,7 @@ function containsDeep(haystack: unknown, needle: string): boolean {
   if (haystack === null || typeof haystack !== 'object') return false;
   if (Array.isArray(haystack)) return haystack.some((item) => containsDeep(item, needle));
   return Object.values(haystack as Record<string, unknown>).some((value) =>
-    containsDeep(value, needle)
+    containsDeep(value, needle),
   );
 }
 
@@ -298,7 +298,7 @@ describe('GET /applications/:appId/credentials/:credId/audit', () => {
     const rotate = await request(
       'POST',
       `/applications/${applicationId}/credentials/${credentialId}/rotate`,
-      { payload: {} }
+      { payload: {} },
     );
     expect(rotate.status).toBe(200);
 
@@ -307,10 +307,7 @@ describe('GET /applications/:appId/credentials/:credId/audit', () => {
     // `created` when it was minted, `rotated` when it was replaced — both about
     // THIS credential. The replacement's own `created` row belongs to the
     // replacement and must not appear here.
-    expect(trail.body.data?.map((event) => event.eventType).sort()).toEqual([
-      'created',
-      'rotated',
-    ]);
+    expect(trail.body.data?.map((event) => event.eventType).sort()).toEqual(['created', 'rotated']);
     expect(trail.body.count).toBe(2);
     for (const event of trail.body.data ?? []) {
       expect(event.actorUserId).toBe(OWNER_ID);
@@ -331,7 +328,7 @@ describe('GET /applications/:appId/credentials/:credId/audit', () => {
         reason: 'environment_mismatch',
         environment: 'development',
         metadata: { expectedEnvironment: 'production' },
-      })
+      }),
     ).toBe(true);
 
     const trail = await readTrail(applicationId, credentialId);
@@ -476,7 +473,7 @@ describe('the trail cannot carry secret material', () => {
       const rotated = await request(
         'POST',
         `/applications/${applicationId}/credentials/${credential.credentialId}/rotate`,
-        { payload: {} }
+        { payload: {} },
       );
       expect(rotated.status).toBe(200);
     }
@@ -505,7 +502,7 @@ describe('the trail cannot carry secret material', () => {
     const planted = await readTrail(applicationId, machine.credentialId);
     for (const needle of [token, tokenTail, secret]) {
       expect(
-        containsDeep({ data: [{ ...(planted.body.data ?? [])[0], leaked: needle }] }, needle)
+        containsDeep({ data: [{ ...(planted.body.data ?? [])[0], leaked: needle }] }, needle),
       ).toBe(true);
     }
   });
@@ -527,8 +524,8 @@ describe('the trail cannot carry secret material', () => {
     expect(
       containsDeep(
         stored.map((row) => ({ ...row, metadata: { leaked: plaintext } })),
-        plaintext
-      )
+        plaintext,
+      ),
     ).toBe(true);
   });
 });
@@ -544,16 +541,13 @@ describe('a revoked credential', () => {
 
     const revoked = await request(
       'DELETE',
-      `/applications/${applicationId}/credentials/${credentialId}`
+      `/applications/${applicationId}/credentials/${credentialId}`,
     );
     expect(revoked.status).toBe(200);
 
     const trail = await readTrail(applicationId, credentialId);
     expect(trail.status).toBe(200);
-    expect(trail.body.data?.map((event) => event.eventType).sort()).toEqual([
-      'created',
-      'revoked',
-    ]);
+    expect(trail.body.data?.map((event) => event.eventType).sort()).toEqual(['created', 'revoked']);
 
     // The credential row survives the revoke — which is what keeps the trail
     // reachable, since the route resolves `:credId` against the application.

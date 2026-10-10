@@ -45,10 +45,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { userNodes } from '../../db/schema/userNodes';
 import { users } from '../../db/schema/users';
 import userCache from '../../utils/userCache';
-import {
-  NODE_LIVENESS_SWEEP_BATCH,
-  NODE_WELL_KNOWN_PATH,
-} from '../../utils/nodes.constants';
+import { NODE_LIVENESS_SWEEP_BATCH, NODE_WELL_KNOWN_PATH } from '../../utils/nodes.constants';
 import {
   getUserNode,
   materializeNodeFromRecord,
@@ -102,7 +99,10 @@ async function storedNode(userId: string) {
 
 /** Every `user_nodes` row for an account, so "exactly one" is assertable. */
 async function storedNodeCount(userId: string): Promise<number> {
-  const rows = await getDb().select({ id: userNodes.id }).from(userNodes).where(eq(userNodes.userId, userId));
+  const rows = await getDb()
+    .select({ id: userNodes.id })
+    .from(userNodes)
+    .where(eq(userNodes.userId, userId));
   return rows.length;
 }
 
@@ -117,7 +117,11 @@ function nodeRecord(overrides: Record<string, unknown> = {}): Record<string, unk
  * observing it means waiting for its write rather than awaiting a promise the
  * service never hands back. Fails loudly on timeout instead of passing vacuously.
  */
-async function waitFor<T>(read: () => Promise<T>, done: (value: T) => boolean, what: string): Promise<T> {
+async function waitFor<T>(
+  read: () => Promise<T>,
+  done: (value: T) => boolean,
+  what: string,
+): Promise<T> {
   const deadline = Date.now() + 3_000;
   for (;;) {
     const value = await read();
@@ -170,11 +174,14 @@ describe('materializeNodeFromRecord', () => {
   it('upserts one row from a verified node record and invalidates the user cache', async () => {
     const userId = await account();
 
-    const node = await materializeNodeFromRecord(userId, nodeRecord({
-      endpoint: 'https://node.example.com/', // trailing slash normalised away
-      mode: 'push',
-      nodeDid: 'did:web:node.example.com',
-    }));
+    const node = await materializeNodeFromRecord(
+      userId,
+      nodeRecord({
+        endpoint: 'https://node.example.com/', // trailing slash normalised away
+        mode: 'push',
+        nodeDid: 'did:web:node.example.com',
+      }),
+    );
 
     expect(node).not.toBeNull();
     const row = await storedNode(userId);
@@ -224,15 +231,21 @@ describe('materializeNodeFromRecord', () => {
     // The `$setOnInsert` guarantee: the upsert must stay idempotent, so the
     // insert-only columns really are insert-only.
     const userId = await account();
-    const first = await materializeNodeFromRecord(userId, nodeRecord({ nodeDid: 'did:web:first.example' }));
+    const first = await materializeNodeFromRecord(
+      userId,
+      nodeRecord({ nodeDid: 'did:web:first.example' }),
+    );
     await settleProbe(userId);
     const before = await storedNode(userId);
 
     const probesBefore = probesSoFar();
-    const second = await materializeNodeFromRecord(userId, nodeRecord({
-      endpoint: 'https://moved.example.com',
-      mode: 'push',
-    }));
+    const second = await materializeNodeFromRecord(
+      userId,
+      nodeRecord({
+        endpoint: 'https://moved.example.com',
+        mode: 'push',
+      }),
+    );
     await settleProbe(userId, probesBefore);
     const after = await storedNode(userId);
 
@@ -286,7 +299,10 @@ describe('materializeNodeFromRecord', () => {
 
   it.each([
     ['a non-HTTPS endpoint', nodeRecord({ endpoint: 'http://node.example.com' })],
-    ['an endpoint carrying credentials', nodeRecord({ endpoint: 'https://user:pw@node.example.com' })],
+    [
+      'an endpoint carrying credentials',
+      nodeRecord({ endpoint: 'https://user:pw@node.example.com' }),
+    ],
     ['an unparseable endpoint', nodeRecord({ endpoint: 'not a url' })],
     ['a missing nodePublicKey', { endpoint: 'https://node.example.com' }],
     ['a non-hex nodePublicKey', nodeRecord({ nodePublicKey: 'not-hex' })],
@@ -313,7 +329,14 @@ describe('an absent optional is OMITTED, never null — the /nodes/me wire contr
     const node = await materializeNodeFromRecord(userId, nodeRecord());
     if (!node) throw new Error('expected the node to materialize');
 
-    for (const key of ['nodeDid', 'lastSeenAt', 'lastProbeAt', 'lastError', 'cursor', 'lastSyncedAt']) {
+    for (const key of [
+      'nodeDid',
+      'lastSeenAt',
+      'lastProbeAt',
+      'lastError',
+      'cursor',
+      'lastSyncedAt',
+    ]) {
       expect(key in node).toBe(false);
     }
 
@@ -338,7 +361,11 @@ describe('an absent optional is OMITTED, never null — the /nodes/me wire contr
     await settleProbe(userId);
     await getDb()
       .update(userNodes)
-      .set({ cursor: 7, lastSyncedAt: new Date('2026-01-01T00:00:00.000Z'), lastError: 'chain_gap' })
+      .set({
+        cursor: 7,
+        lastSyncedAt: new Date('2026-01-01T00:00:00.000Z'),
+        lastError: 'chain_gap',
+      })
       .where(eq(userNodes.userId, userId));
 
     const node = await getUserNode(userId);
@@ -387,7 +414,12 @@ describe('probeLiveness', () => {
     const userId = await registered();
     await getDb()
       .update(userNodes)
-      .set({ status: 'unreachable', lastError: 'ECONNREFUSED', lastSeenAt: null, lastProbeAt: null })
+      .set({
+        status: 'unreachable',
+        lastError: 'ECONNREFUSED',
+        lastSeenAt: null,
+        lastProbeAt: null,
+      })
       .where(eq(userNodes.userId, userId));
 
     await probeLiveness(userId);
@@ -434,7 +466,12 @@ describe('probeLiveness', () => {
   it('destroys the response body — liveness reads the status line only', async () => {
     const userId = await registered();
     const destroy = jest.fn();
-    mockSafeFetch.mockResolvedValue({ status: 200, response: { destroy }, headers: {}, finalUrl: '' });
+    mockSafeFetch.mockResolvedValue({
+      status: 200,
+      response: { destroy },
+      headers: {},
+      finalUrl: '',
+    });
 
     await probeLiveness(userId);
 
@@ -571,7 +608,10 @@ describe('removeNode', () => {
     const userId = await account();
     await materializeNodeFromRecord(userId, nodeRecord());
     await settleProbe(userId);
-    await getDb().update(userNodes).set({ lastError: 'chain_gap' }).where(eq(userNodes.userId, userId));
+    await getDb()
+      .update(userNodes)
+      .set({ lastError: 'chain_gap' })
+      .where(eq(userNodes.userId, userId));
     jest.clearAllMocks();
 
     await expect(removeNode(userId)).resolves.toBe(true);

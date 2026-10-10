@@ -147,7 +147,7 @@ async function requestJson(
   srv: http.Server,
   method: string,
   path: string,
-  payload?: unknown
+  payload?: unknown,
 ): Promise<JsonResponse> {
   const address = srv.address() as AddressInfo;
   const body = JSON.stringify(payload ?? {});
@@ -176,7 +176,7 @@ async function requestJson(
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -206,7 +206,7 @@ async function account(): Promise<string> {
 
 /** A real `applications` row owned by `OWNER_ID` unless overridden. */
 async function seedApp(
-  overrides: Partial<typeof applications.$inferInsert> = {}
+  overrides: Partial<typeof applications.$inferInsert> = {},
 ): Promise<typeof applications.$inferSelect> {
   const [row] = await getDb()
     .insert(applications)
@@ -223,7 +223,7 @@ async function seedApp(
 /** A real `application_credentials` row on `applicationId`. */
 async function seedCredential(
   applicationId: string,
-  overrides: Partial<typeof applicationCredentials.$inferInsert> = {}
+  overrides: Partial<typeof applicationCredentials.$inferInsert> = {},
 ): Promise<typeof applicationCredentials.$inferSelect> {
   const [row] = await getDb()
     .insert(applicationCredentials)
@@ -244,7 +244,7 @@ async function seedCredential(
 /** A real application-scoped BYOK row. Plaintext never enters this fixture. */
 async function seedApplicationProviderConnection(
   application: typeof applications.$inferSelect,
-  overrides: Partial<typeof inferenceProviderConnections.$inferInsert> = {}
+  overrides: Partial<typeof inferenceProviderConnections.$inferInsert> = {},
 ): Promise<typeof inferenceProviderConnections.$inferSelect> {
   const provider = `test-${crypto.randomBytes(8).toString('hex')}`;
   await getDb().insert(inferenceProviders).values({
@@ -258,9 +258,7 @@ async function seedApplicationProviderConnection(
   });
 
   const base32 = 'abcdefghijklmnopqrstuvwxyz234567';
-  const handleSuffix = Array.from(crypto.randomBytes(26), (byte) => base32[byte % 32]).join(
-    ''
-  );
+  const handleSuffix = Array.from(crypto.randomBytes(26), (byte) => base32[byte % 32]).join('');
   const [row] = await getDb()
     .insert(inferenceProviderConnections)
     .values({
@@ -288,7 +286,7 @@ async function readApp(id: string): Promise<typeof applications.$inferSelect | u
 
 /** Re-read a credential straight from the database. */
 async function readCredential(
-  id: string
+  id: string,
 ): Promise<typeof applicationCredentials.$inferSelect | undefined> {
   const [row] = await getDb()
     .select()
@@ -325,7 +323,7 @@ beforeEach(async () => {
     (req: { user?: unknown }, _res: unknown, next: () => void) => {
       req.user = { _id: { toString: () => currentUserId }, isStaff: currentIsStaff };
       next();
-    }
+    },
   );
 });
 
@@ -672,7 +670,7 @@ describe('PATCH /applications/:appId — privileged scope reconciliation', () =>
     const stored = await readApp(app.id);
     expect(stored?.scopes).toContain('signals:write');
     expect(stored?.scopes).toEqual(
-      expect.arrayContaining(['user:read', 'files:write', 'files:read', 'signals:write'])
+      expect.arrayContaining(['user:read', 'files:write', 'files:read', 'signals:write']),
     );
     expect(res.body.application?.scopes).toContain('signals:write');
   });
@@ -686,7 +684,7 @@ describe('PATCH /applications/:appId — privileged scope reconciliation', () =>
 
     expect(res.status).toBe(200);
     expect((await readApp(app.id))?.scopes).toEqual(
-      expect.arrayContaining(['user:read', 'signals:write', 'federation:write'])
+      expect.arrayContaining(['user:read', 'signals:write', 'federation:write']),
     );
   });
 
@@ -735,7 +733,11 @@ describe('GET /applications — list', () => {
   it('lists apps across the accessible account forest, newest first', async () => {
     // Explicit timestamps: two inserts can land in the same instant.
     const mine = await seedApp({ name: 'Mine', createdAt: new Date('2026-01-01T00:00:00Z') });
-    const theirs = await seedApp({ name: 'Theirs', ownerAccountId: ORG_ID, createdAt: new Date('2026-01-02T00:00:00Z') });
+    const theirs = await seedApp({
+      name: 'Theirs',
+      ownerAccountId: ORG_ID,
+      createdAt: new Date('2026-01-02T00:00:00Z'),
+    });
     grantAccess(OWNER_ID, ORG_ID, 'developer');
 
     const res = await requestJson(server, 'GET', '/applications');
@@ -788,7 +790,10 @@ describe('credentials', () => {
     // Only the hash is persisted, and it is the hash of the secret returned once.
     const stored = await readCredential(created.body.credential?._id as string);
     expect(stored?.secretHash).toBe(
-      crypto.createHash('sha256').update(created.body.secret as string).digest('hex')
+      crypto
+        .createHash('sha256')
+        .update(created.body.secret as string)
+        .digest('hex'),
     );
 
     const list = await requestJson(server, 'GET', `/applications/${app.id}/credentials`);
@@ -963,7 +968,7 @@ describe('credentials', () => {
         type: 'confidential',
         environment: 'production',
         scopes: ['inference:providers:write'],
-      }
+      },
     );
     expect(escalation.status).toBe(403);
     expect(escalation.body.message).toContain('staff');
@@ -987,7 +992,7 @@ describe('credentials', () => {
     const res = await requestJson(
       server,
       'POST',
-      `/applications/${app.id}/credentials/${previous.id}/rotate`
+      `/applications/${app.id}/credentials/${previous.id}/rotate`,
     );
     expect(res.status).toBe(200);
     expect(res.body.secret).toMatch(/^[a-f0-9]{64}$/);
@@ -1013,7 +1018,7 @@ describe('credentials', () => {
     const res = await requestJson(
       server,
       'POST',
-      `/applications/${app.id}/credentials/${foreign.id}/rotate`
+      `/applications/${app.id}/credentials/${foreign.id}/rotate`,
     );
     expect(res.status).toBe(404);
     expect((await readCredential(foreign.id))?.status).toBe('active');
@@ -1030,7 +1035,7 @@ describe('credentials', () => {
     const res = await requestJson(
       server,
       'POST',
-      `/applications/${app.id}/credentials/${pub.id}/rotate`
+      `/applications/${app.id}/credentials/${pub.id}/rotate`,
     );
     expect(res.status).toBe(400);
     expect((await readCredential(pub.id))?.status).toBe('active');
@@ -1047,7 +1052,7 @@ describe('credentials', () => {
     const res = await requestJson(
       server,
       'DELETE',
-      `/applications/${app.id}/credentials/${credential.id}`
+      `/applications/${app.id}/credentials/${credential.id}`,
     );
     expect(res.status).toBe(200);
     expect((await readCredential(credential.id))?.status).toBe('revoked');
@@ -1061,7 +1066,7 @@ describe('credentials', () => {
     const res = await requestJson(
       server,
       'DELETE',
-      `/applications/${app.id}/credentials/${foreign.id}`
+      `/applications/${app.id}/credentials/${foreign.id}`,
     );
     expect(res.status).toBe(404);
     expect((await readCredential(foreign.id))?.status).toBe('active');
@@ -1096,7 +1101,7 @@ describe('GET /applications/:appId/usage', () => {
   /** A served request recorded against `applicationId` at `createdAt`. */
   async function usageEvent(
     applicationId: string,
-    values: Partial<typeof apiKeyUsageEvents.$inferInsert>
+    values: Partial<typeof apiKeyUsageEvents.$inferInsert>,
   ): Promise<void> {
     await getDb()
       .insert(apiKeyUsageEvents)
@@ -1322,7 +1327,7 @@ describe('materialised workload rows', () => {
       server,
       'POST',
       `/applications/${app.id}/credentials/${handle}/rotate`,
-      {}
+      {},
     );
     expect(res.status).toBe(404);
     // And nothing was written: a rotation would have minted a second row, whose
@@ -1340,7 +1345,7 @@ describe('materialised workload rows', () => {
     const res = await requestJson(
       server,
       'DELETE',
-      `/applications/${app.id}/credentials/${handle}`
+      `/applications/${app.id}/credentials/${handle}`,
     );
     expect(res.status).toBe(404);
     // The status is untouched, which matters: a revoked-looking row would tell an
@@ -1355,7 +1360,7 @@ describe('materialised workload rows', () => {
     const res = await requestJson(
       server,
       'GET',
-      `/applications/${app.id}/credentials/${handle}/audit`
+      `/applications/${app.id}/credentials/${handle}/audit`,
     );
     expect(res.status).toBe(404);
   });

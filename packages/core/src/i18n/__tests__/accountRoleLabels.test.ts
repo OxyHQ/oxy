@@ -1,14 +1,7 @@
 import type { AccountRole } from '../../api/accounts';
 import { EN_ACCOUNT_ROLE_LABELS, accountRoleLabel } from '../accountRoleLabels';
 
-const ACCOUNT_ROLES: AccountRole[] = [
-  'owner',
-  'admin',
-  'editor',
-  'developer',
-  'billing',
-  'viewer',
-];
+const ACCOUNT_ROLES: AccountRole[] = ['owner', 'admin', 'editor', 'developer', 'billing', 'viewer'];
 
 const SHIPPED_LOCALES = [
   'en-US',

@@ -83,10 +83,12 @@ describe('normalized Inbox event outbox', () => {
 
   it('rolls event insertion back with its surrounding domain transaction', async () => {
     const eventInput = input();
-    await expect(getDb().transaction(async (transaction) => {
-      await enqueueInboxMessageEvents(transaction, eventInput);
-      throw new Error('rollback');
-    })).rejects.toThrow('rollback');
+    await expect(
+      getDb().transaction(async (transaction) => {
+        await enqueueInboxMessageEvents(transaction, eventInput);
+        throw new Error('rollback');
+      }),
+    ).rejects.toThrow('rollback');
 
     const rows = await getDb()
       .select({ id: normalizedAppEventOutbox.id })

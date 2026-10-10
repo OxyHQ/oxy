@@ -33,7 +33,9 @@ const stateWith = (revision: number, active: string): DeviceSessionState => ({
   updatedAt: 1_720_000_000_000,
 });
 
-function makeHost(initialToken: string | null): SessionClientHost & { planted: () => string | null } {
+function makeHost(
+  initialToken: string | null,
+): SessionClientHost & { planted: () => string | null } {
   let planted = initialToken;
   return {
     makeRequest: jest.fn(),
@@ -146,7 +148,9 @@ describe('SessionClient — pinned bearer', () => {
     await client.registerAndActivate(PINNED);
 
     expect(makeRequest).toHaveBeenCalledTimes(1);
-    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, {
+      cache: false,
+    });
     expect(makeRequest).not.toHaveBeenCalledWith(
       'POST',
       '/session/device/switch',

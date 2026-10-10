@@ -13,10 +13,7 @@ const FADE_DURATION = 500;
 const LOGO_SIZE = 100;
 const SPINNER_SIZE = 28;
 
-const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
-  onFadeComplete,
-  startFade = false
-}) => {
+const AppSplashScreen: React.FC<AppSplashScreenProps> = ({ onFadeComplete, startFade = false }) => {
   const theme = useTheme();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -63,18 +60,14 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
 
   const containerStyle = useMemo(
     () => [styles.container, { opacity: fadeAnim, backgroundColor }],
-    [fadeAnim, backgroundColor]
+    [fadeAnim, backgroundColor],
   );
 
   return (
     <Animated.View style={containerStyle}>
       <View style={styles.content}>
         <View style={styles.logoContainer}>
-          <LogoIcon
-            height={LOGO_SIZE}
-            color={logoColor}
-            letterColor={letterColor}
-          />
+          <LogoIcon height={LOGO_SIZE} color={logoColor} letterColor={letterColor} />
           <View style={styles.spinnerContainer}>
             <LoadingSpinner iconSize={SPINNER_SIZE} color={logoColor} showText={false} />
           </View>

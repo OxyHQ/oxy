@@ -19,16 +19,34 @@ export default function LinkAccountIntroScreen() {
   const { t } = useTranslation();
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: insets.top + 24,
+          paddingBottom: insets.bottom + 24,
+        },
+      ]}
+    >
       <View style={styles.body}>
-        <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{t('linkAccount.introTitle')}</Text>
+        <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
+          {t('linkAccount.introTitle')}
+        </Text>
         <Text style={[styles.text, { color: colors.text }]}>{t('linkAccount.introBody')}</Text>
       </View>
       <View style={styles.actions}>
-        <Button appearance="solid" tone="accent" onPress={() => router.push('/(auth)/link-account/scan')} testID="link-account-scan">
+        <Button
+          appearance="solid"
+          tone="accent"
+          onPress={() => router.push('/(auth)/link-account/scan')}
+          testID="link-account-scan"
+        >
           {t('linkAccount.scanAction')}
         </Button>
-        <Button appearance="subtle" onPress={() => router.back()}>{t('common.back')}</Button>
+        <Button appearance="subtle" onPress={() => router.back()}>
+          {t('common.back')}
+        </Button>
       </View>
     </View>
   );

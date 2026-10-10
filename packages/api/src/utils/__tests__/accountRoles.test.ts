@@ -26,7 +26,7 @@ const ACCOUNT_ROLE_NAMES = Object.keys(ROLE_PERMISSIONS) as AccountRole[];
 /** The access shape a route hands the derivation, built from a role + deltas. */
 function accessWith(
   role: AccountRole,
-  deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] } = {}
+  deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] } = {},
 ) {
   return {
     role,
@@ -38,7 +38,7 @@ describe('resolveEffectivePermissions', () => {
   test('with no deltas it is exactly the role baseline', () => {
     for (const role of Object.keys(ROLE_PERMISSIONS) as (keyof typeof ROLE_PERMISSIONS)[]) {
       expect(resolveEffectivePermissions(role, [], []).sort()).toEqual(
-        permissionsForAccountRole(role).sort()
+        permissionsForAccountRole(role).sort(),
       );
     }
   });
@@ -61,7 +61,7 @@ describe('resolveEffectivePermissions', () => {
     expect(permissionsForAccountRole('editor')).toContain('account:act_as');
 
     expect(resolveEffectivePermissions('editor', [], ['account:act_as'])).not.toContain(
-      'account:act_as'
+      'account:act_as',
     );
   });
 
@@ -69,7 +69,7 @@ describe('resolveEffectivePermissions', () => {
     // The safe reading of a contradiction is the narrower one. A union-then-add
     // implementation would return it.
     expect(
-      resolveEffectivePermissions('viewer', ['account:delete'], ['account:delete'])
+      resolveEffectivePermissions('viewer', ['account:delete'], ['account:delete']),
     ).not.toContain('account:delete');
   });
 
@@ -84,7 +84,7 @@ describe('resolveEffectivePermissions', () => {
 
   test('a revoke outside the current vocabulary removes nothing', () => {
     expect(resolveEffectivePermissions('admin', [], ['account:retired_capability'])).toEqual(
-      resolveEffectivePermissions('admin', [], [])
+      resolveEffectivePermissions('admin', [], []),
     );
   });
 
@@ -92,7 +92,7 @@ describe('resolveEffectivePermissions', () => {
     const effective = resolveEffectivePermissions(
       'viewer',
       ['ownership:transfer', 'account:act_as', 'not-a-permission'],
-      []
+      [],
     );
     for (const permission of effective) {
       expect(isAccountPermission(permission)).toBe(true);
@@ -104,9 +104,9 @@ describe('resolveEffectivePermissions', () => {
   });
 
   test('duplicates in a delta list collapse', () => {
-    expect(
-      resolveEffectivePermissions('viewer', ['account:act_as', 'account:act_as'], [])
-    ).toEqual(resolveEffectivePermissions('viewer', ['account:act_as'], []));
+    expect(resolveEffectivePermissions('viewer', ['account:act_as', 'account:act_as'], [])).toEqual(
+      resolveEffectivePermissions('viewer', ['account:act_as'], []),
+    );
   });
 });
 
@@ -185,7 +185,7 @@ describe('appPermissionsForAccountAccess', () => {
 
     for (const role of ACCOUNT_ROLE_NAMES) {
       expect(appPermissionsForAccountAccess(accessWith(role)).sort()).toEqual(
-        baselineByRole[role].sort()
+        baselineByRole[role].sort(),
       );
     }
   });
@@ -197,7 +197,7 @@ describe('appPermissionsForAccountAccess', () => {
     expect(appPermissionsForAccountAccess(accessWith('admin'))).toContain('credentials:rotate');
 
     const revoked = appPermissionsForAccountAccess(
-      accessWith('admin', { revokes: ['credentials:rotate'] })
+      accessWith('admin', { revokes: ['credentials:rotate'] }),
     );
     expect(revoked).not.toContain('credentials:rotate');
     // Surgical: only the revoked power goes.
@@ -213,7 +213,7 @@ describe('appPermissionsForAccountAccess', () => {
     expect(APPLICATION_PERMISSIONS).not.toContain('apps:update');
 
     expect(
-      appPermissionsForAccountAccess(accessWith('admin', { revokes: ['apps:update'] }))
+      appPermissionsForAccountAccess(accessWith('admin', { revokes: ['apps:update'] })),
     ).not.toContain('app:update');
   });
 
@@ -221,7 +221,7 @@ describe('appPermissionsForAccountAccess', () => {
     // `apps:update` contains `app:update`, `webhooks:update` and
     // `updates:manage` — publishing an OTA update replaces the app's code.
     const revoked = appPermissionsForAccountAccess(
-      accessWith('admin', { revokes: ['apps:update'] })
+      accessWith('admin', { revokes: ['apps:update'] }),
     );
     expect(revoked).not.toContain('app:update');
     expect(revoked).not.toContain('webhooks:update');
@@ -237,14 +237,14 @@ describe('appPermissionsForAccountAccess', () => {
     expect(appPermissionsForAccountAccess(accessWith('viewer'))).not.toContain('credentials:read');
 
     expect(
-      appPermissionsForAccountAccess(accessWith('viewer', { grants: ['credentials:read'] }))
+      appPermissionsForAccountAccess(accessWith('viewer', { grants: ['credentials:read'] })),
     ).toContain('credentials:read');
   });
 
   test('a revoke of something the role never had changes nothing', () => {
     expect(permissionsForAccountRole('viewer')).not.toContain('billing:manage');
     expect(
-      appPermissionsForAccountAccess(accessWith('viewer', { revokes: ['billing:manage'] }))
+      appPermissionsForAccountAccess(accessWith('viewer', { revokes: ['billing:manage'] })),
     ).toEqual(appPermissionsForAccountAccess(accessWith('viewer')));
   });
 
@@ -254,14 +254,14 @@ describe('appPermissionsForAccountAccess', () => {
     // disagree about a contradictory row.
     expect(
       appPermissionsForAccountAccess(
-        accessWith('admin', { grants: ['credentials:rotate'], revokes: ['credentials:rotate'] })
-      )
+        accessWith('admin', { grants: ['credentials:rotate'], revokes: ['credentials:rotate'] }),
+      ),
     ).not.toContain('credentials:rotate');
   });
 
   test('the result is in vocabulary declaration order, whatever the deltas', () => {
     const permissions = appPermissionsForAccountAccess(
-      accessWith('viewer', { grants: ['ownership:transfer', 'apps:update'] })
+      accessWith('viewer', { grants: ['ownership:transfer', 'apps:update'] }),
     );
     const indices = permissions.map((permission) => APPLICATION_PERMISSIONS.indexOf(permission));
     expect(indices).toEqual([...indices].sort((a, b) => a - b));
@@ -310,10 +310,10 @@ describe('the inference vocabulary', () => {
 
   test('each vocabulary declares exactly the inference permissions it is meant to', () => {
     expect(ACCOUNT_PERMISSIONS.filter((permission) => permission.startsWith('inference:'))).toEqual(
-      [...ACCOUNT_LANE]
+      [...ACCOUNT_LANE],
     );
     expect(
-      APPLICATION_PERMISSIONS.filter((permission) => permission.startsWith('inference:'))
+      APPLICATION_PERMISSIONS.filter((permission) => permission.startsWith('inference:')),
     ).toEqual([...APP_LANE]);
   });
 
@@ -322,7 +322,9 @@ describe('the inference vocabulary', () => {
     // still holds for `app:update` ↔ `apps:update`; this is the enumerated
     // exception to it, so a fourth shared spelling arriving by accident fails.
     expect(
-      APP_LANE.filter((permission) => (ACCOUNT_PERMISSIONS as readonly string[]).includes(permission))
+      APP_LANE.filter((permission) =>
+        (ACCOUNT_PERMISSIONS as readonly string[]).includes(permission),
+      ),
     ).toEqual(['inference:invoke', 'inference:routing:read', 'inference:routing:write']);
 
     // BYOK is `byok` on the application lane and `providers` on the account lane,
@@ -348,7 +350,7 @@ describe('the inference vocabulary', () => {
         if (baseline.includes(permission)) continue;
         exercised += 1;
         expect(
-          appPermissionsForAccountAccess(accessWith(role, { grants: [COUNTERPART[permission]] }))
+          appPermissionsForAccountAccess(accessWith(role, { grants: [COUNTERPART[permission]] })),
         ).toContain(permission);
       }
     }
@@ -362,7 +364,7 @@ describe('the inference vocabulary', () => {
     // That containment argument does not hold for routing or BYOK, and this is
     // where the difference is enforced rather than merely asserted in a comment.
     const revoked = appPermissionsForAccountAccess(
-      accessWith('admin', { revokes: ['apps:update'] })
+      accessWith('admin', { revokes: ['apps:update'] }),
     );
     // Non-vacuity: the revoke did land on the things that DO answer to it.
     expect(revoked).not.toContain('app:update');
@@ -371,7 +373,7 @@ describe('the inference vocabulary', () => {
     expect(revoked).toContain('inference:byok:write');
 
     const granted = appPermissionsForAccountAccess(
-      accessWith('viewer', { grants: ['apps:update'] })
+      accessWith('viewer', { grants: ['apps:update'] }),
     );
     // Non-vacuity again: the grant did land.
     expect(granted).toContain('app:update');

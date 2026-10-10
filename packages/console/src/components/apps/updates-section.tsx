@@ -125,7 +125,7 @@ function computeHeads(updates: Array<Update>): Array<Update> {
   return Array.from(heads.values()).sort((a, b) =>
     a.runtimeVersion === b.runtimeVersion
       ? a.platform.localeCompare(b.platform)
-      : b.runtimeVersion.localeCompare(a.runtimeVersion, undefined, { numeric: true })
+      : b.runtimeVersion.localeCompare(a.runtimeVersion, undefined, { numeric: true }),
   );
 }
 
@@ -138,12 +138,7 @@ export function UpdatesSection({ application, access }: UpdatesSectionProps) {
   const appId = application._id;
   const canManage = access.can('updates:manage');
 
-  const {
-    data: channels = [],
-    isLoading,
-    isError,
-    refetch,
-  } = useUpdateChannels(appId, canManage);
+  const { data: channels = [], isLoading, isError, refetch } = useUpdateChannels(appId, canManage);
 
   if (!canManage) {
     return (
@@ -236,7 +231,7 @@ function ChannelCard({ appId, channel, channelNames }: ChannelCardProps) {
 
   const hasEmbeddedRollback = (head: Update): boolean =>
     channel.rollbacksToEmbedded.some(
-      (entry) => entry.runtimeVersion === head.runtimeVersion && entry.platform === head.platform
+      (entry) => entry.runtimeVersion === head.runtimeVersion && entry.platform === head.platform,
     );
 
   return (
@@ -298,7 +293,10 @@ function ChannelCard({ appId, channel, channelNames }: ChannelCardProps) {
                   </td>
                   <td className="px-4 py-3">
                     {head.gitCommit ? (
-                      <span className="font-mono text-xs text-muted-foreground" title={head.gitCommit}>
+                      <span
+                        className="font-mono text-xs text-muted-foreground"
+                        title={head.gitCommit}
+                      >
                         {shortCommit(head.gitCommit)}
                       </span>
                     ) : (
@@ -409,8 +407,8 @@ function ChannelCard({ appId, channel, channelNames }: ChannelCardProps) {
             <AlertDialogDescription>
               Marks the current head for {rollbackHead?.runtimeVersion} (
               {rollbackHead ? platformLabel(rollbackHead.platform) : ''}) on{' '}
-              <span className="font-medium">{channel.name}</span> as rolled back. Devices fall back to
-              the previous published update. Nothing is deleted.
+              <span className="font-medium">{channel.name}</span> as rolled back. Devices fall back
+              to the previous published update. Nothing is deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -518,9 +516,9 @@ function PromoteDialog({ head, channelNames, isPending, onClose, onConfirm }: Pr
         <DialogHeader>
           <DialogTitle>Promote update</DialogTitle>
           <DialogDescription>
-            Publishes {head ? head.runtimeVersion : ''} (
-            {head ? platformLabel(head.platform) : ''}) — the same signed assets — to another
-            channel. The target channel is created if it does not exist.
+            Publishes {head ? head.runtimeVersion : ''} ({head ? platformLabel(head.platform) : ''})
+            — the same signed assets — to another channel. The target channel is created if it does
+            not exist.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">

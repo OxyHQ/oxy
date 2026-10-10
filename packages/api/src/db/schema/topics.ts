@@ -124,7 +124,7 @@ const SEARCH_VECTOR_EXPRESSION = sql.raw(
   `setweight(${textTsvector('name')}, 'A') || ` +
     `setweight(${textTsvector('display_name')}, 'B') || ` +
     `setweight(${arrayTsvector('aliases')}, 'C') || ` +
-    `setweight(${textTsvector('description')}, 'D')`
+    `setweight(${textTsvector('description')}, 'D')`,
 );
 
 export const topics = pgTable(
@@ -192,11 +192,11 @@ export const topics = pgTable(
     // it stops.
     check(
       'topics_translations_object_check',
-      sql`${t.translations} is null or jsonb_typeof(${t.translations}) = 'object'`
+      sql`${t.translations} is null or jsonb_typeof(${t.translations}) = 'object'`,
     ),
     // A topic cannot be its own parent. Deeper cycles are the application's
     // problem; the one-hop case is free to state and is the shape a bad write
     // actually produces.
     check('topics_parent_topic_id_not_self_check', sql`${t.parentTopicId} <> ${t.id}`),
-  ]
+  ],
 );

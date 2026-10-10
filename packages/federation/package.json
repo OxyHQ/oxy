@@ -105,7 +105,6 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "catalog:",
     "@types/express": "catalog:",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.20.1",

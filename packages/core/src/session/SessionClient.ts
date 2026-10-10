@@ -45,7 +45,12 @@ export interface DeviceCredential {
 }
 
 export interface SessionClientHost {
-  makeRequest<T>(method: 'GET' | 'POST', url: string, data?: unknown, options?: { cache?: boolean }): Promise<T>;
+  makeRequest<T>(
+    method: 'GET' | 'POST',
+    url: string,
+    data?: unknown,
+    options?: { cache?: boolean },
+  ): Promise<T>;
   getBaseURL(): string;
   getAccessToken(): string | null;
   /** Zero-cookie device credential for socket handshake when no bearer is planted yet. */
@@ -146,7 +151,8 @@ export class SessionClient {
   private tokenUnsub: (() => void) | null = null;
   private started = false;
   private lifecycleGeneration = 0;
-  private fullSignOutPersistence: { state: DeviceSessionState; pending: Promise<void> } | null = null;
+  private fullSignOutPersistence: { state: DeviceSessionState; pending: Promise<void> } | null =
+    null;
   /** Same-origin cross-tab state-propagation channel; null on platforms without BroadcastChannel. */
   private channel: SessionBroadcastChannel | null = null;
   /** App-facing subscriptions to named server-pushed socket events. */
@@ -171,10 +177,16 @@ export class SessionClient {
     return pending;
   }
 
-  private async requestDevice<T>(method: 'GET' | 'POST', url: string, data?: unknown, requestOptions?: { cache?: boolean }): Promise<T> {
+  private async requestDevice<T>(
+    method: 'GET' | 'POST',
+    url: string,
+    data?: unknown,
+    requestOptions?: { cache?: boolean },
+  ): Promise<T> {
     const generation = this.lifecycleGeneration;
     const response = await this.host.makeRequest<T>(method, url, data, requestOptions);
-    if (generation !== this.lifecycleGeneration) throw new Error('Device session request was superseded');
+    if (generation !== this.lifecycleGeneration)
+      throw new Error('Device session request was superseded');
     return response;
   }
 
@@ -271,7 +283,11 @@ export class SessionClient {
         try {
           listener(payload);
         } catch (error) {
-          logger.warn('[SessionClient] server-event listener threw', { component: 'SessionClient' }, error);
+          logger.warn(
+            '[SessionClient] server-event listener threw',
+            { component: 'SessionClient' },
+            error,
+          );
         }
       }
     });
@@ -312,7 +328,11 @@ export class SessionClient {
    * BEFORE `notify()`. This covers EVERY notify source (a switch push, a
    * cross-device push, a cold mint), not just the initial "no bearer yet" case.
    */
-  protected applyState(raw: unknown, origin: SessionStateOrigin = 'push', activeToken?: string): boolean {
+  protected applyState(
+    raw: unknown,
+    origin: SessionStateOrigin = 'push',
+    activeToken?: string,
+  ): boolean {
     const generation = this.lifecycleGeneration;
     const next = safeParseContract(deviceSessionStateSchema, raw);
     if (!next) {
@@ -372,7 +392,8 @@ export class SessionClient {
     const needsMintBeforeNotify =
       transport != null &&
       next.accounts.length > 0 &&
-      (activeAccountId === null || computeIdentityTag(this.host.getAccessToken()) !== activeAccountId);
+      (activeAccountId === null ||
+        computeIdentityTag(this.host.getAccessToken()) !== activeAccountId);
 
     const publish = (): void => {
       if (generation !== this.lifecycleGeneration || this.state !== next) return;
@@ -414,18 +435,26 @@ export class SessionClient {
     // Warm cold boot may fetch authoritative empty state before it ever had a
     // local projection. Its authenticated holder is history too. Decoding only
     // identifies local history; authority remains the validated REST response.
-    const warmHolderEnded = previousState === null && origin === 'request' &&
-      typeof bearerAccount === 'string' && bearerAccount.length > 0 &&
+    const warmHolderEnded =
+      previousState === null &&
+      origin === 'request' &&
+      typeof bearerAccount === 'string' &&
+      bearerAccount.length > 0 &&
       this.host.getDeviceCredential()?.deviceId === next.deviceId;
     if (
-      ((previousState?.deviceId === next.deviceId && previousState.accounts.length > 0) || warmHolderEnded) &&
-      next.accounts.length === 0 && pinnedAccountId === null && this.options.onFullExplicitSignOut
+      ((previousState?.deviceId === next.deviceId && previousState.accounts.length > 0) ||
+        warmHolderEnded) &&
+      next.accounts.length === 0 &&
+      pinnedAccountId === null &&
+      this.options.onFullExplicitSignOut
     ) {
       try {
-        void this.persistFullSignOut().then(finishApply).catch((error) => {
-          logger.error('[SessionClient] failed to persist received full sign-out', error);
-          finishApply();
-        });
+        void this.persistFullSignOut()
+          .then(finishApply)
+          .catch((error) => {
+            logger.error('[SessionClient] failed to persist received full sign-out', error);
+            finishApply();
+          });
       } catch (error) {
         logger.error('[SessionClient] failed to persist received full sign-out', error);
         finishApply();
@@ -434,17 +463,28 @@ export class SessionClient {
     }
 
     if (needsMintBeforeNotify) {
-      void transport.ensureActiveToken(next).then(finishApply).catch((error) => {
-        if (generation !== this.lifecycleGeneration) return;
-        logger.warn('[SessionClient] ensureActiveToken failed — reverting session state', { component: 'SessionClient' }, error);
-        // Do NOT notify under a mismatched bearer. Revert to the last applied
-        // state so subscribers keep observing the account whose token is planted.
-        this.state = previousState ?? null;
-      });
+      void transport
+        .ensureActiveToken(next)
+        .then(finishApply)
+        .catch((error) => {
+          if (generation !== this.lifecycleGeneration) return;
+          logger.warn(
+            '[SessionClient] ensureActiveToken failed — reverting session state',
+            { component: 'SessionClient' },
+            error,
+          );
+          // Do NOT notify under a mismatched bearer. Revert to the last applied
+          // state so subscribers keep observing the account whose token is planted.
+          this.state = previousState ?? null;
+        });
     } else {
       if (transport) {
         void transport.ensureActiveToken(next).catch((error) => {
-          logger.warn('[SessionClient] ensureActiveToken failed', { component: 'SessionClient' }, error);
+          logger.warn(
+            '[SessionClient] ensureActiveToken failed',
+            { component: 'SessionClient' },
+            error,
+          );
         });
       }
       finishApply();
@@ -470,15 +510,25 @@ export class SessionClient {
         ? []
         : parsed.error.issues.map((issue) =>
             issue.code === 'invalid_type'
-              ? { path: issue.path.join('.'), code: issue.code, expected: issue.expected, received: issue.received }
+              ? {
+                  path: issue.path.join('.'),
+                  code: issue.code,
+                  expected: issue.expected,
+                  received: issue.received,
+                }
               : { path: issue.path.join('.'), code: issue.code },
           );
       const keys = raw && typeof raw === 'object' ? Object.keys(raw) : [];
-      logger.warn('[SessionClient] discarded invalid session sync', { component: 'SessionClient', issues, keys });
+      logger.warn('[SessionClient] discarded invalid session sync', {
+        component: 'SessionClient',
+        issues,
+        keys,
+      });
       return;
     }
     this.commitSync(sync);
-    if (this.fullSignOutPersistence?.state === this.state) await this.fullSignOutPersistence.pending;
+    if (this.fullSignOutPersistence?.state === this.state)
+      await this.fullSignOutPersistence.pending;
   }
 
   /**
@@ -563,7 +613,9 @@ export class SessionClient {
 
   /** `GET /session/device/directory` → {@link applyDirectory}. No notify. */
   private async fetchDirectory(): Promise<boolean> {
-    const res = await this.requestDevice<unknown>('GET', '/session/device/directory', undefined, { cache: false });
+    const res = await this.requestDevice<unknown>('GET', '/session/device/directory', undefined, {
+      cache: false,
+    });
     return this.applyDirectory(res);
   }
 
@@ -593,7 +645,11 @@ export class SessionClient {
     return this.fetchDirectory().then(
       () => undefined,
       (error: unknown) => {
-        logger.warn('[SessionClient] directory refresh failed', { component: 'SessionClient' }, error);
+        logger.warn(
+          '[SessionClient] directory refresh failed',
+          { component: 'SessionClient' },
+          error,
+        );
       },
     );
   }
@@ -625,7 +681,10 @@ export class SessionClient {
    * `activeToken: null` is not an error — it is an identity-pinned client, or a
    * caller whose application is not entitled to a bearer for the new context.
    */
-  private plantActiveContextToken(directory: DeviceDirectory, accessToken: string | undefined): void {
+  private plantActiveContextToken(
+    directory: DeviceDirectory,
+    accessToken: string | undefined,
+  ): void {
     if (!accessToken) {
       return;
     }
@@ -674,12 +733,18 @@ export class SessionClient {
     try {
       await this.bootstrap();
     } catch (error) {
-      logger.warn('[SessionClient] flat-state reconcile after activation failed', { component: 'SessionClient' }, error);
+      logger.warn(
+        '[SessionClient] flat-state reconcile after activation failed',
+        { component: 'SessionClient' },
+        error,
+      );
     }
   }
 
   async bootstrap(): Promise<void> {
-    const res = await this.requestDevice<unknown>('GET', '/session/device/state', undefined, { cache: false });
+    const res = await this.requestDevice<unknown>('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     await this.applySync(res);
   }
 
@@ -726,7 +791,12 @@ export class SessionClient {
    * compatibility path for callers still keyed on account ids.
    */
   async activateContext(contextId: string): Promise<void> {
-    const res = await this.requestDevice<unknown>('POST', '/session/device/activate', { contextId }, { cache: false });
+    const res = await this.requestDevice<unknown>(
+      'POST',
+      '/session/device/activate',
+      { contextId },
+      { cache: false },
+    );
     const activation = safeParseContract(deviceActivateResponseSchema, res);
     if (!activation) {
       logger.warn('[SessionClient] discarded invalid activation response');
@@ -753,7 +823,12 @@ export class SessionClient {
   }
 
   async switchAccount(accountId: string): Promise<void> {
-    const res = await this.requestDevice<unknown>('POST', '/session/device/switch', { accountId }, { cache: false });
+    const res = await this.requestDevice<unknown>(
+      'POST',
+      '/session/device/switch',
+      { accountId },
+      { cache: false },
+    );
     await this.applySync(res);
     this.postCommitPing();
   }
@@ -770,7 +845,9 @@ export class SessionClient {
    * {@link signOutPrincipal} for the two that can tell those apart.
    */
   async signOut(target: { accountId: string } | { all: true }): Promise<void> {
-    const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, { cache: false });
+    const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, {
+      cache: false,
+    });
     await this.applySync(res);
     this.postCommitPing();
     if (this.state?.accounts.length === 0) await this.persistFullSignOut();
@@ -814,16 +891,24 @@ export class SessionClient {
    * re-derived — including the equal-revision plant when a socket push already
    * applied this revision.
    */
-  private async removeFromDevice(target: { contextId: string } | { principalId: string }): Promise<void> {
-    const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, { cache: false });
+  private async removeFromDevice(
+    target: { contextId: string } | { principalId: string },
+  ): Promise<void> {
+    const res = await this.requestDevice<unknown>('POST', '/session/device/signout', target, {
+      cache: false,
+    });
     const removal = safeParseContract(deviceDirectorySyncSchema, res);
     if (!removal) {
       logger.warn('[SessionClient] discarded invalid device removal response');
       return;
     }
     const directoryApplied = this.applyDirectory(removal.directory);
-    const stateApplied = this.commitSync({ state: removal.state, activeToken: removal.activeToken });
-    if (this.fullSignOutPersistence?.state === this.state) await this.fullSignOutPersistence.pending;
+    const stateApplied = this.commitSync({
+      state: removal.state,
+      activeToken: removal.activeToken,
+    });
+    if (this.fullSignOutPersistence?.state === this.state)
+      await this.fullSignOutPersistence.pending;
     // `commitSync` publishes whenever the flat state moved. When only the
     // directory did — a socket push already applied this revision — the
     // directory half would otherwise never reach a subscriber.
@@ -835,7 +920,9 @@ export class SessionClient {
   }
 
   async addCurrentAccount(): Promise<void> {
-    const res = await this.requestDevice<unknown>('POST', '/session/device/add', undefined, { cache: false });
+    const res = await this.requestDevice<unknown>('POST', '/session/device/add', undefined, {
+      cache: false,
+    });
     await this.applySync(res);
     this.postCommitPing();
   }
@@ -894,7 +981,11 @@ export class SessionClient {
       try {
         await this.bootstrap();
       } catch (error) {
-        logger.warn('[SessionClient] bootstrap during start failed (non-fatal)', { component: 'SessionClient' }, error);
+        logger.warn(
+          '[SessionClient] bootstrap during start failed (non-fatal)',
+          { component: 'SessionClient' },
+          error,
+        );
       }
     }
     await this.connectSocket();
@@ -911,7 +1002,11 @@ export class SessionClient {
       try {
         this.channel.close();
       } catch (error) {
-        logger.debug('[SessionClient] BroadcastChannel close failed', { component: 'SessionClient' }, error);
+        logger.debug(
+          '[SessionClient] BroadcastChannel close failed',
+          { component: 'SessionClient' },
+          error,
+        );
       }
       this.channel = null;
     }
@@ -928,7 +1023,9 @@ export class SessionClient {
     // if THAT yields nothing — only when no factory was injected.
     const io = this.options.socketFactory ?? (await getSocketIO());
     if (!io) {
-      logger.warn('[SessionClient] no socket.io-client; running REST-only (no realtime sync)', { component: 'SessionClient' });
+      logger.warn('[SessionClient] no socket.io-client; running REST-only (no realtime sync)', {
+        component: 'SessionClient',
+      });
       return;
     }
     if (!this.started) return; // stopped while the dynamic import was in flight
@@ -977,7 +1074,11 @@ export class SessionClient {
       const active = this.state?.activeAccountId ?? null;
       if (active && active !== this.host.getCurrentAccountId() && this.host.getAccessToken()) {
         void this.bootstrap().catch((error) => {
-          logger.warn('[SessionClient] post-push token fetch failed', { component: 'SessionClient' }, error);
+          logger.warn(
+            '[SessionClient] post-push token fetch failed',
+            { component: 'SessionClient' },
+            error,
+          );
         });
       }
     });
@@ -1011,7 +1112,9 @@ export class SessionClient {
   private onSessionAccountsChanged(payload: unknown): void {
     const event = safeParseContract(sessionAccountsChangedEventSchema, payload);
     if (!event) {
-      logger.warn('[SessionClient] discarded invalid session_accounts_changed', { component: 'SessionClient' });
+      logger.warn('[SessionClient] discarded invalid session_accounts_changed', {
+        component: 'SessionClient',
+      });
       return;
     }
     // The socket is in `user:<activeUserId>` for the planted bearer, so this should
@@ -1019,7 +1122,11 @@ export class SessionClient {
     if (event.userId !== this.host.getCurrentAccountId()) return;
     if (!this.host.getAccessToken()) return;
     void this.bootstrap().catch((error) => {
-      logger.warn('[SessionClient] session_accounts_changed refetch failed', { component: 'SessionClient' }, error);
+      logger.warn(
+        '[SessionClient] session_accounts_changed refetch failed',
+        { component: 'SessionClient' },
+        error,
+      );
     });
   }
 
@@ -1032,13 +1139,19 @@ export class SessionClient {
    */
   private openBroadcastChannel(): void {
     if (this.channel) return;
-    const Ctor = (globalThis as { BroadcastChannel?: new (name: string) => SessionBroadcastChannel }).BroadcastChannel;
+    const Ctor = (
+      globalThis as { BroadcastChannel?: new (name: string) => SessionBroadcastChannel }
+    ).BroadcastChannel;
     if (typeof Ctor !== 'function') return; // native RN / SSR — feature absent
     let channel: SessionBroadcastChannel;
     try {
       channel = new Ctor(SESSION_BROADCAST_CHANNEL);
     } catch (error) {
-      logger.debug('[SessionClient] BroadcastChannel unavailable', { component: 'SessionClient' }, error);
+      logger.debug(
+        '[SessionClient] BroadcastChannel unavailable',
+        { component: 'SessionClient' },
+        error,
+      );
       return;
     }
     channel.onmessage = (event) => {
@@ -1049,7 +1162,11 @@ export class SessionClient {
       // re-sync does not re-post, so there is no cross-tab ping loop.
       if (this.host.getAccessToken()) {
         void this.bootstrap().catch((error) => {
-          logger.warn('[SessionClient] broadcast re-sync failed', { component: 'SessionClient' }, error);
+          logger.warn(
+            '[SessionClient] broadcast re-sync failed',
+            { component: 'SessionClient' },
+            error,
+          );
         });
       }
     };
@@ -1068,7 +1185,11 @@ export class SessionClient {
     try {
       this.channel.postMessage({ type: 'commit', at: Date.now() });
     } catch (error) {
-      logger.debug('[SessionClient] BroadcastChannel post failed', { component: 'SessionClient' }, error);
+      logger.debug(
+        '[SessionClient] BroadcastChannel post failed',
+        { component: 'SessionClient' },
+        error,
+      );
     }
   }
 }

@@ -47,7 +47,7 @@ describe('Commons identity host source', () => {
     expect(provider).not.toContain('callingPackage');
   });
 
-  test('the caller must be signed with this app\'s certificate on every API level', () => {
+  test("the caller must be signed with this app's certificate on every API level", () => {
     expect(policy).toContain('hasSigningCertificate(');
     expect(policy).toContain('CERT_INPUT_SHA256');
     expect(policy).toContain('checkSignatures(');
@@ -55,7 +55,9 @@ describe('Commons identity host source', () => {
   });
 
   test('money-bearing methods are allow-listed to the wallet only', () => {
-    expect(policy).toMatch(/WALLET_PACKAGES[^\n]*setOf\("to\.peable\.app", "to\.peable\.app\.dev"\)/);
+    expect(policy).toMatch(
+      /WALLET_PACKAGES[^\n]*setOf\("to\.peable\.app", "to\.peable\.app\.dev"\)/,
+    );
     expect(policy).toContain('"peable/faircoin/v1"');
   });
 
@@ -63,6 +65,8 @@ describe('Commons identity host source', () => {
     const config = JSON.parse(readFileSync(resolve(MODULE, 'expo-module.config.json'), 'utf8')) as {
       android?: { modules?: string[] };
     };
-    expect(config.android?.modules).toEqual(['so.oxy.commons.identityhost.OxyIdentitySignerModule']);
+    expect(config.android?.modules).toEqual([
+      'so.oxy.commons.identityhost.OxyIdentitySignerModule',
+    ]);
   });
 });

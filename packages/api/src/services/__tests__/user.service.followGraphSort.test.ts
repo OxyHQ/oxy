@@ -45,7 +45,9 @@ function edgeIdFor(prefix: string, index: number): string {
 
 async function makeUser(): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({ id, username: `u${id}` });
+  await getDb()
+    .insert(users)
+    .values({ id, username: `u${id}` });
   return id;
 }
 
@@ -64,7 +66,7 @@ function byEdgeIdAscending(prefix: string, counterpartyIds: string[]): string[] 
 
 /** Walk every page and return the ids in the order they were served. */
 async function walkPages(
-  fetchPage: (offset: number) => Promise<{ data: { id?: string }[]; total: number }>
+  fetchPage: (offset: number) => Promise<{ data: { id?: string }[]; total: number }>,
 ): Promise<string[]> {
   const seen: string[] = [];
   for (let offset = 0; offset < EDGE_COUNT; offset += PAGE_SIZE) {
@@ -108,7 +110,7 @@ describe('getUserFollowing', () => {
           followedId,
           createdAt: TIED_AT,
           updatedAt: TIED_AT,
-        }))
+        })),
       );
   });
 
@@ -116,7 +118,7 @@ describe('getUserFollowing', () => {
     'pages %s without duplicating or skipping a tied row',
     async (sort) => {
       const seen = await walkPages((offset) =>
-        userService.getUserFollowing(viewerId, { limit: PAGE_SIZE, offset, sort })
+        userService.getUserFollowing(viewerId, { limit: PAGE_SIZE, offset, sort }),
       );
 
       expect(new Set(seen).size).toBe(EDGE_COUNT);
@@ -128,7 +130,7 @@ describe('getUserFollowing', () => {
       // above pass against the exact bug.
       const ascending = byEdgeIdAscending(prefix, followedIds);
       expect(seen).toEqual(sort === 'oldest' ? ascending : [...ascending].reverse());
-    }
+    },
   );
 
   it('makes `oldest` the exact reverse of `recent`, mirroring BOTH keys', async () => {
@@ -139,9 +141,7 @@ describe('getUserFollowing', () => {
       userService.getUserFollowing(viewerId, { limit: EDGE_COUNT, sort: 'oldest' }),
     ]);
 
-    expect(recent.data.map((row) => row.id)).toEqual(
-      oldest.data.map((row) => row.id).reverse()
-    );
+    expect(recent.data.map((row) => row.id)).toEqual(oldest.data.map((row) => row.id).reverse());
   });
 
   it('defaults to `recent` when no sort is given', async () => {
@@ -190,13 +190,13 @@ describe('getUserMutuals', () => {
     'threads %s through to the mutuals page, tiebreak included',
     async (sort) => {
       const seen = await walkPages((offset) =>
-        userService.getUserMutuals(viewerId, targetId, { limit: PAGE_SIZE, offset, sort })
+        userService.getUserMutuals(viewerId, targetId, { limit: PAGE_SIZE, offset, sort }),
       );
 
       expect(new Set(seen).size).toBe(EDGE_COUNT);
 
       const ascending = byEdgeIdAscending(prefix, mutualIds);
       expect(seen).toEqual(sort === 'oldest' ? ascending : [...ascending].reverse());
-    }
+    },
   );
 });

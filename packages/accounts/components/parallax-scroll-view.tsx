@@ -37,32 +37,31 @@ export default function ParallaxScrollView({
     const translateY = interpolate(
       scrollOffset.value,
       [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
-      [-HEADER_HEIGHT / 2, 0, HEADER_HEIGHT * 0.75]
+      [-HEADER_HEIGHT / 2, 0, HEADER_HEIGHT * 0.75],
     );
-    const scale = interpolate(
-      scrollOffset.value,
-      [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
-      [2, 1, 1]
-    );
+    const scale = interpolate(scrollOffset.value, [-HEADER_HEIGHT, 0, HEADER_HEIGHT], [2, 1, 1]);
 
     return {
       transform: [{ translateY }, { scale }],
     };
   }, []);
 
-  const headerStyle = useMemo(() => [
-    styles.header,
-    { backgroundColor: headerBackgroundColor[mode] },
-    headerAnimatedStyle,
-  ], [mode, headerBackgroundColor, headerAnimatedStyle]);
+  const headerStyle = useMemo(
+    () => [styles.header, { backgroundColor: headerBackgroundColor[mode] }, headerAnimatedStyle],
+    [mode, headerBackgroundColor, headerAnimatedStyle],
+  );
 
-  const scrollViewStyle = useMemo(() => ({ backgroundColor: colors.background, flex: 1 }), [colors.background]);
+  const scrollViewStyle = useMemo(
+    () => ({ backgroundColor: colors.background, flex: 1 }),
+    [colors.background],
+  );
 
   // Header height: safe area top + header top padding (16) + content height (~56) + bottom padding (16)
   const headerContentHeight = 56;
   const headerTopPadding = 16;
   const headerBottomPadding = 16;
-  const headerTotalHeight = insets.top + headerTopPadding + headerContentHeight + headerBottomPadding;
+  const headerTotalHeight =
+    insets.top + headerTopPadding + headerContentHeight + headerBottomPadding;
 
   // Handle scroll events
   const handleScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
@@ -76,10 +75,9 @@ export default function ParallaxScrollView({
       style={scrollViewStyle}
       scrollEventThrottle={16}
       onScroll={handleScroll}
-      contentContainerStyle={{ paddingTop: headerTotalHeight }}>
-      <Animated.View style={headerStyle}>
-        {headerImage}
-      </Animated.View>
+      contentContainerStyle={{ paddingTop: headerTotalHeight }}
+    >
+      <Animated.View style={headerStyle}>{headerImage}</Animated.View>
       <ThemedView style={styles.content}>{children}</ThemedView>
     </Animated.ScrollView>
   );

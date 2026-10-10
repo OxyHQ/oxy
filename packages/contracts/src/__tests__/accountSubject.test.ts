@@ -16,7 +16,9 @@ import {
 
 describe('account actor nature', () => {
   it('decides every kind, and never guesses for a non-kind', () => {
-    expect(Object.fromEntries(ACCOUNT_KINDS.map((kind) => [kind, accountKindActorNature(kind)]))).toEqual({
+    expect(
+      Object.fromEntries(ACCOUNT_KINDS.map((kind) => [kind, accountKindActorNature(kind)])),
+    ).toEqual({
       personal: 'person',
       organization: 'operated',
       project: 'operated',
@@ -59,7 +61,10 @@ describe('account actor nature', () => {
 
 describe('account actor chain', () => {
   it('records the account itself as actor when nobody operates it — a bot is never replaced by its owner', () => {
-    const chain = accountActorChainFromSession({ subjectAccountId: 'bot-1', operatedByAccountId: null });
+    const chain = accountActorChainFromSession({
+      subjectAccountId: 'bot-1',
+      operatedByAccountId: null,
+    });
     expect(chain).toEqual({
       schemaVersion: ACCOUNT_SUBJECT_CONTRACT_VERSION,
       effectiveAccountId: 'bot-1',
@@ -69,14 +74,19 @@ describe('account actor chain', () => {
   });
 
   it('distinguishes the person from the effective account on a delegated session', () => {
-    const chain = accountActorChainFromSession({ subjectAccountId: 'org-1', operatedByAccountId: 'nate' });
+    const chain = accountActorChainFromSession({
+      subjectAccountId: 'org-1',
+      operatedByAccountId: 'nate',
+    });
     expect(chain.effectiveAccountId).toBe('org-1');
     expect(chain.actorAccountId).toBe('nate');
     expect(chain.delegated).toBe(true);
   });
 
   it('treats an operator equal to the subject as no delegation', () => {
-    expect(accountActorChainFromSession({ subjectAccountId: 'a', operatedByAccountId: 'a' }).delegated).toBe(false);
+    expect(
+      accountActorChainFromSession({ subjectAccountId: 'a', operatedByAccountId: 'a' }).delegated,
+    ).toBe(false);
   });
 
   it('refuses a chain whose delegated flag contradicts its ids', () => {
@@ -84,7 +94,7 @@ describe('account actor chain', () => {
     expect(accountActorChainSchema.safeParse({ ...base, delegated: false }).success).toBe(false);
     expect(accountActorChainSchema.safeParse({ ...base, delegated: true }).success).toBe(true);
     expect(
-      accountActorChainSchema.safeParse({ ...base, actorAccountId: 'a', delegated: true }).success
+      accountActorChainSchema.safeParse({ ...base, actorAccountId: 'a', delegated: true }).success,
     ).toBe(false);
   });
 
@@ -96,7 +106,7 @@ describe('account actor chain', () => {
         actorAccountId: 'a',
         delegated: false,
         ownerAccountId: 'someone-else',
-      }).success
+      }).success,
     ).toBe(false);
   });
 });
@@ -105,7 +115,7 @@ describe('financial subject', () => {
   it('attributes a bot paying for itself to the bot, with the bot as actor', () => {
     const effect = attributeFinancialEffect(
       'debit',
-      accountActorChainFromSession({ subjectAccountId: 'bot-1' })
+      accountActorChainFromSession({ subjectAccountId: 'bot-1' }),
     );
     expect(effect.subjectAccountId).toBe('bot-1');
     expect(effect.actor.actorAccountId).toBe('bot-1');
@@ -114,7 +124,7 @@ describe('financial subject', () => {
   it('attributes funds a bot receives to the bot', () => {
     const effect = attributeFinancialEffect(
       'credit',
-      accountActorChainFromSession({ subjectAccountId: 'bot-1' })
+      accountActorChainFromSession({ subjectAccountId: 'bot-1' }),
     );
     expect(effect).toMatchObject({ direction: 'credit', subjectAccountId: 'bot-1' });
   });
@@ -122,28 +132,41 @@ describe('financial subject', () => {
   it('charges the operated account, never the operator, while recording the operator as actor', () => {
     const effect = attributeFinancialEffect(
       'debit',
-      accountActorChainFromSession({ subjectAccountId: 'bot-1', operatedByAccountId: 'owner' })
+      accountActorChainFromSession({ subjectAccountId: 'bot-1', operatedByAccountId: 'owner' }),
     );
     expect(effect.subjectAccountId).toBe('bot-1');
     expect(effect.actor.actorAccountId).toBe('owner');
   });
 
   it('gives a person and a bot the same attribution shape', () => {
-    const person = attributeFinancialEffect('debit', accountActorChainFromSession({ subjectAccountId: 'p' }));
-    const bot = attributeFinancialEffect('debit', accountActorChainFromSession({ subjectAccountId: 'b' }));
+    const person = attributeFinancialEffect(
+      'debit',
+      accountActorChainFromSession({ subjectAccountId: 'p' }),
+    );
+    const bot = attributeFinancialEffect(
+      'debit',
+      accountActorChainFromSession({ subjectAccountId: 'b' }),
+    );
     expect(Object.keys(person).sort()).toEqual(Object.keys(bot).sort());
-    expect({ ...person, subjectAccountId: 'x', actor: null }).toEqual({ ...bot, subjectAccountId: 'x', actor: null });
+    expect({ ...person, subjectAccountId: 'x', actor: null }).toEqual({
+      ...bot,
+      subjectAccountId: 'x',
+      actor: null,
+    });
   });
 
   it('refuses an effect placed on anyone but the effective account', () => {
-    const actor = accountActorChainFromSession({ subjectAccountId: 'bot-1', operatedByAccountId: 'owner' });
+    const actor = accountActorChainFromSession({
+      subjectAccountId: 'bot-1',
+      operatedByAccountId: 'owner',
+    });
     expect(
       financialEffectAttributionSchema.safeParse({
         schemaVersion: 1,
         direction: 'debit',
         subjectAccountId: 'owner',
         actor,
-      }).success
+      }).success,
     ).toBe(false);
   });
 });

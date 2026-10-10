@@ -1,9 +1,9 @@
 /**
  * Custom hook for managing search input state with focus preservation
- * 
+ *
  * Prevents focus loss during navigation and state updates by maintaining
  * local state that only syncs with props when the input is not focused.
- * 
+ *
  * @param searchQuery - The current search query from parent component
  * @param onSearchChange - Callback to notify parent of search changes
  * @param searchInputRef - Ref to the TextInput component
@@ -51,45 +51,51 @@ export function useSearchInput({
   useEffect(() => {
     if (isSearchScreen && shouldFocusAfterNavigationRef.current && searchInputRef?.current) {
       shouldFocusAfterNavigationRef.current = false;
-      
+
       const attemptFocus = (attempt: number = 0): void => {
         if (attempt >= MAX_FOCUS_ATTEMPTS) {
           return;
         }
 
         requestAnimationFrame(() => {
-          setTimeout(() => {
-            if (!searchInputRef.current) {
-              if (attempt < MAX_FOCUS_ATTEMPTS - 1) {
-                attemptFocus(attempt + 1);
+          setTimeout(
+            () => {
+              if (!searchInputRef.current) {
+                if (attempt < MAX_FOCUS_ATTEMPTS - 1) {
+                  attemptFocus(attempt + 1);
+                }
+                return;
               }
-              return;
-            }
 
-            searchInputRef.current.focus();
+              searchInputRef.current.focus();
 
-            // Verify focus and restore cursor position (only on native platforms)
-            setTimeout(() => {
-              if (searchInputRef.current?.isFocused()) {
-                const length = localSearchQuery.length;
-                // setNativeProps is not available on web
-                if (Platform.OS !== 'web' && typeof searchInputRef.current.setNativeProps === 'function') {
-                  try {
-                    searchInputRef.current.setNativeProps({
-                      selection: { start: length, end: length },
-                    });
-                  } catch (error) {
-                    // Silently fail if setNativeProps is not available
-                    if (__DEV__) {
-                      console.warn('[useSearchInput] setNativeProps failed:', error);
+              // Verify focus and restore cursor position (only on native platforms)
+              setTimeout(() => {
+                if (searchInputRef.current?.isFocused()) {
+                  const length = localSearchQuery.length;
+                  // setNativeProps is not available on web
+                  if (
+                    Platform.OS !== 'web' &&
+                    typeof searchInputRef.current.setNativeProps === 'function'
+                  ) {
+                    try {
+                      searchInputRef.current.setNativeProps({
+                        selection: { start: length, end: length },
+                      });
+                    } catch (error) {
+                      // Silently fail if setNativeProps is not available
+                      if (__DEV__) {
+                        console.warn('[useSearchInput] setNativeProps failed:', error);
+                      }
                     }
                   }
+                } else if (attempt < MAX_FOCUS_ATTEMPTS - 1) {
+                  attemptFocus(attempt + 1);
                 }
-              } else if (attempt < MAX_FOCUS_ATTEMPTS - 1) {
-                attemptFocus(attempt + 1);
-              }
-            }, 50);
-          }, FOCUS_RESTORE_DELAY_MS + attempt * FOCUS_RETRY_DELAY_MS);
+              }, 50);
+            },
+            FOCUS_RESTORE_DELAY_MS + attempt * FOCUS_RETRY_DELAY_MS,
+          );
         });
       };
 
@@ -107,7 +113,7 @@ export function useSearchInput({
         shouldFocusAfterNavigationRef.current = true;
       }
     },
-    [onSearchChange, isSearchScreen]
+    [onSearchChange, isSearchScreen],
   );
 
   const handleSearchFocus = useCallback(() => {
@@ -131,4 +137,3 @@ export function useSearchInput({
     handleSearchBlur,
   };
 }
-

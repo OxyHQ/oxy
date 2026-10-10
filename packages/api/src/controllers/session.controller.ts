@@ -11,10 +11,7 @@ import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
 import { users } from '../db/schema/users';
 import type { SessionAuthResponse, ClientSession } from '../types/session';
-import {
-  getDeviceActiveSessions,
-  logoutAllDeviceSessions
-} from '../utils/deviceUtils';
+import { getDeviceActiveSessions, logoutAllDeviceSessions } from '../utils/deviceUtils';
 import { emitSessionUpdate } from '../server';
 import SignatureService from '../services/signature.service';
 import sessionService from '../services/session.service';
@@ -25,7 +22,11 @@ import { userService } from '../services/user.service';
 import securityActivityService from '../services/securityActivityService';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import type { AuthRequest } from '../middleware/auth';
-import { accountActorChainFromSession, isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxy.so/contracts';
+import {
+  accountActorChainFromSession,
+  isValidUsername,
+  USERNAME_INVALID_MESSAGE,
+} from '@oxy.so/contracts';
 import {
   meetsRegistrationPowDifficulty,
   REGISTRATION_POW_DIFFICULTY_BITS,
@@ -82,14 +83,19 @@ interface ActingSession {
  * bearer's user. Anything else answers the same `401`, so the response says
  * nothing about whether the id exists or whose it is.
  */
-async function resolveActingSession(req: AuthRequest, res: Response): Promise<ActingSession | null> {
+async function resolveActingSession(
+  req: AuthRequest,
+  res: Response,
+): Promise<ActingSession | null> {
   const { sessionId } = req.params;
   if (!sessionId) {
     res.status(400).json({ message: 'Session ID is required' });
     return null;
   }
   const authenticatedUserId = getAuthenticatedUserId(req);
-  const result = authenticatedUserId ? await sessionService.validateSessionById(sessionId, false) : null;
+  const result = authenticatedUserId
+    ? await sessionService.validateSessionById(sessionId, false)
+    : null;
   const session = result?.session;
   if (!session || session.userId?.toString() !== authenticatedUserId) {
     res.status(401).json({ message: 'Invalid session', code: 'INVALID_SESSION' });
@@ -124,7 +130,10 @@ function violatedUniqueIndex(error: unknown): string | null {
 // Challenge expiration time (5 minutes)
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
-export function buildSessionAuthResponse(session: { sessionId: string; deviceId: string; expiresAt: Date; accessToken?: string }, user: UserLike): SessionAuthResponse | null {
+export function buildSessionAuthResponse(
+  session: { sessionId: string; deviceId: string; expiresAt: Date; accessToken?: string },
+  user: UserLike,
+): SessionAuthResponse | null {
   const userData = formatUserResponse(user);
   if (!userData) {
     return null;
@@ -157,7 +166,6 @@ function sessionActorChain(session: { userId: string; operatedByUserId?: string 
 }
 
 export class SessionController {
-
   /**
    * Register a new user with public key authentication
    * No passwords needed - identity is verified via signature
@@ -170,7 +178,7 @@ export class SessionController {
       // Validate required fields
       if (!publicKey || !signature || !timestamp) {
         return res.status(400).json({
-          message: 'Public key, signature, and timestamp are required'
+          message: 'Public key, signature, and timestamp are required',
         });
       }
 
@@ -191,12 +199,12 @@ export class SessionController {
       const isValidSignature = SignatureService.verifyRegistrationSignature(
         publicKey,
         signature,
-        timestamp
+        timestamp,
       );
 
       if (!isValidSignature) {
         return res.status(401).json({
-          message: 'Invalid signature. Please sign the registration request with your private key.'
+          message: 'Invalid signature. Please sign the registration request with your private key.',
         });
       }
 
@@ -240,7 +248,7 @@ export class SessionController {
 
       if (existingUser) {
         return res.status(409).json({
-          message: 'Identity already registered'
+          message: 'Identity already registered',
         });
       }
 
@@ -287,11 +295,15 @@ export class SessionController {
           read: false,
         });
       } catch (notificationError) {
-        logger.error('Failed to create welcome notification during registration', notificationError, {
-          component: 'SessionController',
-          method: 'register',
-          userId: user.id,
-        });
+        logger.error(
+          'Failed to create welcome notification during registration',
+          notificationError,
+          {
+            component: 'SessionController',
+            method: 'register',
+            userId: user.id,
+          },
+        );
       }
 
       const userData = formatUserResponse(user);
@@ -301,7 +313,7 @@ export class SessionController {
 
       return res.status(201).json({
         message: 'Identity registered successfully',
-        user: userData
+        user: userData,
       });
     } catch (error) {
       // The identifier pre-checks above cannot close the race between the check
@@ -384,12 +396,13 @@ export class SessionController {
    */
   static async verifyChallenge(req: Request, res: Response) {
     try {
-      const { publicKey, challenge, signature, timestamp, deviceName, deviceFingerprint } = req.body;
+      const { publicKey, challenge, signature, timestamp, deviceName, deviceFingerprint } =
+        req.body;
       const db = getDb();
 
       if (!publicKey || !challenge || !signature || !timestamp) {
         return res.status(400).json({
-          message: 'Public key, challenge, signature, and timestamp are required'
+          message: 'Public key, challenge, signature, and timestamp are required',
         });
       }
 
@@ -409,14 +422,14 @@ export class SessionController {
             eq(authChallenges.challenge, challenge),
             eq(authChallenges.used, false),
             eq(authChallenges.purpose, 'signin'),
-            gt(authChallenges.expiresAt, new Date())
-          )
+            gt(authChallenges.expiresAt, new Date()),
+          ),
         )
         .limit(1);
 
       if (!authChallenge) {
         return res.status(401).json({
-          message: 'Invalid or expired challenge. Please request a new one.'
+          message: 'Invalid or expired challenge. Please request a new one.',
         });
       }
 
@@ -425,7 +438,7 @@ export class SessionController {
         publicKey,
         challenge,
         signature,
-        timestamp
+        timestamp,
       );
 
       if (!isValid) {
@@ -445,7 +458,7 @@ export class SessionController {
         .returning({ id: authChallenges.id });
       if (burned.length === 0) {
         return res.status(401).json({
-          message: 'Invalid or expired challenge. Please request a new one.'
+          message: 'Invalid or expired challenge. Please request a new one.',
         });
       }
 
@@ -477,25 +490,24 @@ export class SessionController {
 
       if (isNewSession) {
         try {
-          await securityActivityService.logSignIn(
-            user.id,
-            req,
-            session.deviceId,
-            {
-              // `|| undefined` because the columns are nullable and the
-              // metadata field is `string | undefined`, never `null`.
-              deviceName: deviceName || session.deviceName || undefined,
-              deviceType: session.deviceType,
-              platform: session.platform,
-            }
-          );
+          await securityActivityService.logSignIn(user.id, req, session.deviceId, {
+            // `|| undefined` because the columns are nullable and the
+            // metadata field is `string | undefined`, never `null`.
+            deviceName: deviceName || session.deviceName || undefined,
+            deviceType: session.deviceType,
+            platform: session.platform,
+          });
         } catch (error) {
           // Don't fail the sign-in if logging fails
-          logger.error('Failed to log security event for sign-in', error instanceof Error ? error : new Error(String(error)), {
-            component: 'SessionController',
-            method: 'verifyChallenge',
-            userId: user.id,
-          });
+          logger.error(
+            'Failed to log security event for sign-in',
+            error instanceof Error ? error : new Error(String(error)),
+            {
+              component: 'SessionController',
+              method: 'verifyChallenge',
+              userId: user.id,
+            },
+          );
         }
       }
 
@@ -503,7 +515,7 @@ export class SessionController {
       emitSessionUpdate(user.id, {
         type: 'session_created',
         sessionId: session.sessionId,
-        deviceId: session.deviceId
+        deviceId: session.deviceId,
       });
 
       const userData = formatUserResponse(user);
@@ -519,8 +531,8 @@ export class SessionController {
         user: {
           id: userData.id,
           username: userData.username,
-          avatar: userData.avatar
-        }
+          avatar: userData.avatar,
+        },
       };
 
       // Register into the device set (add-only) + broadcast, and mint the
@@ -619,12 +631,12 @@ export class SessionController {
       const sessions = await sessionService.getUserActiveSessions(sessionOwnerId);
 
       // Transform sessions for client
-      const clientSessions: ClientSession[] = sessions.map(session => ({
+      const clientSessions: ClientSession[] = sessions.map((session) => ({
         sessionId: session.sessionId,
         deviceId: session.deviceId,
         deviceName: session.deviceName ?? undefined,
         isActive: session.isActive,
-        userId: session.userId.toString()
+        userId: session.userId.toString(),
       }));
 
       res.json(clientSessions);
@@ -639,12 +651,16 @@ export class SessionController {
     try {
       // An app-bound OAuth bearer may revoke only itself (ADR 0029). The
       // middleware already verified this identity against its session row.
-      if (req.oxyToken?.applicationId && (
-        req.sessionId !== req.oxyToken.sessionId ||
-        req.params.sessionId !== req.oxyToken.sessionId ||
-        (req.params.targetSessionId && req.params.targetSessionId !== req.oxyToken.sessionId)
-      )) {
-        return res.status(403).json({ code: 'third_party_session_access_denied', message: 'An application session may sign out only itself' });
+      if (
+        req.oxyToken?.applicationId &&
+        (req.sessionId !== req.oxyToken.sessionId ||
+          req.params.sessionId !== req.oxyToken.sessionId ||
+          (req.params.targetSessionId && req.params.targetSessionId !== req.oxyToken.sessionId))
+      ) {
+        return res.status(403).json({
+          code: 'third_party_session_access_denied',
+          message: 'An application session may sign out only itself',
+        });
       }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
@@ -657,10 +673,12 @@ export class SessionController {
       const targetSessionId = req.params.targetSessionId || acting.sessionId;
       let target: { userId: string; deviceId: string } = acting;
       if (targetSessionId !== acting.sessionId) {
-        const targetSession = (await sessionService.validateSessionById(targetSessionId, false))?.session;
+        const targetSession = (await sessionService.validateSessionById(targetSessionId, false))
+          ?.session;
         const reachable =
           targetSession &&
-          (targetSession.userId?.toString() === acting.userId || targetSession.deviceId === acting.deviceId);
+          (targetSession.userId?.toString() === acting.userId ||
+            targetSession.deviceId === acting.deviceId);
         if (!targetSession || !reachable) {
           return res.status(404).json({ message: 'Session not found' });
         }
@@ -676,7 +694,7 @@ export class SessionController {
       emitSessionUpdate(target.userId, {
         type: 'session_removed',
         sessionId: targetSessionId,
-        deviceId: target.deviceId
+        deviceId: target.deviceId,
       });
 
       // Log security event for sign-out
@@ -699,7 +717,10 @@ export class SessionController {
   static async logoutAllSessions(req: AuthRequest, res: Response) {
     try {
       if (req.oxyToken?.applicationId) {
-        return res.status(403).json({ code: 'third_party_session_access_denied', message: 'An application session cannot revoke other sessions' });
+        return res.status(403).json({
+          code: 'third_party_session_access_denied',
+          message: 'An application session cannot revoke other sessions',
+        });
       }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
@@ -717,11 +738,11 @@ export class SessionController {
             eq(sessions.userId, userId),
             eq(sessions.isActive, true),
             ne(sessions.sessionId, sessionId),
-            gt(sessions.expiresAt, now)
-          )
+            gt(sessions.expiresAt, now),
+          ),
         );
 
-      const sessionIds = sessionsToDeactivate.map(s => s.sessionId);
+      const sessionIds = sessionsToDeactivate.map((s) => s.sessionId);
 
       // Deactivate all sessions for this user except the current one
       const count = await sessionService.deactivateAllUserSessions(userId, sessionId);
@@ -730,7 +751,7 @@ export class SessionController {
       if (sessionIds.length > 0) {
         emitSessionUpdate(userId, {
           type: 'sessions_removed',
-          sessionIds: sessionIds
+          sessionIds: sessionIds,
         });
       }
 
@@ -739,7 +760,7 @@ export class SessionController {
       res.json({
         success: true,
         message: `Logged out ${count} sessions`,
-        sessionsLoggedOut: count
+        sessionsLoggedOut: count,
       });
     } catch (error) {
       logger.error('Logout all sessions error:', error);
@@ -756,7 +777,7 @@ export class SessionController {
       if (!sessionId) {
         return res.status(400).json({
           message: 'Session ID is required',
-          hint: 'Provide sessionId in URL parameter or x-session-id header'
+          hint: 'Provide sessionId in URL parameter or x-session-id header',
         });
       }
 
@@ -766,7 +787,7 @@ export class SessionController {
       if (!result || !result.session || !result.user) {
         return res.status(401).json({
           message: 'Invalid or expired session',
-          sessionId: sessionId.substring(0, 8) + '...'
+          sessionId: sessionId.substring(0, 8) + '...',
         });
       }
 
@@ -797,7 +818,7 @@ export class SessionController {
       if (!sessionId) {
         return res.status(400).json({
           message: 'Session ID is required',
-          hint: 'Provide sessionId as URL parameter'
+          hint: 'Provide sessionId as URL parameter',
         });
       }
 
@@ -807,7 +828,7 @@ export class SessionController {
       if (!result || !result.session || !result.user) {
         return res.status(401).json({
           message: 'Invalid or expired session',
-          sessionId: sessionId.substring(0, 8) + '...'
+          sessionId: sessionId.substring(0, 8) + '...',
         });
       }
 
@@ -844,7 +865,10 @@ export class SessionController {
   static async getDeviceSessions(req: AuthRequest, res: Response) {
     try {
       if (req.oxyToken?.applicationId) {
-        return res.status(403).json({ message: 'Third-party sessions cannot access shared device metadata', code: 'third_party_device_access_denied' });
+        return res.status(403).json({
+          message: 'Third-party sessions cannot access shared device metadata',
+          code: 'third_party_device_access_denied',
+        });
       }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
@@ -896,8 +920,8 @@ export class SessionController {
           and(
             inArray(sessions.sessionId, limitedSessionIds),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, now)
-          )
+            gt(sessions.expiresAt, now),
+          ),
         );
 
       // Transform to user data format
@@ -915,9 +939,9 @@ export class SessionController {
       }
 
       // Return array matching input order, with null for missing sessions
-      const result = limitedSessionIds.map(sessionId => ({
+      const result = limitedSessionIds.map((sessionId) => ({
         sessionId,
-        user: usersMap.get(sessionId) || null
+        user: usersMap.get(sessionId) || null,
       }));
 
       res.json(result);
@@ -931,7 +955,10 @@ export class SessionController {
   static async logoutAllDeviceSessions(req: AuthRequest, res: Response) {
     try {
       if (req.oxyToken?.applicationId) {
-        return res.status(403).json({ code: 'third_party_device_access_denied', message: 'An application session cannot sign out a shared device' });
+        return res.status(403).json({
+          code: 'third_party_device_access_denied',
+          message: 'An application session cannot sign out a shared device',
+        });
       }
       const acting = await resolveActingSession(req, res);
       if (!acting) return;
@@ -950,7 +977,10 @@ export class SessionController {
   static async updateDeviceName(req: AuthRequest, res: Response) {
     try {
       if (req.oxyToken?.applicationId) {
-        return res.status(403).json({ message: 'Third-party sessions cannot access shared device metadata', code: 'third_party_device_access_denied' });
+        return res.status(403).json({
+          message: 'Third-party sessions cannot access shared device metadata',
+          code: 'third_party_device_access_denied',
+        });
       }
       const { deviceName } = req.body;
       if (!deviceName) {
@@ -963,10 +993,7 @@ export class SessionController {
 
       // Update device name in database. `updated_at` is maintained by the
       // schema's `$onUpdate`, so it is no longer set by hand.
-      await getDb()
-        .update(sessions)
-        .set({ deviceName })
-        .where(eq(sessions.sessionId, sessionId));
+      await getDb().update(sessions).set({ deviceName }).where(eq(sessions.sessionId, sessionId));
 
       // Invalidate cache so next lookup gets fresh data
       sessionCache.invalidate(sessionId);
@@ -974,7 +1001,7 @@ export class SessionController {
       res.json({
         success: true,
         message: 'Device name updated successfully',
-        deviceName: deviceName
+        deviceName: deviceName,
       });
     } catch (error) {
       logger.error('Update device name error:', error);

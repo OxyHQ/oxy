@@ -77,14 +77,14 @@ export const appUserSignals = pgTable(
     // fetches every row for the application and sorts them in memory.
     index('app_user_signals_application_id_endorsement_score_idx').on(
       t.applicationId,
-      t.endorsementScore.desc()
+      t.endorsementScore.desc(),
     ),
     // Cross-app lookups for a single user, and the index that keeps a user
     // delete from scanning the table.
     index('app_user_signals_user_id_idx').on(t.userId),
     check(
       'app_user_signals_interest_score_check',
-      sql`${t.interestScore} >= 0 and ${t.interestScore} <= 1`
+      sql`${t.interestScore} >= 0 and ${t.interestScore} <= 1`,
     ),
-  ]
+  ],
 );

@@ -113,7 +113,7 @@ describe('expiry sweep', () => {
       'delete from "events" ' +
         'where ctid in ( ' +
         'select ctid from "events" where "events"."played_at" <= now() - make_interval(secs => $1) limit $2 ' +
-        ') returning ctid'
+        ') returning ctid',
     );
   });
 

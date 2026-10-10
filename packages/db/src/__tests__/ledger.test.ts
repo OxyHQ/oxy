@@ -24,7 +24,7 @@ function journalFixture(entries: Array<{ tag: string; when: number }>): string {
   mkdirSync(join(folder, 'meta'), { recursive: true });
   writeFileSync(
     join(folder, 'meta', '_journal.json'),
-    JSON.stringify({ version: '7', dialect: 'postgresql', entries })
+    JSON.stringify({ version: '7', dialect: 'postgresql', entries }),
   );
   return folder;
 }
@@ -82,7 +82,7 @@ describe('migration ledger', () => {
     mkdirSync(join(folder, 'meta'), { recursive: true });
     writeFileSync(
       join(folder, 'meta', '_journal.json'),
-      JSON.stringify({ version: '7', dialect: 'postgresql' })
+      JSON.stringify({ version: '7', dialect: 'postgresql' }),
     );
     expect(() => readJournal(folder)).toThrow(/no `entries` field/);
   });
@@ -93,7 +93,7 @@ describe('migration ledger', () => {
     mkdirSync(join(folder, 'meta'), { recursive: true });
     writeFileSync(
       join(folder, 'meta', '_journal.json'),
-      JSON.stringify({ version: '7', dialect: 'postgresql', entries: 'not-an-array' })
+      JSON.stringify({ version: '7', dialect: 'postgresql', entries: 'not-an-array' }),
     );
     expect(() => readJournal(folder)).toThrow(/entries` is a string, not an array/);
   });
@@ -108,7 +108,7 @@ describe('migration ledger', () => {
         version: '7',
         dialect: 'postgresql',
         entries: [{ tag: '0000_init', when: 1000 }, { tag: '0001_bad' }],
-      })
+      }),
     );
     expect(() => readJournal(folder)).toThrow(/entries\[1\] is missing/);
   });
@@ -205,9 +205,7 @@ describe('unreachableEntries', () => {
     }
     for (let trial = 0; trial < 2000; trial += 1) {
       const list = randomEntries();
-      const appliedMillis = list
-        .filter(() => Math.random() < 0.5)
-        .map((entry) => entry.when);
+      const appliedMillis = list.filter(() => Math.random() < 0.5).map((entry) => entry.when);
       expect(unreachableEntries(list, appliedMillis)).toEqual(reference(list, appliedMillis));
     }
   });
@@ -222,9 +220,7 @@ describe('planLedgerRun', () => {
   ];
 
   it('returns the pending entries when every skipped one is genuinely newer', () => {
-    expect(planLedgerRun(entries, [1000, 2000, 1500])).toEqual([
-      { tag: '0003_after', when: 3000 },
-    ]);
+    expect(planLedgerRun(entries, [1000, 2000, 1500])).toEqual([{ tag: '0003_after', when: 3000 }]);
   });
 
   it('returns the whole journal against an empty ledger', () => {

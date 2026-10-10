@@ -15,7 +15,11 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 const deleteAccount = jest.fn();
 const hasIdentity = jest.fn<Promise<boolean>, []>();
 const logout = jest.fn();
-let user: { id: string; username: string; publicKey?: string } = { id: 'u1', username: 'nate', publicKey: '04ab' };
+let user: { id: string; username: string; publicKey?: string } = {
+  id: 'u1',
+  username: 'nate',
+  publicKey: '04ab',
+};
 
 jest.mock('../../src/ui/context/OxyContext', () => ({
   __esModule: true,
@@ -91,7 +95,9 @@ const pressDeleteAccount = async () => {
   render(<ManageAccountScreen onClose={jest.fn()} navigate={navigate} />);
   await act(async () => {
     fireEvent.click(
-      screen.getByText('[accountOverview.items.deleteAccount.title]').closest('button') as HTMLButtonElement,
+      screen
+        .getByText('[accountOverview.items.deleteAccount.title]')
+        .closest('button') as HTMLButtonElement,
     );
   });
 };

@@ -97,7 +97,10 @@ async function call(method: string, path: string, body?: unknown, bearer?: strin
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();
-  return { status: response.status, body: (text ? JSON.parse(text) : {}) as Record<string, unknown> };
+  return {
+    status: response.status,
+    body: (text ? JSON.parse(text) : {}) as Record<string, unknown>,
+  };
 }
 
 beforeAll(async () => {
@@ -116,11 +119,14 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  for (const mock of [mockSendCode, mockSendSignIn, mockSendReauth, mockSendNotice]) mock.mockResolvedValue(undefined);
+  for (const mock of [mockSendCode, mockSendSignIn, mockSendReauth, mockSendNotice])
+    mock.mockResolvedValue(undefined);
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   await closePostgres();
 });
 
@@ -131,24 +137,44 @@ function lastCall(mock: jest.Mock, to: string): unknown[] {
   return found;
 }
 
-async function signUp(): Promise<{ email: string; username: string; token: string; userId: string }> {
+async function signUp(): Promise<{
+  email: string;
+  username: string;
+  token: string;
+  userId: string;
+}> {
   const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
   const email = `journey-${suffix}@example.test`;
   const username = `journey${suffix}`;
   const started = await call('POST', '/auth/email/verify/start', { purpose: 'signup', email });
   expect(started.status).toBe(200);
   const code = lastCall(mockSendCode, email)[1] as string;
-  const confirmed = await call('POST', '/auth/email/verify/confirm', { verificationId: started.body.verificationId, code });
+  const confirmed = await call('POST', '/auth/email/verify/confirm', {
+    verificationId: started.body.verificationId,
+    code,
+  });
   expect(confirmed.status).toBe(200);
-  const created = await call('POST', '/auth/signup', { username, email, emailTicket: confirmed.body.ticket });
+  const created = await call('POST', '/auth/signup', {
+    username,
+    email,
+    emailTicket: confirmed.body.ticket,
+  });
   expect(created.status).toBe(200);
-  return { email, username, token: created.body.accessToken as string, userId: (created.body.user as { id: string }).id };
+  return {
+    email,
+    username,
+    token: created.body.accessToken as string,
+    userId: (created.body.user as { id: string }).id,
+  };
 }
 
 async function reauthCode(token: string, email: string, action: string) {
   const res = await call('POST', '/users/me/reauth/email', { action }, token);
   expect(res.status).toBe(200);
-  return { verificationId: res.body.verificationId as string, code: lastCall(mockSendReauth, email)[1] as string };
+  return {
+    verificationId: res.body.verificationId as string,
+    code: lastCall(mockSendReauth, email)[1] as string,
+  };
 }
 
 describe('one person, end to end', () => {
@@ -158,7 +184,12 @@ describe('one person, end to end', () => {
     // Sign up: a username, an email proven by its code.
     const person = await signUp();
     const me = await call('GET', '/users/me/sign-in-methods', undefined, person.token);
-    expect(me.body).toEqual({ hasEmail: true, hasPassword: false, totpEnabled: false, backupCodesRemaining: 0 });
+    expect(me.body).toEqual({
+      hasEmail: true,
+      hasPassword: false,
+      totpEnabled: false,
+      backupCodesRemaining: 0,
+    });
 
     // Sign in with the emailed code.
     const started = await call('POST', '/auth/signin/email/start', { identifier: person.username });
@@ -174,9 +205,20 @@ describe('one person, end to end', () => {
 
     // Set a password with a fresh email code, then sign in with it.
     const password = 'journey password 1';
-    const set = await call('PUT', '/users/me/password', { newPassword: password, reauth: { emailCode: await reauthCode(token, person.email, 'change_password') } }, token);
+    const set = await call(
+      'PUT',
+      '/users/me/password',
+      {
+        newPassword: password,
+        reauth: { emailCode: await reauthCode(token, person.email, 'change_password') },
+      },
+      token,
+    );
     expect(set.status).toBe(200);
-    const byPassword = await call('POST', '/auth/signin/password', { identifier: person.email, password });
+    const byPassword = await call('POST', '/auth/signin/password', {
+      identifier: person.email,
+      password,
+    });
     expect(byPassword.status).toBe(200);
     expect(typeof byPassword.body.accessToken).toBe('string');
 
@@ -195,7 +237,11 @@ describe('one person, end to end', () => {
     // Signing in now stops at the authenticator.
     // (In another browser: its own device, proven, so it is its own session.)
     const browser = await deviceSessionService.registerDevice();
-    const challenged = await call('POST', '/auth/signin/password', { identifier: person.username, password, device: browser });
+    const challenged = await call('POST', '/auth/signin/password', {
+      identifier: person.username,
+      password,
+      device: browser,
+    });
     expect(challenged.body).toMatchObject({ secondFactorRequired: true });
     expect(challenged.body.accessToken).toBeUndefined();
     const withTotp = await call('POST', '/auth/signin/second-factor', {
@@ -208,17 +254,41 @@ describe('one person, end to end', () => {
     const current = withTotp.body.accessToken as string;
 
     // A backup code works once.
-    const first = await call('POST', '/auth/signin/password', { identifier: person.username, password });
-    expect((await call('POST', '/auth/signin/second-factor', { challengeId: first.body.challengeId, code: backupCodes[0] })).status).toBe(200);
-    const second = await call('POST', '/auth/signin/password', { identifier: person.username, password });
-    expect((await call('POST', '/auth/signin/second-factor', { challengeId: second.body.challengeId, code: backupCodes[0] })).status).toBe(401);
+    const first = await call('POST', '/auth/signin/password', {
+      identifier: person.username,
+      password,
+    });
+    expect(
+      (
+        await call('POST', '/auth/signin/second-factor', {
+          challengeId: first.body.challengeId,
+          code: backupCodes[0],
+        })
+      ).status,
+    ).toBe(200);
+    const second = await call('POST', '/auth/signin/password', {
+      identifier: person.username,
+      password,
+    });
+    expect(
+      (
+        await call('POST', '/auth/signin/second-factor', {
+          challengeId: second.body.challengeId,
+          code: backupCodes[0],
+        })
+      ).status,
+    ).toBe(401);
 
     // Link Commons: a real key signs the root proof; the email code and the
     // authenticator confirm it; the email is gone.
     const opened = await call('POST', '/identity/link', undefined, current);
     expect(opened.status).toBe(200);
     const linkId = opened.body.linkId as string;
-    const state = (await call('GET', `/identity/link/${linkId}`)).body as { userId: string; audience: string; expiresAt: number };
+    const state = (await call('GET', `/identity/link/${linkId}`)).body as {
+      userId: string;
+      audience: string;
+      expiresAt: number;
+    };
     const pair = generateSecp256k1KeyPair();
     const key = { privateKey: pair.privateKey, publicKey: pair.publicKey.toLowerCase() };
     const proof = await signIdentityProof(key, {
@@ -232,68 +302,134 @@ describe('one person, end to end', () => {
       challenge: opened.body.challenge as string,
       expiresAt: state.expiresAt,
     });
-    expect((await call('POST', `/identity/link/${linkId}/proof`, { publicKey: key.publicKey, proof })).status).toBe(200);
+    expect(
+      (await call('POST', `/identity/link/${linkId}/proof`, { publicKey: key.publicKey, proof }))
+        .status,
+    ).toBe(200);
     const linkCode = await reauthCode(current, person.email, 'link_commons');
     const linked = await call(
       'POST',
       `/identity/link/${linkId}/complete`,
-      { reauth: { emailCode: linkCode, totpCode: totpCodeAt(secret, new Date(Date.now() + 30_000)) } },
+      {
+        reauth: {
+          emailCode: linkCode,
+          totpCode: totpCodeAt(secret, new Date(Date.now() + 30_000)),
+        },
+      },
       current,
     );
     expect(linked.status).toBe(200);
-    const [after] = await getDb().select({ email: users.email, publicKey: users.publicKey }).from(users).where(eq(users.id, person.userId));
+    const [after] = await getDb()
+      .select({ email: users.email, publicKey: users.publicKey })
+      .from(users)
+      .where(eq(users.id, person.userId));
     expect(after).toEqual({ email: null, publicKey: key.publicKey });
     expect(mockSendNotice).toHaveBeenCalledWith(person.email, 'commons_linked', person.username);
     // The other sessions were signed out; the one that linked stays.
     expect((await call('GET', '/users/me/sign-in-methods', undefined, token)).status).toBe(401);
-    expect((await call('GET', '/users/me/sign-in-methods', undefined, current)).body).toMatchObject({ hasEmail: false });
+    expect((await call('GET', '/users/me/sign-in-methods', undefined, current)).body).toMatchObject(
+      { hasEmail: false },
+    );
 
     // Neither does the password: linking removed it (and the authenticator).
-    const afterLink = await call('POST', '/auth/signin/password', { identifier: person.username, password });
+    const afterLink = await call('POST', '/auth/signin/password', {
+      identifier: person.username,
+      password,
+    });
     expect(afterLink.status).toBe(401);
     expect(afterLink.body.error).toBe('SIGNIN_INVALID_CREDENTIALS');
 
     // The address no longer signs anyone in.
     mockSendSignIn.mockClear();
-    expect((await call('POST', '/auth/signin/email/start', { identifier: person.email })).status).toBe(200);
+    expect(
+      (await call('POST', '/auth/signin/email/start', { identifier: person.email })).status,
+    ).toBe(200);
     expect(mockSendSignIn).not.toHaveBeenCalled();
 
     // Leave, signed with the Commons key.
     const timestamp = Date.now();
-    const signature = SignatureService.signMessage(`delete:${key.publicKey}:${timestamp}`, key.privateKey);
-    const deleted = await call('DELETE', '/users/me', { confirmText: person.username, signature, timestamp }, current);
+    const signature = SignatureService.signMessage(
+      `delete:${key.publicKey}:${timestamp}`,
+      key.privateKey,
+    );
+    const deleted = await call(
+      'DELETE',
+      '/users/me',
+      { confirmText: person.username, signature, timestamp },
+      current,
+    );
     expect(deleted.status).toBe(200);
-    expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.userId))).toHaveLength(0);
+    expect(
+      await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.userId)),
+    ).toHaveLength(0);
   });
 
   it('deletes an account without a key with an email code', async () => {
     const person = await signUp();
-    const refused = await call('DELETE', '/users/me', { confirmText: person.username }, person.token);
+    const refused = await call(
+      'DELETE',
+      '/users/me',
+      { confirmText: person.username },
+      person.token,
+    );
     expect(refused.status).toBe(400);
     const wrong = await reauthCode(person.token, person.email, 'delete_account');
     const bad = await call(
       'DELETE',
       '/users/me',
-      { confirmText: person.username, reauth: { emailCode: { ...wrong, code: wrong.code === '000000' ? '111111' : '000000' } } },
+      {
+        confirmText: person.username,
+        reauth: { emailCode: { ...wrong, code: wrong.code === '000000' ? '111111' : '000000' } },
+      },
       person.token,
     );
     expect(bad.status).toBe(401);
 
-    const deleted = await call('DELETE', '/users/me', { confirmText: person.username, reauth: { emailCode: wrong } }, person.token);
+    const deleted = await call(
+      'DELETE',
+      '/users/me',
+      { confirmText: person.username, reauth: { emailCode: wrong } },
+      person.token,
+    );
     expect(deleted.status).toBe(200);
-    expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.userId))).toHaveLength(0);
+    expect(
+      await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.userId)),
+    ).toHaveLength(0);
   });
 
   it('refuses a revoked session token on every sensitive route', async () => {
     const person = await signUp();
     const code = await reauthCode(person.token, person.email, 'delete_account');
-    const [session] = await getDb().select({ sessionId: sessions.sessionId }).from(sessions).where(eq(sessions.userId, person.userId));
+    const [session] = await getDb()
+      .select({ sessionId: sessions.sessionId })
+      .from(sessions)
+      .where(eq(sessions.userId, person.userId));
     await sessionService.deactivateSession(session.sessionId);
 
-    expect((await call('DELETE', '/users/me', { confirmText: person.username, reauth: { emailCode: code } }, person.token)).status).toBe(401);
+    expect(
+      (
+        await call(
+          'DELETE',
+          '/users/me',
+          { confirmText: person.username, reauth: { emailCode: code } },
+          person.token,
+        )
+      ).status,
+    ).toBe(401);
     expect((await call('POST', '/identity/link', undefined, person.token)).status).toBe(401);
     expect((await call('POST', '/users/me/totp/enroll', undefined, person.token)).status).toBe(401);
-    expect((await call('PUT', '/users/me/password', { newPassword: 'whatever password', reauth: { emailCode: code } }, person.token)).status).toBe(401);
-    expect(await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.userId))).toHaveLength(1);
+    expect(
+      (
+        await call(
+          'PUT',
+          '/users/me/password',
+          { newPassword: 'whatever password', reauth: { emailCode: code } },
+          person.token,
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      await getDb().select({ id: users.id }).from(users).where(eq(users.id, person.userId)),
+    ).toHaveLength(1);
   });
 });

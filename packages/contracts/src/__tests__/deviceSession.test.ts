@@ -14,7 +14,13 @@ import {
 
 describe('deviceSessionStateSchema', () => {
   const account = { accountId: 'a1', sessionId: 's1', authuser: 0 };
-  const state = { deviceId: 'd1', accounts: [account], activeAccountId: 'a1', revision: 3, updatedAt: 1720000000000 };
+  const state = {
+    deviceId: 'd1',
+    accounts: [account],
+    activeAccountId: 'a1',
+    revision: 3,
+    updatedAt: 1720000000000,
+  };
 
   it('parses a valid state', () => {
     expect(safeParseContract(deviceSessionStateSchema, state)).toEqual(state);
@@ -26,7 +32,11 @@ describe('deviceSessionStateSchema', () => {
   });
 
   it('accepts activeAccountId=null (device signed out of all)', () => {
-    const parsed = safeParseContract(deviceSessionStateSchema, { ...state, accounts: [], activeAccountId: null });
+    const parsed = safeParseContract(deviceSessionStateSchema, {
+      ...state,
+      accounts: [],
+      activeAccountId: null,
+    });
     expect(parsed?.activeAccountId).toBeNull();
   });
 
@@ -41,13 +51,21 @@ describe('deviceSessionStateSchema', () => {
 });
 
 describe('deviceSessionSyncSchema', () => {
-  const state = { deviceId: 'd1', accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }], activeAccountId: 'a1', revision: 1, updatedAt: 1720000000000 };
+  const state = {
+    deviceId: 'd1',
+    accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+    activeAccountId: 'a1',
+    revision: 1,
+    updatedAt: 1720000000000,
+  };
   it('parses { state, activeToken }', () => {
     const v = { state, activeToken: { accessToken: 'jwt', expiresAt: '2026-07-07T00:00:00.000Z' } };
     expect(safeParseContract(deviceSessionSyncSchema, v)).toEqual(v);
   });
   it('accepts activeToken=null', () => {
-    expect(safeParseContract(deviceSessionSyncSchema, { state, activeToken: null })?.activeToken).toBeNull();
+    expect(
+      safeParseContract(deviceSessionSyncSchema, { state, activeToken: null })?.activeToken,
+    ).toBeNull();
   });
   it('rejects a state-less sync', () => {
     expect(safeParseContract(deviceSessionSyncSchema, { activeToken: null })).toBeNull();
@@ -69,16 +87,31 @@ describe('deviceTokenMintRequestSchema', () => {
   });
 
   it('rejects an empty deviceId / deviceSecret', () => {
-    expect(safeParseContract(deviceTokenMintRequestSchema, { deviceId: '', deviceSecret: 's' })).toBeNull();
-    expect(safeParseContract(deviceTokenMintRequestSchema, { deviceId: 'd1', deviceSecret: '' })).toBeNull();
+    expect(
+      safeParseContract(deviceTokenMintRequestSchema, { deviceId: '', deviceSecret: 's' }),
+    ).toBeNull();
+    expect(
+      safeParseContract(deviceTokenMintRequestSchema, { deviceId: 'd1', deviceSecret: '' }),
+    ).toBeNull();
   });
 });
 
 describe('deviceTokenMintResponseSchema', () => {
-  const state = { deviceId: 'd1', accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }], activeAccountId: 'a1', revision: 3, updatedAt: 1720000000000 };
+  const state = {
+    deviceId: 'd1',
+    accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+    activeAccountId: 'a1',
+    revision: 3,
+    updatedAt: 1720000000000,
+  };
 
   it('parses a valid mint response', () => {
-    const v = { accessToken: 'jwt.access', expiresAt: '2026-07-07T00:00:00.000Z', nextDeviceSecret: 'next_secret', state };
+    const v = {
+      accessToken: 'jwt.access',
+      expiresAt: '2026-07-07T00:00:00.000Z',
+      nextDeviceSecret: 'next_secret',
+      state,
+    };
     expect(safeParseContract(deviceTokenMintResponseSchema, v)).toEqual(v);
   });
 
@@ -88,16 +121,28 @@ describe('deviceTokenMintResponseSchema', () => {
   });
 
   it('rejects a response with an invalid nested state', () => {
-    const v = { accessToken: 'a', expiresAt: 'e', nextDeviceSecret: 'n', state: { deviceId: 'd1' } };
+    const v = {
+      accessToken: 'a',
+      expiresAt: 'e',
+      nextDeviceSecret: 'n',
+      state: { deviceId: 'd1' },
+    };
     expect(safeParseContract(deviceTokenMintResponseSchema, v)).toBeNull();
   });
 });
 
 describe('deviceBackgroundCredentialResponseSchema', () => {
-  const credential = { deviceId: 'd1', secret: 'bg_secret', accountId: 'a1', expiresAt: '2026-10-07T00:00:00.000Z' };
+  const credential = {
+    deviceId: 'd1',
+    secret: 'bg_secret',
+    accountId: 'a1',
+    expiresAt: '2026-10-07T00:00:00.000Z',
+  };
 
   it('parses a valid provision response', () => {
-    expect(safeParseContract(deviceBackgroundCredentialResponseSchema, credential)).toEqual(credential);
+    expect(safeParseContract(deviceBackgroundCredentialResponseSchema, credential)).toEqual(
+      credential,
+    );
   });
 
   it('rejects a credential without an account to scope it to', () => {
@@ -106,7 +151,9 @@ describe('deviceBackgroundCredentialResponseSchema', () => {
   });
 
   it('rejects an empty secret', () => {
-    expect(safeParseContract(deviceBackgroundCredentialResponseSchema, { ...credential, secret: '' })).toBeNull();
+    expect(
+      safeParseContract(deviceBackgroundCredentialResponseSchema, { ...credential, secret: '' }),
+    ).toBeNull();
   });
 });
 
@@ -117,8 +164,12 @@ describe('deviceBackgroundTokenRequestSchema', () => {
   });
 
   it('rejects an empty deviceId / secret', () => {
-    expect(safeParseContract(deviceBackgroundTokenRequestSchema, { deviceId: '', secret: 's' })).toBeNull();
-    expect(safeParseContract(deviceBackgroundTokenRequestSchema, { deviceId: 'd1', secret: '' })).toBeNull();
+    expect(
+      safeParseContract(deviceBackgroundTokenRequestSchema, { deviceId: '', secret: 's' }),
+    ).toBeNull();
+    expect(
+      safeParseContract(deviceBackgroundTokenRequestSchema, { deviceId: 'd1', secret: '' }),
+    ).toBeNull();
   });
 
   it('never asks for a rotated secret back', () => {
@@ -127,7 +178,11 @@ describe('deviceBackgroundTokenRequestSchema', () => {
 });
 
 describe('deviceBackgroundTokenResponseSchema', () => {
-  const response = { accessToken: 'jwt.access', expiresAt: '2026-07-07T00:00:00.000Z', accountId: 'a1' };
+  const response = {
+    accessToken: 'jwt.access',
+    expiresAt: '2026-07-07T00:00:00.000Z',
+    accountId: 'a1',
+  };
 
   it('parses a valid background token response', () => {
     expect(safeParseContract(deviceBackgroundTokenResponseSchema, response)).toEqual(response);
@@ -139,7 +194,11 @@ describe('deviceBackgroundTokenResponseSchema', () => {
   });
 
   it('carries no device state and no rotated secret', () => {
-    expect(Object.keys(deviceBackgroundTokenResponseSchema.shape)).toEqual(['accessToken', 'expiresAt', 'accountId']);
+    expect(Object.keys(deviceBackgroundTokenResponseSchema.shape)).toEqual([
+      'accessToken',
+      'expiresAt',
+      'accountId',
+    ]);
     const parsed = safeParseContract(deviceBackgroundTokenResponseSchema, {
       ...response,
       accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
@@ -159,16 +218,30 @@ describe('sessionAccountsChangedEventSchema', () => {
 
   it('accepts every documented reason', () => {
     for (const reason of ['login', 'add', 'switch', 'signout', 'revoke'] as const) {
-      expect(safeParseContract(sessionAccountsChangedEventSchema, { userId: 'u1', revision: 0, reason })).not.toBeNull();
+      expect(
+        safeParseContract(sessionAccountsChangedEventSchema, { userId: 'u1', revision: 0, reason }),
+      ).not.toBeNull();
     }
   });
 
   it('rejects an unknown reason', () => {
-    expect(safeParseContract(sessionAccountsChangedEventSchema, { userId: 'u1', revision: 0, reason: 'nope' })).toBeNull();
+    expect(
+      safeParseContract(sessionAccountsChangedEventSchema, {
+        userId: 'u1',
+        revision: 0,
+        reason: 'nope',
+      }),
+    ).toBeNull();
   });
 
   it('rejects a negative revision', () => {
-    expect(safeParseContract(sessionAccountsChangedEventSchema, { userId: 'u1', revision: -1, reason: 'add' })).toBeNull();
+    expect(
+      safeParseContract(sessionAccountsChangedEventSchema, {
+        userId: 'u1',
+        revision: -1,
+        reason: 'add',
+      }),
+    ).toBeNull();
   });
 
   it('exposes the canonical event name', () => {

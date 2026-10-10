@@ -16,7 +16,12 @@
  * resolves it before the cold boot and after every (re-)established identity
  * session; every read after that is free.
  */
-import { createNativeIdentityPinStore, createWebIdentityPinStore, resolveIdentityPin, type IdentityBinding } from '@oxy.so/core/session';
+import {
+  createNativeIdentityPinStore,
+  createWebIdentityPinStore,
+  resolveIdentityPin,
+  type IdentityBinding,
+} from '@oxy.so/core/session';
 import { isReactNative } from '../utils/storageHelpers';
 import { createNativeSecureKeyValueStorage } from './nativeSecureStorage';
 

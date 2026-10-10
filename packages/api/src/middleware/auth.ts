@@ -10,7 +10,7 @@ import {
   extractTokenFromRequest,
   decodeToken,
   validateSessionToken,
-  type TokenDecoded
+  type TokenDecoded,
 } from './authUtils';
 
 // Ensure environment variables are loaded
@@ -99,7 +99,8 @@ export const rejectQueryToken = (req: Request, res: Response, next: NextFunction
   if (req.query.token !== undefined || req.query.access_token !== undefined) {
     return res.status(400).json({
       error: 'Token in URL not allowed',
-      message: 'This endpoint accepts the bearer token only via the Authorization header. Remove the token/access_token query parameter.'
+      message:
+        'This endpoint accepts the bearer token only via the Authorization header. Remove the token/access_token query parameter.',
     });
   }
   next();
@@ -107,12 +108,12 @@ export const rejectQueryToken = (req: Request, res: Response, next: NextFunction
 
 /**
  * Authentication middleware that validates JWT tokens and attaches the full user object to the request
- * 
+ *
  * Optimized for high-scale usage:
  * - Uses session-based tokens only
  * - Uses session service with caching to minimize database queries
  * - Eliminates redundant user fetches by using populated user from validation
- * 
+ *
  * @param req - Express request object
  * @param res - Express response object
  * @param next - Express next function
@@ -120,49 +121,49 @@ export const rejectQueryToken = (req: Request, res: Response, next: NextFunction
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader?.startsWith('Bearer ')) {
       return res.status(401).json({
         error: 'Authentication required',
-        message: 'Invalid or missing authorization header'
+        message: 'Invalid or missing authorization header',
       });
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     if (!process.env.ACCESS_TOKEN_SECRET) {
       logger.error('ACCESS_TOKEN_SECRET not configured');
       return res.status(500).json({
         error: 'Server configuration error',
-        message: 'Server configuration error'
+        message: 'Server configuration error',
       });
     }
 
     try {
       // Decode token to check if it's session-based
       const decoded = decodeToken(token);
-      
+
       if (!decoded) {
         return res.status(401).json({
           error: 'Invalid token',
-          message: 'Token could not be decoded'
+          message: 'Token could not be decoded',
         });
       }
-      
+
       if (process.env.NODE_ENV === 'development') {
-        logger.debug('Token decoded', { 
-          hasSessionId: !!decoded.sessionId, 
+        logger.debug('Token decoded', {
+          hasSessionId: !!decoded.sessionId,
           sessionId: decoded.sessionId,
           userId: decoded.userId,
-          exp: decoded.exp 
+          exp: decoded.exp,
         });
       }
-      
+
       // Only session-based tokens are supported
       if (!decoded.sessionId) {
         return res.status(401).json({
           error: 'Invalid token',
-          message: 'Token must be session-based (include a sessionId claim).'
+          message: 'Token must be session-based (include a sessionId claim).',
         });
       }
 
@@ -170,7 +171,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       if (process.env.NODE_ENV === 'development') {
         logger.debug('Validating session-based token', { sessionId: decoded.sessionId });
       }
-      
+
       try {
         // Use session service for optimized validation with caching
         const validationResult = await sessionService.validateSession(token);
@@ -181,7 +182,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
           }
           return res.status(401).json({
             error: 'Invalid session',
-            message: 'Session not found or expired'
+            message: 'Session not found or expired',
           });
         }
 
@@ -190,7 +191,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
         if (!user) {
           return res.status(401).json({
             error: 'Invalid session',
-            message: 'User not found'
+            message: 'User not found',
           });
         }
 
@@ -215,48 +216,60 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 
         next();
       } catch (dbError) {
-        logger.error('Database error during session lookup', dbError instanceof Error ? dbError : new Error(String(dbError)), {
-          component: 'auth',
-          method: 'authMiddleware',
-        });
+        logger.error(
+          'Database error during session lookup',
+          dbError instanceof Error ? dbError : new Error(String(dbError)),
+          {
+            component: 'auth',
+            method: 'authMiddleware',
+          },
+        );
         return res.status(500).json({
           error: 'Database error',
-          message: 'Error validating session'
+          message: 'Error validating session',
         });
       }
     } catch (error) {
-      logger.error('Token verification error', error instanceof Error ? error : new Error(String(error)), {
-        component: 'auth',
-        method: 'authMiddleware',
-      });
-      
+      logger.error(
+        'Token verification error',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'auth',
+          method: 'authMiddleware',
+        },
+      );
+
       if (error instanceof jwt.TokenExpiredError) {
         return res.status(401).json({
           error: 'Token expired',
-          message: 'Your session has expired. Please log in again.'
+          message: 'Your session has expired. Please log in again.',
         });
       }
-      
+
       if (error instanceof jwt.JsonWebTokenError) {
         return res.status(401).json({
           error: 'Invalid token',
-          message: 'The provided authentication token is invalid'
+          message: 'The provided authentication token is invalid',
         });
       }
-      
+
       return res.status(401).json({
         error: 'Authentication error',
-        message: 'An error occurred while authenticating your request'
+        message: 'An error occurred while authenticating your request',
       });
     }
   } catch (error) {
-    logger.error('Auth middleware error', error instanceof Error ? error : new Error(String(error)), {
-      component: 'auth',
-      method: 'authMiddleware',
-    });
+    logger.error(
+      'Auth middleware error',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        component: 'auth',
+        method: 'authMiddleware',
+      },
+    );
     return res.status(500).json({
       error: 'Server error',
-      message: 'An error occurred while authenticating your request'
+      message: 'An error occurred while authenticating your request',
     });
   }
 };
@@ -285,7 +298,11 @@ export interface ServiceAuthRequest extends Request {
  * @param res - Express response object
  * @param next - Express next function
  */
-export const serviceAuthMiddleware = (req: ServiceAuthRequest, res: Response, next: NextFunction) => {
+export const serviceAuthMiddleware = (
+  req: ServiceAuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({
@@ -331,13 +348,17 @@ export const serviceAuthMiddleware = (req: ServiceAuthRequest, res: Response, ne
  * @param res - Express response object
  * @param next - Express next function
  */
-export const simpleAuthMiddleware = async (req: SimpleAuthRequest, res: Response, next: NextFunction) => {
+export const simpleAuthMiddleware = async (
+  req: SimpleAuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       return res.status(401).json({
         error: 'Authentication required',
-        message: 'Invalid or missing authorization header'
+        message: 'Invalid or missing authorization header',
       });
     }
 
@@ -346,7 +367,7 @@ export const simpleAuthMiddleware = async (req: SimpleAuthRequest, res: Response
       logger.error('ACCESS_TOKEN_SECRET not configured');
       return res.status(500).json({
         error: 'Server configuration error',
-        message: 'Server configuration error'
+        message: 'Server configuration error',
       });
     }
 
@@ -358,7 +379,7 @@ export const simpleAuthMiddleware = async (req: SimpleAuthRequest, res: Response
       if (!decoded.sessionId) {
         return res.status(401).json({
           error: 'Invalid token',
-          message: 'Token must be session-based (include a sessionId claim).'
+          message: 'Token must be session-based (include a sessionId claim).',
         });
       }
 
@@ -368,7 +389,7 @@ export const simpleAuthMiddleware = async (req: SimpleAuthRequest, res: Response
       if (!validationResult) {
         return res.status(401).json({
           error: 'Invalid session',
-          message: 'Session not found or expired'
+          message: 'Session not found or expired',
         });
       }
 
@@ -379,38 +400,46 @@ export const simpleAuthMiddleware = async (req: SimpleAuthRequest, res: Response
       req.user = { id: userId };
       next();
     } catch (error) {
-      logger.error('Token verification error', error instanceof Error ? error : new Error(String(error)), {
-        component: 'auth',
-        method: 'simpleAuthMiddleware',
-      });
+      logger.error(
+        'Token verification error',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'auth',
+          method: 'simpleAuthMiddleware',
+        },
+      );
 
       if (error instanceof jwt.TokenExpiredError) {
         return res.status(401).json({
           error: 'Token expired',
-          message: 'Your session has expired. Please log in again.'
+          message: 'Your session has expired. Please log in again.',
         });
       }
 
       if (error instanceof jwt.JsonWebTokenError) {
         return res.status(401).json({
           error: 'Invalid token',
-          message: 'The provided authentication token is invalid'
+          message: 'The provided authentication token is invalid',
         });
       }
 
       return res.status(401).json({
         error: 'Authentication error',
-        message: 'An error occurred while authenticating your request'
+        message: 'An error occurred while authenticating your request',
       });
     }
   } catch (error) {
-    logger.error('Unexpected auth error', error instanceof Error ? error : new Error(String(error)), {
-      component: 'auth',
-      method: 'simpleAuthMiddleware',
-    });
+    logger.error(
+      'Unexpected auth error',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        component: 'auth',
+        method: 'simpleAuthMiddleware',
+      },
+    );
     return res.status(500).json({
       error: 'Server error',
-      message: 'An error occurred while authenticating your request'
+      message: 'An error occurred while authenticating your request',
     });
   }
 };

@@ -98,7 +98,9 @@ function Dashboard({ user }: { user: User }) {
           <h2>{displayName}</h2>
           {user.email ? <p>{user.email}</p> : null}
         </div>
-        <button type="button" onClick={() => signOut()}>Sign out</button>
+        <button type="button" onClick={() => signOut()}>
+          Sign out
+        </button>
       </header>
 
       <main>

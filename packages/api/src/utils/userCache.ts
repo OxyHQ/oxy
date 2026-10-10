@@ -49,29 +49,32 @@ class UserCache {
       // into the unhandled-rejection sink — both the I/O step and the
       // JSON parse step are guarded independently so a malformed cache
       // entry doesn't poison the local map.
-      redis.get(`user:${userId}`).then(data => {
-        if (!data) return;
-        let parsed: AccountDocument | null = null;
-        try {
-          parsed = JSON.parse(data) as AccountDocument;
-        } catch (parseError) {
-          logger.warn('userCache: failed to parse Redis blob; skipping warm-fill', {
+      redis
+        .get(`user:${userId}`)
+        .then((data) => {
+          if (!data) return;
+          let parsed: AccountDocument | null = null;
+          try {
+            parsed = JSON.parse(data) as AccountDocument;
+          } catch (parseError) {
+            logger.warn('userCache: failed to parse Redis blob; skipping warm-fill', {
+              component: LOG_COMPONENT,
+              userId,
+              err: parseError instanceof Error ? parseError.message : String(parseError),
+            });
+            return;
+          }
+          if (parsed) {
+            this.setLocal(userId, parsed);
+          }
+        })
+        .catch((err) => {
+          logger.warn('userCache: Redis warm-fill failed', {
             component: LOG_COMPONENT,
             userId,
-            err: parseError instanceof Error ? parseError.message : String(parseError),
+            err: err instanceof Error ? err.message : String(err),
           });
-          return;
-        }
-        if (parsed) {
-          this.setLocal(userId, parsed);
-        }
-      }).catch((err) => {
-        logger.warn('userCache: Redis warm-fill failed', {
-          component: LOG_COMPONENT,
-          userId,
-          err: err instanceof Error ? err.message : String(err),
         });
-      });
     }
 
     return null;

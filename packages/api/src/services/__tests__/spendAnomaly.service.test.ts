@@ -112,23 +112,25 @@ async function seedSpender(): Promise<Spender> {
 
 /** One settled charge, at a chosen instant and amount. */
 async function seedReceipt(spender: Spender, settledAt: Date, amount: string): Promise<void> {
-  await getDb().insert(usageReceipts).values({
-    idempotencyKey: `anom-${randomUUID()}`,
-    accountId: spender.accountId,
-    applicationId: spender.applicationId,
-    applicationCredentialId: spender.credentialId,
-    requestId: `req-${randomUUID()}`,
-    environment: 'production',
-    outcome: 'completed',
-    usageSource: 'provider_reported',
-    inputTokens: 1_000,
-    resolvedModelReference: 'oxy/anom',
-    servingProvider: 'oxy-hosted',
-    priceVersionId: spender.priceVersionId,
-    billedAmount: amount,
-    currency: 'USD',
-    settledAt,
-  });
+  await getDb()
+    .insert(usageReceipts)
+    .values({
+      idempotencyKey: `anom-${randomUUID()}`,
+      accountId: spender.accountId,
+      applicationId: spender.applicationId,
+      applicationCredentialId: spender.credentialId,
+      requestId: `req-${randomUUID()}`,
+      environment: 'production',
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      inputTokens: 1_000,
+      resolvedModelReference: 'oxy/anom',
+      servingProvider: 'oxy-hosted',
+      priceVersionId: spender.priceVersionId,
+      billedAmount: amount,
+      currency: 'USD',
+      settledAt,
+    });
 }
 
 /**
@@ -143,7 +145,11 @@ async function seedBaseline(spender: Spender, dailyAmount: string): Promise<void
   midnight.setUTCHours(0, 0, 0, 0);
   for (let day = 1; day <= MINIMUM_BASELINE_DAYS + 1; day += 1) {
     // Midday of each past day, so no row lands on a boundary the query truncates.
-    await seedReceipt(spender, new Date(midnight.getTime() - day * DAY_MS + 12 * HOUR_MS), dailyAmount);
+    await seedReceipt(
+      spender,
+      new Date(midnight.getTime() - day * DAY_MS + 12 * HOUR_MS),
+      dailyAmount,
+    );
   }
 }
 
@@ -169,7 +175,7 @@ describe('the configured multiple', () => {
       // A multiple of 0 or 1 would flag an account for spending a normal amount,
       // which is how an alert channel becomes noise nobody reads.
       expect(resolveAnomalyMultiple()).toBe(DEFAULT_ANOMALY_MULTIPLE);
-    }
+    },
   );
 });
 
@@ -177,7 +183,10 @@ describe('an hour above the account’s own daily median', () => {
   it('flags the spiking account and not the steady one beside it', async () => {
     const spiking = await seedSpender();
     const steady = await seedSpender();
-    await Promise.all([seedBaseline(spiking, '1.000000000000'), seedBaseline(steady, '1.000000000000')]);
+    await Promise.all([
+      seedBaseline(spiking, '1.000000000000'),
+      seedBaseline(steady, '1.000000000000'),
+    ]);
 
     // One hour, ten times a normal DAY.
     await seedReceipt(spiking, insideLastCompleteHour(), '10.000000000000');
@@ -206,8 +215,16 @@ describe('an hour above the account’s own daily median', () => {
     // Two days of history — real spend, and nowhere near the minimum.
     const midnight = new Date();
     midnight.setUTCHours(0, 0, 0, 0);
-    await seedReceipt(fresh, new Date(midnight.getTime() - DAY_MS + 12 * HOUR_MS), '1.000000000000');
-    await seedReceipt(fresh, new Date(midnight.getTime() - 2 * DAY_MS + 12 * HOUR_MS), '1.000000000000');
+    await seedReceipt(
+      fresh,
+      new Date(midnight.getTime() - DAY_MS + 12 * HOUR_MS),
+      '1.000000000000',
+    );
+    await seedReceipt(
+      fresh,
+      new Date(midnight.getTime() - 2 * DAY_MS + 12 * HOUR_MS),
+      '1.000000000000',
+    );
     await seedReceipt(fresh, insideLastCompleteHour(), '500.000000000000');
 
     const detected = await detectSpendAnomalies();
@@ -247,7 +264,9 @@ describe('an hour above the account’s own daily median', () => {
     process.env[SPEND_ANOMALY_MULTIPLE_VARIABLE] = '2';
     const loose = await detectSpendAnomalies();
     expect(loose.map((anomaly) => anomaly.accountId)).toContain(spender.accountId);
-    expect(loose.find((anomaly) => anomaly.accountId === spender.accountId)?.thresholdMultiple).toBe(2);
+    expect(
+      loose.find((anomaly) => anomaly.accountId === spender.accountId)?.thresholdMultiple,
+    ).toBe(2);
   });
 });
 

@@ -123,7 +123,7 @@ function get(address: string, token?: string): Promise<number> {
       (res) => {
         res.resume();
         res.on('end', () => resolve(res.statusCode ?? 0));
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -191,10 +191,10 @@ describe('catalogueServiceRateLimitKey', () => {
 
     expect(catalogueServiceRateLimitKey(requestFor('app-a', 'cred-a'))).toBe('app-a:cred-a');
     expect(catalogueServiceRateLimitKey(requestFor('app-a', 'cred-b'))).not.toBe(
-      catalogueServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+      catalogueServiceRateLimitKey(requestFor('app-a', 'cred-a')),
     );
     expect(catalogueServiceRateLimitKey(requestFor('app-b', 'cred-a'))).not.toBe(
-      catalogueServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+      catalogueServiceRateLimitKey(requestFor('app-a', 'cred-a')),
     );
     expect(CATALOGUE_SERVICE_READS_PER_15_MINUTES).toBeGreaterThan(600);
   });

@@ -33,9 +33,12 @@ test('every application and script routing-score insert states reviewed economic
       fs.readFileSync(file, 'utf8'),
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.TS
+      ts.ScriptKind.TS,
     );
-    const declarations = new Map<string, { readonly position: number; readonly value: ts.Expression }[]>();
+    const declarations = new Map<
+      string,
+      { readonly position: number; readonly value: ts.Expression }[]
+    >();
     const collectDeclarations = (node: ts.Node): void => {
       if (
         ts.isVariableDeclaration(node) &&
@@ -54,7 +57,7 @@ test('every application and script routing-score insert states reviewed economic
     const economicsOf = (
       expression: ts.Expression,
       callPosition: number,
-      seen = new Set<string>()
+      seen = new Set<string>(),
     ): Set<string> => {
       if (ts.isIdentifier(expression)) {
         if (seen.has(expression.text)) return new Set();
@@ -66,7 +69,7 @@ test('every application and script routing-score insert states reviewed economic
         return economicsOf(
           declaration.value,
           declaration.position,
-          new Set([...seen, expression.text])
+          new Set([...seen, expression.text]),
         );
       }
       if (!ts.isObjectLiteralExpression(expression)) return new Set();

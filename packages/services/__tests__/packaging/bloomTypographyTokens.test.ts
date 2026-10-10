@@ -28,8 +28,9 @@ const USED_TYPE_SCALE = ['body', 'bodySmall', 'caption', 'headerBold', 'sectionT
 
 describe("Bloom's typography tokens survive a native pipeline", () => {
   it('requires a Bloom whose type-scale line-heights are ratios', () => {
-    const minimum = (servicesPackage.peerDependencies['@oxy.so/bloom'] ?? '')
-      .match(/^(?:\^|>=)?(\d+)\.(\d+)\.(\d+)(?:\s|$)/);
+    const minimum = (servicesPackage.peerDependencies['@oxy.so/bloom'] ?? '').match(
+      /^(?:\^|>=)?(\d+)\.(\d+)\.(\d+)(?:\s|$)/,
+    );
     expect(minimum).not.toBeNull();
     const [major, minor, patch] = minimum?.slice(1).map(Number) ?? [];
     // 4.21.0: ratio line-heights. 4.21.1: the collapsed sheet header paints

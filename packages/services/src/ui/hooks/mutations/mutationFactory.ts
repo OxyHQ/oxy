@@ -60,7 +60,7 @@ export interface ProfileMutationConfig<TData, TVariables> {
 export function createProfileMutation<TVariables>(
   config: ProfileMutationConfig<User, TVariables>,
   queryClient: QueryClient,
-  activeSessionId: string | null
+  activeSessionId: string | null,
 ): UseMutationOptions<User, Error, TVariables, { previousUser?: User }> {
   const {
     mutationFn,
@@ -87,7 +87,9 @@ export function createProfileMutation<TVariables>(
       }
 
       // Snapshot previous user data
-      const previousUser = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const previousUser = queryClient.getQueryData<User>(
+        queryKeys.accounts.current(activeSessionId),
+      );
 
       // Apply optimistic update if provided
       if (previousUser && optimisticUpdate) {
@@ -114,9 +116,12 @@ export function createProfileMutation<TVariables>(
       }
 
       // Show error toast
-      const message = typeof errorMessage === 'function'
-        ? errorMessage(error)
-        : (error instanceof Error ? error.message : errorMessage);
+      const message =
+        typeof errorMessage === 'function'
+          ? errorMessage(error)
+          : error instanceof Error
+            ? error.message
+            : errorMessage;
       toast.error(message);
     },
 
@@ -181,7 +186,7 @@ export interface GenericMutationConfig<TData, TVariables, TContext> {
  */
 export function createGenericMutation<TData, TVariables>(
   config: GenericMutationConfig<TData, TVariables, { previous?: TData }>,
-  queryClient: QueryClient
+  queryClient: QueryClient,
 ): UseMutationOptions<TData, Error, TVariables, { previous?: TData }> {
   const {
     mutationFn,

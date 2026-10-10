@@ -1,19 +1,31 @@
-import { initializePlatformInfrastructure, refreshInfrastructure, stopPlatformInfrastructure } from './services/platformInfrastructure.service';
+import {
+  initializePlatformInfrastructure,
+  refreshInfrastructure,
+  stopPlatformInfrastructure,
+} from './services/platformInfrastructure.service';
 import { shutdownTelemetry } from './telemetry';
-import express from "express";
-import http from "http";
-import { count, ne, sql } from "drizzle-orm";
-import { Server as SocketIOServer, type Socket } from "socket.io";
-import profilesRouter from "./routes/profiles";
-import usersRouter from "./routes/users";
-import notificationsRouter from "./routes/notifications.routes";
-import sessionRouter from "./routes/session";
-import sessionDeviceRouter from "./routes/sessionDevice";
-import dotenv from "dotenv";
-import searchRoutes from "./routes/search";
-import { rateLimiter, serviceCredentialLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
-import privacyRoutes from "./routes/privacy";
-import analyticsRoutes from "./routes/analytics.routes";
+import express from 'express';
+import http from 'http';
+import { count, ne, sql } from 'drizzle-orm';
+import { Server as SocketIOServer, type Socket } from 'socket.io';
+import profilesRouter from './routes/profiles';
+import usersRouter from './routes/users';
+import notificationsRouter from './routes/notifications.routes';
+import sessionRouter from './routes/session';
+import sessionDeviceRouter from './routes/sessionDevice';
+import dotenv from 'dotenv';
+import searchRoutes from './routes/search';
+import {
+  rateLimiter,
+  serviceCredentialLimiter,
+  authRateLimiter,
+  userRateLimiter,
+  federationServiceLimiter,
+  bruteForceProtection,
+  securityHeaders,
+} from './middleware/security';
+import privacyRoutes from './routes/privacy';
+import analyticsRoutes from './routes/analytics.routes';
 import paymentRoutes from './routes/payment.routes';
 import walletRoutes from './routes/wallet.routes';
 import reputationRoutes from './routes/reputation.routes';
@@ -117,7 +129,10 @@ import {
   SPEND_ANOMALY_SWEEP_INTERVAL_MS,
   sweepSpendAnomalies,
 } from './services/spendAnomaly.service';
-import { VALIDATION_SWEEP_INTERVAL_MS, PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS } from './utils/civic.constants';
+import {
+  VALIDATION_SWEEP_INTERVAL_MS,
+  PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS,
+} from './utils/civic.constants';
 import { FOLLOW_EXPIRY_SWEEP_INTERVAL_MS } from './utils/follow.constants';
 import { NODE_LIVENESS_SWEEP_INTERVAL_MS } from './utils/nodes.constants';
 import didRoutes from './routes/did';
@@ -127,10 +142,7 @@ import updatesAdminRoutes from './routes/updatesAdmin';
 import { startSmtpInbound, stopSmtpInbound } from './services/smtp.inbound';
 import { isOutboundRelayConfigured } from './services/smtp.outbound';
 import { smtpOutbound } from './services/smtp.outbound';
-import {
-  startFollowOutboxWorker,
-  stopFollowOutboxWorker,
-} from './services/followOutbox.worker';
+import { startFollowOutboxWorker, stopFollowOutboxWorker } from './services/followOutbox.worker';
 import {
   startAccountEventWebhookWorker,
   stopAccountEventWebhookWorker,
@@ -163,7 +175,12 @@ import {
   startFederatedAvatarRetryJobs,
   stopFederatedAvatarRetryJobs,
 } from './queue/federatedAvatarRetry.queue';
-import { getEnvBoolean, validateRequiredEnvVars, getSanitizedConfig, getEnvNumber } from './config/env';
+import {
+  getEnvBoolean,
+  validateRequiredEnvVars,
+  getSanitizedConfig,
+  getEnvNumber,
+} from './config/env';
 import { logger } from './utils/logger';
 import type { Response } from 'express';
 import { authMiddleware, type AuthRequest } from './middleware/auth';
@@ -217,18 +234,17 @@ app.use(securityHeaders);
 // OAuth challenge, and origin policy. Mount it before compression and global
 // body parsing so the protocol boundary is enforced exactly once.
 const inboxMcpHttpService = createInboxMcpHttpService();
-app.all(
-  inboxMcpHttpService.protectedResourceMetadataPath,
-  (request, response) => {
-    inboxMcpHttpService.handleProtectedResourceMetadata(request, response);
-  },
-);
+app.all(inboxMcpHttpService.protectedResourceMetadataPath, (request, response) => {
+  inboxMcpHttpService.handleProtectedResourceMetadata(request, response);
+});
 app.all(inboxMcpHttpService.mcpPath, (request, response) => {
   void inboxMcpHttpService.handleMcp(request, response);
 });
 
 // The internal Capability transport owns its body, never the external OAuth lane.
-app.all('/_oxy/mcp', rateLimiter, (request, response) => { void handleOxyProfileInternalMcp(request, response); });
+app.all('/_oxy/mcp', rateLimiter, (request, response) => {
+  void handleOxyProfileInternalMcp(request, response);
+});
 
 // Compress responses (gzip/brotli)
 app.use(compression());
@@ -253,14 +269,12 @@ const EMAIL_INBOUND_PATH_API_PREFIXED = '/api/email/inbound';
 function isCacheUploadRequest(req: express.Request): boolean {
   return (
     req.method === 'POST' &&
-    (
-      req.path === CACHE_UPLOAD_PATH ||
+    (req.path === CACHE_UPLOAD_PATH ||
       req.path === CACHE_UPLOAD_PATH_API_PREFIXED ||
       req.path === FEDERATION_UPLOAD_PATH ||
       req.path === FEDERATION_UPLOAD_PATH_API_PREFIXED ||
       req.path === USER_MEDIA_UPLOAD_PATH ||
-      req.path === USER_MEDIA_UPLOAD_PATH_API_PREFIXED
-    )
+      req.path === USER_MEDIA_UPLOAD_PATH_API_PREFIXED)
   );
 }
 
@@ -281,7 +295,7 @@ app.use(
   [EMAIL_INBOUND_PATH, EMAIL_INBOUND_PATH_API_PREFIXED],
   verifyEmailInboundWebhookSecret,
   inboundRateLimit,
-  express.raw({ type: '*/*', limit: '25mb' })
+  express.raw({ type: '*/*', limit: '25mb' }),
 );
 // Amazon SNS posts its notifications as `text/plain`, so the global JSON parser
 // leaves req.body empty and the signature check has nothing to verify. Parse
@@ -295,10 +309,14 @@ app.use('/email/feedback/ses', feedbackRateLimit, express.text({ type: '*/*', li
 const jsonParser = express.json({ limit: '1mb' });
 const urlencodedParser = express.urlencoded({ extended: true, limit: '1mb' });
 app.use((req, res, next) =>
-  isCacheUploadRequest(req) || isEmailInboundWebhookRequest(req) ? next() : jsonParser(req, res, next)
+  isCacheUploadRequest(req) || isEmailInboundWebhookRequest(req)
+    ? next()
+    : jsonParser(req, res, next),
 );
 app.use((req, res, next) =>
-  isCacheUploadRequest(req) || isEmailInboundWebhookRequest(req) ? next() : urlencodedParser(req, res, next)
+  isCacheUploadRequest(req) || isEmailInboundWebhookRequest(req)
+    ? next()
+    : urlencodedParser(req, res, next),
 );
 
 // Request timeout to prevent slow clients holding connections. The cache
@@ -449,31 +467,30 @@ initAuthSessionNamespace(authSessionNamespace);
 authSessionNamespace.on('connection', (socket) => {
   observePlatformSocket(socket);
   logger.debug('Auth session socket connected', { socketId: socket.id });
-  
+
   // Client joins a room for their session token
   socket.on('join', (sessionToken: string) => {
     if (!sessionToken || typeof sessionToken !== 'string' || sessionToken.length < 10) {
       socket.emit('error', { message: 'Invalid session token' });
       return;
     }
-    
+
     const room = `auth:${sessionToken}`;
     socket.join(room);
     logger.debug('Client joined auth session room', { socketId: socket.id, room });
     socket.emit('joined', { room: sessionToken });
   });
-  
+
   socket.on('leave', (sessionToken: string) => {
     const room = `auth:${sessionToken}`;
     socket.leave(room);
     logger.debug('Client left auth session room', { socketId: socket.id, room });
   });
-  
+
   socket.on('disconnect', () => {
     logger.debug('Auth session socket disconnected', { socketId: socket.id });
   });
 });
-
 
 // Helper for emitting session_update
 export function emitSessionUpdate(userId: string, payload: any) {
@@ -552,16 +569,19 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // API Routes
-app.get("/", async (req, res) => {
+app.get('/', async (req, res) => {
   try {
     const [{ value: usersCount }] = await getDb().select({ value: count() }).from(users);
     res.json({
-      message: "Welcome to the API",
+      message: 'Welcome to the API',
       users: usersCount,
     });
   } catch (error) {
-    logger.error("Error in root endpoint:", error);
-    res.status(500).json({ message: "Error fetching stats", error: error instanceof Error ? error.message : String(error) });
+    logger.error('Error in root endpoint:', error);
+    res.status(500).json({
+      message: 'Error fetching stats',
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
@@ -583,28 +603,32 @@ app.get("/", async (req, res) => {
 // from under a LIVE pool; that is the only way the difference between "the
 // pool object exists" and "the server answers" becomes observable. See
 // `src/__tests__/healthGate.test.ts`.
-app.get("/health", async (req, res) => {
+app.get('/health', async (req, res) => {
   try {
     const isDatabaseUp = await isDatabaseReachable();
     const redisClient = getRedisClient();
-    const redisStatus = redisClient ? (redisClient.status === 'ready' ? "connected" : "disconnected") : "not configured";
+    const redisStatus = redisClient
+      ? redisClient.status === 'ready'
+        ? 'connected'
+        : 'disconnected'
+      : 'not configured';
 
     // Only the database being down is truly unhealthy (503).
     // Redis is used for caching/sockets — brief reconnections are "degraded" not "down".
     const isRedisDown = redisClient && redisClient.status !== 'ready';
 
     res.status(isDatabaseUp ? 200 : 503).json({
-      status: isDatabaseUp ? (isRedisDown ? "degraded" : "operational") : "down",
+      status: isDatabaseUp ? (isRedisDown ? 'degraded' : 'operational') : 'down',
       timestamp: new Date().toISOString(),
-      database: isDatabaseUp ? "connected" : "disconnected",
+      database: isDatabaseUp ? 'connected' : 'disconnected',
       redis: redisStatus,
     });
   } catch (error) {
-    logger.error("Health check error:", error);
+    logger.error('Health check error:', error);
     res.status(503).json({
-      status: "down",
+      status: 'down',
       timestamp: new Date().toISOString(),
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 });
@@ -635,20 +659,20 @@ app.get("/health", async (req, res) => {
 // non-staff caller gets 403 from `requireStaff`.
 //
 // Gate coverage: `src/__tests__/metricsStaffGate.test.ts`.
-app.get("/metrics", authMiddleware, requireStaff, (_req: AuthRequest, res: Response) => {
+app.get('/metrics', authMiddleware, requireStaff, (_req: AuthRequest, res: Response) => {
   try {
     const memoryStats = getMemoryStats();
     const connectionStats = getDatabaseStats();
     const perfSummary = performanceMonitor.getSummary();
     const slowOperations = performanceMonitor.getSlowOperations(1000);
-    
+
     res.json({
       timestamp: new Date().toISOString(),
       memory: memoryStats,
       database: connectionStats,
       performance: {
         summary: perfSummary,
-        slowOperations: slowOperations.map(op => ({
+        slowOperations: slowOperations.map((op) => ({
           operation: op.operation,
           avgDuration: op.avgDuration,
           count: op.count,
@@ -657,10 +681,10 @@ app.get("/metrics", authMiddleware, requireStaff, (_req: AuthRequest, res: Respo
       },
     });
   } catch (error) {
-    logger.error("Metrics endpoint error:", error);
+    logger.error('Metrics endpoint error:', error);
     res.status(500).json({
-      error: "Failed to retrieve metrics",
-      message: error instanceof Error ? error.message : String(error)
+      error: 'Failed to retrieve metrics',
+      message: error instanceof Error ? error.message : String(error),
     });
   }
 });
@@ -708,17 +732,17 @@ app.use(bruteForceProtection);
 // Apply stricter rate limiting to auth routes
 app.use(mcpOAuthDiscoveryRouter);
 app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
-app.use("/auth", authRateLimiter, authRoutes);
+app.use('/auth', authRateLimiter, authRoutes);
 app.use('/auth/agent', authRateLimiter, agentAuthRoutes);
 app.use('/_oxy/capabilities', foregroundProfilesRouter);
 app.use('/auth/resources', authRateLimiter, resourceIntrospectionRoutes);
 app.use('/v1/products', productAccessRoutes);
 app.use('/v1/products', productCatalogueRoutes);
-app.use("/auth", userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
-app.use("/assets", assetRoutes);
+app.use('/auth', userRateLimiter, authLinkingRoutes); // Auth linking (requires auth)
+app.use('/assets', assetRoutes);
 // Public CDN origin for cloud.oxy.so/<id> (CloudFront OriginPath = /cdn). No
 // auth — serves ONLY public CDN-backed assets via 302; 404 otherwise.
-app.use("/cdn", cdnRoutes);
+app.use('/cdn', cdnRoutes);
 // Oxy Updates (self-hosted expo-updates). The PUBLIC manifest endpoint has NO
 // auth — devices fetch it with only expo-updates headers — so it is mounted
 // here with its own limiter. The admin router (bearer/service-token
@@ -726,11 +750,11 @@ app.use("/cdn", cdnRoutes);
 // base; Express falls through to it for any path the manifest router does not
 // own. `/updates/v1` is namespaced strictly under `/updates` so it never clashes
 // with the bare `/v1` alia-compat mount below.
-app.use("/updates/v1", updatesManifestRoutes);
-app.use("/updates/v1", updatesAdminRoutes);
-app.use("/storage", userRateLimiter, storageRoutes);
-app.use("/search", searchRoutes);
-app.use("/profiles", profilesRouter);
+app.use('/updates/v1', updatesManifestRoutes);
+app.use('/updates/v1', updatesAdminRoutes);
+app.use('/storage', userRateLimiter, storageRoutes);
+app.use('/search', searchRoutes);
+app.use('/profiles', profilesRouter);
 // Mount the user app-data KV store BEFORE the generic /users mount so the
 // `/users/me/app-data/:namespace[/:key]` paths are owned by their dedicated
 // router. Mounting after /users would still work in practice (no route inside
@@ -739,11 +763,11 @@ app.use("/profiles", profilesRouter);
 // Password and authenticator of the signed-in account (`routes/accountSecurity.ts`).
 // Its own per-account limiters; not behind `userRateLimiter`, which `/users`
 // below applies, so no request is counted twice.
-app.use("/users/me", accountSecurityRoutes);
-app.use("/users/me/app-data", userRateLimiter, userDataRouter);
-app.use("/users", userRateLimiter, usersRouter); // Per-user rate limiting for authenticated routes
-app.use("/session/device", userRateLimiter, sessionDeviceRouter);
-app.use("/session", userRateLimiter, sessionRouter);
+app.use('/users/me', accountSecurityRoutes);
+app.use('/users/me/app-data', userRateLimiter, userDataRouter);
+app.use('/users', userRateLimiter, usersRouter); // Per-user rate limiting for authenticated routes
+app.use('/session/device', userRateLimiter, sessionDeviceRouter);
+app.use('/session', userRateLimiter, sessionRouter);
 // `authMiddleware` FIRST, not after `userRateLimiter`: `userRateLimiter`'s
 // keyGenerator/skip both read `(req as AuthRequest).user`, which privacyRoutes'
 // own internal `router.use(authMiddleware)` does not set until AFTER this
@@ -756,8 +780,8 @@ app.use("/session", userRateLimiter, sessionRouter);
 // because Mention fans every signed-in user's privacy-list read through one
 // shared backend NAT egress IP and the general 1000/15min budget has no
 // per-account attribution to fall back on once it is shared like that.
-app.use("/privacy", authMiddleware, userRateLimiter, privacyRoutes);
-app.use("/analytics", userRateLimiter, authMiddleware, analyticsRoutes);
+app.use('/privacy', authMiddleware, userRateLimiter, privacyRoutes);
+app.use('/analytics', userRateLimiter, authMiddleware, analyticsRoutes);
 app.use('/payments', userRateLimiter, paymentRoutes);
 app.use('/notifications', userRateLimiter, notificationsRouter);
 // Mounted BEFORE `/reputation` so the more specific prefix wins: the parent
@@ -862,8 +886,11 @@ app.use('/inference/provider-connections', inferenceProviderConnectionRoutes);
 app.use('/inference/reporting', inferenceReportingRoutes);
 app.use('/platform-stats', platformStatsRoutes);
 app.get('/platform-infrastructure', async (_req, res) => {
-  try { res.set('Cache-Control', 'no-store').json(await refreshInfrastructure()); }
-  catch { res.status(503).json({ error: 'Infrastructure snapshot unavailable' }); }
+  try {
+    res.set('Cache-Control', 'no-store').json(await refreshInfrastructure());
+  } catch {
+    res.status(503).json({ error: 'Infrastructure snapshot unavailable' });
+  }
 });
 app.use('/topics', topicsRoutes);
 // The follow graph. `/v2` because these are new operations rather than a new
@@ -908,7 +935,11 @@ app.use('/civic', civicRoutes);
 app.use('/nodes', nodeRoutes);
 
 // ActivityPub endpoints — serves actor profiles and public keys for federation.
-import { getInstanceActor, getUserActor, isOwnFederationDomain } from './services/federation.service';
+import {
+  getInstanceActor,
+  getUserActor,
+  isOwnFederationDomain,
+} from './services/federation.service';
 import federationRoutes from './routes/federation';
 import { createWebfingerHandler } from './routes/webfinger';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '@oxy.so/federation';
@@ -1043,13 +1074,16 @@ app.get('/nodeinfo/2.0', async (_req: any, res: Response) => {
 });
 
 // WebFinger endpoint
-app.get('/.well-known/webfinger', createWebfingerHandler({
-  domain: AP_DOMAIN,
-  isOwnFederationDomain,
-  findUserByUsername: findFederatableUserByUsername,
-  isFederatableUser,
-  logger,
-}));
+app.get(
+  '/.well-known/webfinger',
+  createWebfingerHandler({
+    domain: AP_DOMAIN,
+    isOwnFederationDomain,
+    findUserByUsername: findFederatableUserByUsername,
+    isFederatableUser,
+    logger,
+  }),
+);
 
 // Federation identity & sign-on-behalf endpoints.
 //
@@ -1081,9 +1115,13 @@ app.use('/transparency', transparencyRoutes);
 
 // Swagger API documentation (non-production only)
 if (process.env.NODE_ENV !== 'production') {
-  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customSiteTitle: 'Oxy API Documentation',
-  }));
+  app.use(
+    '/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customSiteTitle: 'Oxy API Documentation',
+    }),
+  );
   // Serve raw OpenAPI spec as JSON
   app.get('/docs.json', (_req, res) => {
     res.setHeader('Content-Type', 'application/json');
@@ -1161,7 +1199,10 @@ export async function bootstrap(
   // so it never keeps the process alive; failures are logged, never thrown.
   const validationSweep = setInterval(() => {
     sweepValidations().catch((err) =>
-      logger.error('Civic validation sweep failed', err instanceof Error ? err : new Error(String(err))),
+      logger.error(
+        'Civic validation sweep failed',
+        err instanceof Error ? err : new Error(String(err)),
+      ),
     );
   }, VALIDATION_SWEEP_INTERVAL_MS);
   validationSweep.unref();
@@ -1172,7 +1213,10 @@ export async function bootstrap(
   // validation sweep above.
   const personhoodAuditSweep = setInterval(() => {
     sweepPersonhoodAudits().catch((err) =>
-      logger.error('Civic personhood audit sweep failed', err instanceof Error ? err : new Error(String(err))),
+      logger.error(
+        'Civic personhood audit sweep failed',
+        err instanceof Error ? err : new Error(String(err)),
+      ),
     );
   }, PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS);
   personhoodAuditSweep.unref();
@@ -1183,7 +1227,10 @@ export async function bootstrap(
   // above.
   const nodeLivenessSweep = setInterval(() => {
     sweepNodeLiveness().catch((err) =>
-      logger.error('User-node liveness sweep failed', err instanceof Error ? err : new Error(String(err))),
+      logger.error(
+        'User-node liveness sweep failed',
+        err instanceof Error ? err : new Error(String(err)),
+      ),
     );
   }, NODE_LIVENESS_SWEEP_INTERVAL_MS);
   nodeLivenessSweep.unref();
@@ -1193,7 +1240,10 @@ export async function bootstrap(
   // graph exactly like a manual unfollow.
   const followExpirySweep = setInterval(() => {
     expireDueFollows().catch((err) =>
-      logger.error('Follow expiry sweep failed', err instanceof Error ? err : new Error(String(err))),
+      logger.error(
+        'Follow expiry sweep failed',
+        err instanceof Error ? err : new Error(String(err)),
+      ),
     );
   }, FOLLOW_EXPIRY_SWEEP_INTERVAL_MS);
   followExpirySweep.unref();
@@ -1210,7 +1260,10 @@ export async function bootstrap(
   // candidate. Unref'd + failures logged, like the sweeps above.
   const autoRechargeSweep = setInterval(() => {
     runAutoRechargeSweep().catch((err) =>
-      logger.error('Auto-recharge sweep failed', err instanceof Error ? err : new Error(String(err))),
+      logger.error(
+        'Auto-recharge sweep failed',
+        err instanceof Error ? err : new Error(String(err)),
+      ),
     );
   }, AUTO_RECHARGE_SWEEP_INTERVAL_MS);
   autoRechargeSweep.unref();
@@ -1240,7 +1293,10 @@ export async function bootstrap(
         }
       })
       .catch((err) =>
-        logger.error('Reservation expiry sweep failed', err instanceof Error ? err : new Error(String(err))),
+        logger.error(
+          'Reservation expiry sweep failed',
+          err instanceof Error ? err : new Error(String(err)),
+        ),
       );
   }, RESERVATION_EXPIRY_SWEEP_INTERVAL_MS);
   reservationExpirySweep.unref();
@@ -1292,8 +1348,8 @@ export async function bootstrap(
       .catch((err) =>
         logger.error(
           'Spend anomaly sweep failed',
-          err instanceof Error ? err : new Error(String(err))
-        )
+          err instanceof Error ? err : new Error(String(err)),
+        ),
       );
   }, SPEND_ANOMALY_SWEEP_INTERVAL_MS);
   spendAnomalySweep.unref();
@@ -1318,8 +1374,8 @@ export async function bootstrap(
       .catch((err) =>
         logger.error(
           'Token anomaly sweep failed',
-          err instanceof Error ? err : new Error(String(err))
-        )
+          err instanceof Error ? err : new Error(String(err)),
+        ),
       );
   }, TOKEN_ANOMALY_SWEEP_INTERVAL_MS);
   tokenAnomalySweep.unref();
@@ -1343,7 +1399,10 @@ export async function bootstrap(
         }
       })
       .catch((err) =>
-        logger.error('Reconciliation sweep failed', err instanceof Error ? err : new Error(String(err))),
+        logger.error(
+          'Reconciliation sweep failed',
+          err instanceof Error ? err : new Error(String(err)),
+        ),
       );
   }, RECONCILIATION_SWEEP_INTERVAL_MS);
   reconciliationSweep.unref();
@@ -1374,7 +1433,10 @@ export async function bootstrap(
       startSmtpInbound();
       logger.info('SMTP inbound server enabled');
     } catch (err) {
-      logger.error('SMTP inbound server failed to start', err instanceof Error ? err : new Error(String(err)));
+      logger.error(
+        'SMTP inbound server failed to start',
+        err instanceof Error ? err : new Error(String(err)),
+      );
     }
   }
 

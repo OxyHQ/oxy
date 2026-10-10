@@ -72,9 +72,7 @@ export const userCredits = pgTable(
     creditsFree: bigint({ mode: 'number' }).notNull().default(DEFAULT_FREE_CREDITS),
     /** The ceiling a refresh restores `credits_free` to. Per-account, so a column. */
     creditsFreeLimit: bigint({ mode: 'number' }).notNull().default(DEFAULT_FREE_CREDITS),
-    creditsDailyRefresh: bigint({ mode: 'number' })
-      .notNull()
-      .default(DEFAULT_DAILY_CREDIT_REFRESH),
+    creditsDailyRefresh: bigint({ mode: 'number' }).notNull().default(DEFAULT_DAILY_CREDIT_REFRESH),
     /** The compare-and-set column that makes a refresh happen at most once. */
     creditsLastRefresh: timestamptz().notNull().defaultNow(),
     /** Purchased credits. Spent BEFORE free credits — see `db/credits.ts`. */
@@ -102,5 +100,5 @@ export const userCredits = pgTable(
     // The second line behind `db/credits.ts`'s guards — see the header.
     check('user_credits_credits_free_check', sql`${t.creditsFree} >= 0`),
     check('user_credits_credits_paid_check', sql`${t.creditsPaid} >= 0`),
-  ]
+  ],
 );

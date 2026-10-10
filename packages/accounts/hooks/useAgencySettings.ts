@@ -47,14 +47,18 @@ function useAgencyMutation<TInput, TResult>(
 
 export function useCreateDelegationGrant(accountId: string) {
   const { oxyServices } = useOxy();
-  return useAgencyMutation(accountId, ['agency', 'grant', 'create'], (input: CreateDelegationGrantInput) =>
-    oxyServices.agency.grants.create(input));
+  return useAgencyMutation(
+    accountId,
+    ['agency', 'grant', 'create'],
+    (input: CreateDelegationGrantInput) => oxyServices.agency.grants.create(input),
+  );
 }
 
 export function useRevokeDelegationGrant(accountId: string) {
   const { oxyServices } = useOxy();
   return useAgencyMutation(accountId, ['agency', 'grant', 'revoke'], (grantId: string) =>
-    oxyServices.agency.grants.revoke(grantId, accountId));
+    oxyServices.agency.grants.revoke(grantId, accountId),
+  );
 }
 
 export function useUpdateDelegationGrant(accountId: string) {
@@ -80,11 +84,16 @@ export function usePutAccountCapabilityPolicy(accountId: string) {
 export function useDeleteAccountCapabilityPolicy(accountId: string) {
   const { oxyServices } = useOxy();
   return useAgencyMutation(accountId, ['agency', 'policy', 'delete'], (appId: string) =>
-    oxyServices.agency.policies.delete(appId, accountId));
+    oxyServices.agency.policies.delete(appId, accountId),
+  );
 }
 
 export function useRevokeExecutionAuthorization(accountId: string) {
   const { oxyServices } = useOxy();
-  return useAgencyMutation(accountId, ['agency', 'authorization', 'revoke'], (authorizationId: string) =>
-    oxyServices.agency.authorizations.revoke(authorizationId, accountId));
+  return useAgencyMutation(
+    accountId,
+    ['agency', 'authorization', 'revoke'],
+    (authorizationId: string) =>
+      oxyServices.agency.authorizations.revoke(authorizationId, accountId),
+  );
 }

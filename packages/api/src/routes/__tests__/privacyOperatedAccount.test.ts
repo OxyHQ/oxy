@@ -84,7 +84,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -116,12 +116,12 @@ function post(path: string): Promise<JsonResponse> {
           } catch (error) {
             reject(
               new Error(
-                `Non-JSON response (${res.statusCode}): ${raw} — ${(error as Error).message}`
-              )
+                `Non-JSON response (${res.statusCode}): ${raw} — ${(error as Error).message}`,
+              ),
             );
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end('{}');
@@ -135,7 +135,7 @@ function post(path: string): Promise<JsonResponse> {
 let seedCounter = 0;
 
 async function seedAccount(
-  kind: 'personal' | 'organization' | 'project' | 'bot' | 'channel'
+  kind: 'personal' | 'organization' | 'project' | 'bot' | 'channel',
 ): Promise<string> {
   seedCounter += 1;
   const [row] = await getDb()
@@ -230,7 +230,7 @@ describe('block/restrict still work for callers who do not operate the target', 
     expect(await restrictRowCount(caller, target)).toBe(1);
   });
 
-  it("a BILLING member of an organization may still block it — they are a member who may not act as it", async () => {
+  it('a BILLING member of an organization may still block it — they are a member who may not act as it', async () => {
     const caller = await seedAccount('personal');
     const org = await seedAccount('organization');
     await seedMembership({ accountId: org, memberUserId: caller, role: 'billing' });
@@ -423,7 +423,7 @@ describe('accountService.operatesAccount', () => {
   it('is false for an account id that does not exist', async () => {
     const caller = await seedAccount('personal');
     expect(
-      await accountService.operatesAccount(caller, '00000000-0000-7000-8000-000000000000')
+      await accountService.operatesAccount(caller, '00000000-0000-7000-8000-000000000000'),
     ).toBe(false);
   });
 
@@ -457,9 +457,7 @@ describe('accountService.operatesAccount', () => {
     await seedMembership({ accountId: channel, memberUserId: caller, role: 'owner' });
 
     const failure = new Error('connection terminated unexpectedly');
-    const spy = jest
-      .spyOn(accountService, 'resolveEffectiveAccess')
-      .mockRejectedValueOnce(failure);
+    const spy = jest.spyOn(accountService, 'resolveEffectiveAccess').mockRejectedValueOnce(failure);
     try {
       await expect(accountService.operatesAccount(caller, channel)).rejects.toThrow(failure);
     } finally {

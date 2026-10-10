@@ -42,11 +42,17 @@ export function OverviewSection({
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.tint} />
-              <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('storage.loading')}</ThemedText>
+              <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+                {t('storage.loading')}
+              </ThemedText>
             </View>
           ) : error ? (
             <View style={styles.errorContainer}>
-              <MaterialCommunityIcons name="alert-circle-outline" size={40} color={colors.sidebarIconSharing} />
+              <MaterialCommunityIcons
+                name="alert-circle-outline"
+                size={40}
+                color={colors.sidebarIconSharing}
+              />
               <ThemedText style={[styles.errorText, { color: colors.text }]}>{error}</ThemedText>
               <TouchableOpacity
                 style={[styles.retryButton, { backgroundColor: colors.tint }]}

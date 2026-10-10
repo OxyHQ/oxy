@@ -127,7 +127,9 @@ export const SUITES = Object.keys(SUITE_JOBS);
  * exempts its references only while the `guards` job still names it. Skipping
  * the suite that owns one therefore never skips the census itself.
  */
-export const REPO_WIDE_TESTS = ['packages/contracts/src/__tests__/usernamePolicySingleSource.test.ts'];
+export const REPO_WIDE_TESTS = [
+  'packages/contracts/src/__tests__/usernamePolicySingleSource.test.ts',
+];
 
 /**
  * Files a workspace's tests read from OUTSIDE its dependency closure, as path
@@ -170,7 +172,9 @@ function show(cwd, rev, path) {
 function changedPaths(cwd, base, head) {
   // `--no-renames`: a file moved OUT of packages/api must still name its old
   // path, and rename detection would report only the new one.
-  return git(cwd, ['diff', '--name-only', '--no-renames', '-z', base, head]).split('\0').filter(Boolean);
+  return git(cwd, ['diff', '--name-only', '--no-renames', '-z', base, head])
+    .split('\0')
+    .filter(Boolean);
 }
 
 // ── Workspaces ─────────────────────────────────────────────────────────────
@@ -194,7 +198,9 @@ export function workspaceDirectories(cwd, rev) {
     if (dir.includes('*')) {
       // A glob would need expansion this script does not do. Refuse rather than
       // silently treat every package under it as outside the closure.
-      throw new Error(`workspace entry ${JSON.stringify(dir)} is a glob; teach ci-api-scope.mjs to expand it`);
+      throw new Error(
+        `workspace entry ${JSON.stringify(dir)} is a glob; teach ci-api-scope.mjs to expand it`,
+      );
     }
     const manifest = readJson(cwd, rev, `${dir}/package.json`);
     if (manifest?.name) byName.set(manifest.name, { dir, manifest });
@@ -202,7 +208,12 @@ export function workspaceDirectories(cwd, rev) {
   return byName;
 }
 
-const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+const DEPENDENCY_FIELDS = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+];
 
 function declaredDependencies(manifest) {
   const names = new Set();
@@ -261,19 +272,24 @@ export function suiteRoots(workflowText, workspaces) {
     const found = new Set();
     for (const id of jobIds) {
       const job = jobs[id];
-      if (!job || !Array.isArray(job.steps)) throw new Error(`${WORKFLOW_PATH} has no job \`${id}\` with steps (suite ${suite})`);
+      if (!job || !Array.isArray(job.steps))
+        throw new Error(`${WORKFLOW_PATH} has no job \`${id}\` with steps (suite ${suite})`);
       for (const step of job.steps) {
         const workingDirectory = step?.['working-directory'];
         if (typeof workingDirectory === 'string') {
           const dir = workingDirectory.replace(/^\.\//, '').replace(/\/$/, '');
-          if (!dirs.has(dir)) throw new Error(`job \`${id}\` works in ${workingDirectory}, which is not a workspace`);
+          if (!dirs.has(dir))
+            throw new Error(`job \`${id}\` works in ${workingDirectory}, which is not a workspace`);
           found.add(dir);
         }
         const run = typeof step?.run === 'string' ? step.run : '';
         for (const match of run.matchAll(FILTER)) {
           const name = match[1].replace(/^\.\.\./, '').replace(/\.\.\.$/, '');
           const dir = dirByName.get(name);
-          if (!dir) throw new Error(`job \`${id}\` filters on ${JSON.stringify(match[1])}, which names no workspace`);
+          if (!dir)
+            throw new Error(
+              `job \`${id}\` filters on ${JSON.stringify(match[1])}, which names no workspace`,
+            );
           found.add(dir);
         }
       }
@@ -294,10 +310,13 @@ const SOURCE_GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs', '*.mts
 
 /** The package name a bare specifier resolves through, or null for relative/builtin/absolute. */
 export function packageNameOf(specifier) {
-  if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('node:')) return null;
-  if (specifier.startsWith('bun:') || specifier.includes('<rootDir>') || /\s/.test(specifier)) return null;
+  if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.startsWith('node:'))
+    return null;
+  if (specifier.startsWith('bun:') || specifier.includes('<rootDir>') || /\s/.test(specifier))
+    return null;
   const parts = specifier.split('/');
-  if (specifier.startsWith('@')) return parts.length >= 2 && parts[1] ? `${parts[0]}/${parts[1]}` : null;
+  if (specifier.startsWith('@'))
+    return parts.length >= 2 && parts[1] ? `${parts[0]}/${parts[1]}` : null;
   return parts[0] || null;
 }
 
@@ -348,7 +367,12 @@ function resolveKey(packages, fromSegments, name) {
 export function parseLockfile(text) {
   if (typeof Bun?.JSONC?.parse !== 'function') throw new Error('this Bun has no JSONC parser');
   const lock = Bun.JSONC.parse(text);
-  if (!lock || typeof lock !== 'object' || typeof lock.packages !== 'object' || typeof lock.workspaces !== 'object') {
+  if (
+    !lock ||
+    typeof lock !== 'object' ||
+    typeof lock.packages !== 'object' ||
+    typeof lock.workspaces !== 'object'
+  ) {
     throw new Error('bun.lock has no `packages` or `workspaces` map');
   }
   return lock;
@@ -361,7 +385,13 @@ export function parseLockfile(text) {
 export function lockFootprint(lock, closureDirs, rootNames) {
   const { packages, workspaces } = lock;
   const footprint = new Set();
-  for (const section of ['lockfileVersion', 'configVersion', 'overrides', 'patchedDependencies', 'trustedDependencies']) {
+  for (const section of [
+    'lockfileVersion',
+    'configVersion',
+    'overrides',
+    'patchedDependencies',
+    'trustedDependencies',
+  ]) {
     footprint.add(`#${section} ${JSON.stringify(lock[section] ?? null)}`);
   }
 
@@ -392,7 +422,8 @@ export function lockFootprint(lock, closureDirs, rootNames) {
     footprint.add(`@workspace ${dir} ${JSON.stringify(workspace)}`);
     const segments = [workspace.name ?? dir];
     const names = new Set(rootNames);
-    for (const field of DEPENDENCY_FIELDS) for (const name of Object.keys(workspace[field] ?? {})) names.add(name);
+    for (const field of DEPENDENCY_FIELDS)
+      for (const name of Object.keys(workspace[field] ?? {})) names.add(name);
     for (const name of [...names].sort()) visit(dir, segments, name);
   }
 
@@ -409,10 +440,13 @@ export function lockFootprint(lock, closureDirs, rootNames) {
       footprint.add(`@workspace ${workspaceMatch[1]} ${JSON.stringify(workspace ?? null)}`);
       dependencies = workspace ?? {};
     } else {
-      dependencies = Array.isArray(entry) ? entry.find((part) => part && typeof part === 'object' && !Array.isArray(part)) ?? {} : {};
+      dependencies = Array.isArray(entry)
+        ? (entry.find((part) => part && typeof part === 'object' && !Array.isArray(part)) ?? {})
+        : {};
     }
     const names = new Set();
-    for (const field of DEPENDENCY_FIELDS) for (const name of Object.keys(dependencies[field] ?? {})) names.add(name);
+    for (const field of DEPENDENCY_FIELDS)
+      for (const name of Object.keys(dependencies[field] ?? {})) names.add(name);
     for (const name of [...names].sort()) visit(key, segments, name);
   }
 
@@ -436,7 +470,11 @@ const ROOT_WORKSPACE_KEYS_DEFERRED_TO_LOCKFILE = ['catalog', 'catalogs'];
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonical(value[key])]),
+    );
   }
   return value;
 }
@@ -448,7 +486,11 @@ export function rootManifestChangeIsResolutionOnly(baseText, headText) {
     const manifest = JSON.parse(text);
     for (const key of ROOT_KEYS_DEFERRED_TO_LOCKFILE) delete manifest[key];
     for (const key of ['catalog', 'catalogs']) delete manifest[key];
-    if (manifest.workspaces && typeof manifest.workspaces === 'object' && !Array.isArray(manifest.workspaces)) {
+    if (
+      manifest.workspaces &&
+      typeof manifest.workspaces === 'object' &&
+      !Array.isArray(manifest.workspaces)
+    ) {
       for (const key of ROOT_WORKSPACE_KEYS_DEFERRED_TO_LOCKFILE) delete manifest.workspaces[key];
     }
     return JSON.stringify(canonical(manifest));
@@ -459,10 +501,14 @@ export function rootManifestChangeIsResolutionOnly(baseText, headText) {
 // ── The decision ───────────────────────────────────────────────────────────
 
 function lockfileVerdict(cwd, base, head, closure) {
-  const roots = new Set([...importedPackages(cwd, base, closure), ...importedPackages(cwd, head, closure)]);
+  const roots = new Set([
+    ...importedPackages(cwd, base, closure),
+    ...importedPackages(cwd, head, closure),
+  ]);
   const baseText = show(cwd, base, LOCKFILE);
   const headText = show(cwd, head, LOCKFILE);
-  if (baseText === null || headText === null) return { reason: `${LOCKFILE} is missing on one side of the diff` };
+  if (baseText === null || headText === null)
+    return { reason: `${LOCKFILE} is missing on one side of the diff` };
   const before = lockFootprint(parseLockfile(baseText), closure, roots);
   const after = lockFootprint(parseLockfile(headText), closure, roots);
   const beforeSet = new Set(before);
@@ -477,7 +523,9 @@ function lockfileVerdict(cwd, base, head, closure) {
         `${after.length} reachable entries):\n      ${sample.map((l) => l.slice(0, 200)).join('\n      ')}`,
     };
   }
-  return { ignored: `${LOCKFILE} (all ${after.length} entries reachable from this suite are identical)` };
+  return {
+    ignored: `${LOCKFILE} (all ${after.length} entries reachable from this suite are identical)`,
+  };
 }
 
 /**
@@ -496,20 +544,27 @@ export function decide({ cwd, base, head }) {
   ]);
   const changed = changedPaths(cwd, base, head);
   const rootManifestResolutionOnly = changed.includes('package.json')
-    ? rootManifestChangeIsResolutionOnly(show(cwd, base, 'package.json'), show(cwd, head, 'package.json'))
+    ? rootManifestChangeIsResolutionOnly(
+        show(cwd, base, 'package.json'),
+        show(cwd, head, 'package.json'),
+      )
     : null;
 
   const verdicts = {};
   for (const suite of SUITES) {
     // Roots that exist on the base side too: a root the PR removes still names
     // the code the suite used to cover.
-    const baseRoots = roots[suite].filter((dir) => [...baseWorkspaces.values()].some((w) => w.dir === dir));
+    const baseRoots = roots[suite].filter((dir) =>
+      [...baseWorkspaces.values()].some((w) => w.dir === dir),
+    );
     const closureDirs = new Set([
       ...[...closureOf(baseWorkspaces, baseRoots).values()].map((w) => w.dir),
       ...[...closureOf(headWorkspaces, roots[suite]).values()].map((w) => w.dir),
     ]);
     const closure = [...closureDirs].sort();
-    const extraInputs = closure.flatMap((dir) => (EXTRA_INPUTS[dir] ?? []).map((prefix) => ({ dir, prefix })));
+    const extraInputs = closure.flatMap((dir) =>
+      (EXTRA_INPUTS[dir] ?? []).map((prefix) => ({ dir, prefix })),
+    );
     const reasons = [];
     const ignored = [];
     let lockfileChanged = false;
@@ -524,7 +579,9 @@ export function decide({ cwd, base, head }) {
           // Deferred, not ignored: the lockfile walk below decides, whether or
           // not bun.lock itself moved.
           lockfileChanged = true;
-          ignored.push('package.json (only the catalog / root dependency maps changed; decided by the lockfile walk)');
+          ignored.push(
+            'package.json (only the catalog / root dependency maps changed; decided by the lockfile walk)',
+          );
         } else {
           reasons.push('package.json changed outside the catalog and root dependency maps');
         }
@@ -532,7 +589,9 @@ export function decide({ cwd, base, head }) {
       }
       const extra = extraInputs.find(({ prefix }) => path.startsWith(prefix));
       if (extra) {
-        reasons.push(`${path} is read by ${extra.dir}'s tests (EXTRA_INPUTS), and this suite covers ${extra.dir}`);
+        reasons.push(
+          `${path} is read by ${extra.dir}'s tests (EXTRA_INPUTS), and this suite covers ${extra.dir}`,
+        );
         continue;
       }
       const owner = [...workspaceDirs].find((dir) => path.startsWith(`${dir}/`));
@@ -578,14 +637,20 @@ function emit(runs, lines) {
   const outputs = SUITES.map((suite) => `${suite}=${runs[suite] ? 'true' : 'false'}`);
   for (const line of outputs) console.log(line);
   for (const line of lines) console.log(line);
-  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
+  if (process.env.GITHUB_OUTPUT)
+    appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join('\n')}\n`);
   if (process.env.GITHUB_STEP_SUMMARY) {
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
       '### Suites on this pull request\n\n' +
-        SUITES.map((suite) => `- **${suite}** (${SUITE_JOBS[suite].join(', ')}): ${runs[suite] ? 'RUN' : 'SKIPPED'}`).join('\n') +
-        '\n\n```\n' + lines.join('\n') + '\n```\n\n' +
-        'The merge queue runs every suite regardless.\n'
+        SUITES.map(
+          (suite) =>
+            `- **${suite}** (${SUITE_JOBS[suite].join(', ')}): ${runs[suite] ? 'RUN' : 'SKIPPED'}`,
+        ).join('\n') +
+        '\n\n```\n' +
+        lines.join('\n') +
+        '\n```\n\n' +
+        'The merge queue runs every suite regardless.\n',
     );
   }
 }
@@ -602,7 +667,9 @@ if (import.meta.main) {
       // to the tree the queue will test. Anything else is not that commit.
       const parents = git(cwd, ['rev-list', '--parents', '-n', '1', head]).trim().split(/\s+/);
       if (parents.length !== 3) {
-        throw new Error(`${head} has ${parents.length - 1} parent(s), not 2: it is not a pull request merge commit`);
+        throw new Error(
+          `${head} has ${parents.length - 1} parent(s), not 2: it is not a pull request merge commit`,
+        );
       }
       base = parents[1];
     }
@@ -615,9 +682,17 @@ if (import.meta.main) {
         `[${suite}] ${run ? 'RUN' : 'SKIP'} — roots: ${roots.join(', ')}`,
         `  closure: ${closure.join(', ')}`,
         ...(run
-          ? [`  Runs because (${reasons.length}):`, ...reasons.slice(0, 15).map((r) => `    - ${r}`)]
+          ? [
+              `  Runs because (${reasons.length}):`,
+              ...reasons.slice(0, 15).map((r) => `    - ${r}`),
+            ]
           : ['  Nothing reaches this suite.']),
-        ...(ignored.length > 0 ? [`  Outside its reach (${ignored.length}):`, ...ignored.slice(0, 20).map((p) => `    - ${p}`)] : [])
+        ...(ignored.length > 0
+          ? [
+              `  Outside its reach (${ignored.length}):`,
+              ...ignored.slice(0, 20).map((p) => `    - ${p}`),
+            ]
+          : []),
       );
     }
     emit(Object.fromEntries(SUITES.map((suite) => [suite, verdicts[suite].run])), lines);

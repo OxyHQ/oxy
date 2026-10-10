@@ -30,7 +30,7 @@ export const showBottomSheet = (
     | { screen: RouteName; props?: Record<string, unknown>; fullScreen?: boolean },
 ): void => {
   const screen = typeof screenOrConfig === 'string' ? screenOrConfig : screenOrConfig.screen;
-  const props = typeof screenOrConfig === 'string' ? {} : screenOrConfig.props ?? {};
+  const props = typeof screenOrConfig === 'string' ? {} : (screenOrConfig.props ?? {});
 
   if (!isValidRoute(screen)) {
     if (__DEV__) console.warn(`[BottomSheet] Invalid route: ${screen}`);

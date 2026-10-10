@@ -58,7 +58,11 @@ export function TestAppTabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View style={styles.host}>
-      <TabBar activeIndex={activeIndex} onIndexChange={handleIndexChange} maxWidth={TAB_BAR_MAX_WIDTH}>
+      <TabBar
+        activeIndex={activeIndex}
+        onIndexChange={handleIndexChange}
+        maxWidth={TAB_BAR_MAX_WIDTH}
+      >
         {items.map((item, index) => (
           <TabBarButton key={item.name} item={item} index={index} />
         ))}

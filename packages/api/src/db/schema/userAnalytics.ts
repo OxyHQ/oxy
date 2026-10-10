@@ -91,21 +91,21 @@ export const userAnalytics = pgTable(
 
     check(
       'user_analytics_period_check',
-      sql`${t.period} in (${sql.raw(inList(ANALYTICS_PERIODS))})`
+      sql`${t.period} in (${sql.raw(inList(ANALYTICS_PERIODS))})`,
     ),
     // An hour outside the day is not a datum to store, it is a bug in whatever
     // computed it.
     check(
       'user_analytics_peak_activity_hour_check',
-      sql`${t.peakActivityHour} >= 0 and ${t.peakActivityHour} < ${sql.raw(String(HOURS_PER_DAY))}`
+      sql`${t.peakActivityHour} >= 0 and ${t.peakActivityHour} < ${sql.raw(String(HOURS_PER_DAY))}`,
     ),
     check(
       'user_analytics_demographics_countries_object_check',
-      sql`jsonb_typeof(${t.demographicsCountries}) = 'object'`
+      sql`jsonb_typeof(${t.demographicsCountries}) = 'object'`,
     ),
     check(
       'user_analytics_demographics_languages_object_check',
-      sql`jsonb_typeof(${t.demographicsLanguages}) = 'object'`
+      sql`jsonb_typeof(${t.demographicsLanguages}) = 'object'`,
     ),
-  ]
+  ],
 );

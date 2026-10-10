@@ -58,9 +58,15 @@ const jestConfig = ['jest.config.cjs', 'jest.config.js', 'jest.config.mjs', 'jes
 const ignoredSettings =
   jestConfig === undefined
     ? []
-    : (['preset', 'moduleNameMapper', 'setupFiles', 'setupFilesAfterEach', 'testEnvironment'] as const).filter(
-        (setting) => readFileSync(join(cwd, jestConfig), 'utf8').includes(setting),
-      );
+    : (
+        [
+          'preset',
+          'moduleNameMapper',
+          'setupFiles',
+          'setupFilesAfterEach',
+          'testEnvironment',
+        ] as const
+      ).filter((setting) => readFileSync(join(cwd, jestConfig), 'utf8').includes(setting));
 
 console.error(
   [
@@ -74,7 +80,7 @@ console.error(
     `  every setting in ${jestConfig ?? 'that file'}${
       ignoredSettings.length > 0 ? ` — here: ${ignoredSettings.join(', ')}` : ''
     },`,
-    "  and its `jest` global omits the module registry: resetModules,",
+    '  and its `jest` global omits the module registry: resetModules,',
     '  isolateModules, isolateModulesAsync, doMock, unmock, requireActual,',
     '  setMock. `mock.module` cannot stand in for doMock(..., {virtual:true}).',
     '',

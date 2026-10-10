@@ -22,7 +22,12 @@ import { usePersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { userIdFromDid } from '@/lib/civic/did';
 import { trustTierLabel } from '@oxy.so/core';
-import { bloomToneFor, getPersonhoodMeta, getTrustTierMeta, getVerificationMeta } from '@/lib/civic/card-presentation';
+import {
+  bloomToneFor,
+  getPersonhoodMeta,
+  getTrustTierMeta,
+  getVerificationMeta,
+} from '@/lib/civic/card-presentation';
 import { useTranslation } from '@/lib/i18n';
 
 /**
@@ -98,7 +103,14 @@ export default function ScannedCardScreen() {
           description={t('civic.card.error.body')}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={() => cardQuery.refetch()}>{t('common.retry')}</Button>
+              <Button
+                appearance="solid"
+                tone="accent"
+                size="lg"
+                onPress={() => cardQuery.refetch()}
+              >
+                {t('common.retry')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -143,7 +155,13 @@ export default function ScannedCardScreen() {
             {card.avatarUrl ? (
               <Image source={{ uri: card.avatarUrl }} style={styles.avatar} resizeMode="cover" />
             ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
+              <View
+                style={[
+                  styles.avatar,
+                  styles.avatarPlaceholder,
+                  { backgroundColor: colors.border },
+                ]}
+              >
                 <Text style={[styles.avatarInitial, { color: colors.textSecondary }]}>
                   {card.name?.charAt(0)?.toUpperCase() || '?'}
                 </Text>
@@ -154,7 +172,10 @@ export default function ScannedCardScreen() {
                 {card.name}
               </BloomText>
               {card.username && (
-                <BloomText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
+                <BloomText
+                  style={[styles.username, { color: colors.textSecondary }]}
+                  numberOfLines={1}
+                >
                   @{card.username}
                 </BloomText>
               )}
@@ -181,7 +202,11 @@ export default function ScannedCardScreen() {
           {/* Precise proof-of-personhood status (from getPersonhood). */}
           {personhood && (
             <View style={styles.personhoodLine}>
-              <AppIcon name={personhood.isRealPerson ? 'vouched' : 'pending'} size='sm' fill={personhood.isRealPerson ? colors.success : colors.warning} />
+              <AppIcon
+                name={personhood.isRealPerson ? 'vouched' : 'pending'}
+                size="sm"
+                fill={personhood.isRealPerson ? colors.success : colors.warning}
+              />
               <BloomText style={[styles.personhoodLineText, { color: colors.textSecondary }]}>
                 {personhood.isRealPerson
                   ? t('civic.vouch.statusLine.verified')
@@ -196,8 +221,26 @@ export default function ScannedCardScreen() {
         {/* Vouch + issue-credential CTAs — only for a card whose signature verified. */}
         {verified && (
           <View className="gap-space-12">
-            <Button appearance="solid" tone="accent" size="lg" icon={Icons.vouched} onPress={handleVouch} style={fullWidthControl}>{t('civic.vouch.cta')}</Button>
-            <Button appearance="outline" tone="accent" size="lg" icon={Icons.credential} onPress={handleIssueCredential} style={fullWidthControl}>{t('civic.credentials.issue.cardCta')}</Button>
+            <Button
+              appearance="solid"
+              tone="accent"
+              size="lg"
+              icon={Icons.vouched}
+              onPress={handleVouch}
+              style={fullWidthControl}
+            >
+              {t('civic.vouch.cta')}
+            </Button>
+            <Button
+              appearance="outline"
+              tone="accent"
+              size="lg"
+              icon={Icons.credential}
+              onPress={handleIssueCredential}
+              style={fullWidthControl}
+            >
+              {t('civic.credentials.issue.cardCta')}
+            </Button>
           </View>
         )}
 
@@ -227,7 +270,11 @@ export default function ScannedCardScreen() {
         )}
 
         <Section title={t('civic.card.didLabel')}>
-          <BloomText style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
+          <BloomText
+            style={[styles.didValue, { color: colors.textSecondary }]}
+            selectable
+            numberOfLines={2}
+          >
             {card.did}
           </BloomText>
         </Section>

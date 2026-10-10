@@ -18,7 +18,8 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityLabel={title}
-        accessibilityState={{ expanded: isOpen }}>
+        accessibilityState={{ expanded: isOpen }}
+      >
         <MaterialCommunityIcons
           name="chevron-right"
           size={18}

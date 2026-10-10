@@ -90,7 +90,7 @@ export const transparencyCheckpoints = pgTable(
     // "the latest checkpoint" and a descending duplicate would only cost writes.
     check('transparency_checkpoints_index_check', sql`${t.index} >= 0`),
     check('transparency_checkpoints_tree_size_check', sql`${t.treeSize} >= 0`),
-  ]
+  ],
 );
 
 /**
@@ -126,10 +126,10 @@ export const transparencyCheckpointSignatures = pgTable(
     uniqueIndex('transparency_checkpoint_signatures_signer_key').on(t.checkpointId, t.publicKey),
     check(
       'transparency_checkpoint_signatures_alg_check',
-      sql`${t.alg} in (${sql.raw(inList(CHECKPOINT_SIGNATURE_ALGORITHMS))})`
+      sql`${t.alg} in (${sql.raw(inList(CHECKPOINT_SIGNATURE_ALGORITHMS))})`,
     ),
     check('transparency_checkpoint_signatures_position_check', sql`${t.position} >= 0`),
-  ]
+  ],
 );
 
 /**
@@ -161,7 +161,7 @@ export const transparencyCheckpointAnchors = pgTable(
     // could append a second row for the same transaction and double-count it.
     uniqueIndex('transparency_checkpoint_anchors_txid_key').on(t.checkpointId, t.network, t.txid),
     check('transparency_checkpoint_anchors_confirmations_check', sql`${t.confirmations} >= 0`),
-  ]
+  ],
 );
 
 /**
@@ -210,11 +210,11 @@ export const transparencyCheckpointSnapshotEntries = pgTable(
     // are the same object.
     uniqueIndex('transparency_checkpoint_snapshot_entries_subject_key').on(
       t.checkpointId,
-      t.subjectDid
+      t.subjectDid,
     ),
     check('transparency_checkpoint_snapshot_entries_leaf_index_check', sql`${t.leafIndex} >= 0`),
     check('transparency_checkpoint_snapshot_entries_seq_check', sql`${t.seq} >= 0`),
-  ]
+  ],
 );
 
 /**

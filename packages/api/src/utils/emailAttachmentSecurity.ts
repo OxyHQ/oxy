@@ -10,8 +10,24 @@ const BLOCKED_MIME_TYPES = new Set([
 ]);
 
 const BLOCKED_EXTENSIONS = new Set([
-  'app', 'bat', 'cmd', 'com', 'dmg', 'exe', 'hta', 'jar', 'js', 'jse', 'msi',
-  'ps1', 'scr', 'sh', 'vbe', 'vbs', 'wsf', 'wsh',
+  'app',
+  'bat',
+  'cmd',
+  'com',
+  'dmg',
+  'exe',
+  'hta',
+  'jar',
+  'js',
+  'jse',
+  'msi',
+  'ps1',
+  'scr',
+  'sh',
+  'vbe',
+  'vbs',
+  'wsf',
+  'wsh',
 ]);
 
 /** Reject attachments that are executable by common desktop clients. Inbox

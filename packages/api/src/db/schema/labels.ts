@@ -42,5 +42,5 @@ export const labels = pgTable(
   // unique index below leads with `user_id` and serves those reads. No index
   // backs the `order, name` sort of the list view either — a user holds a few
   // dozen labels at most, so sorting them is free and an index would be noise.
-  (t) => [uniqueIndex('labels_user_id_lower_name_key').on(t.userId, sql`lower(${t.name})`)]
+  (t) => [uniqueIndex('labels_user_id_lower_name_key').on(t.userId, sql`lower(${t.name})`)],
 );

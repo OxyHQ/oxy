@@ -20,7 +20,7 @@ class ApiRateLimiter {
       maxRequests: 1, // 1 request per window by default
       windowMs: 1000, // 1 second window
       retryAfterMs: 1000, // 1 second retry after
-      ...config
+      ...config,
     };
   }
 
@@ -35,26 +35,26 @@ class ApiRateLimiter {
     if (state.blockedUntil && now < state.blockedUntil) {
       return {
         allowed: false,
-        retryAfter: state.blockedUntil - now
+        retryAfter: state.blockedUntil - now,
       };
     }
 
     // Clean old requests outside the window
     const windowStart = now - this.config.windowMs;
-    state.requests = state.requests.filter(timestamp => timestamp > windowStart);
+    state.requests = state.requests.filter((timestamp) => timestamp > windowStart);
 
     // Check if we're within the limit
     if (state.requests.length >= this.config.maxRequests) {
       // Block until the oldest request expires
       const oldestRequest = Math.min(...state.requests);
       const blockUntil = oldestRequest + this.config.windowMs;
-      
+
       state.blockedUntil = blockUntil;
       this.limits.set(key, state);
 
       return {
         allowed: false,
-        retryAfter: blockUntil - now
+        retryAfter: blockUntil - now,
       };
     }
 
@@ -80,7 +80,7 @@ class ApiRateLimiter {
       const waitTime = Math.max(retryAfter ?? this.config.retryAfterMs, 0);
       if (waitTime > 0) {
         logger.debug(`Rate limited for ${key}, waiting ${waitTime}ms`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
       } else {
         // Yield back to the event loop even if we don't need to wait
         await Promise.resolve();
@@ -114,7 +114,7 @@ class ApiRateLimiter {
 export const nominatimRateLimiter = new ApiRateLimiter({
   maxRequests: 1, // Nominatim allows 1 request per second
   windowMs: 1000,
-  retryAfterMs: 1000
+  retryAfterMs: 1000,
 });
 
-export default ApiRateLimiter; 
+export default ApiRateLimiter;

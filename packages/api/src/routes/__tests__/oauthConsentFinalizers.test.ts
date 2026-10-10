@@ -232,7 +232,13 @@ async function viaFinalize(userId: string, app: Client, scope: string): Promise<
   const request = await approvedRequest(userId, app, scope ? scope.split(' ') : []);
   const res = await post(`/auth/session/finalize/${request.sessionToken}`, {});
   const data = res.body.data as { code?: string } | undefined;
-  return { status: res.status, code: data?.code, verifier: request.verifier, authSessionId: request.id, error: res.body.error };
+  return {
+    status: res.status,
+    code: data?.code,
+    verifier: request.verifier,
+    authSessionId: request.id,
+    error: res.body.error,
+  };
 }
 
 function finalizeWith(entry: Entry): typeof viaAuthorize {
@@ -490,15 +496,18 @@ function getConsent(userId: string, app: Client, scope: string): Promise<JsonRes
   const query = new URLSearchParams({ clientId: app.clientId, redirectUri: REDIRECT, scope });
   return new Promise((resolve, reject) => {
     http
-      .get({ host: '127.0.0.1', port: address.port, path: `/auth/oauth/consent?${query}` }, (res) => {
-        let raw = '';
-        res.on('data', (chunk) => {
-          raw += chunk;
-        });
-        res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
-        );
-      })
+      .get(
+        { host: '127.0.0.1', port: address.port, path: `/auth/oauth/consent?${query}` },
+        (res) => {
+          let raw = '';
+          res.on('data', (chunk) => {
+            raw += chunk;
+          });
+          res.on('end', () =>
+            resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+          );
+        },
+      )
       .on('error', reject);
   });
 }
@@ -740,17 +749,24 @@ describe('replay and concurrency', () => {
 // Approved policy: trusted fallback is ordinary-only; third parties name scopes.
 describe('explicit consent and restricted empty-scope fallback', () => {
   it.each([
-    ['first_party', false, false], ['first_party', false, true],
-    ['first_party', true, false], ['first_party', true, true],
-    ['third_party', false, false], ['third_party', false, true],
-    ['third_party', true, false], ['third_party', true, true],
+    ['first_party', false, false],
+    ['first_party', false, true],
+    ['first_party', true, false],
+    ['first_party', true, true],
+    ['third_party', false, false],
+    ['third_party', false, true],
+    ['third_party', true, false],
+    ['third_party', true, true],
   ] as const)('%s explicit=%s revoked=%s', async (type, explicit, revoked) => {
     const app = await client({ type, scopes: ['user:read', 'acting-as:offline'] });
     for (const entry of ENTRIES) {
       const userId = await account();
       if (revoked) await revoke(userId, app.applicationId);
-      const result = await finalizeWith(entry)(userId, app,
-        explicit ? 'user:read acting-as:offline' : '');
+      const result = await finalizeWith(entry)(
+        userId,
+        app,
+        explicit ? 'user:read acting-as:offline' : '',
+      );
       const denied = type === 'third_party' && !explicit;
       expect(result.status).toBe(denied ? 400 : 200);
       if (denied) expect(result.error).toBe('invalid_scope');
@@ -764,7 +780,6 @@ describe('explicit consent and restricted empty-scope fallback', () => {
   });
 });
 
-
 describe('empty scopes cannot silently consent at any OAuth entry', () => {
   it.each(['first_party', 'third_party'] as const)('consent screen: %s', async (type) => {
     const app = await client({ type, scopes: ['user:read', ...USER_CONSENT_REQUIRED_SCOPES] });
@@ -776,12 +791,18 @@ describe('empty scopes cannot silently consent at any OAuth entry', () => {
   });
 
   it.each(ENTRIES)('%s: trusted fallback excludes ALL consent-required scopes', async (entry) => {
-    const app = await client({ type: 'first_party', scopes: ['user:read', ...USER_CONSENT_REQUIRED_SCOPES] });
+    const app = await client({
+      type: 'first_party',
+      scopes: ['user:read', ...USER_CONSENT_REQUIRED_SCOPES],
+    });
     const userId = await account();
     const result = await finalizeWith(entry)(userId, app, '');
     expect(result.status).toBe(200);
     expect(await stateOf(userId, app.applicationId)).toEqual({
-      grantScopes: null, revoked: false, codeScopes: [['user:read']], actingAs: false,
+      grantScopes: null,
+      revoked: false,
+      codeScopes: [['user:read']],
+      actingAs: false,
     });
   });
 
@@ -795,12 +816,13 @@ describe('empty scopes cannot silently consent at any OAuth entry', () => {
     });
     expect(result.status).toBe(400);
     expect(result.body.error).toBe('invalid_scope');
-    const rows = await getDb().select({ id: authSessions.id }).from(authSessions)
+    const rows = await getDb()
+      .select({ id: authSessions.id })
+      .from(authSessions)
       .where(eq(authSessions.applicationId, app.applicationId));
     expect(rows).toEqual([]);
   });
 });
-
 
 describe('explicit but unregistered scopes never become a fallback', () => {
   it.each(ENTRIES)('%s', async (entry) => {
@@ -810,7 +832,10 @@ describe('explicit but unregistered scopes never become a fallback', () => {
     const result = await finalizeWith(entry)(userId, app, 'unknown:permission');
     expect(result.status).toBe(200);
     expect(await stateOf(userId, app.applicationId)).toEqual({
-      grantScopes: null, revoked: true, codeScopes: [[]], actingAs: false,
+      grantScopes: null,
+      revoked: true,
+      codeScopes: [[]],
+      actingAs: false,
     });
   });
 });

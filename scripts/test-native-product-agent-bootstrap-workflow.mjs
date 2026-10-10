@@ -3,19 +3,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const workflow = readFileSync(
-  '.github/workflows/bootstrap-native-product-agents.yml',
-  'utf8',
-);
+const workflow = readFileSync('.github/workflows/bootstrap-native-product-agents.yml', 'utf8');
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
-const wrapper = readFileSync(
-  'packages/api/scripts/run-native-product-agent-bootstrap.sh',
-  'utf8',
-);
-const bootstrap = readFileSync(
-  'packages/api/scripts/bootstrap-native-product-agents.ts',
-  'utf8',
-);
+const wrapper = readFileSync('packages/api/scripts/run-native-product-agent-bootstrap.sh', 'utf8');
+const bootstrap = readFileSync('packages/api/scripts/bootstrap-native-product-agents.ts', 'utf8');
 const failureReporter = readFileSync(
   '.github/scripts/report-native-product-agent-task-failure.sh',
   'utf8',
@@ -114,10 +105,7 @@ assert.doesNotMatch(
 
 assert.match(failureReporter, /\(keys \| sort\) == \["code","status"\]/);
 assert.match(failureReporter, /\(keys \| sort\) == \["code","planSha256","status"\]/);
-assert.match(
-  failureReporter,
-  /\(keys \| sort\) == \["code","field","status","target"\]/,
-);
+assert.match(failureReporter, /\(keys \| sort\) == \["code","field","status","target"\]/);
 assert.match(failureReporter, /\{code,target,field\}/);
 assert.match(
   failureReporter,
@@ -175,7 +163,10 @@ assert.doesNotMatch(
 
 assert.match(wrapper, /umask 077/);
 assert.match(wrapper, /chmod 0600 "\$homiio_secret_file" "\$clarity_secret_file"/);
-assert.match(wrapper, /unset HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_SERVICE_SECRET_VALUE/);
+assert.match(
+  wrapper,
+  /unset HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_SERVICE_SECRET_VALUE/,
+);
 assert.match(wrapper, /trap cleanup EXIT HUP INT TERM/);
 assert.doesNotMatch(wrapper, /set -x|echo .*SERVICE_SECRET_VALUE/);
 assert.match(wrapper, />"\$bootstrap_output_file" 2>\/dev\/null/);
@@ -243,19 +234,14 @@ assert.match(
   /new NativeProductAgentUsernameCollisionError\(\s*spec\.id,\s*usernameHolder,\s*boundApplication,\s*\)/,
 );
 
-const boundApplicationQueryStart = bootstrap.indexOf(
-  'async function observeBoundApplication(',
-);
+const boundApplicationQueryStart = bootstrap.indexOf('async function observeBoundApplication(');
 const boundApplicationQueryEnd = bootstrap.indexOf(
   'async function observeAccount(',
   boundApplicationQueryStart,
 );
 assert.notEqual(boundApplicationQueryStart, -1, 'bound application helper must exist');
 assert.notEqual(boundApplicationQueryEnd, -1, 'bound application helper end must exist');
-const boundApplicationQuery = bootstrap.slice(
-  boundApplicationQueryStart,
-  boundApplicationQueryEnd,
-);
+const boundApplicationQuery = bootstrap.slice(boundApplicationQueryStart, boundApplicationQueryEnd);
 for (const projectedField of [
   'id',
   'ownerAccountId',
@@ -282,10 +268,7 @@ assert.doesNotMatch(
   'the collision diagnostic may only read the reviewed application fields',
 );
 
-const adoptionStart = bootstrap.indexOf(
-  'const canonicalPresentationMatches =',
-  collisionEnd,
-);
+const adoptionStart = bootstrap.indexOf('const canonicalPresentationMatches =', collisionEnd);
 const adoptionEnd = bootstrap.indexOf(
   'assertExact(accountDriftTarget(spec.id, false)',
   adoptionStart,
@@ -320,10 +303,7 @@ const adoptionProjectionEnd = failureProjection.indexOf(
 );
 assert.notEqual(adoptionProjectionStart, -1, 'adoption projection must exist');
 assert.notEqual(adoptionProjectionEnd, -1, 'adoption projection end must exist');
-const adoptionProjection = failureProjection.slice(
-  adoptionProjectionStart,
-  adoptionProjectionEnd,
-);
+const adoptionProjection = failureProjection.slice(adoptionProjectionStart, adoptionProjectionEnd);
 assert.doesNotMatch(
   adoptionProjection,
   /username|nameDisplay|email|secret|hash|token/i,

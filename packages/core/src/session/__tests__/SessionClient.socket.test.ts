@@ -4,11 +4,31 @@ type Handler = (...args: unknown[]) => void;
 class FakeSocket {
   connected = false;
   handlers = new Map<string, Handler[]>();
-  on(event: string, cb: Handler) { const l = this.handlers.get(event) ?? []; l.push(cb); this.handlers.set(event, l); }
-  off(event: string, cb?: Handler) { if (!cb) { this.handlers.delete(event); return; } this.handlers.set(event, (this.handlers.get(event) ?? []).filter((h) => h !== cb)); }
-  connect() { this.connected = true; this.trigger('connect'); }
-  disconnect() { this.connected = false; }
-  trigger(event: string, ...args: unknown[]) { for (const h of this.handlers.get(event) ?? []) h(...args); }
+  on(event: string, cb: Handler) {
+    const l = this.handlers.get(event) ?? [];
+    l.push(cb);
+    this.handlers.set(event, l);
+  }
+  off(event: string, cb?: Handler) {
+    if (!cb) {
+      this.handlers.delete(event);
+      return;
+    }
+    this.handlers.set(
+      event,
+      (this.handlers.get(event) ?? []).filter((h) => h !== cb),
+    );
+  }
+  connect() {
+    this.connected = true;
+    this.trigger('connect');
+  }
+  disconnect() {
+    this.connected = false;
+  }
+  trigger(event: string, ...args: unknown[]) {
+    for (const h of this.handlers.get(event) ?? []) h(...args);
+  }
 }
 let fakeSocket: FakeSocket;
 const ioMock = jest.fn((_uri: string, opts?: Record<string, unknown>) => {
@@ -16,14 +36,26 @@ const ioMock = jest.fn((_uri: string, opts?: Record<string, unknown>) => {
   if (!opts || opts.autoConnect !== false) fakeSocket.connected = true;
   return fakeSocket;
 });
-jest.mock('socket.io-client', () => ({ __esModule: true, io: (...args: unknown[]) => ioMock(...(args as [string, Record<string, unknown>?])) }));
+jest.mock('socket.io-client', () => ({
+  __esModule: true,
+  io: (...args: unknown[]) => ioMock(...(args as [string, Record<string, unknown>?])),
+}));
 
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 
-const STATE = (rev: number): DeviceSessionState => ({ deviceId: 'd1', accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }], activeAccountId: 'a1', revision: rev, updatedAt: 1720000000000 });
+const STATE = (rev: number): DeviceSessionState => ({
+  deviceId: 'd1',
+  accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+  activeAccountId: 'a1',
+  revision: rev,
+  updatedAt: 1720000000000,
+});
 // `makeRequest` (HttpService) already strips the server's outer `{ data }` envelope, so it
 // returns the unwrapped sync body directly — that is exactly what SessionClient consumes.
-const SYNC = (rev: number) => ({ state: STATE(rev), activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' } });
+const SYNC = (rev: number) => ({
+  state: STATE(rev),
+  activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' },
+});
 
 function makeHost(over: Partial<SessionClientHost> = {}): SessionClientHost {
   return {
@@ -38,7 +70,10 @@ function makeHost(over: Partial<SessionClientHost> = {}): SessionClientHost {
   };
 }
 
-beforeEach(() => { fakeSocket = new FakeSocket(); ioMock.mockClear(); });
+beforeEach(() => {
+  fakeSocket = new FakeSocket();
+  ioMock.mockClear();
+});
 
 describe('SessionClient socket', () => {
   it('ignores a previously registered socket callback after local isolation and a later device', async () => {
@@ -63,7 +98,9 @@ describe('SessionClient socket', () => {
     const host = makeHost();
     const c = new SessionClient(host);
     await c.start();
-    expect(host.makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(host.makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     expect(ioMock).toHaveBeenCalledTimes(1);
     const [uri, opts] = ioMock.mock.calls[0];
     expect(uri).toBe('http://test.invalid');
@@ -89,7 +126,9 @@ describe('SessionClient socket', () => {
     makeRequest.mockClear();
     fakeSocket.trigger('session_state', STATE(9));
     await Promise.resolve();
-    expect(makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     c.stop();
   });
 
@@ -107,7 +146,9 @@ describe('SessionClient socket', () => {
     fakeSocket.trigger('session_state', STATE(9));
     await Promise.resolve();
     await Promise.resolve();
-    expect(makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     expect(setTokens).toHaveBeenCalledWith('jwt-9');
     c.stop();
   });
@@ -133,7 +174,12 @@ describe('SessionClient socket', () => {
 
   it('reconnects an existing socket when a fresh token arrives after a transient drop', async () => {
     const listeners: Array<(t: string | null) => void> = [];
-    const host = makeHost({ onTokensChanged: (l) => { listeners.push(l); return () => undefined; } });
+    const host = makeHost({
+      onTokensChanged: (l) => {
+        listeners.push(l);
+        return () => undefined;
+      },
+    });
     const c = new SessionClient(host);
     await c.start();
     expect(fakeSocket.connected).toBe(true); // authenticated connect on start
@@ -158,7 +204,9 @@ describe('SessionClient socket', () => {
     makeRequest.mockClear();
     fakeSocket.trigger('session_accounts_changed', { userId: 'a1', revision: 5, reason: 'add' });
     await Promise.resolve();
-    expect(makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     c.stop();
   });
 
@@ -168,7 +216,11 @@ describe('SessionClient socket', () => {
     const c = new SessionClient(host);
     await c.start();
     makeRequest.mockClear();
-    fakeSocket.trigger('session_accounts_changed', { userId: 'someone-else', revision: 5, reason: 'switch' });
+    fakeSocket.trigger('session_accounts_changed', {
+      userId: 'someone-else',
+      revision: 5,
+      reason: 'switch',
+    });
     await Promise.resolve();
     expect(makeRequest).not.toHaveBeenCalled();
     c.stop();
@@ -191,7 +243,13 @@ describe('SessionClient socket', () => {
     const c = new SessionClient(makeHost(), { onUnauthenticated });
     await c.start();
 
-    const EMPTY: DeviceSessionState = { deviceId: 'd1', accounts: [], activeAccountId: null, revision: 9, updatedAt: 1720000000001 };
+    const EMPTY: DeviceSessionState = {
+      deviceId: 'd1',
+      accounts: [],
+      activeAccountId: null,
+      revision: 9,
+      updatedAt: 1720000000001,
+    };
     fakeSocket.trigger('session_state', EMPTY);
 
     expect(onUnauthenticated).toHaveBeenCalledWith('push');
@@ -201,7 +259,13 @@ describe('SessionClient socket', () => {
   it('a REST signOut-all empty response fires onUnauthenticated with the REQUEST origin', async () => {
     const onUnauthenticated = jest.fn();
     const EMPTY_SYNC = {
-      state: { deviceId: 'd1', accounts: [], activeAccountId: null, revision: 9, updatedAt: 1720000000001 },
+      state: {
+        deviceId: 'd1',
+        accounts: [],
+        activeAccountId: null,
+        revision: 9,
+        updatedAt: 1720000000001,
+      },
       activeToken: null,
     };
     // bootstrap during start() returns a populated state; the signout (and any

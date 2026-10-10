@@ -1,6 +1,6 @@
 /**
  * Users Controller
- * 
+ *
  * Controller for user-related operations that require more complex logic
  * or don't fit into the standard service pattern.
  */
@@ -23,9 +23,9 @@ import { formatUserResponse } from '../utils/userTransform';
 export class UsersController {
   /**
    * POST /users/search
-   * 
+   *
    * Search for users by username or name
-   * 
+   *
    * @body {string} query - Search query string
    * @returns {User[]} Array of matching users (max 5)
    */
@@ -80,4 +80,4 @@ export class UsersController {
   }
 }
 
-export default new UsersController(); 
+export default new UsersController();

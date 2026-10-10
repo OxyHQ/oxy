@@ -136,13 +136,13 @@ async function seedRecordedPayment(): Promise<{ paymentId: string; accountId: st
 describe('the append-only guards are installed', () => {
   it('guards processor payments against UPDATE and DELETE', async () => {
     expect(await triggersOn(EXTERNAL_PAYMENTS_TABLE)).toContain(
-      EXTERNAL_PAYMENTS_IMMUTABILITY_TRIGGER
+      EXTERNAL_PAYMENTS_IMMUTABILITY_TRIGGER,
     );
   });
 
   it('guards reconciliation findings against UPDATE and DELETE', async () => {
     expect(await triggersOn(RECONCILIATION_DISCREPANCIES_TABLE)).toContain(
-      RECONCILIATION_DISCREPANCIES_IMMUTABILITY_TRIGGER
+      RECONCILIATION_DISCREPANCIES_IMMUTABILITY_TRIGGER,
     );
   });
 
@@ -150,9 +150,9 @@ describe('the append-only guards are installed', () => {
     const { paymentId } = await seedRecordedPayment();
     await expectPgError(
       getDb().execute(
-        sql`update ${billingExternalPayments} set amount = 1 where id = ${paymentId}`
+        sql`update ${billingExternalPayments} set amount = 1 where id = ${paymentId}`,
       ),
-      CHECK_VIOLATION
+      CHECK_VIOLATION,
     );
   });
 
@@ -160,7 +160,7 @@ describe('the append-only guards are installed', () => {
     const { paymentId } = await seedRecordedPayment();
     await expectPgError(
       getDb().execute(sql`delete from ${billingExternalPayments} where id = ${paymentId}`),
-      CHECK_VIOLATION
+      CHECK_VIOLATION,
     );
   });
 
@@ -203,9 +203,7 @@ describe('the schema value sets are the wire value sets', () => {
     expect(rows.length).toBeGreaterThan(10);
 
     for (const kind of RECONCILIATION_DISCREPANCY_KINDS) {
-      expect(byName.get('billing_reconciliation_discrepancies_kind_check')).toContain(
-        `'${kind}'`
-      );
+      expect(byName.get('billing_reconciliation_discrepancies_kind_check')).toContain(`'${kind}'`);
     }
     for (const status of AUTO_RECHARGE_STATUSES) {
       expect(byName.get('billing_auto_recharge_attempts_status_check')).toContain(`'${status}'`);

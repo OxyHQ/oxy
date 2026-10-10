@@ -51,7 +51,14 @@ export interface SystemNotificationReader {
  * API admits only `https:` or the sending app's registered scheme, and this is
  * the receiver's own floor under that.
  */
-const NEVER_OPENED_SCHEMES = new Set(['http:', 'javascript:', 'data:', 'file:', 'blob:', 'vbscript:']);
+const NEVER_OPENED_SCHEMES = new Set([
+  'http:',
+  'javascript:',
+  'data:',
+  'file:',
+  'blob:',
+  'vbscript:',
+]);
 
 function isOpenableLink(url: string): boolean {
   try {

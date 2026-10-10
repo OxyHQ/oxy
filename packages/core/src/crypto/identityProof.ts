@@ -32,5 +32,10 @@ export async function signIdentityProof(
     throw new Error('identity proof: the claims name a different root');
   }
   const signature = await signMessage(buildIdentityProofMessage(claims), identity.privateKey);
-  return { v: IDENTITY_PROOF_VERSION, challenge: claims.challenge, expiresAt: claims.expiresAt, signature };
+  return {
+    v: IDENTITY_PROOF_VERSION,
+    challenge: claims.challenge,
+    expiresAt: claims.expiresAt,
+    signature,
+  };
 }

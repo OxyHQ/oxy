@@ -45,9 +45,18 @@ export const identityLinkRequests = pgTable(
     unique('identity_link_requests_link_id_key').on(t.linkId),
     index('identity_link_requests_user_id_idx').on(t.userId),
     index('identity_link_requests_expires_at_idx').on(t.expiresAt),
-    check('identity_link_requests_status_check', sql`${t.status} in ('pending', 'signed', 'completed', 'cancelled')`),
-    check('identity_link_requests_signed_check', sql`(${t.publicKey} is null) = (${t.proof} is null)`),
+    check(
+      'identity_link_requests_status_check',
+      sql`${t.status} in ('pending', 'signed', 'completed', 'cancelled')`,
+    ),
+    check(
+      'identity_link_requests_signed_check',
+      sql`(${t.publicKey} is null) = (${t.proof} is null)`,
+    ),
     check('identity_link_requests_link_id_check', sql`${t.linkId} ~ '^[0-9a-f]{32}$'`),
-    check('identity_link_requests_challenge_hash_check', sql`${t.challengeHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'identity_link_requests_challenge_hash_check',
+      sql`${t.challengeHash} ~ '^[0-9a-f]{64}$'`,
+    ),
   ],
 );

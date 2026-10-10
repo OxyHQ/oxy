@@ -73,11 +73,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
-import {
-  inferenceRequestOutcomeSchema,
-  usageSourceSchema,
-  USAGE_UNITS,
-} from '@oxy.so/contracts';
+import { inferenceRequestOutcomeSchema, usageSourceSchema, USAGE_UNITS } from '@oxy.so/contracts';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';
@@ -207,13 +203,10 @@ export const usageReceipts = pgTable(
     index('usage_receipts_account_id_settled_at_idx').on(t.accountId, t.settledAt.desc()),
     // Per-application and per-credential spend, the two Console breakdowns that
     // read money rather than telemetry.
-    index('usage_receipts_application_id_settled_at_idx').on(
-      t.applicationId,
-      t.settledAt.desc()
-    ),
+    index('usage_receipts_application_id_settled_at_idx').on(t.applicationId, t.settledAt.desc()),
     index('usage_receipts_application_credential_id_settled_at_idx').on(
       t.applicationCredentialId,
-      t.settledAt.desc()
+      t.settledAt.desc(),
     ),
     // `GET /v1/generations/:id` and the request-id correlation ADR 0007 requires
     // across the edge, the data plane, the ledger and the customer receipt.
@@ -245,15 +238,15 @@ export const usageReceipts = pgTable(
 
     check(
       'usage_receipts_outcome_check',
-      sql`${t.outcome} in (${sql.raw(inList(INFERENCE_REQUEST_OUTCOMES))})`
+      sql`${t.outcome} in (${sql.raw(inList(INFERENCE_REQUEST_OUTCOMES))})`,
     ),
     check(
       'usage_receipts_usage_source_check',
-      sql`${t.usageSource} in (${sql.raw(inList(USAGE_SOURCE_VALUES))})`
+      sql`${t.usageSource} in (${sql.raw(inList(USAGE_SOURCE_VALUES))})`,
     ),
     check(
       'usage_receipts_environment_check',
-      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`
+      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`,
     ),
     check('usage_receipts_currency_check', currencyCodeCheck(t.currency)),
     check('usage_receipts_billed_amount_check', sql`${t.billedAmount} >= 0`),
@@ -264,21 +257,21 @@ export const usageReceipts = pgTable(
     // a customer money.
     check(
       'usage_receipts_billed_units_check',
-      sql`${t.billedAmount} = 0 or (${totalUsageUnitsExpression(t)}) > 0`
+      sql`${t.billedAmount} = 0 or (${totalUsageUnitsExpression(t)}) > 0`,
     ),
     check('usage_receipts_request_id_check', sql`length(${t.requestId}) > 0`),
     check(
       'usage_receipts_resolved_model_reference_check',
-      sql`length(${t.resolvedModelReference}) > 0`
+      sql`length(${t.resolvedModelReference}) > 0`,
     ),
     check('usage_receipts_serving_provider_check', sql`length(${t.servingProvider}) > 0`),
     // A receipt cannot correct itself; the correction chain would never
     // terminate.
     check(
       'usage_receipts_corrects_self_check',
-      sql`${t.correctsReceiptId} is null or ${t.correctsReceiptId} <> ${t.id}`
+      sql`${t.correctsReceiptId} is null or ${t.correctsReceiptId} <> ${t.id}`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -306,9 +299,9 @@ export const usageReceiptUnitPrices = pgTable(
 
     check(
       'usage_receipt_unit_prices_unit_check',
-      sql`${t.unit} in (${sql.raw(inList(USAGE_UNITS))})`
+      sql`${t.unit} in (${sql.raw(inList(USAGE_UNITS))})`,
     ),
     check('usage_receipt_unit_prices_amount_check', sql`${t.amount} >= 0`),
     check('usage_receipt_unit_prices_per_check', sql`${t.per} > 0`),
-  ]
+  ],
 );

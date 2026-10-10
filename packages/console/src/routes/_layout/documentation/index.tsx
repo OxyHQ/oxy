@@ -70,10 +70,7 @@ function DocumentationIndexPage() {
               <Card className="h-full hover:bg-muted/50 transition-colors cursor-pointer">
                 <CardHeader>
                   <div className="flex items-start justify-between">
-                    <HugeiconsIcon
-                      icon={section.icon}
-                      className="size-8 text-primary mb-2"
-                    />
+                    <HugeiconsIcon icon={section.icon} className="size-8 text-primary mb-2" />
                     <HugeiconsIcon
                       icon={ArrowRight01Icon}
                       className="size-4 text-muted-foreground"
@@ -91,24 +88,15 @@ function DocumentationIndexPage() {
         <div className="mt-8">
           <h2 className="text-sm font-semibold text-foreground mb-4">Quick Links</h2>
           <div className="flex flex-wrap gap-2">
-            <Link
-              to="/apps"
-              className="text-sm text-primary hover:underline"
-            >
+            <Link to="/apps" className="text-sm text-primary hover:underline">
               Create an application
             </Link>
             <span className="text-muted-foreground">•</span>
-            <Link
-              to="/examples"
-              className="text-sm text-primary hover:underline"
-            >
+            <Link to="/examples" className="text-sm text-primary hover:underline">
               View Examples
             </Link>
             <span className="text-muted-foreground">•</span>
-            <Link
-              to="/models"
-              className="text-sm text-primary hover:underline"
-            >
+            <Link to="/models" className="text-sm text-primary hover:underline">
               Model Statistics
             </Link>
           </div>

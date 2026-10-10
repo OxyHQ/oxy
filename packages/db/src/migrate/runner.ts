@@ -153,7 +153,7 @@ export interface RunMigrationsOptions {
 export function materializeJournalPrefix(
   entries: readonly JournalEntry[],
   count: number,
-  sourceFolder: string
+  sourceFolder: string,
 ): string {
   const retained = entries.slice(0, count);
 
@@ -161,11 +161,11 @@ export function materializeJournalPrefix(
   mkdirSync(join(folder, 'meta'), { recursive: true });
 
   const journal = JSON.parse(
-    readFileSync(join(sourceFolder, 'meta', '_journal.json'), 'utf8')
+    readFileSync(join(sourceFolder, 'meta', '_journal.json'), 'utf8'),
   ) as Record<string, unknown>;
   writeFileSync(
     join(folder, 'meta', '_journal.json'),
-    JSON.stringify({ ...journal, entries: retained })
+    JSON.stringify({ ...journal, entries: retained }),
   );
   for (const entry of retained) {
     copyFileSync(join(sourceFolder, `${entry.tag}.sql`), join(folder, `${entry.tag}.sql`));
@@ -191,12 +191,12 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<void
   const fullEntries = readJournal(options.migrationsFolder);
   const { phases, problems } = readMigrationPhases(
     fullEntries.map((entry) => entry.tag),
-    options.migrationsFolder
+    options.migrationsFolder,
   );
   if (problems.length > 0) {
     throw new Error(
       `${problems.length} migration(s) do not declare which side of a deploy they belong on:
-${problems.map((problem) => `  - ${problem}`).join('\n')}`
+${problems.map((problem) => `  - ${problem}`).join('\n')}`,
     );
   }
 
@@ -225,10 +225,10 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`
       assertAppliedMigrations(
         readJournalWithHashes(options.migrationsFolder),
         await readAppliedRows(client),
-        options.requiredAppliedTags
+        options.requiredAppliedTags,
       );
       options.logger.info(
-        `Verified required applied migrations: ${options.requiredAppliedTags.join(', ')}`
+        `Verified required applied migrations: ${options.requiredAppliedTags.join(', ')}`,
       );
     }
     const pending = planLedgerRun(entries, appliedMillis);
@@ -240,13 +240,13 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`
 
     if (plan.deferred.length > 0) {
       options.logger.info(
-        `Leaving ${plan.deferred.length} migration(s) for a later phase (phase=${options.run}): ${plan.deferred.map((entry) => entry.tag).join(', ')}`
+        `Leaving ${plan.deferred.length} migration(s) for a later phase (phase=${options.run}): ${plan.deferred.map((entry) => entry.tag).join(', ')}`,
       );
     }
 
     if (plan.apply.length === 0) {
       options.logger.info(
-        `No migrations to apply (phase=${options.run}, journal entries=${entries.length})`
+        `No migrations to apply (phase=${options.run}, journal entries=${entries.length})`,
       );
       return;
     }
@@ -255,7 +255,7 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`
 
     if (options.dryRun) {
       options.logger.info(
-        `DRY RUN — ${plan.apply.length} migration(s) would be applied; nothing was written: ${tags.join(', ')}`
+        `DRY RUN — ${plan.apply.length} migration(s) would be applied; nothing was written: ${tags.join(', ')}`,
       );
       return;
     }
@@ -294,12 +294,12 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`
     // deliberately deferred is still pending on purpose.
     const stillPending = pendingEntries(entries, await readLastAppliedMillis(client));
     const remaining = plan.apply.filter((entry) =>
-      stillPending.some((pendingEntry) => pendingEntry.tag === entry.tag)
+      stillPending.some((pendingEntry) => pendingEntry.tag === entry.tag),
     );
     if (remaining.length > 0) {
       throw new Error(
         `Migration reported success but ${remaining.length} migration(s) are still ` +
-          `pending: ${remaining.map((entry) => entry.tag).join(', ')}`
+          `pending: ${remaining.map((entry) => entry.tag).join(', ')}`,
       );
     }
 

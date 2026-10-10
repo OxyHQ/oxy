@@ -11,10 +11,7 @@
  *   and compressed/uncompressed public-key parity.
  */
 
-import {
-  generateSecp256k1KeyPair,
-  normalizeSecp256k1PublicKey,
-} from '@oxy.so/protocol/secp256k1';
+import { generateSecp256k1KeyPair, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { hkdfSha256 } from '../kdf';
 import { encryptAead, decryptAead, AEAD_KEY_LENGTH, AEAD_NONCE_LENGTH } from '../aead';
 import { deriveSharedSecret } from '../ecdh';
@@ -85,7 +82,12 @@ describe('hkdfSha256 (RFC 5869)', () => {
 });
 
 describe('encryptAead / decryptAead (XChaCha20-Poly1305)', () => {
-  const key = hkdfSha256(fromHex('00'), new Uint8Array(0), new TextEncoder().encode('aead-test'), AEAD_KEY_LENGTH);
+  const key = hkdfSha256(
+    fromHex('00'),
+    new Uint8Array(0),
+    new TextEncoder().encode('aead-test'),
+    AEAD_KEY_LENGTH,
+  );
   const plaintext = new TextEncoder().encode('the quick brown fox jumps over the lazy dog');
   const aad = new TextEncoder().encode('oxy.backup.v1:did:web:oxy.so:u:123');
 
@@ -134,7 +136,12 @@ describe('encryptAead / decryptAead (XChaCha20-Poly1305)', () => {
 
   it('throws when the key does not match', () => {
     const { nonce, ciphertext } = encryptAead(key, plaintext, aad);
-    const wrongKey = hkdfSha256(fromHex('01'), new Uint8Array(0), new TextEncoder().encode('aead-test'), AEAD_KEY_LENGTH);
+    const wrongKey = hkdfSha256(
+      fromHex('01'),
+      new Uint8Array(0),
+      new TextEncoder().encode('aead-test'),
+      AEAD_KEY_LENGTH,
+    );
     expect(() => decryptAead(wrongKey, nonce, ciphertext, aad)).toThrow();
   });
 

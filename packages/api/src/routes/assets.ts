@@ -10,9 +10,22 @@ import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
-import { ApiError, BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError, ValidationError, ConflictError } from '../utils/error';
+import {
+  ApiError,
+  BadRequestError,
+  NotFoundError,
+  UnauthorizedError,
+  ForbiddenError,
+  ValidationError,
+  ConflictError,
+} from '../utils/error';
 import { z } from 'zod';
-import type { FileLinkRecord, FileRecord, FileVariantRecord, FileVisibility } from '../types/file.types';
+import type {
+  FileLinkRecord,
+  FileRecord,
+  FileVariantRecord,
+  FileVisibility,
+} from '../types/file.types';
 import type { MediaAccessContext } from '../types/mediaPrivacy.types';
 import { validate } from '../middleware/validate';
 import {
@@ -41,8 +54,16 @@ import {
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
 import { sendAssetRedirect } from '../utils/cdnRedirect';
-import { MEDIA_TOKEN_QUERY_PARAM, MEDIA_TOKEN_TTL_SECONDS, signMediaToken } from '../utils/mediaToken';
-import { FEDERATION_CACHE_MAX_BYTES, USER_MEDIA_MAX_BYTES, isAllowedCacheMime } from '../constants/federationCache';
+import {
+  MEDIA_TOKEN_QUERY_PARAM,
+  MEDIA_TOKEN_TTL_SECONDS,
+  signMediaToken,
+} from '../utils/mediaToken';
+import {
+  FEDERATION_CACHE_MAX_BYTES,
+  USER_MEDIA_MAX_BYTES,
+  isAllowedCacheMime,
+} from '../constants/federationCache';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema';
@@ -111,10 +132,12 @@ function buildOriginStreamUrl(
   req: express.Request,
   fileId: string,
   variant?: string,
-  mediaToken?: string
+  mediaToken?: string,
 ): string {
   const host = req.get('host') ?? '';
-  const url = new URL(`${req.protocol}://${host}${req.baseUrl}/${encodeURIComponent(fileId)}/stream`);
+  const url = new URL(
+    `${req.protocol}://${host}${req.baseUrl}/${encodeURIComponent(fileId)}/stream`,
+  );
   if (variant) {
     url.searchParams.set('variant', variant);
   }
@@ -155,7 +178,7 @@ function parseMediaAccessContext(raw: unknown): MediaAccessContext | undefined {
 const initUploadSchema = z.object({
   sha256: z.string().length(64, 'SHA256 must be 64 characters'),
   size: z.number().positive('Size must be positive'),
-  mime: z.string().min(1, 'MIME type is required')
+  mime: z.string().min(1, 'MIME type is required'),
 });
 
 const completeUploadSchema = z.object({
@@ -164,7 +187,7 @@ const completeUploadSchema = z.object({
   size: z.number().positive('Size must be positive'),
   mime: z.string().min(1, 'MIME type is required'),
   visibility: z.enum(['private', 'public', 'unlisted']).optional(),
-  metadata: z.record(z.any()).optional()
+  metadata: z.record(z.any()).optional(),
 });
 
 /**
@@ -213,38 +236,43 @@ const completeUploadSchema = z.object({
  *       401:
  *         description: Missing or invalid bearer token.
  */
-router.get('/', authMiddleware, validate({ query: listAssetsQuerySchema }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
+router.get(
+  '/',
+  authMiddleware,
+  validate({ query: listAssetsQuerySchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
+    }
 
-  const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
-  const offset = Math.max(0, Number(req.query.offset) || 0);
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
+    const offset = Math.max(0, Number(req.query.offset) || 0);
 
-  const { files, total } = await assetService.listFilesByUser(user._id, limit, offset);
+    const { files, total } = await assetService.listFilesByUser(user._id, limit, offset);
 
-  sendSuccess(res, {
-    files: files.map((file) => ({
-      id: file.id,
-      sha256: file.sha256,
-      size: file.size,
-      mime: file.mime,
-      ext: file.ext,
-      originalName: file.originalName,
-      ownerUserId: file.ownerUserId,
-      status: file.status,
-      usageCount: file.links.length,
-      createdAt: file.createdAt,
-      updatedAt: file.updatedAt,
-      links: file.links.map(serializeLink),
-      variants: file.variants.map(serializeVariant),
-      metadata: file.metadata,
-    })),
-    total,
-    hasMore: offset + files.length < total,
-  });
-}));
+    sendSuccess(res, {
+      files: files.map((file) => ({
+        id: file.id,
+        sha256: file.sha256,
+        size: file.size,
+        mime: file.mime,
+        ext: file.ext,
+        originalName: file.originalName,
+        ownerUserId: file.ownerUserId,
+        status: file.status,
+        usageCount: file.links.length,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+        links: file.links.map(serializeLink),
+        variants: file.variants.map(serializeVariant),
+        metadata: file.metadata,
+      })),
+      total,
+      hasMore: offset + files.length < total,
+    });
+  }),
+);
 
 /**
  * @openapi
@@ -305,37 +333,42 @@ router.get('/', authMiddleware, validate({ query: listAssetsQuerySchema }), asyn
  *       401:
  *         description: Missing or invalid bearer token.
  */
-router.post('/init', authMiddleware, validate({ body: initUploadSchema }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
-
-  let validatedData;
-  try {
-    validatedData = initUploadSchema.parse(req.body);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      throw new ValidationError('Invalid request data', { details: error.errors });
+router.post(
+  '/init',
+  authMiddleware,
+  validate({ body: initUploadSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
     }
-    throw error;
-  }
-  
-  const result = await assetService.initUpload(
-    user._id,
-    validatedData.sha256,
-    validatedData.size,
-    validatedData.mime
-  );
 
-  logger.info('Asset upload initialized', { 
-    userId: user._id, 
-    fileId: result.fileId,
-    sha256: result.sha256
-  });
+    let validatedData;
+    try {
+      validatedData = initUploadSchema.parse(req.body);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        throw new ValidationError('Invalid request data', { details: error.errors });
+      }
+      throw error;
+    }
 
-  sendSuccess(res, result);
-}));
+    const result = await assetService.initUpload(
+      user._id,
+      validatedData.sha256,
+      validatedData.size,
+      validatedData.mime,
+    );
+
+    logger.info('Asset upload initialized', {
+      userId: user._id,
+      fileId: result.fileId,
+      sha256: result.sha256,
+    });
+
+    sendSuccess(res, result);
+  }),
+);
 
 /**
  * @openapi
@@ -397,96 +430,107 @@ router.post('/init', authMiddleware, validate({ body: initUploadSchema }), async
  *       401:
  *         description: Missing or invalid bearer token.
  */
-router.post('/complete', authMiddleware, validate({ body: completeUploadSchema }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
-
-  let validatedData;
-  try {
-    validatedData = completeUploadSchema.parse(req.body);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      throw new ValidationError('Invalid request data', { details: error.errors });
+router.post(
+  '/complete',
+  authMiddleware,
+  validate({ body: completeUploadSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
     }
-    throw error;
-  }
-  
-  const file = await assetService.completeUpload(validatedData, user._id);
 
-  logger.info('Asset upload completed', { 
-    userId: user._id, 
-    fileId: file.id,
-    originalName: validatedData.originalName
-  });
-
-  sendSuccess(res, {
-    assetId: file.id,
-    file: {
-      id: file.id,
-      sha256: file.sha256,
-      size: file.size,
-      mime: file.mime,
-      originalName: file.originalName,
-      status: file.status,
-      usageCount: file.links.length,
-      createdAt: file.createdAt,
-      updatedAt: file.updatedAt,
-      links: file.links.map(serializeLink),
-      variants: file.variants.map(serializeVariant)
+    let validatedData;
+    try {
+      validatedData = completeUploadSchema.parse(req.body);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        throw new ValidationError('Invalid request data', { details: error.errors });
+      }
+      throw error;
     }
-  });
-}));
+
+    const file = await assetService.completeUpload(validatedData, user._id);
+
+    logger.info('Asset upload completed', {
+      userId: user._id,
+      fileId: file.id,
+      originalName: validatedData.originalName,
+    });
+
+    sendSuccess(res, {
+      assetId: file.id,
+      file: {
+        id: file.id,
+        sha256: file.sha256,
+        size: file.size,
+        mime: file.mime,
+        originalName: file.originalName,
+        status: file.status,
+        usageCount: file.links.length,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+        links: file.links.map(serializeLink),
+        variants: file.variants.map(serializeVariant),
+      },
+    });
+  }),
+);
 
 /**
  * @route POST /api/assets/:id/upload-direct
  * @desc Direct upload via API (bypasses browser CORS for presigned PUT)
  * @access Private
  */
-router.post('/:id/upload-direct', authMiddleware, validate({ params: assetIdParams }), upload.single('file'), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
+router.post(
+  '/:id/upload-direct',
+  authMiddleware,
+  validate({ params: assetIdParams }),
+  upload.single('file'),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
+    }
 
-  const { id: fileId } = req.params;
-  if (!req.file) {
-    throw new BadRequestError('Missing file');
-  }
+    const { id: fileId } = req.params;
+    if (!req.file) {
+      throw new BadRequestError('Missing file');
+    }
 
-  // Defense-in-depth: reject a present-but-empty upload so an empty object is
-  // never written to the predetermined storage key.
-  if (!req.file.buffer || req.file.buffer.length === 0) {
-    throw new BadRequestError('Empty file');
-  }
+    // Defense-in-depth: reject a present-but-empty upload so an empty object is
+    // never written to the predetermined storage key.
+    if (!req.file.buffer || req.file.buffer.length === 0) {
+      throw new BadRequestError('Empty file');
+    }
 
-  const file = await assetService.getFile(fileId);
-  if (!file) {
-    throw new NotFoundError('File not found');
-  }
-  if (file.status === 'deleted') {
-    throw new BadRequestError('Cannot upload to deleted file');
-  }
-  // Only the row's owner writes its bytes. The key is content-addressed and
-  // SHARED by every owner's row for the same content, so the bytes written
-  // must also BE that content: anything else would replace what other owners
-  // serve from this key.
-  if (file.ownerUserId !== user._id) {
-    throw new ForbiddenError('You do not own this file');
-  }
-  if (AssetService.calculateSHA256(req.file.buffer) !== file.sha256) {
-    throw new BadRequestError('Uploaded bytes do not match the declared sha256');
-  }
+    const file = await assetService.getFile(fileId);
+    if (!file) {
+      throw new NotFoundError('File not found');
+    }
+    if (file.status === 'deleted') {
+      throw new BadRequestError('Cannot upload to deleted file');
+    }
+    // Only the row's owner writes its bytes. The key is content-addressed and
+    // SHARED by every owner's row for the same content, so the bytes written
+    // must also BE that content: anything else would replace what other owners
+    // serve from this key.
+    if (file.ownerUserId !== user._id) {
+      throw new ForbiddenError('You do not own this file');
+    }
+    if (AssetService.calculateSHA256(req.file.buffer) !== file.sha256) {
+      throw new BadRequestError('Uploaded bytes do not match the declared sha256');
+    }
 
-  // Upload buffer to the predetermined storageKey
-  await s3Service.uploadBuffer(file.storageKey, req.file.buffer, {
-    contentType: req.file.mimetype || file.mime || 'application/octet-stream',
-    cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-  });
+    // Upload buffer to the predetermined storageKey
+    await s3Service.uploadBuffer(file.storageKey, req.file.buffer, {
+      contentType: req.file.mimetype || file.mime || 'application/octet-stream',
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+    });
 
-  sendSuccess(res, { fileId, key: file.storageKey });
-}));
+    sendSuccess(res, { fileId, key: file.storageKey });
+  }),
+);
 
 /**
  * @openapi
@@ -527,63 +571,68 @@ router.post('/:id/upload-direct', authMiddleware, validate({ params: assetIdPara
  *       401:
  *         description: Missing or invalid bearer token.
  */
-router.post('/upload', authMiddleware, upload.single('file'), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
-
-  if (!req.file) {
-    throw new BadRequestError('Missing file');
-  }
-
-  // Defense-in-depth: reject a present-but-empty upload before any record is
-  // created. A 0-byte buffer would otherwise hash to the empty-content SHA-256
-  // and persist an empty asset.
-  if (!req.file.buffer || req.file.buffer.length === 0) {
-    throw new BadRequestError('Empty file');
-  }
-
-  const visibility = (req.body.visibility as FileVisibility) || 'private';
-  let metadata: Record<string, unknown> | undefined;
-  if (req.body.metadata) {
-    try {
-      metadata = JSON.parse(req.body.metadata);
-    } catch {
-      throw new BadRequestError('Invalid metadata JSON');
+router.post(
+  '/upload',
+  authMiddleware,
+  upload.single('file'),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
     }
-  }
 
-  const file = await assetService.uploadFileDirect(
-    user._id,
-    req.file.buffer,
-    req.file.mimetype || 'application/octet-stream',
-    req.file.originalname || req.file.fieldname || 'upload',
-    visibility,
-    metadata
-  );
+    if (!req.file) {
+      throw new BadRequestError('Missing file');
+    }
 
-  logger.info('File uploaded via direct endpoint', { 
-    userId: user._id, 
-    fileId: file.id,
-    sha256: file.sha256
-  });
+    // Defense-in-depth: reject a present-but-empty upload before any record is
+    // created. A 0-byte buffer would otherwise hash to the empty-content SHA-256
+    // and persist an empty asset.
+    if (!req.file.buffer || req.file.buffer.length === 0) {
+      throw new BadRequestError('Empty file');
+    }
 
-  sendSuccess(res, {
-    file: {
-      id: file.id,
+    const visibility = (req.body.visibility as FileVisibility) || 'private';
+    let metadata: Record<string, unknown> | undefined;
+    if (req.body.metadata) {
+      try {
+        metadata = JSON.parse(req.body.metadata);
+      } catch {
+        throw new BadRequestError('Invalid metadata JSON');
+      }
+    }
+
+    const file = await assetService.uploadFileDirect(
+      user._id,
+      req.file.buffer,
+      req.file.mimetype || 'application/octet-stream',
+      req.file.originalname || req.file.fieldname || 'upload',
+      visibility,
+      metadata,
+    );
+
+    logger.info('File uploaded via direct endpoint', {
+      userId: user._id,
+      fileId: file.id,
       sha256: file.sha256,
-      size: file.size,
-      mime: file.mime,
-      ext: file.ext,
-      originalName: file.originalName,
-      visibility: file.visibility,
-      metadata: file.metadata,
-      links: file.links.map(serializeLink),
-      variants: file.variants.map(serializeVariant)
-    }
-  });
-}));
+    });
+
+    sendSuccess(res, {
+      file: {
+        id: file.id,
+        sha256: file.sha256,
+        size: file.size,
+        mime: file.mime,
+        ext: file.ext,
+        originalName: file.originalName,
+        visibility: file.visibility,
+        metadata: file.metadata,
+        links: file.links.map(serializeLink),
+        variants: file.variants.map(serializeVariant),
+      },
+    });
+  }),
+);
 
 // ---------------------------------------------------------------------------
 // Service-token media cache (federation)
@@ -732,7 +781,7 @@ router.post(
         req,
         mime,
         originalName,
-        FEDERATION_CACHE_MAX_BYTES
+        FEDERATION_CACHE_MAX_BYTES,
       );
 
       logger.info('Federation media cached', {
@@ -750,11 +799,15 @@ router.post(
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'CacheMediaTooLargeError') {
-        throw new ApiError(413, 'Cached media exceeds the maximum allowed size', 'PAYLOAD_TOO_LARGE');
+        throw new ApiError(
+          413,
+          'Cached media exceeds the maximum allowed size',
+          'PAYLOAD_TOO_LARGE',
+        );
       }
       throw error;
     }
-  })
+  }),
 );
 
 /**
@@ -805,18 +858,27 @@ router.post(
       throw new BadRequestError('Content-Type header is required');
     }
     if (!isAllowedCacheMime(mime)) {
-      throw new ApiError(415, 'Unsupported media type for federation upload', 'UNSUPPORTED_MEDIA_TYPE');
+      throw new ApiError(
+        415,
+        'Unsupported media type for federation upload',
+        'UNSUPPORTED_MEDIA_TYPE',
+      );
     }
 
     const declaredLength = Number(req.headers['content-length']);
     if (Number.isFinite(declaredLength) && declaredLength > FEDERATION_CACHE_MAX_BYTES) {
-      throw new ApiError(413, 'Federated media exceeds the maximum allowed size', 'PAYLOAD_TOO_LARGE');
+      throw new ApiError(
+        413,
+        'Federated media exceeds the maximum allowed size',
+        'PAYLOAD_TOO_LARGE',
+      );
     }
 
     const originalNameHeader = getSingleHeader(req, 'x-original-name');
-    const originalName = originalNameHeader && originalNameHeader.trim().length > 0
-      ? originalNameHeader.trim().slice(0, 255)
-      : 'federation-media';
+    const originalName =
+      originalNameHeader && originalNameHeader.trim().length > 0
+        ? originalNameHeader.trim().slice(0, 255)
+        : 'federation-media';
 
     const metadataHeader = getSingleHeader(req, 'x-media-metadata');
     let metadata: Record<string, unknown> | undefined;
@@ -844,7 +906,7 @@ router.post(
         {
           ...(metadata || {}),
           serviceAppName: req.serviceApp?.appName,
-        }
+        },
       );
 
       logger.info('Federation media persisted', {
@@ -872,11 +934,15 @@ router.post(
       res.status(200).json(body);
     } catch (error) {
       if (error instanceof Error && error.name === 'CacheMediaTooLargeError') {
-        throw new ApiError(413, 'Federated media exceeds the maximum allowed size', 'PAYLOAD_TOO_LARGE');
+        throw new ApiError(
+          413,
+          'Federated media exceeds the maximum allowed size',
+          'PAYLOAD_TOO_LARGE',
+        );
       }
       throw error;
     }
-  })
+  }),
 );
 
 /**
@@ -938,9 +1004,10 @@ router.post(
     }
 
     const originalNameHeader = getSingleHeader(req, 'x-original-name');
-    const originalName = originalNameHeader && originalNameHeader.trim().length > 0
-      ? originalNameHeader.trim().slice(0, 255)
-      : 'user-media';
+    const originalName =
+      originalNameHeader && originalNameHeader.trim().length > 0
+        ? originalNameHeader.trim().slice(0, 255)
+        : 'user-media';
 
     const metadataHeader = getSingleHeader(req, 'x-media-metadata');
     let metadata: Record<string, unknown> | undefined;
@@ -963,7 +1030,7 @@ router.post(
           ...(metadata || {}),
           serviceAppId: req.serviceApp?.appId,
           serviceAppName: req.serviceApp?.appName,
-        }
+        },
       );
 
       logger.info('User media persisted', {
@@ -990,7 +1057,7 @@ router.post(
       }
       throw error;
     }
-  })
+  }),
 );
 
 /**
@@ -1026,7 +1093,7 @@ router.delete(
     });
 
     sendSuccess(res, { message: 'Cached asset deleted successfully' });
-  })
+  }),
 );
 
 /**
@@ -1123,7 +1190,7 @@ router.delete(
 
     const body: z.infer<typeof federatedAssetDeleteResponse> = { data: { id: fileId, result } };
     res.status(200).json(body);
-  })
+  }),
 );
 
 /**
@@ -1159,7 +1226,7 @@ router.post(
 
     const body: z.infer<typeof federatedAssetBatchDeleteResponse> = { data: { results } };
     res.status(200).json(body);
-  })
+  }),
 );
 
 /**
@@ -1287,7 +1354,7 @@ router.post(
         // been stamped ready. A row without `readyAt` is a transcode that was
         // started, not one that finished.
         const hlsMaster = file.variants?.find(
-          (variant) => variant.type === 'hls_master' && variant.readyAt
+          (variant) => variant.type === 'hls_master' && variant.readyAt,
         );
         return {
           id: file.id,
@@ -1312,7 +1379,7 @@ router.post(
     });
 
     sendSuccess(res, data);
-  })
+  }),
 );
 
 /**
@@ -1517,7 +1584,7 @@ router.post(
     });
 
     sendSuccess(res, data);
-  })
+  }),
 );
 
 /**
@@ -1653,7 +1720,7 @@ router.post(
           ...(media.orientation !== undefined ? { orientation: media.orientation } : {}),
           ...(media.aspectRatio !== undefined ? { aspectRatio: media.aspectRatio } : {}),
         };
-      })
+      }),
     );
 
     logger.debug('POST /assets/service/by-sha256', {
@@ -1663,7 +1730,7 @@ router.post(
     });
 
     sendSuccess(res, data);
-  })
+  }),
 );
 
 /**
@@ -1671,92 +1738,102 @@ router.post(
  * @desc Link file to an entity
  * @access Private
  */
-router.post('/:id/links', authMiddleware, validate({ params: assetIdParams, body: linkFileSchema }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
-
-  const { id: fileId } = req.params;
-  let validatedData: z.infer<typeof linkFileSchema>;
-  try {
-    validatedData = linkFileSchema.parse(req.body);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new ValidationError('Invalid request data', { details: error.errors });
+router.post(
+  '/:id/links',
+  authMiddleware,
+  validate({ params: assetIdParams, body: linkFileSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
     }
-    throw error;
-  }
 
-  const linkRequest = {
-    ...validatedData,
-    createdBy: user._id,
-    webhookUrl: validatedData.webhookUrl
-  };
-
-  const file = await assetService.linkFile(fileId, linkRequest);
-
-  logger.info('File linked successfully', { 
-    userId: user._id, 
-    fileId,
-    linkRequest
-  });
-
-  sendSuccess(res, {
-    assetId: file.id,
-    file: {
-      id: file.id,
-      usageCount: file.links.length,
-      links: file.links.map(serializeLink),
-      status: file.status
+    const { id: fileId } = req.params;
+    let validatedData: z.infer<typeof linkFileSchema>;
+    try {
+      validatedData = linkFileSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new ValidationError('Invalid request data', { details: error.errors });
+      }
+      throw error;
     }
-  });
-}));
+
+    const linkRequest = {
+      ...validatedData,
+      createdBy: user._id,
+      webhookUrl: validatedData.webhookUrl,
+    };
+
+    const file = await assetService.linkFile(fileId, linkRequest);
+
+    logger.info('File linked successfully', {
+      userId: user._id,
+      fileId,
+      linkRequest,
+    });
+
+    sendSuccess(res, {
+      assetId: file.id,
+      file: {
+        id: file.id,
+        usageCount: file.links.length,
+        links: file.links.map(serializeLink),
+        status: file.status,
+      },
+    });
+  }),
+);
 
 /**
  * @route DELETE /api/assets/:id/links
  * @desc Remove link from file
  * @access Private
  */
-router.delete('/:id/links', authMiddleware, validate({ params: assetIdParams, body: unlinkFileSchema }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
-
-  const { id: fileId } = req.params;
-  let validatedData;
-  try {
-    validatedData = unlinkFileSchema.parse(req.body);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
-      throw new ValidationError('Invalid request data', { details: error.errors });
+router.delete(
+  '/:id/links',
+  authMiddleware,
+  validate({ params: assetIdParams, body: unlinkFileSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
     }
-    throw error;
-  }
-  
-  const file = await assetService.unlinkFile(
-    fileId,
-    validatedData.app,
-    validatedData.entityType,
-    validatedData.entityId
-  );
 
-  logger.info('File unlinked successfully', { 
-    userId: user._id, 
-    fileId,
-    unlinkRequest: validatedData
-  });
-
-  sendSuccess(res, {
-    file: {
-      id: file.id,
-      usageCount: file.links.length,
-      links: file.links.map(serializeLink),
-      status: file.status
+    const { id: fileId } = req.params;
+    let validatedData;
+    try {
+      validatedData = unlinkFileSchema.parse(req.body);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        throw new ValidationError('Invalid request data', { details: error.errors });
+      }
+      throw error;
     }
-  });
-}));
+
+    const file = await assetService.unlinkFile(
+      fileId,
+      validatedData.app,
+      validatedData.entityType,
+      validatedData.entityId,
+    );
+
+    logger.info('File unlinked successfully', {
+      userId: user._id,
+      fileId,
+      unlinkRequest: validatedData,
+    });
+
+    sendSuccess(res, {
+      file: {
+        id: file.id,
+        usageCount: file.links.length,
+        links: file.links.map(serializeLink),
+        status: file.status,
+      },
+    });
+  }),
+);
 
 /**
  * @openapi
@@ -1784,44 +1861,49 @@ router.delete('/:id/links', authMiddleware, validate({ params: assetIdParams, bo
  *       404:
  *         description: File not found.
  */
-router.get('/:id', authMiddleware, validate({ params: assetIdParams }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
-
-  const { id: fileId } = req.params;
-  const file = await assetService.getFile(fileId);
-
-  if (!file) {
-    throw new NotFoundError('File not found');
-  }
-
-  logger.debug('File metadata retrieved', {
-    userId: user._id,
-    fileId
-  });
-
-  sendSuccess(res, {
-    assetId: file.id,
-    file: {
-      id: file.id,
-      sha256: file.sha256,
-      size: file.size,
-      mime: file.mime,
-      ext: file.ext,
-      originalName: file.originalName,
-      ownerUserId: file.ownerUserId,
-      status: file.status,
-      usageCount: file.links.length,
-      createdAt: file.createdAt,
-      updatedAt: file.updatedAt,
-      links: file.links.map(serializeLink),
-      variants: file.variants.map(serializeVariant),
-      metadata: file.metadata
+router.get(
+  '/:id',
+  authMiddleware,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
     }
-  });
-}));
+
+    const { id: fileId } = req.params;
+    const file = await assetService.getFile(fileId);
+
+    if (!file) {
+      throw new NotFoundError('File not found');
+    }
+
+    logger.debug('File metadata retrieved', {
+      userId: user._id,
+      fileId,
+    });
+
+    sendSuccess(res, {
+      assetId: file.id,
+      file: {
+        id: file.id,
+        sha256: file.sha256,
+        size: file.size,
+        mime: file.mime,
+        ext: file.ext,
+        originalName: file.originalName,
+        ownerUserId: file.ownerUserId,
+        status: file.status,
+        usageCount: file.links.length,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+        links: file.links.map(serializeLink),
+        variants: file.variants.map(serializeVariant),
+        metadata: file.metadata,
+      },
+    });
+  }),
+);
 
 /**
  * @openapi
@@ -1873,93 +1955,106 @@ router.get('/:id', authMiddleware, validate({ params: assetIdParams }), asyncHan
  *       404:
  *         description: File not found.
  */
-router.get('/:id/url', authMiddleware, validate({ params: assetIdParams, query: assetUrlQuerySchema }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
+router.get(
+  '/:id/url',
+  authMiddleware,
+  validate({ params: assetIdParams, query: assetUrlQuerySchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
+    }
 
-  const { id: fileId } = req.params;
-  const { variant, expiresIn } = req.query;
+    const { id: fileId } = req.params;
+    const { variant, expiresIn } = req.query;
 
-  const variantType = singleQueryValue(variant);
-  const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
+    const variantType = singleQueryValue(variant);
+    const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
 
-  const file = await assetService.getFile(fileId);
-  if (!file) {
-    throw new NotFoundError('File not found');
-  }
+    const file = await assetService.getFile(fileId);
+    if (!file) {
+      throw new NotFoundError('File not found');
+    }
 
-  // The caller must actually be allowed to see this asset before we hand back a
-  // renderable URL. `authMiddleware` proves identity; this proves authorization
-  // for THIS asset (ownership, follow/block, entity context) — so we never mint
-  // a media token for an asset the caller can't access.
-  if (!(await assetService.canUserAccessFile(file, user._id))) {
-    logger.warn('Access denied to asset URL', { fileId, userId: user._id, visibility: file.visibility });
-    throw new ForbiddenError('Access denied');
-  }
+    // The caller must actually be allowed to see this asset before we hand back a
+    // renderable URL. `authMiddleware` proves identity; this proves authorization
+    // for THIS asset (ownership, follow/block, entity context) — so we never mint
+    // a media token for an asset the caller can't access.
+    if (!(await assetService.canUserAccessFile(file, user._id))) {
+      logger.warn('Access denied to asset URL', {
+        fileId,
+        userId: user._id,
+        visibility: file.visibility,
+      });
+      throw new ForbiddenError('Access denied');
+    }
 
-  // Public + CDN-reachable → clean CDN URL (no credential). Otherwise serve
-  // through our own origin (never a raw S3 URL). A non-public asset streamed
-  // through origin needs a SCOPED media token so the resulting `<img src>` —
-  // which can carry neither a bearer nor a cookie — renders for this authorized
-  // viewer. Public-but-not-yet-CDN-prefixed assets are readable anonymously, so
-  // they get no token.
-  let cdnUrl: string | null = null;
-  try {
-    cdnUrl = await assetService.getFileUrl(fileId, variantType, expiry, file);
-  } catch (error) {
-    logger.warn('asset URL: CDN resolution failed; falling back to origin stream URL', {
+    // Public + CDN-reachable → clean CDN URL (no credential). Otherwise serve
+    // through our own origin (never a raw S3 URL). A non-public asset streamed
+    // through origin needs a SCOPED media token so the resulting `<img src>` —
+    // which can carry neither a bearer nor a cookie — renders for this authorized
+    // viewer. Public-but-not-yet-CDN-prefixed assets are readable anonymously, so
+    // they get no token.
+    let cdnUrl: string | null = null;
+    try {
+      cdnUrl = await assetService.getFileUrl(fileId, variantType, expiry, file);
+    } catch (error) {
+      logger.warn('asset URL: CDN resolution failed; falling back to origin stream URL', {
+        fileId,
+        variant: variantType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    const mediaToken =
+      cdnUrl || file.visibility === 'public' ? undefined : signMediaToken(fileId, user._id);
+    const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
+
+    logger.debug('File URL generated', {
+      userId: user._id,
       fileId,
       variant: variantType,
-      error: error instanceof Error ? error.message : String(error),
+      via: cdnUrl ? 'cdn' : 'origin',
+      scoped: Boolean(mediaToken),
     });
-  }
-  const mediaToken = cdnUrl || file.visibility === 'public'
-    ? undefined
-    : signMediaToken(fileId, user._id);
-  const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
 
-  logger.debug('File URL generated', {
-    userId: user._id,
-    fileId,
-    variant: variantType,
-    via: cdnUrl ? 'cdn' : 'origin',
-    scoped: Boolean(mediaToken),
-  });
-
-  sendSuccess(res, {
-    url,
-    variant: variantType,
-    expiresIn: mediaToken ? MEDIA_TOKEN_TTL_SECONDS : expiry,
-  });
-}));
+    sendSuccess(res, {
+      url,
+      variant: variantType,
+      expiresIn: mediaToken ? MEDIA_TOKEN_TTL_SECONDS : expiry,
+    });
+  }),
+);
 
 /**
  * @route GET /api/assets/:id/exists
  * @desc Debug: return storageKey and existence of the underlying object
  * @access Private
  */
-router.get('/:id/exists', authMiddleware, validate({ params: assetIdParams }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
+router.get(
+  '/:id/exists',
+  authMiddleware,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
+    }
 
-  const { id: fileId } = req.params;
-  const file = await assetService.getFile(fileId);
-  if (!file) {
-    throw new NotFoundError('File not found');
-  }
+    const { id: fileId } = req.params;
+    const file = await assetService.getFile(fileId);
+    if (!file) {
+      throw new NotFoundError('File not found');
+    }
 
-  const exists = await s3Service.fileExists(file.storageKey);
-  sendSuccess(res, {
-    fileId,
-    storageKey: file.storageKey,
-    exists,
-    hasVariants: Array.isArray(file.variants) && file.variants.length > 0
-  });
-}));
+    const exists = await s3Service.fileExists(file.storageKey);
+    sendSuccess(res, {
+      fileId,
+      storageKey: file.storageKey,
+      exists,
+      hasVariants: Array.isArray(file.variants) && file.variants.length > 0,
+    });
+  }),
+);
 
 /**
  * @openapi
@@ -2001,64 +2096,31 @@ router.get('/:id/exists', authMiddleware, validate({ params: assetIdParams }), a
  *       404:
  *         description: File not found (and no fallback requested).
  */
-router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdParams }), optionalAuthMiddleware, asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  // `<img src>` can send neither an Authorization header nor a cookie, so resolve
-  // the viewer from the scoped `?mt=` media token (bound to this file id) when no
-  // session user is present, so owners can render their own private media. Access
-  // is still gated by canUserAccessFile.
-  const userId = getMediaViewerUserId(req);
-  const { id: fileId } = req.params;
-  const { variant } = req.query;
-  const variantType = singleQueryValue(variant);
+router.get(
+  '/:id/stream',
+  mediaHeadersMiddleware,
+  validate({ params: assetIdParams }),
+  optionalAuthMiddleware,
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    // `<img src>` can send neither an Authorization header nor a cookie, so resolve
+    // the viewer from the scoped `?mt=` media token (bound to this file id) when no
+    // session user is present, so owners can render their own private media. Access
+    // is still gated by canUserAccessFile.
+    const userId = getMediaViewerUserId(req);
+    const { id: fileId } = req.params;
+    const { variant } = req.query;
+    const variantType = singleQueryValue(variant);
 
-  const fallback = typeof req.query.fallback === 'string' ? req.query.fallback : '';
+    const fallback = typeof req.query.fallback === 'string' ? req.query.fallback : '';
 
-  const file = await assetService.getFile(fileId);
-  if (!file) {
-    if (fallback === 'placeholderVisible' || fallback === 'icon') {
-      const svg = generateMissingFilePlaceholder(fileId);
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).end(svg);
-    }
-    if (fallback === 'placeholder') {
-      const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Content-Length', String(buf.length));
-      res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).end(buf);
-    }
-    throw new NotFoundError('File not found');
-  }
-
-  const context = parseMediaAccessContext(req.query.context);
-
-  if (!(await assetService.canUserAccessFile(file, userId, context))) {
-    logger.warn('Access denied to file', { fileId, userId, visibility: file.visibility });
-    if (fallback === 'placeholderVisible' || fallback === 'icon') {
-      const svg = generateMissingFilePlaceholder(fileId);
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).end(svg);
-    }
-    if (fallback === 'placeholder') {
-      const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Content-Length', String(buf.length));
-      res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).end(buf);
-    }
-    throw new ForbiddenError('Access denied');
-  }
-
-  // Resolve variant storageKey if requested
-  let storageKey = file.storageKey;
-  if (variantType) {
-    try {
-      const ensured = await assetService.ensureVariant(fileId, variantType, file);
-      storageKey = ensured.key;
-    } catch (e: any) {
-      logger.warn('Variant ensure failed', { fileId, variantType, error: e?.message });
+    const file = await assetService.getFile(fileId);
+    if (!file) {
+      if (fallback === 'placeholderVisible' || fallback === 'icon') {
+        const svg = generateMissingFilePlaceholder(fileId);
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).end(svg);
+      }
       if (fallback === 'placeholder') {
         const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
         res.setHeader('Content-Type', 'image/png');
@@ -2066,135 +2128,82 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
         res.setHeader('Cache-Control', 'no-store');
         return res.status(200).end(buf);
       }
-      if (fallback === 'icon' || fallback === 'placeholderVisible') {
+      throw new NotFoundError('File not found');
+    }
+
+    const context = parseMediaAccessContext(req.query.context);
+
+    if (!(await assetService.canUserAccessFile(file, userId, context))) {
+      logger.warn('Access denied to file', { fileId, userId, visibility: file.visibility });
+      if (fallback === 'placeholderVisible' || fallback === 'icon') {
         const svg = generateMissingFilePlaceholder(fileId);
         res.setHeader('Content-Type', 'image/svg+xml');
         res.setHeader('Cache-Control', 'no-store');
         return res.status(200).end(svg);
       }
-      throw new NotFoundError('File not found');
+      if (fallback === 'placeholder') {
+        const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Length', String(buf.length));
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).end(buf);
+      }
+      throw new ForbiddenError('Access denied');
     }
-  }
 
-  let storageExists = await s3Service.fileExists(storageKey);
-  if (!storageExists && storageKey === file.storageKey) {
-    const repaired = await assetService.repairMissingFederationFileContent(file);
-    if (repaired) {
-      storageExists = true;
-      if (variantType) {
-        try {
-          const ensured = await assetService.ensureVariant(fileId, variantType, file);
-          storageKey = ensured.key;
-          storageExists = await s3Service.fileExists(storageKey);
-        } catch (e: any) {
-          logger.warn('Variant ensure failed after repairing original', {
-            fileId,
-            variantType,
-            error: e?.message,
-          });
-          storageExists = false;
+    // Resolve variant storageKey if requested
+    let storageKey = file.storageKey;
+    if (variantType) {
+      try {
+        const ensured = await assetService.ensureVariant(fileId, variantType, file);
+        storageKey = ensured.key;
+      } catch (e: any) {
+        logger.warn('Variant ensure failed', { fileId, variantType, error: e?.message });
+        if (fallback === 'placeholder') {
+          const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
+          res.setHeader('Content-Type', 'image/png');
+          res.setHeader('Content-Length', String(buf.length));
+          res.setHeader('Cache-Control', 'no-store');
+          return res.status(200).end(buf);
+        }
+        if (fallback === 'icon' || fallback === 'placeholderVisible') {
+          const svg = generateMissingFilePlaceholder(fileId);
+          res.setHeader('Content-Type', 'image/svg+xml');
+          res.setHeader('Cache-Control', 'no-store');
+          return res.status(200).end(svg);
+        }
+        throw new NotFoundError('File not found');
+      }
+    }
+
+    let storageExists = await s3Service.fileExists(storageKey);
+    if (!storageExists && storageKey === file.storageKey) {
+      const repaired = await assetService.repairMissingFederationFileContent(file);
+      if (repaired) {
+        storageExists = true;
+        if (variantType) {
+          try {
+            const ensured = await assetService.ensureVariant(fileId, variantType, file);
+            storageKey = ensured.key;
+            storageExists = await s3Service.fileExists(storageKey);
+          } catch (e: any) {
+            logger.warn('Variant ensure failed after repairing original', {
+              fileId,
+              variantType,
+              error: e?.message,
+            });
+            storageExists = false;
+          }
         }
       }
     }
-  }
 
-  if (!storageExists) {
-    logger.warn('Asset metadata points to a missing storage object', {
-      fileId,
-      variant: variantType,
-      storageKey,
-    });
-    if (fallback === 'placeholder') {
-      const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
-      res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Content-Length', String(buf.length));
-      res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).end(buf);
-    }
-    if (fallback === 'icon' || fallback === 'placeholderVisible') {
-      const svg = generateMissingFilePlaceholder(fileId);
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).end(svg);
-    }
-    throw new NotFoundError('File not found');
-  }
-
-  // Public + CDN-reachable object → redirect to the public CDN (our own domain,
-  // `cloud.oxy.so`). No raw S3 URL is ever handed to the client.
-  if (file.visibility === 'public') {
-    // Fast path: the resolved object key is already under the `public/` prefix
-    // (every new upload, and any visibility-relocated object) — no S3 probe.
-    if (isPublicKey(storageKey)) {
-      res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
-      return sendAssetRedirect(res, buildCdnUrl(stripPublicPrefix(storageKey)));
-    }
-
-    // Legacy public object whose DB key still points at a non-public key, but
-    // whose bytes were copied under `public/` by the CDN backfill. Reuse the
-    // same variant-aware probe `/assets/:id/url` uses so the CDN serves the
-    // bytes for the REQUESTED variant (thumb/w320/original). Only fall through
-    // to origin streaming when no `public/` copy exists (or the probe errors).
-    try {
-      const cdnUrl = await assetService.getPublicCdnUrl(file, variantType);
-      if (cdnUrl) {
-        res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
-        return sendAssetRedirect(res, cdnUrl);
-      }
-    } catch (cdnProbeError) {
-      logger.debug('CDN probe failed for public asset stream; streaming through origin', {
+    if (!storageExists) {
+      logger.warn('Asset metadata points to a missing storage object', {
         fileId,
         variant: variantType,
-        error: cdnProbeError instanceof Error ? cdnProbeError.message : String(cdnProbeError),
+        storageKey,
       });
-    }
-  }
-
-  // Otherwise stream the bytes THROUGH our origin (access was already checked
-  // above): private/unlisted assets, and public objects not yet under the
-  // `public/` prefix. Never a 302 to an `amazonaws.com` URL. Range requests are
-  // honoured so video seeking works.
-  const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
-  try {
-    const streamInfo = await s3Service.getObjectStreamRange(storageKey, rangeHeader);
-
-    if (streamInfo.contentType) {
-      res.setHeader('Content-Type', streamInfo.contentType);
-    }
-    if (streamInfo.contentLength != null) {
-      res.setHeader('Content-Length', String(streamInfo.contentLength));
-    }
-    if (streamInfo.contentRange) {
-      res.setHeader('Content-Range', streamInfo.contentRange);
-    }
-    res.setHeader('Accept-Ranges', streamInfo.acceptRanges ?? 'bytes');
-    if (streamInfo.lastModified) {
-      res.setHeader('Last-Modified', new Date(streamInfo.lastModified).toUTCString());
-    }
-    if (streamInfo.etag) {
-      res.setHeader('ETag', streamInfo.etag);
-    }
-    res.setHeader(
-      'Cache-Control',
-      file.visibility === 'public'
-        ? 'public, max-age=3600'
-        : 'private, max-age=3600'
-    );
-    res.status(streamInfo.statusCode);
-
-    streamInfo.body.on('error', (err: Error) => {
-      logger.error('Stream error', { fileId, error: err.message });
-      if (!res.headersSent) {
-        res.status(500).end('Stream error');
-      } else {
-        res.end();
-      }
-    });
-
-    streamInfo.body.pipe(res);
-  } catch (streamError) {
-    const errName = streamError instanceof Error ? streamError.name : '';
-    if (errName === 'NoSuchKey' || errName === 'NotFound') {
       if (fallback === 'placeholder') {
         const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
         res.setHeader('Content-Type', 'image/png');
@@ -2210,194 +2219,310 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
       }
       throw new NotFoundError('File not found');
     }
-    throw streamError;
-  }
-}));
+
+    // Public + CDN-reachable object → redirect to the public CDN (our own domain,
+    // `cloud.oxy.so`). No raw S3 URL is ever handed to the client.
+    if (file.visibility === 'public') {
+      // Fast path: the resolved object key is already under the `public/` prefix
+      // (every new upload, and any visibility-relocated object) — no S3 probe.
+      if (isPublicKey(storageKey)) {
+        res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
+        return sendAssetRedirect(res, buildCdnUrl(stripPublicPrefix(storageKey)));
+      }
+
+      // Legacy public object whose DB key still points at a non-public key, but
+      // whose bytes were copied under `public/` by the CDN backfill. Reuse the
+      // same variant-aware probe `/assets/:id/url` uses so the CDN serves the
+      // bytes for the REQUESTED variant (thumb/w320/original). Only fall through
+      // to origin streaming when no `public/` copy exists (or the probe errors).
+      try {
+        const cdnUrl = await assetService.getPublicCdnUrl(file, variantType);
+        if (cdnUrl) {
+          res.setHeader('Cache-Control', CDN_REDIRECT_CACHE_CONTROL);
+          return sendAssetRedirect(res, cdnUrl);
+        }
+      } catch (cdnProbeError) {
+        logger.debug('CDN probe failed for public asset stream; streaming through origin', {
+          fileId,
+          variant: variantType,
+          error: cdnProbeError instanceof Error ? cdnProbeError.message : String(cdnProbeError),
+        });
+      }
+    }
+
+    // Otherwise stream the bytes THROUGH our origin (access was already checked
+    // above): private/unlisted assets, and public objects not yet under the
+    // `public/` prefix. Never a 302 to an `amazonaws.com` URL. Range requests are
+    // honoured so video seeking works.
+    const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
+    try {
+      const streamInfo = await s3Service.getObjectStreamRange(storageKey, rangeHeader);
+
+      if (streamInfo.contentType) {
+        res.setHeader('Content-Type', streamInfo.contentType);
+      }
+      if (streamInfo.contentLength != null) {
+        res.setHeader('Content-Length', String(streamInfo.contentLength));
+      }
+      if (streamInfo.contentRange) {
+        res.setHeader('Content-Range', streamInfo.contentRange);
+      }
+      res.setHeader('Accept-Ranges', streamInfo.acceptRanges ?? 'bytes');
+      if (streamInfo.lastModified) {
+        res.setHeader('Last-Modified', new Date(streamInfo.lastModified).toUTCString());
+      }
+      if (streamInfo.etag) {
+        res.setHeader('ETag', streamInfo.etag);
+      }
+      res.setHeader(
+        'Cache-Control',
+        file.visibility === 'public' ? 'public, max-age=3600' : 'private, max-age=3600',
+      );
+      res.status(streamInfo.statusCode);
+
+      streamInfo.body.on('error', (err: Error) => {
+        logger.error('Stream error', { fileId, error: err.message });
+        if (!res.headersSent) {
+          res.status(500).end('Stream error');
+        } else {
+          res.end();
+        }
+      });
+
+      streamInfo.body.pipe(res);
+    } catch (streamError) {
+      const errName = streamError instanceof Error ? streamError.name : '';
+      if (errName === 'NoSuchKey' || errName === 'NotFound') {
+        if (fallback === 'placeholder') {
+          const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
+          res.setHeader('Content-Type', 'image/png');
+          res.setHeader('Content-Length', String(buf.length));
+          res.setHeader('Cache-Control', 'no-store');
+          return res.status(200).end(buf);
+        }
+        if (fallback === 'icon' || fallback === 'placeholderVisible') {
+          const svg = generateMissingFilePlaceholder(fileId);
+          res.setHeader('Content-Type', 'image/svg+xml');
+          res.setHeader('Cache-Control', 'no-store');
+          return res.status(200).end(svg);
+        }
+        throw new NotFoundError('File not found');
+      }
+      throw streamError;
+    }
+  }),
+);
 
 /**
  * @route GET /api/assets/:id/download
  * @desc Redirect to the signed file URL (suitable for <img src> and direct downloads)
  * @access Public (with optional authentication for private files)
  */
-router.get('/:id/download', validate({ params: assetIdParams }), optionalAuthMiddleware, asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  // Resolve viewer from the scoped `?mt=` media token for direct-download links
-  // that cannot carry an Authorization header or cookie (owners downloading
-  // their own private files). Access is still gated by canUserAccessFile below.
-  const userId = getMediaViewerUserId(req);
-  const { id: fileId } = req.params;
-  const { variant, expiresIn } = req.query;
+router.get(
+  '/:id/download',
+  validate({ params: assetIdParams }),
+  optionalAuthMiddleware,
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    // Resolve viewer from the scoped `?mt=` media token for direct-download links
+    // that cannot carry an Authorization header or cookie (owners downloading
+    // their own private files). Access is still gated by canUserAccessFile below.
+    const userId = getMediaViewerUserId(req);
+    const { id: fileId } = req.params;
+    const { variant, expiresIn } = req.query;
 
-  // Get file and check permissions
-  const file = await assetService.getFile(fileId);
-  if (!file) {
-    throw new NotFoundError('File not found');
-  }
+    // Get file and check permissions
+    const file = await assetService.getFile(fileId);
+    if (!file) {
+      throw new NotFoundError('File not found');
+    }
 
-  // Check access permissions
-  if (!(await assetService.canUserAccessFile(file, userId))) {
-    logger.warn('Access denied to file download', { fileId, userId, visibility: file.visibility });
-    throw new ForbiddenError('Access denied');
-  }
+    // Check access permissions
+    if (!(await assetService.canUserAccessFile(file, userId))) {
+      logger.warn('Access denied to file download', {
+        fileId,
+        userId,
+        visibility: file.visibility,
+      });
+      throw new ForbiddenError('Access denied');
+    }
 
-  const variantType = singleQueryValue(variant);
-  const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
+    const variantType = singleQueryValue(variant);
+    const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
 
-  if (!(await assetService.fileContentExists(fileId, file))) {
-    await assetService.repairMissingFederationFileContent(file);
-  }
+    if (!(await assetService.fileContentExists(fileId, file))) {
+      await assetService.repairMissingFederationFileContent(file);
+    }
 
-  // Public + CDN-reachable → CDN URL; otherwise redirect to our own origin
-  // stream endpoint (which proxies the bytes). Never a raw S3 URL. A non-public
-  // asset needs a freshly-scoped media token on the redirect target so the
-  // follow-up stream request (which also carries no bearer/cookie) renders for
-  // this authorized viewer.
-  let cdnUrl: string | null = null;
-  try {
-    cdnUrl = await assetService.getFileUrl(fileId, variantType, expiry, file);
-  } catch (error) {
-    logger.warn('asset download: CDN resolution failed; falling back to origin stream URL', {
-      fileId,
-      variant: variantType,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-  const mediaToken = cdnUrl || file.visibility === 'public' || !userId
-    ? undefined
-    : signMediaToken(fileId, userId);
-  const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
-  res.setHeader('Cache-Control', 'private, max-age=60');
-  return sendAssetRedirect(res, url);
-}));
+    // Public + CDN-reachable → CDN URL; otherwise redirect to our own origin
+    // stream endpoint (which proxies the bytes). Never a raw S3 URL. A non-public
+    // asset needs a freshly-scoped media token on the redirect target so the
+    // follow-up stream request (which also carries no bearer/cookie) renders for
+    // this authorized viewer.
+    let cdnUrl: string | null = null;
+    try {
+      cdnUrl = await assetService.getFileUrl(fileId, variantType, expiry, file);
+    } catch (error) {
+      logger.warn('asset download: CDN resolution failed; falling back to origin stream URL', {
+        fileId,
+        variant: variantType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    const mediaToken =
+      cdnUrl || file.visibility === 'public' || !userId
+        ? undefined
+        : signMediaToken(fileId, userId);
+    const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    return sendAssetRedirect(res, url);
+  }),
+);
 
 /**
  * @route POST /api/assets/:id/restore
  * @desc Restore file from trash
  * @access Private
  */
-router.post('/:id/restore', authMiddleware, validate({ params: assetIdParams }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
-
-  const { id: fileId } = req.params;
-  const file = await assetService.restoreFile(fileId);
-
-  logger.info('File restored from trash', { 
-    userId: user._id, 
-    fileId
-  });
-
-  sendSuccess(res, {
-    file: {
-      id: file.id,
-      status: file.status,
-      usageCount: file.links.length
+router.post(
+  '/:id/restore',
+  authMiddleware,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
     }
-  });
-}));
+
+    const { id: fileId } = req.params;
+    const file = await assetService.restoreFile(fileId);
+
+    logger.info('File restored from trash', {
+      userId: user._id,
+      fileId,
+    });
+
+    sendSuccess(res, {
+      file: {
+        id: file.id,
+        status: file.status,
+        usageCount: file.links.length,
+      },
+    });
+  }),
+);
 
 /**
  * @route PATCH /api/assets/:id/visibility
  * @desc Update file visibility
  * @access Private
  */
-router.patch('/:id/visibility', authMiddleware, asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
-
-  const { id: fileId } = req.params;
-  const { visibility } = req.body;
-
-  // Validate visibility value
-  if (!visibility || !['private', 'public', 'unlisted'].includes(visibility)) {
-    throw new BadRequestError('Visibility must be one of: private, public, unlisted');
-  }
-
-  // Get file and verify ownership
-  const file = await assetService.getFile(fileId);
-  if (!file) {
-    throw new NotFoundError('File not found');
-  }
-
-  // Compare as strings (handle ObjectId vs string comparison)
-  if (file.ownerUserId !== user._id) {
-    throw new ForbiddenError('Access denied');
-  }
-
-  // Only update if visibility is actually changing
-  if (file.visibility === visibility) {
-    // No change needed, return current file
-    return sendSuccess(res, {
-      file: {
-        id: file.id,
-        visibility: file.visibility,
-        updatedAt: file.updatedAt
-      }
-    });
-  }
-
-  // Update visibility
-  const updatedFile = await assetService.updateFileVisibility(fileId, visibility as FileVisibility);
-
-  logger.info('File visibility updated', { 
-    userId: user._id, 
-    fileId,
-    visibility
-  });
-
-  sendSuccess(res, {
-    file: {
-      id: updatedFile.id,
-      visibility: updatedFile.visibility,
-      updatedAt: updatedFile.updatedAt
+router.patch(
+  '/:id/visibility',
+  authMiddleware,
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
     }
-  });
-}));
+
+    const { id: fileId } = req.params;
+    const { visibility } = req.body;
+
+    // Validate visibility value
+    if (!visibility || !['private', 'public', 'unlisted'].includes(visibility)) {
+      throw new BadRequestError('Visibility must be one of: private, public, unlisted');
+    }
+
+    // Get file and verify ownership
+    const file = await assetService.getFile(fileId);
+    if (!file) {
+      throw new NotFoundError('File not found');
+    }
+
+    // Compare as strings (handle ObjectId vs string comparison)
+    if (file.ownerUserId !== user._id) {
+      throw new ForbiddenError('Access denied');
+    }
+
+    // Only update if visibility is actually changing
+    if (file.visibility === visibility) {
+      // No change needed, return current file
+      return sendSuccess(res, {
+        file: {
+          id: file.id,
+          visibility: file.visibility,
+          updatedAt: file.updatedAt,
+        },
+      });
+    }
+
+    // Update visibility
+    const updatedFile = await assetService.updateFileVisibility(
+      fileId,
+      visibility as FileVisibility,
+    );
+
+    logger.info('File visibility updated', {
+      userId: user._id,
+      fileId,
+      visibility,
+    });
+
+    sendSuccess(res, {
+      file: {
+        id: updatedFile.id,
+        visibility: updatedFile.visibility,
+        updatedAt: updatedFile.updatedAt,
+      },
+    });
+  }),
+);
 
 /**
  * @route DELETE /api/assets/:id
  * @desc Delete file with impact summary
  * @access Private
  */
-router.delete('/:id', authMiddleware, asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  if (!user?._id) {
-    throw new UnauthorizedError('Authentication required');
-  }
+router.delete(
+  '/:id',
+  authMiddleware,
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
+    }
 
-  const { id: fileId } = req.params;
-  const { force } = req.query;
-  const forceDelete = force === 'true';
+    const { id: fileId } = req.params;
+    const { force } = req.query;
+    const forceDelete = force === 'true';
 
-  // Get deletion summary first
-  const summary = await assetService.getDeletionSummary(fileId);
+    // Get deletion summary first
+    const summary = await assetService.getDeletionSummary(fileId);
 
-  // If not forcing and there are active links, return summary
-  if (!forceDelete && summary.remainingLinks > 0) {
-    throw new ConflictError('File has active links', {
+    // If not forcing and there are active links, return summary
+    if (!forceDelete && summary.remainingLinks > 0) {
+      throw new ConflictError('File has active links', {
+        summary,
+        message: 'Use ?force=true to delete anyway',
+      });
+    }
+
+    // Proceed with deletion
+    await assetService.deleteFile(fileId, forceDelete, user._id);
+
+    logger.info('File deleted', {
+      userId: user._id,
+      fileId,
+      force: forceDelete,
       summary,
-      message: 'Use ?force=true to delete anyway'
     });
-  }
 
-  // Proceed with deletion
-  await assetService.deleteFile(fileId, forceDelete, user._id);
-
-  logger.info('File deleted', { 
-    userId: user._id, 
-    fileId,
-    force: forceDelete,
-    summary
-  });
-
-  sendSuccess(res, {
-    summary,
-    message: 'File deleted successfully'
-  });
-}));
+    sendSuccess(res, {
+      summary,
+      message: 'File deleted successfully',
+    });
+  }),
+);
 
 /**
  * One `results` entry in the batch-access response. Access-granted entries carry
@@ -2423,69 +2548,81 @@ interface BatchAccessResult {
  *       batch (still 200); denied/missing ids are returned with `allowed:false`.
  * @access Private
  */
-router.post('/batch-access', authMiddleware, validate({ body: batchAccessSchema }), asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
-  const user = req.user;
-  const { files: requests, expiresIn, context: rawContext } = req.body as {
-    files: Array<{ fileId: string; variant?: string }>;
-    expiresIn?: number;
-    context?: string;
-  };
-
-  const expiry = typeof expiresIn === 'number' ? expiresIn : 3600;
-  const context = parseMediaAccessContext(rawContext);
-
-  // One DB round trip for the whole batch, then map each request (with its own
-  // variant) back to its file. Unknown ids resolve to a "not found" entry.
-  const fetched = await assetService.getFilesByIds(requests.map((r) => r.fileId));
-  const filesById = new Map(fetched.map((f) => [f.id, f]));
-
-  const results: Record<string, BatchAccessResult> = {};
-
-  await Promise.all(requests.map(async ({ fileId, variant }) => {
-    const file = filesById.get(fileId);
-    if (!file) {
-      results[fileId] = { allowed: false, error: 'File not found' };
-      return;
-    }
-
-    if (!(await assetService.canUserAccessFile(file, user?._id, context))) {
-      results[fileId] = { allowed: false, error: 'Access denied' };
-      return;
-    }
-
-    // Public + CDN-reachable → clean CDN URL for the requested variant.
-    // Otherwise our own origin stream URL (never a raw S3 URL); a non-public
-    // asset gets a SCOPED media token bound to THIS file id + the authenticated
-    // caller, so a token minted for file A can never open file B.
-    //
-    // Resolving the CDN URL can trigger on-demand variant generation, which
-    // downloads the original object from S3. A missing/misplaced S3 object
-    // throws (NoSuchKey) — that must NOT reject the whole batch (the caller is
-    // allowed to see this file). Fall back to the origin stream URL, whose
-    // route serves the bytes or a placeholder rendition for a missing object.
-    let cdnUrl: string | null = null;
-    try {
-      cdnUrl = await assetService.getFileUrl(fileId, variant, expiry, file);
-    } catch (error) {
-      logger.warn('batch-access: CDN resolution failed; falling back to origin stream URL', {
-        fileId,
-        variant,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-    const mediaToken = cdnUrl || file.visibility === 'public' || !user?._id
-      ? undefined
-      : signMediaToken(fileId, user._id);
-    const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variant, mediaToken);
-    results[fileId] = {
-      allowed: true,
-      url,
-      visibility: file.visibility,
-      mime: file.mime,
+router.post(
+  '/batch-access',
+  authMiddleware,
+  validate({ body: batchAccessSchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    const {
+      files: requests,
+      expiresIn,
+      context: rawContext,
+    } = req.body as {
+      files: Array<{ fileId: string; variant?: string }>;
+      expiresIn?: number;
+      context?: string;
     };
-  }));
 
-  sendSuccess(res, { results });
-}));
+    const expiry = typeof expiresIn === 'number' ? expiresIn : 3600;
+    const context = parseMediaAccessContext(rawContext);
+
+    // One DB round trip for the whole batch, then map each request (with its own
+    // variant) back to its file. Unknown ids resolve to a "not found" entry.
+    const fetched = await assetService.getFilesByIds(requests.map((r) => r.fileId));
+    const filesById = new Map(fetched.map((f) => [f.id, f]));
+
+    const results: Record<string, BatchAccessResult> = {};
+
+    await Promise.all(
+      requests.map(async ({ fileId, variant }) => {
+        const file = filesById.get(fileId);
+        if (!file) {
+          results[fileId] = { allowed: false, error: 'File not found' };
+          return;
+        }
+
+        if (!(await assetService.canUserAccessFile(file, user?._id, context))) {
+          results[fileId] = { allowed: false, error: 'Access denied' };
+          return;
+        }
+
+        // Public + CDN-reachable → clean CDN URL for the requested variant.
+        // Otherwise our own origin stream URL (never a raw S3 URL); a non-public
+        // asset gets a SCOPED media token bound to THIS file id + the authenticated
+        // caller, so a token minted for file A can never open file B.
+        //
+        // Resolving the CDN URL can trigger on-demand variant generation, which
+        // downloads the original object from S3. A missing/misplaced S3 object
+        // throws (NoSuchKey) — that must NOT reject the whole batch (the caller is
+        // allowed to see this file). Fall back to the origin stream URL, whose
+        // route serves the bytes or a placeholder rendition for a missing object.
+        let cdnUrl: string | null = null;
+        try {
+          cdnUrl = await assetService.getFileUrl(fileId, variant, expiry, file);
+        } catch (error) {
+          logger.warn('batch-access: CDN resolution failed; falling back to origin stream URL', {
+            fileId,
+            variant,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        const mediaToken =
+          cdnUrl || file.visibility === 'public' || !user?._id
+            ? undefined
+            : signMediaToken(fileId, user._id);
+        const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variant, mediaToken);
+        results[fileId] = {
+          allowed: true,
+          url,
+          visibility: file.visibility,
+          mime: file.mime,
+        };
+      }),
+    );
+
+    sendSuccess(res, { results });
+  }),
+);
 
 export default router;

@@ -33,14 +33,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import {
-  check,
-  index,
-  integer,
-  pgTable,
-  primaryKey,
-  text,
-} from 'drizzle-orm/pg-core';
+import { check, index, integer, pgTable, primaryKey, text } from 'drizzle-orm/pg-core';
 import { STICKER_CANVAS_SIZES } from '@oxy.so/contracts';
 import { createdAt, generatedId, inList, numericInList, timestamptz, updatedAt } from '@oxy.so/db';
 import { files } from './files';
@@ -80,10 +73,13 @@ export const stickerPacks = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check('sticker_packs_status_check', sql`${t.status} in (${sql.raw(inList(STICKER_PACK_STATUSES))})`),
+    check(
+      'sticker_packs_status_check',
+      sql`${t.status} in (${sql.raw(inList(STICKER_PACK_STATUSES))})`,
+    ),
     /** The shop's read: published packs, newest first. */
     index('sticker_packs_status_published_at_idx').on(t.status, t.publishedAt),
-  ]
+  ],
 );
 
 export const stickers = pgTable(
@@ -124,11 +120,14 @@ export const stickers = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    check('stickers_size_check', sql`${t.size} in (${sql.raw(numericInList(STICKER_CANVAS_SIZES))})`),
+    check(
+      'stickers_size_check',
+      sql`${t.size} in (${sql.raw(numericInList(STICKER_CANVAS_SIZES))})`,
+    ),
     check('stickers_duration_ms_check', sql`${t.durationMs} > 0`),
     check('stickers_emoji_check', sql`cardinality(${t.emoji}) > 0`),
     index('stickers_pack_id_position_idx').on(t.packId, t.position),
-  ]
+  ],
 );
 
 /**
@@ -150,5 +149,5 @@ export const userStickerPacks = pgTable(
     position: integer().notNull(),
     installedAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.packId] })]
+  (t) => [primaryKey({ columns: [t.userId, t.packId] })],
 );

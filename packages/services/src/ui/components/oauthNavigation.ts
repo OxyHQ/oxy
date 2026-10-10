@@ -13,34 +13,34 @@ import { logger, persistOAuthReturnPath } from '@oxy.so/core';
 
 /** Minimal shape of the optional `expo-web-browser` auth-session result. */
 interface WebBrowserAuthResult {
-    type?: string;
-    url?: string;
+  type?: string;
+  url?: string;
 }
 
 /** Minimal shape of the optional `expo-web-browser` native module we depend on. */
 interface WebBrowserModule {
-    openAuthSessionAsync?: (url: string, redirectUrl: string) => Promise<WebBrowserAuthResult>;
+  openAuthSessionAsync?: (url: string, redirectUrl: string) => Promise<WebBrowserAuthResult>;
 }
 
 /** Outcome of opening the authorize URL on native. */
 export interface OpenAuthorizeResult {
-    /**
-     * The deep-link URL the auth session returned to (carries `?code=…&state=…`)
-     * when `expo-web-browser` observed it, else `null`. `null` means the RP must
-     * complete the exchange from its own deep-link handler (e.g. after the
-     * `Linking.openURL` fallback, which cannot observe the return URL).
-     */
-    redirectUrl: string | null;
+  /**
+   * The deep-link URL the auth session returned to (carries `?code=…&state=…`)
+   * when `expo-web-browser` observed it, else `null`. `null` means the RP must
+   * complete the exchange from its own deep-link handler (e.g. after the
+   * `Linking.openURL` fallback, which cannot observe the return URL).
+   */
+  redirectUrl: string | null;
 }
 
 export interface OpenAuthorizeOptions {
-    /**
-     * Whether to fall back to `Linking.openURL` when an in-app auth session is
-     * unavailable. Explicit-consent callers disable this because they must
-     * observe and validate the callback before reporting success.
-     * @default true
-     */
-    allowExternalFallback?: boolean;
+  /**
+   * Whether to fall back to `Linking.openURL` when an in-app auth session is
+   * unavailable. Explicit-consent callers disable this because they must
+   * observe and validate the callback before reporting success.
+   * @default true
+   */
+  allowExternalFallback?: boolean;
 }
 
 /**
@@ -56,10 +56,10 @@ export interface OpenAuthorizeOptions {
  * new flow cannot forget to preserve the page the visitor came from.
  */
 export function redirectToAuthorize(url: string): void {
-    const location = (globalThis as { location?: Location }).location;
-    if (!location) return;
-    persistOAuthReturnPath(`${location.pathname}${location.search}${location.hash}`);
-    location.assign(url);
+  const location = (globalThis as { location?: Location }).location;
+  if (!location) return;
+  persistOAuthReturnPath(`${location.pathname}${location.search}${location.hash}`);
+  location.assign(url);
 }
 
 /**
@@ -72,43 +72,41 @@ export function redirectToAuthorize(url: string): void {
  * the caller can hand `?code=…&state=…` back to the RP for the token exchange.
  */
 export async function openAuthorizeUrlNative(
-    url: string,
-    redirectUri: string,
-    options: OpenAuthorizeOptions = {},
+  url: string,
+  redirectUri: string,
+  options: OpenAuthorizeOptions = {},
 ): Promise<OpenAuthorizeResult> {
-    try {
-        const mod = (await import('expo-web-browser')) as unknown as WebBrowserModule;
-        if (mod && typeof mod.openAuthSessionAsync === 'function') {
-            const result = await mod.openAuthSessionAsync(url, redirectUri);
-            const redirectUrl =
-                result && result.type === 'success' && typeof result.url === 'string'
-                    ? result.url
-                    : null;
-            return { redirectUrl };
-        }
-    } catch (error) {
-        logger.warn(
-            'OxySignInButton: expo-web-browser auth session failed; falling back to Linking.openURL',
-            { component: 'oauthNavigation' },
-            error,
-        );
+  try {
+    const mod = (await import('expo-web-browser')) as unknown as WebBrowserModule;
+    if (mod && typeof mod.openAuthSessionAsync === 'function') {
+      const result = await mod.openAuthSessionAsync(url, redirectUri);
+      const redirectUrl =
+        result && result.type === 'success' && typeof result.url === 'string' ? result.url : null;
+      return { redirectUrl };
     }
+  } catch (error) {
+    logger.warn(
+      'OxySignInButton: expo-web-browser auth session failed; falling back to Linking.openURL',
+      { component: 'oauthNavigation' },
+      error,
+    );
+  }
 
-    if (options.allowExternalFallback === false) {
-        return { redirectUrl: null };
-    }
-
-    // Fallback: Linking cannot observe the return URL, so the RP completes the
-    // exchange from its own deep-link handler. A rejected openURL (e.g. an
-    // unregistered scheme) must not throw out of the sign-in flow.
-    try {
-        await Linking.openURL(url);
-    } catch (error) {
-        logger.warn(
-            'OxySignInButton: Linking.openURL rejected the authorize URL',
-            { component: 'oauthNavigation' },
-            error,
-        );
-    }
+  if (options.allowExternalFallback === false) {
     return { redirectUrl: null };
+  }
+
+  // Fallback: Linking cannot observe the return URL, so the RP completes the
+  // exchange from its own deep-link handler. A rejected openURL (e.g. an
+  // unregistered scheme) must not throw out of the sign-in flow.
+  try {
+    await Linking.openURL(url);
+  } catch (error) {
+    logger.warn(
+      'OxySignInButton: Linking.openURL rejected the authorize URL',
+      { component: 'oauthNavigation' },
+      error,
+    );
+  }
+  return { redirectUrl: null };
 }

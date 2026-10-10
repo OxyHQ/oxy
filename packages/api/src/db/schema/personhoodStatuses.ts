@@ -22,7 +22,15 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, doublePrecision, index, integer, pgTable, text } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  doublePrecision,
+  index,
+  integer,
+  pgTable,
+  text,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
@@ -93,13 +101,16 @@ export const personhoodStatuses = pgTable(
     index('personhood_statuses_score_idx').on(t.score),
     index('personhood_statuses_is_real_person_idx').on(t.isRealPerson),
 
-    check('personhood_statuses_counts_check', sql`${t.vouchCount} >= 0 and ${t.realLifeCount} >= 0`),
+    check(
+      'personhood_statuses_counts_check',
+      sql`${t.vouchCount} >= 0 and ${t.realLifeCount} >= 0`,
+    ),
     // Every one of these is a saturated [0, 1] signal by construction in
     // `personhoodDerive.personhoodScore`; a value outside it is not a weaker
     // score, it is a broken derivation.
     check(
       'personhood_statuses_signals_check',
-      sql`${t.score} between 0 and 1 and ${t.sybilPenalty} between 0 and 1 and ${t.breakdownVouchSignal} between 0 and 1 and ${t.breakdownRealLifeSignal} between 0 and 1 and ${t.breakdownBiometricSignal} between 0 and 1 and ${t.breakdownEvidence} between 0 and 1 and ${t.breakdownSybilPenalty} between 0 and 1`
+      sql`${t.score} between 0 and 1 and ${t.sybilPenalty} between 0 and 1 and ${t.breakdownVouchSignal} between 0 and 1 and ${t.breakdownRealLifeSignal} between 0 and 1 and ${t.breakdownBiometricSignal} between 0 and 1 and ${t.breakdownEvidence} between 0 and 1 and ${t.breakdownSybilPenalty} between 0 and 1`,
     ),
-  ]
+  ],
 );

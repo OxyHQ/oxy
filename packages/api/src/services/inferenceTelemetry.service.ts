@@ -36,10 +36,7 @@ import type { InferenceRequestOutcome, UsageSource, UsageUnit } from '@oxy.so/co
 import type { InferenceEnvironment } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { inferenceUsageDailyRollups } from '../db/schema/inferenceUsageDailyRollups';
-import {
-  inferenceUsageEvents,
-  UNROUTED_PROVIDER,
-} from '../db/schema/inferenceUsageEvents';
+import { inferenceUsageEvents, UNROUTED_PROVIDER } from '../db/schema/inferenceUsageEvents';
 import {
   USAGE_UNIT_COLUMN_KEYS,
   usageUnitColumnValues,
@@ -92,9 +89,7 @@ export type RecordUsageResult =
  * Both writes are in one transaction so the two can never disagree about
  * whether a request happened.
  */
-export async function recordInferenceUsage(
-  input: RecordUsageInput
-): Promise<RecordUsageResult> {
+export async function recordInferenceUsage(input: RecordUsageInput): Promise<RecordUsageResult> {
   const occurredAt = input.occurredAt ?? new Date();
   const units = usageUnitColumnValues(input.units);
 
@@ -222,9 +217,7 @@ export interface UsageSummaryRow {
  * this must say so, and must not present the figures beside a billed amount as
  * though the two were derived from the same record.
  */
-export async function summarizeUsage(
-  query: UsageSummaryQuery
-): Promise<UsageSummaryRow[]> {
+export async function summarizeUsage(query: UsageSummaryQuery): Promise<UsageSummaryRow[]> {
   const filters = [
     eq(inferenceUsageDailyRollups.accountId, query.accountId),
     gte(inferenceUsageDailyRollups.day, query.from),
@@ -235,7 +228,7 @@ export async function summarizeUsage(
   }
   if (query.applicationCredentialId !== undefined) {
     filters.push(
-      eq(inferenceUsageDailyRollups.applicationCredentialId, query.applicationCredentialId)
+      eq(inferenceUsageDailyRollups.applicationCredentialId, query.applicationCredentialId),
     );
   }
 
@@ -256,7 +249,7 @@ export async function summarizeUsage(
     requestCount: row.requestCount,
     errorCount: row.errorCount,
     units: Object.fromEntries(
-      Object.values(USAGE_UNIT_COLUMN_KEYS).map((key) => [key, row[key]])
+      Object.values(USAGE_UNIT_COLUMN_KEYS).map((key) => [key, row[key]]),
     ) as Record<UsageUnitColumnKey, number>,
   }));
 }

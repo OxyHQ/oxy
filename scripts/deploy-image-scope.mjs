@@ -61,7 +61,10 @@ function decide(base, head) {
   const hits = matchingPaths(changed, patterns);
   return hits.length > 0
     ? { build: true, reason: `deploy-aws.yml deploys this change: ${hits.slice(0, 10).join(', ')}` }
-    : { build: false, reason: `none of ${changed.length} changed path(s) is in deploy-aws.yml on.push.paths` };
+    : {
+        build: false,
+        reason: `none of ${changed.length} changed path(s) is in deploy-aws.yml on.push.paths`,
+      };
 }
 
 if (import.meta.main) {

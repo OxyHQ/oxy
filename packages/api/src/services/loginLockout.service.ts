@@ -132,9 +132,8 @@ export async function recordFailure(options: LockoutOptions): Promise<LockoutChe
       if (incrErr) {
         throw incrErr;
       }
-      const count = typeof incrValue === 'number'
-        ? incrValue
-        : Number.parseInt(String(incrValue ?? '0'), 10);
+      const count =
+        typeof incrValue === 'number' ? incrValue : Number.parseInt(String(incrValue ?? '0'), 10);
 
       if (count >= max) {
         const ttlSec = await redis.ttl(key);
@@ -200,12 +199,18 @@ export async function reserveAttempt(options: LockoutOptions): Promise<LockoutCh
       pipeline.expire(key, windowSeconds, 'NX');
       pipeline.ttl(key);
       const results = await pipeline.exec();
-      const [incrErr, incrValue] = results?.[0] ?? [new Error('Redis pipeline returned no results'), null];
+      const [incrErr, incrValue] = results?.[0] ?? [
+        new Error('Redis pipeline returned no results'),
+        null,
+      ];
       if (incrErr) throw incrErr;
-      const count = typeof incrValue === 'number' ? incrValue : Number.parseInt(String(incrValue ?? '0'), 10);
+      const count =
+        typeof incrValue === 'number' ? incrValue : Number.parseInt(String(incrValue ?? '0'), 10);
       const ttlValue = results?.[2]?.[1];
       const ttl = typeof ttlValue === 'number' && ttlValue > 0 ? ttlValue : windowSeconds;
-      return count > max ? { locked: true, retryAfterSeconds: ttl, attempts: count } : { locked: false, attempts: count };
+      return count > max
+        ? { locked: true, retryAfterSeconds: ttl, attempts: count }
+        : { locked: false, attempts: count };
     } catch (error) {
       logger.warn('[LoginLockout] Redis reserve failed, falling back to memory', {
         error: error instanceof Error ? error.message : String(error),
@@ -223,7 +228,11 @@ export async function reserveAttempt(options: LockoutOptions): Promise<LockoutCh
   }
   bucket.count += 1;
   return bucket.count > max
-    ? { locked: true, retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000), attempts: bucket.count }
+    ? {
+        locked: true,
+        retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000),
+        attempts: bucket.count,
+      }
     : { locked: false, attempts: bucket.count };
 }
 
@@ -232,7 +241,9 @@ export async function reserveAttempt(options: LockoutOptions): Promise<LockoutCh
  * a user who eventually authenticates correctly is not stuck behind a
  * lingering lockout window.
  */
-export async function clearFailures(options: Pick<LockoutOptions, 'scope' | 'identifier'>): Promise<void> {
+export async function clearFailures(
+  options: Pick<LockoutOptions, 'scope' | 'identifier'>,
+): Promise<void> {
   const key = buildKey(options.scope, options.identifier);
 
   const redis = getRedisClient();

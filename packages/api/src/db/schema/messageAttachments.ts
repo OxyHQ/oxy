@@ -94,5 +94,5 @@ export const messageAttachments = pgTable(
     // Mongo's `min: 0`.
     check('message_attachments_size_check', sql`${t.size} >= 0`),
     check('message_attachments_ord_check', sql`${t.ord} >= 0`),
-  ]
+  ],
 );

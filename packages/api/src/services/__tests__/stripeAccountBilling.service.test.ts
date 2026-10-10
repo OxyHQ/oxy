@@ -110,8 +110,8 @@ async function countExternalPayments(externalRef: string): Promise<number> {
     .where(
       and(
         eq(billingExternalPayments.provider, 'stripe'),
-        eq(billingExternalPayments.externalRef, externalRef)
-      )
+        eq(billingExternalPayments.externalRef, externalRef),
+      ),
     );
   return rows.length;
 }
@@ -261,7 +261,7 @@ describe('the credited amount is the processor amount, exactly', () => {
         accountId,
         paymentIntentId: `pi_${randomUUID().replace(/-/g, '')}`,
         amountTotal: 7,
-      })
+      }),
     );
 
     const [payment] = await getDb()

@@ -111,20 +111,30 @@ function buildHarness(options: HarnessOptions = {}): Harness {
   let releaseProfiles = (): void => undefined;
 
   const oxyServices: RuntimeClient = {
-    session: { get accessToken() { return (() => bearer.current)(); } },
-    users: { getMany: (ids) => {
-      profileFetches.push([...ids]);
-      const users = ids.map(buildUser);
-      if (!options.deferProfiles) {
-        return Promise.resolve(users);
-      }
-      return new Promise<User[]>((resolve) => {
-        releaseProfiles = () => resolve(users);
-      });
-    } },
+    session: {
+      get accessToken() {
+        return (() => bearer.current)();
+      },
+    },
+    users: {
+      getMany: (ids) => {
+        profileFetches.push([...ids]);
+        const users = ids.map(buildUser);
+        if (!options.deferProfiles) {
+          return Promise.resolve(users);
+        }
+        return new Promise<User[]>((resolve) => {
+          releaseProfiles = () => resolve(users);
+        });
+      },
+    },
   };
 
-  const calls = { activate: [] as string[], signOutContext: [] as string[], signOutPrincipal: [] as string[] };
+  const calls = {
+    activate: [] as string[],
+    signOutContext: [] as string[],
+    signOutPrincipal: [] as string[],
+  };
 
   const sessionClient: RuntimeSessionClient = {
     getState: () => state,
@@ -138,9 +148,7 @@ function buildHarness(options: HarnessOptions = {}): Harness {
     refreshDirectory: () => Promise.resolve(),
     activateContext: (contextId) => {
       calls.activate.push(contextId);
-      return options.rejectActivation
-        ? Promise.reject(new Error('refused'))
-        : Promise.resolve();
+      return options.rejectActivation ? Promise.reject(new Error('refused')) : Promise.resolve();
     },
     signOutContext: (contextId) => {
       calls.signOutContext.push(contextId);
@@ -303,7 +311,10 @@ describe('createOxyRuntime — the device projection', () => {
     await settle();
 
     const snapshot = harness.runtime.getSnapshot();
-    expect(snapshot.sessions.map((session) => session.sessionId).sort()).toEqual(['sess-a1', 'sess-a2']);
+    expect(snapshot.sessions.map((session) => session.sessionId).sort()).toEqual([
+      'sess-a1',
+      'sess-a2',
+    ]);
     expect(snapshot.activeSessionId).toBe('sess-a2');
     expect(snapshot.account?.id).toBe('a2');
     expect(snapshot.deviceState?.revision).toBe(1);
@@ -456,7 +467,11 @@ describe('createOxyRuntime — the ordering invariant (ADR 0002)', () => {
     // The initial sign-in already produced one reset; the switch's own reset is
     // the delta this test is about.
     const resetsBefore = resetLog.length;
-    const observed: Array<{ subject: string | null; bearer: string | null; resetsSinceSubscribe: number }> = [];
+    const observed: Array<{
+      subject: string | null;
+      bearer: string | null;
+      resetsSinceSubscribe: number;
+    }> = [];
     const unsubscribe = harness.runtime.subscribe(() => {
       observed.push({
         subject: harness.runtime.getSnapshot().account?.id ?? null,

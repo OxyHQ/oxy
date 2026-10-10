@@ -15,28 +15,31 @@ import { formatUserNameResponse, type NameParts, type NameResponse } from './dis
 
 type StringableId = string | { toString(): string };
 
-export type UserLike = {
-  _id?: StringableId | null;
-  publicKey?: string;
-  username?: string;
-  email?: string;
-  avatar?: string | null;
-  color?: string | null;
-  name?: NameParts;
-  accountCategories?: unknown;
-  privacySettings?: unknown;
-  verified?: boolean;
-  languages?: string[];
-  bio?: string;
-  description?: string;
-  locations?: unknown;
-  links?: unknown;
-  linksMetadata?: unknown;
-  verifiedDomains?: unknown;
-  themePreference?: unknown;
-  createdAt?: unknown;
-  updatedAt?: unknown;
-} | null | undefined;
+export type UserLike =
+  | {
+      _id?: StringableId | null;
+      publicKey?: string;
+      username?: string;
+      email?: string;
+      avatar?: string | null;
+      color?: string | null;
+      name?: NameParts;
+      accountCategories?: unknown;
+      privacySettings?: unknown;
+      verified?: boolean;
+      languages?: string[];
+      bio?: string;
+      description?: string;
+      locations?: unknown;
+      links?: unknown;
+      linksMetadata?: unknown;
+      verifiedDomains?: unknown;
+      themePreference?: unknown;
+      createdAt?: unknown;
+      updatedAt?: unknown;
+    }
+  | null
+  | undefined;
 
 /** A proven-domain badge as emitted on the user DTO (secret-free, no subdoc _id). */
 interface VerifiedDomainDto {
@@ -73,8 +76,8 @@ function toVerifiedDomains(value: unknown): VerifiedDomainDto[] | undefined {
 function toAccountCategories(value: unknown): AccountCategoryId[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const known = new Set<string>(ACCOUNT_CATEGORY_IDS);
-  const ids = value.filter((entry): entry is AccountCategoryId =>
-    typeof entry === 'string' && known.has(entry)
+  const ids = value.filter(
+    (entry): entry is AccountCategoryId => typeof entry === 'string' && known.has(entry),
   );
   return ids.length > 0 ? ids : undefined;
 }
@@ -284,7 +287,9 @@ export function formatUserResponse(user: unknown) {
     bio: stringValue(user.bio),
     description: stringValue(user.description),
     locations: Array.isArray(user.locations) ? user.locations : undefined,
-    links: Array.isArray(user.links) ? user.links.filter((link): link is string => typeof link === 'string') : undefined,
+    links: Array.isArray(user.links)
+      ? user.links.filter((link): link is string => typeof link === 'string')
+      : undefined,
     linksMetadata: Array.isArray(user.linksMetadata) ? user.linksMetadata : undefined,
     verifiedDomains: toVerifiedDomains(user.verifiedDomains),
     // Account-graph classification. Orthogonal to `type` below — `kind` says

@@ -21,7 +21,13 @@
  * checks that its account is still the active one in the same tick it hydrates.
  */
 
-import { hashKey, type Mutation, type Query, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import {
+  hashKey,
+  type Mutation,
+  type Query,
+  type QueryClient,
+  type QueryKey,
+} from '@tanstack/react-query';
 import type { StorageInterface } from '../utils/storageHelpers';
 import {
   PERSISTED_QUERY_PREFIXES,
@@ -181,10 +187,15 @@ export function createAccountQueryPersistence(
         if (current !== generation) return;
       }
       restoredFor = id;
-      writer = subscribeSnapshots(queryClient, filters, ACCOUNT_QUERY_PERSIST_THROTTLE_MS, (serialized) => {
-        if (current !== generation) return;
-        enqueue((target) => target.setItem(key, serialized));
-      });
+      writer = subscribeSnapshots(
+        queryClient,
+        filters,
+        ACCOUNT_QUERY_PERSIST_THROTTLE_MS,
+        (serialized) => {
+          if (current !== generation) return;
+          enqueue((target) => target.setItem(key, serialized));
+        },
+      );
       notify();
     });
   };

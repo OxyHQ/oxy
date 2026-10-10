@@ -1,6 +1,6 @@
 /**
  * Async Handler Utility
- * 
+ *
  * Wraps async route handlers to automatically catch and handle errors.
  * Provides consistent error handling across all routes.
  */
@@ -12,7 +12,7 @@ import { ApiError } from './error';
 type AsyncRequestHandler = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => Promise<void | Response>;
 
 /**
@@ -28,10 +28,14 @@ export const asyncHandler = (fn: AsyncRequestHandler) => {
       }
 
       // Log unexpected errors
-      logger.error('Unexpected error in route handler', error instanceof Error ? error : new Error(String(error)), {
-        path: req.path,
-        method: req.method,
-      });
+      logger.error(
+        'Unexpected error in route handler',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          path: req.path,
+          method: req.method,
+        },
+      );
 
       // Default to 500 for unexpected errors
       const isDev = process.env.NODE_ENV === 'development';
@@ -54,7 +58,7 @@ export const sendSuccess = <T = unknown>(
   res: Response,
   data: T,
   statusCode = 200,
-  meta?: Record<string, unknown>
+  meta?: Record<string, unknown>,
 ) => {
   const response: { data: T; meta?: Record<string, unknown> } = { data };
 
@@ -73,7 +77,7 @@ export const sendPaginated = <T = unknown>(
   data: T[],
   total: number,
   limit: number,
-  offset: number
+  offset: number,
 ) => {
   return res.json({
     data,
@@ -85,4 +89,3 @@ export const sendPaginated = <T = unknown>(
     },
   });
 };
-

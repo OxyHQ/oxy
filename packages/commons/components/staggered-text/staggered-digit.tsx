@@ -1,9 +1,6 @@
 import { StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 
-import Animated, {
-  interpolate,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
+import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import type { SharedValue } from 'react-native-reanimated';
 
@@ -87,7 +84,8 @@ export const StaggeredDigit: React.FC<StaggeredDigitProps> = ({
           },
           rStyle,
           textStyle,
-        ]}>
+        ]}
+      >
         {digit}
       </Animated.Text>
       <Animated.Text
@@ -99,7 +97,8 @@ export const StaggeredDigit: React.FC<StaggeredDigitProps> = ({
           },
           rBottomDigitStyle,
           textStyle,
-        ]}>
+        ]}
+      >
         {digit}
       </Animated.Text>
     </Animated.View>
@@ -111,4 +110,3 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 });
-

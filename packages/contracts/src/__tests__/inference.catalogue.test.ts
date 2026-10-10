@@ -148,9 +148,9 @@ describe('the six catalogue objects are distinct', () => {
 
 describe('catalogueModelSchema', () => {
   it('refuses a modelId that is not <publisher>/<model>', () => {
-    expect(
-      catalogueModelSchema.safeParse({ ...model, modelId: 'meta/llama-4-8b' }).success,
-    ).toBe(false);
+    expect(catalogueModelSchema.safeParse({ ...model, modelId: 'meta/llama-4-8b' }).success).toBe(
+      false,
+    );
     expect(catalogueModelSchema.safeParse({ ...model, modelId: 'llama-4-70b' }).success).toBe(
       false,
     );
@@ -317,9 +317,9 @@ describe('inferenceDataPolicySchema', () => {
   });
 
   it('refuses a policy a routing rule could not be enforced against', () => {
-    expect(
-      inferenceDataPolicySchema.safeParse({ ...dataPolicy, retentionDays: 30 }).success,
-    ).toBe(false);
+    expect(inferenceDataPolicySchema.safeParse({ ...dataPolicy, retentionDays: 30 }).success).toBe(
+      false,
+    );
     expect(
       inferenceDataPolicySchema.safeParse({ ...dataPolicy, trainsOnCustomerData: true }).success,
     ).toBe(false);
@@ -344,14 +344,18 @@ describe('reasoning efforts on capabilities', () => {
     expect(
       catalogueModelSchema.safeParse({
         ...model,
-        capabilities: { ...capabilities, reasoning: true, reasoningEfforts: ['low', 'medium', 'high'] },
-      }).success
+        capabilities: {
+          ...capabilities,
+          reasoning: true,
+          reasoningEfforts: ['low', 'medium', 'high'],
+        },
+      }).success,
     ).toBe(true);
     expect(
       catalogueModelSchema.safeParse({
         ...model,
         capabilities: { ...capabilities, reasoningEfforts: ['xhigh'] },
-      }).success
+      }).success,
     ).toBe(false);
   });
 });

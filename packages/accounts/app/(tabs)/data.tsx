@@ -1,5 +1,12 @@
 import React, { useMemo, useCallback, useState } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, ActivityIndicator, Linking } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+  ActivityIndicator,
+  Linking,
+} from 'react-native';
 import { File } from 'expo-file-system';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -40,59 +47,65 @@ export default function DataScreen() {
   const showActivity = (settings?.showActivity as boolean | undefined) ?? true;
 
   // Handle privacy setting updates
-  const handlePrivacyUpdate = useCallback(async (key: string, value: boolean) => {
-    if (!user?.id) return;
+  const handlePrivacyUpdate = useCallback(
+    async (key: string, value: boolean) => {
+      if (!user?.id) return;
 
-    setPendingPrivacyKey(key);
-    try {
-      await updatePrivacyMutation.mutateAsync({
-        settings: { [key]: value },
-        userId: user.id,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('data.privacy.updateFailed');
-      toast.error(message);
-    } finally {
-      setPendingPrivacyKey((current) => (current === key ? null : current));
-    }
-  }, [user?.id, updatePrivacyMutation, t]);
+      setPendingPrivacyKey(key);
+      try {
+        await updatePrivacyMutation.mutateAsync({
+          settings: { [key]: value },
+          userId: user.id,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : t('data.privacy.updateFailed');
+        toast.error(message);
+      } finally {
+        setPendingPrivacyKey((current) => (current === key ? null : current));
+      }
+    },
+    [user?.id, updatePrivacyMutation, t],
+  );
 
   // Save a downloaded blob to the user's device. Web uses an anchor download;
   // native writes to the cache directory and opens the OS share sheet so the
   // user can save it to Files, send via email, etc.
-  const saveBlob = useCallback(async (blob: Blob, filename: string, mimeType: string) => {
-    if (Platform.OS === 'web') {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      return;
-    }
+  const saveBlob = useCallback(
+    async (blob: Blob, filename: string, mimeType: string) => {
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        return;
+      }
 
-    // Native: convert blob → Uint8Array → write to cache → open share sheet
-    const arrayBuffer = await blob.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+      // Native: convert blob → Uint8Array → write to cache → open share sheet
+      const arrayBuffer = await blob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
 
-    const cacheDir = FileSystemLegacy.cacheDirectory ?? '';
-    if (!cacheDir) {
-      throw new Error(t('data.download.noCacheDir'));
-    }
-    const fileUri = `${cacheDir}${filename}`;
-    const file = new File(fileUri);
-    await file.write(bytes);
+      const cacheDir = FileSystemLegacy.cacheDirectory ?? '';
+      if (!cacheDir) {
+        throw new Error(t('data.download.noCacheDir'));
+      }
+      const fileUri = `${cacheDir}${filename}`;
+      const file = new File(fileUri);
+      await file.write(bytes);
 
-    if (!(await Sharing.isAvailableAsync())) {
-      throw new Error(t('data.download.noSharing'));
-    }
-    await Sharing.shareAsync(fileUri, {
-      mimeType,
-      dialogTitle: t('data.download.saveTitle'),
-    });
-  }, [t]);
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error(t('data.download.noSharing'));
+      }
+      await Sharing.shareAsync(fileUri, {
+        mimeType,
+        dialogTitle: t('data.download.saveTitle'),
+      });
+    },
+    [t],
+  );
 
   // The signed export (GET /users/me/export): one JSON bundle of everything the
   // account holds, signed so it can be verified away from Oxy.
@@ -113,14 +126,10 @@ export default function DataScreen() {
   }, [oxyServices, saveBlob, t]);
 
   const handleDownloadData = useCallback(() => {
-    alert(
-      t('data.download.promptTitle'),
-      t('data.download.promptMessage'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('data.download.confirm'), onPress: () => downloadExport() },
-      ]
-    );
+    alert(t('data.download.promptTitle'), t('data.download.promptMessage'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('data.download.confirm'), onPress: () => downloadExport() },
+    ]);
   }, [downloadExport, t]);
 
   // Handle delete account. An account WITHOUT a key confirms with a code by
@@ -133,123 +142,144 @@ export default function DataScreen() {
       showBottomSheet?.('DeleteAccount');
       return;
     }
-    alert(
-      t('data.deleteAccount.title'),
-      t('data.deleteAccount.commonsMessage'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('data.deleteAccount.openCommons'),
-          style: 'destructive',
-          onPress: () => {
-            Linking.openURL(COMMONS_DELETE_ACCOUNT_URL).catch((error) => {
-              logger.error(
-                'DataScreen: failed to open Commons delete-account deep link',
-                error instanceof Error ? error : new Error(String(error)),
-                { component: 'DataScreen' },
-              );
-              toast.error(t('data.deleteAccount.commonsUnavailable'));
-            });
-          },
+    alert(t('data.deleteAccount.title'), t('data.deleteAccount.commonsMessage'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('data.deleteAccount.openCommons'),
+        style: 'destructive',
+        onPress: () => {
+          Linking.openURL(COMMONS_DELETE_ACCOUNT_URL).catch((error) => {
+            logger.error(
+              'DataScreen: failed to open Commons delete-account deep link',
+              error instanceof Error ? error : new Error(String(error)),
+              { component: 'DataScreen' },
+            );
+            toast.error(t('data.deleteAccount.commonsUnavailable'));
+          });
         },
-      ],
-    );
+      },
+    ]);
   }, [t, user?.publicKey, showBottomSheet]);
 
   // Data download section
-  const dataDownloadItems = useMemo(() => [
-    {
-      id: 'download',
-      icon: 'download-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('data.download.title'),
-      subtitle: t('data.download.subtitle'),
-      onPress: handleDownloadData,
-      showChevron: true,
-    },
-  ], [colors, handleDownloadData, t]);
+  const dataDownloadItems = useMemo(
+    () => [
+      {
+        id: 'download',
+        icon: 'download-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('data.download.title'),
+        subtitle: t('data.download.subtitle'),
+        onPress: handleDownloadData,
+        showChevron: true,
+      },
+    ],
+    [colors, handleDownloadData, t],
+  );
 
   // Privacy controls section
-  const privacyControlItems = useMemo(() => [
-    {
-      id: 'data-sharing',
-      icon: 'share-variant-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('data.privacy.dataSharing'),
-      subtitle: t('data.privacy.dataSharingSubtitle'),
-      customContent: (
-        <Switch
-          checked={dataSharing}
-          onCheckedChange={(value) => handlePrivacyUpdate('dataSharing', value)}
-          disabled={pendingPrivacyKey === 'dataSharing'}
-        />
-      ),
-    },
-    {
-      id: 'location-sharing',
-      icon: 'map-marker-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('data.privacy.locationSharing'),
-      subtitle: t('data.privacy.locationSharingSubtitle'),
-      customContent: (
-        <Switch
-          checked={locationSharing}
-          onCheckedChange={(value) => handlePrivacyUpdate('locationSharing', value)}
-          disabled={pendingPrivacyKey === 'locationSharing'}
-        />
-      ),
-    },
-    {
-      id: 'analytics-sharing',
-      icon: 'chart-line-variant',
-      iconColor: colors.sidebarIconData,
-      title: t('data.privacy.analytics'),
-      subtitle: t('data.privacy.analyticsSubtitle'),
-      customContent: (
-        <Switch
-          checked={analyticsSharing}
-          onCheckedChange={(value) => handlePrivacyUpdate('analyticsSharing', value)}
-          disabled={pendingPrivacyKey === 'analyticsSharing'}
-        />
-      ),
-    },
-    {
-      id: 'show-activity',
-      icon: 'eye-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('data.privacy.showActivity'),
-      subtitle: t('data.privacy.showActivitySubtitle'),
-      customContent: (
-        <Switch
-          checked={showActivity}
-          onCheckedChange={(value) => handlePrivacyUpdate('showActivity', value)}
-          disabled={pendingPrivacyKey === 'showActivity'}
-        />
-      ),
-    },
-  ], [colors, dataSharing, locationSharing, analyticsSharing, showActivity, handlePrivacyUpdate, pendingPrivacyKey, t]);
+  const privacyControlItems = useMemo(
+    () => [
+      {
+        id: 'data-sharing',
+        icon: 'share-variant-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('data.privacy.dataSharing'),
+        subtitle: t('data.privacy.dataSharingSubtitle'),
+        customContent: (
+          <Switch
+            checked={dataSharing}
+            onCheckedChange={(value) => handlePrivacyUpdate('dataSharing', value)}
+            disabled={pendingPrivacyKey === 'dataSharing'}
+          />
+        ),
+      },
+      {
+        id: 'location-sharing',
+        icon: 'map-marker-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('data.privacy.locationSharing'),
+        subtitle: t('data.privacy.locationSharingSubtitle'),
+        customContent: (
+          <Switch
+            checked={locationSharing}
+            onCheckedChange={(value) => handlePrivacyUpdate('locationSharing', value)}
+            disabled={pendingPrivacyKey === 'locationSharing'}
+          />
+        ),
+      },
+      {
+        id: 'analytics-sharing',
+        icon: 'chart-line-variant',
+        iconColor: colors.sidebarIconData,
+        title: t('data.privacy.analytics'),
+        subtitle: t('data.privacy.analyticsSubtitle'),
+        customContent: (
+          <Switch
+            checked={analyticsSharing}
+            onCheckedChange={(value) => handlePrivacyUpdate('analyticsSharing', value)}
+            disabled={pendingPrivacyKey === 'analyticsSharing'}
+          />
+        ),
+      },
+      {
+        id: 'show-activity',
+        icon: 'eye-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('data.privacy.showActivity'),
+        subtitle: t('data.privacy.showActivitySubtitle'),
+        customContent: (
+          <Switch
+            checked={showActivity}
+            onCheckedChange={(value) => handlePrivacyUpdate('showActivity', value)}
+            disabled={pendingPrivacyKey === 'showActivity'}
+          />
+        ),
+      },
+    ],
+    [
+      colors,
+      dataSharing,
+      locationSharing,
+      analyticsSharing,
+      showActivity,
+      handlePrivacyUpdate,
+      pendingPrivacyKey,
+      t,
+    ],
+  );
 
   // Account management section
-  const accountManagementItems = useMemo(() => [
-    {
-      id: 'delete-account',
-      icon: 'delete-outline',
-      iconColor: colors.error,
-      title: t('data.deleteAccount.title'),
-      subtitle: t('data.deleteAccount.subtitle'),
-      onPress: handleDeleteAccount,
-      showChevron: false,
-    },
-  ], [colors.error, handleDeleteAccount, t]);
-
+  const accountManagementItems = useMemo(
+    () => [
+      {
+        id: 'delete-account',
+        icon: 'delete-outline',
+        iconColor: colors.error,
+        title: t('data.deleteAccount.title'),
+        subtitle: t('data.deleteAccount.subtitle'),
+        onPress: handleDeleteAccount,
+        showChevron: false,
+      },
+    ],
+    [colors.error, handleDeleteAccount, t],
+  );
 
   // Show loading state
   if (oxyLoading || privacyLoading) {
     return (
       <ScreenContentWrapper>
-        <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.container,
+            styles.loadingContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('data.loading')}</ThemedText>
+          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+            {t('data.loading')}
+          </ThemedText>
         </View>
       </ScreenContentWrapper>
     );
@@ -258,7 +288,9 @@ export default function DataScreen() {
   const renderContent = () => (
     <>
       <Section title={t('data.sections.download')}>
-        <ThemedText style={styles.sectionSubtitle}>{t('data.sections.downloadSubtitle')}</ThemedText>
+        <ThemedText style={styles.sectionSubtitle}>
+          {t('data.sections.downloadSubtitle')}
+        </ThemedText>
         <AccountCard>
           <GroupedSection items={dataDownloadItems} />
         </AccountCard>

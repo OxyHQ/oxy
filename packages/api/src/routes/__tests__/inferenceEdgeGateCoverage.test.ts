@@ -48,7 +48,10 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { EDGE_AUDIENCE_VARIABLE, MACHINE_CREDENTIAL_AUTH_VARIABLE } from '../../config/rolloutFlags';
+import {
+  EDGE_AUDIENCE_VARIABLE,
+  MACHINE_CREDENTIAL_AUTH_VARIABLE,
+} from '../../config/rolloutFlags';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
@@ -151,11 +154,8 @@ interface RawResponse {
  */
 async function withServer(
   run: (
-    request: (
-      route: DiscoveredRoute,
-      headers?: Record<string, string>
-    ) => Promise<RawResponse>
-  ) => Promise<void>
+    request: (route: DiscoveredRoute, headers?: Record<string, string>) => Promise<RawResponse>,
+  ) => Promise<void>,
 ): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -167,7 +167,7 @@ async function withServer(
 
   const request = (
     route: DiscoveredRoute,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
   ): Promise<RawResponse> => {
     const { port } = server.address() as AddressInfo;
     // A minimal well-formed body. It is never parsed — the gate answers before
@@ -184,9 +184,7 @@ async function withServer(
           method: route.method,
           headers: {
             'Content-Type': 'application/json',
-            ...(route.method === 'GET'
-              ? {}
-              : { 'Content-Length': Buffer.byteLength(payload) }),
+            ...(route.method === 'GET' ? {} : { 'Content-Length': Buffer.byteLength(payload) }),
             ...headers,
           },
         },
@@ -198,9 +196,9 @@ async function withServer(
               status: res.statusCode ?? 0,
               headers: res.headers,
               body: Buffer.concat(chunks).toString('utf8'),
-            })
+            }),
           );
-        }
+        },
       );
       // A route with NO gate leaves `req.edge` undefined, and its handler's
       // `if (edge === undefined) return;` then answers NOTHING — so the honest
@@ -211,8 +209,8 @@ async function withServer(
         req.destroy();
         reject(
           new Error(
-            `${route.method} ${route.path} answered nothing within 5000ms — a route whose gate is missing never writes a response`
-          )
+            `${route.method} ${route.path} answered nothing within 5000ms — a route whose gate is missing never writes a response`,
+          ),
         );
       });
       req.on('error', reject);
@@ -267,10 +265,7 @@ async function makeCredential(): Promise<{ token: string }> {
 }
 
 const ORIGINAL_ENVIRONMENT = Object.fromEntries(
-  [EDGE_AUDIENCE_VARIABLE, MACHINE_CREDENTIAL_AUTH_VARIABLE].map((key) => [
-    key,
-    process.env[key],
-  ])
+  [EDGE_AUDIENCE_VARIABLE, MACHINE_CREDENTIAL_AUTH_VARIABLE].map((key) => [key, process.env[key]]),
 );
 
 beforeAll(async () => {
@@ -337,8 +332,7 @@ describe('every registered route runs the gate', () => {
         // dialect, and that difference is the reason the gate cannot be hoisted to
         // a `router.use`. Asserting "either of these two" rather than "a 401
         // happened" is what keeps a bare platform error envelope from passing.
-        const oxyShape =
-          body.code === 'authentication_failed' && body.retryable === false;
+        const oxyShape = body.code === 'authentication_failed' && body.retryable === false;
         const openAiShape =
           typeof body.error === 'object' &&
           body.error !== null &&

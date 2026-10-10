@@ -61,7 +61,6 @@ export interface NotificationData {
  * Service to handle notification operations
  */
 export class NotificationService {
-
   /**
    * Create a new notification.
    *
@@ -99,7 +98,10 @@ export class NotificationService {
 
       return notification ?? null;
     } catch (error) {
-      logger.error('Error creating notification', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        'Error creating notification',
+        error instanceof Error ? error : new Error(String(error)),
+      );
       throw error;
     }
   }
@@ -107,101 +109,78 @@ export class NotificationService {
   /**
    * Create a like notification
    */
-  static async createLikeNotification(
-    recipientId: string,
-    actorId: string,
-    postId: string
-  ) {
+  static async createLikeNotification(recipientId: string, actorId: string, postId: string) {
     return this.createNotification({
       recipientId,
       actorId,
       type: 'like',
       entityId: postId,
-      entityType: 'post'
+      entityType: 'post',
     });
   }
 
   /**
    * Create a follow notification
    */
-  static async createFollowNotification(
-    recipientId: string,
-    actorId: string
-  ) {
+  static async createFollowNotification(recipientId: string, actorId: string) {
     return this.createNotification({
       recipientId,
       actorId,
       type: 'follow',
       entityId: recipientId,
-      entityType: 'profile'
+      entityType: 'profile',
     });
   }
 
   /**
    * Create a reply notification
    */
-  static async createReplyNotification(
-    recipientId: string,
-    actorId: string,
-    replyId: string
-  ) {
+  static async createReplyNotification(recipientId: string, actorId: string, replyId: string) {
     return this.createNotification({
       recipientId,
       actorId,
       type: 'reply',
       entityId: replyId,
-      entityType: 'reply'
+      entityType: 'reply',
     });
   }
 
   /**
    * Create a mention notification
    */
-  static async createMentionNotification(
-    recipientId: string,
-    actorId: string,
-    postId: string
-  ) {
+  static async createMentionNotification(recipientId: string, actorId: string, postId: string) {
     return this.createNotification({
       recipientId,
       actorId,
       type: 'mention',
       entityId: postId,
-      entityType: 'post'
+      entityType: 'post',
     });
   }
 
   /**
    * Create a repost notification
    */
-  static async createRepostNotification(
-    recipientId: string,
-    actorId: string,
-    postId: string
-  ) {
+  static async createRepostNotification(recipientId: string, actorId: string, postId: string) {
     return this.createNotification({
       recipientId,
       actorId,
       type: 'repost',
       entityId: postId,
-      entityType: 'post'
+      entityType: 'post',
     });
   }
 
   /**
    * Create a quote post notification
    */
-  static async createQuoteNotification(
-    recipientId: string,
-    actorId: string,
-    postId: string
-  ) {
+  static async createQuoteNotification(recipientId: string, actorId: string, postId: string) {
     return this.createNotification({
       recipientId,
       actorId,
       type: 'quote',
       entityId: postId,
-      entityType: 'post'
+      entityType: 'post',
     });
   }
 
@@ -212,16 +191,13 @@ export class NotificationService {
    * foreign key, so the all-zero ObjectId the Mongo version used would now be
    * rejected. See the module header.
    */
-  static async createWelcomeNotification(
-    recipientId: string,
-    systemActorId: string
-  ) {
+  static async createWelcomeNotification(recipientId: string, systemActorId: string) {
     return this.createNotification({
       recipientId,
       actorId: systemActorId,
       type: 'welcome',
       entityId: recipientId,
-      entityType: 'profile'
+      entityType: 'profile',
     });
   }
 
@@ -232,7 +208,10 @@ export class NotificationService {
     try {
       await getDb().delete(notifications).where(eq(notifications.entityId, entityId));
     } catch (error) {
-      logger.error('Error deleting notifications for entity', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        'Error deleting notifications for entity',
+        error instanceof Error ? error : new Error(String(error)),
+      );
       throw error;
     }
   }

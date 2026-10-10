@@ -28,11 +28,14 @@ function captureUpload(oxy: OxyServices) {
   // Capture-only: do NOT delegate to the real (undici) FormData.append. Node's
   // undici rejects a plain { uri } object as not-a-Blob, but real React Native
   // FormData accepts it — the test asserts on captured args, not a built body.
-  const appendSpy = jest
-    .spyOn(FormData.prototype, 'append')
-    .mockImplementation(function (this: FormData, name: string, value: unknown, fileName?: string) {
-      appended.push({ name, value, fileName });
-    });
+  const appendSpy = jest.spyOn(FormData.prototype, 'append').mockImplementation(function (
+    this: FormData,
+    name: string,
+    value: unknown,
+    fileName?: string,
+  ) {
+    appended.push({ name, value, fileName });
+  });
 
   const requestSpy = jest
     .spyOn(oxy.http, 'request')
@@ -79,7 +82,11 @@ describe('oxy.assets.upload — uri descriptor', () => {
       const capture = captureUpload(oxy);
 
       try {
-        await oxy.assets.upload({ uri: 'blob:https://app.test/abc', type: 'image/png', name: 'avatar.png' });
+        await oxy.assets.upload({
+          uri: 'blob:https://app.test/abc',
+          type: 'image/png',
+          name: 'avatar.png',
+        });
 
         expect(fetchMock).toHaveBeenCalledWith('blob:https://app.test/abc');
 
@@ -106,7 +113,11 @@ describe('oxy.assets.upload — uri descriptor', () => {
       const capture = captureUpload(oxy);
 
       try {
-        await oxy.assets.upload({ uri: 'data:application/octet-stream;base64,CQkJ', type: 'image/jpeg', name: 'x.jpg' });
+        await oxy.assets.upload({
+          uri: 'data:application/octet-stream;base64,CQkJ',
+          type: 'image/jpeg',
+          name: 'x.jpg',
+        });
 
         const filePart = capture.appended.find((p) => p.name === 'file');
         expect(filePart?.value).toBeInstanceOf(Blob);
@@ -129,7 +140,11 @@ describe('oxy.assets.upload — uri descriptor', () => {
 
       try {
         await expect(
-          oxy.assets.upload({ uri: 'blob:https://app.test/empty', type: 'image/png', name: 'empty.png' }),
+          oxy.assets.upload({
+            uri: 'blob:https://app.test/empty',
+            type: 'image/png',
+            name: 'empty.png',
+          }),
         ).rejects.toThrow('Cannot upload an empty file');
 
         // Nothing was sent — the empty source surfaces instead of creating a 0-byte asset.
@@ -150,7 +165,11 @@ describe('oxy.assets.upload — uri descriptor', () => {
 
       try {
         await expect(
-          oxy.assets.upload({ uri: 'https://cdn.test/missing.png', type: 'image/png', name: 'missing.png' }),
+          oxy.assets.upload({
+            uri: 'https://cdn.test/missing.png',
+            type: 'image/png',
+            name: 'missing.png',
+          }),
         ).rejects.toThrow('Failed to read file from uri (status 404)');
         expect(capture.requestSpy).not.toHaveBeenCalled();
       } finally {
@@ -172,7 +191,12 @@ describe('oxy.assets.upload — uri descriptor', () => {
       const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
       const capture = captureUpload(oxy);
 
-      const descriptor = { uri: 'file:///tmp/avatar.png', type: 'image/png', name: 'avatar.png', size: 1024 };
+      const descriptor = {
+        uri: 'file:///tmp/avatar.png',
+        type: 'image/png',
+        name: 'avatar.png',
+        size: 1024,
+      };
 
       try {
         await oxy.assets.upload(descriptor);
@@ -208,8 +232,12 @@ describe('oxy.assets.upload — uri descriptor', () => {
       const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
       const capture = captureUpload(oxy);
       try {
-        await oxy.assets.upload(new Blob([new Uint8Array([1])], { type: 'video/mp4' }), { timeout: 90_000 });
-        expect(capture.requestSpy).toHaveBeenCalledWith(expect.objectContaining({ timeout: 90_000 }));
+        await oxy.assets.upload(new Blob([new Uint8Array([1])], { type: 'video/mp4' }), {
+          timeout: 90_000,
+        });
+        expect(capture.requestSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ timeout: 90_000 }),
+        );
       } finally {
         capture.restore();
       }

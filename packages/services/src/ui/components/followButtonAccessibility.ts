@@ -51,8 +51,12 @@ export function describeFollowButton(input: {
   }
 
   const accessibilityLabel = input.isFollowing
-    ? handle ? `Following ${handle}` : 'Following'
-    : handle ? `Follow ${handle}` : 'Follow';
+    ? handle
+      ? `Following ${handle}`
+      : 'Following'
+    : handle
+      ? `Follow ${handle}`
+      : 'Follow';
 
   if (input.isPending || !input.isFollowing) return { accessibilityLabel };
 

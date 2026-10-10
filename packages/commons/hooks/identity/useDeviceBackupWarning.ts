@@ -91,7 +91,13 @@ async function readHasPhrase(): Promise<boolean> {
 export async function readDeviceBackupWarningSnapshot(): Promise<DeviceBackupWarningSnapshot> {
   const availability = await probeDeviceBackupAvailability();
   if (availability !== 'unavailable') {
-    return { availability, publicKey: null, hasPhrase: true, promptedFor: null, acknowledgedFor: null };
+    return {
+      availability,
+      publicKey: null,
+      hasPhrase: true,
+      promptedFor: null,
+      acknowledgedFor: null,
+    };
   }
   let publicKey: string | null = null;
   try {
@@ -137,14 +143,16 @@ export function useDeviceBackupWarning(): DeviceBackupWarning {
       if (!publicKey) return;
       // Hide first: the banner goes the moment it is tapped, even if the write
       // fails (the worst case is that it shows again on the next launch).
-      queryClient.setQueryData<DeviceBackupWarningSnapshot>(DEVICE_BACKUP_WARNING_QUERY_KEY, (prev) =>
-        prev
-          ? {
-              ...prev,
-              promptedFor: publicKey,
-              acknowledgedFor: acknowledged ? publicKey : prev.acknowledgedFor,
-            }
-          : prev,
+      queryClient.setQueryData<DeviceBackupWarningSnapshot>(
+        DEVICE_BACKUP_WARNING_QUERY_KEY,
+        (prev) =>
+          prev
+            ? {
+                ...prev,
+                promptedFor: publicKey,
+                acknowledgedFor: acknowledged ? publicKey : prev.acknowledgedFor,
+              }
+            : prev,
       );
       // Confirming in Settings also retires the one-time ID-tab banner.
       const keys = acknowledged

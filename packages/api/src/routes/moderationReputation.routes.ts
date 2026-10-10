@@ -186,7 +186,7 @@ function serializeBinding(binding: IdentityBindingRecord): IdentityBindingDto {
 
 /** Shape the conduct block for the subject's own read. */
 function serializeConduct(
-  conduct: Awaited<ReturnType<typeof reputationService.getBalance>>['conduct']
+  conduct: Awaited<ReturnType<typeof reputationService.getBalance>>['conduct'],
 ): ReputationConduct {
   const dto: ReputationConduct = {
     standing: conduct.standing,
@@ -230,7 +230,7 @@ router.post(
       idempotent: result.idempotent,
     };
     sendSuccess(res, applyModerationDecisionResultSchema.parse(dto));
-  })
+  }),
 );
 
 /**
@@ -252,7 +252,7 @@ router.post(
       req.body.decisionId,
       req.body.decisionRevision,
       req.body.reason,
-      req.serviceApp!.credentialId
+      req.serviceApp!.credentialId,
     );
 
     const dto: ReverseModerationEffectResult = {
@@ -260,7 +260,7 @@ router.post(
       idempotent: result.idempotent,
     };
     sendSuccess(res, reverseModerationEffectResultSchema.parse(dto));
-  })
+  }),
 );
 
 /**
@@ -280,10 +280,10 @@ router.post(
 
     const effects = await moderationReputationService.finalizeModerationDecision(
       req.body.decisionId,
-      req.body.decisionRevision
+      req.body.decisionRevision,
     );
     sendSuccess(res, { effects: effects.map(serializeEffect) });
-  })
+  }),
 );
 
 /**
@@ -309,7 +309,7 @@ router.post(
       userProofToken: req.body.userProofToken,
     });
     sendSuccess(res, { binding: serializeBinding(binding) }, 201);
-  })
+  }),
 );
 
 // =============================================================================
@@ -345,7 +345,7 @@ router.get(
     }
     const balance = await reputationService.getBalance(userObjectId);
     sendSuccess(res, serializeConduct(balance.conduct));
-  })
+  }),
 );
 
 /**
@@ -369,7 +369,7 @@ router.get(
       .orderBy(desc(moderationEffects.appliedAt))
       .limit(100);
     sendSuccess(res, { effects: effects.map(serializeEffect) });
-  })
+  }),
 );
 
 export default router;

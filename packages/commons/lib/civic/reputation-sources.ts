@@ -41,9 +41,7 @@ export interface ReputationSource {
  * @returns Four sources in strongest → weakest order (`realLife`, `peerCivic`,
  *   `apps`, `penalties`).
  */
-export function deriveReputationSources(
-  breakdown: ReputationBalanceBreakdown,
-): ReputationSource[] {
+export function deriveReputationSources(breakdown: ReputationBalanceBreakdown): ReputationSource[] {
   return [
     { key: 'realLife', weight: 'high', points: breakdown.physical },
     { key: 'peerCivic', weight: 'medium', points: breakdown.trust },

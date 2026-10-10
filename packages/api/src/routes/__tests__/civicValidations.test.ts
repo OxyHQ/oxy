@@ -73,11 +73,7 @@ import {
 } from '../../db/schema/validationRequests';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import {
-  VALIDATION_TTL_MS,
-  VALIDATOR_COUNT,
-  VALIDATOR_QUORUM,
-} from '../../utils/civic.constants';
+import { VALIDATION_TTL_MS, VALIDATOR_COUNT, VALIDATOR_QUORUM } from '../../utils/civic.constants';
 import civicRoutes from '../civic';
 
 interface JsonResponse {
@@ -410,7 +406,7 @@ describe('POST /civic/validations/:id/vote', () => {
 });
 
 describe('POST /civic/validations/:id/deny', () => {
-  it('removes the caller\'s seat and answers { denied: true }', async () => {
+  it("removes the caller's seat and answers { denied: true }", async () => {
     const subject = await account();
     const juror = await eligibleJuror();
     const other = await eligibleJuror();

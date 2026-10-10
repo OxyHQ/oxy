@@ -103,7 +103,10 @@ export const getUserPayments = async (req: AuthRequest, res: Response): Promise<
     if (error instanceof UnauthorizedError) {
       throw error;
     }
-    logger.error('Error fetching user payments', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching user payments',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Server error when fetching user payments');
   }
 };

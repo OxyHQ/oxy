@@ -65,9 +65,7 @@ const COMPLETION_BODY = {
  * library makes. Neither `mutationFn` reads it — which is itself worth being able
  * to see: nothing in either request depends on the client or on mutation meta.
  */
-function mutationContext(
-  mutationKey: ReadonlyArray<unknown> | undefined
-): MutationFunctionContext {
+function mutationContext(mutationKey: ReadonlyArray<unknown> | undefined): MutationFunctionContext {
   return { client: new QueryClient(), meta: undefined, mutationKey };
 }
 
@@ -214,7 +212,7 @@ describe('the playground run', () => {
     stubFetch(503, refusal);
 
     await expect(
-      runPlayground({ apiKey: API_KEY, model: 'anthropic/claude-sonnet', input: 'hi' })
+      runPlayground({ apiKey: API_KEY, model: 'anthropic/claude-sonnet', input: 'hi' }),
     ).resolves.toEqual({ status: 'refused', error: refusal });
   });
 
@@ -225,7 +223,7 @@ describe('the playground run', () => {
     stubFetch(502, { message: 'bad gateway' });
 
     await expect(
-      runPlayground({ apiKey: API_KEY, model: 'anthropic/claude-sonnet', input: 'hi' })
+      runPlayground({ apiKey: API_KEY, model: 'anthropic/claude-sonnet', input: 'hi' }),
     ).rejects.toThrow('502');
   });
 });
@@ -285,9 +283,9 @@ describe('the playground receipt', () => {
       requestId: 'req_lookup',
     });
 
-    await expect(
-      fetchReceipt({ apiKey: API_KEY, requestId: 'req_01HZY' })
-    ).resolves.toEqual({ status: 'unavailable' });
+    await expect(fetchReceipt({ apiKey: API_KEY, requestId: 'req_01HZY' })).resolves.toEqual({
+      status: 'unavailable',
+    });
   });
 
   it('percent-encodes the request id rather than interpolating it raw', async () => {

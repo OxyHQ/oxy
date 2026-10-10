@@ -66,7 +66,7 @@ function codeOf(source: string): string {
 describe('commercial modules never read the account kind', () => {
   it('covers the dimensions the contract declares kind-independent', () => {
     expect([...KIND_INDEPENDENT_ACCOUNT_DIMENSIONS]).toEqual(
-      expect.arrayContaining(['plan', 'balance', 'payer', 'beneficiary'])
+      expect.arrayContaining(['plan', 'balance', 'payer', 'beneficiary']),
     );
   });
 

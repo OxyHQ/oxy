@@ -28,13 +28,15 @@ export interface ServiceTokenSigningConfig {
   readonly publicJwks: readonly ServiceTokenPublicJwk[];
 }
 
-let cached: {
-  readonly keyId: string;
-  readonly privateKeySource: string;
-  readonly publicJwksSource: string;
-  readonly production: boolean;
-  readonly config: ServiceTokenSigningConfig;
-} | undefined;
+let cached:
+  | {
+      readonly keyId: string;
+      readonly privateKeySource: string;
+      readonly publicJwksSource: string;
+      readonly production: boolean;
+      readonly config: ServiceTokenSigningConfig;
+    }
+  | undefined;
 
 function parsePublicJwks(source: string): ServiceTokenPublicJwk[] {
   if (source.length === 0) return [];
@@ -58,28 +60,34 @@ function parsePublicJwks(source: string): ServiceTokenPublicJwk[] {
     }
     const key = value as Record<string, unknown>;
     if (
-      key.kty !== 'OKP'
-      || key.crv !== 'Ed25519'
-      || typeof key.x !== 'string'
-      || key.x.length === 0
-      || key.use !== 'sig'
-      || key.alg !== 'EdDSA'
-      || typeof key.kid !== 'string'
-      || !/^[A-Za-z0-9._-]{1,128}$/.test(key.kid)
-      || Object.prototype.hasOwnProperty.call(key, 'd')
-      || seen.has(key.kid as string)
+      key.kty !== 'OKP' ||
+      key.crv !== 'Ed25519' ||
+      typeof key.x !== 'string' ||
+      key.x.length === 0 ||
+      key.use !== 'sig' ||
+      key.alg !== 'EdDSA' ||
+      typeof key.kid !== 'string' ||
+      !/^[A-Za-z0-9._-]{1,128}$/.test(key.kid) ||
+      Object.prototype.hasOwnProperty.call(key, 'd') ||
+      seen.has(key.kid as string)
     ) {
-      throw new Error(`${SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE}.keys[${index}] is not a public Ed25519 signing key`);
+      throw new Error(
+        `${SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE}.keys[${index}] is not a public Ed25519 signing key`,
+      );
     }
     const x = Buffer.from(key.x, 'base64url');
     if (x.length !== 32 || x.toString('base64url') !== key.x) {
-      throw new Error(`${SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE}.keys[${index}] is not a valid Ed25519 public key`);
+      throw new Error(
+        `${SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE}.keys[${index}] is not a valid Ed25519 public key`,
+      );
     }
     try {
       const publicKey = createPublicKey({ key: key as JsonWebKey, format: 'jwk' });
       if (publicKey.asymmetricKeyType !== 'ed25519') throw new Error('wrong key type');
     } catch {
-      throw new Error(`${SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE}.keys[${index}] is not a valid Ed25519 public key`);
+      throw new Error(
+        `${SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE}.keys[${index}] is not a valid Ed25519 public key`,
+      );
     }
     seen.add(key.kid);
     return {
@@ -109,9 +117,12 @@ function ephemeralSigningKey(): { readonly keyId: string; readonly privateKey: K
       keyId: `dev-ephemeral-${randomBytes(6).toString('hex')}`,
       privateKey: generateKeyPairSync('ed25519').privateKey,
     };
-    logger.warn('[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key', {
-      kid: ephemeral.keyId,
-    });
+    logger.warn(
+      '[ServiceToken] no signing key configured; minting with a per-process ephemeral Ed25519 key',
+      {
+        kid: ephemeral.keyId,
+      },
+    );
   }
   return ephemeral;
 }
@@ -124,10 +135,14 @@ function readPrivateKey(source: string): KeyObject {
   try {
     privateKey = createPrivateKey(pem);
   } catch {
-    throw new Error(`${SERVICE_TOKEN_PRIVATE_KEY_VARIABLE} must contain a PKCS#8 Ed25519 private key`);
+    throw new Error(
+      `${SERVICE_TOKEN_PRIVATE_KEY_VARIABLE} must contain a PKCS#8 Ed25519 private key`,
+    );
   }
   if (privateKey.asymmetricKeyType !== 'ed25519') {
-    throw new Error(`${SERVICE_TOKEN_PRIVATE_KEY_VARIABLE} must contain a PKCS#8 Ed25519 private key`);
+    throw new Error(
+      `${SERVICE_TOKEN_PRIVATE_KEY_VARIABLE} must contain a PKCS#8 Ed25519 private key`,
+    );
   }
   return privateKey;
 }
@@ -144,11 +159,12 @@ export function serviceTokenSigningConfig(): ServiceTokenSigningConfig {
   const publicJwksSource = process.env[SERVICE_TOKEN_PUBLIC_JWKS_VARIABLE] ?? '';
   const production = process.env.NODE_ENV === 'production';
   if (
-    cached?.keyId === configuredKeyId
-    && cached.privateKeySource === privateKeySource
-    && cached.publicJwksSource === publicJwksSource
-    && cached.production === production
-  ) return cached.config;
+    cached?.keyId === configuredKeyId &&
+    cached.privateKeySource === privateKeySource &&
+    cached.publicJwksSource === publicJwksSource &&
+    cached.production === production
+  )
+    return cached.config;
 
   let keyId: string;
   let privateKey: KeyObject;
@@ -164,7 +180,9 @@ export function serviceTokenSigningConfig(): ServiceTokenSigningConfig {
       throw new Error(`${SERVICE_TOKEN_SIGNING_KEY_ID_VARIABLE} must be 1-128 URL-safe characters`);
     }
     if (privateKeySource.length === 0) {
-      throw new Error(`${SERVICE_TOKEN_PRIVATE_KEY_VARIABLE} must be configured with ${SERVICE_TOKEN_SIGNING_KEY_ID_VARIABLE}`);
+      throw new Error(
+        `${SERVICE_TOKEN_PRIVATE_KEY_VARIABLE} must be configured with ${SERVICE_TOKEN_SIGNING_KEY_ID_VARIABLE}`,
+      );
     }
     keyId = configuredKeyId;
     privateKey = readPrivateKey(privateKeySource);
@@ -190,7 +208,11 @@ export function serviceTokenSigningConfig(): ServiceTokenSigningConfig {
     }
     byId.set(key.kid, key);
   }
-  const config = { keyId, privateKey, publicJwks: [...byId.values()] } satisfies ServiceTokenSigningConfig;
+  const config = {
+    keyId,
+    privateKey,
+    publicJwks: [...byId.values()],
+  } satisfies ServiceTokenSigningConfig;
   cached = { keyId: configuredKeyId, privateKeySource, publicJwksSource, production, config };
   return config;
 }

@@ -87,7 +87,7 @@ function mutableRecord(state: ApplicationRegistrationState): MutableApplicationF
 /** The fields whose value actually differs between two records. */
 function mutatedFields(
   before: MutableApplicationFields<string>,
-  after: MutableApplicationFields<string>
+  after: MutableApplicationFields<string>,
 ): ApplicationRegistrationField[] {
   const fields: ApplicationRegistrationField[] = [
     'status',
@@ -99,9 +99,7 @@ function mutatedFields(
     'scopes',
     'capabilities',
   ];
-  return fields.filter(
-    (field) => JSON.stringify(before[field]) !== JSON.stringify(after[field])
-  );
+  return fields.filter((field) => JSON.stringify(before[field]) !== JSON.stringify(after[field]));
 }
 
 describe('register-commons-clients — the dry-run plan IS the real-run effect', () => {
@@ -142,7 +140,11 @@ describe('register-commons-clients — the dry-run plan IS the real-run effect',
 
   it('is idempotent: applying the plan leaves a record the next plan reports as clean', () => {
     const record = mutableRecord(commonsMissingCapability());
-    applyApplicationPlan(record, computeApplicationPlan(readApplicationState(record), COMMONS_TARGET), OWNER);
+    applyApplicationPlan(
+      record,
+      computeApplicationPlan(readApplicationState(record), COMMONS_TARGET),
+      OWNER,
+    );
 
     const second = computeApplicationPlan(readApplicationState(record), COMMONS_TARGET);
     expect(second.changes).toEqual([]);
@@ -167,7 +169,9 @@ describe('register-commons-clients — the dry-run plan IS the real-run effect',
 
     expect(written).toEqual(plan.changes.map((change) => change.field));
     expect(mutatedFields(before, record)).toEqual(written);
-    expect(computeApplicationPlan(readApplicationState(record), COMMONS_TARGET).changes).toEqual([]);
+    expect(computeApplicationPlan(readApplicationState(record), COMMONS_TARGET).changes).toEqual(
+      [],
+    );
   });
 });
 

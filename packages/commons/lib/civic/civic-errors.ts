@@ -68,11 +68,7 @@ export type CredentialIssueErrorCode =
   | 'generic';
 
 /** Recognized rejection codes for a credential REVOKE. */
-export type CredentialRevokeErrorCode =
-  | 'not_issuer'
-  | 'already_revoked'
-  | 'not_found'
-  | 'generic';
+export type CredentialRevokeErrorCode = 'not_issuer' | 'already_revoked' | 'not_found' | 'generic';
 
 const ATTEST_REASONS: readonly Exclude<AttestErrorCode, 'generic' | 'subject_not_found'>[] = [
   'expired',
@@ -159,7 +155,10 @@ const CREDENTIAL_VERIFY_REASONS: readonly Exclude<CredentialVerifyReasonCode, 'g
 export function credentialVerifyReason(reason: string | undefined): CredentialVerifyReasonCode {
   if (!reason) return 'generic';
   const normalized = reason.toLowerCase();
-  return CREDENTIAL_VERIFY_REASONS.find((code) => normalized === code || normalized.includes(code)) ?? 'generic';
+  return (
+    CREDENTIAL_VERIFY_REASONS.find((code) => normalized === code || normalized.includes(code)) ??
+    'generic'
+  );
 }
 
 /**
@@ -172,7 +171,8 @@ export function credentialVerifyReason(reason: string | undefined): CredentialVe
 export function credentialIssueErrorCode(error: unknown): CredentialIssueErrorCode {
   const msg = messageOf(error);
   if (msg.includes('self_credential')) return 'self_credential';
-  if (msg.includes('holder not found') || msg.includes('holder_not_found')) return 'holder_not_found';
+  if (msg.includes('holder not found') || msg.includes('holder_not_found'))
+    return 'holder_not_found';
   if (msg.includes('invalid_holder')) return 'invalid_holder';
   if (msg.includes('invalid_expiry') || msg.includes('invalid expiresat')) return 'invalid_expiry';
   if (

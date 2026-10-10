@@ -88,9 +88,9 @@ export const appReviews = pgTable(
     index('app_reviews_application_id_status_created_at_idx').on(
       t.applicationId,
       t.status,
-      t.createdAt
+      t.createdAt,
     ),
     /** "Everything this person wrote", for their profile and for moderation. */
     index('app_reviews_user_id_idx').on(t.userId),
-  ]
+  ],
 );

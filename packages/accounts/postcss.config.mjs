@@ -5,6 +5,6 @@
 // @oxy.so/services' web screens is inert. Mirrors commons/test-app-expo.
 export default {
   plugins: {
-    "@tailwindcss/postcss": {},
+    '@tailwindcss/postcss': {},
   },
 };

@@ -15,7 +15,9 @@ export function installDeps(config: ResolvedConfig): boolean {
 
   const bunCheck = spawnSync('bun', ['--version'], { stdio: 'ignore' });
   if (bunCheck.status !== 0) {
-    p.log.warn(pc.yellow('bun is not available — skipping install. Install bun, then run `bun install`.'));
+    p.log.warn(
+      pc.yellow('bun is not available — skipping install. Install bun, then run `bun install`.'),
+    );
     return false;
   }
 

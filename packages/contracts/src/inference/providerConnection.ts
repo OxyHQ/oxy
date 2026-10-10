@@ -113,8 +113,7 @@ function isVisibleASCIIProviderCredential(value: string): boolean {
     const finalQuartet = offset + 4 === value.length;
     if (
       finalQuartet &&
-      ((padding === 2 && (second & 0x0f) !== 0) ||
-        (padding === 1 && (third & 0x03) !== 0))
+      ((padding === 2 && (second & 0x0f) !== 0) || (padding === 1 && (third & 0x03) !== 0))
     ) {
       return false;
     }
@@ -156,7 +155,11 @@ export const kaanaCredentialRotateMutationSchema = kaanaCredentialIdentitySchema
     operationId: kaanaCredentialOperationIdSchema,
     operationActor: kaanaCredentialOperationActorSchema,
     credentialHandle: kaanaCredentialHandleSchema,
-    expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1),
+    expectedRevision: z
+      .number()
+      .int()
+      .positive()
+      .max(Number.MAX_SAFE_INTEGER - 1),
     secretBase64: kaanaCredentialSecretBase64Schema,
   })
   .strict();
@@ -168,7 +171,11 @@ export const kaanaCredentialRevokeMutationSchema = kaanaCredentialIdentitySchema
     operationId: kaanaCredentialOperationIdSchema,
     operationActor: kaanaCredentialOperationActorSchema,
     credentialHandle: kaanaCredentialHandleSchema,
-    expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1),
+    expectedRevision: z
+      .number()
+      .int()
+      .positive()
+      .max(Number.MAX_SAFE_INTEGER - 1),
   })
   .strict();
 
@@ -192,7 +199,11 @@ export const kaanaCredentialRotateOutcomeRequestSchema = kaanaCredentialIdentity
     action: z.literal('rotate'),
     operationId: kaanaCredentialOperationIdSchema,
     credentialHandle: kaanaCredentialHandleSchema,
-    expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1),
+    expectedRevision: z
+      .number()
+      .int()
+      .positive()
+      .max(Number.MAX_SAFE_INTEGER - 1),
   })
   .strict();
 
@@ -202,7 +213,11 @@ export const kaanaCredentialRevokeOutcomeRequestSchema = kaanaCredentialIdentity
     action: z.literal('revoke'),
     operationId: kaanaCredentialOperationIdSchema,
     credentialHandle: kaanaCredentialHandleSchema,
-    expectedRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER - 1),
+    expectedRevision: z
+      .number()
+      .int()
+      .positive()
+      .max(Number.MAX_SAFE_INTEGER - 1),
   })
   .strict();
 
@@ -513,16 +528,12 @@ export const providerConnectionSchema = z
   });
 
 export type ProviderConnectionScope = z.infer<typeof providerConnectionScopeSchema>;
-export type KaanaCredentialOperationAction = z.infer<
-  typeof kaanaCredentialOperationActionSchema
->;
+export type KaanaCredentialOperationAction = z.infer<typeof kaanaCredentialOperationActionSchema>;
 export type KaanaCredentialIdentity = z.infer<typeof kaanaCredentialIdentitySchema>;
 export type KaanaCredentialMutation = z.infer<typeof kaanaCredentialMutationSchema>;
 export type KaanaCredentialOutcomeRequest = z.infer<typeof kaanaCredentialOutcomeRequestSchema>;
 export type KaanaCredentialOutcome = z.infer<typeof kaanaCredentialOutcomeSchema>;
-export type KaanaCredentialValidationTask = z.infer<
-  typeof kaanaCredentialValidationTaskSchema
->;
+export type KaanaCredentialValidationTask = z.infer<typeof kaanaCredentialValidationTaskSchema>;
 export type KaanaCredentialValidationOutcome = z.infer<
   typeof kaanaCredentialValidationOutcomeSchema
 >;

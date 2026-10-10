@@ -10,9 +10,7 @@ jest.mock('@/lib/biometricAuth', () => ({
   authenticate: (...args: [string?]) => authenticateMock(...args),
 }));
 
-// eslint-disable-next-line import/first
 import { useAttestStore, type AttestSubmitParams } from '@/hooks/civic/attestStore';
-// eslint-disable-next-line import/first
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
 
 const SUBJECT_DID = 'did:web:oxy.so:u:subjectUser';
@@ -47,7 +45,11 @@ const CARD = {
   verified: true,
 };
 
-function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void } {
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: unknown) => void;
+} {
   let resolve: (value: T) => void = () => undefined;
   let reject: (error: unknown) => void = () => undefined;
   const promise = new Promise<T>((res, rej) => {
@@ -123,7 +125,9 @@ describe('attestStore', () => {
   it('errors as subject_not_found for an unresolvable DID without burning a request', async () => {
     const services = { submitRealLifeAttestation: jest.fn(async () => RESULT) };
 
-    await useAttestStore.getState().submit({ ...PARAMS, subjectDid: 'not-a-did' }, asClient(services));
+    await useAttestStore
+      .getState()
+      .submit({ ...PARAMS, subjectDid: 'not-a-did' }, asClient(services));
 
     const state = useAttestStore.getState();
     expect(state.status).toBe('error');
@@ -134,9 +138,8 @@ describe('attestStore', () => {
   it('treats distinct payloads independently and allows re-confirming (no client dedupe)', async () => {
     const otherResult = { ...RESULT, recordId: 'rec-2', subjectUserId: 'otherUser', points: 25 };
     const services = {
-      submitRealLifeAttestation: jest.fn(
-        async (input: { subjectDid: string }) =>
-          input.subjectDid === SUBJECT_DID ? RESULT : otherResult,
+      submitRealLifeAttestation: jest.fn(async (input: { subjectDid: string }) =>
+        input.subjectDid === SUBJECT_DID ? RESULT : otherResult,
       ),
     };
 
@@ -176,7 +179,10 @@ describe('attestStore', () => {
     const p1 = useAttestStore.getState().submit(PARAMS, asClient(services));
     const p2 = useAttestStore
       .getState()
-      .submit({ ...PARAMS, subjectDid: 'did:web:oxy.so:u:otherUser', nonce: 'nonce-2' }, asClient(services));
+      .submit(
+        { ...PARAMS, subjectDid: 'did:web:oxy.so:u:otherUser', nonce: 'nonce-2' },
+        asClient(services),
+      );
 
     second.resolve({ ...RESULT, recordId: 'rec-2' });
     await p2;

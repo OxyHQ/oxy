@@ -1,19 +1,8 @@
-import {
-  type StyleProp,
-  type TextStyle,
-  type ViewStyle,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { type StyleProp, type TextStyle, type ViewStyle, StyleSheet, View } from 'react-native';
 
 import { forwardRef, useImperativeHandle, useMemo } from 'react';
 
-import {
-  useDerivedValue,
-  useSharedValue,
-  withDelay,
-  withSpring,
-} from 'react-native-reanimated';
+import { useDerivedValue, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 
 import { StaggeredDigit } from './staggered-digit';
 
@@ -153,8 +142,8 @@ export const StaggeredText = forwardRef(
     const wordGroups = useMemo(() => {
       const words: string[] = [];
       const parts = text.split(/(\s+)/); // Split by spaces but keep the spaces
-      
-      parts.forEach(part => {
+
+      parts.forEach((part) => {
         if (part.trim() === '') {
           // This is a space - add it as a separate "word" group
           words.push(part);
@@ -163,7 +152,7 @@ export const StaggeredText = forwardRef(
           words.push(part);
         }
       });
-      
+
       return words;
     }, [text]);
 
@@ -180,7 +169,7 @@ export const StaggeredText = forwardRef(
           const wordStartIndex = charIndexOffset;
           const wordChars = word.split('');
           charIndexOffset += wordChars.length;
-          
+
           return (
             <View key={wordIndex} className="flex-row shrink-0" aria-hidden>
               {wordChars.map((char, charIndex) => (
@@ -209,4 +198,3 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
 });
-

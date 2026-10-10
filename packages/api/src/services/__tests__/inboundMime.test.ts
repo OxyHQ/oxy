@@ -95,14 +95,23 @@ describe('parseInboundMime', () => {
   it('marks a multipart/related image referenced by Content-ID as inline', async () => {
     const parsed = await parseInboundMime(INLINE_IMAGE);
     expect(parsed.attachments).toEqual([
-      expect.objectContaining({ contentType: 'image/png', contentId: '<logo@example.com>', isInline: true }),
+      expect.objectContaining({
+        contentType: 'image/png',
+        contentId: '<logo@example.com>',
+        isInline: true,
+      }),
     ]);
   });
 
   it('keeps an ordinary attachment, with threading headers and addressees', async () => {
     const parsed = await parseInboundMime(PDF);
     expect(parsed.attachments).toEqual([
-      expect.objectContaining({ filename: 'invoice.pdf', contentType: 'application/pdf', isInline: false, size: 8 }),
+      expect.objectContaining({
+        filename: 'invoice.pdf',
+        contentType: 'application/pdf',
+        isInline: false,
+        size: 8,
+      }),
     ]);
     expect(parsed.attachments[0]).not.toHaveProperty('contentId');
     expect(parsed.inReplyTo).toBe('<parent@example.com>');
@@ -127,7 +136,10 @@ describe('Reply-To', () => {
         'Hello',
       ]),
     );
-    expect(parsed.replyTo).toEqual({ name: 'Ticket 42', address: 'ticket-42@support.acme.example' });
+    expect(parsed.replyTo).toEqual({
+      name: 'Ticket 42',
+      address: 'ticket-42@support.acme.example',
+    });
   });
 
   it('is null when the sender set none', async () => {
@@ -137,16 +149,46 @@ describe('Reply-To', () => {
 
 describe('isAlternativeBody', () => {
   it('keeps an AMP part the sender deliberately attached as a file', () => {
-    expect(isAlternativeBody({ contentType: 'text/x-amp-html', filename: 'email.amp.html', contentDisposition: 'attachment' })).toBe(false);
-    expect(isAlternativeBody({ contentType: 'text/x-amp-html', filename: undefined, contentDisposition: 'attachment' })).toBe(false);
+    expect(
+      isAlternativeBody({
+        contentType: 'text/x-amp-html',
+        filename: 'email.amp.html',
+        contentDisposition: 'attachment',
+      }),
+    ).toBe(false);
+    expect(
+      isAlternativeBody({
+        contentType: 'text/x-amp-html',
+        filename: undefined,
+        contentDisposition: 'attachment',
+      }),
+    ).toBe(false);
   });
 
   it('drops the unnamed AMP and Apple Watch renderings', () => {
-    expect(isAlternativeBody({ contentType: 'text/x-amp-html', filename: undefined, contentDisposition: undefined })).toBe(true);
-    expect(isAlternativeBody({ contentType: 'TEXT/WATCH-HTML', filename: undefined, contentDisposition: undefined })).toBe(true);
+    expect(
+      isAlternativeBody({
+        contentType: 'text/x-amp-html',
+        filename: undefined,
+        contentDisposition: undefined,
+      }),
+    ).toBe(true);
+    expect(
+      isAlternativeBody({
+        contentType: 'TEXT/WATCH-HTML',
+        filename: undefined,
+        contentDisposition: undefined,
+      }),
+    ).toBe(true);
   });
 
   it('never drops an ordinary file', () => {
-    expect(isAlternativeBody({ contentType: 'text/calendar', filename: undefined, contentDisposition: undefined })).toBe(false);
+    expect(
+      isAlternativeBody({
+        contentType: 'text/calendar',
+        filename: undefined,
+        contentDisposition: undefined,
+      }),
+    ).toBe(false);
   });
 });

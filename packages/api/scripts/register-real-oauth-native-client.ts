@@ -25,11 +25,19 @@ async function main() {
   assert(resolve(pidRows[1]) === pgData && pidRows[3] === '5589');
   assert(Number.isInteger(Number(pidRows[0])) && Number(pidRows[0]) > 1);
   assert((await stat(`/proc/${pidRows[0]}`)).uid === process.getuid?.());
-  assert(await readlink(`/proc/${pidRows[0]}/exe`) === '/usr/lib/postgresql/17/bin/postgres');
+  assert((await readlink(`/proc/${pidRows[0]}/exe`)) === '/usr/lib/postgresql/17/bin/postgres');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
-    fixtureOnly: boolean; person: { id: string }; clients: Record<string, {
-      appId: string; clientId: string; origin: string; redirectUri?: string;
-    }>;
+    fixtureOnly: boolean;
+    person: { id: string };
+    clients: Record<
+      string,
+      {
+        appId: string;
+        clientId: string;
+        origin: string;
+        redirectUri?: string;
+      }
+    >;
   };
   assert(manifest.fixtureOnly === true && typeof manifest.person.id === 'string');
   assert(!manifest.clients[lane], 'Named fixture client already registered');
@@ -39,25 +47,55 @@ async function main() {
   const clientId = `oxy_dk_${randomBytes(24).toString('hex')}`;
   const redirectUri = 'astro://oauth/callback';
   const appId = await getDb().transaction(async (tx) => {
-    const [owner] = await tx.select({ email: users.email, kind: users.kind }).from(users)
-      .where(eq(users.id, manifest.person.id)).limit(1);
+    const [owner] = await tx
+      .select({ email: users.email, kind: users.kind })
+      .from(users)
+      .where(eq(users.id, manifest.person.id))
+      .limit(1);
     assert(owner?.kind === 'personal' && owner.email?.endsWith('@fixture.invalid'));
-    const [app] = await tx.insert(applications).values({
-      name: `I11 disposable ${lane}`, ownerAccountId: manifest.person.id,
-      createdByUserId: manifest.person.id, type: trusted ? 'internal' : 'third_party', isOfficial: trusted,
-      isInternal: trusted, status: 'active', scopes: ['user:read'], redirectUris: [redirectUri],
-    }).returning({ id: applications.id });
-    await tx.insert(applicationCredentials).values({ applicationId: app.id,
-      name: 'I11 native fixture', publicKey: clientId, type: 'public',
-      environment: 'development', status: 'active' });
+    const [app] = await tx
+      .insert(applications)
+      .values({
+        name: `I11 disposable ${lane}`,
+        ownerAccountId: manifest.person.id,
+        createdByUserId: manifest.person.id,
+        type: trusted ? 'internal' : 'third_party',
+        isOfficial: trusted,
+        isInternal: trusted,
+        status: 'active',
+        scopes: ['user:read'],
+        redirectUris: [redirectUri],
+      })
+      .returning({ id: applications.id });
+    await tx.insert(applicationCredentials).values({
+      applicationId: app.id,
+      name: 'I11 native fixture',
+      publicKey: clientId,
+      type: 'public',
+      environment: 'development',
+      status: 'active',
+    });
     return app.id;
   });
   manifest.clients[lane] = { appId, clientId, origin: 'astro://oauth', redirectUri };
   const staged = `${manifestPath}.native.tmp`;
   await writeFile(staged, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
   await rename(staged, manifestPath);
-  console.log(JSON.stringify({ registered: true, lane, appId, clientId, redirectUri, trusted, fixtureOnly: true }));
+  console.log(
+    JSON.stringify({
+      registered: true,
+      lane,
+      appId,
+      clientId,
+      redirectUri,
+      trusted,
+      fixtureOnly: true,
+    }),
+  );
 }
-void main().finally(() => closePostgres()).catch((error: unknown) => {
-  console.error(error); process.exitCode = 1;
-});
+void main()
+  .finally(() => closePostgres())
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

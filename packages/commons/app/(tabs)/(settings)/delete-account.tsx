@@ -19,7 +19,11 @@ import { KeyManager } from '@oxy.so/core/crypto';
 import { useTranslation } from '@/lib/i18n';
 import { runAccountDeletion } from '@/lib/account/delete-account-flow';
 import { retireVaultPushToken } from '@/lib/notifications/push-registration';
-import { ONBOARDING_IDENTITY_QUERY_KEY, ONBOARDING_COMPLETE_QUERY_KEY, ONBOARDING_FLOW_QUERY_KEY } from '@/hooks/useOnboardingStatus';
+import {
+  ONBOARDING_IDENTITY_QUERY_KEY,
+  ONBOARDING_COMPLETE_QUERY_KEY,
+  ONBOARDING_FLOW_QUERY_KEY,
+} from '@/hooks/useOnboardingStatus';
 import { persistOnboardingComplete, persistOnboardingFlow } from '@/hooks/identity/identityStore';
 
 /** Air between the bottom of the Delete button and the top of the keyboard. */
@@ -70,9 +74,8 @@ export default function DeleteAccountScreen() {
       try {
         identityReadable = await KeyManager.hasIdentity();
       } catch (probeError) {
-        const message = probeError instanceof Error
-          ? probeError.message
-          : t('data.deleteAccount.failedDefault');
+        const message =
+          probeError instanceof Error ? probeError.message : t('data.deleteAccount.failedDefault');
         toast.error(message);
         return;
       }
@@ -123,9 +126,8 @@ export default function DeleteAccountScreen() {
 
       router.replace('/');
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : t('data.deleteAccount.failedDefault');
+      const message =
+        error instanceof Error ? error.message : t('data.deleteAccount.failedDefault');
       toast.error(message);
     } finally {
       setIsDeleting(false);
@@ -148,7 +150,9 @@ export default function DeleteAccountScreen() {
       />
 
       <ImportantBanner title={t('data.deleteAccount.permanentTitle')}>
-        {t('data.deleteAccount.permanentBody', { name: username || t('data.deleteAccount.thisAccount') })}
+        {t('data.deleteAccount.permanentBody', {
+          name: username || t('data.deleteAccount.thisAccount'),
+        })}
       </ImportantBanner>
 
       <Section title={t('data.deleteAccount.whatDeleted')}>
@@ -160,7 +164,7 @@ export default function DeleteAccountScreen() {
             t('data.deleteAccount.items.settings'),
           ].map((item) => (
             <View key={item} className="flex-row items-start">
-              <Icons.closeCircle size='sm' fill={colors.error} style={styles.bulletIcon} />
+              <Icons.closeCircle size="sm" fill={colors.error} style={styles.bulletIcon} />
               <Text style={[styles.bulletText, { color: colors.text }]}>{item}</Text>
             </View>
           ))}
@@ -169,7 +173,8 @@ export default function DeleteAccountScreen() {
 
       <Section title={t('data.deleteAccount.confirm')}>
         <Text style={[styles.label, { color: colors.text }]}>
-          {t('data.deleteAccount.typeUsername')} <Text style={[styles.usernameHint, { color: colors.error }]}>{username}</Text>
+          {t('data.deleteAccount.typeUsername')}{' '}
+          <Text style={[styles.usernameHint, { color: colors.error }]}>{username}</Text>
         </Text>
         <View
           style={[
@@ -200,8 +205,25 @@ export default function DeleteAccountScreen() {
           )}
 
           <View className="flex-row gap-space-12 mt-space-24">
-            <Button appearance="outline" tone="neutral" onPress={() => router.back()} disabled={isDeleting} className="flex-1">{t('data.deleteAccount.cancel')}</Button>
-            <Button appearance="solid" tone="accent" onPress={handleDelete} loading={isDeleting} disabled={!isConfirmValid || isDeleting} className="flex-1">{isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}</Button>
+            <Button
+              appearance="outline"
+              tone="neutral"
+              onPress={() => router.back()}
+              disabled={isDeleting}
+              className="flex-1"
+            >
+              {t('data.deleteAccount.cancel')}
+            </Button>
+            <Button
+              appearance="solid"
+              tone="accent"
+              onPress={handleDelete}
+              loading={isDeleting}
+              disabled={!isConfirmValid || isDeleting}
+              className="flex-1"
+            >
+              {isDeleting ? t('data.deleteAccount.deleting') : t('data.deleteAccount.deleteCta')}
+            </Button>
           </View>
         </View>
       </Section>

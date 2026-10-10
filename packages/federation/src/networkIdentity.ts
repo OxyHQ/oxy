@@ -168,7 +168,8 @@ export function parseUpstreamProfileUrl(
 
   const host = canonicalFederationHost(url.hostname);
   for (const network of networks) {
-    if (!network.profileHosts.some((allowed) => canonicalFederationHost(allowed) === host)) continue;
+    if (!network.profileHosts.some((allowed) => canonicalFederationHost(allowed) === host))
+      continue;
     const handle = profileUrlHandle(url.href, network.profileHosts, network.profilePathPrefix);
     if (handle !== undefined && handle.length > 0) return { network, handle };
   }
@@ -457,10 +458,16 @@ export function upstreamHandleFromProfileField(options: {
         // Observed bird.makeup Official assertion, 2026-09-13:
         // https://https://twitter.com/jordievole. Repair exactly one duplicated
         // HTTPS prefix, then run the ordinary host/path/credential validation.
-        const candidateHref = options.repairRepeatedHttpsScheme && href.startsWith('https://https://')
-          ? href.slice('https://'.length) : href;
+        const candidateHref =
+          options.repairRepeatedHttpsScheme && href.startsWith('https://https://')
+            ? href.slice('https://'.length)
+            : href;
         let handle: string | undefined;
-        try { handle = profileUrlHandle(candidateHref, options.hosts, prefix); } catch { continue; }
+        try {
+          handle = profileUrlHandle(candidateHref, options.hosts, prefix);
+        } catch {
+          continue;
+        }
         if (handle !== undefined && handle.length > 0) handles.set(handle.toLowerCase(), handle);
       }
     }
@@ -681,7 +688,9 @@ export function createBridgeRelabeller(
     vouchesForNetwork: (actorHost, networkDomain) => {
       const bridge = findBridge(actorHost);
       if (!bridge) return false;
-      return canonicalFederationHost(bridge.network.domain) === canonicalFederationHost(networkDomain);
+      return (
+        canonicalFederationHost(bridge.network.domain) === canonicalFederationHost(networkDomain)
+      );
     },
     deriveNetworkIdentity: (candidate) => {
       const entry = findBridge(candidate.host);

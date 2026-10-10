@@ -41,13 +41,7 @@ import { dirname, join } from 'node:path';
 import rewritePattern from 'regexpu-core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT_PATH = join(
-  __dirname,
-  '..',
-  'src',
-  'utils',
-  'displayNamePolicyRanges.generated.ts'
-);
+const OUT_PATH = join(__dirname, '..', 'src', 'utils', 'displayNamePolicyRanges.generated.ts');
 
 /* ------------------------------------------------------------------ *
  * READABLE SOURCE — the ONE human-authored definition of the policy. *
@@ -282,7 +276,7 @@ function transpileClassBody(body, operands = {}) {
   const out = rewritePattern(pattern, useSets ? 'v' : 'u', REGEXPU_OPTS);
   if (!out.startsWith('[') || !out.endsWith(']')) {
     throw new Error(
-      `regexpu-core did not return a single class for [${body.slice(0, 24)}…]: ${out.slice(0, 48)}`
+      `regexpu-core did not return a single class for [${body.slice(0, 24)}…]: ${out.slice(0, 48)}`,
     );
   }
   const inner = out.slice(1, -1);
@@ -331,7 +325,7 @@ for (let cp = 0; cp <= 0x10ffff; cp++) {
   allowedCount++;
   if (!letterProbe.test(ch)) {
     throw new Error(
-      `allowlist admits non-letter U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
+      `allowlist admits non-letter U+${cp.toString(16).toUpperCase().padStart(4, '0')}`,
     );
   }
 }
@@ -362,7 +356,7 @@ for (const { codePoint, char, name } of SYMBOL_LETTER_DENYLIST) {
   if (!beforeDenylistProbe.test(ch)) {
     throw new Error(
       `denylist entry ${label} is redundant: the scripts ∩ General_Category L ` +
-        'intersection already excludes it, so denying it adds nothing. Remove it.'
+        'intersection already excludes it, so denying it adds nothing. Remove it.',
     );
   }
   if (!deniedProbe.test(ch)) {
@@ -392,13 +386,13 @@ for (const { codePoint, char, name } of NAME_SEPARATORS) {
   if (allowedProbe.test(ch)) {
     throw new Error(
       `name separator ${label} is already in the allowlist, so admitting it ` +
-        'conditionally changes nothing. Remove it.'
+        'conditionally changes nothing. Remove it.',
     );
   }
   if (letterProbe.test(ch) || markProbe.test(ch) || spaceProbe.test(ch)) {
     throw new Error(
       `name separator ${label} is also a letter, mark or space separator — those ` +
-        'are admitted unconditionally, so the flanking rule could never apply to it.'
+        'are admitted unconditionally, so the flanking rule could never apply to it.',
     );
   }
   if (!separatorProbe.test(ch)) {
@@ -501,15 +495,15 @@ console.log(`Wrote ${OUT_PATH}`);
 console.log(
   `  allowed scripts: ${allowedScripts.length} chars / ${allowedCount} code points ` +
     `(all letters), marks: ${combiningMarks.length}, ` +
-    `spaces: ${spaceSeparators.length}, letters: ${letters.length} (regexpu-core)`
+    `spaces: ${spaceSeparators.length}, letters: ${letters.length} (regexpu-core)`,
 );
 console.log(
   `  denied symbol letters: ${SYMBOL_LETTER_DENYLIST.map(
-    ({ codePoint, char }) => `U+${codePoint.toString(16).toUpperCase()} ${char}`
-  ).join(', ')}`
+    ({ codePoint, char }) => `U+${codePoint.toString(16).toUpperCase()} ${char}`,
+  ).join(', ')}`,
 );
 console.log(
   `  name separators (letter-flanked only): ${NAME_SEPARATORS.map(
-    ({ codePoint, char }) => `U+${codePoint.toString(16).toUpperCase()} ${char}`
-  ).join(', ')}`
+    ({ codePoint, char }) => `U+${codePoint.toString(16).toUpperCase()} ${char}`,
+  ).join(', ')}`,
 );

@@ -51,7 +51,10 @@ describe('clamp', () => {
 describe('chunk', () => {
   it('splits into consecutive groups of at most size', () => {
     expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
-    expect(chunk([1, 2, 3, 4], 2)).toEqual([[1, 2], [3, 4]]);
+    expect(chunk([1, 2, 3, 4], 2)).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
   });
 
   it('returns one group when the input fits, and none when it is empty', () => {

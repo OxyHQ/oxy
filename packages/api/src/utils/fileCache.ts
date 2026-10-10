@@ -22,7 +22,7 @@ class FileCache {
       maxSize: 50000,
       defaultTTL: 5 * 60 * 1000, // 5 minutes
       cleanupInterval: 60 * 1000, // 1 minute
-      ...config
+      ...config,
     };
 
     this.startCleanupTimer();
@@ -57,7 +57,7 @@ class FileCache {
     this.cache.set(fileId, {
       file,
       timestamp: Date.now(),
-      ttl: ttl || this.config.defaultTTL
+      ttl: ttl || this.config.defaultTTL,
     });
   }
 
@@ -89,7 +89,7 @@ class FileCache {
     } else {
       const entries = Array.from(this.cache.entries());
       entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-      
+
       const toEvict = entries.slice(0, Math.min(count, entries.length));
       for (const [key] of toEvict) {
         this.cache.delete(key);
@@ -125,7 +125,7 @@ class FileCache {
   getStats(): { size: number; maxSize: number } {
     return {
       size: this.cache.size,
-      maxSize: this.config.maxSize
+      maxSize: this.config.maxSize,
     };
   }
 

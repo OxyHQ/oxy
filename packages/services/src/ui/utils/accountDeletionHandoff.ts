@@ -54,7 +54,11 @@ export async function runAccountDeletionHandoff(
     holdsIdentity = await hasIdentity();
   } catch (error) {
     // A locked or unreadable keystore is not proof the identity is elsewhere.
-    logger.warn('Identity read failed before account deletion', { component: 'accountDeletionHandoff' }, error);
+    logger.warn(
+      'Identity read failed before account deletion',
+      { component: 'accountDeletionHandoff' },
+      error,
+    );
     toast.error(
       text(
         'deleteAccount.handoff.identityUnreadable',
@@ -88,7 +92,11 @@ export async function runAccountDeletionHandoff(
       try {
         await openURL(COMMONS_DELETE_ACCOUNT_URL);
       } catch (error) {
-        logger.warn('Opening Commons delete-account failed', { component: 'accountDeletionHandoff' }, error);
+        logger.warn(
+          'Opening Commons delete-account failed',
+          { component: 'accountDeletionHandoff' },
+          error,
+        );
         toast.error(
           text(
             'deleteAccount.handoff.commonsOpenFailed',
@@ -101,7 +109,10 @@ export async function runAccountDeletionHandoff(
   }
 
   await surfaces.confirm({
-    title: text('deleteAccount.handoff.elsewhereTitle', 'Delete your account where your identity is'),
+    title: text(
+      'deleteAccount.handoff.elsewhereTitle',
+      'Delete your account where your identity is',
+    ),
     description: text(
       'deleteAccount.handoff.elsewhereMessage',
       "Deleting your account needs your identity key, and it isn't on this device. Open Oxy Commons on the device that holds it and go to Settings > Delete account.",

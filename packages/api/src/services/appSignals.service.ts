@@ -39,17 +39,10 @@ import {
   users,
 } from '../db/schema';
 import reputationService from './reputation.service';
-import {
-  ENDORSEMENT_RECEIVED_ACTION,
-  INFLUENCE_MIN,
-} from '../utils/reputation.constants';
+import { ENDORSEMENT_RECEIVED_ACTION, INFLUENCE_MIN } from '../utils/reputation.constants';
 import { decayAffinity, affinityEventWeight } from '../utils/recommendationWeights';
 import { logger } from '../utils/logger';
-import type {
-  AppEndorsementInput,
-  AppInterestInput,
-  AppAffinityEvent,
-} from '@oxy.so/contracts';
+import type { AppEndorsementInput, AppInterestInput, AppAffinityEvent } from '@oxy.so/contracts';
 
 /** Postgres `foreign_key_violation` — an id that names no row. */
 const FOREIGN_KEY_VIOLATION = '23503';
@@ -131,7 +124,7 @@ class AppSignalsService {
    */
   async ingestEndorsements(
     applicationId: string,
-    edges: AppEndorsementInput[]
+    edges: AppEndorsementInput[],
   ): Promise<EndorsementIngestResult> {
     const result: EndorsementIngestResult = {
       added: 0,
@@ -170,7 +163,7 @@ class AppSignalsService {
     ownerId: string,
     memberId: string,
     sourceId: string | null,
-    result: EndorsementIngestResult
+    result: EndorsementIngestResult,
   ): Promise<void> {
     const db = getDb();
     const weight = await this.resolveOwnerWeight(ownerId);
@@ -264,7 +257,7 @@ class AppSignalsService {
     ownerId: string,
     memberId: string,
     sourceId: string | null,
-    result: EndorsementIngestResult
+    result: EndorsementIngestResult,
   ): Promise<void> {
     const db = getDb();
 
@@ -280,8 +273,8 @@ class AppSignalsService {
           eq(appEndorsementEdges.memberId, memberId),
           sourceId === null
             ? isNull(appEndorsementEdges.sourceId)
-            : eq(appEndorsementEdges.sourceId, sourceId)
-        )
+            : eq(appEndorsementEdges.sourceId, sourceId),
+        ),
       )
       .returning({ weight: appEndorsementEdges.weight });
     if (!removed) {
@@ -298,10 +291,7 @@ class AppSignalsService {
         endorsementScore: sql`${appUserSignals.endorsementScore} - ${removed.weight}`,
       })
       .where(
-        and(
-          eq(appUserSignals.applicationId, applicationId),
-          eq(appUserSignals.userId, memberId)
-        )
+        and(eq(appUserSignals.applicationId, applicationId), eq(appUserSignals.userId, memberId)),
       );
 
     // The member's reputation award is intentionally NOT reversed here — an
@@ -316,7 +306,7 @@ class AppSignalsService {
    */
   async ingestInterests(
     applicationId: string,
-    items: AppInterestInput[]
+    items: AppInterestInput[],
   ): Promise<InterestIngestResult> {
     const db = getDb();
     const result: InterestIngestResult = { upserted: 0, invalid: 0 };
@@ -367,7 +357,7 @@ class AppSignalsService {
    */
   async ingestAffinityEvents(
     applicationId: string,
-    events: AppAffinityEvent[]
+    events: AppAffinityEvent[],
   ): Promise<AffinityIngestResult> {
     const result: AffinityIngestResult = {
       applied: 0,
@@ -416,7 +406,7 @@ class AppSignalsService {
         event.toUserId,
         weight,
         eventAt,
-        result
+        result,
       );
     }
 
@@ -430,10 +420,7 @@ class AppSignalsService {
    * "already seen" for every loser of the unique-index race, so an event folds at
    * most once.
    */
-  private async reserveAffinityEventId(
-    applicationId: string,
-    eventId: string
-  ): Promise<boolean> {
+  private async reserveAffinityEventId(applicationId: string, eventId: string): Promise<boolean> {
     const reserved = await getDb()
       .insert(appAffinitySeenEvents)
       .values({ applicationId, eventId })
@@ -460,7 +447,7 @@ class AppSignalsService {
     toUserId: string,
     weight: number,
     eventAt: Date,
-    result: AffinityIngestResult
+    result: AffinityIngestResult,
   ): Promise<void> {
     const db = getDb();
     const now = Date.now();
@@ -475,8 +462,8 @@ class AppSignalsService {
         and(
           eq(appAffinityEdges.applicationId, applicationId),
           eq(appAffinityEdges.fromUserId, fromUserId),
-          eq(appAffinityEdges.toUserId, toUserId)
-        )
+          eq(appAffinityEdges.toUserId, toUserId),
+        ),
       )
       .limit(1);
 

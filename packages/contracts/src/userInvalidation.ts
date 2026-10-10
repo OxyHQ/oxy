@@ -70,8 +70,7 @@ export type OxyUserChangeReason = (typeof OXY_USER_CHANGE_REASONS)[number];
  */
 export const OXY_PUBLISHED_USER_CHANGE_REASONS = ['profile'] as const;
 
-export type PublishedOxyUserChangeReason =
-  (typeof OXY_PUBLISHED_USER_CHANGE_REASONS)[number];
+export type PublishedOxyUserChangeReason = (typeof OXY_PUBLISHED_USER_CHANGE_REASONS)[number];
 
 /** Whether a change of this kind is broadcast to consumers at all. */
 export function isPublishedOxyUserChangeReason(

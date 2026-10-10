@@ -37,7 +37,10 @@ export class LinkedAccountsApi {
    *   to be sent back to your app afterwards.
    * @returns The URL to open, and when the attempt expires (ten minutes).
    */
-  async start(network: LinkedAccountNetwork, options: StartLinkedAccountRequest): Promise<StartLinkedAccountResponse> {
+  async start(
+    network: LinkedAccountNetwork,
+    options: StartLinkedAccountRequest,
+  ): Promise<StartLinkedAccountResponse> {
     return this.ctx.request<StartLinkedAccountResponse>(
       'POST',
       `/linked-accounts/${encodeURIComponent(network)}/start`,
@@ -53,15 +56,25 @@ export class LinkedAccountsApi {
    * Repeating it within the code's five minutes returns the same link.
    */
   async complete(code: string): Promise<LinkedAccount> {
-    const res = await this.ctx.request<CompleteLinkedAccountResponse>('POST', '/linked-accounts/complete', { code }, {
-      cache: false,
-    });
+    const res = await this.ctx.request<CompleteLinkedAccountResponse>(
+      'POST',
+      '/linked-accounts/complete',
+      { code },
+      {
+        cache: false,
+      },
+    );
     return res.linkedAccount;
   }
 
   /** The current user's live linked accounts, oldest first. */
   async list(): Promise<LinkedAccount[]> {
-    const res = await this.ctx.request<LinkedAccountListResponse>('GET', '/linked-accounts', undefined, { cache: false });
+    const res = await this.ctx.request<LinkedAccountListResponse>(
+      'GET',
+      '/linked-accounts',
+      undefined,
+      { cache: false },
+    );
     return res.linkedAccounts;
   }
 
@@ -71,8 +84,13 @@ export class LinkedAccountsApi {
    * linked to another Oxy account.
    */
   async revoke(linkedAccountId: string): Promise<void> {
-    await this.ctx.request<void>('DELETE', `/linked-accounts/${encodeURIComponent(linkedAccountId)}`, undefined, {
-      cache: false,
-    });
+    await this.ctx.request<void>(
+      'DELETE',
+      `/linked-accounts/${encodeURIComponent(linkedAccountId)}`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 }

@@ -18,7 +18,9 @@ import {
  * SAME in-flight mint and all receive its result; a fresh call after it settles
  * starts a new one.
  */
-function makeMintSingleFlight(): (mint: () => Promise<DeviceSecretMintOutcome>) => Promise<DeviceSecretMintOutcome> {
+function makeMintSingleFlight(): (
+  mint: () => Promise<DeviceSecretMintOutcome>,
+) => Promise<DeviceSecretMintOutcome> {
   let inFlight: Promise<DeviceSecretMintOutcome> | null = null;
   return (mint) => {
     if (!inFlight) {
@@ -57,9 +59,7 @@ interface RefreshMockOverrides {
   signInWithCommonsIdentity?: OxyServices['auth']['signInWithCommonsIdentity'];
 }
 
-function makeOxy(
-  overrides: RefreshMockOverrides = {},
-): {
+function makeOxy(overrides: RefreshMockOverrides = {}): {
   oxy: OxyServices;
   setTokens: jest.Mock;
   noteRefreshRateLimited: jest.Mock;
@@ -98,7 +98,11 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
     await store.save(STORED);
     const { oxy, setTokens } = makeOxy();
 
-    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
+    const token = await refreshPersistedSession({
+      oxy,
+      store,
+      allowCommonsIdentityFallback: false,
+    });
 
     expect(token).toBe('access-new');
     expect(setTokens).toHaveBeenCalledWith('access-new');
@@ -159,7 +163,11 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       },
     });
 
-    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
+    const token = await refreshPersistedSession({
+      oxy,
+      store,
+      allowCommonsIdentityFallback: false,
+    });
 
     expect(token).toBeNull();
     expect(await store.load()).toBeNull();
@@ -174,7 +182,11 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       },
     });
 
-    const token = await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false });
+    const token = await refreshPersistedSession({
+      oxy,
+      store,
+      allowCommonsIdentityFallback: false,
+    });
 
     // The browser's device still knows this holder: a sign-in in any app lands
     // on it, and this app follows without opening the bridge again.
@@ -199,7 +211,9 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
     });
 
     // A transient failure must NOT drop the credential nor fall through to the Commons identity.
-    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).toBeNull();
+    expect(
+      await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true }),
+    ).toBeNull();
     expect(await store.load()).toEqual(STORED);
     expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
@@ -219,7 +233,9 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       signInWithCommonsIdentity,
     });
 
-    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).toBeNull();
+    expect(
+      await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true }),
+    ).toBeNull();
     expect(await store.load()).toEqual(STORED);
     expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
@@ -235,7 +251,9 @@ describe('refreshPersistedSession — arm 1 (device-secret mint)', () => {
       signInWithCommonsIdentity,
     });
 
-    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).toBeNull();
+    expect(
+      await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true }),
+    ).toBeNull();
     expect(await store.load()).toEqual(STORED);
     expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
@@ -294,7 +312,9 @@ describe('refreshPersistedSession — arm 2 (native Commons-identity fallback)',
     const signInWithCommonsIdentity = jest.fn(async () => SHARED_SESSION);
     const { oxy } = makeOxy({ signInWithCommonsIdentity });
 
-    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false })).toBeNull();
+    expect(
+      await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: false }),
+    ).toBeNull();
     expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
   });
 
@@ -303,7 +323,9 @@ describe('refreshPersistedSession — arm 2 (native Commons-identity fallback)',
     const signInWithCommonsIdentity = jest.fn(async () => null);
     const { oxy } = makeOxy({ signInWithCommonsIdentity });
 
-    expect(await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).toBeNull();
+    expect(
+      await refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true }),
+    ).toBeNull();
     expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
   });
 
@@ -420,7 +442,9 @@ describe('refreshPersistedSession — after a sign-out', () => {
     const { oxy, setTokens, ended } = makeOxy({ signInWithCommonsIdentity });
     ended.current = true;
 
-    await expect(refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).resolves.toBeNull();
+    await expect(
+      refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true }),
+    ).resolves.toBeNull();
     expect(signInWithCommonsIdentity).not.toHaveBeenCalled();
     expect(setTokens).not.toHaveBeenCalled();
   });
@@ -431,7 +455,9 @@ describe('refreshPersistedSession — after a sign-out', () => {
     const { oxy, setTokens, ended } = makeOxy();
     ended.current = true;
 
-    await expect(refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true })).resolves.toBe('access-new');
+    await expect(
+      refreshPersistedSession({ oxy, store, allowCommonsIdentityFallback: true }),
+    ).resolves.toBe('access-new');
     expect(setTokens).toHaveBeenCalledWith('access-new');
   });
 });
@@ -533,8 +559,12 @@ describe('startTokenRefreshScheduler', () => {
     const oxy = {
       http: { refreshAccessToken },
       session: {
-        get accessToken() { return (cleared ? null : 'tok'); },
-        get accessTokenExpiry() { return (expiresInSeconds === null ? null : nowSec + expiresInSeconds); },
+        get accessToken() {
+          return cleared ? null : 'tok';
+        },
+        get accessTokenExpiry() {
+          return expiresInSeconds === null ? null : nowSec + expiresInSeconds;
+        },
         onChange: () => () => undefined,
       },
     } as unknown as OxyServices;
@@ -577,8 +607,12 @@ describe('startTokenRefreshScheduler', () => {
     const oxy = {
       http: { refreshAccessToken },
       session: {
-        get accessToken() { return 'tok'; },
-        get accessTokenExpiry() { return nowSec - 10; },
+        get accessToken() {
+          return 'tok';
+        },
+        get accessTokenExpiry() {
+          return nowSec - 10;
+        },
         onChange: () => () => undefined,
       },
     } as unknown as OxyServices;
@@ -602,8 +636,12 @@ describe('startTokenRefreshScheduler', () => {
     const oxy = {
       http: { refreshAccessToken },
       session: {
-        get accessToken() { return 'tok'; },
-        get accessTokenExpiry() { return Math.floor(Date.now() / 1000) + 3600; },
+        get accessToken() {
+          return 'tok';
+        },
+        get accessTokenExpiry() {
+          return Math.floor(Date.now() / 1000) + 3600;
+        },
         onChange: () => () => undefined,
       },
     } as unknown as OxyServices;

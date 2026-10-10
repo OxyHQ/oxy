@@ -1,6 +1,6 @@
 /**
  * User Types
- * 
+ *
  * Centralized type definitions for user-related operations.
  * The wire-facing shapes come from `@oxy.so/contracts`, so this module states
  * only what is local to the API's own user endpoints.

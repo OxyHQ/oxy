@@ -21,7 +21,7 @@ describe('formatAmount', () => {
    */
   it('preserves digits a JS number cannot represent', () => {
     expect(formatAmount('9007199254740993.000000000001')).toBe(
-      '9,007,199,254,740,993.000000000001'
+      '9,007,199,254,740,993.000000000001',
     );
   });
 
@@ -140,13 +140,17 @@ describe('isUnitPriceAtMost', () => {
     // `0.1 + 0.2 !== 0.3` is the canonical failure; the ratio below is the same
     // hazard in a comparison. Both sides are exactly 0.3 per unit.
     expect(
-      isUnitPriceAtMost({ amount: '0.300000000000', per: 1 }, { amount: '0.300000000000', per: 1 })
+      isUnitPriceAtMost({ amount: '0.300000000000', per: 1 }, { amount: '0.300000000000', per: 1 }),
     ).toBe(true);
 
     // A denominator with no finite decimal reciprocal: 1/3 cannot be written
     // exactly, so any implementation that divided would round here.
-    expect(isUnitPriceAtMost({ amount: '1.000000000000', per: 3 }, { amount: '1.000000000000', per: 3 })).toBe(true);
-    expect(isUnitPriceAtMost({ amount: '1.000000000001', per: 3 }, { amount: '1.000000000000', per: 3 })).toBe(false);
+    expect(
+      isUnitPriceAtMost({ amount: '1.000000000000', per: 3 }, { amount: '1.000000000000', per: 3 }),
+    ).toBe(true);
+    expect(
+      isUnitPriceAtMost({ amount: '1.000000000001', per: 3 }, { amount: '1.000000000000', per: 3 }),
+    ).toBe(false);
   });
 
   it('handles an integer part beyond Number.MAX_SAFE_INTEGER', () => {
@@ -155,8 +159,8 @@ describe('isUnitPriceAtMost', () => {
     expect(
       isUnitPriceAtMost(
         { amount: '9007199254740993.000000000001', per: 1 },
-        { amount: '9007199254740993.000000000000', per: 1 }
-      )
+        { amount: '9007199254740993.000000000000', per: 1 },
+      ),
     ).toBe(false);
   });
 
@@ -176,7 +180,9 @@ describe('isUnitPriceAtMost', () => {
     expect(isUnitPriceAtMost({ amount: '1.00', per: 0 }, cap)).toBeUndefined();
     expect(isUnitPriceAtMost({ amount: '1.00', per: -1 }, cap)).toBeUndefined();
     expect(isUnitPriceAtMost({ amount: '1.00', per: 1.5 }, cap)).toBeUndefined();
-    expect(isUnitPriceAtMost({ amount: '1.00', per: 1 }, { amount: '3.00', per: 0 })).toBeUndefined();
+    expect(
+      isUnitPriceAtMost({ amount: '1.00', per: 1 }, { amount: '3.00', per: 0 }),
+    ).toBeUndefined();
   });
 });
 

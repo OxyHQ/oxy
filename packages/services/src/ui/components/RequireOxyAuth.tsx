@@ -75,7 +75,8 @@ export const RequireOxyAuth: React.FC<RequireOxyAuthProps> = ({
   bannerMessage,
   bannerActionLabel,
 }) => {
-  const { canUsePrivateApi, isPrivateApiPending, isAccountCacheReady, openAccountDialog } = useOxy();
+  const { canUsePrivateApi, isPrivateApiPending, isAccountCacheReady, openAccountDialog } =
+    useOxy();
 
   // Public app: render straight through. Cheap enough to short-circuit before
   // touching any gate UI.
@@ -128,7 +129,13 @@ interface SoftGateProps {
   onSignIn: () => void;
 }
 
-const SoftGate: React.FC<SoftGateProps> = ({ children, pending, message, actionLabel, onSignIn }) => {
+const SoftGate: React.FC<SoftGateProps> = ({
+  children,
+  pending,
+  message,
+  actionLabel,
+  onSignIn,
+}) => {
   const theme = useTheme();
   const [dismissed, setDismissed] = useState(false);
 
@@ -139,7 +146,12 @@ const SoftGate: React.FC<SoftGateProps> = ({ children, pending, message, actionL
   return (
     <View style={styles.softRoot}>
       {showBanner ? (
-        <View style={[styles.banner, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+        <View
+          style={[
+            styles.banner,
+            { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+          ]}
+        >
           <LogoIcon height={20} color={theme.colors.primary} />
           <Text style={[styles.bannerText, { color: theme.colors.text }]} numberOfLines={2}>
             {message}

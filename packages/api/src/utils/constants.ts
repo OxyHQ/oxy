@@ -19,9 +19,9 @@ export const PAGINATION = {
  * Cache time constants (in milliseconds)
  */
 export const CACHE_TIMES = {
-  SHORT: 1 * 60 * 1000,      // 1 minute
-  MEDIUM: 2 * 60 * 1000,     // 2 minutes
-  LONG: 5 * 60 * 1000,       // 5 minutes
+  SHORT: 1 * 60 * 1000, // 1 minute
+  MEDIUM: 2 * 60 * 1000, // 2 minutes
+  LONG: 5 * 60 * 1000, // 5 minutes
   VERY_LONG: 10 * 60 * 1000, // 10 minutes
   EXTRA_LONG: 30 * 60 * 1000, // 30 minutes
 } as const;
@@ -34,13 +34,3 @@ export const TRANSACTION = {
   MAX_LIMIT: 100,
   DEFAULT_OFFSET: 0,
 } as const;
-
-
-
-
-
-
-
-
-
-

@@ -19,8 +19,8 @@ export function ModelPlaceholderNotice({ className }: { className?: string }) {
       <p className="text-xs text-muted-foreground mt-1">
         A model is named <code className="text-xs">{MODEL_ID_PLACEHOLDER}</code>, and an exact
         version is pinned as <code className="text-xs">{MODEL_REVISION_PLACEHOLDER}</code>. Oxy
-        publishes no model under those names yet, so the samples show the form rather than
-        inventing an id — take the concrete value from the{' '}
+        publishes no model under those names yet, so the samples show the form rather than inventing
+        an id — take the concrete value from the{' '}
         <Link to="/models" className="text-primary hover:underline">
           Models page
         </Link>{' '}

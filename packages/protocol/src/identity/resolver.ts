@@ -50,7 +50,13 @@ export interface VerificationMethodResolver {
 /** Verdict of the key-authorization decision (a subset of {@link RejectionReason}). */
 export type KeyAuthorization =
   | { ok: true }
-  | { ok: false; reason: Extract<RejectionReason, 'public_key_not_a_current_verification_method' | 'untrusted_issuer'> };
+  | {
+      ok: false;
+      reason: Extract<
+        RejectionReason,
+        'public_key_not_a_current_verification_method' | 'untrusted_issuer'
+      >;
+    };
 
 /**
  * Decide whether `env`'s signing key (`env.publicKey`) is authorized for its
@@ -81,7 +87,8 @@ export function isAuthorizedKey(
     resolved.custodialIssuer !== undefined &&
     env.issuer === resolved.custodialIssuer
   ) {
-    return resolved.custodialPublicKey !== undefined && env.publicKey === resolved.custodialPublicKey
+    return resolved.custodialPublicKey !== undefined &&
+      env.publicKey === resolved.custodialPublicKey
       ? { ok: true }
       : { ok: false, reason: 'public_key_not_a_current_verification_method' };
   }

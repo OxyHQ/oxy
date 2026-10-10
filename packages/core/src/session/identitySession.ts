@@ -159,7 +159,9 @@ export async function establishIdentitySession(args: {
     // The signer disagrees with the key we resolved a challenge for — the
     // identity changed mid-flight, or a custom signer was misconfigured. Refuse:
     // verifying under a different key would bind this client to another account.
-    throw new Error('Identity sign-in aborted: the signing key does not match the device identity key');
+    throw new Error(
+      'Identity sign-in aborted: the signing key does not match the device identity key',
+    );
   }
 
   // `signed.challenge` carries the SIGNATURE (mirrors `signChallenge`).

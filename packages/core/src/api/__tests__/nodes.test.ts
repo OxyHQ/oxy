@@ -32,11 +32,13 @@ function cacheSpies(client: OxyServices): { keys: jest.Mock; prefixes: jest.Mock
   let spies = cacheSpyMap.get(client);
   if (!spies) {
     const created = { keys: jest.fn(), prefixes: jest.fn() };
-    jest.spyOn(client.http, 'invalidateCache').mockImplementation(({ keys = [], prefixes = [] }) => {
-      for (const key of keys) created.keys(key);
-      for (const prefix of prefixes) created.prefixes(prefix);
-      return 0;
-    });
+    jest
+      .spyOn(client.http, 'invalidateCache')
+      .mockImplementation(({ keys = [], prefixes = [] }) => {
+        for (const key of keys) created.keys(key);
+        for (const prefix of prefixes) created.prefixes(prefix);
+        return 0;
+      });
     cacheSpyMap.set(client, created);
     spies = created;
   }
@@ -76,7 +78,11 @@ describe('oxy.nodes', () => {
       type: 'node',
       subject: 'did:web:oxy.so:u:user-123',
       issuer: 'did:web:oxy.so:u:user-123',
-      record: { endpoint: 'https://node.example.com', nodePublicKey: NODE_PUBLIC_KEY, mode: 'pull' },
+      record: {
+        endpoint: 'https://node.example.com',
+        nodePublicKey: NODE_PUBLIC_KEY,
+        mode: 'pull',
+      },
       issuedAt: 1700000000000,
       seq: 4,
       prev: 'rec-3',
@@ -88,7 +94,9 @@ describe('oxy.nodes', () => {
     };
 
     it('signs a v2 node record on the caller chain, POSTs /identity/records, sweeps, and returns the status', async () => {
-      const signV2Spy = jest.spyOn(SignatureService, 'signRecordV2').mockResolvedValue(signedEnvelope);
+      const signV2Spy = jest
+        .spyOn(SignatureService, 'signRecordV2')
+        .mockResolvedValue(signedEnvelope);
       const sweepSpy = cacheSpies(oxy).prefixes;
       // 1st makeRequest = chain head; 2nd = POST /identity/records; 3rd = GET /nodes/me.
       makeRequestSpy
@@ -192,7 +200,10 @@ describe('oxy.nodes', () => {
       const signV2Spy = jest.spyOn(SignatureService, 'signRecordV2');
 
       await expect(
-        oxy.nodes.register({ endpoint: 'https://node.example.com', nodePublicKey: NODE_PUBLIC_KEY }),
+        oxy.nodes.register({
+          endpoint: 'https://node.example.com',
+          nodePublicKey: NODE_PUBLIC_KEY,
+        }),
       ).rejects.toThrow(/No authenticated user/);
       expect(makeRequestSpy).not.toHaveBeenCalled();
       expect(signV2Spy).not.toHaveBeenCalled();
@@ -201,12 +212,17 @@ describe('oxy.nodes', () => {
     it('propagates a signing failure (native-only: no on-device identity)', async () => {
       const signV2Spy = jest
         .spyOn(SignatureService, 'signRecordV2')
-        .mockRejectedValue(new Error('No identity found. Please create or import an identity first.'));
+        .mockRejectedValue(
+          new Error('No identity found. Please create or import an identity first.'),
+        );
       const sweepSpy = cacheSpies(oxy).prefixes;
       makeRequestSpy.mockResolvedValueOnce({ headRecordId: 'rec-3', seq: 3, recordCount: 4 });
 
       await expect(
-        oxy.nodes.register({ endpoint: 'https://node.example.com', nodePublicKey: NODE_PUBLIC_KEY }),
+        oxy.nodes.register({
+          endpoint: 'https://node.example.com',
+          nodePublicKey: NODE_PUBLIC_KEY,
+        }),
       ).rejects.toThrow(/No identity found/);
       // Only the chain-head read happened; no publish, no sweep.
       expect(signV2Spy).toHaveBeenCalledTimes(1);
@@ -222,7 +238,10 @@ describe('oxy.nodes', () => {
         .mockRejectedValueOnce(new Error('Signed record rejected: chain_fork'));
 
       await expect(
-        oxy.nodes.register({ endpoint: 'https://node.example.com', nodePublicKey: NODE_PUBLIC_KEY }),
+        oxy.nodes.register({
+          endpoint: 'https://node.example.com',
+          nodePublicKey: NODE_PUBLIC_KEY,
+        }),
       ).rejects.toThrow();
       expect(sweepSpy).not.toHaveBeenCalled();
     });
@@ -236,7 +255,10 @@ describe('oxy.nodes', () => {
         .mockResolvedValueOnce({ node: null });
 
       await expect(
-        oxy.nodes.register({ endpoint: 'https://node.example.com', nodePublicKey: NODE_PUBLIC_KEY }),
+        oxy.nodes.register({
+          endpoint: 'https://node.example.com',
+          nodePublicKey: NODE_PUBLIC_KEY,
+        }),
       ).rejects.toThrow(/could not be materialized/);
     });
   });

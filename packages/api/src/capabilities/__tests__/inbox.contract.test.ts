@@ -43,7 +43,14 @@ const mockEmailFixture = {
   labels: ['Work'],
   inReplyTo: null,
   references: [],
-  flags: { seen: false, starred: false, answered: false, forwarded: false, draft: false, pinned: false },
+  flags: {
+    seen: false,
+    starred: false,
+    answered: false,
+    forwarded: false,
+    draft: false,
+    pinned: false,
+  },
   date: '2026-09-30T10:00:00.000Z',
 };
 const mockPage = { data: [mockEmailFixture], total: 1, limit: 20, offset: 0, nextCursor: null };
@@ -63,12 +70,10 @@ jest.mock('../../services/capabilityAuthority.service', () => ({
   }),
 }));
 jest.mock('../../services/capabilityRuntimeStore.service', () => ({
-  mailboxBelongsToAccount: async (mailboxId: string, accountId: string) => (
-    mailboxId === MAILBOX_ID && accountId === ACCOUNT_ID
-  ),
-  messageBelongsToMailbox: async (emailId: string, accountId: string, mailboxId: string) => (
-    emailId === EMAIL_ID && accountId === ACCOUNT_ID && mailboxId === MAILBOX_ID
-  ),
+  mailboxBelongsToAccount: async (mailboxId: string, accountId: string) =>
+    mailboxId === MAILBOX_ID && accountId === ACCOUNT_ID,
+  messageBelongsToMailbox: async (emailId: string, accountId: string, mailboxId: string) =>
+    emailId === EMAIL_ID && accountId === ACCOUNT_ID && mailboxId === MAILBOX_ID,
   persistCapabilityAuditEvent: async () => undefined,
   reserveCapabilityEffect: async () => true,
   finalizeCapabilityEffect: async () => undefined,
@@ -85,15 +90,26 @@ jest.mock('../../services/email.service', () => {
   return {
     emailService: {
       ensureMailboxes: async () => undefined,
-      listMailboxes: async () => [{ id: MAILBOX_ID, name: 'INBOX', specialUse: '\\Inbox', totalMessages: 1, unseenMessages: 1 }],
+      listMailboxes: async () => [
+        {
+          id: MAILBOX_ID,
+          name: 'INBOX',
+          specialUse: '\\Inbox',
+          totalMessages: 1,
+          unseenMessages: 1,
+        },
+      ],
       getMailboxBySpecialUse: async (_account: string, specialUse: string) => mailboxes[specialUse],
-      getMailboxById: async (_account: string, id: string) => (
-        Object.values(mailboxes).find((mailbox) => mailbox.id === id)
-      ),
+      getMailboxById: async (_account: string, id: string) =>
+        Object.values(mailboxes).find((mailbox) => mailbox.id === id),
       listMessages: async () => mockPage,
       searchMessages: async () => mockPage,
-      getMessage: async (_account: string, id: string) => (id === EMAIL_ID ? mockEmailFixture : undefined),
-      getThread: async () => [mockEmailFixture, { ...mockEmailFixture, id: 'email-contract-2', mailboxId: 'elsewhere' }],
+      getMessage: async (_account: string, id: string) =>
+        id === EMAIL_ID ? mockEmailFixture : undefined,
+      getThread: async () => [
+        mockEmailFixture,
+        { ...mockEmailFixture, id: 'email-contract-2', mailboxId: 'elsewhere' },
+      ],
       listLabels: async () => [{ _id: 'Work', name: 'Work' }],
       getQuotaUsage: async () => ({ used: 10, limit: 100, percentage: 10 }),
       moveMessage: async (_account: string, _id: string, target: string) => moved(target),
@@ -111,7 +127,11 @@ jest.mock('../../controllers/email.controller', () => ({
   senderIdentityFor: async () => ({ address: OWN_ADDRESS, name: 'Owner' }),
   sendMessageForUser: async (_account: string, command: { subject?: string }) => ({
     status: 202,
-    data: { messageId: '<sent-contract@oxy.so>', queued: false, message: `Sent ${command.subject ?? ''}` },
+    data: {
+      messageId: '<sent-contract@oxy.so>',
+      queued: false,
+      message: `Sent ${command.subject ?? ''}`,
+    },
   }),
   saveDraftForUser: async (_account: string, command: { subject?: string }) => ({
     id: 'draft-contract-1',
@@ -135,7 +155,10 @@ jest.mock('../../services/emailOutbox.service', () => ({
   cancelEmailOutbox: async (_account: string, id: string) => ({ id, status: 'cancelled' }),
 }));
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (_req: unknown, res: { status: (code: number) => { json: (body: unknown) => void } }) => {
+  authMiddleware: (
+    _req: unknown,
+    res: { status: (code: number) => { json: (body: unknown) => void } },
+  ) => {
     res.status(401).json({ error: 'bearer requests are not part of this test' });
   },
 }));
@@ -237,20 +260,25 @@ afterAll((done) => {
 });
 
 /** Send one tool call the way a coordinator does. */
-async function callOverHttp(tool: CatalogTool, resourceType: string, input: Record<string, unknown>) {
+async function callOverHttp(
+  tool: CatalogTool,
+  resourceType: string,
+  input: Record<string, unknown>,
+) {
   const resolved = resolveCatalogInvocation(INBOX_CAPABILITY_CATALOG, tool, input);
   const headers: Record<string, string> = {
     authorization: `Capability ${ticketFor(tool, resourceType)}`,
     accept: 'application/json',
   };
   if (resolved.body) headers['content-type'] = 'application/json';
-  if (tool.idempotency === 'required') headers['idempotency-key'] = `contract:${tool.name}:${resourceType}`;
+  if (tool.idempotency === 'required')
+    headers['idempotency-key'] = `contract:${tool.name}:${resourceType}`;
   const response = await fetch(`${origin}${resolved.url.pathname}${resolved.url.search}`, {
     method: resolved.method,
     headers,
     ...(resolved.body ? { body: JSON.stringify(resolved.body) } : {}),
   });
-  return { status: response.status, body: await response.json() as Record<string, unknown> };
+  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
 /**
@@ -259,13 +287,18 @@ async function callOverHttp(tool: CatalogTool, resourceType: string, input: Reco
  * the handler answers, and the result is compared as JSON would carry it.
  */
 const mcpDefinitions = new Map(
-  createCatalogMcpToolDefinitions(INBOX_MCP_CATALOG, INBOX_MCP_HANDLERS).map((definition) => [definition.tool.name, definition]),
+  createCatalogMcpToolDefinitions(INBOX_MCP_CATALOG, INBOX_MCP_HANDLERS).map((definition) => [
+    definition.tool.name,
+    definition,
+  ]),
 );
 async function callOverMcp(tool: CatalogTool, input: Record<string, unknown>): Promise<unknown> {
   const definition = mcpDefinitions.get(tool.name);
   if (!definition) throw new Error(`${tool.name} has no MCP handler`);
   const parsed = definition.inputSchema.parse(
-    tool.idempotency === 'required' ? { ...input, idempotencyKey: `contract:${tool.name}:mcp` } : input,
+    tool.idempotency === 'required'
+      ? { ...input, idempotencyKey: `contract:${tool.name}:mcp` }
+      : input,
   ) as Record<string, unknown>;
   const result = await definition.handler(parsed, {
     appId: 'inbox',
@@ -283,39 +316,55 @@ async function callOverMcp(tool: CatalogTool, input: Record<string, unknown>): P
   return JSON.parse(JSON.stringify(result.structuredContent));
 }
 
-const cases = INBOX_CAPABILITY_CATALOG.tools.flatMap((tool) => (
-  tool.resourceTypes.map((resourceType) => [tool.name, resourceType, tool] as const)
-));
+const cases = INBOX_CAPABILITY_CATALOG.tools.flatMap((tool) =>
+  tool.resourceTypes.map((resourceType) => [tool.name, resourceType, tool] as const),
+);
 
 describe('Inbox catalog contract over HTTP', () => {
   it('has exactly one fixture per catalog tool', () => {
-    expect(Object.keys(FIXTURES).sort()).toEqual(INBOX_CAPABILITY_CATALOG.tools.map(({ name }) => name).sort());
+    expect(Object.keys(FIXTURES).sort()).toEqual(
+      INBOX_CAPABILITY_CATALOG.tools.map(({ name }) => name).sort(),
+    );
   });
 
   it('covers every tool and resource type pairing', () => {
     // A floor, so a catalog that stopped listing resource types cannot make
     // the table below vacuous: 21 tools, 12 of which also accept a mailbox.
     expect(cases.length).toBeGreaterThanOrEqual(INBOX_CAPABILITY_CATALOG.tools.length);
-    expect(cases.filter(([, resourceType]) => resourceType === 'mailbox').length).toBeGreaterThan(0);
+    expect(cases.filter(([, resourceType]) => resourceType === 'mailbox').length).toBeGreaterThan(
+      0,
+    );
   });
 
-  it.each(cases)('%s with a %s ticket answers 2xx, identically to the other transport', async (name, resourceType, tool) => {
-    const input = FIXTURES[name];
-    if (!input) throw new Error(`No contract fixture for ${name}`);
+  it.each(cases)(
+    '%s with a %s ticket answers 2xx, identically to the other transport',
+    async (name, resourceType, tool) => {
+      const input = FIXTURES[name];
+      if (!input) throw new Error(`No contract fixture for ${name}`);
 
-    const http = await callOverHttp(tool, resourceType, input);
-    expect({ tool: name, resourceType, status: http.status, body: http.body })
-      .toEqual({ tool: name, resourceType, status: 200, body: expect.objectContaining({ data: expect.anything() }) });
+      const http = await callOverHttp(tool, resourceType, input);
+      expect({ tool: name, resourceType, status: http.status, body: http.body }).toEqual({
+        tool: name,
+        resourceType,
+        status: 200,
+        body: expect.objectContaining({ data: expect.anything() }),
+      });
 
-    // The canonical (validated, defaulted) input both transports hand the tool.
-    const expected = resourceType === 'mailbox' || !tool.exposure.includes('mcp')
-      ? JSON.parse(JSON.stringify(await INBOX_TOOLS[name]!(input, {
-          accountId: ACCOUNT_ID,
-          ...(resourceType === 'mailbox' ? { mailboxId: MAILBOX_ID } : {}),
-        })))
-      : await callOverMcp(tool, input);
-    expect(http.body).toEqual(expected);
-  });
+      // The canonical (validated, defaulted) input both transports hand the tool.
+      const expected =
+        resourceType === 'mailbox' || !tool.exposure.includes('mcp')
+          ? JSON.parse(
+              JSON.stringify(
+                await INBOX_TOOLS[name]!(input, {
+                  accountId: ACCOUNT_ID,
+                  ...(resourceType === 'mailbox' ? { mailboxId: MAILBOX_ID } : {}),
+                }),
+              ),
+            )
+          : await callOverMcp(tool, input);
+      expect(http.body).toEqual(expected);
+    },
+  );
 
   it('keeps a mailbox ticket inside its mailbox over HTTP', async () => {
     const thread = INBOX_CAPABILITY_CATALOG.tools.find(({ name }) => name === 'getEmailThread')!;

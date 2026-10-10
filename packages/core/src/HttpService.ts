@@ -1,9 +1,9 @@
 /**
  * Unified HTTP Service
- * 
+ *
  * Consolidates HttpClient + RequestManager into a single efficient class.
  * Uses native fetch instead of axios for smaller bundle size.
- * 
+ *
  * Handles:
  * - Authentication (token management, auto-refresh)
  * - Caching (TTL-based)
@@ -16,7 +16,13 @@
 import { TTLCache, registerCacheForCleanup, unregisterCacheFromCleanup } from './utils/cache';
 import { RequestDeduplicator, RequestQueue, SimpleLogger } from './utils/requestUtils';
 import { retryAsync } from './utils/asyncUtils';
-import { createCancelledError, ErrorCodes, handleHttpError, isCancelledError, parseHttpErrorBody } from './utils/errorUtils';
+import {
+  createCancelledError,
+  ErrorCodes,
+  handleHttpError,
+  isCancelledError,
+  parseHttpErrorBody,
+} from './utils/errorUtils';
 import { decodeTokenClaims } from './utils/tokenClaims';
 import { isReactNative } from '@oxy.so/protocol/random';
 import { computeIdentityTag, fnv1a32 } from './utils/cacheKey';
@@ -46,15 +52,25 @@ function sameTokenSession(left: string | null, right: string | null): boolean {
   if (!a || !b || !(a.userId || a.id || a.sub) || !(b.userId || b.id || b.sub)) return false;
   // A refresh may rotate exp/iat/jti while preserving its account and session.
   // Opaque/malformed context fields cannot establish that equivalence.
-  return ['userId', 'id', 'sub', 'sessionId', 'operatorId', 'clientId', 'appId', 'authMethodId'].every((key) =>
-    (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
+  return [
+    'userId',
+    'id',
+    'sub',
+    'sessionId',
+    'operatorId',
+    'clientId',
+    'appId',
+    'authMethodId',
+  ].every((key) => (a[key] === undefined || typeof a[key] === 'string') && a[key] === b[key]);
 }
 
 /** Cancel this wait only; the shared mint continues for other callers. */
 function awaitRequestSignal<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return pending;
   return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => { reject(createCancelledError()); };
+    const onAbort = (): void => {
+      reject(createCancelledError());
+    };
     if (signal.aborted) onAbort();
     else signal.addEventListener('abort', onAbort, { once: true });
     // Both handlers remain attached even after cancellation, so a late shared
@@ -336,7 +352,9 @@ function isAbortLike(error: unknown): boolean {
 function linkAbort(parent: AbortSignal, child: AbortController): () => void {
   if (parent.aborted) {
     child.abort((parent as AbortSignal & { reason?: unknown }).reason);
-    return () => { /* nothing was ever attached */ };
+    return () => {
+      /* nothing was ever attached */
+    };
   }
   const onAbort = (): void => {
     child.abort((parent as AbortSignal & { reason?: unknown }).reason);
@@ -461,11 +479,11 @@ export class HttpService {
     this.config = config;
     this.baseURL = config.baseURL;
     this.tokenStore = new TokenStore();
-    
+
     this.logger = new SimpleLogger(
       config.enableLogging || false,
       config.logLevel || 'error',
-      'HttpService'
+      'HttpService',
     );
 
     // Initialize performance infrastructure. The per-instance GET response
@@ -475,16 +493,17 @@ export class HttpService {
     // the cache for the global cleanup interval. Default (config unset) keeps
     // caching ON with the 5-minute TTL — unchanged for existing consumers.
     this.cacheDisabled =
-      config.enableCache === false ||
-      (typeof config.cacheTTL === 'number' && config.cacheTTL <= 0);
-    this.cache = new TTLCache<unknown>(config.cacheTTL && config.cacheTTL > 0 ? config.cacheTTL : 5 * 60 * 1000);
+      config.enableCache === false || (typeof config.cacheTTL === 'number' && config.cacheTTL <= 0);
+    this.cache = new TTLCache<unknown>(
+      config.cacheTTL && config.cacheTTL > 0 ? config.cacheTTL : 5 * 60 * 1000,
+    );
     if (!this.cacheDisabled) {
       registerCacheForCleanup(this.cache);
     }
     this.deduplicator = new RequestDeduplicator();
     this.requestQueue = new RequestQueue(
       config.maxConcurrentRequests || 10,
-      config.requestQueueSize || 100
+      config.requestQueueSize || 100,
     );
   }
 
@@ -690,7 +709,7 @@ export class HttpService {
 
         // Build headers - start with defaults
         const headers: Record<string, string> = {
-          'Accept': 'application/json',
+          Accept: 'application/json',
         };
 
         // Only set Content-Type for non-FormData requests (FormData sets it automatically with boundary)
@@ -711,7 +730,9 @@ export class HttpService {
             // For FormData, explicitly remove Content-Type if user tries to set it
             // The browser/fetch API will set it automatically with the boundary
             if (isFormData && key.toLowerCase() === 'content-type') {
-              this.logger.debug('Ignoring Content-Type header for FormData - will be set automatically');
+              this.logger.debug(
+                'Ignoring Content-Type header for FormData - will be set automatically',
+              );
               continue;
             }
             headers[key] = value;
@@ -727,8 +748,13 @@ export class HttpService {
         // `URLSearchParams` is serialised explicitly rather than handed to
         // `fetch` as-is: RN's fetch does not consistently encode it, and doing
         // it here keeps the body identical across every platform.
-        const bodyValue = method !== 'GET' && data
-            ? (isFormData ? data : isUrlEncoded ? data.toString() : JSON.stringify(data))
+        const bodyValue =
+          method !== 'GET' && data
+            ? isFormData
+              ? data
+              : isUrlEncoded
+                ? data.toString()
+                : JSON.stringify(data)
             : undefined;
 
         // React Native FormData workaround:
@@ -737,7 +763,8 @@ export class HttpService {
         // RN's native XMLHttpRequest handles those descriptors correctly, so we
         // route multipart uploads through XHR on RN only. JSON, text, etc. still
         // use fetch on every platform.
-        const useXhrForUpload = isFormData && isReactNative() && typeof XMLHttpRequest !== 'undefined';
+        const useXhrForUpload =
+          isFormData && isReactNative() && typeof XMLHttpRequest !== 'undefined';
 
         const response = useXhrForUpload
           ? await this.uploadViaXHR(
@@ -781,7 +808,13 @@ export class HttpService {
               // queue slot, so a queued retry waits for a slot while holding one.
               // With every slot held by a 401 (a revoked session under load) no
               // retry could ever start and the whole client stalled.
-              return this.request<T>({ ...config, _isAuthRetry: true, retry: false, deduplicate: false, bypassQueue: true });
+              return this.request<T>({
+                ...config,
+                _isAuthRetry: true,
+                retry: false,
+                deduplicate: false,
+                bypassQueue: true,
+              });
             }
             // Refresh failed or no token — clear tokens
             this.tokenStore.clearTokens();
@@ -816,7 +849,11 @@ export class HttpService {
             response?: { status: number; statusText: string; data?: unknown };
           };
           error.status = response.status;
-          error.response = { status: response.status, statusText: response.statusText, data: errorBody };
+          error.response = {
+            status: response.status,
+            statusText: response.statusText,
+            data: errorBody,
+          };
           // Only set `code`/`details` when the server actually sent them.
           // Assigning `undefined` would still create the property, which changes
           // how `handleHttpError` classifies the error downstream.
@@ -832,7 +869,7 @@ export class HttpService {
         // Handle different response types (optimized - read response once)
         const contentType = response.headers.get('content-type');
         let responseData: unknown;
-        
+
         if (config.responseType === 'blob') {
           responseData = await response.blob();
         } else if (contentType?.includes('application/json')) {
@@ -860,7 +897,13 @@ export class HttpService {
               throw new Error('Failed to read response from server');
             }
           }
-        } else if (contentType && (contentType.includes('application/octet-stream') || contentType.includes('image/') || contentType.includes('video/') || contentType.includes('audio/'))) {
+        } else if (
+          contentType &&
+          (contentType.includes('application/octet-stream') ||
+            contentType.includes('image/') ||
+            contentType.includes('video/') ||
+            contentType.includes('audio/'))
+        ) {
           // For binary responses (blobs), return the blob directly without unwrapping
           responseData = await response.blob();
         } else {
@@ -878,7 +921,11 @@ export class HttpService {
         const duration = Date.now() - startTime;
         this.updateMetrics(false, duration);
         this.config.onRequestEnd?.(url, method, duration, false);
-        this.config.onRequestError?.(url, method, error instanceof Error ? error : new Error(String(error)));
+        this.config.onRequestError?.(
+          url,
+          method,
+          error instanceof Error ? error : new Error(String(error)),
+        );
 
         // An abort is the one failure whose CAUSE the error cannot carry on its
         // own: `fetch` reports a caller cancellation and our own timeout as the
@@ -931,7 +978,9 @@ export class HttpService {
       // Control-plane calls the auth lane depends on (`bypassQueue`, e.g. the
       // device-secret mint) run DIRECTLY — a queued mint could never acquire a
       // slot when every slot is parked awaiting it.
-      config.bypassQueue ? attempt(domain) : this.requestQueue.enqueue(() => attempt(domain), domain);
+      config.bypassQueue
+        ? attempt(domain)
+        : this.requestQueue.enqueue(() => attempt(domain), domain);
     const execute = (domain: AbortSignal): Promise<T> =>
       retry
         ? retryAsync(() => runAttempt(domain), {
@@ -1050,7 +1099,11 @@ export class HttpService {
       }
 
       const onAbort = (): void => {
-        try { xhr.abort(); } catch { /* xhr already finished */ }
+        try {
+          xhr.abort();
+        } catch {
+          /* xhr already finished */
+        }
       };
       if (abortSignal.aborted) {
         reject(new DOMException('The user aborted a request.', 'AbortError'));
@@ -1065,11 +1118,13 @@ export class HttpService {
       xhr.onload = (): void => {
         cleanup();
         const responseHeaders = HttpService.parseXHRHeaders(xhr.getAllResponseHeaders());
-        resolve(new Response(xhr.responseText, {
-          status: xhr.status,
-          statusText: xhr.statusText,
-          headers: responseHeaders,
-        }));
+        resolve(
+          new Response(xhr.responseText, {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            headers: responseHeaders,
+          }),
+        );
       };
       xhr.onerror = (): void => {
         cleanup();
@@ -1200,7 +1255,7 @@ export class HttpService {
     const base = /^https?:\/\//i.test(url)
       ? url
       : `${trimTrailingSlashes(this.baseURL)}/${trimLeadingSlashes(url)}`;
-    
+
     if (!params || Object.keys(params).length === 0) {
       return base;
     }
@@ -1511,13 +1566,20 @@ export class HttpService {
     return this.requestRawResponse(config, false);
   }
 
-  private async requestRawResponse(config: ResponseRequest, requireAuth: boolean): Promise<Response> {
+  private async requestRawResponse(
+    config: ResponseRequest,
+    requireAuth: boolean,
+  ): Promise<Response> {
     // Validate before obtaining a bearer: an unrelated origin must not trigger
     // an auth mint, even when the trusted transport accepts absolute URLs.
     const target = new URL(this.buildURL(config.url));
     const base = new URL(this.baseURL);
-    if (target.origin !== base.origin || !['http:', 'https:'].includes(target.protocol)
-      || target.username || target.password) {
+    if (
+      target.origin !== base.origin ||
+      !['http:', 'https:'].includes(target.protocol) ||
+      target.username ||
+      target.password
+    ) {
       throw new Error('Raw response requests must target the configured API origin');
     }
     if (config.signal?.aborted) throw createCancelledError();
@@ -1526,14 +1588,27 @@ export class HttpService {
     const contextToken = this.syncAccessTokenFromProvider();
     const beforeAuthEpoch = this.sessionEpoch;
     const authHeader = await awaitRequestSignal(this.getAuthHeader(), config.signal);
-    if (beforeAuthEpoch !== this.sessionEpoch || !sameTokenSession(contextToken, this.tokenStore.getAccessToken())) {
+    if (
+      beforeAuthEpoch !== this.sessionEpoch ||
+      !sameTokenSession(contextToken, this.tokenStore.getAccessToken())
+    ) {
       throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
     }
     if (config.signal?.aborted) throw createCancelledError();
     if (requireAuth && !authHeader) {
-      throw new OxyAuthenticationError('An active Oxy session is required for this request', 'AUTH_REQUIRED');
+      throw new OxyAuthenticationError(
+        'An active Oxy session is required for this request',
+        'AUTH_REQUIRED',
+      );
     }
-    return this.requestResponseAttempt(request, target.href, authHeader, false, this.sessionEpoch, contextToken);
+    return this.requestResponseAttempt(
+      request,
+      target.href,
+      authHeader,
+      false,
+      this.sessionEpoch,
+      contextToken,
+    );
   }
 
   private async requestResponseAttempt(
@@ -1546,7 +1621,10 @@ export class HttpService {
   ): Promise<Response> {
     const assertCurrent = (): void => {
       this.syncAccessTokenFromProvider();
-      if (epoch !== this.sessionEpoch || !sameTokenSession(contextToken, this.tokenStore.getAccessToken())) {
+      if (
+        epoch !== this.sessionEpoch ||
+        !sameTokenSession(contextToken, this.tokenStore.getAccessToken())
+      ) {
         throw new OxyAuthenticationError('The request session changed', 'AUTH_SESSION_CHANGED');
       }
     };
@@ -1556,7 +1634,8 @@ export class HttpService {
     const headers = new Headers(config.headers);
     if (!headers.has('Accept')) headers.set('Accept', 'application/json');
     // Never accept ambient credentials or another authority from a caller.
-    for (const name of ['Authorization', 'Cookie', 'Cookie2', 'Host', 'Proxy-Authorization']) headers.delete(name);
+    for (const name of ['Authorization', 'Cookie', 'Cookie2', 'Host', 'Proxy-Authorization'])
+      headers.delete(name);
     if (authHeader) headers.set('Authorization', authHeader);
     const edgeRegionHeader = peekBrowserEdgeRegionHeader();
     for (const [name, value] of Object.entries(edgeRegionHeader)) headers.set(name, value);
@@ -1577,21 +1656,47 @@ export class HttpService {
       // multipart bodies keep the platform's existing body serialization.
       if (body && typeof body === 'object' && 'getReader' in body) init.duplex = 'half';
       const response = await (config.fetch ?? globalThis.fetch)(fullUrl, init);
-      try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
+      try {
+        assertCurrent();
+      } catch (error) {
+        await response.body?.cancel();
+        throw error;
+      }
       const replayable = body === undefined || typeof body === 'string';
-      if (response.status === 401 && !isAuthRetry && authHeader && replayable && !config.signal?.aborted) {
+      if (
+        response.status === 401 &&
+        !isAuthRetry &&
+        authHeader &&
+        replayable &&
+        !config.signal?.aborted
+      ) {
         let refreshed: string | null;
         try {
-          refreshed = await awaitRequestSignal(this.refreshAccessToken('response-401'), config.signal);
+          refreshed = await awaitRequestSignal(
+            this.refreshAccessToken('response-401'),
+            config.signal,
+          );
         } catch (error) {
           void response.body?.cancel().catch(() => undefined);
           throw error;
         }
-        try { assertCurrent(); } catch (error) { await response.body?.cancel(); throw error; }
+        try {
+          assertCurrent();
+        } catch (error) {
+          await response.body?.cancel();
+          throw error;
+        }
         if (refreshed) {
           await response.body?.cancel();
           if (config.signal?.aborted) throw createCancelledError();
-          return this.requestResponseAttempt(config, fullUrl, `Bearer ${refreshed}`, true, epoch, contextToken);
+          return this.requestResponseAttempt(
+            config,
+            fullUrl,
+            `Bearer ${refreshed}`,
+            true,
+            epoch,
+            contextToken,
+          );
         }
         this.clearTokens();
       }
@@ -1604,11 +1709,15 @@ export class HttpService {
       const duration = Date.now() - startTime;
       this.updateMetrics(false, duration);
       this.config.onRequestEnd?.(config.url, config.method, duration, false);
-      const normalizedError = config.signal?.aborted || isCancelledError(error)
-        ? createCancelledError()
-        : error instanceof Error ? error : new Error(String(error));
+      const normalizedError =
+        config.signal?.aborted || isCancelledError(error)
+          ? createCancelledError()
+          : error instanceof Error
+            ? error
+            : new Error(String(error));
       this.config.onRequestError?.(config.url, config.method, normalizedError);
-      if (isCancelledError(normalizedError) || normalizedError instanceof OxyAuthenticationError) throw normalizedError;
+      if (isCancelledError(normalizedError) || normalizedError instanceof OxyAuthenticationError)
+        throw normalizedError;
       throw handleHttpError(normalizedError);
     }
   }
@@ -1618,19 +1727,34 @@ export class HttpService {
     return this.request<T>({ method: 'GET', url, ...config });
   }
 
-  async post<T = unknown>(url: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'url' | 'data'>): Promise<T> {
+  async post<T = unknown>(
+    url: string,
+    data?: unknown,
+    config?: Omit<RequestConfig, 'method' | 'url' | 'data'>,
+  ): Promise<T> {
     return this.request<T>({ method: 'POST', url, data, ...config });
   }
 
-  async put<T = unknown>(url: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'url' | 'data'>): Promise<T> {
+  async put<T = unknown>(
+    url: string,
+    data?: unknown,
+    config?: Omit<RequestConfig, 'method' | 'url' | 'data'>,
+  ): Promise<T> {
     return this.request<T>({ method: 'PUT', url, data, ...config });
   }
 
-  async patch<T = unknown>(url: string, data?: unknown, config?: Omit<RequestConfig, 'method' | 'url' | 'data'>): Promise<T> {
+  async patch<T = unknown>(
+    url: string,
+    data?: unknown,
+    config?: Omit<RequestConfig, 'method' | 'url' | 'data'>,
+  ): Promise<T> {
     return this.request<T>({ method: 'PATCH', url, data, ...config });
   }
 
-  async delete<T = unknown>(url: string, config?: Omit<RequestConfig, 'method' | 'url'>): Promise<T> {
+  async delete<T = unknown>(
+    url: string,
+    config?: Omit<RequestConfig, 'method' | 'url'>,
+  ): Promise<T> {
     return this.request<T>({ method: 'DELETE', url, ...config });
   }
 
@@ -1794,7 +1918,13 @@ export class HttpService {
    * per resource.
    * @returns Number of entries deleted
    */
-  invalidateCache({ keys = [], prefixes = [] }: { keys?: readonly string[]; prefixes?: readonly string[] }): number {
+  invalidateCache({
+    keys = [],
+    prefixes = [],
+  }: {
+    keys?: readonly string[];
+    prefixes?: readonly string[];
+  }): number {
     if (keys.length === 0 && prefixes.length === 0) return 0;
     const exact = new Set(keys);
     const delim = HttpService.CACHE_IDENTITY_DELIM;

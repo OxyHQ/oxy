@@ -14,7 +14,10 @@ import { render, waitFor, act, type RenderResult } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AUTH_STATE_STORAGE_KEY } from '@oxy.so/core/session';
 import { type User } from '@oxy.so/core';
-import { OXY_BRIDGE_CODE_MESSAGE_TYPE, OXY_BRIDGE_WINDOW_NAME } from '../../src/ui/oauth/browserBridge';
+import {
+  OXY_BRIDGE_CODE_MESSAGE_TYPE,
+  OXY_BRIDGE_WINDOW_NAME,
+} from '../../src/ui/oauth/browserBridge';
 
 const redirectToAuthorize = jest.fn();
 jest.mock('../../src/ui/components/oauthNavigation', () => ({
@@ -77,7 +80,9 @@ function buildStub(overrides: { devices?: Record<string, unknown> } = {}) {
     stub: {
       config: {},
       http: {
-        setTokens: (token: string) => { currentToken = token; },
+        setTokens: (token: string) => {
+          currentToken = token;
+        },
         setAuthRefreshHandler: jest.fn(),
         refreshAccessToken: jest.fn(async () => null),
         // The device-secret mint runs through the client's single-flight; a plain
@@ -87,23 +92,52 @@ function buildStub(overrides: { devices?: Record<string, unknown> } = {}) {
       },
       baseURL: API_BASE_URL,
       getSessionBaseUrl: () => API_BASE_URL,
-      session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => { currentToken = token; }, clear: () => { currentToken = null; } },
-cache: { clear: jest.fn() },
-apps: { getPublic: jest.fn(async () => ({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) },
-devices: { mintToken: jest.fn(async () => ({
-        accessToken: 'cb.minted.access',
-        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-        nextDeviceSecret: 'cb.next.secret',
-        state: {
-          deviceId: 'dev-cb',
-          accounts: [{ accountId: USER_ID, sessionId: 'sess_cb', authuser: 0 }],
-          activeAccountId: USER_ID,
-          revision: 1,
-          updatedAt: Date.now(),
+      session: {
+        get accessToken() {
+          return (() => currentToken)();
         },
-      })) },
+        get accessTokenExpiry() {
+          return (() => null)();
+        },
+        onChange: () => () => undefined,
+        setDeviceCredentialProvider: () => () => undefined,
+        setAccessToken: (token: string) => {
+          currentToken = token;
+        },
+        clear: () => {
+          currentToken = null;
+        },
+      },
+      cache: { clear: jest.fn() },
+      apps: {
+        getPublic: jest.fn(async () => ({
+          id: 'registered-fixture',
+          name: 'Registered Fixture',
+          type: 'first_party',
+          isOfficial: false,
+          isInternal: false,
+          scopes: [],
+        })),
+      },
+      devices: {
+        mintToken: jest.fn(async () => ({
+          accessToken: 'cb.minted.access',
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+          nextDeviceSecret: 'cb.next.secret',
+          state: {
+            deviceId: 'dev-cb',
+            accounts: [{ accountId: USER_ID, sessionId: 'sess_cb', authuser: 0 }],
+            activeAccountId: USER_ID,
+            revision: 1,
+            updatedAt: Date.now(),
+          },
+        })),
+      },
       auth: { signInWithCommonsIdentity: jest.fn(async () => null) },
-      users: { me: jest.fn(async (): Promise<User> => ({ id: USER_ID, username: 'cbuser' } as User)), getMany: jest.fn(async () => []) },
+      users: {
+        me: jest.fn(async (): Promise<User> => ({ id: USER_ID, username: 'cbuser' }) as User),
+        getMany: jest.fn(async () => []),
+      },
       accounts: { list: jest.fn(async () => []) },
     },
   };
@@ -124,13 +158,17 @@ function renderProvider(oxyServices: unknown, props: Record<string, unknown> = {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyRuntimeProvider oxyServices={oxyServices as never} baseURL={API_BASE_URL} clientId="oxy_test_client" {...props}>
+      <OxyRuntimeProvider
+        oxyServices={oxyServices as never}
+        baseURL={API_BASE_URL}
+        clientId="oxy_test_client"
+        {...props}
+      >
         <Capture />
       </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 }
-
 
 function fakePopup() {
   let closed = false;
@@ -162,7 +200,10 @@ describe('OxyContext — the browser bridge', () => {
   });
 
   it('opens the bridge from the press, joins, and signs in when the browser already is', async () => {
-    const joinBrowserDevice = jest.fn(async () => ({ deviceId: 'dev-cb', deviceSecret: 'app.secret' }));
+    const joinBrowserDevice = jest.fn(async () => ({
+      deviceId: 'dev-cb',
+      deviceSecret: 'app.secret',
+    }));
     const { stub } = buildStub({ devices: { joinBrowser: joinBrowserDevice } });
     renderProvider(stub);
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
@@ -187,24 +228,37 @@ describe('OxyContext — the browser bridge', () => {
       Object.assign(event, {
         origin: 'https://auth.oxy.so',
         source: popup,
-        data: { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'join-code', state: url.searchParams.get('state') },
+        data: {
+          type: OXY_BRIDGE_CODE_MESSAGE_TYPE,
+          code: 'join-code',
+          state: url.searchParams.get('state'),
+        },
       });
       window.dispatchEvent(event);
     });
 
     await waitFor(() => expect(capturedContext?.isAuthenticated).toBe(true));
-    expect(joinBrowserDevice).toHaveBeenCalledWith(expect.objectContaining({ code: 'join-code', clientId: 'oxy_test_client' }));
+    expect(joinBrowserDevice).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'join-code', clientId: 'oxy_test_client' }),
+    );
     expect(stub.devices.mintToken).toHaveBeenCalledWith('dev-cb', 'app.secret');
-    expect(JSON.parse(window.localStorage.getItem(AUTH_STATE_STORAGE_KEY) ?? '{}').deviceId).toBe('dev-cb');
+    expect(JSON.parse(window.localStorage.getItem(AUTH_STATE_STORAGE_KEY) ?? '{}').deviceId).toBe(
+      'dev-cb',
+    );
     expect(popup.close).toHaveBeenCalled();
   });
 
   it('keeps the joined credential when nobody is signed in yet, and never opens the bridge again', async () => {
-    const joinBrowserDevice = jest.fn(async () => ({ deviceId: 'dev-cb', deviceSecret: 'app.secret' }));
+    const joinBrowserDevice = jest.fn(async () => ({
+      deviceId: 'dev-cb',
+      deviceSecret: 'app.secret',
+    }));
     const mintFromDeviceSecret = jest.fn(async () => {
       throw Object.assign(new Error('no_active_session'), { status: 401 });
     });
-    const { stub } = buildStub({ devices: { joinBrowser: joinBrowserDevice, mintToken: mintFromDeviceSecret }, });
+    const { stub } = buildStub({
+      devices: { joinBrowser: joinBrowserDevice, mintToken: mintFromDeviceSecret },
+    });
     renderProvider(stub);
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
 
@@ -219,13 +273,19 @@ describe('OxyContext — the browser bridge', () => {
       Object.assign(event, {
         origin: 'https://auth.oxy.so',
         source: popup,
-        data: { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'join-code', state: url.searchParams.get('state') },
+        data: {
+          type: OXY_BRIDGE_CODE_MESSAGE_TYPE,
+          code: 'join-code',
+          state: url.searchParams.get('state'),
+        },
       });
       window.dispatchEvent(event);
     });
     await waitFor(() => expect(mintFromDeviceSecret).toHaveBeenCalled());
     await waitFor(() =>
-      expect(JSON.parse(window.localStorage.getItem(AUTH_STATE_STORAGE_KEY) ?? '{}').deviceSecret).toBe('app.secret'),
+      expect(
+        JSON.parse(window.localStorage.getItem(AUTH_STATE_STORAGE_KEY) ?? '{}').deviceSecret,
+      ).toBe('app.secret'),
     );
     expect(capturedContext?.isAuthenticated).toBe(false);
 
@@ -239,7 +299,12 @@ describe('OxyContext — the browser bridge', () => {
   it('never opens it with a credential already held, or on the auth origin itself', async () => {
     window.localStorage.setItem(
       AUTH_STATE_STORAGE_KEY,
-      JSON.stringify({ sessionId: '', userId: '', deviceId: 'dev-cb', deviceSecret: 'held.secret' }),
+      JSON.stringify({
+        sessionId: '',
+        userId: '',
+        deviceId: 'dev-cb',
+        deviceSecret: 'held.secret',
+      }),
     );
     const mintFromDeviceSecret = jest.fn(async () => {
       throw Object.assign(new Error('no_active_session'), { status: 401 });

@@ -35,7 +35,7 @@ import { users } from '../db/schema/users';
  */
 function collectCurrentPublicKeys(
   primaryPublicKey: string | null,
-  identityKeys: Array<{ methodPublicKey: string | null }>
+  identityKeys: Array<{ methodPublicKey: string | null }>,
 ): string[] {
   const keys: string[] = [];
   if (primaryPublicKey) {

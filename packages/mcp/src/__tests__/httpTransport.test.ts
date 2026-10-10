@@ -1,9 +1,5 @@
 import type { AppCapabilityCatalog } from '@oxy.so/contracts';
-import {
-  createServer,
-  request as createHttpRequest,
-  type Server,
-} from 'node:http';
+import { createServer, request as createHttpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createCatalogMcpHttpService } from '../httpTransport';
 
@@ -34,31 +30,33 @@ function catalogFor(resourceUrl: string): AppCapabilityCatalog {
     internalBaseUrl: 'http://127.0.0.1:3001',
     accountResourceType: 'noted_account',
     externalMcp: { resource: resourceUrl },
-    tools: [{
-      name: 'searchNotes',
-      version: '1.0.0',
-      description: 'Search notes.',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false,
+    tools: [
+      {
+        name: 'searchNotes',
+        version: '1.0.0',
+        description: 'Search notes.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { notes: { type: 'array', items: { type: 'object' } } },
+          required: ['notes'],
+          additionalProperties: false,
+        },
+        capabilityPackage: 'read',
+        requiredCapabilities: ['notes.read'],
+        resourceTypes: ['noted_account'],
+        effect: 'read',
+        idempotency: 'none',
+        rollback: 'none',
+        exposure: ['internal', 'mcp'],
+        limitKeys: [],
+        invocation: { method: 'GET', path: '/_oxy/capabilities/searchNotes' },
       },
-      outputSchema: {
-        type: 'object',
-        properties: { notes: { type: 'array', items: { type: 'object' } } },
-        required: ['notes'],
-        additionalProperties: false,
-      },
-      capabilityPackage: 'read',
-      requiredCapabilities: ['notes.read'],
-      resourceTypes: ['noted_account'],
-      effect: 'read',
-      idempotency: 'none',
-      rollback: 'none',
-      exposure: ['internal', 'mcp'],
-      limitKeys: [],
-      invocation: { method: 'GET', path: '/_oxy/capabilities/searchNotes' },
-    }],
+    ],
     events: [],
   };
 }
@@ -111,9 +109,7 @@ beforeAll(async () => {
     const headers = new Headers(init?.headers);
     expect(headers.get('authorization')).toBe(`Bearer ${SERVICE_TOKEN}`);
     expect(JSON.parse(String(init?.body))).toEqual({ token: ACCESS_TOKEN });
-    return Response.json(
-      introspectionMode === 'inactive' ? { active: false } : activeClaims(),
-    );
+    return Response.json(introspectionMode === 'inactive' ? { active: false } : activeClaims());
   });
 
   serviceBox.current = createCatalogMcpHttpService({
@@ -133,8 +129,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => server.close((error) =>
-    error ? reject(error) : resolve()));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
 });
 
 beforeEach(() => {
@@ -195,20 +192,23 @@ describe('catalog MCP HTTP service', () => {
   it('rejects the MCP route on a host other than the bound resource', async () => {
     const status = await new Promise<number>((resolve, reject) => {
       const target = new URL(baseUrl);
-      const request = createHttpRequest({
-        hostname: target.hostname,
-        port: target.port,
-        path: '/mcp',
-        method: 'POST',
-        headers: {
-          ...authorizedHeaders(),
-          host: 'api.noted.test',
-          'content-length': '2',
+      const request = createHttpRequest(
+        {
+          hostname: target.hostname,
+          port: target.port,
+          path: '/mcp',
+          method: 'POST',
+          headers: {
+            ...authorizedHeaders(),
+            host: 'api.noted.test',
+            'content-length': '2',
+          },
         },
-      }, (response) => {
-        response.resume();
-        response.once('end', () => resolve(response.statusCode ?? 0));
-      });
+        (response) => {
+          response.resume();
+          response.once('end', () => resolve(response.statusCode ?? 0));
+        },
+      );
       request.once('error', reject);
       request.end('{}');
     });
@@ -233,19 +233,25 @@ describe('catalog MCP HTTP service', () => {
   it('distinguishes inactive, mismatched, and unavailable authorization', async () => {
     introspectionMode = 'inactive';
     const inactive = await fetch(`${baseUrl}/mcp`, {
-      method: 'POST', headers: authorizedHeaders(), body: '{}',
+      method: 'POST',
+      headers: authorizedHeaders(),
+      body: '{}',
     });
     expect(inactive.status).toBe(401);
 
     introspectionMode = 'mismatch';
     const mismatch = await fetch(`${baseUrl}/mcp`, {
-      method: 'POST', headers: authorizedHeaders(), body: '{}',
+      method: 'POST',
+      headers: authorizedHeaders(),
+      body: '{}',
     });
     expect(mismatch.status).toBe(401);
 
     introspectionMode = 'unavailable';
     const unavailable = await fetch(`${baseUrl}/mcp`, {
-      method: 'POST', headers: authorizedHeaders(), body: '{}',
+      method: 'POST',
+      headers: authorizedHeaders(),
+      body: '{}',
     });
     expect(unavailable.status).toBe(503);
   });
@@ -279,7 +285,7 @@ describe('catalog MCP HTTP service', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('access-control-allow-origin')).toBe('https://claude.ai');
-    const body = await response.json() as { result?: { serverInfo?: { name?: string } } };
+    const body = (await response.json()) as { result?: { serverInfo?: { name?: string } } };
     expect(body.result?.serverInfo?.name).toBe('noted-mcp');
     expect(introspectionFetch).toHaveBeenCalledTimes(1);
   });
@@ -335,7 +341,7 @@ describe('catalog MCP HTTP service', () => {
     });
 
     expect(response.status).toBe(200);
-    const body = await response.json() as {
+    const body = (await response.json()) as {
       result?: { structuredContent?: { notes?: unknown[] } };
     };
     expect(body.result?.structuredContent?.notes).toEqual([]);

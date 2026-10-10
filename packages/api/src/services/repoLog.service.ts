@@ -36,7 +36,11 @@ import { NODE_COLLECTION } from '../utils/nodes.constants';
  * collection the policy calls private. `__tests__/chainCollectionPolicy.test.ts`
  * asserts it, so the two cannot drift into disagreeing.
  */
-export const PUBLIC_LOG_COLLECTIONS = ['app.oxy.identity', 'app.oxy.profile', NODE_COLLECTION] as const;
+export const PUBLIC_LOG_COLLECTIONS = [
+  'app.oxy.identity',
+  'app.oxy.profile',
+  NODE_COLLECTION,
+] as const;
 
 /**
  * The ordered slice of a subject's chain with `seq > sinceSeq`, ascending by

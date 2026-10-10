@@ -35,7 +35,10 @@ const oxyServices = {
   auth: {
     checkUsername: jest.fn(async (_username: string) => ({ available: true, message: '' })),
     email: {
-      startVerification: jest.fn(async (_request: unknown) => ({ verificationId: 'v-1', expiresAt: 1_900_000_000_000 })),
+      startVerification: jest.fn(async (_request: unknown) => ({
+        verificationId: 'v-1',
+        expiresAt: 1_900_000_000_000,
+      })),
       confirmVerification: jest.fn(async (_id: string, _code: string) => ({
         ticket: TICKET,
         expiresAt: 1_900_000_000_000,
@@ -43,12 +46,18 @@ const oxyServices = {
       })),
     },
     signUp: jest.fn(async (_request: unknown): Promise<LoginSessionResult> => SESSION),
-    requestReauthCode: jest.fn(async (_action: string) => ({ verificationId: 'r-1', expiresAt: 1_900_000_000_000 })),
+    requestReauthCode: jest.fn(async (_action: string) => ({
+      verificationId: 'r-1',
+      expiresAt: 1_900_000_000_000,
+    })),
     password: {
       set: jest.fn(async (_request: unknown) => ({ success: true as const })),
     },
     totp: {
-      enroll: jest.fn(async () => ({ secret: 'JBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP' })),
+      enroll: jest.fn(async () => ({
+        secret: 'JBSWY3DPEHPK3PXP',
+        otpauthUri: 'otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP',
+      })),
       confirm: jest.fn(async (_code: string, _reauth: unknown) => BACKUP_CODES),
       regenerateBackupCodes: jest.fn(async (_reauth: unknown) => BACKUP_CODES),
       disable: jest.fn(async (_reauth: unknown) => ({ success: true as const })),
@@ -60,14 +69,28 @@ const oxyServices = {
 };
 const handleWebSession = jest.fn(async (_session: unknown) => undefined);
 const logout = jest.fn(async () => undefined);
-let user: { id: string; username: string; publicKey?: string } | null = { id: 'user-1', username: 'ada' };
-let methods: SignInMethods = { hasEmail: true, hasPassword: false, totpEnabled: false, backupCodesRemaining: 0 };
+let user: { id: string; username: string; publicKey?: string } | null = {
+  id: 'user-1',
+  username: 'ada',
+};
+let methods: SignInMethods = {
+  hasEmail: true,
+  hasPassword: false,
+  totpEnabled: false,
+  backupCodesRemaining: 0,
+};
 let snapshot = { commonsAvailability: 'unknown' };
 const dialogController = {};
 
 jest.mock('../../../src/ui/context/OxyContext', () => ({
   __esModule: true,
-  useOxy: () => ({ oxyServices, handleWebSession, logout, user, accountDialogController: dialogController }),
+  useOxy: () => ({
+    oxyServices,
+    handleWebSession,
+    logout,
+    user,
+    accountDialogController: dialogController,
+  }),
   useOptionalOxy: () => null,
 }));
 
@@ -95,7 +118,8 @@ jest.mock('../../../src/ui/utils/clipboard', () => ({
 
 jest.mock('react-native-qrcode-svg', () => ({
   __esModule: true,
-  default: ({ value }: { value: string }) => require('react').createElement('span', { 'data-testid': 'qrcode' }, value),
+  default: ({ value }: { value: string }) =>
+    require('react').createElement('span', { 'data-testid': 'qrcode' }, value),
 }));
 
 const isWebBrowserMock = jest.fn(() => true);
@@ -115,18 +139,14 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { OxySignUpPanel } from '../../../src/ui/components/signIn/OxySignUpPanel';
-// eslint-disable-next-line import/first
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
-// eslint-disable-next-line import/first
 import { OxyDeleteAccountPanel } from '../../../src/ui/components/signIn/OxyDeleteAccountPanel';
-// eslint-disable-next-line import/first
 import { OxyPasswordPanel } from '../../../src/ui/components/signIn/OxyPasswordPanel';
-// eslint-disable-next-line import/first
 import { OxyAuthenticatorPanel } from '../../../src/ui/components/signIn/OxyAuthenticatorPanel';
 
-const type = (testID: string, value: string) => fireEvent.change(screen.getByTestId(testID), { target: { value } });
+const type = (testID: string, value: string) =>
+  fireEvent.change(screen.getByTestId(testID), { target: { value } });
 const press = (testID: string) => fireEvent.click(screen.getByTestId(testID));
 const alertText = () => screen.getByRole('alert').textContent;
 
@@ -145,25 +165,38 @@ describe('creating an account', () => {
     render(<OxySignUpPanel onSignedIn={onSignedIn} onSignIn={jest.fn()} />);
 
     // One bar across the three steps, named by where the person is.
-    expect(screen.getByTestId('signup-progress').getAttribute('aria-label')).toBe('Step 1 of 3, Username');
+    expect(screen.getByTestId('signup-progress').getAttribute('aria-label')).toBe(
+      'Step 1 of 3, Username',
+    );
     type('signup-username', 'ada');
     press('signup-username-continue');
     await screen.findByTestId('signup-email');
     expect(screen.getByTestId('signup-progress').textContent).toBe('Step 2 of 3');
     expect(oxyServices.auth.checkUsername).toHaveBeenCalledWith('ada');
-    expect(screen.getByText("You can add a password or an authenticator app later, in your account's security settings.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "You can add a password or an authenticator app later, in your account's security settings.",
+      ),
+    ).toBeTruthy();
 
     type('signup-email', ' Ada@Example.com ');
     press('signup-email-continue');
     await screen.findByTestId('email-code');
-    expect(oxyServices.auth.email.startVerification).toHaveBeenCalledWith({ purpose: 'signup', email: 'ada@example.com' });
+    expect(oxyServices.auth.email.startVerification).toHaveBeenCalledWith({
+      purpose: 'signup',
+      email: 'ada@example.com',
+    });
     expect(screen.getByText('We sent a 6-digit code to ada@example.com.')).toBeTruthy();
 
     // Six digits submit by themselves.
     type('email-code', '123456');
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
     expect(oxyServices.auth.email.confirmVerification).toHaveBeenCalledWith('v-1', '123456');
-    expect(oxyServices.auth.signUp).toHaveBeenCalledWith({ username: 'ada', email: 'ada@example.com', emailTicket: TICKET });
+    expect(oxyServices.auth.signUp).toHaveBeenCalledWith({
+      username: 'ada',
+      email: 'ada@example.com',
+      emailTicket: TICKET,
+    });
     expect(handleWebSession).toHaveBeenCalledWith(SESSION);
   });
 
@@ -195,7 +228,9 @@ describe('creating an account', () => {
   });
 
   it('says a wrong code is wrong and stays on it', async () => {
-    oxyServices.auth.email.confirmVerification.mockRejectedValueOnce(apiError('EMAIL_CODE_INVALID'));
+    oxyServices.auth.email.confirmVerification.mockRejectedValueOnce(
+      apiError('EMAIL_CODE_INVALID'),
+    );
     render(<OxySignUpPanel onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
     type('signup-username', 'ada');
     press('signup-username-continue');
@@ -251,14 +286,18 @@ describe('creating an account', () => {
 describe('creating an account in the dialog', () => {
   it('keeps its step across a remount of the screen, and not on a page', async () => {
     clearSignInFlows(dialogController);
-    const first = render(<OxySignUpPanel host="dialog" onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    const first = render(
+      <OxySignUpPanel host="dialog" onSignedIn={jest.fn()} onSignIn={jest.fn()} />,
+    );
     type('signup-username', 'ada');
     press('signup-username-continue');
     await screen.findByTestId('signup-email');
     type('signup-email', 'ada@example.com');
     first.unmount();
 
-    const second = render(<OxySignUpPanel host="dialog" onSignedIn={jest.fn()} onSignIn={jest.fn()} />);
+    const second = render(
+      <OxySignUpPanel host="dialog" onSignedIn={jest.fn()} onSignIn={jest.fn()} />,
+    );
     expect((screen.getByTestId('signup-email') as HTMLInputElement).value).toBe('ada@example.com');
     second.unmount();
 
@@ -288,7 +327,11 @@ describe('deleting an account without a key', () => {
     await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
     // The last word before it is gone: a destructive confirm, after the proof.
     expect(surfaces.confirm).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Delete Account', confirmLabel: 'Delete Forever', destructive: true }),
+      expect.objectContaining({
+        title: 'Delete Account',
+        confirmLabel: 'Delete Forever',
+        destructive: true,
+      }),
     );
     expect(oxyServices.users.deleteMe).toHaveBeenCalledWith('ada', {
       reauth: { emailCode: { verificationId: 'r-1', code: '123456' } },
@@ -356,7 +399,9 @@ describe('deleting an account without a key', () => {
     type('reauth-code', '000000');
     press('reauth-submit');
 
-    await waitFor(() => expect(alertText()).toBe("That didn't work. Check what you typed and try again."));
+    await waitFor(() =>
+      expect(alertText()).toBe("That didn't work. Check what you typed and try again."),
+    );
     expect(logout).not.toHaveBeenCalled();
   });
 
@@ -364,7 +409,9 @@ describe('deleting an account without a key', () => {
     user = { id: 'user-1', username: 'ada', publicKey: '04ab' };
     render(<OxyDeleteAccountPanel />);
     expect(screen.getByText('Delete your account in Oxy Commons')).toBeTruthy();
-    expect(screen.getByTestId('delete-account-keyed').textContent).toContain('delete it in Oxy Commons');
+    expect(screen.getByTestId('delete-account-keyed').textContent).toContain(
+      'delete it in Oxy Commons',
+    );
     expect(screen.queryByTestId('reauth-send-code')).toBeNull();
   });
 });
@@ -375,14 +422,20 @@ describe('the password', () => {
     render(<OxyPasswordPanel />);
     for (const id of ['password-new', 'password-repeat', 'reauth-password']) {
       const field = screen.getByTestId(id);
-      expect([id, field.getAttribute('type'), field.getAttribute('data-revealable')]).toEqual([id, 'password', 'true']);
+      expect([id, field.getAttribute('type'), field.getAttribute('data-revealable')]).toEqual([
+        id,
+        'password',
+        'true',
+      ]);
     }
   });
 
   it('names the sign-out-everywhere switch with its field label', () => {
     render(<OxyPasswordPanel />);
     const toggle = screen.getByTestId('password-sign-out-others');
-    expect(toggle.closest('[role="group"]')?.getAttribute('aria-label')).toBe('Sign out everywhere else');
+    expect(toggle.closest('[role="group"]')?.getAttribute('aria-label')).toBe(
+      'Sign out everywhere else',
+    );
   });
 
   it('sets a first one, confirmed with a code by email', async () => {
@@ -447,8 +500,12 @@ describe('the authenticator app', () => {
     render(<OxyAuthenticatorPanel />);
 
     press('totp-set-up');
-    expect((await screen.findByTestId('qrcode')).textContent).toBe('otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP');
-    expect(screen.getByTestId('totp-progress').getAttribute('aria-label')).toBe('Step 1 of 2, Authenticator app');
+    expect((await screen.findByTestId('qrcode')).textContent).toBe(
+      'otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP',
+    );
+    expect(screen.getByTestId('totp-progress').getAttribute('aria-label')).toBe(
+      'Step 1 of 2, Authenticator app',
+    );
     expect(screen.getByTestId('totp-secret').textContent).toBe('JBSW Y3DP EHPK 3PXP');
 
     type('totp-enroll-code', '123456');
@@ -459,10 +516,14 @@ describe('the authenticator app', () => {
     press('reauth-submit');
 
     const codes = await screen.findByTestId('totp-backup-codes');
-    expect(oxyServices.auth.totp.confirm).toHaveBeenCalledWith('123456', { emailCode: { verificationId: 'r-1', code: '111111' } });
+    expect(oxyServices.auth.totp.confirm).toHaveBeenCalledWith('123456', {
+      emailCode: { verificationId: 'r-1', code: '111111' },
+    });
     expect(codes.querySelector('pre')?.textContent).toBe(BACKUP_CODES.join('\n'));
     expect(invalidateQueries).toHaveBeenCalled();
-    expect(screen.getByTestId('totp-progress').getAttribute('aria-label')).toBe('Step 2 of 2, Save your backup codes');
+    expect(screen.getByTestId('totp-progress').getAttribute('aria-label')).toBe(
+      'Step 2 of 2, Save your backup codes',
+    );
 
     // The code block's own copy button, named in the account's language.
     const copy = screen.getByTestId('totp-backup-codes-copy');
@@ -496,7 +557,7 @@ describe('the authenticator app', () => {
     expect(alertText()).toBe("That code isn't right. Try the current one.");
   });
 
-  it('when on: new backup codes and turning it off, each with the app\'s code', async () => {
+  it("when on: new backup codes and turning it off, each with the app's code", async () => {
     methods = { ...methods, hasPassword: true, totpEnabled: true, backupCodesRemaining: 7 };
     const view = render(<OxyAuthenticatorPanel />);
     expect(screen.getByTestId('totp-remaining').textContent).toBe('7 backup codes left');
@@ -506,7 +567,10 @@ describe('the authenticator app', () => {
     type('reauth-totp', '222222');
     press('reauth-submit');
     await screen.findByTestId('totp-backup-codes');
-    expect(oxyServices.auth.totp.regenerateBackupCodes).toHaveBeenCalledWith({ password: 'pw', totpCode: '222222' });
+    expect(oxyServices.auth.totp.regenerateBackupCodes).toHaveBeenCalledWith({
+      password: 'pw',
+      totpCode: '222222',
+    });
     view.unmount();
 
     const onDone = jest.fn();
@@ -521,6 +585,9 @@ describe('the authenticator app', () => {
     type('reauth-totp', 'abcde-fgh23');
     press('reauth-submit');
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
-    expect(oxyServices.auth.totp.disable).toHaveBeenCalledWith({ password: 'pw', totpCode: 'ABCDEFGH23' });
+    expect(oxyServices.auth.totp.disable).toHaveBeenCalledWith({
+      password: 'pw',
+      totpCode: 'ABCDEFGH23',
+    });
   });
 });

@@ -77,13 +77,12 @@ export const inferenceRoutingPolicyPriceCaps = pgTable(
 
     check(
       'inference_routing_policy_price_caps_unit_check',
-      sql`${t.unit} in (${sql.raw(inList(USAGE_UNITS))})`
+      sql`${t.unit} in (${sql.raw(inList(USAGE_UNITS))})`,
     ),
     check('inference_routing_policy_price_caps_currency_format', currencyCodeCheck(t.currency)),
     check('inference_routing_policy_price_caps_amount_check', sql`${t.amount} >= 0`),
     check('inference_routing_policy_price_caps_per_check', sql`${t.per} > 0`),
-  ]
+  ],
 );
 
-export type InferenceRoutingPolicyPriceCapRow =
-  typeof inferenceRoutingPolicyPriceCaps.$inferSelect;
+export type InferenceRoutingPolicyPriceCapRow = typeof inferenceRoutingPolicyPriceCaps.$inferSelect;

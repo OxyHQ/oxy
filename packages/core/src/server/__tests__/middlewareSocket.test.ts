@@ -8,7 +8,8 @@ function jsonResponse(data: unknown): Response {
 }
 
 function createJwt(payload: Record<string, unknown>): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.forged-signature`;
 }
 
@@ -40,10 +41,13 @@ describe('authSocket', () => {
     const fetchMock = jest.fn();
     globalThis.fetch = fetchMock;
 
-    const { socket, nextError } = await runAuthSocket(oxy, createJwt({
-      userId: 'victimUserId',
-      exp: 4102444800,
-    }));
+    const { socket, nextError } = await runAuthSocket(
+      oxy,
+      createJwt({
+        userId: 'victimUserId',
+        exp: 4102444800,
+      }),
+    );
 
     expect(nextError?.message).toBe('Session required');
     expect(fetchMock).not.toHaveBeenCalled();
@@ -61,11 +65,14 @@ describe('authSocket', () => {
       });
 
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
-    const { socket, nextError } = await runAuthSocket(oxy, createJwt({
-      userId: 'victimUserId',
-      sessionId: 'session_1',
-      exp: 4102444800,
-    }));
+    const { socket, nextError } = await runAuthSocket(
+      oxy,
+      createJwt({
+        userId: 'victimUserId',
+        sessionId: 'session_1',
+        exp: 4102444800,
+      }),
+    );
 
     expect(nextError?.message).toBe('Session user mismatch');
     expect(socket.data?.userId).toBeUndefined();
@@ -82,11 +89,14 @@ describe('authSocket', () => {
       });
 
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.so' });
-    const { socket, nextError } = await runAuthSocket(oxy, createJwt({
-      userId: 'user_1',
-      sessionId: 'session_1',
-      exp: 4102444800,
-    }));
+    const { socket, nextError } = await runAuthSocket(
+      oxy,
+      createJwt({
+        userId: 'user_1',
+        sessionId: 'session_1',
+        exp: 4102444800,
+      }),
+    );
 
     expect(nextError).toBeUndefined();
     expect(socket.data?.userId).toBe('user_1');

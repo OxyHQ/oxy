@@ -24,15 +24,12 @@ interface ImportMeta {
  * single function the "Sign in with Oxy" QR screen calls. Validated against
  * `qrcode@1.5.x`. Avoids pulling `@types/qrcode` (full Node stream surface).
  */
-declare module "qrcode" {
+declare module 'qrcode' {
   export interface QRCodeToDataURLOptions {
     margin?: number;
     width?: number;
-    errorCorrectionLevel?: "L" | "M" | "Q" | "H";
+    errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';
     color?: { dark?: string; light?: string };
   }
-  export function toDataURL(
-    text: string,
-    options?: QRCodeToDataURLOptions,
-  ): Promise<string>;
+  export function toDataURL(text: string, options?: QRCodeToDataURLOptions): Promise<string>;
 }

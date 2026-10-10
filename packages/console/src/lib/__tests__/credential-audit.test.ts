@@ -81,7 +81,7 @@ describe('credentialAuditAttribution', () => {
    */
   it('reads the event type rather than the actor', () => {
     expect(credentialAuditAttribution({ eventType: 'validation_failed' })).toBe(
-      'a refused request'
+      'a refused request',
     );
     expect(credentialAuditAttribution({ eventType: 'revoked' })).toBe('by a member');
   });
@@ -100,9 +100,12 @@ describe('humaniseAuditToken', () => {
   it('renders every value of both closed enums legibly', () => {
     // Both enums, in full, from the server's own tuples. A value added to either
     // one renders through the same rule rather than needing a mapping entry.
-    expect(
-      ['created', 'rotated', 'revoked', 'validation_failed'].map(humaniseAuditToken)
-    ).toEqual(['created', 'rotated', 'revoked', 'validation failed']);
+    expect(['created', 'rotated', 'revoked', 'validation_failed'].map(humaniseAuditToken)).toEqual([
+      'created',
+      'rotated',
+      'revoked',
+      'validation failed',
+    ]);
     expect(
       [
         'secret_mismatch',
@@ -110,7 +113,7 @@ describe('humaniseAuditToken', () => {
         'environment_mismatch',
         'application_inactive',
         'scope_missing',
-      ].map(humaniseAuditToken)
+      ].map(humaniseAuditToken),
     ).toEqual([
       'secret mismatch',
       'not usable',

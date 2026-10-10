@@ -54,5 +54,5 @@ export const requireFirstPartyDeviceAccess = asyncHandler(
     }
 
     next();
-  }
+  },
 );

@@ -162,10 +162,15 @@ export class CivicApi {
    * reject — it yields `verified: false`.
    */
   async publicCard(userId: string): Promise<CivicCardResult> {
-    const signed = await this.ctx.request<SignedPublicCard>('GET', `/civic/${encodeURIComponent(userId)}/card`, undefined, {
-      cache: true,
-      cacheTTL: SHORT_TTL,
-    });
+    const signed = await this.ctx.request<SignedPublicCard>(
+      'GET',
+      `/civic/${encodeURIComponent(userId)}/card`,
+      undefined,
+      {
+        cache: true,
+        cacheTTL: SHORT_TTL,
+      },
+    );
     const verified = await verifyPublicCardAttestation(signed.card, signed.attestation);
     return { card: signed.card, attestation: signed.attestation, verified };
   }
@@ -219,7 +224,9 @@ export class CivicApi {
       },
       { collection: ATTEST_COLLECTION, rkey: input.nonce },
     );
-    return this.ctx.request<RealLifeAttestationResult>('POST', '/civic/attestations', envelope, { cache: false });
+    return this.ctx.request<RealLifeAttestationResult>('POST', '/civic/attestations', envelope, {
+      cache: false,
+    });
   }
 
   /**
@@ -240,7 +247,12 @@ export class CivicApi {
       },
       { collection: VOUCH_COLLECTION, rkey: input.subjectDid },
     );
-    const result = await this.ctx.request<VouchResult>('POST', '/civic/personhood/vouch', envelope, { cache: false });
+    const result = await this.ctx.request<VouchResult>(
+      'POST',
+      '/civic/personhood/vouch',
+      envelope,
+      { cache: false },
+    );
     this.sweepPersonhood();
     return result;
   }
@@ -268,10 +280,15 @@ export class CivicApi {
    */
   async personhood(userId?: string): Promise<PersonhoodStatusResult> {
     const id = userId ?? this.myUserId('resolve personhood status');
-    return this.ctx.request<PersonhoodStatusResult>('GET', `/civic/personhood/${encodeURIComponent(id)}`, undefined, {
-      cache: true,
-      cacheTTL: SHORT_TTL,
-    });
+    return this.ctx.request<PersonhoodStatusResult>(
+      'GET',
+      `/civic/personhood/${encodeURIComponent(id)}`,
+      undefined,
+      {
+        cache: true,
+        cacheTTL: SHORT_TTL,
+      },
+    );
   }
 
   /** A vouch / withdraw changes personhood reads and (via `verified`) `/users/me`. */
@@ -298,9 +315,14 @@ export class CivicValidationApi {
 
   /** The signed-in user's pending jury duties. Never cached; `[]` when on no juries. */
   async inbox(): Promise<ValidationRequestSummary[]> {
-    const res = await this.ctx.request<{ requests?: ValidationRequestSummary[] }>('GET', '/civic/validations/inbox', undefined, {
-      cache: false,
-    });
+    const res = await this.ctx.request<{ requests?: ValidationRequestSummary[] }>(
+      'GET',
+      '/civic/validations/inbox',
+      undefined,
+      {
+        cache: false,
+      },
+    );
     return res.requests ?? [];
   }
 
@@ -311,7 +333,11 @@ export class CivicValidationApi {
    *
    * @param payloadHash - The request's canonical payload hash (from the inbox).
    */
-  async vote(requestId: string, payloadHash: string, verdict: ValidationVerdict): Promise<ValidationVoteResult> {
+  async vote(
+    requestId: string,
+    payloadHash: string,
+    verdict: ValidationVerdict,
+  ): Promise<ValidationVoteResult> {
     const envelope = await signOwnChainRecord(
       this.ctx,
       'validation_verdict',
@@ -348,7 +374,9 @@ export class CivicCredentialsApi {
    * base type; an `expiresAt` ISO string becomes epoch ms. NATIVE-ONLY.
    */
   async issue(input: IssueCredentialInput): Promise<CredentialIssueResult> {
-    const types = input.types.includes(CREDENTIAL_BASE_TYPE) ? input.types : [CREDENTIAL_BASE_TYPE, ...input.types];
+    const types = input.types.includes(CREDENTIAL_BASE_TYPE)
+      ? input.types
+      : [CREDENTIAL_BASE_TYPE, ...input.types];
 
     let expiresAtMs: number | undefined;
     if (input.expiresAt !== undefined) {
@@ -369,8 +397,16 @@ export class CivicCredentialsApi {
     // A fresh crypto-random rkey: every credential is its own chain entry.
     const { SignatureService } = await import('../crypto/internal');
     const rkey = await SignatureService.generateChallenge();
-    const envelope = await signOwnChainRecord(this.ctx, 'credential', record, { collection: CREDENTIAL_COLLECTION, rkey });
-    const result = await this.ctx.request<CredentialIssueResult>('POST', '/civic/credentials', envelope, { cache: false });
+    const envelope = await signOwnChainRecord(this.ctx, 'credential', record, {
+      collection: CREDENTIAL_COLLECTION,
+      rkey,
+    });
+    const result = await this.ctx.request<CredentialIssueResult>(
+      'POST',
+      '/civic/credentials',
+      envelope,
+      { cache: false },
+    );
     this.sweep();
     return result;
   }
@@ -381,14 +417,20 @@ export class CivicCredentialsApi {
    *
    * @param holderUserId - The holder's account id (NOT a DID).
    */
-  async list(holderUserId?: string, opts: { status?: CredentialStatus } = {}): Promise<CredentialListResult> {
+  async list(
+    holderUserId?: string,
+    opts: { status?: CredentialStatus } = {},
+  ): Promise<CredentialListResult> {
     const holder = holderUserId ?? this.ctx.oxy.session.userId;
     if (!holder) {
       throw new Error('No authenticated user — cannot list credentials.');
     }
     const base = `/civic/credentials/${encodeURIComponent(holder)}`;
     const url = opts.status ? `${base}?status=${encodeURIComponent(opts.status)}` : base;
-    return this.ctx.request<CredentialListResult>('GET', url, undefined, { cache: true, cacheTTL: SHORT_TTL });
+    return this.ctx.request<CredentialListResult>('GET', url, undefined, {
+      cache: true,
+      cacheTTL: SHORT_TTL,
+    });
   }
 
   /**

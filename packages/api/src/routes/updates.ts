@@ -23,10 +23,7 @@ import { logger } from '../utils/logger';
 import { getDb } from '../config/postgres';
 import { applicationCredentials, applications } from '../db/schema';
 import { isCredentialUsable } from '../utils/credentialUsability';
-import {
-  buildManifestResponse,
-  type ManifestRequest,
-} from '../services/updates/manifest.service';
+import { buildManifestResponse, type ManifestRequest } from '../services/updates/manifest.service';
 import { CodeSigningNotConfiguredError } from '../services/updates/signing.service';
 
 const router = express.Router();
@@ -87,12 +84,7 @@ async function resolveApplicationId(clientId: string): Promise<string | null> {
     })
     .from(applicationCredentials)
     .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
-    .where(
-      and(
-        eq(applicationCredentials.publicKey, clientId),
-        eq(applications.status, 'active')
-      )
-    );
+    .where(and(eq(applicationCredentials.publicKey, clientId), eq(applications.status, 'active')));
   if (!row || !isCredentialUsable(row)) {
     return null;
   }
@@ -167,7 +159,7 @@ router.get(
       return res.end(response.body);
     }
     return res.end();
-  })
+  }),
 );
 
 export default router;

@@ -67,11 +67,7 @@ export const mapSessionsToClient = (
 export const fetchSessionsWithFallback = async (
   oxyServices: OxyServicesAny,
   sessionId: string,
-  {
-    fallbackDeviceId,
-    fallbackUserId,
-    logger,
-  }: FetchSessionsWithFallbackOptions = {},
+  { fallbackDeviceId, fallbackUserId, logger }: FetchSessionsWithFallbackOptions = {},
 ): Promise<ClientSession[]> => {
   try {
     const deviceSessions = await oxyServices.devices.sessions(sessionId);
@@ -85,4 +81,3 @@ export const fetchSessionsWithFallback = async (
     return mapSessionsToClient(userSessions, fallbackDeviceId, fallbackUserId);
   }
 };
-

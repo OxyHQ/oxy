@@ -144,7 +144,7 @@ export function toReconciliationRun(row: ReconciliationRunRow): ReconciliationRu
 }
 
 export function toReconciliationDiscrepancy(
-  row: ReconciliationDiscrepancyRow
+  row: ReconciliationDiscrepancyRow,
 ): ReconciliationDiscrepancy {
   return reconciliationDiscrepancySchema.parse({
     schemaVersion: 1,
@@ -216,7 +216,7 @@ export async function reconcilePayments(input: ReconcileInput): Promise<Reconcil
  */
 async function executeReconciliationPass(
   run: ReconciliationRunRow,
-  input: ReconcileInput
+  input: ReconcileInput,
 ): Promise<ReconciliationReport> {
   const db = getDb();
 
@@ -265,8 +265,8 @@ async function executeReconciliationPass(
           lt(billingExternalPayments.occurredAt, input.periodEnd),
           ...(input.accountId === undefined
             ? []
-            : [eq(billingExternalPayments.accountId, input.accountId)])
-        )
+            : [eq(billingExternalPayments.accountId, input.accountId)]),
+        ),
       );
 
     const recordedByRef = new Map(recorded.map((row) => [row.externalRef, row]));
@@ -285,7 +285,9 @@ async function executeReconciliationPass(
 
       if (match === undefined) {
         const owner =
-          payment.customerRef === null ? undefined : await accountOfStripeCustomer(payment.customerRef);
+          payment.customerRef === null
+            ? undefined
+            : await accountOfStripeCustomer(payment.customerRef);
         pending.push(
           owner === undefined
             ? {
@@ -298,7 +300,7 @@ async function executeReconciliationPass(
                 accountId: owner,
                 externalRef: payment.externalRef,
                 externalAmount,
-              }
+              },
         );
         continue;
       }
@@ -335,7 +337,7 @@ async function executeReconciliationPass(
         // `minorUnitsToExactDecimal` produced. Reaching here means something else
         // wrote the row, and quietly rounding it would hide exactly that.
         throw new Error(
-          `recorded payment ${row.externalRef} carries precision below the minor unit: ${row.amount}`
+          `recorded payment ${row.externalRef} carries precision below the minor unit: ${row.amount}`,
         );
       }
       return total + minorUnits;
@@ -356,7 +358,7 @@ async function executeReconciliationPass(
                 ledgerAmount: entry.ledgerAmount,
                 externalAmount: entry.externalAmount,
                 currency: input.currency,
-              }))
+              })),
             )
             .returning();
 
@@ -573,13 +575,13 @@ async function claimReconciliationWindow(input: {
   readonly now: Date;
 }): Promise<WindowClaim> {
   const key = windowLockKey(
-    `reconciliation:${input.provider}:${input.currency}:${input.periodStart.toISOString()}`
+    `reconciliation:${input.provider}:${input.currency}:${input.periodStart.toISOString()}`,
   );
 
   return getDb().transaction(async (tx) => {
     const [lock] = await executeRows<{ locked: boolean }>(
       tx,
-      sql`select pg_try_advisory_xact_lock(${key}::bigint) as locked`
+      sql`select pg_try_advisory_xact_lock(${key}::bigint) as locked`,
     );
     if (lock?.locked !== true) {
       return { status: 'not-claimed', reason: 'locked' };
@@ -597,8 +599,8 @@ async function claimReconciliationWindow(input: {
           eq(billingReconciliationRuns.provider, input.provider),
           eq(billingReconciliationRuns.currency, input.currency),
           eq(billingReconciliationRuns.periodStart, input.periodStart),
-          eq(billingReconciliationRuns.periodEnd, input.periodEnd)
-        )
+          eq(billingReconciliationRuns.periodEnd, input.periodEnd),
+        ),
       )
       .orderBy(sql`${billingReconciliationRuns.startedAt} desc`)
       .limit(1);
@@ -646,18 +648,15 @@ async function claimReconciliationWindow(input: {
  * at all says nothing about whether anything is comparing the two records. One
  * extra processor call per hour buys that.
  */
-async function reconciliationCurrencies(
-  periodStart: Date,
-  periodEnd: Date
-): Promise<string[]> {
+async function reconciliationCurrencies(periodStart: Date, periodEnd: Date): Promise<string[]> {
   const rows = await getDb()
     .selectDistinct({ currency: billingExternalPayments.currency })
     .from(billingExternalPayments)
     .where(
       and(
         gte(billingExternalPayments.occurredAt, periodStart),
-        lt(billingExternalPayments.occurredAt, periodEnd)
-      )
+        lt(billingExternalPayments.occurredAt, periodEnd),
+      ),
     );
 
   return [...new Set([DEFAULT_LEDGER_CURRENCY, ...rows.map((row) => row.currency)])].sort();
@@ -703,7 +702,7 @@ export interface ScheduledReconciliationOptions {
  * unreachable Stripe page must not take a whole window's reconciliation with it.
  */
 export async function runScheduledReconciliation(
-  options: ScheduledReconciliationOptions = {}
+  options: ScheduledReconciliationOptions = {},
 ): Promise<ScheduledReconciliationResult> {
   const now = options.now ?? new Date();
   if (options.ledger === undefined && !process.env.STRIPE_SECRET_KEY) {
@@ -755,7 +754,7 @@ export async function runScheduledReconciliation(
       logger.error(
         'billing.reconciliation.pass_failed',
         error instanceof Error ? error : new Error(String(error)),
-        { currency, periodStart: periodStart.toISOString() }
+        { currency, periodStart: periodStart.toISOString() },
       );
     }
   }
@@ -776,7 +775,7 @@ export async function runScheduledReconciliation(
 /** The most recent passes, newest first. */
 export async function listReconciliationRuns(
   accountId: string | undefined,
-  limit = 20
+  limit = 20,
 ): Promise<ReconciliationRun[]> {
   const rows = await getDb()
     .select()
@@ -789,7 +788,7 @@ export async function listReconciliationRuns(
 
 /** One pass and everything it found. */
 export async function getReconciliationReport(
-  runId: string
+  runId: string,
 ): Promise<ReconciliationReport | undefined> {
   const db = getDb();
   const [run] = await db

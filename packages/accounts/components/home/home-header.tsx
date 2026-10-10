@@ -39,13 +39,16 @@ export function HomeHeader({
   const lottieRef = useRef<LottieView>(null);
   const hasPlayedRef = useRef(false);
 
-  const chips = useMemo(() => [
-    { label: t('home.searchChips.devices'), query: 'devices' },
-    { label: t('home.searchChips.security'), query: 'security' },
-    { label: t('home.searchChips.activity'), query: 'activity' },
-    { label: t('home.searchChips.email'), query: 'email' },
-    { label: t('home.searchChips.alia'), query: 'alia' },
-  ], [t]);
+  const chips = useMemo(
+    () => [
+      { label: t('home.searchChips.devices'), query: 'devices' },
+      { label: t('home.searchChips.security'), query: 'security' },
+      { label: t('home.searchChips.activity'), query: 'activity' },
+      { label: t('home.searchChips.email'), query: 'email' },
+      { label: t('home.searchChips.alia'), query: 'alia' },
+    ],
+    [t],
+  );
 
   useEffect(() => {
     // Play animation only once when component mounts

@@ -321,17 +321,13 @@ describe('generateDeviceFingerprint', () => {
     const firstClientFingerprint = 'a'.repeat(64);
     const secondClientFingerprint = 'b'.repeat(64);
 
-    expect(generateDeviceFingerprint(firstClientFingerprint)).toBe(
-      firstClientFingerprint
-    );
-    expect(generateDeviceFingerprint(secondClientFingerprint)).toBe(
-      secondClientFingerprint
+    expect(generateDeviceFingerprint(firstClientFingerprint)).toBe(firstClientFingerprint);
+    expect(generateDeviceFingerprint(secondClientFingerprint)).toBe(secondClientFingerprint);
+    expect(generateDeviceFingerprint(firstClientFingerprint)).not.toBe(
+      generateDeviceFingerprint(secondClientFingerprint),
     );
     expect(generateDeviceFingerprint(firstClientFingerprint)).not.toBe(
-      generateDeviceFingerprint(secondClientFingerprint)
-    );
-    expect(generateDeviceFingerprint(firstClientFingerprint)).not.toBe(
-      crypto.createHash('sha256').update('').digest('hex')
+      crypto.createHash('sha256').update('').digest('hex'),
     );
   });
 
@@ -343,12 +339,12 @@ describe('generateDeviceFingerprint', () => {
         language: 'en-US',
         timezone: 'America/Los_Angeles',
         screen: { width: 1440, height: 900, colorDepth: 24 },
-      })
+      }),
     ).toBe(
       crypto
         .createHash('sha256')
         .update('Mozilla/5.0|macOS|en-US|America/Los_Angeles|1440x900x24')
-        .digest('hex')
+        .digest('hex'),
     );
   });
 });

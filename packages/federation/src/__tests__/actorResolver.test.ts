@@ -1,5 +1,9 @@
 import { createDomainPolicy } from '../apUri';
-import { createActorResolver, type ActorResolverConfig, type FederatedActorRecordBase } from '../node/actorResolver';
+import {
+  createActorResolver,
+  type ActorResolverConfig,
+  type FederatedActorRecordBase,
+} from '../node/actorResolver';
 
 /**
  * The instance domain policy applies to CACHED actors, not just fetched ones.
@@ -90,17 +94,23 @@ function makeResolver(
  * the work: a reader that stopped at the cap has pulled a handful of chunks; one
  * that drained has pulled all of them.
  */
-function streamedResponse(chunks: string[], init?: ResponseInit): { response: Response; pulls: () => number } {
+function streamedResponse(
+  chunks: string[],
+  init?: ResponseInit,
+): { response: Response; pulls: () => number } {
   let pulls = 0;
   const encoder = new TextEncoder();
-  const response = new Response(new ReadableStream<Uint8Array>({
-    pull(controller) {
-      pulls += 1;
-      const chunk = chunks.shift();
-      if (chunk === undefined) controller.close();
-      else controller.enqueue(encoder.encode(chunk));
-    },
-  }), init);
+  const response = new Response(
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        const chunk = chunks.shift();
+        if (chunk === undefined) controller.close();
+        else controller.enqueue(encoder.encode(chunk));
+      },
+    }),
+    init,
+  );
   return { response, pulls: () => pulls };
 }
 
@@ -176,7 +186,10 @@ describe('fetchRemoteActor — bounded remote bodies', () => {
    * stops at the cap pulls a handful; one that drains pulls all `count`.
    */
   function chunked(chunkBytes: number, count: number, init?: ResponseInit) {
-    return streamedResponse(Array.from({ length: count }, () => 'x'.repeat(chunkBytes)), init);
+    return streamedResponse(
+      Array.from({ length: count }, () => 'x'.repeat(chunkBytes)),
+      init,
+    );
   }
 
   it('stops reading an actor body once it exceeds the decompressed-size cap', async () => {
@@ -210,14 +223,17 @@ describe('fetchRemoteActor — bounded remote bodies', () => {
 
   it('rejects an oversized actor from Content-Length without consuming its stream', async () => {
     let cancelled = false;
-    const response = new Response(new ReadableStream<Uint8Array>({
-      pull(controller) {
-        controller.enqueue(new Uint8Array([123]));
-      },
-      cancel() {
-        cancelled = true;
-      },
-    }), { headers: { 'content-length': String(1024 * 1024 + 1) } });
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new Uint8Array([123]));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { headers: { 'content-length': String(1024 * 1024 + 1) } },
+    );
     const rig = makeResolver({ signedFetch: async () => response });
 
     await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
@@ -233,9 +249,8 @@ describe('fetchRemoteActor — bounded remote bodies', () => {
     });
     const oversizedCollection = chunked(8 * 1024, 24);
     const rig = makeResolver({
-      signedFetch: async (url) => url === ALLOWED_ACTOR
-        ? new Response(actor)
-        : oversizedCollection.response,
+      signedFetch: async (url) =>
+        url === ALLOWED_ACTOR ? new Response(actor) : oversizedCollection.response,
     });
 
     await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();

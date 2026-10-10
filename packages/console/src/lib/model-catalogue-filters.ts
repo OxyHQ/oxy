@@ -1,4 +1,8 @@
-import type { InferenceModality, InferenceOutputModality, ModelCatalogueEntry } from '@oxy.so/contracts';
+import type {
+  InferenceModality,
+  InferenceOutputModality,
+  ModelCatalogueEntry,
+} from '@oxy.so/contracts';
 import { isUnitPriceAtMost } from '@/lib/money';
 
 /**
@@ -94,7 +98,10 @@ function isPriceCapActive(cap: string | null): boolean {
   if (cap === null || cap.trim() === '') {
     return false;
   }
-  return isUnitPriceAtMost({ amount: cap, per: PRICE_CAP_PER }, { amount: cap, per: PRICE_CAP_PER }) !== undefined;
+  return (
+    isUnitPriceAtMost({ amount: cap, per: PRICE_CAP_PER }, { amount: cap, per: PRICE_CAP_PER }) !==
+    undefined
+  );
 }
 
 /**
@@ -150,7 +157,7 @@ function matchesQuery(entry: ModelCatalogueEntry, query: string): boolean {
  */
 export function filterCatalogue(
   entries: ReadonlyArray<ModelCatalogueEntry>,
-  filters: CatalogueFilters
+  filters: CatalogueFilters,
 ): Array<ModelCatalogueEntry> {
   return entries.filter((entry) => {
     if (!matchesQuery(entry, filters.query)) {

@@ -76,7 +76,9 @@ async function makeSigner(): Promise<Signer> {
 
 async function makeHolder(): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({ id, username: `h${id.slice(0, 12)}` });
+  await getDb()
+    .insert(users)
+    .values({ id, username: `h${id.slice(0, 12)}` });
   return id;
 }
 
@@ -98,7 +100,10 @@ interface EnvelopeOverrides {
 }
 
 /** Build + REAL-sign a self-issued v2 `credential` envelope from `issuer`. */
-function credentialEnvelope(issuer: Signer, overrides: EnvelopeOverrides = {}): SignedRecordEnvelope {
+function credentialEnvelope(
+  issuer: Signer,
+  overrides: EnvelopeOverrides = {},
+): SignedRecordEnvelope {
   const record: Record<string, unknown> = {
     about: overrides.about ?? buildUserDid(uniqueId()),
     types: overrides.types ?? [CREDENTIAL_BASE_TYPE, 'EmploymentCredential'],
@@ -156,19 +161,21 @@ async function plantCredential(options: {
   envelope: SignedRecordEnvelope;
 }): Promise<{ recordId: string; credentialId: string }> {
   const recordId = createHash('sha256').update(uniqueId()).digest('hex');
-  await getDb().insert(signedRecords).values({
-    subjectDid: options.envelope.subject,
-    userId: options.chainUserId,
-    type: 'credential',
-    envelope: options.envelope,
-    publicKey: options.envelope.publicKey,
-    verified: true,
-    seq: 0,
-    prev: null,
-    recordId,
-    nsid: CREDENTIAL_COLLECTION,
-    rkey: `planted-${uniqueId().slice(0, 8)}`,
-  });
+  await getDb()
+    .insert(signedRecords)
+    .values({
+      subjectDid: options.envelope.subject,
+      userId: options.chainUserId,
+      type: 'credential',
+      envelope: options.envelope,
+      publicKey: options.envelope.publicKey,
+      verified: true,
+      seq: 0,
+      prev: null,
+      recordId,
+      nsid: CREDENTIAL_COLLECTION,
+      rkey: `planted-${uniqueId().slice(0, 8)}`,
+    });
   const [credential] = await getDb()
     .insert(verifiableCredentials)
     .values({
@@ -387,7 +394,12 @@ describe('issueCredential — a refusal writes nothing', () => {
 
 describe('verifyCredential — the STORED envelope is the source of truth', () => {
   /** Issue a real credential and hand back both lookup handles. */
-  async function issued(): Promise<{ issuer: Signer; holderUserId: string; recordId: string; id: string }> {
+  async function issued(): Promise<{
+    issuer: Signer;
+    holderUserId: string;
+    recordId: string;
+    id: string;
+  }> {
     const issuer = await makeSigner();
     const holderUserId = await makeHolder();
     const result = await issueCredential(

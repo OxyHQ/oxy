@@ -93,7 +93,9 @@ async function runMiddleware(
   const request = requestHarness(headers);
   const response = responseHarness();
   let settle!: () => void;
-  const settled = new Promise<void>((resolve) => { settle = resolve; });
+  const settled = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
   const originalJson = response.json.bind(response);
   response.json = (body: unknown) => {
     const result = originalJson(body);
@@ -266,10 +268,9 @@ describe('optional auth records why a presented credential was refused', () => {
 
   it('records a user token that carries no session', async () => {
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
-    const { request, next } = await runMiddleware(
-      createOptionalOxyAuth(oxy),
-      { authorization: `Bearer ${userToken({})}` },
-    );
+    const { request, next } = await runMiddleware(createOptionalOxyAuth(oxy), {
+      authorization: `Bearer ${userToken({})}`,
+    });
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(getOxyAuthRefusal(request as never)).toMatchObject({
@@ -282,10 +283,9 @@ describe('optional auth records why a presented credential was refused', () => {
   it('records a session the API refuses to validate, without logging the session id', async () => {
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
     jest.spyOn(oxy.session, 'validate').mockResolvedValue({ valid: false });
-    const { request } = await runMiddleware(
-      createOptionalOxyAuth(oxy),
-      { authorization: `Bearer ${userToken({ sessionId: 'session-secret-value' })}` },
-    );
+    const { request } = await runMiddleware(createOptionalOxyAuth(oxy), {
+      authorization: `Bearer ${userToken({ sessionId: 'session-secret-value' })}`,
+    });
 
     expect(getOxyAuthRefusal(request as never)).toMatchObject({
       code: 'INVALID_SESSION',
@@ -296,15 +296,17 @@ describe('optional auth records why a presented credential was refused', () => {
 
   it('keeps a validation transport failure diagnostic but id-free', async () => {
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
-    const transport = Object.assign(new Error('connect ECONNREFUSED https://api.oxy.test/session/validate/session-secret-value'), {
-      code: 'ECONNREFUSED',
-    });
+    const transport = Object.assign(
+      new Error('connect ECONNREFUSED https://api.oxy.test/session/validate/session-secret-value'),
+      {
+        code: 'ECONNREFUSED',
+      },
+    );
     jest.spyOn(oxy.session, 'validate').mockRejectedValue(transport);
 
-    const { request } = await runMiddleware(
-      createOptionalOxyAuth(oxy),
-      { authorization: `Bearer ${userToken({ sessionId: 'session-secret-value' })}` },
-    );
+    const { request } = await runMiddleware(createOptionalOxyAuth(oxy), {
+      authorization: `Bearer ${userToken({ sessionId: 'session-secret-value' })}`,
+    });
 
     const recorded = getOxyAuthRefusal(request as never);
     expect(recorded).toMatchObject({ code: 'SESSION_VALIDATION_ERROR', stage: 'session' });
@@ -344,7 +346,11 @@ describe('optional auth records why a presented credential was refused', () => {
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
     const { request, response, next } = await runMiddleware(
       createOptionalOxyAuth(oxy, {
-        auth: { onRefusal: () => { throw new Error('observer blew up'); } },
+        auth: {
+          onRefusal: () => {
+            throw new Error('observer blew up');
+          },
+        },
       }),
       { authorization: `Bearer ${serviceToken(primary.privateKey, primaryJwk.kid)}` },
     );
@@ -359,10 +365,9 @@ describe('a blocking mount answers exactly what it always answered', () => {
   it('keeps the generic 401 body while naming the refusal in the log', async () => {
     jest.spyOn(globalThis, 'fetch').mockResolvedValue(jwksResponse({ keys: [] }));
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
-    const { request, response, next } = await runMiddleware(
-      createOxyAuthMiddleware(oxy),
-      { authorization: `Bearer ${serviceToken(primary.privateKey, primaryJwk.kid)}` },
-    );
+    const { request, response, next } = await runMiddleware(createOxyAuthMiddleware(oxy), {
+      authorization: `Bearer ${serviceToken(primary.privateKey, primaryJwk.kid)}`,
+    });
 
     expect(next).not.toHaveBeenCalled();
     expect(response.statusCode).toBe(401);

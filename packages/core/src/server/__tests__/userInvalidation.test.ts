@@ -1,9 +1,6 @@
 import { OXY_USER_INVALIDATION_CHANNEL } from '@oxy.so/contracts';
 
-import {
-  createOxyUserInvalidationHandler,
-  publishOxyUserInvalidation,
-} from '../userInvalidation';
+import { createOxyUserInvalidationHandler, publishOxyUserInvalidation } from '../userInvalidation';
 // The key enumeration this subscriber sweeps is platform-neutral and shared
 // with the client namespaces — see `utils/identityCacheSweep` and its own suite.
 import type { OxyIdentityCacheEvictor } from '../../utils/identityCacheSweep';

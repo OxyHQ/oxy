@@ -1,256 +1,216 @@
 #!/usr/bin/env node
 
-import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
-const canonicalKaanaApplicationId = "68b7c4e19f2a6d0e3c8b5174";
-const canonicalHomiioApplicationId = "6a2f851751b784a86fd0e922";
-const canonicalInboxApplicationId = "6a37b3e61ddfd195b656819b";
-const canonicalInboxCredentialId = "01a06134-022c-72b6-a876-27da37a39e39";
-const canonicalAliaApplicationId = "6a2f851751b784a86fd0e934";
-const canonicalMentionApplicationId = "6a2f851751b784a86fd0e916";
+const canonicalKaanaApplicationId = '68b7c4e19f2a6d0e3c8b5174';
+const canonicalHomiioApplicationId = '6a2f851751b784a86fd0e922';
+const canonicalInboxApplicationId = '6a37b3e61ddfd195b656819b';
+const canonicalInboxCredentialId = '01a06134-022c-72b6-a876-27da37a39e39';
+const canonicalAliaApplicationId = '6a2f851751b784a86fd0e934';
+const canonicalMentionApplicationId = '6a2f851751b784a86fd0e916';
 
-const provision = readFileSync(
-	".github/workflows/provision-service-credential.yml",
-	"utf8",
-);
+const provision = readFileSync('.github/workflows/provision-service-credential.yml', 'utf8');
 const reconcile = readFileSync(
-	".github/workflows/reconcile-service-credential-authority.yml",
-	"utf8",
+  '.github/workflows/reconcile-service-credential-authority.yml',
+  'utf8',
 );
 const reconcileScript = readFileSync(
-	"packages/api/scripts/reconcile-service-credential-authority.ts",
-	"utf8",
+  'packages/api/scripts/reconcile-service-credential-authority.ts',
+  'utf8',
 );
-const provisionScript = readFileSync(
-	"packages/api/scripts/create-service-credential.ts",
-	"utf8",
-);
-const finalizeScript = readFileSync(
-	"packages/api/scripts/finalize-service-credential.ts",
-	"utf8",
-);
-const secureParameterScript = readFileSync(
-	".github/scripts/put-secure-parameter.sh",
-	"utf8",
-);
+const provisionScript = readFileSync('packages/api/scripts/create-service-credential.ts', 'utf8');
+const finalizeScript = readFileSync('packages/api/scripts/finalize-service-credential.ts', 'utf8');
+const secureParameterScript = readFileSync('.github/scripts/put-secure-parameter.sh', 'utf8');
 const scopeRotationRegistry = readFileSync(
-	"packages/api/src/utils/serviceCredentialScopeRotations.ts",
-	"utf8",
+  'packages/api/src/utils/serviceCredentialScopeRotations.ts',
+  'utf8',
 );
-const handoffScript = readFileSync(
-	".github/scripts/handoff-service-credential-pair.sh",
-	"utf8",
-);
+const handoffScript = readFileSync('.github/scripts/handoff-service-credential-pair.sh', 'utf8');
 
 function registryArm(workflow, applicationId) {
-	const match = workflow.match(
-		new RegExp(`\\n\\s+${applicationId}\\)\\n([\\s\\S]*?)\\n\\s+;;`),
-	);
-	assert.ok(match, `missing exact registry arm for ${applicationId}`);
-	return match[1];
+  const match = workflow.match(new RegExp(`\\n\\s+${applicationId}\\)\\n([\\s\\S]*?)\\n\\s+;;`));
+  assert.ok(match, `missing exact registry arm for ${applicationId}`);
+  return match[1];
 }
 
 for (const [name, workflow] of [
-	["provision", provision],
-	["reconcile", reconcile],
+  ['provision', provision],
+  ['reconcile', reconcile],
 ]) {
-	assert.match(
-		workflow,
-		new RegExp(canonicalKaanaApplicationId),
-		`${name} must bind the exact Kaana app id`,
-	);
-	assert.match(
-		workflow,
-		/inference:byok:validate/,
-		`${name} must carry Kaana validation`,
-	);
-	assert.match(
-		workflow,
-		/CREDENTIAL_ENVIRONMENT="production"|CREDENTIAL_ENVIRONMENT: production/,
-		`${name} must bind production explicitly`,
-	);
-	assert.doesNotMatch(
-		workflow,
-		/\bapp_(?:name|slug)\b|owner_username|OWNER_USERNAME|inputs\.(?:add_scopes|environment)/i,
-		`${name} must not select authority through names or caller-defined authority`,
-	);
+  assert.match(
+    workflow,
+    new RegExp(canonicalKaanaApplicationId),
+    `${name} must bind the exact Kaana app id`,
+  );
+  assert.match(workflow, /inference:byok:validate/, `${name} must carry Kaana validation`);
+  assert.match(
+    workflow,
+    /CREDENTIAL_ENVIRONMENT="production"|CREDENTIAL_ENVIRONMENT: production/,
+    `${name} must bind production explicitly`,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /\bapp_(?:name|slug)\b|owner_username|OWNER_USERNAME|inputs\.(?:add_scopes|environment)/i,
+    `${name} must not select authority through names or caller-defined authority`,
+  );
 }
 
 // Execute the actual closed shell registry: a swapped destination or an
 // accepted unknown ID must fail, including when scopes and names look valid.
 const activityDestinations = [
-	["71ea45cf97451563762ead13", "oxy-asset-variant-worker", "OXY_ACTIVITY_API"],
-	["ed143b1b58d60eab417f7d5c", "nilo", "OXY_SERVICE_API"],
-	["6a2f851751b784a86fd0e94f", "website-api", "OXY_SERVICE_API"],
-	["6a2f851751b784a86fd0e92b", "allo", "ALLO_OXY_SERVICE_API"],
-	["6a2f851751b784a86fd0e958", "peable", "OXY_SERVICE_API"],
-	["6a6947b30fe72510b411252f", "crowdsource", "OXY_SERVICE_API"],
-	["6a396f5c2ccd7e7831cb6a31", "moovo", "OXY_SERVICE_API"],
-	["6a2f851751b784a86fd0e93d", "syra", "OXY_SERVICE_API"],
-	["6a2f851751b784a86fd0e946", "tnp", "OXY_SERVICE_API"],
+  ['71ea45cf97451563762ead13', 'oxy-asset-variant-worker', 'OXY_ACTIVITY_API'],
+  ['ed143b1b58d60eab417f7d5c', 'nilo', 'OXY_SERVICE_API'],
+  ['6a2f851751b784a86fd0e94f', 'website-api', 'OXY_SERVICE_API'],
+  ['6a2f851751b784a86fd0e92b', 'allo', 'ALLO_OXY_SERVICE_API'],
+  ['6a2f851751b784a86fd0e958', 'peable', 'OXY_SERVICE_API'],
+  ['6a6947b30fe72510b411252f', 'crowdsource', 'OXY_SERVICE_API'],
+  ['6a396f5c2ccd7e7831cb6a31', 'moovo', 'OXY_SERVICE_API'],
+  ['6a2f851751b784a86fd0e93d', 'syra', 'OXY_SERVICE_API'],
+  ['6a2f851751b784a86fd0e946', 'tnp', 'OXY_SERVICE_API'],
 ];
 const registryStart = provision.indexOf('case "$APP_ID" in');
-const registryEnd = provision.indexOf("esac", registryStart) + 4;
+const registryEnd = provision.indexOf('esac', registryStart) + 4;
 assert.ok(registryStart >= 0 && registryEnd > registryStart);
 const registryShell = provision.slice(registryStart, registryEnd);
 for (const [appId, namespace, prefix] of activityDestinations) {
-	const execution = spawnSync(
-		"bash",
-		[
-			"-c",
-			`${registryShell}\nprintf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME"`,
-		],
-		{
-			env: { ...process.env, APP_ID: appId },
-			encoding: "utf8",
-		},
-	);
-	assert.equal(execution.status, 0, execution.stderr);
-	assert.deepEqual(execution.stdout.trim().split("\n"), [
-		namespace,
-		"user:read",
-		`${prefix}_KEY`,
-		`${prefix}_SECRET`,
-		"Ecosystem activity (production)",
-		"true",
-	]);
+  const execution = spawnSync(
+    'bash',
+    [
+      '-c',
+      `${registryShell}\nprintf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME"`,
+    ],
+    {
+      env: { ...process.env, APP_ID: appId },
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(execution.status, 0, execution.stderr);
+  assert.deepEqual(execution.stdout.trim().split('\n'), [
+    namespace,
+    'user:read',
+    `${prefix}_KEY`,
+    `${prefix}_SECRET`,
+    'Ecosystem activity (production)',
+    'true',
+  ]);
 }
-for (const appId of [
-	"website-api",
-	"6a2f851751b784a86fd0e94f-extra",
-	"ffffffffffffffffffffffff",
-]) {
-	const execution = spawnSync("bash", ["-c", registryShell], {
-		env: { ...process.env, APP_ID: appId },
-		encoding: "utf8",
-	});
-	assert.notEqual(
-		execution.status,
-		0,
-		`unregistered application accepted: ${appId}`,
-	);
+for (const appId of ['website-api', '6a2f851751b784a86fd0e94f-extra', 'ffffffffffffffffffffffff']) {
+  const execution = spawnSync('bash', ['-c', registryShell], {
+    env: { ...process.env, APP_ID: appId },
+    encoding: 'utf8',
+  });
+  assert.notEqual(execution.status, 0, `unregistered application accepted: ${appId}`);
 }
 
 const homiioActivity = spawnSync(
-	"bash",
-	[
-		"-c",
-		`${registryShell}
+  'bash',
+  [
+    '-c',
+    `${registryShell}
 printf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME"`,
-	],
-	{
-		env: {
-			...process.env,
-			APP_ID: canonicalHomiioApplicationId,
-			CREDENTIAL_LANE: "activity",
-		},
-		encoding: "utf8",
-	},
+  ],
+  {
+    env: {
+      ...process.env,
+      APP_ID: canonicalHomiioApplicationId,
+      CREDENTIAL_LANE: 'activity',
+    },
+    encoding: 'utf8',
+  },
 );
 assert.equal(homiioActivity.status, 0, homiioActivity.stderr);
-assert.deepEqual(homiioActivity.stdout.trim().split("\n"), [
-	"homiio",
-	"user:read",
-	"Ecosystem activity (production)",
-	"true",
-	"OXY_ACTIVITY_API_KEY",
-	"OXY_ACTIVITY_API_SECRET",
+assert.deepEqual(homiioActivity.stdout.trim().split('\n'), [
+  'homiio',
+  'user:read',
+  'Ecosystem activity (production)',
+  'true',
+  'OXY_ACTIVITY_API_KEY',
+  'OXY_ACTIVITY_API_SECRET',
 ]);
 
 // Execute the registry after its defaults: rotation authority must come out of
 // the exact-ID arm per lane, and Homiio's activity lane must never inherit the
 // service lane's rotation.
 const defaultedRegistryShell = provision.slice(
-	registryStart,
-	provision.indexOf(
-		'          if [[ ! "$SCOPES" =~',
-		registryEnd,
-	),
+  registryStart,
+  provision.indexOf('          if [[ ! "$SCOPES" =~', registryEnd),
 );
 function resolveLane(appId, lane) {
-	const execution = spawnSync(
-		"bash",
-		[
-			"-c",
-			`${defaultedRegistryShell}
+  const execution = spawnSync(
+    'bash',
+    [
+      '-c',
+      `${defaultedRegistryShell}
 printf "%s\n" "$APP_NAMESPACE" "$SCOPES" "$CREDENTIAL_NAME" "$ISOLATE_CREDENTIAL_NAME" "$ROTATE_SCOPE_MISMATCH" "$ROLLOUT_SERVICE" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME"`,
-		],
-		{
-			env: { ...process.env, APP_ID: appId, CREDENTIAL_LANE: lane },
-			encoding: "utf8",
-		},
-	);
-	assert.equal(execution.status, 0, execution.stderr);
-	return execution.stdout.split("\n").slice(0, 8);
+    ],
+    {
+      env: { ...process.env, APP_ID: appId, CREDENTIAL_LANE: lane },
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(execution.status, 0, execution.stderr);
+  return execution.stdout.split('\n').slice(0, 8);
 }
-assert.deepEqual(resolveLane(canonicalHomiioApplicationId, "service"), [
-	"homiio",
-	"reputation:write,inference:invoke",
-	"Service (production)",
-	"true",
-	"true",
-	"",
-	"OXY_SERVICE_API_KEY",
-	"OXY_SERVICE_API_SECRET",
+assert.deepEqual(resolveLane(canonicalHomiioApplicationId, 'service'), [
+  'homiio',
+  'reputation:write,inference:invoke',
+  'Service (production)',
+  'true',
+  'true',
+  '',
+  'OXY_SERVICE_API_KEY',
+  'OXY_SERVICE_API_SECRET',
 ]);
-assert.deepEqual(resolveLane(canonicalHomiioApplicationId, "activity"), [
-	"homiio",
-	"user:read",
-	"Ecosystem activity (production)",
-	"true",
-	"false",
-	"",
-	"OXY_ACTIVITY_API_KEY",
-	"OXY_ACTIVITY_API_SECRET",
+assert.deepEqual(resolveLane(canonicalHomiioApplicationId, 'activity'), [
+  'homiio',
+  'user:read',
+  'Ecosystem activity (production)',
+  'true',
+  'false',
+  '',
+  'OXY_ACTIVITY_API_KEY',
+  'OXY_ACTIVITY_API_SECRET',
 ]);
-assert.equal(resolveLane(canonicalHomiioApplicationId, "edge")[4], "false");
-assert.deepEqual(resolveLane(canonicalAliaApplicationId, "service").slice(1, 6), [
-	"user:read,inference:invoke,capabilities:read,capability-tickets:issue,clarity:search,clarity:index",
-	"Oxy service (production)",
-	"true",
-	"true",
-	"alia",
+assert.equal(resolveLane(canonicalHomiioApplicationId, 'edge')[4], 'false');
+assert.deepEqual(resolveLane(canonicalAliaApplicationId, 'service').slice(1, 6), [
+  'user:read,inference:invoke,capabilities:read,capability-tickets:issue,clarity:search,clarity:index',
+  'Oxy service (production)',
+  'true',
+  'true',
+  'alia',
 ]);
 
 // The script-side rotation registry and the workflow registry must agree
 // exactly: every registered rotation lane is what the workflow configures for
 // that id, and no workflow arm enables rotation without a registry entry.
 const registeredRotations = [
-	...scopeRotationRegistry.matchAll(
-		/applicationId: "([^"]+)",\s*environment: "production",\s*credentialName: "([^"]+)",\s*scopes: Object\.freeze\(\[([^\]]*)\]\)/g,
-	),
+  ...scopeRotationRegistry.matchAll(
+    /applicationId: "([^"]+)",\s*environment: "production",\s*credentialName: "([^"]+)",\s*scopes: Object\.freeze\(\[([^\]]*)\]\)/g,
+  ),
 ].map(([, appId, credentialName, scopes]) => ({
-	appId,
-	credentialName,
-	scopes: [...scopes.matchAll(/"([^"]+)"/g)].map(([, scope]) => scope).sort(),
+  appId,
+  credentialName,
+  scopes: [...scopes.matchAll(/"([^"]+)"/g)].map(([, scope]) => scope).sort(),
 }));
 assert.deepEqual(
-	registeredRotations.map(({ appId }) => appId).sort(),
-	[canonicalAliaApplicationId, canonicalHomiioApplicationId].sort(),
-	"scope rotation registry must be exactly the reviewed Alia and Homiio lanes",
+  registeredRotations.map(({ appId }) => appId).sort(),
+  [canonicalAliaApplicationId, canonicalHomiioApplicationId].sort(),
+  'scope rotation registry must be exactly the reviewed Alia and Homiio lanes',
 );
 for (const { appId, credentialName, scopes } of registeredRotations) {
-	const [, laneScopes, laneName, isolate, rotate] = resolveLane(
-		appId,
-		"service",
-	);
-	assert.equal(laneName, credentialName);
-	assert.deepEqual(laneScopes.split(",").sort(), scopes);
-	assert.equal(isolate, "true");
-	assert.equal(rotate, "true");
+  const [, laneScopes, laneName, isolate, rotate] = resolveLane(appId, 'service');
+  assert.equal(laneName, credentialName);
+  assert.deepEqual(laneScopes.split(',').sort(), scopes);
+  assert.equal(isolate, 'true');
+  assert.equal(rotate, 'true');
 }
-const rotatingArms = [
-	...registryShell.matchAll(/\n\s+([0-9a-f-]+)\)\n([\s\S]*?)\n\s+;;/g),
-]
-	.filter(([, , body]) => /ROTATE_SCOPE_MISMATCH="true"/.test(body))
-	.map(([, appId]) => appId)
-	.sort();
-assert.deepEqual(
-	rotatingArms,
-	registeredRotations.map(({ appId }) => appId).sort(),
-);
+const rotatingArms = [...registryShell.matchAll(/\n\s+([0-9a-f-]+)\)\n([\s\S]*?)\n\s+;;/g)]
+  .filter(([, , body]) => /ROTATE_SCOPE_MISMATCH="true"/.test(body))
+  .map(([, appId]) => appId)
+  .sort();
+assert.deepEqual(rotatingArms, registeredRotations.map(({ appId }) => appId).sort());
 
 const kaanaProvision = registryArm(provision, canonicalKaanaApplicationId);
 const homiioProvision = registryArm(provision, canonicalHomiioApplicationId);
@@ -259,18 +219,12 @@ const mentionProvision = registryArm(provision, canonicalMentionApplicationId);
 assert.match(kaanaProvision, /SCOPES="inference:byok:validate"/);
 assert.match(kaanaProvision, /APP_NAMESPACE="kaana"/);
 assert.match(kaanaProvision, /DESTINATION_KEY_NAME="OXY_APPLICATION_KEY"/);
-assert.match(
-	kaanaProvision,
-	/DESTINATION_SECRET_NAME="OXY_APPLICATION_SECRET"/,
-);
+assert.match(kaanaProvision, /DESTINATION_SECRET_NAME="OXY_APPLICATION_SECRET"/);
 assert.doesNotMatch(kaanaProvision, /homiio|OXY_SERVICE_API_/i);
 assert.match(homiioProvision, /SCOPES="reputation:write,inference:invoke"/);
 assert.match(homiioProvision, /APP_NAMESPACE="homiio"/);
 assert.match(homiioProvision, /DESTINATION_KEY_NAME="OXY_SERVICE_API_KEY"/);
-assert.match(
-	homiioProvision,
-	/DESTINATION_SECRET_NAME="OXY_SERVICE_API_SECRET"/,
-);
+assert.match(homiioProvision, /DESTINATION_SECRET_NAME="OXY_SERVICE_API_SECRET"/);
 assert.doesNotMatch(homiioProvision, /kaana|OXY_APPLICATION_/i);
 assert.match(aliaProvision, /APP_NAMESPACE="alia"/);
 assert.match(aliaProvision, /DESTINATION_KEY_NAME="OXY_SERVICE_API_KEY"/);
@@ -279,12 +233,12 @@ assert.match(aliaProvision, /ISOLATE_CREDENTIAL_NAME="true"/);
 assert.match(aliaProvision, /ROTATE_SCOPE_MISMATCH="true"/);
 assert.match(aliaProvision, /ROLLOUT_SERVICE="alia"/);
 assert.match(
-	aliaProvision,
-	/SCOPES="user:read,inference:invoke,capabilities:read,capability-tickets:issue,clarity:search,clarity:index"/,
+  aliaProvision,
+  /SCOPES="user:read,inference:invoke,capabilities:read,capability-tickets:issue,clarity:search,clarity:index"/,
 );
 assert.doesNotMatch(
-	aliaProvision,
-	/inference:(?:models|usage|routing):read|acting-as:offline|accounts:act-as-session/,
+  aliaProvision,
+  /inference:(?:models|usage|routing):read|acting-as:offline|accounts:act-as-session/,
 );
 assert.doesNotMatch(aliaProvision, /ALIA_(?:RELAY|KAANA)_CREDENTIAL/);
 assert.doesNotMatch(kaanaProvision, /ROTATE_SCOPE_MISMATCH|ROLLOUT_SERVICE/);
@@ -295,74 +249,59 @@ assert.doesNotMatch(homiioProvision, /ROLLOUT_SERVICE/);
 assert.doesNotMatch(mentionProvision, /ROTATE_SCOPE_MISMATCH|ROLLOUT_SERVICE/);
 assert.match(mentionProvision, /APP_NAMESPACE="mention"/);
 assert.match(mentionProvision, /DESTINATION_KEY_NAME="OXY_SERVICE_API_KEY"/);
-assert.match(
-	mentionProvision,
-	/DESTINATION_SECRET_NAME="OXY_SERVICE_API_SECRET"/,
-);
+assert.match(mentionProvision, /DESTINATION_SECRET_NAME="OXY_SERVICE_API_SECRET"/);
 assert.match(mentionProvision, /ISOLATE_CREDENTIAL_NAME="true"/);
 assert.match(
-	mentionProvision,
-	/SCOPES="user:read,files:read,files:write,federation:write,signals:write,catalogs:write,capabilities:read,capability-audit:write"/,
+  mentionProvision,
+  /SCOPES="user:read,files:read,files:write,federation:write,signals:write,catalogs:write,capabilities:read,capability-audit:write"/,
 );
-assert.doesNotMatch(
-	mentionProvision,
-	/capability-tickets:issue|agency:coordinate/,
-);
+assert.doesNotMatch(mentionProvision, /capability-tickets:issue|agency:coordinate/);
 assert.match(provision, /\/oxy\/\$APP_NAMESPACE\/\$DESTINATION_KEY_NAME/);
 assert.match(provision, /\/oxy\/\$APP_NAMESPACE\/\$DESTINATION_SECRET_NAME/);
-assert.doesNotMatch(
-	provision,
-	/\/oxy\/\$APP_NAMESPACE\/OXY_APPLICATION_(?:KEY|SECRET)/,
-);
+assert.doesNotMatch(provision, /\/oxy\/\$APP_NAMESPACE\/OXY_APPLICATION_(?:KEY|SECRET)/);
 assert.match(provision, /verify-reused-service-credential\.sh/);
 assert.match(provision, /--force-new-deployment/);
 assert.match(provision, /aws ecs wait services-stable/);
 assert.doesNotMatch(
-	provision,
-	/inputs\.(?:credential_id|credential_name|scopes|rollout_service)/,
-	"rotation authority and its consumer must come only from the exact-id registry",
+  provision,
+  /inputs\.(?:credential_id|credential_name|scopes|rollout_service)/,
+  'rotation authority and its consumer must come only from the exact-id registry',
 );
 assert.match(provision, /::group::credential task scoped CloudWatch log/);
 assert.match(
-	provision,
-	/select\(startswith\("SERVICE_CRED_JSON="\) \| not\)/,
-	"failed task logs must be shown without echoing a credential result envelope",
+  provision,
+  /select\(startswith\("SERVICE_CRED_JSON="\) \| not\)/,
+  'failed task logs must be shown without echoing a credential result envelope',
 );
 assert.doesNotMatch(
-	provision,
-	/existing exact service credential and destination SecureStrings are already present/,
+  provision,
+  /existing exact service credential and destination SecureStrings are already present/,
 );
 assert.equal(
-	provision.match(/put-secure-parameter\.sh/g)?.length,
-	4,
-	"the envelope key, task binding and both recovery-package paths must use the stdin-only SSM writer",
+  provision.match(/put-secure-parameter\.sh/g)?.length,
+  4,
+  'the envelope key, task binding and both recovery-package paths must use the stdin-only SSM writer',
 );
 assert.equal(
-	handoffScript.match(/put-secure-parameter\.sh/g)?.length,
-	2,
-	"both destination values must use the stdin-only SSM writer",
+  handoffScript.match(/put-secure-parameter\.sh/g)?.length,
+  2,
+  'both destination values must use the stdin-only SSM writer',
 );
 assert.match(provision, /stale_temp_parameter recovery requires dry_run=false/);
 assert.match(provision, /schemaVersion:1/);
 assert.match(provision, /preserve_temp_parameter="true"/);
 assert.match(provision, /handoff-service-credential-pair\.sh/);
-assert.doesNotMatch(
-	provision,
-	/aws ecs list-tasks|taskArns\[-1\]|--desired-status/,
-);
+assert.doesNotMatch(provision, /aws ecs list-tasks|taskArns\[-1\]|--desired-status/);
 assert.match(provision, /binding_parameter="\$temp_parameter-binding"/);
 assert.match(provision, /\.runAttempt == \$run_attempt/);
-assert.match(
-	provision,
-	/--started-by "gh-svc-cred-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/,
-);
+assert.match(provision, /--started-by "gh-svc-cred-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/);
 assert.match(provision, /missing encrypted recovery secret/);
 assert.match(provision, /recovery package write failed/);
 assert.doesNotMatch(provision, /removed legacy stale credential envelope key/);
 assert.doesNotMatch(
-	provision,
-	/aws ssm put-parameter|--value\s+"\$(?:OUTPUT_ENCRYPTION_KEY|public_key|secret)"/,
-	"the workflow must not put credential values in aws argv",
+  provision,
+  /aws ssm put-parameter|--value\s+"\$(?:OUTPUT_ENCRYPTION_KEY|public_key|secret)"/,
+  'the workflow must not put credential values in aws argv',
 );
 assert.match(secureParameterScript, /--value file:\/\/\/dev\/stdin/);
 assert.doesNotMatch(secureParameterScript, /--cli-input-json\s+file:/);
@@ -380,54 +319,45 @@ assert.match(aliaReconcile, /ADD_SCOPES="capability-tickets:issue,clarity:search
 assert.match(reconcile, /CREDENTIAL_ID.*EXPECTED_CREDENTIAL_ID/);
 
 assert.match(
-	reconcileScript,
-	/eq\(applications\.id, appId\)/,
-	"reconcile must select the exact application id",
+  reconcileScript,
+  /eq\(applications\.id, appId\)/,
+  'reconcile must select the exact application id',
 );
 assert.match(
-	reconcileScript,
-	/eq\(applicationCredentials\.id, credentialId\)/,
-	"reconcile must select the exact credential id",
+  reconcileScript,
+  /eq\(applicationCredentials\.id, credentialId\)/,
+  'reconcile must select the exact credential id',
 );
 assert.match(
-	reconcileScript,
-	/applications\.ownerAccountId/,
-	"reconcile must derive owner attribution from the exact application row",
+  reconcileScript,
+  /applications\.ownerAccountId/,
+  'reconcile must derive owner attribution from the exact application row',
 );
 assert.doesNotMatch(
-	reconcileScript,
-	/users\.username|createdByUserId|OWNER_USERNAME/,
-	"reconcile must not derive authority from a human name or creator attribution",
+  reconcileScript,
+  /users\.username|createdByUserId|OWNER_USERNAME/,
+  'reconcile must not derive authority from a human name or creator attribution',
 );
 assert.match(reconcileScript, /requiredExactIdentifier\("APP_ID"\)/);
 assert.match(reconcileScript, /requiredExactIdentifier\("CREDENTIAL_ID"\)/);
 assert.doesNotMatch(reconcileScript, /const appId = required\("APP_ID"\)/);
-assert.doesNotMatch(
-	reconcileScript,
-	/const credentialId = required\("CREDENTIAL_ID"\)/,
-);
+assert.doesNotMatch(reconcileScript, /const credentialId = required\("CREDENTIAL_ID"\)/);
 assert.match(provisionScript, /const requestedAppId = process\.env\.APP_ID;/);
 assert.match(provisionScript, /ISOLATE_CREDENTIAL_NAME/);
+assert.match(provisionScript, /ROTATE_SCOPE_MISMATCH requires ISOLATE_CREDENTIAL_NAME=true/);
 assert.match(
-	provisionScript,
-	/ROTATE_SCOPE_MISMATCH requires ISOLATE_CREDENTIAL_NAME=true/,
+  provisionScript,
+  /ROTATE_SCOPE_MISMATCH is not registered for this exact application credential lane/,
 );
 assert.match(
-	provisionScript,
-	/ROTATE_SCOPE_MISMATCH is not registered for this exact application credential lane/,
-);
-assert.match(
-	provisionScript,
-	/rotateScopeMismatch &&\s*!isRegisteredScopeRotation\(\{\s*applicationId: requestedAppId,\s*environment,\s*credentialName,\s*scopes,\s*\}\)/,
-	"prepare must refuse rotation outside the closed exact-lane registry",
+  provisionScript,
+  /rotateScopeMismatch &&\s*!isRegisteredScopeRotation\(\{\s*applicationId: requestedAppId,\s*environment,\s*credentialName,\s*scopes,\s*\}\)/,
+  'prepare must refuse rotation outside the closed exact-lane registry',
 );
 assert.match(scopeRotationRegistry, new RegExp(canonicalAliaApplicationId));
 assert.match(scopeRotationRegistry, new RegExp(canonicalHomiioApplicationId));
 assert.match(provisionScript, /rotatedFromCredentialId: rotatedFrom\?\.id/);
-assert.match(
-	provisionScript,
-	/status: rotateScopeMismatch \? "pending" : "active"/,
-);
+assert.match(provisionScript, /status: rotateScopeMismatch \? "pending" : "active"/);
 assert.doesNotMatch(provisionScript, /status: "deprecated"/);
 assert.match(finalizeScript, /status: "deprecated", expiresAt: graceExpiresAt/);
 assert.match(finalizeScript, /status: "active"/);
@@ -435,99 +365,76 @@ assert.match(finalizeScript, /eventType: "rotated"/);
 assert.match(finalizeScript, /eventType: "created"/);
 assert.match(finalizeScript, /effectiveUntil: graceExpiresAt/);
 assert.match(
-	finalizeScript,
-	/const lane = findRegisteredScopeRotation\(appId\);\s*if \(!appId \|\| !lane\)/,
-	"finalize must refuse application ids outside the closed rotation registry",
+  finalizeScript,
+  /const lane = findRegisteredScopeRotation\(appId\);\s*if \(!appId \|\| !lane\)/,
+  'finalize must refuse application ids outside the closed rotation registry',
 );
 assert.doesNotMatch(finalizeScript, /6a2f851751b784a86fd0e9|ALIA_/);
 assert.match(finalizeScript, /FINALIZE_CREDENTIAL_ID/);
 assert.match(provisionScript, /const result = await getDb\(\)\.transaction/);
 assert.match(provisionScript, /writeResult\(result\);/);
-assert.match(
-	provision,
-	/after emitting commit evidence; continuing recoverably/,
-);
+assert.match(provision, /after emitting commit evidence; continuing recoverably/);
 const packageWrite = provision.indexOf('"$temp_parameter" overwrite');
 const finalizeCall = provision.lastIndexOf('finalize_credential "$(jq -er');
-const destinationHandoff = provision.lastIndexOf(
-	"handoff-service-credential-pair.sh",
-);
+const destinationHandoff = provision.lastIndexOf('handoff-service-credential-pair.sh');
 assert.ok(packageWrite >= 0 && finalizeCall > packageWrite);
 assert.ok(destinationHandoff > finalizeCall);
 
 process.stdout.write(
-	"Service credential workflows bind exact app/credential IDs, scopes, and SSM destinations.\n",
+  'Service credential workflows bind exact app/credential IDs, scopes, and SSM destinations.\n',
 );
 
 // Keep Cloudflare credential delivery regression tests on the deploy-script gate.
-const edgeDelivery = spawnSync(
-	"python3",
-	["scripts/test-edge-activity-delivery.py"],
-	{
-		encoding: "utf8",
-	},
-);
+const edgeDelivery = spawnSync('python3', ['scripts/test-edge-activity-delivery.py'], {
+  encoding: 'utf8',
+});
 assert.equal(edgeDelivery.status, 0, edgeDelivery.stderr);
 const edgeRegistryEnd = provision.indexOf(
-	'          CREDENTIAL_NAME="${CREDENTIAL_NAME:-Service (production)}"',
+  '          CREDENTIAL_NAME="${CREDENTIAL_NAME:-Service (production)}"',
 );
 const edgeRegistryShell = provision.slice(registryStart, edgeRegistryEnd);
 for (const [appId, entry] of Object.entries(
-	JSON.parse(readFileSync(".github/config/edge-activity-targets.json", "utf8")),
+  JSON.parse(readFileSync('.github/config/edge-activity-targets.json', 'utf8')),
 )) {
-	const execution = spawnSync(
-		"bash",
-		[
-			"-c",
-			`${edgeRegistryShell}\nprintf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME" "$ROLLOUT_SERVICE"`,
-		],
-		{
-			env: { ...process.env, APP_ID: appId, CREDENTIAL_LANE: "edge" },
-			encoding: "utf8",
-		},
-	);
-	assert.equal(execution.status, 0, execution.stderr);
-	assert.deepEqual(execution.stdout.trim().split("\n"), [
-		entry.namespace,
-		"user:read",
-		"OXY_EDGE_ACTIVITY_API_KEY",
-		"OXY_EDGE_ACTIVITY_API_SECRET",
-	]);
+  const execution = spawnSync(
+    'bash',
+    [
+      '-c',
+      `${edgeRegistryShell}\nprintf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME" "$ROLLOUT_SERVICE"`,
+    ],
+    {
+      env: { ...process.env, APP_ID: appId, CREDENTIAL_LANE: 'edge' },
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(execution.status, 0, execution.stderr);
+  assert.deepEqual(execution.stdout.trim().split('\n'), [
+    entry.namespace,
+    'user:read',
+    'OXY_EDGE_ACTIVITY_API_KEY',
+    'OXY_EDGE_ACTIVITY_API_SECRET',
+  ]);
 }
 
-const niloSpecSource = readFileSync(
-	"packages/api/src/scripts/seedOxyApplicationsSpecs.ts",
-	"utf8",
-);
-const niloId = niloSpecSource.match(
-	/export const NILO_APPLICATION_ID = '([a-f0-9]{24})'/,
-)?.[1];
+const niloSpecSource = readFileSync('packages/api/src/scripts/seedOxyApplicationsSpecs.ts', 'utf8');
+const niloId = niloSpecSource.match(/export const NILO_APPLICATION_ID = '([a-f0-9]{24})'/)?.[1];
 assert.ok(niloId);
-assert.ok(
-	activityDestinations.some(
-		([id, namespace]) => id === niloId && namespace === "nilo",
-	),
-);
+assert.ok(activityDestinations.some(([id, namespace]) => id === niloId && namespace === 'nilo'));
 assert.equal(
-	JSON.parse(readFileSync(".github/config/edge-activity-targets.json", "utf8"))[
-		niloId
-	].namespace,
-	"nilo",
+  JSON.parse(readFileSync('.github/config/edge-activity-targets.json', 'utf8'))[niloId].namespace,
+  'nilo',
 );
 
 const mediaId = niloSpecSource.match(
-	/export const MEDIA_WORKER_APPLICATION_ID = '([a-f0-9]{24})'/,
+  /export const MEDIA_WORKER_APPLICATION_ID = '([a-f0-9]{24})'/,
 )?.[1];
 assert.ok(mediaId);
 assert.ok(
-	activityDestinations.some(
-		([id, namespace]) =>
-			id === mediaId && namespace === "oxy-asset-variant-worker",
-	),
+  activityDestinations.some(
+    ([id, namespace]) => id === mediaId && namespace === 'oxy-asset-variant-worker',
+  ),
 );
 assert.equal(
-	JSON.parse(readFileSync(".github/config/edge-activity-targets.json", "utf8"))[
-		mediaId
-	],
-	undefined,
+  JSON.parse(readFileSync('.github/config/edge-activity-targets.json', 'utf8'))[mediaId],
+  undefined,
 );

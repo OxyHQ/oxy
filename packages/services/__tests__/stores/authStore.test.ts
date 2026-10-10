@@ -49,7 +49,9 @@ describe('authStore projected onto the runtime', () => {
   });
 
   it('answers signed out and drops writes when nothing is bound', () => {
-    useAuthStore.getState().loginSuccess({ id: 'user_3', username: 'bob', publicKey: 'pub_3' } as never);
+    useAuthStore
+      .getState()
+      .loginSuccess({ id: 'user_3', username: 'bob', publicKey: 'pub_3' } as never);
 
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);

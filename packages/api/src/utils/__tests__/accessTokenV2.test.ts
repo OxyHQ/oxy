@@ -125,7 +125,7 @@ describe('the v2 claim set', () => {
   it('reports the actor as the subject itself on a first-party session', () => {
     const claims = claimsOf(
       generateSessionTokens(binding({ subjectAccountId: PRINCIPAL, principalUserId: PRINCIPAL }))
-        .accessToken
+        .accessToken,
     );
 
     expect(claims.sub).toBe(PRINCIPAL);
@@ -138,8 +138,8 @@ describe('the v2 claim set', () => {
     // authorized party.
     const claims = claimsOf(
       generateSessionTokens(
-        binding({ clientId: null, scopes: [], deviceSessionId: null, deviceContextId: null })
-      ).accessToken
+        binding({ clientId: null, scopes: [], deviceSessionId: null, deviceContextId: null }),
+      ).accessToken,
     );
 
     expect(claims).not.toHaveProperty('azp');
@@ -198,7 +198,7 @@ describe('every mint is unique', () => {
     // binding off the row. A copy on the token could only ever drift from it.
     const decoded = jwt.verify(
       generateSessionTokens(binding()).refreshToken,
-      REFRESH_SECRET
+      REFRESH_SECRET,
     ) as jwt.JwtPayload;
 
     expect(decoded.type).toBe('refresh');
@@ -212,7 +212,7 @@ describe('resource-server validation', () => {
   it('accepts a token that matches its row, and reports the actor and subject apart', () => {
     const result = checkAccessTokenBinding(
       claimsOf(generateSessionTokens(binding()).accessToken),
-      row()
+      row(),
     );
 
     expect(result).toEqual({
@@ -271,9 +271,10 @@ describe('resource-server validation', () => {
   it('refuses an application-bound token once the row is no longer bound to it', () => {
     const claims = claimsOf(generateSessionTokens(binding()).accessToken);
 
-    expect(
-      checkAccessTokenBinding(claims, row({ applicationId: null, clientId: null }))
-    ).toEqual({ ok: false, reason: 'client_mismatch' });
+    expect(checkAccessTokenBinding(claims, row({ applicationId: null, clientId: null }))).toEqual({
+      ok: false,
+      reason: 'client_mismatch',
+    });
   });
 
   it('accepts a narrower scope claim than the row grants', () => {
@@ -292,7 +293,7 @@ describe('the v1 compatibility window', () => {
     return jwt.sign(
       { userId: SUBJECT, sessionId: SESSION_ID, deviceId: DEVICE_ID, type: 'access' },
       ACCESS_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: '15m' },
     );
   }
 
@@ -308,7 +309,7 @@ describe('the v1 compatibility window', () => {
         jti: randomUUID(),
       },
       ACCESS_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: '15m' },
     );
 
     const result = checkAccessTokenBinding(claimsOf(withJti), row());
@@ -316,7 +317,7 @@ describe('the v1 compatibility window', () => {
     expect(result.ok && result.identity.version).toBe(1);
   });
 
-  it('resolves a v1 token to the ROW\'s binding, so the row still governs it', () => {
+  it("resolves a v1 token to the ROW's binding, so the row still governs it", () => {
     // A v1 token asserted nothing about the application, so refusing it on that
     // basis is impossible — but the device lane reads `applicationId`, and that
     // comes from the row either way. This is what keeps the third-party guard
@@ -352,7 +353,7 @@ describe('the v1 compatibility window', () => {
     process.env.ACCESS_TOKEN_V1_WINDOW = 'closed';
 
     expect(
-      checkAccessTokenBinding(claimsOf(generateSessionTokens(binding()).accessToken), row()).ok
+      checkAccessTokenBinding(claimsOf(generateSessionTokens(binding()).accessToken), row()).ok,
     ).toBe(true);
   });
 });

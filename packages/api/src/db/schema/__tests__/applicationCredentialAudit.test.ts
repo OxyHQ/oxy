@@ -48,7 +48,7 @@ const MIGRATION_PATH = join(
   '..',
   '..',
   'drizzle',
-  '0043_application_credential_audit_immutability.sql'
+  '0043_application_credential_audit_immutability.sql',
 );
 
 /** The function the trigger must execute — not the ledger's, not the BYOK trail's. */
@@ -91,12 +91,12 @@ async function expectRefusedByTrigger(work: Promise<unknown>): Promise<void> {
   } catch (error) {
     const messages = errorMessages(error);
     expect(messages.some((message) => message.includes(CREDENTIAL_AUDIT_IMMUTABLE_MESSAGE))).toBe(
-      true
+      true,
     );
     return;
   }
   throw new Error(
-    `expected the write to be refused by ${CREDENTIAL_AUDIT_TRIGGER}, but it succeeded`
+    `expected the write to be refused by ${CREDENTIAL_AUDIT_TRIGGER}, but it succeeded`,
   );
 }
 
@@ -203,7 +203,7 @@ describe('the credential audit trail is append-only', () => {
         // `rotated` satisfies all three CHECKs on this table exactly as
         // `created` does — see the positive control below.
         .set({ eventType: 'rotated' })
-        .where(eq(applicationCredentialAuditEvents.id, event.id))
+        .where(eq(applicationCredentialAuditEvents.id, event.id)),
     );
   });
 
@@ -240,7 +240,7 @@ describe('the credential audit trail is append-only', () => {
       getDb()
         .update(applicationCredentialAuditEvents)
         .set({ metadata: {} })
-        .where(eq(applicationCredentialAuditEvents.id, event.id))
+        .where(eq(applicationCredentialAuditEvents.id, event.id)),
     );
   });
 
@@ -262,39 +262,69 @@ describe('the credential audit trail is append-only', () => {
       getDb()
         .update(applicationCredentialAuditEvents)
         .set({ actorUserId: other.actorUserId })
-        .where(eq(applicationCredentialAuditEvents.id, event.id))
+        .where(eq(applicationCredentialAuditEvents.id, event.id)),
     );
   });
 
   it('still refuses directly clearing a live actor, with or without another audit edit', async () => {
     const fixture = await insertFixture();
-    const [event] = await getDb().insert(applicationCredentialAuditEvents)
-      .values(auditValues(fixture, 'created')).returning({ id: applicationCredentialAuditEvents.id });
-    await expectRefusedByTrigger(getDb().update(applicationCredentialAuditEvents)
-      .set({ actorUserId: null }).where(eq(applicationCredentialAuditEvents.id, event.id)));
-    await expectRefusedByTrigger(getDb().update(applicationCredentialAuditEvents)
-      .set({ actorUserId: null, metadata: { changed: true } }).where(eq(applicationCredentialAuditEvents.id, event.id)));
+    const [event] = await getDb()
+      .insert(applicationCredentialAuditEvents)
+      .values(auditValues(fixture, 'created'))
+      .returning({ id: applicationCredentialAuditEvents.id });
+    await expectRefusedByTrigger(
+      getDb()
+        .update(applicationCredentialAuditEvents)
+        .set({ actorUserId: null })
+        .where(eq(applicationCredentialAuditEvents.id, event.id)),
+    );
+    await expectRefusedByTrigger(
+      getDb()
+        .update(applicationCredentialAuditEvents)
+        .set({ actorUserId: null, metadata: { changed: true } })
+        .where(eq(applicationCredentialAuditEvents.id, event.id)),
+    );
   });
 
   it('account erasure removes an owned soft-deleted application and its lifecycle trail', async () => {
     const fixture = await insertFixture();
     await getDb().insert(applicationCredentialAuditEvents).values(auditValues(fixture, 'created'));
-    await getDb().update(applicationCredentials).set({ status: 'revoked' }).where(eq(applicationCredentials.id, fixture.credentialId));
-    await getDb().update(applications).set({ status: 'deleted' }).where(eq(applications.id, fixture.applicationId));
+    await getDb()
+      .update(applicationCredentials)
+      .set({ status: 'revoked' })
+      .where(eq(applicationCredentials.id, fixture.credentialId));
+    await getDb()
+      .update(applications)
+      .set({ status: 'deleted' })
+      .where(eq(applications.id, fixture.applicationId));
     await getDb().delete(users).where(eq(users.id, fixture.actorUserId));
-    expect(await getDb().select().from(users).where(eq(users.id, fixture.actorUserId))).toHaveLength(0);
-    expect(await getDb().select().from(applicationCredentialAuditEvents).where(eq(applicationCredentialAuditEvents.applicationId, fixture.applicationId))).toHaveLength(0);
+    expect(
+      await getDb().select().from(users).where(eq(users.id, fixture.actorUserId)),
+    ).toHaveLength(0);
+    expect(
+      await getDb()
+        .select()
+        .from(applicationCredentialAuditEvents)
+        .where(eq(applicationCredentialAuditEvents.applicationId, fixture.applicationId)),
+    ).toHaveLength(0);
   });
 
   it('account erasure retains another owner’s application trail with a null departed actor', async () => {
     const owned = await insertFixture();
     const actor = await insertFixture();
-    const [event] = await getDb().insert(applicationCredentialAuditEvents)
+    const [event] = await getDb()
+      .insert(applicationCredentialAuditEvents)
       .values({ ...auditValues(owned, 'created'), actorUserId: actor.actorUserId })
       .returning({ id: applicationCredentialAuditEvents.id });
-    const before = await getDb().select().from(applicationCredentialAuditEvents).where(eq(applicationCredentialAuditEvents.id, event.id));
+    const before = await getDb()
+      .select()
+      .from(applicationCredentialAuditEvents)
+      .where(eq(applicationCredentialAuditEvents.id, event.id));
     await getDb().delete(users).where(eq(users.id, actor.actorUserId));
-    const retained = await getDb().select().from(applicationCredentialAuditEvents).where(eq(applicationCredentialAuditEvents.id, event.id));
+    const retained = await getDb()
+      .select()
+      .from(applicationCredentialAuditEvents)
+      .where(eq(applicationCredentialAuditEvents.id, event.id));
     expect(retained).toHaveLength(1);
     expect(retained[0]?.actorUserId).toBeNull();
     expect(retained[0]?.applicationId).toBe(owned.applicationId);
@@ -334,9 +364,7 @@ describe('the credential audit trail is append-only', () => {
      * into a trigger failure rather than a cascade.
      */
     const fixture = await insertFixture();
-    await getDb()
-      .insert(applicationCredentialAuditEvents)
-      .values(auditValues(fixture, 'created'));
+    await getDb().insert(applicationCredentialAuditEvents).values(auditValues(fixture, 'created'));
 
     await getDb().delete(applications).where(eq(applications.id, fixture.applicationId));
 
@@ -359,7 +387,10 @@ describe('the migration and the schema agree on the DDL', () => {
   const migration = readFileSync(MIGRATION_PATH, 'utf8');
 
   it('carries the function text the schema declares authoritative', () => {
-    const latest = readFileSync(join(__dirname, '../../../../drizzle/0146_credential_audit_actor_erasure.sql'), 'utf8');
+    const latest = readFileSync(
+      join(__dirname, '../../../../drizzle/0146_credential_audit_actor_erasure.sql'),
+      'utf8',
+    );
     expect(latest).toContain(CREDENTIAL_AUDIT_IMMUTABILITY_DDL);
     expect(latest).toContain('-- oxy:deploy-phase=pre');
   });

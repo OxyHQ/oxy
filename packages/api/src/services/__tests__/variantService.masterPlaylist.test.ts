@@ -80,8 +80,12 @@ describe('VariantService master playlist', () => {
       rendition('hls_1080p', '1920x1080', '2M'),
     ]);
 
-    expect(playlist).toContain('#EXT-X-STREAM-INF:BANDWIDTH=500000,RESOLUTION=640x360\nhls_360p.m3u8');
-    expect(playlist).toContain('#EXT-X-STREAM-INF:BANDWIDTH=2000000,RESOLUTION=1920x1080\nhls_1080p.m3u8');
+    expect(playlist).toContain(
+      '#EXT-X-STREAM-INF:BANDWIDTH=500000,RESOLUTION=640x360\nhls_360p.m3u8',
+    );
+    expect(playlist).toContain(
+      '#EXT-X-STREAM-INF:BANDWIDTH=2000000,RESOLUTION=1920x1080\nhls_1080p.m3u8',
+    );
     expect(playlist.startsWith('#EXTM3U\n#EXT-X-VERSION:3\n')).toBe(true);
   });
 
@@ -90,7 +94,11 @@ describe('VariantService master playlist', () => {
   // playlist.
   it('is unaffected by the key prefix a private asset would carry', () => {
     const playlist = service.generateMasterPlaylist([
-      { resolution: '640x360', bitrate: '500k', playlist: `variants/2026/09/e8/${SHA}/hls_360p.m3u8` },
+      {
+        resolution: '640x360',
+        bitrate: '500k',
+        playlist: `variants/2026/09/e8/${SHA}/hls_360p.m3u8`,
+      },
     ]);
 
     expect(uris(playlist)).toEqual(['hls_360p.m3u8']);

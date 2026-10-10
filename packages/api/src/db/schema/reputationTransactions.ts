@@ -113,11 +113,9 @@ export const reputationTransactions = pgTable(
     actionType: text().notNull(),
     category: text({ enum: REPUTATION_CATEGORIES }).notNull(),
     /** Reporting application. Constraint deferred until `applications` lands. */
-    applicationId: text()
-      .references(() => applications.id, { onDelete: 'set null' }),
+    applicationId: text().references(() => applications.id, { onDelete: 'set null' }),
     /** The specific credential used. Constraint deferred with `application_credentials`. */
-    credentialId: text()
-      .references(() => applicationCredentials.id, { onDelete: 'set null' }),
+    credentialId: text().references(() => applicationCredentials.id, { onDelete: 'set null' }),
     /** Opaque id of the originating action in the source system — the idempotency key. */
     sourceActionId: text(),
     /** Source-system action type, e.g. `report_confirmed`. */
@@ -167,20 +165,20 @@ export const reputationTransactions = pgTable(
 
     check(
       'reputation_transactions_category_check',
-      sql`${t.category} in (${sql.raw(inList(REPUTATION_CATEGORIES))})`
+      sql`${t.category} in (${sql.raw(inList(REPUTATION_CATEGORIES))})`,
     ),
     check(
       'reputation_transactions_status_check',
-      sql`${t.status} in (${sql.raw(inList(REPUTATION_TRANSACTION_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(REPUTATION_TRANSACTION_STATUSES))})`,
     ),
     check(
       'reputation_transactions_target_entity_type_check',
-      sql`${t.targetEntityType} is null or ${t.targetEntityType} in (${sql.raw(inList(REPUTATION_TARGET_ENTITY_TYPES))})`
+      sql`${t.targetEntityType} is null or ${t.targetEntityType} in (${sql.raw(inList(REPUTATION_TARGET_ENTITY_TYPES))})`,
     ),
     // A transaction cannot reverse itself.
     check(
       'reputation_transactions_reversal_not_self_check',
-      sql`${t.reversedTransactionId} is null or ${t.reversedTransactionId} <> ${t.id}`
+      sql`${t.reversedTransactionId} is null or ${t.reversedTransactionId} <> ${t.id}`,
     ),
-  ]
+  ],
 );

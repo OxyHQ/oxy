@@ -18,7 +18,6 @@ import { deriveScopedSeedFromKey, signSocialReceiveDigest } from '../identityDer
 jest.mock(
   'expo-secure-store',
   () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createSecureStoreMock } = require('./identityMocks');
     return createSecureStoreMock();
   },
@@ -50,7 +49,6 @@ jest.mock('@oxy.so/protocol', () => ({
   loadAsyncStorage: async () => ({ default: mockAsyncStorage }),
   loadCommonsIdentityBridge: async () => mockBridge.current,
 }));
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const mockAsyncStorage = require('./identityMocks').createAsyncStorageMock();
 
 const KEY_A = 'aa'.repeat(32);
@@ -58,7 +56,9 @@ const KEY_B = 'bb'.repeat(32);
 const DIGEST = '5c'.repeat(32);
 const toHex = (b: Uint8Array): string => Buffer.from(b).toString('hex');
 
-function memorySigner(): IdentitySignerStore & { pair: { privateKey: string; publicKey: string } | null } {
+function memorySigner(): IdentitySignerStore & {
+  pair: { privateKey: string; publicKey: string } | null;
+} {
   const signer = {
     name: 'memory-signer',
     pair: null as { privateKey: string; publicKey: string } | null,
@@ -90,7 +90,9 @@ beforeEach(async () => {
   setPlatformOS('android');
   mockBridge.current = null;
   mockAsyncStorage.__reset__();
-  const secureStore = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
+  const secureStore = (await import(
+    'expo-secure-store' as string
+  )) as unknown as SecureStoreTestHandle;
   secureStore.__resetStore__();
   ({ KeyManager } = await import('../keyManager'));
 });
@@ -186,7 +188,9 @@ describe('Commons (registers the identity signer store)', () => {
     const signer = memorySigner();
     KeyManager.setIdentitySignerStore(signer);
     await KeyManager.importKeyPair(KEY_A);
-    const secureStore = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
+    const secureStore = (await import(
+      'expo-secure-store' as string
+    )) as unknown as SecureStoreTestHandle;
     secureStore.__simulateKeystoreDeath__('oxy_identity');
     secureStore.__simulateKeystoreDeath__('oxy_identity_backup');
     resetCaches();
@@ -195,7 +199,11 @@ describe('Commons (registers the identity signer store)', () => {
 
     const result = await KeyManager.attemptIdentityRecovery();
 
-    expect(result).toEqual({ recovered: true, source: 'shared', publicKey: KeyManager.derivePublicKey(KEY_A) });
+    expect(result).toEqual({
+      recovered: true,
+      source: 'shared',
+      publicKey: KeyManager.derivePublicKey(KEY_A),
+    });
     await expect(KeyManager.getPrivateKey()).resolves.toBe(KEY_A);
   });
 
@@ -212,7 +220,9 @@ describe('Commons (registers the identity signer store)', () => {
 
     const seed = await KeyManager.deriveScopedSeed('peable/faircoin/v1');
     expect(seed && toHex(seed)).toBe(toHex(deriveScopedSeedFromKey(KEY_A, 'peable/faircoin/v1')));
-    await expect(KeyManager.signSocialReceive(3, DIGEST)).resolves.toEqual(signSocialReceiveDigest(KEY_A, 3, DIGEST));
+    await expect(KeyManager.signSocialReceive(3, DIGEST)).resolves.toEqual(
+      signSocialReceiveDigest(KEY_A, 3, DIGEST),
+    );
     expect(bridge.deriveScopedSeed).not.toHaveBeenCalled();
     expect(bridge.signSocialReceive).not.toHaveBeenCalled();
   });
@@ -240,7 +250,12 @@ describe('every other app (no signer store, no key)', () => {
     await expect(KeyManager.signSocialReceive(7, DIGEST)).resolves.toEqual(socialSig);
     expect(bridge.signSocialReceive).toHaveBeenCalledWith(7, DIGEST);
     const state = await KeyManager.getIdentityKeyState();
-    expect(state).toEqual({ primaryPublicKey: null, sharedPublicKey: publicA, activePublicKey: publicA, inSync: true });
+    expect(state).toEqual({
+      primaryPublicKey: null,
+      sharedPublicKey: publicA,
+      activePublicKey: publicA,
+      inSync: true,
+    });
   });
 
   it('never caches the public key: a rotation in Commons is seen at once', async () => {
@@ -263,8 +278,12 @@ describe('every other app (no signer store, no key)', () => {
   });
 
   it('cannot hold an identity, and never derives from a local key', async () => {
-    await expect(KeyManager.importKeyPair(KEY_A)).rejects.toThrow('only Commons holds the Oxy identity');
-    await expect(KeyManager.createIdentity()).rejects.toThrow('only Commons holds the Oxy identity');
+    await expect(KeyManager.importKeyPair(KEY_A)).rejects.toThrow(
+      'only Commons holds the Oxy identity',
+    );
+    await expect(KeyManager.createIdentity()).rejects.toThrow(
+      'only Commons holds the Oxy identity',
+    );
 
     // Even with a key left in its storage (written while it had a store), an
     // app without a signer store asks Commons.
@@ -292,8 +311,12 @@ describe('every other app (no signer store, no key)', () => {
   });
 
   it('cannot write the shared identity, and syncSharedIdentity is a no-op', async () => {
-    await expect(KeyManager.importSharedIdentity(KEY_A)).rejects.toThrow('only Commons holds the Oxy identity');
-    await expect(KeyManager.createSharedIdentity()).rejects.toThrow('only Commons holds the Oxy identity');
+    await expect(KeyManager.importSharedIdentity(KEY_A)).rejects.toThrow(
+      'only Commons holds the Oxy identity',
+    );
+    await expect(KeyManager.createSharedIdentity()).rejects.toThrow(
+      'only Commons holds the Oxy identity',
+    );
     await expect(KeyManager.syncSharedIdentity()).resolves.toBe(false);
   });
 });

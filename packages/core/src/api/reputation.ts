@@ -53,7 +53,9 @@ export class ReputationApi {
     const mine = !userId;
     const id = userId || this.ctx.oxy.session.userId;
     if (!id) {
-      throw new OxyAuthenticationError('Reading your own reputation balance requires a signed-in user');
+      throw new OxyAuthenticationError(
+        'Reading your own reputation balance requires a signed-in user',
+      );
     }
     const balance = await this.ctx.request<ReputationBalanceView>(
       'GET',
@@ -82,10 +84,15 @@ export class ReputationApi {
 
   /** The enabled rules: what earns and what costs reputation. */
   async rules(): Promise<ReputationRule[]> {
-    const res = await this.ctx.request<{ rules?: ReputationRule[] }>('GET', '/reputation/rules', undefined, {
-      cache: true,
-      cacheTTL: EXTRA_LONG,
-    });
+    const res = await this.ctx.request<{ rules?: ReputationRule[] }>(
+      'GET',
+      '/reputation/rules',
+      undefined,
+      {
+        cache: true,
+        cacheTTL: EXTRA_LONG,
+      },
+    );
     return res.rules ?? [];
   }
 
@@ -109,7 +116,10 @@ export class ReputationApi {
    * user's). Auth required.
    * @param context - The weight axis (server default: `default`).
    */
-  async influence(userId?: string, context?: ReputationInfluenceContext): Promise<ReputationInfluenceResult> {
+  async influence(
+    userId?: string,
+    context?: ReputationInfluenceContext,
+  ): Promise<ReputationInfluenceResult> {
     const id = this.resolveUserId(userId);
     return this.ctx.request<ReputationInfluenceResult>(
       'GET',
@@ -121,7 +131,8 @@ export class ReputationApi {
 
   protected resolveUserId(userId?: string): string {
     const id = userId || this.ctx.oxy.session.userId;
-    if (!id) throw new OxyAuthenticationError('A user id is required (none given and not signed in)');
+    if (!id)
+      throw new OxyAuthenticationError('A user id is required (none given and not signed in)');
     return id;
   }
 }

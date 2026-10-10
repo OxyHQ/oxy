@@ -77,19 +77,19 @@ describe('selectSeedEntries', () => {
 
     it('selects several, and tolerates whitespace around the separators', () => {
       expect(
-        selectSeedEntries(ENTRIES, ' CrowdSource , Oxy Accounts ', APPS).map((e) => e.name)
+        selectSeedEntries(ENTRIES, ' CrowdSource , Oxy Accounts ', APPS).map((e) => e.name),
       ).toEqual(['Oxy Accounts', 'CrowdSource']);
     });
 
     it('returns canonical order, never the order the operator typed', () => {
       expect(
-        selectSeedEntries(ENTRIES, 'CrowdSource,Oxy Accounts', APPS).map((e) => e.name)
+        selectSeedEntries(ENTRIES, 'CrowdSource,Oxy Accounts', APPS).map((e) => e.name),
       ).toEqual(['Oxy Accounts', 'CrowdSource']);
     });
 
     it('de-duplicates a repeated name instead of seeding it twice', () => {
       expect(
-        selectSeedEntries(ENTRIES, 'CrowdSource,CrowdSource', APPS).map((e) => e.name)
+        selectSeedEntries(ENTRIES, 'CrowdSource,CrowdSource', APPS).map((e) => e.name),
       ).toEqual(['CrowdSource']);
     });
 
@@ -115,7 +115,7 @@ describe('selectSeedEntries', () => {
 
     it('throws on an unknown name instead of selecting nothing', () => {
       expect(() => selectSeedEntries(ENTRIES, 'Crowdsource', APPS)).toThrow(
-        /unknown application\(s\): \[Crowdsource\]/
+        /unknown application\(s\): \[Crowdsource\]/,
       );
     });
 
@@ -127,7 +127,7 @@ describe('selectSeedEntries', () => {
       // Partial success is the dangerous outcome: the operator reads "done" and
       // the application they cared about was never touched.
       expect(() => selectSeedEntries(ENTRIES, 'CrowdSource,Nope', APPS)).toThrow(
-        /unknown application\(s\): \[Nope\]/
+        /unknown application\(s\): \[Nope\]/,
       );
     });
 
@@ -155,13 +155,13 @@ describe('selectSeedEntries', () => {
 
     it('names the caller’s env var and noun when nothing was selected', () => {
       expect(() => selectSeedEntries(ENTRIES, '', CENTERS)).toThrow(
-        /ONLY_COST_CENTERS was set but names no cost centre/
+        /ONLY_COST_CENTERS was set but names no cost centre/,
       );
     });
 
     it('names the caller’s env var and plural noun on an unknown entry', () => {
       expect(() => selectSeedEntries(ENTRIES, 'Nope', CENTERS)).toThrow(
-        /ONLY_COST_CENTERS names unknown cost centre\(s\): \[Nope\]\. Known cost centres:/
+        /ONLY_COST_CENTERS names unknown cost centre\(s\): \[Nope\]\. Known cost centres:/,
       );
     });
 
@@ -200,7 +200,7 @@ describe('selectSeedEntriesByExactIds', () => {
     const selected = selectSeedEntriesByExactIds(
       IDENTIFIED_ENTRIES,
       `${KAANA_APPLICATION_ID},6a2f851751b784a86fd0e934`,
-      APPS
+      APPS,
     );
 
     expect(selected.map((entry) => entry.id)).toEqual([
@@ -211,19 +211,19 @@ describe('selectSeedEntriesByExactIds', () => {
 
   it('rejects the Kaana display name on the exact-id path', () => {
     expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, 'Kaana', APPS)).toThrow(
-      /unknown application id\(s\): \[Kaana\]/
+      /unknown application id\(s\): \[Kaana\]/,
     );
   });
 
   it('rejects an unknown opaque id instead of selecting the first entry', () => {
     expect(() =>
-      selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, '000000000000000000000001', APPS)
+      selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, '000000000000000000000001', APPS),
     ).toThrow(/unknown application id\(s\): \[000000000000000000000001\]/);
   });
 
   it('rejects an empty exact-id boundary', () => {
     expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, '', APPS)).toThrow(
-      /names no application id/
+      /names no application id/,
     );
   });
 
@@ -233,7 +233,7 @@ describe('selectSeedEntriesByExactIds', () => {
     `${KAANA_APPLICATION_ID},,6a2f851751b784a86fd0e934`,
   ])('rejects an empty id inside a comma-separated boundary: %p', (raw) => {
     expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, raw, APPS)).toThrow(
-      /contains an empty application id/
+      /contains an empty application id/,
     );
   });
 
@@ -246,7 +246,7 @@ describe('selectSeedEntriesByExactIds', () => {
     '   ',
   ])('rejects leading or trailing whitespace instead of normalizing the id: %p', (raw) => {
     expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, raw, APPS)).toThrow(
-      /Every id must byte-match the declared immutable id; values are never normalized/
+      /Every id must byte-match the declared immutable id; values are never normalized/,
     );
   });
 
@@ -255,27 +255,24 @@ describe('selectSeedEntriesByExactIds', () => {
       selectSeedEntriesByExactIds(
         IDENTIFIED_ENTRIES,
         `${KAANA_APPLICATION_ID},${KAANA_APPLICATION_ID}`,
-        APPS
-      )
+        APPS,
+      ),
     ).toThrow(new RegExp(`repeats application id\\(s\\): \\[${KAANA_APPLICATION_ID}\\]`));
   });
 
   it('rejects duplicate ids in the canonical registry instead of selecting by first match', () => {
     expect(() =>
       selectSeedEntriesByExactIds(
-        [
-          ...IDENTIFIED_ENTRIES,
-          { id: KAANA_APPLICATION_ID, name: 'Not Kaana', type: 'internal' },
-        ],
+        [...IDENTIFIED_ENTRIES, { id: KAANA_APPLICATION_ID, name: 'Not Kaana', type: 'internal' }],
         KAANA_APPLICATION_ID,
-        APPS
-      )
+        APPS,
+      ),
     ).toThrow(`Canonical application registry declares duplicate exact id ${KAANA_APPLICATION_ID}`);
   });
 
   it('cannot reach a spec without an id through its display name', () => {
     expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, 'Oxy Accounts', APPS)).toThrow(
-      /unknown application id\(s\): \[Oxy Accounts\]/
+      /unknown application id\(s\): \[Oxy Accounts\]/,
     );
   });
 
@@ -288,25 +285,25 @@ describe('selectSeedEntriesByExactIds', () => {
 describe('selectSeedEntriesByLegacyNames', () => {
   it('retains explicit name selection for a spec without a declared id', () => {
     expect(
-      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'Oxy Accounts', APPS, 'ONLY_APP_IDS')
+      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'Oxy Accounts', APPS, 'ONLY_APP_IDS'),
     ).toEqual([{ name: 'Oxy Accounts', type: 'first_party' }]);
   });
 
   it('rejects selecting Kaana by display name because it has an exact id', () => {
     expect(() =>
-      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'Kaana', APPS, 'ONLY_APP_IDS')
+      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'Kaana', APPS, 'ONLY_APP_IDS'),
     ).toThrow(/cannot select application\(s\) with declared exact ids: \[Kaana\]/);
   });
 
   it('still rejects an unknown display name before considering exact ids', () => {
     expect(() =>
-      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'kaana', APPS, 'ONLY_APP_IDS')
+      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'kaana', APPS, 'ONLY_APP_IDS'),
     ).toThrow(/unknown application\(s\): \[kaana\]/);
   });
 
   it('preserves the unbounded local reconciliation when neither filter is set', () => {
     expect(
-      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, undefined, APPS, 'ONLY_APP_IDS')
+      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, undefined, APPS, 'ONLY_APP_IDS'),
     ).toEqual([...IDENTIFIED_ENTRIES]);
   });
 });

@@ -59,7 +59,7 @@ export interface ResolvedUserIdentity {
  * @returns The matching account, or `null` if not found / blank input.
  */
 export async function resolveUserByIdentifier(
-  identifier: string
+  identifier: string,
 ): Promise<ResolvedUserIdentity | null> {
   const trimmed = identifier.trim();
   if (trimmed.length === 0) {

@@ -57,18 +57,26 @@ export function SecurityActivitySection({
           <View style={styles.linkButtonWrapper}>
             <LinkButton
               text={t('security.activity.reviewCta')}
-              count={securityActivities.length > RECENT_ACTIVITY_VISIBLE_COUNT ? t('security.activity.moreCount', { count: securityActivities.length - RECENT_ACTIVITY_VISIBLE_COUNT }) : undefined}
+              count={
+                securityActivities.length > RECENT_ACTIVITY_VISIBLE_COUNT
+                  ? t('security.activity.moreCount', {
+                      count: securityActivities.length - RECENT_ACTIVITY_VISIBLE_COUNT,
+                    })
+                  : undefined
+              }
               onPress={() => {
                 // Show all activities in an alert with details
-                const allActivities = securityActivities.map((activity: SecurityActivity) => {
-                  const severity = activity.severity || getEventSeverity(activity.eventType);
-                  return `• ${formatEventDescription(activity)} (${severity}) - ${formatRelativeTime(activity.timestamp)}`;
-                }).join('\n\n');
+                const allActivities = securityActivities
+                  .map((activity: SecurityActivity) => {
+                    const severity = activity.severity || getEventSeverity(activity.eventType);
+                    return `• ${formatEventDescription(activity)} (${severity}) - ${formatRelativeTime(activity.timestamp)}`;
+                  })
+                  .join('\n\n');
 
                 alert(
                   t('security.activity.allTitle'),
                   allActivities || t('security.activity.allEmpty'),
-                  [{ text: t('common.ok'), style: 'default' }]
+                  [{ text: t('common.ok'), style: 'default' }],
                 );
               }}
             />

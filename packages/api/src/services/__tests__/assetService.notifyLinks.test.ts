@@ -72,9 +72,15 @@ describe('AssetService.notifyLinks webhook SSRF guard', () => {
     });
 
     const service = new AssetService({} as S3Service);
-    await (service as unknown as {
-      notifyLinks: (file: IFile, event: string, details: Record<string, unknown>) => Promise<void>;
-    }).notifyLinks(buildFile('https://hooks.example.com/asset'), 'deleted', { force: true });
+    await (
+      service as unknown as {
+        notifyLinks: (
+          file: IFile,
+          event: string,
+          details: Record<string, unknown>,
+        ) => Promise<void>;
+      }
+    ).notifyLinks(buildFile('https://hooks.example.com/asset'), 'deleted', { force: true });
 
     expect(mockSafeFetch).toHaveBeenCalledWith(
       'https://hooks.example.com/asset',
@@ -92,9 +98,15 @@ describe('AssetService.notifyLinks webhook SSRF guard', () => {
 
     const service = new AssetService({} as S3Service);
     await expect(
-      (service as unknown as {
-        notifyLinks: (file: IFile, event: string, details: Record<string, unknown>) => Promise<void>;
-      }).notifyLinks(buildFile('http://127.0.0.1/hook'), 'deleted', { force: true }),
+      (
+        service as unknown as {
+          notifyLinks: (
+            file: IFile,
+            event: string,
+            details: Record<string, unknown>,
+          ) => Promise<void>;
+        }
+      ).notifyLinks(buildFile('http://127.0.0.1/hook'), 'deleted', { force: true }),
     ).resolves.toBeUndefined();
 
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);

@@ -82,7 +82,10 @@ type BrokerModule = {
  */
 function loadStore(
   os: 'ios' | 'android' | 'web',
-  seams: { secureStore?: ReturnType<typeof makeSecureStoreMock>; broker?: BrokerModule | null } = {},
+  seams: {
+    secureStore?: ReturnType<typeof makeSecureStoreMock>;
+    broker?: BrokerModule | null;
+  } = {},
 ): SharedDeviceCredentialStore | null {
   jest.resetModules();
   jest.doMock('expo-modules-core', () => ({
@@ -106,7 +109,8 @@ function loadStore(
   });
   const rn = require('react-native') as { Platform: { OS: string } };
   rn.Platform.OS = os;
-  const mod = require('../sharedDeviceCredentialStore') as typeof import('../sharedDeviceCredentialStore');
+  const mod =
+    require('../sharedDeviceCredentialStore') as typeof import('../sharedDeviceCredentialStore');
   return mod.createPlatformSharedDeviceCredentialStore();
 }
 
@@ -201,7 +205,9 @@ describe('iOS keychain-group slot', () => {
     const store = loadStore('ios', { secureStore });
     await store?.publish(CRED);
     const write = secureStore.calls.find((c) => c.options?.keychainAccessible !== undefined);
-    expect(write?.options?.keychainAccessible).toBe(secureStore.module.WHEN_UNLOCKED_THIS_DEVICE_ONLY);
+    expect(write?.options?.keychainAccessible).toBe(
+      secureStore.module.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    );
   });
 
   test('a publish round-trips and reads back as present', async () => {
@@ -238,7 +244,11 @@ describe('iOS keychain-group slot', () => {
 describe('Android broker slot', () => {
   test('narrows a present payload', async () => {
     const store = loadStore('android', {
-      broker: { read: async () => ({ status: 'present', ...CRED }), write: async () => true, clear: async () => undefined },
+      broker: {
+        read: async () => ({ status: 'present', ...CRED }),
+        write: async () => true,
+        clear: async () => undefined,
+      },
     });
     await expect(store?.read()).resolves.toEqual({ state: 'present', credential: CRED });
   });
@@ -269,7 +279,11 @@ describe('Android broker slot', () => {
 
   test('an unrecognised payload from an older sibling is unavailable, never absent', async () => {
     const store = loadStore('android', {
-      broker: { read: async () => ({ ok: true }), write: async () => true, clear: async () => undefined },
+      broker: {
+        read: async () => ({ ok: true }),
+        write: async () => true,
+        clear: async () => undefined,
+      },
     });
     expect((await store?.read())?.state).toBe('unavailable');
   });
@@ -282,7 +296,11 @@ describe('Android broker slot', () => {
 
   test('publish forwards the broker’s own read-back verdict', async () => {
     const unverified = loadStore('android', {
-      broker: { read: async () => ({ status: 'absent' }), write: async () => false, clear: async () => undefined },
+      broker: {
+        read: async () => ({ status: 'absent' }),
+        write: async () => false,
+        clear: async () => undefined,
+      },
     });
     await expect(unverified?.publish(CRED)).resolves.toBe(false);
   });

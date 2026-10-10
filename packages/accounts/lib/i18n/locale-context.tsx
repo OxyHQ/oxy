@@ -1,18 +1,8 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
 import { I18nManager } from 'react-native';
 import { useOxy, useUpdateProfile } from '@oxy.so/services';
 import { getBaseLanguage, isRTLLocale, normalizeLocale } from '@oxy.so/core';
-import {
-  DEFAULT_LOCALE,
-  SUPPORTED_LOCALES,
-  type Locale,
-} from './types';
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './types';
 
 // Allow RTL flipping system-wide once. `allowRTL` is idempotent and only gates
 // whether `forceRTL` takes effect; without it Arabic users on Hermes never see
@@ -33,9 +23,7 @@ function coerceLocale(value: string | null | undefined): Locale {
     }
     const base = getBaseLanguage(value);
     if (base) {
-      const byBase = SUPPORTED_LOCALES.find(
-        (locale) => getBaseLanguage(locale) === base,
-      );
+      const byBase = SUPPORTED_LOCALES.find((locale) => getBaseLanguage(locale) === base);
       if (byBase) return byBase;
     }
   }
@@ -63,10 +51,7 @@ export function LocaleProvider({ children }: LocaleProviderProps) {
   // locale — coerced to a locale this app has a dictionary for. The SDK owns
   // account-vs-device resolution and hydration, so there is nothing local to
   // store or await here.
-  const locale = useMemo<Locale>(
-    () => coerceLocale(currentLanguage),
-    [currentLanguage],
-  );
+  const locale = useMemo<Locale>(() => coerceLocale(currentLanguage), [currentLanguage]);
 
   const setLocale = useCallback(
     async (next: Locale) => {
@@ -98,17 +83,13 @@ export function LocaleProvider({ children }: LocaleProviderProps) {
     [locale, setLocale],
   );
 
-  return (
-    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
-  );
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
 export function useLocale(): LocaleContextValue {
   const ctx = useContext(LocaleContext);
   if (!ctx) {
-    throw new Error(
-      'useLocale must be used inside <LocaleProvider>. Check app/_layout.tsx.',
-    );
+    throw new Error('useLocale must be used inside <LocaleProvider>. Check app/_layout.tsx.');
   }
   return ctx;
 }

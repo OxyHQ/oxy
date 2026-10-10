@@ -20,7 +20,10 @@ afterAll(async () => {
 
 async function fixture() {
   const db = getDb();
-  const [user] = await db.insert(users).values({ username: `repair${unique().slice(0, 10)}`, color: 'teal' }).returning();
+  const [user] = await db
+    .insert(users)
+    .values({ username: `repair${unique().slice(0, 10)}`, color: 'teal' })
+    .returning();
   const [mailbox] = await db
     .insert(mailboxes)
     .values({ userId: user.id, name: 'INBOX', path: 'INBOX', specialUse: '\\Inbox' })
@@ -42,15 +45,26 @@ async function fixture() {
     return row;
   };
 
-  const parent = await insert({ references: ['<root@example.com>'], inReplyTo: '<root@example.com>' });
+  const parent = await insert({
+    references: ['<root@example.com>'],
+    inReplyTo: '<root@example.com>',
+  });
   const sentReply = await insert({ inReplyTo: parent.id });
-  const deliveredCopy = await insert({ inReplyTo: `<${parent.id}>`, references: [`<${parent.id}>`, '<kept@example.com>'] });
+  const deliveredCopy = await insert({
+    inReplyTo: `<${parent.id}>`,
+    references: [`<${parent.id}>`, '<kept@example.com>'],
+  });
   const orphan = await insert({ inReplyTo: randomUUID() });
   return { parent, sentReply, deliveredCopy, orphan };
 }
 
 const read = async (id: string) =>
-  (await getDb().select({ inReplyTo: messages.inReplyTo, references: messages.references }).from(messages).where(eq(messages.id, id)))[0];
+  (
+    await getDb()
+      .select({ inReplyTo: messages.inReplyTo, references: messages.references })
+      .from(messages)
+      .where(eq(messages.id, id))
+  )[0];
 
 describe('repairReplyRowIdThreading', () => {
   it('reports without writing in a dry run', async () => {

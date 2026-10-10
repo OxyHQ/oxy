@@ -11,10 +11,7 @@ import type {
   DeviceSessionState,
   SessionAccount,
 } from '@oxy.so/contracts';
-import {
-  deviceDirectorySchema,
-  isOperatorSwitchTargetKind,
-} from '@oxy.so/contracts';
+import { deviceDirectorySchema, isOperatorSwitchTargetKind } from '@oxy.so/contracts';
 import { isUniqueViolation } from '@oxy.so/db';
 import { v7 as uuidv7 } from 'uuid';
 import { getDb, type Database } from '../config/postgres';
@@ -139,7 +136,9 @@ interface ActAsAccount {
 }
 
 /** A context is PERSONAL when the person and the subject are the same account. */
-function isPersonalContext(context: Pick<DeviceContextRow, 'principalUserId' | 'accountId'>): boolean {
+function isPersonalContext(
+  context: Pick<DeviceContextRow, 'principalUserId' | 'accountId'>,
+): boolean {
   return context.principalUserId === context.accountId;
 }
 
@@ -196,7 +195,7 @@ function directoryProfile(row: {
 export function electReplacementContext(
   remaining: readonly DeviceContextRow[],
   principals: readonly Pick<DevicePrincipalRow, 'id' | 'authuser'>[],
-  removedPrincipalId: string | null
+  removedPrincipalId: string | null,
 ): DeviceContextRow | null {
   const byAccount = (a: DeviceContextRow, b: DeviceContextRow) =>
     a.accountId < b.accountId ? -1 : a.accountId > b.accountId ? 1 : 0;
@@ -214,7 +213,7 @@ export function electReplacementContext(
     .sort((a, b) => a.authuser - b.authuser);
   for (const principal of others) {
     const personal = remaining.find(
-      (context) => context.principalId === principal.id && isPersonalContext(context)
+      (context) => context.principalId === principal.id && isPersonalContext(context),
     );
     if (personal) return personal;
   }
@@ -244,7 +243,9 @@ interface DeviceSessionRow {
   contexts: DeviceContextRow[];
 }
 
-export function projectState(doc: Omit<DeviceSessionRow, 'activeContextId' | 'contexts'>): DeviceSessionState {
+export function projectState(
+  doc: Omit<DeviceSessionRow, 'activeContextId' | 'contexts'>,
+): DeviceSessionState {
   const accounts: SessionAccount[] = doc.accounts.map((entry) => {
     const account: SessionAccount = {
       accountId: entry.accountId,
@@ -306,7 +307,7 @@ function projectAccounts(contexts: readonly DeviceContextRow[]): DeviceAccountRo
             operatedByUserId:
               context.principalUserId === context.accountId ? null : context.principalUserId,
           },
-        ]
+        ],
   );
 }
 
@@ -396,10 +397,7 @@ class DeviceSessionService {
    * A revoked principal takes its contexts with it. Filtering on `revoked_at`
    * rather than on row existence is what keeps "was Alice ever here" answerable.
    */
-  private async loadContexts(
-    db: Queryable,
-    deviceSessionId: string
-  ): Promise<DeviceContextRow[]> {
+  private async loadContexts(db: Queryable, deviceSessionId: string): Promise<DeviceContextRow[]> {
     return db
       .select({
         contextId: deviceAccountContexts.id,
@@ -416,13 +414,13 @@ class DeviceSessionService {
         and(
           eq(deviceAccountContexts.deviceSessionId, deviceSessionId),
           isNull(deviceAccountContexts.revokedAt),
-          isNull(devicePrincipals.revokedAt)
-        )
+          isNull(devicePrincipals.revokedAt),
+        ),
       )
       .orderBy(
         asc(deviceAccountContexts.addedAt),
         asc(devicePrincipals.authuser),
-        asc(deviceAccountContexts.id)
+        asc(deviceAccountContexts.id),
       );
   }
 
@@ -468,7 +466,7 @@ class DeviceSessionService {
     deviceSessionId: string,
     userId: string,
     /** The person's OWN session, set only by a personal registration. */
-    personalSessionId: string | null
+    personalSessionId: string | null,
   ): Promise<string> {
     const taken = await tx
       .select({ authuser: devicePrincipals.authuser })
@@ -514,8 +512,8 @@ class DeviceSessionService {
       .where(
         and(
           eq(deviceAccountContexts.deviceSessionId, deviceSessionId),
-          isNull(deviceAccountContexts.revokedAt)
-        )
+          isNull(deviceAccountContexts.revokedAt),
+        ),
       );
     const keep = live.map((entry) => entry.principalId);
     await tx
@@ -525,8 +523,8 @@ class DeviceSessionService {
           ? eq(devicePrincipals.deviceSessionId, deviceSessionId)
           : and(
               eq(devicePrincipals.deviceSessionId, deviceSessionId),
-              notInArray(devicePrincipals.id, keep)
-            )
+              notInArray(devicePrincipals.id, keep),
+            ),
       );
   }
 
@@ -546,7 +544,7 @@ class DeviceSessionService {
   private async resolveActiveFields(
     tx: Queryable,
     deviceSessionId: string,
-    accountId: string | null
+    accountId: string | null,
   ): Promise<{ activeContextId: string | null; activeAccountId: string | null }> {
     if (accountId === null) return this.activeFieldsFor(null);
     const contexts = await this.loadContexts(tx, deviceSessionId);
@@ -559,9 +557,10 @@ class DeviceSessionService {
    * column's value is composed. `resolveActiveFields` above is the flat
    * contract's entry point into it (elect by account, then compose here).
    */
-  private activeFieldsFor(
-    context: Pick<DeviceContextRow, 'contextId' | 'accountId'> | null
-  ): { activeContextId: string | null; activeAccountId: string | null } {
+  private activeFieldsFor(context: Pick<DeviceContextRow, 'contextId' | 'accountId'> | null): {
+    activeContextId: string | null;
+    activeAccountId: string | null;
+  } {
     if (context === null) return { activeContextId: null, activeAccountId: null };
     return { activeContextId: context.contextId, activeAccountId: context.accountId };
   }
@@ -615,8 +614,11 @@ class DeviceSessionService {
    * for a pool write to a row whose FK points back to the locked device.
    */
   private async lockDevice(db: Queryable, deviceId: string): Promise<DeviceSessionRow | null> {
-    const [locked] = await db.select({ id: deviceSessions.id }).from(deviceSessions)
-      .where(eq(deviceSessions.deviceId, deviceId)).for('update');
+    const [locked] = await db
+      .select({ id: deviceSessions.id })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, deviceId))
+      .for('update');
     return locked ? this.load(db, deviceId) : null;
   }
 
@@ -668,9 +670,14 @@ class DeviceSessionService {
       deviceId: doc.deviceId,
       accountId: active.accountId,
     });
-    const removed = await this.removeFromDevice(doc.deviceId, (contexts, locked) => locked.revision !== doc.revision ? [] : contexts.filter(
-      (context) => context.contextId === active.contextId && context.sessionId === active.sessionId
-    ));
+    const removed = await this.removeFromDevice(doc.deviceId, (contexts, locked) =>
+      locked.revision !== doc.revision
+        ? []
+        : contexts.filter(
+            (context) =>
+              context.contextId === active.contextId && context.sessionId === active.sessionId,
+          ),
+    );
     return removed.ok ? removed.state : this.readState(doc.deviceId);
   }
 
@@ -745,7 +752,7 @@ class DeviceSessionService {
           // NULL, never a placeholder: a delegated add is exactly the one where
           // the person is not the account, and `''` would read as a personal
           // session belonging to nobody.
-          principalUserId === input.accountId ? input.sessionId : null
+          principalUserId === input.accountId ? input.sessionId : null,
         );
 
         await tx
@@ -826,7 +833,8 @@ class DeviceSessionService {
     const db = getDb();
     const current = await this.load(db, deviceId);
     const targets = current?.contexts.filter((context) => context.accountId === accountId) ?? [];
-    if (!current || targets.length !== 1 || !targets[0].sessionId) return { ok: false, reason: 'not_found' };
+    if (!current || targets.length !== 1 || !targets[0].sessionId)
+      return { ok: false, reason: 'not_found' };
     const target = targets[0];
     const sessionId = targets[0].sessionId;
 
@@ -840,20 +848,34 @@ class DeviceSessionService {
     if (!validated) {
       // A new context or re-authentication may have arrived during validation.
       // Remove only the exact rejected session, never this account globally.
-      const removed = await this.removeFromDevice(deviceId, (contexts, locked) => locked.revision !== current.revision ? [] : contexts.filter(
-        (context) => context.contextId === target.contextId && context.sessionId === target.sessionId
-      ));
+      const removed = await this.removeFromDevice(deviceId, (contexts, locked) =>
+        locked.revision !== current.revision
+          ? []
+          : contexts.filter(
+              (context) =>
+                context.contextId === target.contextId && context.sessionId === target.sessionId,
+            ),
+      );
       const state = removed.ok ? removed.state : await this.readState(deviceId);
       return { ok: false, reason: 'unauthorized', state };
     }
 
     const updated = await db.transaction(async (tx) => {
-      await tx.select({ id: deviceSessions.id }).from(deviceSessions)
-        .where(eq(deviceSessions.id, current.id)).for('update');
+      await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.id, current.id))
+        .for('update');
       const latest = await this.load(tx, deviceId);
       const matches = latest?.contexts.filter((context) => context.accountId === accountId) ?? [];
-      if (!latest || latest.revision !== current.revision || matches.length !== 1
-        || matches[0].contextId !== target.contextId || matches[0].sessionId !== target.sessionId) return null;
+      if (
+        !latest ||
+        latest.revision !== current.revision ||
+        matches.length !== 1 ||
+        matches[0].contextId !== target.contextId ||
+        matches[0].sessionId !== target.sessionId
+      )
+        return null;
       await tx
         .update(deviceSessions)
         .set({
@@ -877,7 +899,10 @@ class DeviceSessionService {
    * session for a non-active account without any other app on the same device
    * observing a state change.
    */
-  async resolveTokenForAccount(state: DeviceSessionState, accountId: string): Promise<{ accessToken: string; expiresAt: string } | null> {
+  async resolveTokenForAccount(
+    state: DeviceSessionState,
+    accountId: string,
+  ): Promise<{ accessToken: string; expiresAt: string } | null> {
     const accounts = state.accounts.filter((account) => account.accountId === accountId);
     if (accounts.length !== 1) return null;
     const account = accounts[0];
@@ -887,8 +912,12 @@ class DeviceSessionService {
     const token = await this.resolveTokenForSession(account.sessionId);
     const latest = await this.load(getDb(), state.deviceId);
     const remaining = latest?.contexts.filter((context) => context.accountId === accountId) ?? [];
-    if (remaining.length !== 1 || remaining[0].contextId !== contexts[0].contextId
-      || remaining[0].sessionId !== account.sessionId) return null;
+    if (
+      remaining.length !== 1 ||
+      remaining[0].contextId !== contexts[0].contextId ||
+      remaining[0].sessionId !== account.sessionId
+    )
+      return null;
     return token;
   }
 
@@ -905,30 +934,57 @@ class DeviceSessionService {
    * duplicate the answer this one is about to give.
    */
   private async resolveTokenForSession(
-    sessionId: string
+    sessionId: string,
   ): Promise<{ accessToken: string; expiresAt: string } | null> {
     const token = await sessionService.getAccessToken(sessionId);
     if (!token) return null;
     return { accessToken: token.accessToken, expiresAt: token.expiresAt.toISOString() };
   }
 
-  async resolveActiveToken(state: DeviceSessionState): Promise<{ accessToken: string; expiresAt: string } | null> {
+  async resolveActiveToken(
+    state: DeviceSessionState,
+  ): Promise<{ accessToken: string; expiresAt: string } | null> {
     if (!state.activeAccountId) return null;
     const current = await this.load(getDb(), state.deviceId);
-    if (!current || current.revision !== state.revision || current.activeAccountId !== state.activeAccountId) return null;
-    const active = current.contexts.find((context) => context.contextId === current.activeContextId);
-    if (!active?.sessionId || active.accountId !== state.activeAccountId
-      || !state.accounts.some((account) => account.accountId === active.accountId && account.sessionId === active.sessionId)) return null;
+    if (
+      !current ||
+      current.revision !== state.revision ||
+      current.activeAccountId !== state.activeAccountId
+    )
+      return null;
+    const active = current.contexts.find(
+      (context) => context.contextId === current.activeContextId,
+    );
+    if (
+      !active?.sessionId ||
+      active.accountId !== state.activeAccountId ||
+      !state.accounts.some(
+        (account) =>
+          account.accountId === active.accountId && account.sessionId === active.sessionId,
+      )
+    )
+      return null;
     const token = await this.resolveTokenForSession(active.sessionId);
     // A concurrent activation of another operator may retain activeAccountId.
     // Never pair its token with the earlier revision's public state.
     const latest = await this.load(getDb(), state.deviceId);
-    if (!latest || latest.revision !== state.revision || latest.activeContextId !== active.contextId
-      || !latest.contexts.some((context) => context.contextId === active.contextId && context.sessionId === active.sessionId)) return null;
+    if (
+      !latest ||
+      latest.revision !== state.revision ||
+      latest.activeContextId !== active.contextId ||
+      !latest.contexts.some(
+        (context) =>
+          context.contextId === active.contextId && context.sessionId === active.sessionId,
+      )
+    )
+      return null;
     return token;
   }
 
-  async signout(deviceId: string, target: { accountId: string } | { all: true }): Promise<DeviceSessionState> {
+  async signout(
+    deviceId: string,
+    target: { accountId: string } | { all: true },
+  ): Promise<DeviceSessionState> {
     const db = getDb();
     let removedSessionIds: string[] = [];
     const updated = await db.transaction(async (tx) => {
@@ -956,13 +1012,17 @@ class DeviceSessionService {
         }
       }
 
-      removedSessionIds = allAccounts.filter((a) => removingIds.has(a.accountId)).map((a) => a.sessionId);
+      removedSessionIds = allAccounts
+        .filter((a) => removingIds.has(a.accountId))
+        .map((a) => a.sessionId);
 
       const remaining = allAccounts.filter((a) => !removingIds.has(a.accountId));
       const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
       const nextActive = activeStillPresent
         ? current.activeAccountId
-        : (remaining[0] ? remaining[0].accountId : null);
+        : remaining[0]
+          ? remaining[0].accountId
+          : null;
       const boundBackgroundAccountId = current.backgroundSecretAccountId;
       const shouldClearBackground =
         'all' in target ||
@@ -1014,8 +1074,11 @@ class DeviceSessionService {
     });
     if (!updated) return this.getState(deviceId);
     for (const sessionId of removedSessionIds) {
-      try { await sessionService.deactivateSession(sessionId); }
-      catch (error) { logger.warn('deviceSession.signout: deactivate failed', { sessionId, error }); }
+      try {
+        await sessionService.deactivateSession(sessionId);
+      } catch (error) {
+        logger.warn('deviceSession.signout: deactivate failed', { sessionId, error });
+      }
     }
     return projectState(updated);
   }
@@ -1027,7 +1090,7 @@ class DeviceSessionService {
   /** The PEOPLE on a device, in `authuser` order. Revoked principals excluded. */
   private async loadPrincipals(
     db: Queryable,
-    deviceSessionId: string
+    deviceSessionId: string,
   ): Promise<DevicePrincipalRow[]> {
     return db
       .select({
@@ -1040,8 +1103,8 @@ class DeviceSessionService {
       .where(
         and(
           eq(devicePrincipals.deviceSessionId, deviceSessionId),
-          isNull(devicePrincipals.revokedAt)
-        )
+          isNull(devicePrincipals.revokedAt),
+        ),
       )
       .orderBy(asc(devicePrincipals.authuser), asc(devicePrincipals.id));
   }
@@ -1088,7 +1151,7 @@ class DeviceSessionService {
 
   /** The act-as set of every principal on the device, keyed by principal id. */
   private async loadActAsByPrincipal(
-    principals: readonly DevicePrincipalRow[]
+    principals: readonly DevicePrincipalRow[],
   ): Promise<Map<string, Map<string, ActAsAccount>>> {
     const byPrincipal = new Map<string, Map<string, ActAsAccount>>();
     for (const principal of principals) {
@@ -1107,7 +1170,7 @@ class DeviceSessionService {
    */
   private async loadProfilesByAccountId(
     db: Queryable,
-    accountIds: readonly string[]
+    accountIds: readonly string[],
   ): Promise<Map<string, { profile: DeviceDirectoryProfile; kind: AccountKind }>> {
     const byId = new Map<string, { profile: DeviceDirectoryProfile; kind: AccountKind }>();
     if (accountIds.length === 0) return byId;
@@ -1155,11 +1218,14 @@ class DeviceSessionService {
     db: Queryable,
     deviceSessionId: string,
     principals: readonly DevicePrincipalRow[],
-    actAsByPrincipal: ReadonlyMap<string, ReadonlyMap<string, ActAsAccount>>
+    actAsByPrincipal: ReadonlyMap<string, ReadonlyMap<string, ActAsAccount>>,
   ): Promise<boolean> {
     return db.transaction(async (tx) => {
-      const [locked] = await tx.select({ id: deviceSessions.id }).from(deviceSessions)
-        .where(eq(deviceSessions.id, deviceSessionId)).for('update');
+      const [locked] = await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.id, deviceSessionId))
+        .for('update');
       if (!locked) return false;
       const currentPrincipals = await this.loadPrincipals(tx, deviceSessionId);
       const currentContexts = await this.loadContexts(tx, deviceSessionId);
@@ -1195,7 +1261,7 @@ class DeviceSessionService {
               principalId: entry.principalId,
               accountId: entry.accountId,
               sessionId: null,
-            }))
+            })),
           )
           // A concurrent directory read materializing the same pair is the
           // normal case (two apps cold-booting at once), and it must not fail
@@ -1240,7 +1306,7 @@ class DeviceSessionService {
     principals: readonly DevicePrincipalRow[],
     contexts: readonly DeviceContextRow[],
     actAsByPrincipal: ReadonlyMap<string, ReadonlyMap<string, ActAsAccount>>,
-    fallbackProfiles: ReadonlyMap<string, { profile: DeviceDirectoryProfile; kind: AccountKind }>
+    fallbackProfiles: ReadonlyMap<string, { profile: DeviceDirectoryProfile; kind: AccountKind }>,
   ): Promise<DeviceDirectory> {
     const liveByPrincipalId = new Map<string, boolean>();
     for (const principal of principals) {
@@ -1269,8 +1335,7 @@ class DeviceSessionService {
             // say.
             kind: reachable?.kind ?? fallback?.kind ?? 'personal',
             relationship: reachable?.relationship ?? (personal ? 'self' : 'member'),
-            account:
-              reachable?.profile ??
+            account: reachable?.profile ??
               fallback?.profile ?? { id: context.accountId, username: '', avatar: null },
             onDevice: context.sessionId !== null,
             // Personal contexts are available while their principal is; a
@@ -1290,8 +1355,7 @@ class DeviceSessionService {
           return a.accountId < b.accountId ? -1 : a.accountId > b.accountId ? 1 : 0;
         });
 
-      const selfProfile =
-        actAs?.get(principal.userId)?.profile ??
+      const selfProfile = actAs?.get(principal.userId)?.profile ??
         fallbackProfiles.get(principal.userId)?.profile ?? {
           id: principal.userId,
           username: '',
@@ -1338,12 +1402,7 @@ class DeviceSessionService {
     const principals = await this.loadPrincipals(db, device.id);
     const actAsByPrincipal = await this.loadActAsByPrincipal(principals);
     const initial = await this.loadContexts(db, device.id);
-    const reconciled = await this.reconcileContexts(
-      db,
-      device.id,
-      principals,
-      actAsByPrincipal
-    );
+    const reconciled = await this.reconcileContexts(db, device.id, principals, actAsByPrincipal);
     const contexts = reconciled ? await this.loadContexts(db, device.id) : initial;
 
     const unreachable = contexts
@@ -1368,7 +1427,7 @@ class DeviceSessionService {
       principals,
       contexts,
       actAsByPrincipal,
-      fallbackProfiles
+      fallbackProfiles,
     );
   }
 
@@ -1395,7 +1454,7 @@ class DeviceSessionService {
   async activateContext(
     deviceId: string,
     contextId: string,
-    req: Request
+    req: Request,
   ): Promise<ActivateContextResult> {
     const db = getDb();
     const device = await this.loadDevice(db, deviceId);
@@ -1462,7 +1521,10 @@ class DeviceSessionService {
         // call to return, and nothing breaks the cycle because only one half of
         // it is a lock Postgres can see. The binding is written after COMMIT
         // instead (issue #937, Phase 6).
-        const authMethod = await readSessionAgentBinding(principal.personalSessionId ?? undefined, principal.userId);
+        const authMethod = await readSessionAgentBinding(
+          principal.personalSessionId ?? undefined,
+          principal.userId,
+        );
         const minted = await sessionService.createSession(target.accountId, req, {
           operatedByUserId: principal.userId,
           ...(authMethod ? { authMethod } : {}),
@@ -1566,20 +1628,21 @@ class DeviceSessionService {
    */
   private async removeContextRows(
     tx: Queryable,
-    device: { id: string; activeContextId: string | null; backgroundSecretAccountId: string | null },
+    device: {
+      id: string;
+      activeContextId: string | null;
+      backgroundSecretAccountId: string | null;
+    },
     contexts: readonly DeviceContextRow[],
     principals: readonly DevicePrincipalRow[],
-    victims: readonly DeviceContextRow[]
+    victims: readonly DeviceContextRow[],
   ): Promise<void> {
     if (victims.length === 0) return;
     const victimIds = new Set(victims.map((context) => context.contextId));
-    await tx
-      .delete(deviceAccountContexts)
-      .where(inArray(deviceAccountContexts.id, [...victimIds]));
+    await tx.delete(deviceAccountContexts).where(inArray(deviceAccountContexts.id, [...victimIds]));
     await this.pruneOrphanPrincipals(tx, device.id);
 
-    const activeRemoved =
-      device.activeContextId !== null && victimIds.has(device.activeContextId);
+    const activeRemoved = device.activeContextId !== null && victimIds.has(device.activeContextId);
     const remaining = contexts.filter((context) => !victimIds.has(context.contextId));
     // "The same principal's other contexts" is only a question when the removal
     // was ABOUT one principal — which is both callers today, and the election
@@ -1587,11 +1650,11 @@ class DeviceSessionService {
     const principalIds = new Set(victims.map((context) => context.principalId));
     const removedPrincipalId = principalIds.size === 1 ? victims[0].principalId : null;
     const survivingPrincipals = principals.filter((principal) =>
-      remaining.some((context) => context.principalId === principal.id)
+      remaining.some((context) => context.principalId === principal.id),
     );
     const elected = activeRemoved
       ? electReplacementContext(remaining, survivingPrincipals, removedPrincipalId)
-      : remaining.find((context) => context.contextId === device.activeContextId) ?? null;
+      : (remaining.find((context) => context.contextId === device.activeContextId) ?? null);
 
     await tx
       .update(deviceSessions)
@@ -1631,14 +1694,17 @@ class DeviceSessionService {
    */
   async removePrincipal(deviceId: string, principalId: string): Promise<RemoveFromDeviceResult> {
     return this.removeFromDevice(deviceId, (contexts) =>
-      contexts.filter((context) => context.principalId === principalId)
+      contexts.filter((context) => context.principalId === principalId),
     );
   }
 
   /** The shared body of the two removals: pick victims, delete, re-elect, emit. */
   private async removeFromDevice(
     deviceId: string,
-    pick: (contexts: readonly DeviceContextRow[], device: { revision: number }) => DeviceContextRow[]
+    pick: (
+      contexts: readonly DeviceContextRow[],
+      device: { revision: number },
+    ) => DeviceContextRow[],
   ): Promise<RemoveFromDeviceResult> {
     const db = getDb();
     const device = await this.loadDevice(db, deviceId);
@@ -1716,7 +1782,7 @@ class DeviceSessionService {
   async detachMigratedAccount(
     deviceId: string,
     accountId: string,
-    preserveSessionId: string
+    preserveSessionId: string,
   ): Promise<DeviceSessionState | null> {
     const db = getDb();
     let displacedSessionId: string | null = null;
@@ -1731,7 +1797,9 @@ class DeviceSessionService {
       const activeStillPresent = remaining.some((a) => a.accountId === current.activeAccountId);
       const nextActive = activeStillPresent
         ? current.activeAccountId
-        : (remaining[0] ? remaining[0].accountId : null);
+        : remaining[0]
+          ? remaining[0].accountId
+          : null;
 
       await tx
         .delete(deviceAccountContexts)
@@ -1747,7 +1815,9 @@ class DeviceSessionService {
         .set({
           ...(await this.resolveActiveFields(tx, current.id, nextActive)),
           revision: sql`${deviceSessions.revision} + 1`,
-          ...(current.backgroundSecretAccountId === accountId ? this.clearedBackgroundCredentialFields() : {}),
+          ...(current.backgroundSecretAccountId === accountId
+            ? this.clearedBackgroundCredentialFields()
+            : {}),
         })
         .where(eq(deviceSessions.id, current.id));
       await this.revokeHolderCredentialsIfSignedOut(tx, current.id);
@@ -1755,8 +1825,14 @@ class DeviceSessionService {
     });
     if (!updated) return null;
     if (displacedSessionId) {
-      try { await sessionService.deactivateSession(displacedSessionId); }
-      catch (error) { logger.warn('deviceSession.detachMigratedAccount: deactivate failed', { sessionId: displacedSessionId, error }); }
+      try {
+        await sessionService.deactivateSession(displacedSessionId);
+      } catch (error) {
+        logger.warn('deviceSession.detachMigratedAccount: deactivate failed', {
+          sessionId: displacedSessionId,
+          error,
+        });
+      }
     }
     return projectState(updated);
   }
@@ -1789,8 +1865,8 @@ class DeviceSessionService {
         and(
           eq(deviceSessions.deviceId, deviceId),
           eq(deviceAccountContexts.sessionId, sessionId),
-          isNull(deviceAccountContexts.revokedAt)
-        )
+          isNull(deviceAccountContexts.revokedAt),
+        ),
       )
       .limit(1);
     if (!context) return false;
@@ -1938,7 +2014,9 @@ class DeviceSessionService {
 
   /** Delete every holder credential of a device (sign-out-all). */
   private async revokeHolderCredentials(tx: Queryable, deviceSessionId: string): Promise<void> {
-    await tx.delete(deviceCredentials).where(eq(deviceCredentials.deviceSessionId, deviceSessionId));
+    await tx
+      .delete(deviceCredentials)
+      .where(eq(deviceCredentials.deviceSessionId, deviceSessionId));
   }
 
   /**
@@ -1952,7 +2030,10 @@ class DeviceSessionService {
    * open for a browser with nothing on it, so every holder is signed out at
    * once and a later sign-in issues fresh ones.
    */
-  private async revokeHolderCredentialsIfSignedOut(tx: Queryable, deviceSessionId: string): Promise<void> {
+  private async revokeHolderCredentialsIfSignedOut(
+    tx: Queryable,
+    deviceSessionId: string,
+  ): Promise<void> {
     const [signedIn] = await tx
       .select({ id: deviceAccountContexts.id })
       .from(deviceAccountContexts)
@@ -1994,17 +2075,29 @@ class DeviceSessionService {
     // Mint outside the row lock: session writes can take a device FK lock.
     // Persist only if the exact validated context/revision survives the await.
     const issued = await getDb().transaction(async (tx) => {
-      await tx.select({ id: deviceSessions.id }).from(deviceSessions)
-        .where(eq(deviceSessions.id, current.id)).for('update');
+      await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.id, current.id))
+        .for('update');
       const latest = await this.load(tx, deviceId);
       const matching = latest?.contexts.filter((context) => context.accountId === accountId) ?? [];
-      if (!latest || latest.revision !== current.revision || matching.length !== 1
-        || matching[0].contextId !== target.contextId || matching[0].sessionId !== target.sessionId) return false;
-      await tx.update(deviceSessions).set({
-        backgroundSecretHash: secretHash,
-        backgroundSecretAccountId: accountId,
-        backgroundSecretExpiresAt: expiresAt,
-      }).where(eq(deviceSessions.id, latest.id));
+      if (
+        !latest ||
+        latest.revision !== current.revision ||
+        matching.length !== 1 ||
+        matching[0].contextId !== target.contextId ||
+        matching[0].sessionId !== target.sessionId
+      )
+        return false;
+      await tx
+        .update(deviceSessions)
+        .set({
+          backgroundSecretHash: secretHash,
+          backgroundSecretAccountId: accountId,
+          backgroundSecretExpiresAt: expiresAt,
+        })
+        .where(eq(deviceSessions.id, latest.id));
       return true;
     });
     if (!issued) return null;
@@ -2022,7 +2115,10 @@ class DeviceSessionService {
    * presented secret. Distinguishes an invalid/expired credential from a live
    * credential whose bound account is no longer on the device.
    */
-  async mintFromBackgroundSecret(deviceId: string, rawSecret: string): Promise<BackgroundMintResult> {
+  async mintFromBackgroundSecret(
+    deviceId: string,
+    rawSecret: string,
+  ): Promise<BackgroundMintResult> {
     if (typeof deviceId !== 'string' || deviceId.length === 0) {
       return { ok: false, reason: 'background_credential_invalid' };
     }
@@ -2058,19 +2154,27 @@ class DeviceSessionService {
     // Retirement or reprovisioning may happen while the live minter awaits.
     // Serialize the final proof/context comparison with those writes.
     const accepted = await getDb().transaction(async (tx) => {
-      await tx.select({ id: deviceSessions.id }).from(deviceSessions)
-        .where(eq(deviceSessions.id, doc.id)).for('update');
+      await tx
+        .select({ id: deviceSessions.id })
+        .from(deviceSessions)
+        .where(eq(deviceSessions.id, doc.id))
+        .for('update');
       const latest = await this.load(tx, deviceId);
       const original = doc.contexts.filter((context) => context.accountId === boundAccountId);
-      const matching = latest?.contexts.filter((context) => context.accountId === boundAccountId) ?? [];
-      return latest !== null && typeof latest.backgroundSecretHash === 'string'
-        && timingSafeStringEqual(hash, latest.backgroundSecretHash)
-        && latest.backgroundSecretAccountId === boundAccountId
-        && latest.backgroundSecretExpiresAt instanceof Date
-        && latest.backgroundSecretExpiresAt.getTime() > Date.now()
-        && original.length === 1 && matching.length === 1
-        && matching[0].contextId === original[0].contextId
-        && matching[0].sessionId === original[0].sessionId;
+      const matching =
+        latest?.contexts.filter((context) => context.accountId === boundAccountId) ?? [];
+      return (
+        latest !== null &&
+        typeof latest.backgroundSecretHash === 'string' &&
+        timingSafeStringEqual(hash, latest.backgroundSecretHash) &&
+        latest.backgroundSecretAccountId === boundAccountId &&
+        latest.backgroundSecretExpiresAt instanceof Date &&
+        latest.backgroundSecretExpiresAt.getTime() > Date.now() &&
+        original.length === 1 &&
+        matching.length === 1 &&
+        matching[0].contextId === original[0].contextId &&
+        matching[0].sessionId === original[0].sessionId
+      );
     });
     if (!accepted) return { ok: false, reason: 'background_credential_invalid' };
     return {

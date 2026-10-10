@@ -1,16 +1,29 @@
-import type { StartNativeOAuthSignInOptions, NativeOAuthSignInResult } from '../oauth/nativeAuthTransport';
+import type {
+  StartNativeOAuthSignInOptions,
+  NativeOAuthSignInResult,
+} from '../oauth/nativeAuthTransport';
 import type { ReactNode } from 'react';
 import type { LoginSessionResult } from '@oxy.so/contracts';
-import type { OxyServices, User, SessionLoginResponse, AccountNode, CreateAccountInput, ClientSession, ApiError } from '@oxy.so/core';
-import type { AccountDialogController, AccountDialogView, SessionClient, SessionMode } from '@oxy.so/core/session';
+import type {
+  OxyServices,
+  User,
+  SessionLoginResponse,
+  AccountNode,
+  CreateAccountInput,
+  ClientSession,
+  ApiError,
+} from '@oxy.so/core';
+import type {
+  AccountDialogController,
+  AccountDialogView,
+  SessionClient,
+  SessionMode,
+} from '@oxy.so/core/session';
 import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';
 import type { StartWebOAuthSignInOptions } from '../oauth/browserAuthTransport';
-import type {
-  OAuthConsentResult,
-  RequestOAuthConsentOptions,
-} from '../oauth/explicitOAuthConsent';
+import type { OAuthConsentResult, RequestOAuthConsentOptions } from '../oauth/explicitOAuthConsent';
 import type { WebAuthMode, WebOAuthSignInResult } from '../oauth/types';
 import type { StorageInterface } from '../utils/storageHelpers';
 import type { AccountQueriesConfig } from '../hooks/accountQueryPersistence';
@@ -108,7 +121,9 @@ export interface OxyContextState {
    * resolve to `{ status: 'unsupported' }`.
    */
   /** Native SDK finalizer; call only from an explicit user gesture. */
-  startNativeOAuthSignIn: (options: StartNativeOAuthSignInOptions) => Promise<NativeOAuthSignInResult>;
+  startNativeOAuthSignIn: (
+    options: StartNativeOAuthSignInOptions,
+  ) => Promise<NativeOAuthSignInResult>;
 
   startWebOAuthSignIn: (options: StartWebOAuthSignInOptions) => Promise<WebOAuthSignInResult>;
 
@@ -146,7 +161,9 @@ export interface OxyContextState {
   /** Server-authoritative device session client. `null` before an `OxyProvider` is mounted. */
   sessionClient: SessionClient | null;
   useFollow?: UseFollowHook;
-  showBottomSheet?: (screenOrConfig: RouteName | { screen: RouteName; props?: Record<string, unknown> }) => void;
+  showBottomSheet?: (
+    screenOrConfig: RouteName | { screen: RouteName; props?: Record<string, unknown> },
+  ) => void;
   openAvatarPicker: () => void;
 
   accountDialogController: AccountDialogController | null;

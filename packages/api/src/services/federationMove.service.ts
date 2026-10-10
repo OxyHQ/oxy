@@ -26,7 +26,11 @@
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { externalIdentityActors, externalIdentityClaims, externalIdentities } from '../db/schema/externalIdentities';
+import {
+  externalIdentityActors,
+  externalIdentityClaims,
+  externalIdentities,
+} from '../db/schema/externalIdentities';
 import { federatedAccountMoves } from '../db/schema/federatedAccountMoves';
 import { userLinkedAccounts } from '../db/schema/userLinkedAccounts';
 import { users } from '../db/schema/users';
@@ -95,14 +99,25 @@ function referenceUri(value: unknown): string | undefined {
 }
 
 /** `https://<host>/ap/users/<username>` on a host this Move may name, or null. */
-function parseLocalActor(uri: string, relayHosts: ReadonlySet<string>): { host: string; username: string } | null {
+function parseLocalActor(
+  uri: string,
+  relayHosts: ReadonlySet<string>,
+): { host: string; username: string } | null {
   let url: URL;
   try {
     url = new URL(uri);
   } catch {
     return null;
   }
-  if (url.protocol !== 'https:' || url.username || url.password || url.port || url.search || url.hash) return null;
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    url.port ||
+    url.search ||
+    url.hash
+  )
+    return null;
   // The username is not validated here: the account lookup below is the authority.
   const match = /^\/ap\/users\/([^/]+)$/.exec(url.pathname);
   if (!match) return null;
@@ -113,7 +128,10 @@ function parseLocalActor(uri: string, relayHosts: ReadonlySet<string>): { host: 
   return allowed ? { host, username: match[1] } : null;
 }
 
-function outcomeFromRow(row: typeof federatedAccountMoves.$inferSelect, replayed: boolean): FederationMoveOutcome {
+function outcomeFromRow(
+  row: typeof federatedAccountMoves.$inferSelect,
+  replayed: boolean,
+): FederationMoveOutcome {
   return {
     moveId: row.id,
     replayed,
@@ -147,24 +165,35 @@ async function findFederatedUser(actorUri: string): Promise<string | null> {
   const [registered] = await getDb()
     .select({ id: users.id })
     .from(externalIdentityActors)
-    .innerJoin(externalIdentities, eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct))
+    .innerJoin(
+      externalIdentities,
+      eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct),
+    )
     .innerJoin(users, eq(users.id, externalIdentities.userId))
     .where(and(eq(externalIdentityActors.actorUri, actorUri), eq(users.type, 'federated')))
     .limit(1);
   return registered?.id ?? null;
 }
 
-export async function applyFederationMove(request: FederationMoveRequest): Promise<FederationMoveOutcome> {
+export async function applyFederationMove(
+  request: FederationMoveRequest,
+): Promise<FederationMoveOutcome> {
   const recorded = await findRecordedMove(request.activityId);
   if (recorded) return outcomeFromRow(recorded, true);
 
   const local = parseLocalActor(request.targetActorUri, request.relayHosts);
-  if (!local) throw new FederationMoveRefused('invalid_target', 'target is not a local actor this application may name');
+  if (!local)
+    throw new FederationMoveRefused(
+      'invalid_target',
+      'target is not a local actor this application may name',
+    );
 
   const [target] = await getDb()
     .select({ id: users.id, username: users.username })
     .from(users)
-    .where(and(sql`lower(btrim(${users.username})) = lower(${local.username})`, eq(users.type, 'local')))
+    .where(
+      and(sql`lower(btrim(${users.username})) = lower(${local.username})`, eq(users.type, 'local')),
+    )
     .limit(1);
   if (!target) throw new FederationMoveRefused('unknown_target', 'target names no local account');
 
@@ -181,13 +210,23 @@ export async function applyFederationMove(request: FederationMoveRequest): Promi
     )
     .limit(1);
   if (!alias) {
-    throw new FederationMoveRefused('alias_missing', 'the target account has not linked the moving account as an alias');
+    throw new FederationMoveRefused(
+      'alias_missing',
+      'the target account has not linked the moving account as an alias',
+    );
   }
 
   const oldActor = await federationService.fetchActorDocument(request.oldActorUri);
-  if (!oldActor) throw new FederationMoveRefused('old_actor_unreachable', 'the moving actor could not be fetched');
+  if (!oldActor)
+    throw new FederationMoveRefused(
+      'old_actor_unreachable',
+      'the moving actor could not be fetched',
+    );
   if (referenceUri(oldActor.movedTo) !== request.targetActorUri) {
-    throw new FederationMoveRefused('moved_to_mismatch', "the moving actor's movedTo does not name the target");
+    throw new FederationMoveRefused(
+      'moved_to_mismatch',
+      "the moving actor's movedTo does not name the target",
+    );
   }
 
   const oldUserId = await findFederatedUser(request.oldActorUri);
@@ -209,7 +248,11 @@ export async function applyFederationMove(request: FederationMoveRequest): Promi
       .returning();
     if (!row) return null;
 
-    let moved = { moved: [] as string[], alreadyFollowing: [] as string[], skippedBlocked: [] as string[] };
+    let moved = {
+      moved: [] as string[],
+      alreadyFollowing: [] as string[],
+      skippedBlocked: [] as string[],
+    };
     if (oldUserId && oldUserId !== target.id) {
       await applyVerifiedMoveRedirect(tx, { fromUserId: oldUserId, toUserId: target.id });
       moved = await moveAccountFollowers(tx, { fromUserId: oldUserId, toUserId: target.id });
@@ -250,7 +293,10 @@ export async function applyFederationMove(request: FederationMoveRequest): Promi
   }
 
   if (oldUserId) {
-    await invalidateMovedFollowerCaches({ fromUserId: oldUserId, toUserId: target.id }, applied.moved);
+    await invalidateMovedFollowerCaches(
+      { fromUserId: oldUserId, toUserId: target.id },
+      applied.moved,
+    );
     userCache.invalidate(oldUserId);
   }
   userCache.invalidate(target.id);

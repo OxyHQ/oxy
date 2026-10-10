@@ -49,8 +49,11 @@ import {
   updateContactSchema,
 } from '../schemas/email.schemas';
 // Schema-only bindings consumed by generate-openapi's `@response` annotations.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import type { listSubscriptionsResponseSchema, unsubscribeResponseSchema } from '../schemas/email.schemas';
+// biome-ignore lint/correctness/noUnusedImports: schema-only bindings consumed by generate-openapi's `@response` annotations
+import type {
+  listSubscriptionsResponseSchema,
+  unsubscribeResponseSchema,
+} from '../schemas/email.schemas';
 import {
   listMailboxes,
   createMailbox,
@@ -168,7 +171,11 @@ router.post('/mailboxes', validate({ body: createMailboxSchema }), asyncHandler(
  * (Inbox when there is no Archive) before the folder is removed. System
  * folders cannot be deleted.
  */
-router.delete('/mailboxes/:mailboxId', validate({ params: mailboxIdParams }), asyncHandler(deleteMailbox));
+router.delete(
+  '/mailboxes/:mailboxId',
+  validate({ params: mailboxIdParams }),
+  asyncHandler(deleteMailbox),
+);
 
 // ─── Messages ─────────────────────────────────────────────────────
 
@@ -178,18 +185,58 @@ router.get('/messages/bundled', asyncHandler(listBundledMessages));
 // Register these before /messages/:messageId routes so "bulk" is not
 // captured as a messageId by Express' first-match routing.
 
-router.post('/messages/bulk/flags', validate({ body: bulkUpdateFlagsSchema }), asyncHandler(bulkUpdateFlags));
-router.post('/messages/bulk/move', validate({ body: bulkMoveMessagesSchema }), asyncHandler(bulkMoveMessages));
+router.post(
+  '/messages/bulk/flags',
+  validate({ body: bulkUpdateFlagsSchema }),
+  asyncHandler(bulkUpdateFlags),
+);
+router.post(
+  '/messages/bulk/move',
+  validate({ body: bulkMoveMessagesSchema }),
+  asyncHandler(bulkMoveMessages),
+);
 
 router.get('/messages/:messageId', validate({ params: messageIdParams }), asyncHandler(getMessage));
-router.get('/messages/:messageId/thread', validate({ params: messageIdParams }), asyncHandler(getThread));
-router.get('/messages/:messageId/export', validate({ params: messageIdParams }), asyncHandler(exportMessage));
-router.put('/messages/:messageId/flags', validate({ params: messageIdParams, body: updateFlagsSchema }), asyncHandler(updateMessageFlags));
-router.put('/messages/:messageId/labels', validate({ params: messageIdParams, body: updateLabelsSchema }), asyncHandler(updateMessageLabels));
-router.post('/messages/:messageId/move', validate({ params: messageIdParams, body: moveMessageSchema }), asyncHandler(moveMessage));
-router.delete('/messages/:messageId', validate({ params: messageIdParams }), asyncHandler(deleteMessage));
-router.post('/messages/:messageId/snooze', validate({ params: messageIdParams, body: snoozeMessageSchema }), asyncHandler(snoozeMessage));
-router.post('/messages/:messageId/unsnooze', validate({ params: messageIdParams }), asyncHandler(unsnoozeMessage));
+router.get(
+  '/messages/:messageId/thread',
+  validate({ params: messageIdParams }),
+  asyncHandler(getThread),
+);
+router.get(
+  '/messages/:messageId/export',
+  validate({ params: messageIdParams }),
+  asyncHandler(exportMessage),
+);
+router.put(
+  '/messages/:messageId/flags',
+  validate({ params: messageIdParams, body: updateFlagsSchema }),
+  asyncHandler(updateMessageFlags),
+);
+router.put(
+  '/messages/:messageId/labels',
+  validate({ params: messageIdParams, body: updateLabelsSchema }),
+  asyncHandler(updateMessageLabels),
+);
+router.post(
+  '/messages/:messageId/move',
+  validate({ params: messageIdParams, body: moveMessageSchema }),
+  asyncHandler(moveMessage),
+);
+router.delete(
+  '/messages/:messageId',
+  validate({ params: messageIdParams }),
+  asyncHandler(deleteMessage),
+);
+router.post(
+  '/messages/:messageId/snooze',
+  validate({ params: messageIdParams, body: snoozeMessageSchema }),
+  asyncHandler(snoozeMessage),
+);
+router.post(
+  '/messages/:messageId/unsnooze',
+  validate({ params: messageIdParams }),
+  asyncHandler(unsnoozeMessage),
+);
 
 // ─── Labels ──────────────────────────────────────────────────────
 
@@ -210,7 +257,11 @@ router.post('/labels', validate({ body: createLabelSchema }), asyncHandler(creat
  * and to saved searches naming it, all in one transaction.
  * @response 409 Error Another label with this name (in any case) already exists.
  */
-router.put('/labels/:labelId', validate({ params: labelIdParams, body: updateLabelSchema }), asyncHandler(updateLabel));
+router.put(
+  '/labels/:labelId',
+  validate({ params: labelIdParams, body: updateLabelSchema }),
+  asyncHandler(updateLabel),
+);
 router.delete('/labels/:labelId', validate({ params: labelIdParams }), asyncHandler(deleteLabel));
 
 // ─── Contacts ────────────────────────────────────────────────────
@@ -218,23 +269,47 @@ router.delete('/labels/:labelId', validate({ params: labelIdParams }), asyncHand
 router.get('/contacts/suggest', asyncHandler(suggestContacts));
 router.get('/contacts', asyncHandler(listContacts));
 router.post('/contacts', validate({ body: createContactSchema }), asyncHandler(createContact));
-router.put('/contacts/:contactId', validate({ params: contactIdParams, body: updateContactSchema }), asyncHandler(updateContact));
-router.delete('/contacts/:contactId', validate({ params: contactIdParams }), asyncHandler(deleteContact));
+router.put(
+  '/contacts/:contactId',
+  validate({ params: contactIdParams, body: updateContactSchema }),
+  asyncHandler(updateContact),
+);
+router.delete(
+  '/contacts/:contactId',
+  validate({ params: contactIdParams }),
+  asyncHandler(deleteContact),
+);
 
 // ─── Compose ──────────────────────────────────────────────────────
 
 router.post('/messages', validate({ body: sendMessageSchema }), asyncHandler(sendMessage));
 router.post('/drafts', validate({ body: saveDraftSchema }), asyncHandler(saveDraft));
 router.get('/outbox', asyncHandler(listOutboundMessages));
-router.post('/outbox/:outboxId/retry', validate({ params: outboxIdParams }), asyncHandler(retryOutboundMessage));
-router.post('/outbox/:outboxId/cancel', validate({ params: outboxIdParams }), asyncHandler(cancelOutboundMessage));
+router.post(
+  '/outbox/:outboxId/retry',
+  validate({ params: outboxIdParams }),
+  asyncHandler(retryOutboundMessage),
+);
+router.post(
+  '/outbox/:outboxId/cancel',
+  validate({ params: outboxIdParams }),
+  asyncHandler(cancelOutboundMessage),
+);
 
 // ─── Search ───────────────────────────────────────────────────────
 
 router.get('/search', asyncHandler(searchMessages));
 router.get('/saved-searches', asyncHandler(listSavedSearches));
-router.post('/saved-searches', validate({ body: createSavedSearchSchema }), asyncHandler(createSavedSearch));
-router.delete('/saved-searches/:savedSearchId', validate({ params: savedSearchIdParams }), asyncHandler(deleteSavedSearch));
+router.post(
+  '/saved-searches',
+  validate({ body: createSavedSearchSchema }),
+  asyncHandler(createSavedSearch),
+);
+router.delete(
+  '/saved-searches/:savedSearchId',
+  validate({ params: savedSearchIdParams }),
+  asyncHandler(deleteSavedSearch),
+);
 
 // ─── Quota ────────────────────────────────────────────────────────
 
@@ -270,38 +345,78 @@ router.get('/subscriptions', asyncHandler(listSubscriptions));
  * always runs, since it only moves mail locally.
  * @response 200 unsubscribeResponseSchema How the unsubscribe was carried out, and when.
  */
-router.post('/subscriptions/unsubscribe', validate({ body: unsubscribeSchema }), asyncHandler(unsubscribe));
+router.post(
+  '/subscriptions/unsubscribe',
+  validate({ body: unsubscribeSchema }),
+  asyncHandler(unsubscribe),
+);
 
 // ─── Bundles ──────────────────────────────────────────────────────
 
 router.get('/bundles', asyncHandler(listBundles));
-router.put('/bundles/:bundleId', validate({ params: bundleIdParams, body: updateBundleSchema }), asyncHandler(updateBundle));
+router.put(
+  '/bundles/:bundleId',
+  validate({ params: bundleIdParams, body: updateBundleSchema }),
+  asyncHandler(updateBundle),
+);
 
 // ─── Reminders ───────────────────────────────────────────────────
 
 router.post('/reminders', validate({ body: createReminderSchema }), asyncHandler(createReminder));
 router.get('/reminders', asyncHandler(listReminders));
-router.get('/reminders/:reminderId', validate({ params: reminderIdParams }), asyncHandler(getReminder));
-router.put('/reminders/:reminderId', validate({ params: reminderIdParams, body: updateReminderSchema }), asyncHandler(updateReminder));
-router.delete('/reminders/:reminderId', validate({ params: reminderIdParams }), asyncHandler(deleteReminder));
+router.get(
+  '/reminders/:reminderId',
+  validate({ params: reminderIdParams }),
+  asyncHandler(getReminder),
+);
+router.put(
+  '/reminders/:reminderId',
+  validate({ params: reminderIdParams, body: updateReminderSchema }),
+  asyncHandler(updateReminder),
+);
+router.delete(
+  '/reminders/:reminderId',
+  validate({ params: reminderIdParams }),
+  asyncHandler(deleteReminder),
+);
 
 // ─── Filters ────────────────────────────────────────────────────
 
 router.get('/filters', asyncHandler(listFilters));
 router.post('/filters', validate({ body: createFilterSchema }), asyncHandler(createFilter));
-router.put('/filters/:filterId', validate({ params: filterIdParams, body: updateFilterSchema }), asyncHandler(updateFilter));
-router.delete('/filters/:filterId', validate({ params: filterIdParams }), asyncHandler(deleteFilter));
+router.put(
+  '/filters/:filterId',
+  validate({ params: filterIdParams, body: updateFilterSchema }),
+  asyncHandler(updateFilter),
+);
+router.delete(
+  '/filters/:filterId',
+  validate({ params: filterIdParams }),
+  asyncHandler(deleteFilter),
+);
 
 // ─── Templates ──────────────────────────────────────────────────
 
 router.get('/templates', asyncHandler(listTemplates));
 router.post('/templates', validate({ body: createTemplateSchema }), asyncHandler(createTemplate));
-router.put('/templates/:templateId', validate({ params: templateIdParams, body: updateTemplateSchema }), asyncHandler(updateTemplate));
-router.delete('/templates/:templateId', validate({ params: templateIdParams }), asyncHandler(deleteTemplate));
+router.put(
+  '/templates/:templateId',
+  validate({ params: templateIdParams, body: updateTemplateSchema }),
+  asyncHandler(updateTemplate),
+);
+router.delete(
+  '/templates/:templateId',
+  validate({ params: templateIdParams }),
+  asyncHandler(deleteTemplate),
+);
 
 // ─── Settings ─────────────────────────────────────────────────────
 
 router.get('/settings', asyncHandler(getEmailSettings));
-router.put('/settings', validate({ body: updateEmailSettingsSchema }), asyncHandler(updateEmailSettings));
+router.put(
+  '/settings',
+  validate({ body: updateEmailSettingsSchema }),
+  asyncHandler(updateEmailSettings),
+);
 
 export default router;

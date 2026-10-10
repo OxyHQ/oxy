@@ -31,11 +31,15 @@ export const logPrivateKeyExported = async (req: AuthRequest, res: Response): Pr
 
     res.status(200).json({ success: true });
   } catch (error) {
-    logger.error('Failed to log private key exported event', error instanceof Error ? error : new Error(String(error)), {
-      component: 'SecurityActivityController',
-      method: 'logPrivateKeyExported',
-      userId: req.user?._id.toString(),
-    });
+    logger.error(
+      'Failed to log private key exported event',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        component: 'SecurityActivityController',
+        method: 'logPrivateKeyExported',
+        userId: req.user?._id.toString(),
+      },
+    );
     res.status(500).json({ error: 'Failed to log security event' });
   }
 };
@@ -58,11 +62,15 @@ export const logBackupCreated = async (req: AuthRequest, res: Response): Promise
 
     res.status(200).json({ success: true });
   } catch (error) {
-    logger.error('Failed to log backup created event', error instanceof Error ? error : new Error(String(error)), {
-      component: 'SecurityActivityController',
-      method: 'logBackupCreated',
-      userId: req.user?._id.toString(),
-    });
+    logger.error(
+      'Failed to log backup created event',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        component: 'SecurityActivityController',
+        method: 'logBackupCreated',
+        userId: req.user?._id.toString(),
+      },
+    );
     res.status(500).json({ error: 'Failed to log security event' });
   }
 };
@@ -83,7 +91,7 @@ export const getSecurityActivity = async (req: AuthRequest, res: Response): Prom
       req.query.limit,
       req.query.offset,
       MAX_LIMIT,
-      DEFAULT_LIMIT
+      DEFAULT_LIMIT,
     );
 
     // Resolve the filter by LOOKING IT UP in the closed set rather than
@@ -136,12 +144,15 @@ export const getSecurityActivity = async (req: AuthRequest, res: Response): Prom
 
     sendPaginated(res, activities, result.total, parsedLimit, parsedOffset);
   } catch (error) {
-    logger.error('Error fetching security activity', error instanceof Error ? error : new Error(String(error)), {
-      component: 'SecurityActivityController',
-      method: 'getSecurityActivity',
-      userId: req.user?._id?.toString(),
-    });
+    logger.error(
+      'Error fetching security activity',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        component: 'SecurityActivityController',
+        method: 'getSecurityActivity',
+        userId: req.user?._id?.toString(),
+      },
+    );
     res.status(500).json({ error: 'Failed to fetch security activity' });
   }
 };
-

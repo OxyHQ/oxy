@@ -86,16 +86,18 @@ async function account(): Promise<string> {
 
 async function session(userId: string, deviceId: string): Promise<void> {
   const token = unique();
-  await getDb().insert(sessions).values({
-    sessionId: `s-${token}`,
-    userId,
-    deviceId,
-    deviceType: 'mobile',
-    platform: 'ios',
-    accessToken: `at-${token}`,
-    refreshToken: `rt-${token}`,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-  });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId: `s-${token}`,
+      userId,
+      deviceId,
+      deviceType: 'mobile',
+      platform: 'ios',
+      accessToken: `at-${token}`,
+      refreshToken: `rt-${token}`,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
 }
 
 /**
@@ -116,7 +118,7 @@ async function attestation(
     record?: Record<string, unknown>;
     /** Sign with a key OTHER than the attestor's — a forgery. */
     signingKey?: string;
-  } = {}
+  } = {},
 ): Promise<SignedRecordEnvelope> {
   const head = await getHead(attestor.id);
   const subject = overrides.subject ?? buildUserDid(attestor.id);
@@ -142,7 +144,7 @@ async function attestation(
       publicKey: attestor.publicKey,
       alg: 'ES256K-DER-SHA256',
     },
-    overrides.signingKey ?? attestor.privateKey
+    overrides.signingKey ?? attestor.privateKey,
   );
 }
 
@@ -160,18 +162,22 @@ async function awards(subjectUserId: string) {
     .where(
       and(
         eq(reputationTransactions.userId, subjectUserId),
-        eq(reputationTransactions.actionType, REAL_LIFE_ATTESTED_ACTION)
-      )
+        eq(reputationTransactions.actionType, REAL_LIFE_ATTESTED_ACTION),
+      ),
     );
 }
 
 /** The attestation envelopes stored on a counterparty's own chain. */
 async function storedAttestations(attestorUserId: string) {
   return getDb()
-    .select({ recordId: signedRecords.recordId, rkey: signedRecords.rkey, envelope: signedRecords.envelope })
+    .select({
+      recordId: signedRecords.recordId,
+      rkey: signedRecords.rkey,
+      envelope: signedRecords.envelope,
+    })
     .from(signedRecords)
     .where(
-      and(eq(signedRecords.userId, attestorUserId), eq(signedRecords.nsid, ATTESTATION_COLLECTION))
+      and(eq(signedRecords.userId, attestorUserId), eq(signedRecords.nsid, ATTESTATION_COLLECTION)),
     );
 }
 
@@ -254,8 +260,8 @@ describe('an accepted attestation', () => {
       .where(
         and(
           eq(signedRecords.userId, subject),
-          eq(signedRecords.nsid, REPUTATION_ATTESTATION_COLLECTION)
-        )
+          eq(signedRecords.nsid, REPUTATION_ATTESTATION_COLLECTION),
+        ),
       );
     expect(provenance).toBeDefined();
     expect(provenance.envelope.record).toMatchObject({
@@ -274,17 +280,17 @@ describe('an accepted attestation', () => {
 
     await submitRealLifeAttestation(
       await attestation(first, { about: buildUserDid(subject) }),
-      first.id
+      first.id,
     );
     await submitRealLifeAttestation(
       await attestation(second, { about: buildUserDid(subject) }),
-      second.id
+      second.id,
     );
 
     const ledger = await awards(subject);
     expect(ledger).toHaveLength(2);
     expect(new Set(ledger.map((row) => row.createdByUserId))).toEqual(
-      new Set([first.id, second.id])
+      new Set([first.id, second.id]),
     );
   });
 });
@@ -299,14 +305,14 @@ describe('the pair earns at most once', () => {
 
     const firstResult = await submitRealLifeAttestation(
       await attestation(attestor, { about: buildUserDid(subject) }),
-      attestor.id
+      attestor.id,
     );
     expect(firstResult.ok).toBe(true);
     if (!firstResult.ok) return;
 
     const repeat = await submitRealLifeAttestation(
       await attestation(attestor, { about: buildUserDid(subject) }),
-      attestor.id
+      attestor.id,
     );
 
     expect(repeat).toEqual({
@@ -471,8 +477,8 @@ describe('the anti-sybil gates', () => {
     expect(
       await submitRealLifeAttestation(
         await attestation(attestor, { about: buildUserDid(subject) }),
-        attestor.id
-      )
+        attestor.id,
+      ),
     ).toEqual({ ok: false, reason: 'excluded_graph_neighbor' });
 
     expect(await awards(subject)).toEqual([]);
@@ -490,8 +496,8 @@ describe('the anti-sybil gates', () => {
     expect(
       await submitRealLifeAttestation(
         await attestation(attestor, { about: buildUserDid(subject) }),
-        attestor.id
-      )
+        attestor.id,
+      ),
     ).toEqual({ ok: false, reason: 'excluded_shared_device' });
     expect(await awards(subject)).toEqual([]);
   });
@@ -508,15 +514,15 @@ describe('the single-use nonce', () => {
 
     const accepted = await submitRealLifeAttestation(
       await attestation(first, { about: buildUserDid(subject), nonce }),
-      first.id
+      first.id,
     );
     expect(accepted.ok).toBe(true);
 
     expect(
       await submitRealLifeAttestation(
         await attestation(replayer, { about: buildUserDid(subject), nonce }),
-        replayer.id
-      )
+        replayer.id,
+      ),
     ).toEqual({ ok: false, reason: 'nonce_used' });
 
     // The replayer earned the subject nothing and stored nothing.
@@ -537,13 +543,13 @@ describe('the single-use nonce', () => {
     expect(
       await submitRealLifeAttestation(
         await attestation(excluded, { about: buildUserDid(subject), nonce }),
-        excluded.id
-      )
+        excluded.id,
+      ),
     ).toEqual({ ok: false, reason: 'excluded_graph_neighbor' });
 
     const second = await submitRealLifeAttestation(
       await attestation(eligible, { about: buildUserDid(subject), nonce }),
-      eligible.id
+      eligible.id,
     );
 
     expect(second.ok).toBe(true);

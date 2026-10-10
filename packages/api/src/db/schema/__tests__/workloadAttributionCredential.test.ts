@@ -62,10 +62,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  try { await closePostgres(); }
-  finally {
-    try { if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl); }
-    finally {
+  try {
+    await closePostgres();
+  } finally {
+    try {
+      if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+    } finally {
       if (originalDatabaseUrl === undefined) Reflect.deleteProperty(process.env, 'DATABASE_URL');
       else process.env.DATABASE_URL = originalDatabaseUrl;
     }
@@ -142,7 +144,9 @@ async function fixture(): Promise<Fixture> {
     })
     .returning({ id: priceVersions.id });
   await getDb().insert(billingProfiles).values({ accountId: account.id });
-  await getDb().insert(accountBalances).values({ accountId: account.id, currency: 'USD', purchasedBalance: '1.000000000000' });
+  await getDb()
+    .insert(accountBalances)
+    .values({ accountId: account.id, currency: 'USD', purchasedBalance: '1.000000000000' });
   return {
     accountId: account.id,
     applicationId: application.id,
@@ -155,28 +159,39 @@ async function fixture(): Promise<Fixture> {
 
 /** The materialised row, written exactly as the service writes it. */
 async function insertWorkloadRow(f: Fixture): Promise<void> {
-  await getDb()
-    .insert(applicationCredentials)
-    .values({
-      id: f.handle,
-      applicationId: f.applicationId,
-      name: f.subject,
-      publicKey: null,
-      type: 'workload',
-      environment: 'production',
-      scopes: [],
-      workloadIdentityId: f.bindingId,
-    });
+  await getDb().insert(applicationCredentials).values({
+    id: f.handle,
+    applicationId: f.applicationId,
+    name: f.subject,
+    publicKey: null,
+    type: 'workload',
+    environment: 'production',
+    scopes: [],
+    workloadIdentityId: f.bindingId,
+  });
 }
 
 /** Use the real hold writer so a global sweep can safely observe this schema fixture. */
 async function backedReservation(f: Fixture, requestId = `req-${randomUUID()}`) {
-  const result = await reserve({ idempotencyKey: `res-${randomUUID()}`,
-    attribution: { accountId: f.accountId, applicationId: f.applicationId,
-      applicationCredentialId: f.handle, requestId, environment: 'production' },
-    ceilingPriceVersionId: f.priceVersionId, maxAmount: '1.000000000000', currency: 'USD', expiresInSeconds: 60 });
+  const result = await reserve({
+    idempotencyKey: `res-${randomUUID()}`,
+    attribution: {
+      accountId: f.accountId,
+      applicationId: f.applicationId,
+      applicationCredentialId: f.handle,
+      requestId,
+      environment: 'production',
+    },
+    ceilingPriceVersionId: f.priceVersionId,
+    maxAmount: '1.000000000000',
+    currency: 'USD',
+    expiresInSeconds: 60,
+  });
   if (result.status !== 'reserved') throw new Error(`Fixture hold refused: ${result.status}`);
-  const [row] = await getDb().select().from(usageReservations).where(eq(usageReservations.id, result.reservation.reservationId));
+  const [row] = await getDb()
+    .select()
+    .from(usageReservations)
+    .where(eq(usageReservations.id, result.reservation.reservationId));
   return row;
 }
 
@@ -232,7 +247,7 @@ describe('the ledger can name an attested identity', () => {
           ceilingPriceVersionId: f.priceVersionId,
           ...zeroUsageUnits(),
           expiresAt: new Date(Date.now() + 60_000),
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -276,8 +291,8 @@ describe('the ledger can name an attested identity', () => {
       .where(
         and(
           eq(inferenceUsageDailyRollups.applicationCredentialId, f.handle),
-          eq(inferenceUsageDailyRollups.day, key.day)
-        )
+          eq(inferenceUsageDailyRollups.day, key.day),
+        ),
       );
     // One row, counted twice: the PK treated the handle as one identity rather
     // than inserting a second row beside it.
@@ -324,14 +339,14 @@ describe('a deleted binding does not take the spend with it', () => {
     await backedReservation(f);
 
     const error = await rejection(
-      getDb().delete(applicationCredentials).where(eq(applicationCredentials.id, f.handle))
+      getDb().delete(applicationCredentials).where(eq(applicationCredentials.id, f.handle)),
     );
     // `RESTRICT` on `usage_reservations`, inherited unchanged — an attested
     // identity with spend against it is exactly as undeletable as a credential
     // with spend against it.
     expect(pgErrorCode(error)).toBe(RESTRICT_REFUSAL);
     expect(pgConstraint(error)).toBe(
-      'usage_reservations_application_credential_id_application_creden'
+      'usage_reservations_application_credential_id_application_creden',
     );
   });
 
@@ -381,7 +396,7 @@ describe('a workload row cannot be made to look like a credential', () => {
           type: 'workload',
           environment: 'production',
           workloadIdentityId: f.bindingId,
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgConstraint(error)).toBe('application_credentials_workload_public_key_check');
@@ -390,15 +405,13 @@ describe('a workload row cannot be made to look like a credential', () => {
   it('still refuses a real credential with no public identifier', async () => {
     const f = await fixture();
     const error = await rejection(
-      getDb()
-        .insert(applicationCredentials)
-        .values({
-          applicationId: f.applicationId,
-          name: 'secretless service',
-          publicKey: null,
-          type: 'service',
-          environment: 'production',
-        })
+      getDb().insert(applicationCredentials).values({
+        applicationId: f.applicationId,
+        name: 'secretless service',
+        publicKey: null,
+        type: 'service',
+        environment: 'production',
+      }),
     );
     // The biconditional, in the direction the old `not null` used to hold: making
     // the column nullable for one row kind must not make a credential nobody can
@@ -421,7 +434,7 @@ describe('a workload row cannot be made to look like a credential', () => {
           type: 'workload',
           environment: 'production',
           workloadIdentityId: f.bindingId,
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgConstraint(error)).toBe('application_credentials_workload_inert_check');
@@ -441,7 +454,7 @@ describe('a workload row cannot be made to look like a credential', () => {
           environment: 'production',
           scopes: ['inference:invoke'],
           workloadIdentityId: f.bindingId,
-        })
+        }),
     );
     // Authority is the binding's, decided live. A copy here would be a second,
     // stale answer to the same question.
@@ -452,16 +465,14 @@ describe('a workload row cannot be made to look like a credential', () => {
   it('refuses a workload row whose id is not an attestation handle', async () => {
     const f = await fixture();
     const error = await rejection(
-      getDb()
-        .insert(applicationCredentials)
-        .values({
-          applicationId: f.applicationId,
-          name: f.subject,
-          publicKey: null,
-          type: 'workload',
-          environment: 'production',
-          workloadIdentityId: f.bindingId,
-        })
+      getDb().insert(applicationCredentials).values({
+        applicationId: f.applicationId,
+        name: f.subject,
+        publicKey: null,
+        type: 'workload',
+        environment: 'production',
+        workloadIdentityId: f.bindingId,
+      }),
     );
     // A generated uuid v7 — which is what a rotation of a workload row would mint.
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -480,7 +491,7 @@ describe('a workload row cannot be made to look like a credential', () => {
           publicKey: `oxy_dk_${randomUUID().replace(/-/g, '')}`,
           type: 'service',
           environment: 'production',
-        })
+        }),
     );
     // The other direction, and the one that matters for routing:
     // `isWorkloadAttestationHandle` sends a `wl_` claim to the BINDING resolver,
@@ -503,7 +514,7 @@ describe('a workload row cannot be made to look like a credential', () => {
           type: 'service',
           environment: 'production',
           workloadIdentityId: f.bindingId,
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgConstraint(error)).toBe('application_credentials_workload_identity_only_check');
@@ -524,19 +535,34 @@ describe('a workload row cannot be made to look like a credential', () => {
           type: 'workload',
           environment: 'production',
           workloadIdentityId: f.bindingId,
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
 });
 
-
 it('its attribution holds remain valid when a later global expiry sweep reaches them', async () => {
-  const held = await getDb().select({ id: usageReservations.id }).from(usageReservations)
-    .where(and(inArray(usageReservations.accountId, ownedAccounts), eq(usageReservations.status, 'held')));
+  const held = await getDb()
+    .select({ id: usageReservations.id })
+    .from(usageReservations)
+    .where(
+      and(
+        inArray(usageReservations.accountId, ownedAccounts),
+        eq(usageReservations.status, 'held'),
+      ),
+    );
   expect(held.length).toBeGreaterThan(0);
-  await getDb().update(usageReservations).set({ expiresAt: new Date(Date.now() - 1000) })
-    .where(inArray(usageReservations.id, held.map((row) => row.id)));
+  await getDb()
+    .update(usageReservations)
+    .set({ expiresAt: new Date(Date.now() - 1000) })
+    .where(
+      inArray(
+        usageReservations.id,
+        held.map((row) => row.id),
+      ),
+    );
   const expired = await expireReservations(1000);
-  expect(expired.map((row) => row.reservationId)).toEqual(expect.arrayContaining(held.map((row) => row.id)));
+  expect(expired.map((row) => row.reservationId)).toEqual(
+    expect.arrayContaining(held.map((row) => row.id)),
+  );
 });

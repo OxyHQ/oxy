@@ -98,7 +98,9 @@ describe('probeDeviceBackupAvailability', () => {
 
   it('is unknown for any other failure, so a transient error never shows the warning', async () => {
     requireOptional.mockReturnValue(
-      nativeThatRejects(Object.assign(new Error('7: NETWORK_ERROR'), { code: 'ERR_IDENTITY_BACKUP_READ' })),
+      nativeThatRejects(
+        Object.assign(new Error('7: NETWORK_ERROR'), { code: 'ERR_IDENTITY_BACKUP_READ' }),
+      ),
     );
     expect(await probeDeviceBackupAvailability()).toBe('unknown');
   });
@@ -138,7 +140,9 @@ describe('deriveDeviceBackupWarning', () => {
   });
 
   it('hides both once the user confirmed for this key', () => {
-    expect(deriveDeviceBackupWarning({ ...base, promptedFor: KEY_A, acknowledgedFor: KEY_A })).toEqual({
+    expect(
+      deriveDeviceBackupWarning({ ...base, promptedFor: KEY_A, acknowledgedFor: KEY_A }),
+    ).toEqual({
       showBanner: false,
       showPrompt: false,
     });
@@ -146,16 +150,30 @@ describe('deriveDeviceBackupWarning', () => {
 
   it('comes back after a key rotation: the old phrase no longer restores anything', () => {
     expect(
-      deriveDeviceBackupWarning({ ...base, publicKey: KEY_B, promptedFor: KEY_A, acknowledgedFor: KEY_A }),
+      deriveDeviceBackupWarning({
+        ...base,
+        publicKey: KEY_B,
+        promptedFor: KEY_A,
+        acknowledgedFor: KEY_A,
+      }),
     ).toEqual({ showBanner: true, showPrompt: true });
   });
 
-  it.each(['available', 'not-applicable', 'unknown'] as const)('is hidden when availability is %s', (availability) => {
-    expect(deriveDeviceBackupWarning({ ...base, availability })).toEqual({ showBanner: false, showPrompt: false });
-  });
+  it.each(['available', 'not-applicable', 'unknown'] as const)(
+    'is hidden when availability is %s',
+    (availability) => {
+      expect(deriveDeviceBackupWarning({ ...base, availability })).toEqual({
+        showBanner: false,
+        showPrompt: false,
+      });
+    },
+  );
 
   it('is hidden without an identity, or before the probe answered', () => {
-    expect(deriveDeviceBackupWarning({ ...base, publicKey: null })).toEqual({ showBanner: false, showPrompt: false });
+    expect(deriveDeviceBackupWarning({ ...base, publicKey: null })).toEqual({
+      showBanner: false,
+      showPrompt: false,
+    });
     expect(deriveDeviceBackupWarning(undefined)).toEqual({ showBanner: false, showPrompt: false });
   });
 });
@@ -226,7 +244,9 @@ describe('<DeviceBackupWarning />', () => {
     await act(async () => {
       fireEvent.click(await settings.findByText("I've saved my recovery phrase"));
     });
-    await waitFor(() => expect(settings.queryByTestId('device-backup-warning-settings')).toBeNull());
+    await waitFor(() =>
+      expect(settings.queryByTestId('device-backup-warning-settings')).toBeNull(),
+    );
     settings.unmount();
 
     const later = renderWarning('settings');

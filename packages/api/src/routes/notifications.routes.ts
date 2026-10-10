@@ -1,6 +1,6 @@
 /**
  * Notification Routes
- * 
+ *
  * RESTful API routes for notification operations.
  * Uses asyncHandler for consistent error handling.
  */
@@ -12,7 +12,7 @@ import {
   markAsRead,
   markAllAsRead,
   deleteNotification,
-  getUnreadCount
+  getUnreadCount,
 } from '../controllers/notification.controller';
 import {
   authMiddleware,
@@ -48,7 +48,11 @@ const NOTIFICATIONS_WRITE_SCOPE = 'notifications:write';
  * trusted services that staff explicitly granted the scope — never any
  * session-authenticated end user.
  */
-const requireNotificationsWriteScope = (req: ServiceAuthRequest, res: Response, next: NextFunction) => {
+const requireNotificationsWriteScope = (
+  req: ServiceAuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   const scopes = req.serviceApp?.scopes ?? [];
   if (!scopes.includes(NOTIFICATIONS_WRITE_SCOPE)) {
     return res.status(403).json({
@@ -67,7 +71,7 @@ router.post(
   serviceAuthMiddleware,
   requireNotificationsWriteScope,
   validate({ body: createNotificationSchema }),
-  asyncHandler(createNotification)
+  asyncHandler(createNotification),
 );
 
 // Apply user authentication middleware to all remaining routes
@@ -161,8 +165,13 @@ router.post(
 
       return res.status(200).json({ data: { registered: true } });
     } catch (err: unknown) {
-      logger.error('Failed to register push token', err instanceof Error ? err : new Error(String(err)));
-      return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to register push token' });
+      logger.error(
+        'Failed to register push token',
+        err instanceof Error ? err : new Error(String(err)),
+      );
+      return res
+        .status(500)
+        .json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to register push token' });
     }
   }),
 );

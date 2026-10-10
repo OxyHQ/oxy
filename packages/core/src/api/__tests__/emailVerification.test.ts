@@ -16,7 +16,9 @@ describe('email verification', () => {
 
   it('starts a verification signed out and parses its id', async () => {
     makeRequest.mockResolvedValueOnce({ verificationId: 'v-1', expiresAt: 1_900_000_000_000 });
-    await expect(oxy.auth.email.startVerification({ purpose: 'signup', email: 'ada@example.com' })).resolves.toEqual({
+    await expect(
+      oxy.auth.email.startVerification({ purpose: 'signup', email: 'ada@example.com' }),
+    ).resolves.toEqual({
       verificationId: 'v-1',
       expiresAt: 1_900_000_000_000,
     });

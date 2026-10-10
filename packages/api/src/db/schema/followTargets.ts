@@ -106,5 +106,5 @@ export const followTargets = pgTable(
     // a provider runs when refreshing its own snapshots.
     index('follow_targets_kind_idx').on(t.kind),
     index('follow_targets_provider_application_id_idx').on(t.providerApplicationId),
-  ]
+  ],
 );

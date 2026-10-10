@@ -63,7 +63,10 @@ export async function mintChallenge(input: NewChallenge): Promise<MintedChalleng
       returnTo: input.returnTo,
       expiresAt,
     })
-    .returning({ id: linkedAccountOauthChallenges.id, expiresAt: linkedAccountOauthChallenges.expiresAt });
+    .returning({
+      id: linkedAccountOauthChallenges.id,
+      expiresAt: linkedAccountOauthChallenges.expiresAt,
+    });
   return row;
 }
 
@@ -92,7 +95,10 @@ const SPEND_COLUMNS = {
  * Spend the unexpired, unspent challenge whose state hashes to `state`, or
  * return `null` (unknown, expired, already spent, or another network's).
  */
-export async function spendChallenge(network: LinkedAccountNetwork, state: string): Promise<SpentChallenge | null> {
+export async function spendChallenge(
+  network: LinkedAccountNetwork,
+  state: string,
+): Promise<SpentChallenge | null> {
   return getDb().transaction(async (tx) => {
     const [row] = await tx
       .select(SPEND_COLUMNS)
@@ -147,7 +153,10 @@ export async function bindProviderState(
  * spent, and mint the one-time code the callback hands to `return_to`. Only
  * the code's hash is stored. Nothing is linked here: see `completeLinkedAccount`.
  */
-export async function markChallengeVerified(challengeId: string, account: VerifiedExternalAccount): Promise<string> {
+export async function markChallengeVerified(
+  challengeId: string,
+  account: VerifiedExternalAccount,
+): Promise<string> {
   const code = randomToken();
   const marked = await getDb()
     .update(linkedAccountOauthChallenges)
@@ -160,14 +169,21 @@ export async function markChallengeVerified(challengeId: string, account: Verifi
       linkCodeHash: sha256Hex(code),
       expiresAt: new Date(Date.now() + LINK_CODE_TTL_MS),
     })
-    .where(and(eq(linkedAccountOauthChallenges.id, challengeId), eq(linkedAccountOauthChallenges.status, 'pending')))
+    .where(
+      and(
+        eq(linkedAccountOauthChallenges.id, challengeId),
+        eq(linkedAccountOauthChallenges.status, 'pending'),
+      ),
+    )
     .returning({ id: linkedAccountOauthChallenges.id });
   if (marked.length !== 1) throw new Error('linking challenge is not pending');
   return code;
 }
 
 /** The non-secret half of a (possibly spent) challenge — where a failed callback may return. */
-export async function readChallengeReturn(challengeId: string): Promise<{ returnTo: string } | null> {
+export async function readChallengeReturn(
+  challengeId: string,
+): Promise<{ returnTo: string } | null> {
   const [row] = await getDb()
     .select({ returnTo: linkedAccountOauthChallenges.returnTo })
     .from(linkedAccountOauthChallenges)
@@ -178,5 +194,7 @@ export async function readChallengeReturn(challengeId: string): Promise<{ return
 
 /** Drop a challenge whose start failed before the user was sent anywhere. */
 export async function discardChallenge(challengeId: string): Promise<void> {
-  await getDb().delete(linkedAccountOauthChallenges).where(eq(linkedAccountOauthChallenges.id, challengeId));
+  await getDb()
+    .delete(linkedAccountOauthChallenges)
+    .where(eq(linkedAccountOauthChallenges.id, challengeId));
 }

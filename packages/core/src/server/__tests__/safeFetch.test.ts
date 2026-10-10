@@ -9,10 +9,7 @@ jest.mock('node:dns/promises', () => ({
   lookup: (...args: unknown[]) => mockDnsLookup(...args),
 }));
 
-import {
-  assertSafePublicUrl,
-  isBlockedIp,
-} from '../safeFetch';
+import { assertSafePublicUrl, isBlockedIp } from '../safeFetch';
 
 beforeEach(() => {
   mockDnsLookup.mockReset();
@@ -198,31 +195,31 @@ describe('@oxy.so/core/server safeFetch — pinned lookup {all:true} contract', 
 
   it('returns an ARRAY of {address,family} for {all:true} (sortable, no throw)', (done) => {
     const lookup = makePinnedLookup('93.184.216.34', 4);
-    (lookup as unknown as (
-      h: string,
-      o: LookupAllOptions,
-      cb: (e: NodeJS.ErrnoException | null, a: LookupAddress[]) => void,
-    ) => void)(
-      'example.com',
-      { all: true } as LookupAllOptions,
-      (err, address) => {
-        expect(err).toBeNull();
-        expect(Array.isArray(address)).toBe(true);
-        // The address array is what Bun internally `.sort()`s — must be sortable.
-        expect(() => (address as LookupAddress[]).sort()).not.toThrow();
-        expect(address).toEqual([{ address: '93.184.216.34', family: 4 }]);
-        done();
-      },
-    );
+    (
+      lookup as unknown as (
+        h: string,
+        o: LookupAllOptions,
+        cb: (e: NodeJS.ErrnoException | null, a: LookupAddress[]) => void,
+      ) => void
+    )('example.com', { all: true } as LookupAllOptions, (err, address) => {
+      expect(err).toBeNull();
+      expect(Array.isArray(address)).toBe(true);
+      // The address array is what Bun internally `.sort()`s — must be sortable.
+      expect(() => (address as LookupAddress[]).sort()).not.toThrow();
+      expect(address).toEqual([{ address: '93.184.216.34', family: 4 }]);
+      done();
+    });
   });
 
   it('returns the (address,family) triple for the non-all (Node) form', (done) => {
     const lookup = makePinnedLookup('93.184.216.34', 4);
-    (lookup as unknown as (
-      h: string,
-      o: LookupOneOptions,
-      cb: (e: NodeJS.ErrnoException | null, a: string, f: number) => void,
-    ) => void)('example.com', {} as LookupOneOptions, (err, address, family) => {
+    (
+      lookup as unknown as (
+        h: string,
+        o: LookupOneOptions,
+        cb: (e: NodeJS.ErrnoException | null, a: string, f: number) => void,
+      ) => void
+    )('example.com', {} as LookupOneOptions, (err, address, family) => {
       expect(err).toBeNull();
       expect(address).toBe('93.184.216.34');
       expect(family).toBe(4);

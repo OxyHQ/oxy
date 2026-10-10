@@ -18,7 +18,13 @@ export type { DeviceFingerprint, StoredDeviceInfo } from '../utils/deviceManager
 // Session sync (device-scoped multi-account session client)
 // ---------------------------------------------------------------------------
 export { SessionClient } from './SessionClient';
-export type { TokenTransport, SessionClientHost, SessionClientOptions, DeviceCredential, SessionStateOrigin } from './SessionClient';
+export type {
+  TokenTransport,
+  SessionClientHost,
+  SessionClientOptions,
+  DeviceCredential,
+  SessionStateOrigin,
+} from './SessionClient';
 // Injectable for tests/specialized hosts; ordinary consumers use core's lazy
 // transport and do not pull socket.io-client into their initial module graph.
 export type { SocketIOFactory, MinimalSocket } from './socketLoader';
@@ -31,10 +37,10 @@ export type { SocketIOFactory, MinimalSocket } from './socketLoader';
 export { createSessionClientHost } from './sessionClientHost';
 export { createSessionClient } from './createSessionClient';
 export {
-    deviceStateToClientSessions,
-    activeSessionIdOf,
-    activeUserOf,
-    accountIdsOf,
+  deviceStateToClientSessions,
+  activeSessionIdOf,
+  activeUserOf,
+  accountIdsOf,
 } from './projectSessionState';
 
 // Pure projections over the device DIRECTORY (`GET /session/device/directory`,
@@ -50,18 +56,18 @@ export {
 // reached through two people is TWO rows under two humans, which a list keyed
 // by account cannot say.
 export {
-    canActivateContext,
-    directoryDisplayName,
-    directoryHandle,
-    projectDevicePrincipals,
-    resolveActiveContext,
-    resolveDeviceContext,
+  canActivateContext,
+  directoryDisplayName,
+  directoryHandle,
+  projectDevicePrincipals,
+  resolveActiveContext,
+  resolveDeviceContext,
 } from './deviceDirectory';
 export type {
-    DeviceContext,
-    DeviceContextActor,
-    DeviceContextSubject,
-    DevicePrincipalGroup,
+  DeviceContext,
+  DeviceContextActor,
+  DeviceContextSubject,
+  DevicePrincipalGroup,
 } from './deviceDirectory';
 
 // The switcher's RENDER model over that projection — names, handles and avatar
@@ -70,9 +76,9 @@ export type {
 // projection lived here before it.
 export { buildSwitcherRows, showsPrincipalHeaders } from './deviceSwitcherRows';
 export type {
-    ResolveAvatarUrl,
-    SwitcherContextRow,
-    SwitcherPrincipalRow,
+  ResolveAvatarUrl,
+  SwitcherContextRow,
+  SwitcherPrincipalRow,
 } from './deviceSwitcherRows';
 
 // The switch-target predicates over the account GRAPH — a list of accounts to
@@ -83,16 +89,16 @@ export type {
 // `AccountNode`s — the Console workspace switcher, managed-accounts rows — ask
 // the SAME questions instead of testing a kind literal.
 export {
-    isSwitchTargetAccount,
-    canSwitchIntoAccount,
+  isSwitchTargetAccount,
+  canSwitchIntoAccount,
 } from './accountSwitchTargets';
 
 // The service/agent counterpart to the human switch predicates above. Kept on
 // its own semantic seam because `bot` is delegable but never human-switchable.
 export { resolveAccountDelegationAccess } from './accountDelegationAccess';
 export type {
-    AccountDelegationAccess,
-    AccountDelegationNode,
+  AccountDelegationAccess,
+  AccountDelegationNode,
 } from './accountDelegationAccess';
 
 // Headless controller for the unified account dialog. Framework-agnostic
@@ -101,19 +107,19 @@ export type {
 // Commons QR / same-device Commons identity). Reuses `SessionClient.switchAccount` /
 // `oxy.accounts.actAs` for the uniform switch.
 export {
-    AccountDialogController,
-    createAccountDialogController,
+  AccountDialogController,
+  createAccountDialogController,
 } from './accountDialogController';
 export type {
-    AccountDialogControllerOptions,
-    AccountDialogSnapshot,
-    AccountDialogView,
-    CommonsAvailability,
-    ContextChoiceOutcome,
-    SignInFailureReason,
-    SignInFlowPhase,
-    SignInFlowState,
-    SignInProgress,
+  AccountDialogControllerOptions,
+  AccountDialogSnapshot,
+  AccountDialogView,
+  CommonsAvailability,
+  ContextChoiceOutcome,
+  SignInFailureReason,
+  SignInFlowPhase,
+  SignInFlowState,
+  SignInProgress,
 } from './accountDialogController';
 
 // ---------------------------------------------------------------------------
@@ -124,16 +130,16 @@ export type {
 // via `POST /session/device/token`.
 // ---------------------------------------------------------------------------
 export {
-    createWebAuthStateStore,
-    createNativeAuthStateStore,
-    createMemoryAuthStateStore,
-    AUTH_STATE_STORAGE_KEY,
+  createWebAuthStateStore,
+  createNativeAuthStateStore,
+  createMemoryAuthStateStore,
+  AUTH_STATE_STORAGE_KEY,
 } from './authStateStore';
 export type {
-    PersistedAuthState,
-    AuthStateStore,
-    AuthStateWriteGuard,
-    NativeKeyValueStorage,
+  PersistedAuthState,
+  AuthStateStore,
+  AuthStateWriteGuard,
+  NativeKeyValueStorage,
 } from './authStateStore';
 
 // The shared NATIVE DeviceSession credential — how several official apps on one
@@ -142,22 +148,22 @@ export type {
 // Commons private identity key: an app that only needs a session must never be
 // handed the key that signs identity approvals.
 export {
-    createSharedMirroringAuthStateStore,
-    decideSharedDeviceJoin,
-    decideSharedDevicePublish,
-    normalizeSharedDeviceSessionRead,
-    publishProvenDeviceCredential,
-    readLocalDeviceCredential,
+  createSharedMirroringAuthStateStore,
+  decideSharedDeviceJoin,
+  decideSharedDevicePublish,
+  normalizeSharedDeviceSessionRead,
+  publishProvenDeviceCredential,
+  readLocalDeviceCredential,
 } from './sharedDeviceCredential';
 export type {
-    SharedDeviceCredential,
-    SharedDeviceCredentialRead,
-    SharedDeviceCredentialStore,
-    SharedDeviceJoinDecision,
-    SharedDeviceJoinSkipReason,
-    SharedDevicePublishDecision,
-    SharedDevicePublishOutcome,
-    SharedDevicePublishSkipReason,
+  SharedDeviceCredential,
+  SharedDeviceCredentialRead,
+  SharedDeviceCredentialStore,
+  SharedDeviceJoinDecision,
+  SharedDeviceJoinSkipReason,
+  SharedDevicePublishDecision,
+  SharedDevicePublishOutcome,
+  SharedDevicePublishSkipReason,
 } from './sharedDeviceCredential';
 
 // Identity-bound sessions (the identity vault). The pin is the durable
@@ -165,47 +171,46 @@ export type {
 // and the account it authenticates as; it is what keeps such a client from
 // following the device's mutable `activeAccountId`.
 export {
-    createWebIdentityPinStore,
-    createNativeIdentityPinStore,
-    createMemoryIdentityPinStore,
-    identityPinMatches,
-    IDENTITY_PIN_STORAGE_KEY,
+  createWebIdentityPinStore,
+  createNativeIdentityPinStore,
+  createMemoryIdentityPinStore,
+  identityPinMatches,
+  IDENTITY_PIN_STORAGE_KEY,
 } from './identityPin';
 export type { IdentityPin, IdentityPinStore } from './identityPin';
 export {
-    resolveIdentityPin,
-    establishIdentitySession,
+  resolveIdentityPin,
+  establishIdentitySession,
 } from './identitySession';
 export type {
-    IdentityBinding,
-    IdentityRequestOptions,
-    EstablishedIdentitySession,
+  IdentityBinding,
+  IdentityRequestOptions,
+  EstablishedIdentitySession,
 } from './identitySession';
 export {
-    refreshPersistedSession,
-    refreshDeviceSecretArm,
-    createAuthRefreshHandler,
-    installAuthRefreshHandler,
-    startTokenRefreshScheduler,
-    TOKEN_REFRESH_LEAD_MS,
+  refreshPersistedSession,
+  refreshDeviceSecretArm,
+  createAuthRefreshHandler,
+  installAuthRefreshHandler,
+  startTokenRefreshScheduler,
+  TOKEN_REFRESH_LEAD_MS,
 } from './refresh';
 export type { RefreshDeps, TokenRefreshSchedulerHandle, DeviceSecretMintOutcome } from './refresh';
 
 export { runSessionColdBoot } from '../boot/sessionColdBoot';
 export type {
-    RunSessionColdBootOptions,
-    SessionMode,
-    SignedOutReason,
-    DeviceBootSession,
+  RunSessionColdBootOptions,
+  SessionMode,
+  SignedOutReason,
+  DeviceBootSession,
 } from '../boot/sessionColdBoot';
 
 export { runColdBoot } from '../utils/coldBoot';
 export type {
-    ColdBootStep,
-    ColdBootStepResult,
-    ColdBootSession,
-    ColdBootSkip,
-    ColdBootOutcome,
-    RunColdBootOptions,
+  ColdBootStep,
+  ColdBootStepResult,
+  ColdBootSession,
+  ColdBootSkip,
+  ColdBootOutcome,
+  RunColdBootOptions,
 } from '../utils/coldBoot';
-

@@ -8,7 +8,6 @@ jest.mock('@/lib/biometricAuth', () => ({
   authenticate: (...args: [string?]) => authenticateMock(...args),
 }));
 
-// eslint-disable-next-line import/first
 import { useVouch } from '@/hooks/useVouch';
 
 const SUBJECT_DID = 'did:web:oxy.so:u:subjectUser';
@@ -47,10 +46,9 @@ describe('useVouch', () => {
   it('signs the vouch via vouchForPerson only AFTER the biometric gate passes', async () => {
     const services = install();
     authenticateMock.mockResolvedValue({ success: true });
-    const { result } = renderHook(
-      () => useVouch(SUBJECT_DID, SUBJECT_USER_ID, 'reason'),
-      { wrapper: makeWrapper() },
-    );
+    const { result } = renderHook(() => useVouch(SUBJECT_DID, SUBJECT_USER_ID, 'reason'), {
+      wrapper: makeWrapper(),
+    });
 
     await act(async () => {
       await result.current.vouch(10);
@@ -70,10 +68,9 @@ describe('useVouch', () => {
   it('does NOT submit when the biometric gate fails', async () => {
     const services = install();
     authenticateMock.mockResolvedValue({ success: false, error: 'user_cancel' });
-    const { result } = renderHook(
-      () => useVouch(SUBJECT_DID, SUBJECT_USER_ID, 'reason'),
-      { wrapper: makeWrapper() },
-    );
+    const { result } = renderHook(() => useVouch(SUBJECT_DID, SUBJECT_USER_ID, 'reason'), {
+      wrapper: makeWrapper(),
+    });
 
     await act(async () => {
       await result.current.vouch(10);
@@ -91,10 +88,9 @@ describe('useVouch', () => {
       }),
     });
     authenticateMock.mockResolvedValue({ success: true });
-    const { result } = renderHook(
-      () => useVouch(SUBJECT_DID, SUBJECT_USER_ID, 'reason'),
-      { wrapper: makeWrapper() },
-    );
+    const { result } = renderHook(() => useVouch(SUBJECT_DID, SUBJECT_USER_ID, 'reason'), {
+      wrapper: makeWrapper(),
+    });
 
     await act(async () => {
       await result.current.vouch();
@@ -106,10 +102,9 @@ describe('useVouch', () => {
 
   it('withdraws via withdrawVouch WITHOUT a biometric gate', async () => {
     const services = install();
-    const { result } = renderHook(
-      () => useVouch(SUBJECT_DID, SUBJECT_USER_ID, 'reason'),
-      { wrapper: makeWrapper() },
-    );
+    const { result } = renderHook(() => useVouch(SUBJECT_DID, SUBJECT_USER_ID, 'reason'), {
+      wrapper: makeWrapper(),
+    });
 
     await act(async () => {
       await result.current.withdraw();

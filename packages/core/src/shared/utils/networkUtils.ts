@@ -63,7 +63,7 @@ export const DEFAULT_CIRCUIT_BREAKER_CONFIG: Required<CircuitBreakerConfig> = {
  * ```
  */
 export const createCircuitBreakerState = (
-  config: CircuitBreakerConfig = {}
+  config: CircuitBreakerConfig = {},
 ): CircuitBreakerState => {
   const { baseInterval, maxInterval, maxFailures } = {
     ...DEFAULT_CIRCUIT_BREAKER_CONFIG,
@@ -97,10 +97,7 @@ export const calculateBackoffInterval = (state: CircuitBreakerState): number => 
 
   if (consecutiveFailures === 0) return baseInterval;
 
-  const backoffMultiplier = Math.min(
-    2 ** (consecutiveFailures - 1),
-    maxInterval / baseInterval
-  );
+  const backoffMultiplier = Math.min(2 ** (consecutiveFailures - 1), maxInterval / baseInterval);
 
   return Math.min(baseInterval * backoffMultiplier, maxInterval);
 };
@@ -168,7 +165,7 @@ export const recordSuccess = (state: CircuitBreakerState): CircuitBreakerState =
  */
 export const shouldAllowRequest = (
   state: CircuitBreakerState,
-  recoveryTimeout: number = DEFAULT_CIRCUIT_BREAKER_CONFIG.recoveryTimeout
+  recoveryTimeout: number = DEFAULT_CIRCUIT_BREAKER_CONFIG.recoveryTimeout,
 ): boolean => {
   if (!state.isOpen) return true;
 
@@ -190,7 +187,7 @@ export const shouldAllowRequest = (
  * ```
  */
 export const delay = (ms: number): Promise<void> =>
-  new Promise(resolve => setTimeout(resolve, ms));
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Executes a function with exponential backoff retry.
@@ -216,7 +213,7 @@ export const withRetry = async <T>(
     maxDelay?: number;
     shouldRetry?: (error: unknown) => boolean;
     onRetry?: (error: unknown, attempt: number) => void;
-  } = {}
+  } = {},
 ): Promise<T> => {
   const {
     maxRetries = 3,

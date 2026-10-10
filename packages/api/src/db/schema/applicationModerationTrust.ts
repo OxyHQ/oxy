@@ -92,7 +92,7 @@ export const applicationModerationTrust = pgTable(
     index('application_moderation_trust_standing_idx').on(t.standing),
     check(
       'application_moderation_trust_standing_check',
-      sql`${t.standing} in (${sql.raw(inList(APPLICATION_MODERATION_STANDINGS))})`
+      sql`${t.standing} in (${sql.raw(inList(APPLICATION_MODERATION_STANDINGS))})`,
     ),
     // All four are documented as 0..1 scores. Outside that range they do not
     // mean anything the consequence derivation can use.
@@ -101,7 +101,7 @@ export const applicationModerationTrust = pgTable(
       sql`${t.evidenceIntegrity} between 0 and 1
         and ${t.identityBindingReliability} between 0 and 1
         and ${t.decisionOverturnRate} between 0 and 1
-        and ${t.policyQuality} between 0 and 1`
+        and ${t.policyQuality} between 0 and 1`,
     ),
-  ]
+  ],
 );

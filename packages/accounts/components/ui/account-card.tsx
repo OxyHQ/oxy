@@ -3,24 +3,19 @@ import { View, StyleSheet } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 
 interface AccountCardProps {
-    children: React.ReactNode;
+  children: React.ReactNode;
 }
 
 export function AccountCard({ children }: AccountCardProps) {
-    const colors = useColors();
+  const colors = useColors();
 
-    return (
-        <View style={[styles.accountCard, { backgroundColor: colors.card }]}>
-            {children}
-        </View>
-    );
+  return <View style={[styles.accountCard, { backgroundColor: colors.card }]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
-    accountCard: {
-        borderRadius: 16,
-        overflow: 'hidden',
-        marginBottom: 16,
-    },
+  accountCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
 });
-

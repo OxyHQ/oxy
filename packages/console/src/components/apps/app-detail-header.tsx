@@ -129,7 +129,7 @@ function SectionTab({ to, appId, icon, label, isActive }: SectionTabProps) {
         'flex items-center gap-1.5 border-b-2 px-2 pb-2.5 -mb-px text-sm font-medium transition-colors',
         isActive
           ? 'border-foreground text-foreground'
-          : 'border-transparent text-foreground/60 hover:text-foreground'
+          : 'border-transparent text-foreground/60 hover:text-foreground',
       )}
     >
       <HugeiconsIcon icon={icon} size={16} />

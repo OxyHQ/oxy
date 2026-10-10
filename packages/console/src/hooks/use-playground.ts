@@ -265,7 +265,7 @@ export const playgroundReceiptOptions = mutationOptions({
       // this is a URL path segment built from a value a component holds, and the
       // cheap version of that mistake is a `../` that addresses another route.
       `${config.oxyUrl}/v1/generations/${encodeURIComponent(requestId)}`,
-      { headers: { Authorization: `Bearer ${apiKey}` } }
+      { headers: { Authorization: `Bearer ${apiKey}` } },
     );
 
     const body: unknown = await response.json();

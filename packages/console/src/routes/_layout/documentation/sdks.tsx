@@ -31,7 +31,9 @@ function CodeBlock({ code, title }: { code: string; title?: string }) {
           <span className="text-xs font-medium text-muted-foreground">{title}</span>
         </div>
       )}
-      <pre className={`bg-muted p-4 overflow-x-auto text-sm font-mono ${title ? 'rounded-b-lg' : 'rounded-lg'}`}>
+      <pre
+        className={`bg-muted p-4 overflow-x-auto text-sm font-mono ${title ? 'rounded-b-lg' : 'rounded-lg'}`}
+      >
         {code}
       </pre>
       <Button
@@ -71,21 +73,26 @@ function SDKsPage() {
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">OpenAI SDK Compatibility</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          The Oxy API is compatible with OpenAI's SDK. You can use any OpenAI-compatible
-          library by changing the base URL to <code className="text-xs bg-muted px-1 py-0.5 rounded">https://api.oxy.so/v1</code>.
+          The Oxy API is compatible with OpenAI's SDK. You can use any OpenAI-compatible library by
+          changing the base URL to{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">https://api.oxy.so/v1</code>.
         </p>
         <p className="text-sm text-muted-foreground mb-4">
-          These SDKs call their credential field <code className="text-xs bg-muted px-1 py-0.5 rounded">apiKey</code>,
-          but it is simply what goes into
-          the <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization: Bearer</code> header —
-          so pass a <strong className="text-foreground">token</strong>, never
-          your <code className="text-xs bg-muted px-1 py-0.5 rounded">oxy_dk_</code> client id. See
-          the <Link to="/documentation/authentication" className="text-primary hover:underline">authentication guide</Link> for
-          how to obtain one.
+          These SDKs call their credential field{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">apiKey</code>, but it is simply
+          what goes into the{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization: Bearer</code> header
+          — so pass a <strong className="text-foreground">token</strong>, never your{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">oxy_dk_</code> client id. See the{' '}
+          <Link to="/documentation/authentication" className="text-primary hover:underline">
+            authentication guide
+          </Link>{' '}
+          for how to obtain one.
         </p>
         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
           <p className="text-sm text-primary">
-            This means you can migrate existing OpenAI integrations to Oxy with minimal code changes!
+            This means you can migrate existing OpenAI integrations to Oxy with minimal code
+            changes!
           </p>
         </div>
         <InferenceAvailabilityNotice className="mt-4" />
@@ -288,9 +295,7 @@ const result = await streamText({
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">LangChain</CardTitle>
-              <CardDescription>
-                Integrate Oxy with LangChain for complex workflows
-              </CardDescription>
+              <CardDescription>Integrate Oxy with LangChain for complex workflows</CardDescription>
             </CardHeader>
             <CardContent>
               <CodeBlock
@@ -315,9 +320,9 @@ print(response.content)`}
       <div className="px-6 py-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Environment Variables</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Store the credential pair, and mint the token your code passes as
-          the SDK's <code className="text-xs bg-muted px-1 py-0.5 rounded">apiKey</code> at runtime.
-          The <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code> is a public
+          Store the credential pair, and mint the token your code passes as the SDK's{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">apiKey</code> at runtime. The{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code> is a public
           identifier and is rejected if you send it as a bearer.
         </p>
         <CodeBlock

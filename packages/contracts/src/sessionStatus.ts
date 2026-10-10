@@ -42,12 +42,7 @@ import { z } from 'zod';
  * `packages/api/src/models/Application.ts` (`first_party` | `third_party` |
  * `internal` | `system`).
  */
-export const applicationTypeSchema = z.enum([
-    'first_party',
-    'third_party',
-    'internal',
-    'system',
-]);
+export const applicationTypeSchema = z.enum(['first_party', 'third_party', 'internal', 'system']);
 
 export type ApplicationTypeContract = z.infer<typeof applicationTypeSchema>;
 
@@ -64,18 +59,18 @@ export type ApplicationTypeContract = z.infer<typeof applicationTypeSchema>;
  * could be resolved.
  */
 export const publicApplicationSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string().optional(),
-    icon: z.string().optional(),
-    websiteUrl: z.string().optional(),
-    privacyPolicyUrl: z.string().optional(),
-    termsUrl: z.string().optional(),
-    type: applicationTypeSchema,
-    isOfficial: z.boolean(),
-    isInternal: z.boolean(),
-    scopes: z.array(z.string()),
-    developerName: z.string().optional(),
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  websiteUrl: z.string().optional(),
+  privacyPolicyUrl: z.string().optional(),
+  termsUrl: z.string().optional(),
+  type: applicationTypeSchema,
+  isOfficial: z.boolean(),
+  isInternal: z.boolean(),
+  scopes: z.array(z.string()),
+  developerName: z.string().optional(),
 });
 
 export type PublicApplicationResponse = z.infer<typeof publicApplicationSchema>;
@@ -108,21 +103,21 @@ export type PublicApplicationResponse = z.infer<typeof publicApplicationSchema>;
  * older API that omits them entirely must degrade, not fail the parse.
  */
 export const sessionStatusSchema = z.object({
-    status: z.string(),
-    authorized: z.boolean().optional(),
-    sessionToken: z.string().optional(),
-    application: publicApplicationSchema.nullable().optional(),
-    expiresAt: z.string().optional(),
-    sessionId: z.string().nullable().optional(),
-    publicKey: z.string().nullable().optional(),
-    userId: z.string().nullable().optional(),
-    /**
-     * What approving this request does. Legacy rows read as `device_sign_in`.
-     * OAuth-bound sessions finalize into an authorization code (no `sessionId`).
-     */
-    purpose: z.enum(['device_sign_in', 'oauth_authorization']).optional(),
-    pushSentAt: z.string().nullable().optional(),
-    openedAt: z.string().nullable().optional(),
+  status: z.string(),
+  authorized: z.boolean().optional(),
+  sessionToken: z.string().optional(),
+  application: publicApplicationSchema.nullable().optional(),
+  expiresAt: z.string().optional(),
+  sessionId: z.string().nullable().optional(),
+  publicKey: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  /**
+   * What approving this request does. Legacy rows read as `device_sign_in`.
+   * OAuth-bound sessions finalize into an authorization code (no `sessionId`).
+   */
+  purpose: z.enum(['device_sign_in', 'oauth_authorization']).optional(),
+  pushSentAt: z.string().nullable().optional(),
+  openedAt: z.string().nullable().optional(),
 });
 
 export type SessionStatusResponse = z.infer<typeof sessionStatusSchema>;

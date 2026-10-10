@@ -1,12 +1,6 @@
 import { z } from 'zod';
-import {
-  mcpConnectionStateSchema,
-  type McpConnectionState,
-} from './oauth';
-import {
-  postOxyServiceJson,
-  type OxyMcpServiceRequestOptions,
-} from './serviceRequest';
+import { mcpConnectionStateSchema, type McpConnectionState } from './oauth';
+import { postOxyServiceJson, type OxyMcpServiceRequestOptions } from './serviceRequest';
 
 /**
  * Connection-level calls a resource server makes on behalf of a live token.

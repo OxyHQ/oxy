@@ -10,18 +10,16 @@ import { join } from 'node:path';
 
 const migration = readFileSync(
   join(__dirname, '../../../../drizzle/0089_panoramic_lord_tyger.sql'),
-  'utf8'
+  'utf8',
 );
 
 it('expands the PRE constraint to both storage spellings without rewriting data', () => {
   expect(migration.split('\n', 1)[0]).toBe('-- oxy:deploy-phase=pre');
 
   const drop = migration.indexOf(
-    'DROP CONSTRAINT "inference_deployments_availability_scope_check"'
+    'DROP CONSTRAINT "inference_deployments_availability_scope_check"',
   );
-  const add = migration.indexOf(
-    'ADD CONSTRAINT "inference_deployments_availability_scope_check"'
-  );
+  const add = migration.indexOf('ADD CONSTRAINT "inference_deployments_availability_scope_check"');
 
   expect(drop).toBeGreaterThanOrEqual(0);
   expect(add).toBeGreaterThan(drop);

@@ -69,10 +69,7 @@ function makeFakeS3(originalBuffer: Buffer): FakeS3 {
  * parallel against one database.
  */
 async function makeFile(): Promise<FileRecord> {
-  const [owner] = await getDb()
-    .insert(users)
-    .values({ color: 'teal' })
-    .returning({ id: users.id });
+  const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   const [row] = await getDb()
     .insert(files)
     .values({
@@ -124,7 +121,7 @@ describe('VariantService imageVariants — w128 variant', () => {
 
     // The on-demand path reads the canonical original then uploads the resize.
     expect(fakeS3.downloadBuffer).toHaveBeenCalledWith('public/uploads/2026/07/aa/original.png');
-    const uploaded = fakeS3.uploads.find(u => u.key.endsWith('/w128.webp'));
+    const uploaded = fakeS3.uploads.find((u) => u.key.endsWith('/w128.webp'));
     expect(uploaded).toBeDefined();
     const meta = await sharp(uploaded?.buffer).metadata();
     expect(meta.format).toBe('webp');
@@ -152,8 +149,9 @@ describe('VariantService imageVariants — w128 variant', () => {
     expect(thumb.height).toBe(256);
     expect(w128.width).toBe(128);
 
-    const w128Bytes = w128S3.uploads.find(u => u.key.endsWith('/w128.webp'))?.buffer.length ?? 0;
-    const thumbBytes = thumbS3.uploads.find(u => u.key.endsWith('/thumb.webp'))?.buffer.length ?? 0;
+    const w128Bytes = w128S3.uploads.find((u) => u.key.endsWith('/w128.webp'))?.buffer.length ?? 0;
+    const thumbBytes =
+      thumbS3.uploads.find((u) => u.key.endsWith('/thumb.webp'))?.buffer.length ?? 0;
     expect(w128Bytes).toBeGreaterThan(0);
     expect(thumbBytes).toBeGreaterThan(0);
     expect(w128Bytes).toBeLessThan(thumbBytes);
@@ -173,7 +171,7 @@ describe('VariantService imageVariants — w128 variant', () => {
     expect(w96.height).toBe(96);
     expect(w96.metadata).toMatchObject({ format: 'webp', quality: 82 });
 
-    const uploaded = w96S3.uploads.find(u => u.key.endsWith('/w96.webp'));
+    const uploaded = w96S3.uploads.find((u) => u.key.endsWith('/w96.webp'));
     expect(uploaded).toBeDefined();
     const meta = await sharp(uploaded?.buffer).metadata();
     expect(meta.format).toBe('webp');
@@ -186,7 +184,7 @@ describe('VariantService imageVariants — w128 variant', () => {
       'w128',
     );
     const w96Bytes = uploaded?.buffer.length ?? 0;
-    const w128Bytes = w128S3.uploads.find(u => u.key.endsWith('/w128.webp'))?.buffer.length ?? 0;
+    const w128Bytes = w128S3.uploads.find((u) => u.key.endsWith('/w128.webp'))?.buffer.length ?? 0;
     expect(w96Bytes).toBeGreaterThan(0);
     expect(w128Bytes).toBeGreaterThan(0);
     expect(w96Bytes).toBeLessThan(w128Bytes);
@@ -200,9 +198,10 @@ describe('VariantService imageVariants — w128 variant', () => {
     const fakeS3 = makeFakeS3(original);
     const file = await makeFile();
 
-    const variant = await new VariantService(
-      fakeS3 as unknown as S3Service
-    ).ensureImageVariant(file, 'w128');
+    const variant = await new VariantService(fakeS3 as unknown as S3Service).ensureImageVariant(
+      file,
+      'w128',
+    );
 
     const stored = await getDb()
       .select()
@@ -261,9 +260,9 @@ describe('VariantService imageVariants — w128 variant', () => {
     const original = await makeSquarePng(512);
     const service = new VariantService(makeFakeS3(original) as unknown as S3Service);
 
-    await expect(service.ensureImageVariant(await makeFile(), 'not-a-real-variant')).rejects.toThrow(
-      /Unsupported image variant/,
-    );
+    await expect(
+      service.ensureImageVariant(await makeFile(), 'not-a-real-variant'),
+    ).rejects.toThrow(/Unsupported image variant/);
   });
 });
 
@@ -338,7 +337,7 @@ describe('VariantService.ensureVideoImageVariant — sizes derived from the post
     // could not decode anyway.
     expect(fakeS3.downloadBuffer).toHaveBeenCalledWith(POSTER_KEY);
 
-    const uploaded = fakeS3.uploads.find(u => u.key.endsWith('/w320.webp'));
+    const uploaded = fakeS3.uploads.find((u) => u.key.endsWith('/w320.webp'));
     expect(uploaded).toBeDefined();
     const meta = await sharp(uploaded?.buffer).metadata();
     expect(meta.format).toBe('webp');
@@ -369,12 +368,23 @@ describe('VariantService image generation retry', () => {
     const fakeS3 = makeFakeS3(original);
     const service = new VariantService(fakeS3 as unknown as S3Service);
     const file = await makeFile();
-    const generate = (target: FileRecord) => (service as unknown as { generateImageVariants(f: FileRecord): Promise<void> }).generateImageVariants(target);
+    const generate = (target: FileRecord) =>
+      (
+        service as unknown as { generateImageVariants(f: FileRecord): Promise<void> }
+      ).generateImageVariants(target);
 
     await generate(file);
     // xmin changes whenever a row is deleted and reinserted, even with the same id.
-    const rowsOf = () => getDb().select({ id: fileVariants.id, type: fileVariants.type, key: fileVariants.key, version: sql<string>`xmin::text` })
-      .from(fileVariants).where(eq(fileVariants.fileId, file.id));
+    const rowsOf = () =>
+      getDb()
+        .select({
+          id: fileVariants.id,
+          type: fileVariants.type,
+          key: fileVariants.key,
+          version: sql<string>`xmin::text`,
+        })
+        .from(fileVariants)
+        .where(eq(fileVariants.fileId, file.id));
     const first = await rowsOf();
     expect(first.length).toBeGreaterThan(0);
     const uploadsAfterFirst = fakeS3.uploads.length;
@@ -382,9 +392,12 @@ describe('VariantService image generation retry', () => {
     fakeS3.fileExists.mockImplementation(() => Promise.resolve(true));
     await generate(file);
     const second = await rowsOf();
-    const ids = (rows: typeof first) => rows.map((row) => `${row.type}:${row.id}:${row.key}:${row.version}`).sort();
+    const ids = (rows: typeof first) =>
+      rows.map((row) => `${row.type}:${row.id}:${row.key}:${row.version}`).sort();
     expect(ids(second)).toEqual(ids(first));
     expect(fakeS3.uploads).toHaveLength(uploadsAfterFirst);
-    expect(file.variants.map((variant) => variant.id).sort()).toEqual(first.map((row) => row.id).sort());
+    expect(file.variants.map((variant) => variant.id).sort()).toEqual(
+      first.map((row) => row.id).sort(),
+    );
   });
 });

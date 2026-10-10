@@ -33,7 +33,15 @@ afterAll(async () => {
 
 describe('upsertVariantSet', () => {
   it('preserves rows of types the batch does not write', async () => {
-    const file = await insertFile({ sha256: sha(), mime: 'video/mp4', ext: 'mp4', size: 1, status: 'active', storageKey: key(), systemOwner: '__federation__' });
+    const file = await insertFile({
+      sha256: sha(),
+      mime: 'video/mp4',
+      ext: 'mp4',
+      size: 1,
+      status: 'active',
+      storageKey: key(),
+      systemOwner: '__federation__',
+    });
 
     // What a lazy read materialised: a poster-derived image size.
     await upsertVariant(file.id, { type: 'w320', key: key(), readyAt: new Date() });
@@ -51,7 +59,15 @@ describe('upsertVariantSet', () => {
   });
 
   it('replaces a row of a type the batch DOES write', async () => {
-    const file = await insertFile({ sha256: sha(), mime: 'image/png', ext: 'png', size: 1, status: 'active', storageKey: key(), systemOwner: '__federation__' });
+    const file = await insertFile({
+      sha256: sha(),
+      mime: 'image/png',
+      ext: 'png',
+      size: 1,
+      status: 'active',
+      storageKey: key(),
+      systemOwner: '__federation__',
+    });
     const stale = key();
     const fresh = key();
 
@@ -64,13 +80,19 @@ describe('upsertVariantSet', () => {
   });
 
   it('writes the metadata patch in the same transaction as the renditions', async () => {
-    const file = await insertFile({ sha256: sha(), mime: 'image/png', ext: 'png', size: 1, status: 'active', storageKey: key(), systemOwner: '__federation__' });
+    const file = await insertFile({
+      sha256: sha(),
+      mime: 'image/png',
+      ext: 'png',
+      size: 1,
+      status: 'active',
+      storageKey: key(),
+      systemOwner: '__federation__',
+    });
 
-    await upsertVariantSet(
-      file.id,
-      [{ type: 'thumb', key: key(), readyAt: new Date() }],
-      { metadata: { media: { width: 800, height: 600 } } },
-    );
+    await upsertVariantSet(file.id, [{ type: 'thumb', key: key(), readyAt: new Date() }], {
+      metadata: { media: { width: 800, height: 600 } },
+    });
 
     const record = await findFileById(file.id);
     expect(record?.metadata).toEqual({ media: { width: 800, height: 600 } });
@@ -78,7 +100,15 @@ describe('upsertVariantSet', () => {
   });
 
   it('is a no-op on rows when the batch is empty', async () => {
-    const file = await insertFile({ sha256: sha(), mime: 'image/png', ext: 'png', size: 1, status: 'active', storageKey: key(), systemOwner: '__federation__' });
+    const file = await insertFile({
+      sha256: sha(),
+      mime: 'image/png',
+      ext: 'png',
+      size: 1,
+      status: 'active',
+      storageKey: key(),
+      systemOwner: '__federation__',
+    });
     await upsertVariant(file.id, { type: 'thumb', key: key(), readyAt: new Date() });
 
     await upsertVariantSet(file.id, []);

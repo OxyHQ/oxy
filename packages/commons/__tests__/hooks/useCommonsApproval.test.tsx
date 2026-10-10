@@ -11,7 +11,6 @@ jest.mock('@/lib/biometricAuth', () => ({
 }));
 
 // Imported AFTER jest.mock so the hook sees the patched biometric helper.
-// eslint-disable-next-line import/first
 import { useCommonsApproval } from '@/hooks/commons-signin/useCommonsApproval';
 
 const SAMPLE_INFO = {
@@ -81,7 +80,11 @@ describe('useCommonsApproval', () => {
       getCommonsApprovalInfo: jest.fn(async () => ({
         ...SAMPLE_INFO,
         purpose: 'oauth_authorization',
-        subjectAccount: { id: 'acct-9', username: 'oxycollective', displayName: 'The Oxy Collective' },
+        subjectAccount: {
+          id: 'acct-9',
+          username: 'oxycollective',
+          displayName: 'The Oxy Collective',
+        },
       })),
     });
     const { result } = renderHook(() => useCommonsApproval('code-1', 'reason'));

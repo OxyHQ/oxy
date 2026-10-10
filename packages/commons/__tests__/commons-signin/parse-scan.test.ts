@@ -62,7 +62,9 @@ describe('parseScan', () => {
 
     it('defaults context to empty string when ctx is omitted', () => {
       const exp = future();
-      const result = parseScan(`oxycommons://attest?subject=did:web:oxy.so:u:x&nonce=n2&exp=${exp}`);
+      const result = parseScan(
+        `oxycommons://attest?subject=did:web:oxy.so:u:x&nonce=n2&exp=${exp}`,
+      );
       expect(result).toEqual({
         kind: 'attest',
         subjectDid: 'did:web:oxy.so:u:x',

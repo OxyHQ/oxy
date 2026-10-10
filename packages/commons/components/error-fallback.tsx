@@ -69,7 +69,10 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
         >
           {isDev ? (
             <View
-              style={[styles.devDetails, { backgroundColor: colors.card, borderColor: colors.border }]}
+              style={[
+                styles.devDetails,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
             >
               <Text style={[styles.devLabel, { color: colors.textSecondary }]}>
                 {t('errors.boundary.details')}
@@ -95,7 +98,11 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
  * provider (e.g. if `OxyProvider`/`BloomThemeProvider` itself throws). Uses
  * raw colour values so it is safe to render at the absolute root of the app.
  */
-export function MinimalErrorFallback({ error, retry, scheme = 'light' }: MinimalErrorFallbackProps) {
+export function MinimalErrorFallback({
+  error,
+  retry,
+  scheme = 'light',
+}: MinimalErrorFallbackProps) {
   const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
   const isDark = scheme === 'dark';
 
@@ -109,9 +116,17 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
 
   return (
     <View style={[minimalStyles.container, { backgroundColor: bg }]}>
-      <ScrollView contentContainerStyle={minimalStyles.content} showsVerticalScrollIndicator={false}>
-        <View style={[minimalStyles.iconBubble, { backgroundColor: errorColor + '22', borderColor: errorColor + '55' }]}>
-          <Icons.alert size='3xl' fill={errorColor} />
+      <ScrollView
+        contentContainerStyle={minimalStyles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[
+            minimalStyles.iconBubble,
+            { backgroundColor: errorColor + '22', borderColor: errorColor + '55' },
+          ]}
+        >
+          <Icons.alert size="3xl" fill={errorColor} />
         </View>
 
         <Text style={[minimalStyles.title, { color: text }]}>Something went wrong</Text>
@@ -120,7 +135,9 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
         </Text>
 
         {isDev && (
-          <View style={[minimalStyles.devDetails, { backgroundColor: surface, borderColor: border }]}>
+          <View
+            style={[minimalStyles.devDetails, { backgroundColor: surface, borderColor: border }]}
+          >
             <Text style={[minimalStyles.devLabel, { color: muted }]}>Error details</Text>
             <Text style={[minimalStyles.devMessage, { color: text }]} selectable>
               {error.message}
@@ -140,7 +157,7 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
           accessibilityRole="button"
           accessibilityLabel="Try again"
         >
-          <Icons.refresh size='md' fill="#FFFFFF" />
+          <Icons.refresh size="md" fill="#FFFFFF" />
           <Text style={minimalStyles.retryText}>Try again</Text>
         </TouchableOpacity>
       </ScrollView>

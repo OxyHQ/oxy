@@ -78,11 +78,7 @@ async function insertUser(): Promise<string> {
   return row.id;
 }
 
-async function request(
-  method: string,
-  path: string,
-  payload?: unknown
-): Promise<JsonResponse> {
+async function request(method: string, path: string, payload?: unknown): Promise<JsonResponse> {
   const { port } = server.address() as AddressInfo;
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
@@ -102,8 +98,8 @@ async function storedRow(userId: string, namespace: string, key: string) {
       and(
         eq(userAppData.userId, userId),
         eq(userAppData.namespace, namespace),
-        eq(userAppData.key, key)
-      )
+        eq(userAppData.key, key),
+      ),
     );
   return row;
 }
@@ -134,7 +130,7 @@ beforeEach(async () => {
   currentUserId = OWNER;
 });
 
-describe('scoping — one account can never reach another account\'s data', () => {
+describe("scoping — one account can never reach another account's data", () => {
   beforeEach(async () => {
     // The SAME (namespace, key) for both accounts, holding different bytes.
     await getDb()
@@ -159,7 +155,7 @@ describe('scoping — one account can never reach another account\'s data', () =
     expect(listed).toEqual({ status: 200, body: { entries: { progress: { owner: true } } } });
   });
 
-  it('writes without touching the other account\'s row', async () => {
+  it("writes without touching the other account's row", async () => {
     const written = await request('PUT', '/users/me/app-data/academy/progress', {
       value: { owner: 'updated' },
     });
@@ -169,7 +165,7 @@ describe('scoping — one account can never reach another account\'s data', () =
     expect((await storedRow(STRANGER, 'academy', 'progress')).value).toEqual({ stranger: true });
   });
 
-  it('deletes without touching the other account\'s row', async () => {
+  it("deletes without touching the other account's row", async () => {
     const deleted = await request('DELETE', '/users/me/app-data/academy/progress');
     expect(deleted.status).toBe(204);
 
@@ -242,7 +238,7 @@ describe('quotas', () => {
           namespace: 'academy',
           key: `key_${index}`,
           value: index,
-        }))
+        })),
       );
 
     const response = await request('PUT', '/users/me/app-data/academy/new_key', { value: true });
@@ -263,7 +259,7 @@ describe('quotas', () => {
           namespace: 'academy',
           key: `key_${index}`,
           value: index,
-        }))
+        })),
       );
 
     const response = await request('PUT', '/users/me/app-data/academy/key_0', { value: 'again' });
@@ -280,7 +276,7 @@ describe('quotas', () => {
           namespace: 'academy',
           key: `key_${index}`,
           value: index,
-        }))
+        })),
       );
 
     const response = await request('PUT', '/users/me/app-data/other/new_key', { value: true });
@@ -298,7 +294,7 @@ describe('quotas', () => {
           namespace: 'academy',
           key: `key_${index}`,
           value: index,
-        }))
+        })),
       );
 
     const response = await request('PUT', '/users/me/app-data/academy/mine', { value: 1 });
@@ -339,15 +335,13 @@ describe('listing a namespace', () => {
           namespace: 'academy',
           key: `key_${index}`,
           value: index,
-        }))
+        })),
       );
 
     const response = await request('GET', '/users/me/app-data/academy');
 
     expect(response.status).toBe(413);
-    expect(response.body.message).toBe(
-      'App-data namespace exceeds the maximum list response size'
-    );
+    expect(response.body.message).toBe('App-data namespace exceeds the maximum list response size');
   });
 
   it('answers an empty namespace with an empty map', async () => {

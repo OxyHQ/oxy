@@ -27,7 +27,9 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 
 jest.mock('../variantService', () => ({
   VariantService: class {
-    constructor(_s3: unknown) { /* no-op */ }
+    constructor(_s3: unknown) {
+      /* no-op */
+    }
     generateVariants = jest.fn(() => Promise.resolve());
   },
 }));
@@ -36,7 +38,10 @@ jest.mock('../../queue/assetVariants.queue', () => ({
   enqueueAssetVariantGeneration: jest.fn(() => Promise.resolve()),
 }));
 
-import { EMPTY_PRODUCT_BILLING_CATALOGUE, type ProductBillingCatalogue } from '../productBillingCatalogue.service';
+import {
+  EMPTY_PRODUCT_BILLING_CATALOGUE,
+  type ProductBillingCatalogue,
+} from '../productBillingCatalogue.service';
 import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
 import { legacyStorageLimit } from '../storageQuota.service';
 let mockCatalogue: ProductBillingCatalogue = EMPTY_PRODUCT_BILLING_CATALOGUE;
@@ -52,11 +57,14 @@ import fileCache from '../../utils/fileCache';
 
 jest.setTimeout(60_000);
 
-const png = () => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(24)]);
+const png = () =>
+  Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(24)]);
 
 function gate() {
   let open!: () => void;
-  const opened = new Promise<void>((resolve) => { open = resolve; });
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
+  });
   return { opened, open };
 }
 
@@ -79,7 +87,10 @@ class MemoryBucket {
     return { reached: reached.opened, release: release.open };
   }
 
-  async send(command: { constructor: { name: string }; input: Record<string, unknown> }): Promise<unknown> {
+  async send(command: {
+    constructor: { name: string };
+    input: Record<string, unknown>;
+  }): Promise<unknown> {
     const input = command.input;
     const key = String(input.Key ?? '');
     switch (command.constructor.name) {
@@ -90,7 +101,8 @@ class MemoryBucket {
           held.reached();
           await held.release;
         }
-        if (!this.objects.has(key)) throw Object.assign(new Error('NotFound'), { name: 'NotFound' });
+        if (!this.objects.has(key))
+          throw Object.assign(new Error('NotFound'), { name: 'NotFound' });
         return { ContentLength: this.objects.get(key)?.length };
       }
       case 'PutObjectCommand': {
@@ -115,8 +127,15 @@ class MemoryBucket {
         const prefix = String(input.Prefix ?? '');
         const max = Number(input.MaxKeys ?? 1000);
         return {
-          Contents: [...this.objects.keys()].filter((k) => k.startsWith(prefix)).sort().slice(0, max)
-            .map((k) => ({ Key: k, Size: this.objects.get(k)?.length ?? 0, LastModified: new Date() })),
+          Contents: [...this.objects.keys()]
+            .filter((k) => k.startsWith(prefix))
+            .sort()
+            .slice(0, max)
+            .map((k) => ({
+              Key: k,
+              Size: this.objects.get(k)?.length ?? 0,
+              LastModified: new Date(),
+            })),
         };
       }
       default:
@@ -128,14 +147,20 @@ class MemoryBucket {
 function harness() {
   const bucket = new MemoryBucket();
   const invalidated: string[] = [];
-  const listener: DeletedObjectListener = { enqueueDeletedKey: (key) => { invalidated.push(key); } };
+  const listener: DeletedObjectListener = {
+    enqueueDeletedKey: (key) => {
+      invalidated.push(key);
+    },
+  };
   const s3 = new S3Service(
     { accessKeyId: 'test', secretAccessKey: 'test', bucketName: 'media', region: 'us-east-1' },
     listener,
   );
   const client: unknown = Reflect.get(s3, 's3Client');
   if (typeof client !== 'object' || client === null) throw new Error('S3Service has no client');
-  Reflect.set(client, 'send', (command: Parameters<MemoryBucket['send']>[0]) => bucket.send(command));
+  Reflect.set(client, 'send', (command: Parameters<MemoryBucket['send']>[0]) =>
+    bucket.send(command),
+  );
   return { bucket, invalidated, service: new AssetService(s3) };
 }
 
@@ -201,7 +226,7 @@ describe('a second owner uploading the same bytes', () => {
     expect(await liveRowsFor(first.sha256)).toHaveLength(2);
   });
 
-  it('adopts an existing owner\'s key even when it is not the key this upload would mint', async () => {
+  it("adopts an existing owner's key even when it is not the key this upload would mint", async () => {
     // Keys carry the month they were minted in, so "the same bytes land on the
     // same key anyway" only holds within a month: sharing has to come from the
     // existing row, not from minting the same name.
@@ -210,12 +235,26 @@ describe('a second owner uploading the same bytes', () => {
     const sha256 = createHash('sha256').update(content).digest('hex');
     const oldKey = `public/content/2024/01/${sha256.slice(0, 2)}/${sha256}.png`;
     bucket.objects.set(oldKey, content);
-    const [existing] = await getDb().insert(files).values({
-      sha256, size: content.length, mime: 'image/png', ext: '.png', ownerUserId: await insertUser(),
-      visibility: 'public', storageKey: oldKey,
-    }).returning({ id: files.id });
+    const [existing] = await getDb()
+      .insert(files)
+      .values({
+        sha256,
+        size: content.length,
+        mime: 'image/png',
+        ext: '.png',
+        ownerUserId: await insertUser(),
+        visibility: 'public',
+        storageKey: oldKey,
+      })
+      .returning({ id: files.id });
 
-    const mine = await service.uploadFileDirect(await insertUser(), content, 'image/png', 'b.png', 'public');
+    const mine = await service.uploadFileDirect(
+      await insertUser(),
+      content,
+      'image/png',
+      'b.png',
+      'public',
+    );
 
     expect(mine.id).not.toBe(existing.id);
     expect(mine.storageKey).toBe(oldKey);
@@ -228,7 +267,13 @@ describe('a second owner uploading the same bytes', () => {
     const alice = await insertUser();
 
     const first = await service.uploadFileDirect(alice, content, 'image/png', 'a.png', 'public');
-    const again = await service.uploadFileDirect(alice, content, 'image/png', 'a-again.png', 'public');
+    const again = await service.uploadFileDirect(
+      alice,
+      content,
+      'image/png',
+      'a-again.png',
+      'public',
+    );
 
     expect(again.id).toBe(first.id);
     expect(await liveRowsFor(first.sha256)).toHaveLength(1);
@@ -237,8 +282,20 @@ describe('a second owner uploading the same bytes', () => {
   it('keeps the spelling its visibility needs: a private copy beside a public one', async () => {
     const { bucket, service } = harness();
     const content = png();
-    const publicRow = await service.uploadFileDirect(await insertUser(), content, 'image/png', 'a.png', 'public');
-    const privateRow = await service.uploadFileDirect(await insertUser(), content, 'image/png', 'b.png', 'private');
+    const publicRow = await service.uploadFileDirect(
+      await insertUser(),
+      content,
+      'image/png',
+      'a.png',
+      'public',
+    );
+    const privateRow = await service.uploadFileDirect(
+      await insertUser(),
+      content,
+      'image/png',
+      'b.png',
+      'private',
+    );
 
     expect(publicRow.storageKey.startsWith('public/')).toBe(true);
     expect(privateRow.storageKey).toBe(publicRow.storageKey.slice('public/'.length));
@@ -272,7 +329,7 @@ describe('deleting shared bytes', () => {
     expect(invalidated).toContain(key);
   });
 
-  it('refuses a delete by anyone but the row\'s owner, even one holding the same bytes', async () => {
+  it("refuses a delete by anyone but the row's owner, even one holding the same bytes", async () => {
     const { bucket, service } = harness();
     const content = png();
     const alice = await insertUser();
@@ -286,7 +343,7 @@ describe('deleting shared bytes', () => {
   });
 });
 
-describe('a delete racing another owner\'s upload of the same bytes', () => {
+describe("a delete racing another owner's upload of the same bytes", () => {
   it('keeps the object the upload adopted while the purge waited on the content-hash lock', async () => {
     const { bucket, service } = harness();
     const content = png();
@@ -298,7 +355,12 @@ describe('a delete racing another owner\'s upload of the same bytes', () => {
     // Bob's streamed upload chooses Alice's key under the lock, then stops on
     // the HEAD of that key — still holding the lock, row not yet inserted.
     const held = bucket.holdHead(key);
-    const source = new Readable({ read() { this.push(content); this.push(null); } });
+    const source = new Readable({
+      read() {
+        this.push(content);
+        this.push(null);
+      },
+    });
     const bobUpload = service.uploadUserMediaStream(source, 'image/png', 'b.png', 1_000_000, bob);
     await held.reached;
 
@@ -322,21 +384,33 @@ describe('a delete racing another owner\'s upload of the same bytes', () => {
 describe('configured presigned admission', () => {
   it('signs the admitted size and digest for first upload and missing-object repair', async () => {
     const f = await productAccessFixture();
-    mockCatalogue = {...EMPTY_PRODUCT_BILLING_CATALOGUE,products:f.products,
-      storageAdapter:{productId:f.products[0].id,quotaKey:'storage_bytes',unit:'byte',legacyCombination:'maximum'}};
-    const {service}=harness();const content=png();const hash=createHash('sha256').update(content).digest('hex');
-    const initial=await service.initUpload(f.payer,hash,content.length,'image/png');
-    const repair=await service.initUpload(f.payer,hash,content.length+1,'image/png');
-    for(const result of [initial,repair]) {
-      expect(result.requiredHeaders).toEqual({'If-None-Match':'*'});
-      const url=new URL(result.uploadUrl);
+    mockCatalogue = {
+      ...EMPTY_PRODUCT_BILLING_CATALOGUE,
+      products: f.products,
+      storageAdapter: {
+        productId: f.products[0].id,
+        quotaKey: 'storage_bytes',
+        unit: 'byte',
+        legacyCombination: 'maximum',
+      },
+    };
+    const { service } = harness();
+    const content = png();
+    const hash = createHash('sha256').update(content).digest('hex');
+    const initial = await service.initUpload(f.payer, hash, content.length, 'image/png');
+    const repair = await service.initUpload(f.payer, hash, content.length + 1, 'image/png');
+    for (const result of [initial, repair]) {
+      expect(result.requiredHeaders).toEqual({ 'If-None-Match': '*' });
+      const url = new URL(result.uploadUrl);
       expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('content-length');
       expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('if-none-match');
-      expect(url.searchParams.get('x-amz-checksum-sha256')).toBe(Buffer.from(hash,'hex').toString('base64'));
+      expect(url.searchParams.get('x-amz-checksum-sha256')).toBe(
+        Buffer.from(hash, 'hex').toString('base64'),
+      );
       expect(url.searchParams.get('X-Amz-Expires')).toBe('60');
     }
     expect(initial.fileId).toBe(repair.fileId);
-    const [stored]=await getDb().select().from(files).where(eq(files.id,initial.fileId));
+    const [stored] = await getDb().select().from(files).where(eq(files.id, initial.fileId));
     expect(stored.size).toBe(content.length);
   });
 });
@@ -348,51 +422,128 @@ describe('completeUpload', () => {
     const alice = await insertUser();
     const row = await service.uploadFileDirect(alice, content, 'image/png', 'a.png', 'private');
 
-    await expect(service.completeUpload({
-      fileId: row.id,
-      originalName: 'hijacked.png',
-      size: content.length,
-      mime: 'image/png',
-      visibility: 'public',
-    }, await insertUser())).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      service.completeUpload(
+        {
+          fileId: row.id,
+          originalName: 'hijacked.png',
+          size: content.length,
+          mime: 'image/png',
+          visibility: 'public',
+        },
+        await insertUser(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
 
     const [stored] = await getDb().select().from(files).where(eq(files.id, row.id));
     expect(stored).toMatchObject({ originalName: 'a.png', visibility: 'private' });
   });
   it('admits actual HEAD bytes, ignores client size, and rolls back over-capacity completion', async () => {
     const f = await productAccessFixture();
-    mockCatalogue = { ...EMPTY_PRODUCT_BILLING_CATALOGUE, products: f.products,
-      storageAdapter: { productId: f.products[0].id, quotaKey: 'storage_bytes', unit: 'byte', legacyCombination: 'maximum' } };
-    const { bucket, service } = harness(); const content = png();
-    const row = await service.uploadFileDirect(f.payer, content, 'image/png', 'first.png', 'private');
-    const completed = await service.completeUpload({ fileId: row.id, originalName: 'first.png', size: 1,
-      mime: 'image/png' }, f.payer);
+    mockCatalogue = {
+      ...EMPTY_PRODUCT_BILLING_CATALOGUE,
+      products: f.products,
+      storageAdapter: {
+        productId: f.products[0].id,
+        quotaKey: 'storage_bytes',
+        unit: 'byte',
+        legacyCombination: 'maximum',
+      },
+    };
+    const { bucket, service } = harness();
+    const content = png();
+    const row = await service.uploadFileDirect(
+      f.payer,
+      content,
+      'image/png',
+      'first.png',
+      'private',
+    );
+    const completed = await service.completeUpload(
+      { fileId: row.id, originalName: 'first.png', size: 1, mime: 'image/png' },
+      f.payer,
+    );
     expect(completed.size).toBe(content.length);
-    const [filler] = await getDb().insert(files).values({sha256: randomBytes(32).toString('hex'),
-      size: legacyStorageLimit('basic') - content.length, mime: 'text/plain', ext: '.txt',
-      ownerUserId: f.payer, status: 'active', visibility: 'private', storageKey: 'synthetic/filler'}).returning();
+    const [filler] = await getDb()
+      .insert(files)
+      .values({
+        sha256: randomBytes(32).toString('hex'),
+        size: legacyStorageLimit('basic') - content.length,
+        mime: 'text/plain',
+        ext: '.txt',
+        ownerUserId: f.payer,
+        status: 'active',
+        visibility: 'private',
+        storageKey: 'synthetic/filler',
+      })
+      .returning();
     bucket.objects.set(completed.storageKey, Buffer.concat([content, Buffer.from([1])]));
-    await expect(service.completeUpload({ fileId: row.id, originalName: 'oversized.png', size: 1,
-      mime: 'image/png' }, f.payer)).rejects.toMatchObject({code:'STORAGE_QUOTA_EXCEEDED'});
-    const [stored] = await getDb().select().from(files).where(eq(files.id,row.id));
-    expect(stored.size).toBe(content.length); expect(stored.originalName).toBe('first.png');
-    await getDb().delete(files).where(eq(files.id,filler.id));
+    await expect(
+      service.completeUpload(
+        { fileId: row.id, originalName: 'oversized.png', size: 1, mime: 'image/png' },
+        f.payer,
+      ),
+    ).rejects.toMatchObject({ code: 'STORAGE_QUOTA_EXCEEDED' });
+    const [stored] = await getDb().select().from(files).where(eq(files.id, row.id));
+    expect(stored.size).toBe(content.length);
+    expect(stored.originalName).toBe('first.png');
+    await getDb().delete(files).where(eq(files.id, filler.id));
     bucket.objects.delete(completed.storageKey);
-    await expect(service.completeUpload({fileId:row.id,size:1,mime:'image/png',originalName:'absent'},f.payer)).rejects.toThrow('not found');
+    await expect(
+      service.completeUpload(
+        { fileId: row.id, size: 1, mime: 'image/png', originalName: 'absent' },
+        f.payer,
+      ),
+    ).rejects.toThrow('not found');
   });
   it('refuses an unsupported public relocation before persisting the visibility change', async () => {
     const f = await productAccessFixture();
-    mockCatalogue = { ...EMPTY_PRODUCT_BILLING_CATALOGUE, products: f.products,
-      storageAdapter: { productId: f.products[0].id, quotaKey: 'storage_bytes', unit: 'byte', legacyCombination: 'maximum' } };
-    const { service } = harness(); const content = png();
-    const row = await service.uploadFileDirect(f.payer, content, 'image/png', 'private.png', 'private');
+    mockCatalogue = {
+      ...EMPTY_PRODUCT_BILLING_CATALOGUE,
+      products: f.products,
+      storageAdapter: {
+        productId: f.products[0].id,
+        quotaKey: 'storage_bytes',
+        unit: 'byte',
+        legacyCombination: 'maximum',
+      },
+    };
+    const { service } = harness();
+    const content = png();
+    const row = await service.uploadFileDirect(
+      f.payer,
+      content,
+      'image/png',
+      'private.png',
+      'private',
+    );
     for (let attempt = 0; attempt < 2; attempt++)
-      await expect(service.completeUpload({ fileId: row.id, originalName: 'public.png', size: content.length,
-        mime: 'image/png', visibility: 'public' }, f.payer)).rejects.toMatchObject({ code: 'STORAGE_PHYSICAL_PATH_UNAVAILABLE' });
+      await expect(
+        service.completeUpload(
+          {
+            fileId: row.id,
+            originalName: 'public.png',
+            size: content.length,
+            mime: 'image/png',
+            visibility: 'public',
+          },
+          f.payer,
+        ),
+      ).rejects.toMatchObject({ code: 'STORAGE_PHYSICAL_PATH_UNAVAILABLE' });
     const [stored] = await getDb().select().from(files).where(eq(files.id, row.id));
-    expect(stored).toMatchObject({ visibility: 'private', storageKey: row.storageKey, originalName: 'private.png' });
+    expect(stored).toMatchObject({
+      visibility: 'private',
+      storageKey: row.storageKey,
+      originalName: 'private.png',
+    });
     // Completing without a prefix change still works under configured admission.
-    expect((await service.completeUpload({ fileId: row.id, originalName: 'kept.png', size: 1, mime: 'image/png' }, f.payer)).visibility).toBe('private');
+    expect(
+      (
+        await service.completeUpload(
+          { fileId: row.id, originalName: 'kept.png', size: 1, mime: 'image/png' },
+          f.payer,
+        )
+      ).visibility,
+    ).toBe('private');
   });
-
 });

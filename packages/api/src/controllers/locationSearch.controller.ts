@@ -13,26 +13,28 @@ export class LocationSearchController {
       const { query, limit = 5, countrycodes, useCache = 'true' } = req.query;
 
       if (!query || typeof query !== 'string') {
-        return res.status(400).json({ 
-          message: 'Query parameter is required' 
+        return res.status(400).json({
+          message: 'Query parameter is required',
         });
       }
 
       if (query.length < 3) {
-        return res.status(400).json({ 
-          message: 'Query must be at least 3 characters long' 
+        return res.status(400).json({
+          message: 'Query must be at least 3 characters long',
         });
       }
 
       const limitNum = Number.parseInt(limit as string) || 5;
       const useCacheBool = useCache === 'true';
 
-      logger.info(`Searching locations for query: ${query} (limit: ${limitNum}, cache: ${useCacheBool})`);
+      logger.info(
+        `Searching locations for query: ${query} (limit: ${limitNum}, cache: ${useCacheBool})`,
+      );
 
       const results = await locationService.searchLocations(query, {
         limit: limitNum,
         countrycodes: countrycodes as string,
-        useCache: useCacheBool
+        useCache: useCacheBool,
       });
 
       res.json({
@@ -40,27 +42,26 @@ export class LocationSearchController {
         results,
         query,
         total: results.length,
-        cached: useCacheBool
+        cached: useCacheBool,
       });
-
     } catch (error) {
       logger.error('Error searching locations:', error);
-      
+
       if (error instanceof Error) {
         if (error.message.includes('Rate limit')) {
-          return res.status(429).json({ 
-            message: error.message 
+          return res.status(429).json({
+            message: error.message,
           });
         }
         if (error.message.includes('timeout')) {
-          return res.status(408).json({ 
-            message: error.message 
+          return res.status(408).json({
+            message: error.message,
           });
         }
       }
 
-      res.status(500).json({ 
-        message: 'Error searching locations' 
+      res.status(500).json({
+        message: 'Error searching locations',
       });
     }
   }
@@ -73,8 +74,8 @@ export class LocationSearchController {
       const { lat, lon, useCache = 'true' } = req.query;
 
       if (!lat || !lon) {
-        return res.status(400).json({ 
-          message: 'Latitude and longitude parameters are required' 
+        return res.status(400).json({
+          message: 'Latitude and longitude parameters are required',
         });
       }
 
@@ -82,50 +83,51 @@ export class LocationSearchController {
       const longitude = Number.parseFloat(lon as string);
 
       if (isNaN(latitude) || isNaN(longitude)) {
-        return res.status(400).json({ 
-          message: 'Invalid latitude or longitude values' 
+        return res.status(400).json({
+          message: 'Invalid latitude or longitude values',
         });
       }
 
       if (latitude < -90 || latitude > 90) {
-        return res.status(400).json({ 
-          message: 'Latitude must be between -90 and 90' 
+        return res.status(400).json({
+          message: 'Latitude must be between -90 and 90',
         });
       }
 
       if (longitude < -180 || longitude > 180) {
-        return res.status(400).json({ 
-          message: 'Longitude must be between -180 and 180' 
+        return res.status(400).json({
+          message: 'Longitude must be between -180 and 180',
         });
       }
 
       const useCacheBool = useCache === 'true';
 
-      logger.info(`Getting location details for coordinates: ${lat}, ${lon} (cache: ${useCacheBool})`);
+      logger.info(
+        `Getting location details for coordinates: ${lat}, ${lon} (cache: ${useCacheBool})`,
+      );
 
       const result = await locationService.getLocationDetails(latitude, longitude, {
-        useCache: useCacheBool
+        useCache: useCacheBool,
       });
 
       res.json({
         success: true,
         result,
-        cached: useCacheBool
+        cached: useCacheBool,
       });
-
     } catch (error) {
       logger.error('Error getting location details:', error);
-      
+
       if (error instanceof Error) {
         if (error.message.includes('Rate limit')) {
-          return res.status(429).json({ 
-            message: error.message 
+          return res.status(429).json({
+            message: error.message,
           });
         }
       }
 
-      res.status(500).json({ 
-        message: 'Error getting location details' 
+      res.status(500).json({
+        message: 'Error getting location details',
       });
     }
   }
@@ -138,12 +140,12 @@ export class LocationSearchController {
       const stats = locationService.getCacheStats();
       res.json({
         success: true,
-        stats
+        stats,
       });
     } catch (error) {
       logger.error('Error getting cache stats:', error);
-      res.status(500).json({ 
-        message: 'Error getting cache statistics' 
+      res.status(500).json({
+        message: 'Error getting cache statistics',
       });
     }
   }
@@ -156,12 +158,12 @@ export class LocationSearchController {
       locationService.clearCache();
       res.json({
         success: true,
-        message: 'Cache cleared successfully'
+        message: 'Cache cleared successfully',
       });
     } catch (error) {
       logger.error('Error clearing cache:', error);
-      res.status(500).json({ 
-        message: 'Error clearing cache' 
+      res.status(500).json({
+        message: 'Error clearing cache',
       });
     }
   }
@@ -174,8 +176,8 @@ export class LocationSearchController {
       const { lat, lon, maxDistance = 10000, limit = 10, skip = 0 } = req.query;
 
       if (!lat || !lon) {
-        return res.status(400).json({ 
-          message: 'Latitude and longitude parameters are required' 
+        return res.status(400).json({
+          message: 'Latitude and longitude parameters are required',
         });
       }
 
@@ -189,18 +191,17 @@ export class LocationSearchController {
         latitude,
         longitude,
         maxDistanceNum,
-        { limit: limitNum, skip: skipNum }
+        { limit: limitNum, skip: skipNum },
       );
 
       res.json({
         success: true,
-        ...result
+        ...result,
       });
-
     } catch (error) {
       logger.error('Error finding locations near point:', error);
-      res.status(500).json({ 
-        message: 'Error finding nearby locations' 
+      res.status(500).json({
+        message: 'Error finding nearby locations',
       });
     }
   }
@@ -213,34 +214,30 @@ export class LocationSearchController {
       const { query, limit = 10, skip = 0, type, country, city } = req.query;
 
       if (!query || typeof query !== 'string') {
-        return res.status(400).json({ 
-          message: 'Query parameter is required' 
+        return res.status(400).json({
+          message: 'Query parameter is required',
         });
       }
 
       const limitNum = Number.parseInt(limit as string);
       const skipNum = Number.parseInt(skip as string);
 
-      const result = await locationQueryService.searchLocationsByText(
-        query,
-        {
-          limit: limitNum,
-          skip: skipNum,
-          type: type as string,
-          country: country as string,
-          city: city as string
-        }
-      );
+      const result = await locationQueryService.searchLocationsByText(query, {
+        limit: limitNum,
+        skip: skipNum,
+        type: type as string,
+        country: country as string,
+        city: city as string,
+      });
 
       res.json({
         success: true,
-        ...result
+        ...result,
       });
-
     } catch (error) {
       logger.error('Error searching locations in database:', error);
-      res.status(500).json({ 
-        message: 'Error searching locations' 
+      res.status(500).json({
+        message: 'Error searching locations',
       });
     }
   }
@@ -253,12 +250,12 @@ export class LocationSearchController {
       const stats = await locationQueryService.getLocationStats();
       res.json({
         success: true,
-        stats
+        stats,
       });
     } catch (error) {
       logger.error('Error getting location stats:', error);
-      res.status(500).json({ 
-        message: 'Error getting location statistics' 
+      res.status(500).json({
+        message: 'Error getting location statistics',
       });
     }
   }
@@ -271,20 +268,20 @@ export class LocationSearchController {
       const stats = performanceMonitor.getStats();
       const summary = performanceMonitor.getSummary();
       const slowOperations = performanceMonitor.getSlowOperations();
-      
+
       res.json({
         success: true,
         stats,
         summary,
-        slowOperations
+        slowOperations,
       });
     } catch (error) {
       logger.error('Error getting performance stats:', error);
-      res.status(500).json({ 
-        message: 'Error getting performance statistics' 
+      res.status(500).json({
+        message: 'Error getting performance statistics',
       });
     }
   }
 }
 
-export default new LocationSearchController(); 
+export default new LocationSearchController();

@@ -14,9 +14,7 @@ import { parseYaml } from '../../scripts/generate-openapi';
  * nothing failed. The published contract was written from that.
  */
 describe('openapi.base.yaml parses completely', () => {
-  const base = parseYaml(
-    readFileSync(path.resolve(__dirname, '../../openapi.base.yaml'), 'utf8'),
-  );
+  const base = parseYaml(readFileSync(path.resolve(__dirname, '../../openapi.base.yaml'), 'utf8'));
 
   it('reads every component schema, not a prefix of them', () => {
     // A floor, not an exact count: the point is that a mis-parse truncates the
@@ -32,12 +30,15 @@ describe('openapi.base.yaml parses completely', () => {
       type: 'http',
       scheme: 'Capability',
     });
-    expect(base.components.securitySchemes?.capabilityTicketAuth).not.toHaveProperty('bearerFormat');
+    expect(base.components.securitySchemes?.capabilityTicketAuth).not.toHaveProperty(
+      'bearerFormat',
+    );
   });
 
   it('folds a `>-` block scalar into text rather than the header string', () => {
-    const id = (base.components.schemas?.User as Record<string, Record<string, Record<string, unknown>>>)
-      ?.properties?.id;
+    const id = (
+      base.components.schemas?.User as Record<string, Record<string, Record<string, unknown>>>
+    )?.properties?.id;
     expect(id?.description).not.toBe('>-');
     expect(String(id?.description)).toContain('Stable Oxy user ID');
     // The sibling keys that a mis-parse swallows.

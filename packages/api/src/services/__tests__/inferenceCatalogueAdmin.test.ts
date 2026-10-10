@@ -242,24 +242,23 @@ describe('review comes before approval', () => {
     const { deploymentId, modelId } = await insertProposedRoute();
 
     await expect(
-      applyPermissionAction({ deploymentId, action: 'approve', staffUserId })
+      applyPermissionAction({ deploymentId, action: 'approve', staffUserId }),
     ).rejects.toBeInstanceOf(DeploymentPermissionRefused);
 
     // And it is still invisible, which is the consequence that matters.
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING),
     ).resolves.toBeUndefined();
   });
 
   it('serves the route once reviewed and approved, and not before', async () => {
     const staffUserId = await insertStaffUser();
-    const { deploymentId, modelId, internalRouteId, priceVersionId } =
-      await insertProposedRoute();
+    const { deploymentId, modelId, internalRouteId, priceVersionId } = await insertProposedRoute();
 
     // Before: withheld. This is the "and not before" half, measured rather than
     // assumed, so the case cannot pass on a route that was already visible.
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING),
     ).resolves.toBeUndefined();
 
     await recordLegalReview({
@@ -282,18 +281,14 @@ describe('review comes before approval', () => {
     // intentionally author incomplete approved routes while exercising the
     // fail-closed deploy gate, so this route-specific permission test must not
     // make their global readiness state part of its assertion.
-    const routeReadinessRows = readinessRows.filter(
-      (row) => row.deploymentId === internalRouteId
-    );
+    const routeReadinessRows = readinessRows.filter((row) => row.deploymentId === internalRouteId);
     expect(routeReadinessRows).toHaveLength(1);
     expect(
-      assessInferenceRoutingReadiness(
-        routeReadinessRows,
-        now,
-        routingScoreValidityThreshold(now)
-      )
+      assessInferenceRoutingReadiness(routeReadinessRows, now, routingScoreValidityThreshold(now)),
     ).toEqual({ status: 'ready' });
-    await expect(selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
+    await expect(
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING),
+    ).resolves.toBeDefined();
   });
 
   it('refuses a legal approval that cites no evidence', async () => {
@@ -301,7 +296,7 @@ describe('review comes before approval', () => {
     const { deploymentId } = await insertProposedRoute();
 
     await expect(
-      recordLegalReview({ deploymentId, status: 'approved', reviewerUserId: staffUserId })
+      recordLegalReview({ deploymentId, status: 'approved', reviewerUserId: staffUserId }),
     ).rejects.toBeInstanceOf(DeploymentPermissionRefused);
 
     // Whitespace is not evidence: an empty string is a VALUE and would satisfy
@@ -312,7 +307,7 @@ describe('review comes before approval', () => {
         status: 'approved',
         evidenceRef: '   ',
         reviewerUserId: staffUserId,
-      })
+      }),
     ).rejects.toBeInstanceOf(DeploymentPermissionRefused);
   });
 
@@ -350,13 +345,17 @@ describe('review comes before approval', () => {
       .set({ internalRouteId: null })
       .where(eq(inferenceDeployments.id, unmapped.deploymentId));
     await expect(
-      applyPermissionAction({ deploymentId: unmapped.deploymentId, action: 'approve', staffUserId })
+      applyPermissionAction({
+        deploymentId: unmapped.deploymentId,
+        action: 'approve',
+        staffUserId,
+      }),
     ).rejects.toThrow('exact Kaana deploymentId');
 
     const missing = await insertProposedRoute();
     await approveLegalReview(missing.deploymentId, staffUserId);
     await expect(
-      applyPermissionAction({ deploymentId: missing.deploymentId, action: 'approve', staffUserId })
+      applyPermissionAction({ deploymentId: missing.deploymentId, action: 'approve', staffUserId }),
     ).rejects.toThrow('complete routing scorecard');
 
     const incomplete = await insertProposedRoute();
@@ -371,7 +370,7 @@ describe('review comes before approval', () => {
         deploymentId: incomplete.deploymentId,
         action: 'approve',
         staffUserId,
-      })
+      }),
     ).rejects.toThrow('all four routing scores');
   });
 
@@ -394,7 +393,7 @@ describe('review comes before approval', () => {
         deploymentId: mismatched.deploymentId,
         action: 'approve',
         staffUserId,
-      })
+      }),
     ).rejects.toThrow('current exact priceVersionId');
 
     const stale = await insertProposedRoute();
@@ -409,7 +408,7 @@ describe('review comes before approval', () => {
       .where(eq(inferenceDeploymentRoutingScores.deploymentId, stale.internalRouteId));
     await approveLegalReview(stale.deploymentId, staffUserId);
     await expect(
-      applyPermissionAction({ deploymentId: stale.deploymentId, action: 'approve', staffUserId })
+      applyPermissionAction({ deploymentId: stale.deploymentId, action: 'approve', staffUserId }),
     ).rejects.toThrow('minimum validity horizon');
 
     const future = await insertProposedRoute();
@@ -424,7 +423,7 @@ describe('review comes before approval', () => {
       .where(eq(inferenceDeploymentRoutingScores.deploymentId, future.internalRouteId));
     await approveLegalReview(future.deploymentId, staffUserId);
     await expect(
-      applyPermissionAction({ deploymentId: future.deploymentId, action: 'approve', staffUserId })
+      applyPermissionAction({ deploymentId: future.deploymentId, action: 'approve', staffUserId }),
     ).rejects.toThrow('ends in the future');
   });
 
@@ -443,9 +442,13 @@ describe('review comes before approval', () => {
       .where(eq(inferenceDeployments.id, second.deploymentId));
     await approveLegalReview(first.deploymentId, staffUserId);
     await approveLegalReview(second.deploymentId, staffUserId);
-    await applyPermissionAction({ deploymentId: first.deploymentId, action: 'approve', staffUserId });
+    await applyPermissionAction({
+      deploymentId: first.deploymentId,
+      action: 'approve',
+      staffUserId,
+    });
     await expect(
-      applyPermissionAction({ deploymentId: second.deploymentId, action: 'approve', staffUserId })
+      applyPermissionAction({ deploymentId: second.deploymentId, action: 'approve', staffUserId }),
     ).rejects.toThrow('already backs another approved');
 
     let code: string | undefined;
@@ -477,7 +480,7 @@ describe('review comes before approval', () => {
     expect(conflict).toBeInstanceOf(DeploymentPermissionRefused);
     expect(conflict).toHaveProperty(
       'message',
-      'This Kaana deploymentId already backs another approved catalogue row.'
+      'This Kaana deploymentId already backs another approved catalogue row.',
     );
 
     Reflect.set(driverError, 'constraint_name', 'some_other_unique_index');
@@ -523,12 +526,12 @@ describe('review comes before approval', () => {
 
     expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
     const rejected = outcomes.find(
-      (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected'
+      (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
     );
     expect(rejected?.reason).toBeInstanceOf(DeploymentPermissionRefused);
     expect(rejected?.reason).toHaveProperty(
       'message',
-      'This Kaana deploymentId already backs another approved catalogue row.'
+      'This Kaana deploymentId already backs another approved catalogue row.',
     );
 
     const approved = await getDb()
@@ -537,8 +540,8 @@ describe('review comes before approval', () => {
       .where(
         and(
           eq(inferenceDeployments.internalRouteId, first.internalRouteId),
-          eq(inferenceDeployments.permissionState, 'approved')
-        )
+          eq(inferenceDeployments.permissionState, 'approved'),
+        ),
       );
     expect(approved).toHaveLength(1);
   });
@@ -597,7 +600,7 @@ describe('routing-score authoring', () => {
           balanced_valid_until, reason, changed_by_user_id
         from inference_deployment_routing_scores
         where deployment_id = ${deployment.internalRouteId}
-      `)
+      `),
     ).rejects.toMatchObject({ cause: { code: '23502' } });
   });
 
@@ -674,7 +677,7 @@ describe('routing-score authoring', () => {
       .where(eq(inferenceDeploymentRoutingScoreEvents.deploymentId, deployment.internalRouteId))
       .orderBy(
         asc(inferenceDeploymentRoutingScoreEvents.createdAt),
-        asc(inferenceDeploymentRoutingScoreEvents.id)
+        asc(inferenceDeploymentRoutingScoreEvents.id),
       );
     expect(events).toHaveLength(2);
     expect(events).toEqual(
@@ -691,7 +694,7 @@ describe('routing-score authoring', () => {
           evidenceRef: 'scorecard/review-42/price',
           changedByUserId: staffUserId,
         }),
-      ])
+      ]),
     );
 
     const triggers = await getDb().execute<{ tgname: string }>(sql`
@@ -729,8 +732,8 @@ describe('routing-score authoring', () => {
     expect(immutabilityCode).toBe(CHECK_VIOLATION);
     expect(
       immutabilityMessages.some((message) =>
-        message.includes(ROUTING_SCORE_EVENT_IMMUTABLE_MESSAGE)
-      )
+        message.includes(ROUTING_SCORE_EVENT_IMMUTABLE_MESSAGE),
+      ),
     ).toBe(true);
   });
 
@@ -743,7 +746,7 @@ describe('routing-score authoring', () => {
         deploymentId: deployment.deploymentId,
         staffUserId,
         scorecard: scorecardFor(deployment.priceVersionId),
-      })
+      }),
     ).rejects.toBeInstanceOf(DeploymentNotFoundError);
   });
 
@@ -757,7 +760,7 @@ describe('routing-score authoring', () => {
         deploymentId: deployment.internalRouteId,
         staffUserId,
         scorecard: scorecardFor(other.priceVersionId),
-      })
+      }),
     ).rejects.toThrow('not assigned');
 
     const future = scorecardFor(deployment.priceVersionId);
@@ -767,7 +770,7 @@ describe('routing-score authoring', () => {
         deploymentId: deployment.internalRouteId,
         staffUserId,
         scorecard: future,
-      })
+      }),
     ).rejects.toThrow('cannot end in the future');
 
     const expired = scorecardFor(deployment.priceVersionId);
@@ -777,7 +780,7 @@ describe('routing-score authoring', () => {
         deploymentId: deployment.internalRouteId,
         staffUserId,
         scorecard: expired,
-      })
+      }),
     ).rejects.toThrow('must still be valid');
   });
 
@@ -795,7 +798,7 @@ describe('routing-score authoring', () => {
         deploymentId: first.internalRouteId,
         staffUserId,
         scorecard: scorecardFor(first.priceVersionId),
-      })
+      }),
     ).rejects.toThrow('more than one catalogue row');
   });
 
@@ -827,7 +830,7 @@ describe('routing-score authoring', () => {
           deploymentId: deployment.internalRouteId,
           staffUserId,
           scorecard: scorecardFor(deployment.priceVersionId, { balancedScore: null }),
-        })
+        }),
       ).rejects.toThrow('approved serving-scope route');
 
       const shortLived = scorecardFor(deployment.priceVersionId);
@@ -840,7 +843,7 @@ describe('routing-score authoring', () => {
           deploymentId: deployment.internalRouteId,
           staffUserId,
           scorecard: shortLived,
-        })
+        }),
       ).rejects.toThrow('configured minimum validity horizon');
 
       await expect(
@@ -848,7 +851,7 @@ describe('routing-score authoring', () => {
           deploymentId: deployment.internalRouteId,
           staffUserId,
           scorecard: scorecardFor(other.priceVersionId),
-        })
+        }),
       ).rejects.toThrow('not assigned to this exact Kaana deployment');
 
       await applyPermissionAction({
@@ -861,9 +864,9 @@ describe('routing-score authoring', () => {
           deploymentId: deployment.internalRouteId,
           staffUserId,
           scorecard: scorecardFor(deployment.priceVersionId, { balancedScore: null }),
-        })
+        }),
       ).resolves.toBeDefined();
-    }
+    },
   );
 });
 
@@ -890,18 +893,22 @@ describe('the other three transitions', () => {
 
       // Control: it really was being served, so the assertion below measures
       // the transition rather than a route that was never visible.
-      await expect(selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
+      await expect(
+        selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING),
+      ).resolves.toBeDefined();
 
       const result = await applyPermissionAction({ deploymentId, action, staffUserId });
       expect(result.permissionState).toBe(ACTION_TARGET_STATE[action]);
 
       await expect(
-        selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)
+        selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING),
       ).resolves.toBeUndefined();
       expect(
-        (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).map((entry) => entry.modelId)
+        (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).map(
+          (entry) => entry.modelId,
+        ),
       ).not.toContain(modelId);
-    }
+    },
   );
 
   it('keeps a retired route retired', async () => {
@@ -917,7 +924,7 @@ describe('the other three transitions', () => {
     await applyPermissionAction({ deploymentId, action: 'retire', staffUserId });
 
     await expect(
-      applyPermissionAction({ deploymentId, action: 'approve', staffUserId })
+      applyPermissionAction({ deploymentId, action: 'approve', staffUserId }),
     ).rejects.toBeInstanceOf(DeploymentPermissionRefused);
   });
 
@@ -952,7 +959,7 @@ describe('the other three transitions', () => {
         deploymentId: `missing-${suffix()}`,
         action: 'suspend',
         staffUserId: await insertStaffUser(),
-      })
+      }),
     ).rejects.toBeInstanceOf(DeploymentNotFoundError);
   });
 });
@@ -962,7 +969,9 @@ describe('the action → state map', () => {
     // A transition that walked a route back to `pending_review` would be
     // indistinguishable from never having reviewed it, which is the one state
     // this workflow must not be able to forge.
-    expect(Object.keys(ACTION_TARGET_STATE).sort()).toEqual([...DEPLOYMENT_PERMISSION_ACTIONS].sort());
+    expect(Object.keys(ACTION_TARGET_STATE).sort()).toEqual(
+      [...DEPLOYMENT_PERMISSION_ACTIONS].sort(),
+    );
     expect(Object.values(ACTION_TARGET_STATE)).not.toContain('pending_review');
   });
 });

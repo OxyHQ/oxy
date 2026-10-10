@@ -20,11 +20,7 @@
  * which AXIS a ledger row belongs to, not how much it costs.
  */
 
-import type {
-    ConductStanding,
-    ModerationSeverity,
-    ReputationCategory,
-} from '@oxy.so/contracts';
+import type { ConductStanding, ModerationSeverity, ReputationCategory } from '@oxy.so/contracts';
 import type { ConductStandingThreshold } from '../db/schema/moderationPolicyStandingThresholds';
 
 // =============================================================================
@@ -39,10 +35,10 @@ import type { ConductStandingThreshold } from '../db/schema/moderationPolicyStan
  * so a rule row would be a second, drifting authority for the same number.
  */
 export const MODERATION_VIOLATION_ACTIONS: Readonly<Record<ModerationSeverity, string>> = {
-    low: 'moderation_violation_low',
-    medium: 'moderation_violation_medium',
-    high: 'moderation_violation_high',
-    critical: 'moderation_violation_critical',
+  low: 'moderation_violation_low',
+  medium: 'moderation_violation_medium',
+  high: 'moderation_violation_high',
+  critical: 'moderation_violation_critical',
 } as const;
 
 /** Ledger `actionType` for confirmed report abuse — the reporting axis. */
@@ -62,9 +58,9 @@ export const REVIEW_ABUSE_CONFIRMED_ACTION = 'review_abuse_confirmed';
  * same through a path that has nothing to do with reports.
  */
 export const CONDUCT_ACTION_TYPES: ReadonlySet<string> = new Set<string>([
-    ...Object.values(MODERATION_VIOLATION_ACTIONS),
-    REPORT_ABUSE_CONFIRMED_ACTION,
-    REVIEW_ABUSE_CONFIRMED_ACTION,
+  ...Object.values(MODERATION_VIOLATION_ACTIONS),
+  REPORT_ABUSE_CONFIRMED_ACTION,
+  REVIEW_ABUSE_CONFIRMED_ACTION,
 ]);
 
 /**
@@ -74,7 +70,7 @@ export const CONDUCT_ACTION_TYPES: ReadonlySet<string> = new Set<string>([
  * rejected report is not bad faith.
  */
 export const REPORT_ABUSE_ACTION_TYPES: ReadonlySet<string> = new Set<string>([
-    REPORT_ABUSE_CONFIRMED_ACTION,
+  REPORT_ABUSE_CONFIRMED_ACTION,
 ]);
 
 /** Ledger category every moderation consequence is filed under. */
@@ -105,19 +101,19 @@ export const BASELINE_OXY_CONDUCT_POLICY_VERSION = 'oxy.2026.1';
  * family produces no effect rather than a guessed one.
  */
 export const BASELINE_CONDUCT_FAMILIES: readonly string[] = [
-    'harassment',
-    'hate',
-    'sexual_content',
-    'child_safety',
-    'violence',
-    'self_harm',
-    'spam',
-    'fraud',
-    'impersonation',
-    'privacy',
-    'platform_manipulation',
-    'report_abuse',
-    'review_abuse',
+  'harassment',
+  'hate',
+  'sexual_content',
+  'child_safety',
+  'violence',
+  'self_harm',
+  'spam',
+  'fraud',
+  'impersonation',
+  'privacy',
+  'platform_manipulation',
+  'report_abuse',
+  'review_abuse',
 ] as const;
 
 /**
@@ -129,15 +125,15 @@ export const BASELINE_CONDUCT_FAMILIES: readonly string[] = [
  * does not lapse on its own and requires a specialised recovery review.
  */
 export const BASELINE_SEVERITY_RULES: readonly {
-    severity: ModerationSeverity;
-    points: number;
-    riskPoints: number;
-    riskExpiryDays: number | null;
+  severity: ModerationSeverity;
+  points: number;
+  riskPoints: number;
+  riskExpiryDays: number | null;
 }[] = [
-    { severity: 'low', points: -2, riskPoints: 1, riskExpiryDays: 30 },
-    { severity: 'medium', points: -8, riskPoints: 3, riskExpiryDays: 90 },
-    { severity: 'high', points: -20, riskPoints: 8, riskExpiryDays: 180 },
-    { severity: 'critical', points: -50, riskPoints: 20, riskExpiryDays: null },
+  { severity: 'low', points: -2, riskPoints: 1, riskExpiryDays: 30 },
+  { severity: 'medium', points: -8, riskPoints: 3, riskExpiryDays: 90 },
+  { severity: 'high', points: -20, riskPoints: 8, riskExpiryDays: 180 },
+  { severity: 'critical', points: -50, riskPoints: 20, riskExpiryDays: null },
 ] as const;
 
 /**
@@ -168,13 +164,12 @@ export const BASELINE_MULTI_FINDING_CAP = 1.5;
  * `limited`, critical (20) → `restricted`. A single low incident (1) lands on
  * `watch`, not on a restriction.
  */
-export const BASELINE_STANDING_THRESHOLDS: readonly ConductStandingThreshold[] =
-    [
-        { standing: 'restricted', minRisk: 20 },
-        { standing: 'limited', minRisk: 8 },
-        { standing: 'watch', minRisk: 1 },
-        { standing: 'good', minRisk: 0 },
-    ] as const;
+export const BASELINE_STANDING_THRESHOLDS: readonly ConductStandingThreshold[] = [
+  { standing: 'restricted', minRisk: 20 },
+  { standing: 'limited', minRisk: 8 },
+  { standing: 'watch', minRisk: 1 },
+  { standing: 'good', minRisk: 0 },
+] as const;
 
 // =============================================================================
 // CONTRIBUTION AXIS
@@ -219,7 +214,7 @@ export const REVIEWING_PRIOR_FAILURE = 1;
  * value must be the prior itself rather than zero.
  */
 export const NEUTRAL_REVIEWER_RELIABILITY =
-    REVIEWING_PRIOR_SUCCESS / (REVIEWING_PRIOR_SUCCESS + REVIEWING_PRIOR_FAILURE);
+  REVIEWING_PRIOR_SUCCESS / (REVIEWING_PRIOR_SUCCESS + REVIEWING_PRIOR_FAILURE);
 
 // =============================================================================
 // CONTEXTUAL INFLUENCE
@@ -235,10 +230,10 @@ export const CONTEXTUAL_WEIGHT_MAX = 3.0;
 
 /** Per-standing multiplier applied to every contextual weight. */
 export const STANDING_WEIGHT_FACTOR: Readonly<Record<ConductStanding, number>> = {
-    good: 1.0,
-    watch: 0.75,
-    limited: 0.25,
-    restricted: 0,
+  good: 1.0,
+  watch: 0.75,
+  limited: 0.25,
+  restricted: 0,
 } as const;
 
 // =============================================================================

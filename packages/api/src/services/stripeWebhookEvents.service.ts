@@ -70,7 +70,7 @@ export async function recordStripeEventReceived(event: Stripe.Event): Promise<bo
 export async function recordStripeEventOutcome(
   eventId: string,
   outcome: BillingStripeEventOutcome,
-  detail?: string
+  detail?: string,
 ): Promise<void> {
   await getDb()
     .update(billingStripeEvents)

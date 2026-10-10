@@ -93,7 +93,7 @@ router.post(
       family: serializeFamily(family),
       membership: serializeMember(membership),
     });
-  })
+  }),
 );
 
 /** GET /families/me — every family the caller actively belongs to, each with its roster. Empty, not 404, when they belong to none. */
@@ -109,7 +109,7 @@ router.get(
         members: roster.members.map(serializeMember),
       })),
     });
-  })
+  }),
 );
 
 /** GET /families/invites — pending invites addressed to the caller. */
@@ -125,7 +125,7 @@ router.get(
         family: serializeFamily(family),
       })),
     });
-  })
+  }),
 );
 
 /** POST /families/:id/members — invite a user by username/email. Organizer only. */
@@ -144,7 +144,7 @@ router.post(
 
     const member = await familyService.inviteMember(req.params.id, operatorId, targetUser.id);
     res.status(201).json({ member: serializeMember(member) });
-  })
+  }),
 );
 
 /** POST /families/:id/members/:memberId/accept — accept your own pending invite. */
@@ -154,13 +154,9 @@ router.post(
   validate({ params: familyMemberParams }),
   asyncHandler(async (req: AuthRequest, res) => {
     const operatorId = await resolveOperatorId(req);
-    const member = await familyService.acceptInvite(
-      req.params.id,
-      req.params.memberId,
-      operatorId
-    );
+    const member = await familyService.acceptInvite(req.params.id, req.params.memberId, operatorId);
     res.json({ member: serializeMember(member) });
-  })
+  }),
 );
 
 /** POST /families/:id/members/:memberId/decline — decline your own pending invite. */
@@ -172,7 +168,7 @@ router.post(
     const operatorId = await resolveOperatorId(req);
     await familyService.declineInvite(req.params.id, req.params.memberId, operatorId);
     res.json({ success: true });
-  })
+  }),
 );
 
 /** DELETE /families/:id/members/:memberId — remove another member. Organizer only. */
@@ -184,7 +180,7 @@ router.delete(
     const operatorId = await resolveOperatorId(req);
     await familyService.removeMember(req.params.id, req.params.memberId, operatorId);
     res.json({ success: true });
-  })
+  }),
 );
 
 /** POST /families/:id/leave — leave the family (organizer only when the sole active member). */
@@ -196,7 +192,7 @@ router.post(
     const operatorId = await resolveOperatorId(req);
     await familyService.leaveFamily(req.params.id, operatorId);
     res.json({ success: true });
-  })
+  }),
 );
 
 export default router;

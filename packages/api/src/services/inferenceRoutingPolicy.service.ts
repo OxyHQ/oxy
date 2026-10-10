@@ -158,7 +158,7 @@ export type ResolvedModelReference =
 
 async function resolveModelReference(
   db: Executor,
-  reference: string
+  reference: string,
 ): Promise<ResolvedModelReference | undefined> {
   const at = reference.indexOf('@');
   const modelId = at === -1 ? reference : reference.slice(0, at);
@@ -181,8 +181,8 @@ async function resolveModelReference(
     .where(
       and(
         eq(inferenceModelRevisions.modelId, model.id),
-        eq(inferenceModelRevisions.revision, revision)
-      )
+        eq(inferenceModelRevisions.revision, revision),
+      ),
     )
     .limit(1);
   return row ? { kind: 'revision', modelRevisionId: row.id } : undefined;
@@ -191,7 +191,7 @@ async function resolveModelReference(
 /** Resolve a routing profile only by its exact opaque catalogue primary key. */
 async function resolveRoutingProfileById(
   db: Executor,
-  routingProfileId: string
+  routingProfileId: string,
 ): Promise<string | undefined> {
   const [row] = await db
     .select({ id: inferenceRoutingProfiles.id })
@@ -245,7 +245,7 @@ function scopeOf(target: RoutingPolicyTarget): RoutingPolicyScope {
           kind: 'application',
           accountId: target.accountId,
           applicationId: target.applicationId,
-        }
+        },
   );
 }
 
@@ -262,13 +262,17 @@ function versionValues(
   resolved: {
     readonly target?: ResolvedModelReference | { readonly kind: 'profile'; readonly id: string };
     readonly currency: string | null;
-  }
+  },
 ) {
   const target = resolved.target;
   return {
     version: policy.policyVersion,
     defaultTargetKind:
-      target === undefined ? null : target.kind === 'profile' ? ('routing_profile' as const) : ('model' as const),
+      target === undefined
+        ? null
+        : target.kind === 'profile'
+          ? ('routing_profile' as const)
+          : ('model' as const),
     defaultModelId: target !== undefined && target.kind === 'model' ? target.modelId : null,
     defaultModelRevisionId:
       target !== undefined && target.kind === 'revision' ? target.modelRevisionId : null,
@@ -314,7 +318,7 @@ async function writeVersionChildren(
   versionId: string,
   policy: RoutingPolicy,
   currency: string | null,
-  fallbackTargets: readonly ResolvedModelReference[]
+  fallbackTargets: readonly ResolvedModelReference[],
 ): Promise<void> {
   if (policy.maxPricePerUnit.length > 0) {
     // `currency` is non-null whenever a ceiling exists — the contract's
@@ -328,7 +332,7 @@ async function writeVersionChildren(
         currency: currency ?? ceiling.currency,
         amount: ceiling.amount,
         per: ceiling.per,
-      }))
+      })),
     );
   }
 
@@ -340,7 +344,7 @@ async function writeVersionChildren(
         modelId: target.kind === 'model' ? target.modelId : null,
         modelRevisionId: target.kind === 'revision' ? target.modelRevisionId : null,
         position,
-      }))
+      })),
     );
   }
 }
@@ -354,7 +358,7 @@ async function writeVersionChildren(
  */
 async function resolveReferences(
   tx: Tx,
-  policy: RoutingPolicy
+  policy: RoutingPolicy,
 ): Promise<
   | {
       readonly status: 'resolved';
@@ -435,9 +439,9 @@ export async function createRoutingPolicy(input: {
             ? eq(inferenceRoutingPolicies.applicationId, input.target.applicationId)
             : and(
                 eq(inferenceRoutingPolicies.accountId, input.target.accountId),
-                eq(inferenceRoutingPolicies.scopeKind, 'account')
-              )
-        )
+                eq(inferenceRoutingPolicies.scopeKind, 'account'),
+              ),
+        ),
       )
       .limit(1);
     if (existing.length > 0) return { status: 'scope-taken', scope };
@@ -553,8 +557,8 @@ export async function appendRoutingPolicyVersion(input: {
       .where(
         and(
           eq(inferenceRoutingPolicyVersions.routingPolicyId, policyRow.id),
-          eq(inferenceRoutingPolicyVersions.isCurrent, true)
-        )
+          eq(inferenceRoutingPolicyVersions.isCurrent, true),
+        ),
       );
 
     const currency = ceilingCurrency(policy);
@@ -589,7 +593,7 @@ export type ArchiveRoutingPolicyResult =
  * created immediately.
  */
 export async function archiveRoutingPolicy(
-  routingPolicyId: string
+  routingPolicyId: string,
 ): Promise<ArchiveRoutingPolicyResult> {
   const [row] = await getDb()
     .update(inferenceRoutingPolicies)
@@ -597,8 +601,8 @@ export async function archiveRoutingPolicy(
     .where(
       and(
         eq(inferenceRoutingPolicies.id, routingPolicyId),
-        eq(inferenceRoutingPolicies.status, 'active')
-      )
+        eq(inferenceRoutingPolicies.status, 'active'),
+      ),
     )
     .returning({ id: inferenceRoutingPolicies.id });
 
@@ -643,7 +647,7 @@ type VersionRow = typeof inferenceRoutingPolicyVersions.$inferSelect;
 async function readVersion(
   db: Executor,
   row: VersionRow,
-  scope: RoutingPolicyScope
+  scope: RoutingPolicyScope,
 ): Promise<RoutingPolicy> {
   const target = await readTarget(db, row);
 
@@ -710,9 +714,7 @@ async function readTarget(db: Executor, row: VersionRow): Promise<RoutingTarget 
       .from(inferenceRoutingProfiles)
       .where(eq(inferenceRoutingProfiles.id, row.defaultRoutingProfileId))
       .limit(1);
-    return profile
-      ? { kind: 'routing_profile_id', routingProfileId: profile.id }
-      : undefined;
+    return profile ? { kind: 'routing_profile_id', routingProfileId: profile.id } : undefined;
   }
 
   if (row.defaultModelId !== null) {
@@ -771,7 +773,7 @@ async function readAuthorizedCrossModel(db: Executor, versionId: string): Promis
     .leftJoin(inferenceModels, eq(inferenceModels.id, inferenceRoutingPolicyFallbacks.modelId))
     .leftJoin(
       inferenceModelRevisions,
-      eq(inferenceModelRevisions.id, inferenceRoutingPolicyFallbacks.modelRevisionId)
+      eq(inferenceModelRevisions.id, inferenceRoutingPolicyFallbacks.modelRevisionId),
     )
     .leftJoin(revisionModels, eq(revisionModels.id, inferenceModelRevisions.modelId))
     .where(eq(inferenceRoutingPolicyFallbacks.versionId, versionId))
@@ -851,7 +853,7 @@ function scopeFromRow(row: {
 /** One policy at a specific version, or its current one when none is named. */
 export async function getRoutingPolicy(
   routingPolicyId: string,
-  policyVersion?: number
+  policyVersion?: number,
 ): Promise<StoredRoutingPolicy | undefined> {
   const db = getDb();
   const [row] = await db
@@ -859,15 +861,15 @@ export async function getRoutingPolicy(
     .from(inferenceRoutingPolicyVersions)
     .innerJoin(
       inferenceRoutingPolicies,
-      eq(inferenceRoutingPolicies.id, inferenceRoutingPolicyVersions.routingPolicyId)
+      eq(inferenceRoutingPolicies.id, inferenceRoutingPolicyVersions.routingPolicyId),
     )
     .where(
       and(
         eq(inferenceRoutingPolicyVersions.routingPolicyId, routingPolicyId),
         policyVersion === undefined
           ? eq(inferenceRoutingPolicyVersions.isCurrent, true)
-          : eq(inferenceRoutingPolicyVersions.version, policyVersion)
-      )
+          : eq(inferenceRoutingPolicyVersions.version, policyVersion),
+      ),
     )
     .limit(1);
 
@@ -883,7 +885,7 @@ export async function getRoutingPolicy(
 
 /** Every version of one policy, newest first — the customer's own audit trail. */
 export async function listRoutingPolicyVersions(
-  routingPolicyId: string
+  routingPolicyId: string,
 ): Promise<StoredRoutingPolicy[]> {
   const db = getDb();
   const rows = await db
@@ -891,7 +893,7 @@ export async function listRoutingPolicyVersions(
     .from(inferenceRoutingPolicyVersions)
     .innerJoin(
       inferenceRoutingPolicies,
-      eq(inferenceRoutingPolicies.id, inferenceRoutingPolicyVersions.routingPolicyId)
+      eq(inferenceRoutingPolicies.id, inferenceRoutingPolicyVersions.routingPolicyId),
     )
     .where(eq(inferenceRoutingPolicyVersions.routingPolicyId, routingPolicyId))
     .orderBy(desc(inferenceRoutingPolicyVersions.version));
@@ -910,7 +912,7 @@ export async function listRoutingPolicyVersions(
 
 /** Every ACTIVE policy an account owns, at its current version. */
 export async function listRoutingPoliciesForAccount(
-  accountId: string
+  accountId: string,
 ): Promise<StoredRoutingPolicy[]> {
   const db = getDb();
   const rows = await db
@@ -920,14 +922,14 @@ export async function listRoutingPoliciesForAccount(
       inferenceRoutingPolicyVersions,
       and(
         eq(inferenceRoutingPolicyVersions.routingPolicyId, inferenceRoutingPolicies.id),
-        eq(inferenceRoutingPolicyVersions.isCurrent, true)
-      )
+        eq(inferenceRoutingPolicyVersions.isCurrent, true),
+      ),
     )
     .where(
       and(
         eq(inferenceRoutingPolicies.accountId, accountId),
-        eq(inferenceRoutingPolicies.status, 'active')
-      )
+        eq(inferenceRoutingPolicies.status, 'active'),
+      ),
     )
     .orderBy(desc(inferenceRoutingPolicies.createdAt));
 
@@ -961,7 +963,7 @@ export type EffectiveRoutingPolicyResolution =
   | { readonly status: 'unknown-application'; readonly applicationId: string };
 
 export async function resolveEffectiveRoutingPolicy(
-  applicationId: string
+  applicationId: string,
 ): Promise<EffectiveRoutingPolicyResolution> {
   const db = getDb();
 
@@ -979,14 +981,14 @@ export async function resolveEffectiveRoutingPolicy(
       inferenceRoutingPolicyVersions,
       and(
         eq(inferenceRoutingPolicyVersions.routingPolicyId, inferenceRoutingPolicies.id),
-        eq(inferenceRoutingPolicyVersions.isCurrent, true)
-      )
+        eq(inferenceRoutingPolicyVersions.isCurrent, true),
+      ),
     )
     .where(
       and(
         eq(inferenceRoutingPolicies.applicationId, applicationId),
-        eq(inferenceRoutingPolicies.status, 'active')
-      )
+        eq(inferenceRoutingPolicies.status, 'active'),
+      ),
     )
     .limit(1);
 
@@ -1010,16 +1012,16 @@ export async function resolveEffectiveRoutingPolicy(
       inferenceRoutingPolicyVersions,
       and(
         eq(inferenceRoutingPolicyVersions.routingPolicyId, inferenceRoutingPolicies.id),
-        eq(inferenceRoutingPolicyVersions.isCurrent, true)
-      )
+        eq(inferenceRoutingPolicyVersions.isCurrent, true),
+      ),
     )
     .where(
       and(
         eq(inferenceRoutingPolicies.accountId, application.ownerAccountId),
         eq(inferenceRoutingPolicies.scopeKind, 'account'),
         isNull(inferenceRoutingPolicies.applicationId),
-        eq(inferenceRoutingPolicies.status, 'active')
-      )
+        eq(inferenceRoutingPolicies.status, 'active'),
+      ),
     )
     .limit(1);
 
@@ -1138,7 +1140,7 @@ export type RecordRouteSwitchResult =
  * `sameModelDeployment`.
  */
 export async function recordRouteSwitch(
-  input: RecordRouteSwitchInput
+  input: RecordRouteSwitchInput,
 ): Promise<RecordRouteSwitchResult> {
   const db = getDb();
 
@@ -1199,8 +1201,7 @@ export async function recordRouteSwitch(
     .select({
       id: inferenceRoutingPolicyVersions.id,
       fallbackDisabled: inferenceRoutingPolicyVersions.fallbackDisabled,
-      sameModelDeploymentFallback:
-        inferenceRoutingPolicyVersions.sameModelDeploymentFallback,
+      sameModelDeploymentFallback: inferenceRoutingPolicyVersions.sameModelDeploymentFallback,
     })
     .from(inferenceRoutingPolicyVersions)
     .where(eq(inferenceRoutingPolicyVersions.id, routingPolicyVersionId))
@@ -1232,11 +1233,7 @@ export async function recordRouteSwitch(
       };
     }
 
-    const authorization = await findAuthorization(
-      db,
-      version.id,
-      input.detail.toModelReference
-    );
+    const authorization = await findAuthorization(db, version.id, input.detail.toModelReference);
     if (authorization === undefined) {
       return {
         status: 'unauthorized-substitution',
@@ -1302,7 +1299,7 @@ function modelLineOfReference(reference: string): string {
 async function findAuthorization(
   db: Executor,
   versionId: string,
-  reference: string
+  reference: string,
 ): Promise<string | undefined> {
   const resolved = await resolveModelReference(db, reference);
   if (resolved === undefined) return undefined;
@@ -1314,8 +1311,8 @@ async function findAuthorization(
       .where(
         and(
           eq(inferenceRoutingPolicyFallbacks.versionId, versionId),
-          eq(inferenceRoutingPolicyFallbacks.modelRevisionId, resolved.modelRevisionId)
-        )
+          eq(inferenceRoutingPolicyFallbacks.modelRevisionId, resolved.modelRevisionId),
+        ),
       )
       .limit(1);
     if (exact) return exact.id;
@@ -1325,13 +1322,13 @@ async function findAuthorization(
       .from(inferenceRoutingPolicyFallbacks)
       .innerJoin(
         inferenceModelRevisions,
-        eq(inferenceModelRevisions.modelId, inferenceRoutingPolicyFallbacks.modelId)
+        eq(inferenceModelRevisions.modelId, inferenceRoutingPolicyFallbacks.modelId),
       )
       .where(
         and(
           eq(inferenceRoutingPolicyFallbacks.versionId, versionId),
-          eq(inferenceModelRevisions.id, resolved.modelRevisionId)
-        )
+          eq(inferenceModelRevisions.id, resolved.modelRevisionId),
+        ),
       )
       .limit(1);
     return byModel?.id;
@@ -1343,8 +1340,8 @@ async function findAuthorization(
     .where(
       and(
         eq(inferenceRoutingPolicyFallbacks.versionId, versionId),
-        eq(inferenceRoutingPolicyFallbacks.modelId, resolved.modelId)
-      )
+        eq(inferenceRoutingPolicyFallbacks.modelId, resolved.modelId),
+      ),
     )
     .limit(1);
   return byModel?.id;
@@ -1379,7 +1376,7 @@ export interface RouteSwitchEventView {
  */
 export async function listRouteSwitchEventsForApplication(
   applicationId: string,
-  limit = 100
+  limit = 100,
 ): Promise<RouteSwitchEventView[]> {
   const rows = await getDb()
     .select({

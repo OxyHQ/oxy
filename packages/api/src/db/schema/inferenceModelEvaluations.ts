@@ -65,9 +65,9 @@ export const inferenceModelEvaluations = pgTable(
     unique('inference_model_evaluations_revision_suite_metric_key').on(
       t.modelRevisionId,
       t.suite,
-      t.metric
+      t.metric,
     ),
-  ]
+  ],
 );
 
 export type InferenceModelEvaluationRow = typeof inferenceModelEvaluations.$inferSelect;

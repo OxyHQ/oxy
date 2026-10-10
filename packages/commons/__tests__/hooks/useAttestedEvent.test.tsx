@@ -55,7 +55,12 @@ describe('useAttestedEvent', () => {
     const onAttested = jest.fn();
     renderHook(() => useAttestedEvent(onAttested));
     act(() => {
-      __emitOxyEvent('civic:attested', { byUserId: 'u2', recordId: 'r1', points: 25, at: '2026-07-11T00:00:00.000Z' });
+      __emitOxyEvent('civic:attested', {
+        byUserId: 'u2',
+        recordId: 'r1',
+        points: 25,
+        at: '2026-07-11T00:00:00.000Z',
+      });
       __emitOxyEvent('civic:attested', {
         subjectUserId: 42,
         byUserId: 'u2',

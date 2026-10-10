@@ -73,7 +73,7 @@ export const inferenceModelReleaseArtifacts = pgTable(
 
     check(
       'inference_model_release_artifacts_digest_format',
-      sql`${t.digest} ~ ${sql.raw(String.raw`'^sha256:[a-f0-9]{64}$'`)}`
+      sql`${t.digest} ~ ${sql.raw(String.raw`'^sha256:[a-f0-9]{64}$'`)}`,
     ),
     check('inference_model_release_artifacts_size_positive', sql`${t.sizeBytes} > 0`),
 
@@ -83,8 +83,7 @@ export const inferenceModelReleaseArtifacts = pgTable(
      * the release.
      */
     index('inference_model_release_artifacts_digest_idx').on(t.digest),
-  ]
+  ],
 );
 
-export type InferenceModelReleaseArtifactRow =
-  typeof inferenceModelReleaseArtifacts.$inferSelect;
+export type InferenceModelReleaseArtifactRow = typeof inferenceModelReleaseArtifacts.$inferSelect;

@@ -59,13 +59,13 @@ describe('the composition accepts what the namespace actually holds', () => {
     'accepts %s',
     (raw) => {
       expect(accepts(raw)).toBe(true);
-    }
+    },
   );
 
   it.each(['ab', 'a'.repeat(31), 'al.ice', '-alice', 'alice-', 'a--b', '\u00E1lice', ''])(
     'rejects %j',
     (raw) => {
       expect(accepts(raw)).toBe(false);
-    }
+    },
   );
 });

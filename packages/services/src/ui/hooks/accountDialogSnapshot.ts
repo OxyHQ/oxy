@@ -47,7 +47,9 @@ export const EMPTY_ACCOUNT_DIALOG_SNAPSHOT: AccountDialogSnapshot = {
  * controller). `getSnapshot` returns a stable reference between changes, so
  * it is `useSyncExternalStore`-safe.
  */
-export function useAccountDialogSnapshot(controller: AccountDialogController | null): AccountDialogSnapshot {
+export function useAccountDialogSnapshot(
+  controller: AccountDialogController | null,
+): AccountDialogSnapshot {
   const subscribe = useCallback(
     (listener: () => void) => (controller ? controller.subscribe(listener) : () => undefined),
     [controller],

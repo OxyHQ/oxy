@@ -79,7 +79,8 @@ describe('@oxy.so/core/server rate limiter', () => {
     jest.clearAllMocks();
     if (originalEnv.IP_HASH_SALT === undefined) Reflect.deleteProperty(process.env, 'IP_HASH_SALT');
     else process.env.IP_HASH_SALT = originalEnv.IP_HASH_SALT;
-    if (originalEnv.DEVICE_ID_SALT === undefined) Reflect.deleteProperty(process.env, 'DEVICE_ID_SALT');
+    if (originalEnv.DEVICE_ID_SALT === undefined)
+      Reflect.deleteProperty(process.env, 'DEVICE_ID_SALT');
     else process.env.DEVICE_ID_SALT = originalEnv.DEVICE_ID_SALT;
   });
 

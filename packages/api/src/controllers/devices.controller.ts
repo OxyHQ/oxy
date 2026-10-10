@@ -83,8 +83,8 @@ export class DevicesController {
           and(
             eq(sessions.userId, user._id),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date())
-          )
+            gt(sessions.expiresAt, new Date()),
+          ),
         )
         .orderBy(desc(sessions.lastActiveAt));
 
@@ -153,7 +153,8 @@ export class DevicesController {
       if (currentDeviceId && deviceId === currentDeviceId) {
         return res.status(400).json({
           error: 'Cannot remove current device',
-          message: 'You cannot remove your current device. Please use another device to remove this one.'
+          message:
+            'You cannot remove your current device. Please use another device to remove this one.',
         });
       }
 
@@ -166,8 +167,8 @@ export class DevicesController {
             eq(sessions.userId, user._id),
             eq(sessions.deviceId, deviceId),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date())
-          )
+            gt(sessions.expiresAt, new Date()),
+          ),
         );
 
       if (userDeviceSessions.length === 0) {
@@ -187,12 +188,12 @@ export class DevicesController {
       emitSessionUpdate(user._id, {
         type: 'device_removed',
         deviceId: deviceId,
-        sessionIds: sessionIds
+        sessionIds: sessionIds,
       });
 
       res.json({
         success: true,
-        message: 'Device removed successfully'
+        message: 'Device removed successfully',
       });
     } catch (error) {
       logger.error('Remove device error:', error);

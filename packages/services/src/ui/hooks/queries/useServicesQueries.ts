@@ -23,15 +23,15 @@ export const useSessions = (userId?: string, options?: { enabled?: boolean }) =>
       if (!activeSessionId) {
         throw new Error('No active session');
       }
-      
+
       const sessions = await fetchSessionsWithFallback(oxyServices, activeSessionId, {
         fallbackDeviceId: undefined,
         fallbackUserId: userId,
       });
-      
+
       return mapSessionsToClient(sessions, activeSessionId);
     },
-    enabled: (options?.enabled !== false) && !!activeSessionId,
+    enabled: options?.enabled !== false && !!activeSessionId,
     staleTime: 2 * 60 * 1000, // 2 minutes (sessions change frequently)
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -49,8 +49,10 @@ export const useSession = (sessionId: string | null, options?: { enabled?: boole
       if (!sessionId) {
         throw new Error('Session ID is required');
       }
-      
-      const validation = await oxyServices.session.validate(sessionId, { useHeaderValidation: true });
+
+      const validation = await oxyServices.session.validate(sessionId, {
+        useHeaderValidation: true,
+      });
       if (!validation?.valid || !validation.user) {
         throw new Error('Session not found or invalid');
       }
@@ -59,13 +61,14 @@ export const useSession = (sessionId: string | null, options?: { enabled?: boole
       return {
         sessionId,
         deviceId: '', // Device ID not available from validation response
-        expiresAt: validation.expiresAt || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt:
+          validation.expiresAt || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         lastActive: validation.lastActivity || now.toISOString(),
         userId: validation.user.id?.toString() ?? '',
         isCurrent: false,
       } as ClientSession;
     },
-    enabled: (options?.enabled !== false) && !!sessionId,
+    enabled: options?.enabled !== false && !!sessionId,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -83,10 +86,10 @@ export const useDeviceSessions = (options?: { enabled?: boolean }) => {
       if (!activeSessionId) {
         throw new Error('No active session');
       }
-      
+
       return await oxyServices.devices.sessions(activeSessionId);
     },
-    enabled: (options?.enabled !== false) && !!activeSessionId,
+    enabled: options?.enabled !== false && !!activeSessionId,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -101,13 +104,9 @@ export const useUserDevices = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: queryKeys.devices.list(accountQueryScope(activeSessionId)),
     queryFn: async () => {
-      return authenticatedApiCall(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.devices.list()
-      );
+      return authenticatedApiCall(oxyServices, activeSessionId, () => oxyServices.devices.list());
     },
-    enabled: (options?.enabled !== false) && isAuthenticated && !!activeSessionId,
+    enabled: options?.enabled !== false && isAuthenticated && !!activeSessionId,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
@@ -124,7 +123,7 @@ export const useSecurityInfo = (options?: { enabled?: boolean }) => {
     queryFn: async () => {
       return await oxyServices.devices.securityInfo();
     },
-    enabled: (options?.enabled !== false) && isAuthenticated,
+    enabled: options?.enabled !== false && isAuthenticated,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
@@ -143,15 +142,10 @@ export const useAccountStorageUsage = (options?: { enabled?: boolean }) => {
   return useQuery<AccountStorageUsageResponse>({
     queryKey: queryKeys.storage.usage(accountQueryScope(activeSessionId)),
     queryFn: async () => {
-      return authenticatedApiCall(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.assets.usage()
-      );
+      return authenticatedApiCall(oxyServices, activeSessionId, () => oxyServices.assets.usage());
     },
-    enabled: (options?.enabled !== false) && isAuthenticated && !!activeSessionId,
+    enabled: options?.enabled !== false && isAuthenticated && !!activeSessionId,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
 };
-

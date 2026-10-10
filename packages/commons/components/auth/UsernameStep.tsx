@@ -11,9 +11,7 @@ import LottieView from 'lottie-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  KeyboardAwareScrollViewWrapper,
-} from '@/components/ui';
+import { KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { useUsernameValidation } from '@/hooks/auth/useUsernameValidation';
 import { stripDisallowedUsernameCharacters } from '@oxy.so/contracts';
 import type { OxyServices } from '@oxy.so/core';
@@ -132,11 +130,11 @@ export function UsernameStep({
   // 1. Username is valid AND
   // 2. Either: available === true, available === null (not checked yet), or offline AND
   // 3. Not currently checking availability
-  const canContinue = isUsernameValid && (
-    validation.isAvailable === true ||
-    validation.isAvailable === null ||
-    isOffline
-  ) && !validation.isChecking && !isConfirming;
+  const canContinue =
+    isUsernameValid &&
+    (validation.isAvailable === true || validation.isAvailable === null || isOffline) &&
+    !validation.isChecking &&
+    !isConfirming;
 
   const handleTextChange = (text: string) => {
     const sanitized = stripDisallowedUsernameCharacters(text);
@@ -203,7 +201,9 @@ export function UsernameStep({
             disabled={isAnimationPlaying || shouldLoop || validation.isChecking || isConfirming}
             accessibilityRole="button"
             accessibilityLabel={t('auth.usernameStep.a11y.playAnimation')}
-            accessibilityState={{ disabled: isAnimationPlaying || shouldLoop || validation.isChecking || isConfirming }}
+            accessibilityState={{
+              disabled: isAnimationPlaying || shouldLoop || validation.isChecking || isConfirming,
+            }}
           >
             <LottieView
               ref={lottieRef}
@@ -217,18 +217,19 @@ export function UsernameStep({
         </View>
         <Text style={[styles.title, { color: textColor }]}>{t('auth.usernameStep.title')}</Text>
         <Text style={[styles.subtitle, { color: textColor, opacity: 0.6 }]}>
-          {isOffline
-            ? t('auth.usernameStep.subtitleOffline')
-            : t('auth.usernameStep.subtitle')}
+          {isOffline ? t('auth.usernameStep.subtitleOffline') : t('auth.usernameStep.subtitle')}
         </Text>
 
         <View className="mt-space-24 mb-space-8">
           <TextInput
-            style={[styles.usernameInput, {
-              color: textColor,
-              backgroundColor: colors.card,
-              borderColor: validation.error ? colors.error : colors.border,
-            }]}
+            style={[
+              styles.usernameInput,
+              {
+                color: textColor,
+                backgroundColor: colors.card,
+                borderColor: validation.error ? colors.error : colors.border,
+              },
+            ]}
             placeholder={t('auth.usernameStep.placeholder')}
             placeholderTextColor={colors.textSecondary}
             value={username}
@@ -254,27 +255,55 @@ export function UsernameStep({
           )}
 
           {validation.isAvailable === true && !validation.isChecking && (
-            <Text style={[styles.availableText, { color: colors.success }]} accessibilityLiveRegion="polite">
+            <Text
+              style={[styles.availableText, { color: colors.success }]}
+              accessibilityLiveRegion="polite"
+            >
               {t('auth.usernameStep.available')}
             </Text>
           )}
 
           {(validation.error || updateError) && (
-            <Text style={[styles.errorText, { color: colors.error }]} accessibilityLiveRegion="polite">
+            <Text
+              style={[styles.errorText, { color: colors.error }]}
+              accessibilityLiveRegion="polite"
+            >
               {validation.error || updateError}
             </Text>
           )}
 
-          <Button appearance="solid" tone="accent" onPress={handleContinue} disabled={(!canContinue && !isOffline) || isUpdating || isConfirming} loading={isUpdating || isConfirming} className="mt-space-32">{isUpdating ? t('auth.usernameStep.saving') : isConfirming ? t('auth.usernameStep.confirming') : t('auth.usernameStep.confirm')}</Button>
+          <Button
+            appearance="solid"
+            tone="accent"
+            onPress={handleContinue}
+            disabled={(!canContinue && !isOffline) || isUpdating || isConfirming}
+            loading={isUpdating || isConfirming}
+            className="mt-space-32"
+          >
+            {isUpdating
+              ? t('auth.usernameStep.saving')
+              : isConfirming
+                ? t('auth.usernameStep.confirming')
+                : t('auth.usernameStep.confirm')}
+          </Button>
         </View>
 
         {/* Only show skip button if offline and onSkip is provided (for offline fallback) */}
         {isOffline && onSkip && (
-          <Button appearance="subtle" onPress={onSkip} className="mt-space-12" disabled={isUpdating}>{t('auth.usernameStep.skip')}</Button>
+          <Button
+            appearance="subtle"
+            onPress={onSkip}
+            className="mt-space-12"
+            disabled={isUpdating}
+          >
+            {t('auth.usernameStep.skip')}
+          </Button>
         )}
 
         {!isOffline && (
-          <Button appearance="subtle" onPress={learnMoreDialog.open} disabled={isUpdating}>{t('auth.usernameStep.learnMore')}</Button>
+          <Button appearance="subtle" onPress={learnMoreDialog.open} disabled={isUpdating}>
+            {t('auth.usernameStep.learnMore')}
+          </Button>
         )}
       </KeyboardAwareScrollViewWrapper>
 

@@ -968,6 +968,17 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run validate:agents-md
 
+      # Formatting and lint for the whole repository, from the root biome.jsonc
+      # (`bun run lint` locally). Then the Expo apps' remaining ESLint: only
+      # eslint-plugin-expo's rules, which Biome has no equivalent for (Metro
+      # inlines `process.env.EXPO_PUBLIC_*` only as a literal member access).
+      - name: 'Biome: format and lint'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bunx biome ci .
+      - name: 'Expo ESLint: env-var and DOM-export rules'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run --filter accounts --filter commons --filter test-app lint:expo
+
       - name: 'API Checks: guard the Inbox Daily Brief read boundary'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
@@ -1035,9 +1046,8 @@ jobs:
         run: bunx jest src/__tests__/usernamePolicySingleSource.test.ts
         working-directory: ./packages/contracts
 
-      # ONE build for every guard below, a superset of what each needs:
-      #   * API Checks' lint: type-aware lint (`parserOptions.project`) resolves the
-      #     same workspace packages the API suite does — all six.
+      # ONE build for every guard below, a superset of what each needs (API
+      # Checks' lint is Biome, which reads source only and needs none of it):
       #   * Schema Payload Policy: `@oxy.so/contracts` and `@oxy.so/db`, which the
       #     schema modules import.
       #   * OpenAPI Contract: contracts, protocol, core, mcp and db. `@oxy.so/protocol`

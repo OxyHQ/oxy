@@ -33,13 +33,13 @@ describe('Postgres test harness', () => {
     expect(url).toBeDefined();
     // `?? ''` keeps the failure on the assertion above rather than a TypeError.
     expect(new URL(url ?? '').pathname).toMatch(
-      new RegExp(`^/${TEST_DATABASE_PREFIX}[0-9a-f]{16}$`)
+      new RegExp(`^/${TEST_DATABASE_PREFIX}[0-9a-f]{16}$`),
     );
   });
 
   it('opens the application pool against that throwaway database', async () => {
     const rows = await getDb().execute<{ current_database: string }>(
-      sql`select current_database()`
+      sql`select current_database()`,
     );
     const connectedTo = rows[0].current_database;
 
@@ -64,7 +64,7 @@ describe('Postgres test harness', () => {
     try {
       await db.execute(sql`insert into harness_probe (id, note) values ('a', 'written')`);
       const rows = await db.execute<{ id: string; note: string }>(
-        sql`select id, note from harness_probe order by id`
+        sql`select id, note from harness_probe order by id`,
       );
 
       expect(rows).toEqual([{ id: 'a', note: 'written' }]);

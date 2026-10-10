@@ -105,5 +105,5 @@ export const followTargetKinds = pgTable(
     // and then register `a.b.c`, which reads as nesting and is really a second
     // owner for the `a` namespace.
     check('follow_target_kinds_namespace_shape_check', sql`${t.namespace} ~ '^[a-z][a-z0-9_]*$'`),
-  ]
+  ],
 );

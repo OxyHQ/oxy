@@ -16,7 +16,7 @@ describe('sanitize utilities', () => {
 
     it('escapes angle brackets', () => {
       expect(sanitizeHtml('<script>alert(1)</script>')).toBe(
-        '&lt;script&gt;alert(1)&lt;/script&gt;'
+        '&lt;script&gt;alert(1)&lt;/script&gt;',
       );
     });
 
@@ -38,7 +38,7 @@ describe('sanitize utilities', () => {
 
     it('escapes all special characters together', () => {
       expect(sanitizeHtml('<a href="x" onclick=\'y\'>&')).toBe(
-        '&lt;a href=&quot;x&quot; onclick=&#x27;y&#x27;&gt;&amp;'
+        '&lt;a href=&quot;x&quot; onclick=&#x27;y&#x27;&gt;&amp;',
       );
     });
   });
@@ -151,15 +151,12 @@ describe('sanitize utilities', () => {
     });
 
     it('decodes entities instead of escaping them', () => {
-      const result = sanitizeObject({ note: "don&#x27;t & won&#x27;t" });
+      const result = sanitizeObject({ note: 'don&#x27;t & won&#x27;t' });
       expect(result.note).toBe("don't & won't");
     });
 
     it('skips fields in skipFields list', () => {
-      const result = sanitizeObject(
-        { password: '<script>', bio: '<b>hi</b>' },
-        ['password']
-      );
+      const result = sanitizeObject({ password: '<script>', bio: '<b>hi</b>' }, ['password']);
       expect(result.password).toBe('<script>');
       expect(result.bio).toBe('hi');
     });
@@ -224,7 +221,7 @@ describe('sanitize utilities', () => {
 
     it('decodes named entities', () => {
       expect(decodeHtmlEntities('A &amp; B &lt;x&gt; &quot;q&quot; &apos;a&apos;')).toBe(
-        'A & B <x> "q" \'a\''
+        'A & B <x> "q" \'a\'',
       );
     });
 

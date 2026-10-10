@@ -95,7 +95,8 @@ export function resolveClientAuthentication(params: {
   }
 
   const separatorIndex = authorizationHeader.indexOf(' ');
-  const scheme = separatorIndex < 0 ? authorizationHeader : authorizationHeader.slice(0, separatorIndex);
+  const scheme =
+    separatorIndex < 0 ? authorizationHeader : authorizationHeader.slice(0, separatorIndex);
   if (scheme.toLowerCase() !== BASIC_SCHEME) {
     throw OAuthError.invalidClient('Unsupported client authentication method.');
   }

@@ -56,7 +56,7 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
         email: 'jane@oxy.so',
         color: 'blue',
         name: { first: 'Jane', last: 'Doe' },
-      })
+      }),
     );
 
     expect(formatted).not.toBeNull();
@@ -86,8 +86,8 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
       [...chosen].sort(
         (a, b) =>
           (ACCOUNT_CATEGORY_IDS as readonly string[]).indexOf(a) -
-          (ACCOUNT_CATEGORY_IDS as readonly string[]).indexOf(b)
-      )
+          (ACCOUNT_CATEGORY_IDS as readonly string[]).indexOf(b),
+      ),
     ).not.toEqual(chosen);
 
     const formatted = formatUserResponse(
@@ -95,7 +95,7 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
         username: 'acme',
         name: { first: 'Acme', last: 'Realty' },
         accountCategories: chosen,
-      })
+      }),
     );
 
     expect(formatted?.accountCategories).toEqual(chosen);
@@ -115,7 +115,7 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
         username: 'nate',
         name: { first: 'Nate' },
         accountCategories: [],
-      })
+      }),
     );
     expect(formatted?.accountCategories).toBeUndefined();
     expect(safeParseContract(userResponseSchema, formatted)).not.toBeNull();
@@ -132,7 +132,7 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
         username: 'legacy',
         name: { first: 'Legacy' },
         accountCategories: ['news', 'broker', 'art'],
-      })
+      }),
     );
     expect(formatted?.accountCategories).toEqual(['news', 'art']);
     const parsed = safeParseContract(userResponseSchema, formatted);
@@ -144,7 +144,7 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
       leanDoc('507f1f77bcf86cd799439012', {
         username: 'mononym',
         name: { first: 'Cher' },
-      })
+      }),
     );
 
     expect(formatted?.name?.first).toBe('Cher');
@@ -162,7 +162,7 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
       leanDoc('507f1f77bcf86cd799439013', {
         username: 'hydrated',
         name: { first: 'Ada', last: 'Lovelace', full: 'Ada Lovelace' },
-      })
+      }),
     );
 
     expect(formatted?.name?.full).toBe('Ada Lovelace');
@@ -174,7 +174,7 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
     const formatted = formatUserResponse(
       leanDoc('507f1f77bcf86cd799439014', {
         publicKey: '0x1234567890abcdef',
-      })
+      }),
     );
 
     expect(formatted).not.toBeNull();
@@ -194,7 +194,7 @@ describe('formatUserResponse → @oxy.so/contracts userResponseSchema (producer 
       leanDoc('507f1f77bcf86cd799439015', {
         username: 'blanknames',
         name: { first: '', last: '' },
-      })
+      }),
     );
 
     expect(formatted?.name).toEqual({});

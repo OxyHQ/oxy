@@ -29,16 +29,29 @@ import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { headers: Record<string, string | undefined>; user?: { id: string; _id: string } }, res: { status(code: number): { json(body: unknown): void } }, next: () => void) => {
+  authMiddleware: (
+    req: { headers: Record<string, string | undefined>; user?: { id: string; _id: string } },
+    res: { status(code: number): { json(body: unknown): void } },
+    next: () => void,
+  ) => {
     const id = req.headers['x-test-user'];
     if (!id) return res.status(401).json({ error: 'Authentication required' });
     req.user = { id, _id: id };
     next();
   },
-  serviceAuthMiddleware: (req: { headers: Record<string, string | undefined>; serviceApp?: unknown }, res: { status(code: number): { json(body: unknown): void } }, next: () => void) => {
+  serviceAuthMiddleware: (
+    req: { headers: Record<string, string | undefined>; serviceApp?: unknown },
+    res: { status(code: number): { json(body: unknown): void } },
+    next: () => void,
+  ) => {
     const scopes = req.headers['x-test-scopes'];
     if (scopes === undefined) return res.status(401).json({ error: 'Authentication required' });
-    req.serviceApp = { appId: 'move-app', credentialId: 'cred', scopes: scopes ? scopes.split(',') : [], tier: 'internal' };
+    req.serviceApp = {
+      appId: 'move-app',
+      credentialId: 'cred',
+      scopes: scopes ? scopes.split(',') : [],
+      tier: 'internal',
+    };
     next();
   },
 }));
@@ -48,7 +61,10 @@ jest.mock('../../middleware/rateLimiter', () => ({
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
+jest.mock('../../utils/userCache', () => ({
+  __esModule: true,
+  default: { invalidate: jest.fn() },
+}));
 // The real module is ESM and cannot load under ts-jest, so the loader hands out
 // only the two error classes Oxy classifies a failed start by, shaped as
 // `@atproto/oauth-client` defines them. No `NodeOAuthClient`: the client is the
@@ -57,7 +73,10 @@ jest.mock('../../services/linkedAccounts/atprotoClientLoader', () => {
   class OAuthResolverError extends Error {}
   class OAuthResponseError extends Error {
     readonly error?: string;
-    constructor(readonly response: { status: number }, readonly payload: { error?: string }) {
+    constructor(
+      readonly response: { status: number },
+      readonly payload: { error?: string },
+    ) {
       super(`OAuth "${payload.error}" error`);
       this.error = payload.error;
     }
@@ -72,11 +91,18 @@ jest.mock('../../services/linkedAccounts/atprotoClientLoader', () => {
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
-import { linkedAccountOauthChallenges, mastodonAppRegistrations, userLinkedAccounts } from '../../db/schema/userLinkedAccounts';
+import {
+  linkedAccountOauthChallenges,
+  mastodonAppRegistrations,
+  userLinkedAccounts,
+} from '../../db/schema/userLinkedAccounts';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import userCache from '../../utils/userCache';
-import { setLinkedAccountTransportForTesting, UnsafeHostError } from '../../services/linkedAccounts/http';
+import {
+  setLinkedAccountTransportForTesting,
+  UnsafeHostError,
+} from '../../services/linkedAccounts/http';
 import { loadAtprotoOAuthModule } from '../../services/linkedAccounts/atprotoClientLoader';
 import { logger } from '../../utils/logger';
 import {
@@ -114,7 +140,10 @@ function instance(host: string): FakeInstance {
 }
 
 function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -135,7 +164,11 @@ const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     case 'POST /oauth/token': {
       const params = new URLSearchParams(form);
       const grant = server.codes.get(params.get('code') ?? '');
-      if (!grant || params.get('client_secret') !== `secret-${server.host}` || params.get('code_verifier') !== grant.verifier) {
+      if (
+        !grant ||
+        params.get('client_secret') !== `secret-${server.host}` ||
+        params.get('code_verifier') !== grant.verifier
+      ) {
         return json({ error: 'invalid_grant' }, 400);
       }
       server.codes.delete(params.get('code') ?? '');
@@ -147,7 +180,12 @@ const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const token = (request.headers.get('authorization') ?? '').replace(/^Bearer /, '');
       const username = server.tokens.get(token);
       if (!username) return json({ error: 'unauthorized' }, 401);
-      return json({ id: '1', username, acct: username, url: `https://${server.host}/@${username}` });
+      return json({
+        id: '1',
+        username,
+        acct: username,
+        url: `https://${server.host}/@${username}`,
+      });
     }
     case 'GET /.well-known/webfinger': {
       const resource = url.searchParams.get('resource') ?? '';
@@ -156,7 +194,13 @@ const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const home = server.host.startsWith('liar-') ? 'mastodon.social' : server.host;
       return json({
         subject: `acct:${username}@${home}`,
-        links: [{ rel: 'self', type: 'application/activity+json', href: `https://${home}/users/${username}` }],
+        links: [
+          {
+            rel: 'self',
+            type: 'application/activity+json',
+            href: `https://${home}/users/${username}`,
+          },
+        ],
       });
     }
     case 'POST /oauth/revoke': {
@@ -195,7 +239,9 @@ const fakeAtproto: AtprotoOAuthClientLike = {
     if (!data) throw new Error(`Unknown authorization session "${state}"`);
     if (params.get('error')) throw Object.assign(new Error('denied'), { state: data.appState });
     // The library stores the session it created before handing it back.
-    await atprotoStoresForTesting.sessionStore.set(atprotoDid, { tokenSet: { access_token: 'secret' } });
+    await atprotoStoresForTesting.sessionStore.set(atprotoDid, {
+      tokenSet: { access_token: 'secret' },
+    });
     return {
       session: { did: atprotoDid, signOut: async () => void signedOut.push(atprotoDid) },
       state: String(data.appState),
@@ -207,7 +253,15 @@ const fakeAtproto: AtprotoOAuthClientLike = {
         return {
           did,
           handle: 'alice.bsky.social',
-          didDoc: { service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: 'https://pds.example' }] },
+          didDoc: {
+            service: [
+              {
+                id: '#atproto_pds',
+                type: 'AtprotoPersonalDataServer',
+                serviceEndpoint: 'https://pds.example',
+              },
+            ],
+          },
         };
       },
     },
@@ -225,7 +279,11 @@ interface Result {
   text: string;
 }
 
-async function call(method: string, path: string, options: { user?: string; scopes?: string; body?: unknown } = {}): Promise<Result> {
+async function call(
+  method: string,
+  path: string,
+  options: { user?: string; scopes?: string; body?: unknown } = {},
+): Promise<Result> {
   const { port } = server.address() as AddressInfo;
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (options.user) headers['x-test-user'] = options.user;
@@ -251,16 +309,23 @@ async function newUser(): Promise<string> {
   return row.id;
 }
 
-async function registeredClient(redirectUris: string[], type: 'first_party' | 'third_party' = 'first_party'): Promise<string> {
+async function registeredClient(
+  redirectUris: string[],
+  type: 'first_party' | 'third_party' = 'first_party',
+): Promise<string> {
   const owner = await newUser();
   const [app] = await getDb()
     .insert(applications)
     .values({ name: `Move ${randomUUID()}`, ownerAccountId: owner, type, redirectUris })
     .returning({ id: applications.id });
   const publicKey = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
-  await getDb()
-    .insert(applicationCredentials)
-    .values({ applicationId: app.id, name: 'web', publicKey, type: 'public', environment: 'production' });
+  await getDb().insert(applicationCredentials).values({
+    applicationId: app.id,
+    name: 'web',
+    publicKey,
+    type: 'public',
+    environment: 'production',
+  });
   return publicKey;
 }
 
@@ -269,8 +334,16 @@ const RETURN_TO = 'https://move.oxy.test/linked';
 let client: string;
 
 /** Start a Mastodon link, then have the fake instance approve it for `username`. */
-async function authorizeAt(user: string, host: string, username: string, extra: Record<string, unknown> = {}) {
-  const started = await call('POST', '/activitypub/start', { user, body: { instance: host, clientId: client, returnTo: RETURN_TO, ...extra } });
+async function authorizeAt(
+  user: string,
+  host: string,
+  username: string,
+  extra: Record<string, unknown> = {},
+) {
+  const started = await call('POST', '/activitypub/start', {
+    user,
+    body: { instance: host, clientId: client, returnTo: RETURN_TO, ...extra },
+  });
   expect(started.status).toBe(200);
   const authorizeUrl = new URL(started.body.data.authorizeUrl);
   const state = authorizeUrl.searchParams.get('state') ?? '';
@@ -280,14 +353,22 @@ async function authorizeAt(user: string, host: string, username: string, extra: 
   const [challenge] = await getDb()
     .select({ pkceVerifier: linkedAccountOauthChallenges.pkceVerifier })
     .from(linkedAccountOauthChallenges)
-    .where(sql`${linkedAccountOauthChallenges.stateHash} = encode(sha256(convert_to(${state}, 'UTF8')), 'hex')`);
-  instance(authorizeUrl.hostname).codes.set(code, { username, verifier: challenge?.pkceVerifier ?? null });
+    .where(
+      sql`${linkedAccountOauthChallenges.stateHash} = encode(sha256(convert_to(${state}, 'UTF8')), 'hex')`,
+    );
+  instance(authorizeUrl.hostname).codes.set(code, {
+    username,
+    verifier: challenge?.pkceVerifier ?? null,
+  });
   return { authorizeUrl, state, code };
 }
 
 /** The provider sends the approving browser back to Oxy's callback. */
 function callback(flow: { state: string; code: string }, network = 'activitypub'): Promise<Result> {
-  return call('GET', `/${network}/callback?state=${encodeURIComponent(flow.state)}&code=${flow.code}`);
+  return call(
+    'GET',
+    `/${network}/callback?state=${encodeURIComponent(flow.state)}&code=${flow.code}`,
+  );
 }
 
 /** The one-time code a successful callback appended to `returnTo`. */
@@ -329,7 +410,9 @@ beforeAll(async () => {
 afterAll(async () => {
   restoreTransport();
   setAtprotoClientForTesting(null);
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   await closePostgres();
 });
 
@@ -343,7 +426,9 @@ describe('Mastodon-API: start → callback → complete', () => {
     expect(flow.authorizeUrl.pathname).toBe('/oauth/authorize');
     expect(flow.authorizeUrl.searchParams.get('scope')).toBe('read:accounts');
     expect(flow.authorizeUrl.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(flow.authorizeUrl.searchParams.get('redirect_uri')).toBe('https://api.oxy.test/linked-accounts/activitypub/callback');
+    expect(flow.authorizeUrl.searchParams.get('redirect_uri')).toBe(
+      'https://api.oxy.test/linked-accounts/activitypub/callback',
+    );
 
     const done = await callback(flow);
     expect(done.location?.startsWith(`${RETURN_TO}?link_code=`)).toBe(true);
@@ -362,7 +447,9 @@ describe('Mastodon-API: start → callback → complete', () => {
       proofMethod: 'oauth',
     };
     expect(completed.body.data.linkedAccount).toMatchObject(expected);
-    expect((await call('GET', '/', { user })).body.data.linkedAccounts).toEqual([expect.objectContaining(expected)]);
+    expect((await call('GET', '/', { user })).body.data.linkedAccounts).toEqual([
+      expect.objectContaining(expected),
+    ]);
 
     // Completing again within the code's lifetime answers the same link.
     const again = await complete(user, code);
@@ -406,13 +493,22 @@ describe('Mastodon-API: start → callback → complete', () => {
   it('registers Oxy once when two starts race at a new instance', async () => {
     const host = `race-${randomUUID().slice(0, 8)}.example`;
     const [first, second] = [await newUser(), await newUser()];
-    const [a, b] = await Promise.all([authorizeAt(first, host, 'one'), authorizeAt(second, host, 'two')]);
+    const [a, b] = await Promise.all([
+      authorizeAt(first, host, 'one'),
+      authorizeAt(second, host, 'two'),
+    ]);
     expect(instance(host).registrations).toBe(1);
-    expect(a.authorizeUrl.searchParams.get('client_id')).toBe(b.authorizeUrl.searchParams.get('client_id'));
+    expect(a.authorizeUrl.searchParams.get('client_id')).toBe(
+      b.authorizeUrl.searchParams.get('client_id'),
+    );
   });
 
   it('refuses a replayed state without redirecting anywhere', async () => {
-    const flow = await authorizeAt(await newUser(), `replay-${randomUUID().slice(0, 8)}.example`, 'bob');
+    const flow = await authorizeAt(
+      await newUser(),
+      `replay-${randomUUID().slice(0, 8)}.example`,
+      'bob',
+    );
     expect((await callback(flow)).status).toBe(303);
     const second = await callback(flow);
     expect(second.status).toBe(400);
@@ -428,12 +524,16 @@ describe('Mastodon-API: start → callback → complete', () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(linkedAccountOauthChallenges.userId, user));
     expect((await callback(flow)).status).toBe(400);
-    expect(await call('GET', '/', { user })).toMatchObject({ body: { data: { linkedAccounts: [] } } });
+    expect(await call('GET', '/', { user })).toMatchObject({
+      body: { data: { linkedAccounts: [] } },
+    });
   });
 
   it('refuses an expired or unknown link code', async () => {
     const user = await newUser();
-    const code = linkCode(await callback(await authorizeAt(user, `late-${randomUUID().slice(0, 8)}.example`, 'lee')));
+    const code = linkCode(
+      await callback(await authorizeAt(user, `late-${randomUUID().slice(0, 8)}.example`, 'lee')),
+    );
     await getDb()
       .update(linkedAccountOauthChallenges)
       .set({ expiresAt: new Date(Date.now() - 1000) })
@@ -452,7 +552,7 @@ describe('Mastodon-API: start → callback → complete', () => {
     expect(await aliasesForUser(intruder)).toEqual([]);
   });
 
-  it('re-linking one\'s own live account refreshes it instead of failing', async () => {
+  it("re-linking one's own live account refreshes it instead of failing", async () => {
     const user = await newUser();
     const host = `relink-${randomUUID().slice(0, 8)}.example`;
     for (let i = 0; i < 2; i++) expect((await linkVia(user, host, 'erin')).status).toBe(200);
@@ -460,8 +560,15 @@ describe('Mastodon-API: start → callback → complete', () => {
   });
 
   it('sends a cancelled authorization back as access_denied', async () => {
-    const { state } = await authorizeAt(await newUser(), `deny-${randomUUID().slice(0, 8)}.example`, 'finn');
-    const done = await call('GET', `/activitypub/callback?state=${encodeURIComponent(state)}&error=access_denied`);
+    const { state } = await authorizeAt(
+      await newUser(),
+      `deny-${randomUUID().slice(0, 8)}.example`,
+      'finn',
+    );
+    const done = await call(
+      'GET',
+      `/activitypub/callback?state=${encodeURIComponent(state)}&error=access_denied`,
+    );
     expect(done.location).toBe(`${RETURN_TO}?link_error=access_denied`);
   });
 });
@@ -486,7 +593,10 @@ describe('a flow somebody else started cannot link anyone (login CSRF)', () => {
     // The code is burned: not even the starting user can use it now.
     expect((await complete(attacker, code)).status).toBe(404);
     expect(
-      await getDb().select({ id: userLinkedAccounts.id }).from(userLinkedAccounts).where(eq(userLinkedAccounts.accountKey, `victim@${host}`)),
+      await getDb()
+        .select({ id: userLinkedAccounts.id })
+        .from(userLinkedAccounts)
+        .where(eq(userLinkedAccounts.accountKey, `victim@${host}`)),
     ).toEqual([]);
     expect(await aliasesForUser(attacker)).toEqual([]);
   });
@@ -495,7 +605,9 @@ describe('a flow somebody else started cannot link anyone (login CSRF)', () => {
 describe('Mastodon-API: an instance vouches only for its own accounts', () => {
   it('refuses an actor the instance publishes on another host', async () => {
     const user = await newUser();
-    const done = await callback(await authorizeAt(user, `liar-${randomUUID().slice(0, 8)}.example`, 'nate'));
+    const done = await callback(
+      await authorizeAt(user, `liar-${randomUUID().slice(0, 8)}.example`, 'nate'),
+    );
     expect(done.location).toBe(`${RETURN_TO}?link_error=verification_failed`);
     expect((await call('GET', '/', { user })).body.data.linkedAccounts).toHaveLength(0);
   });
@@ -504,8 +616,15 @@ describe('Mastodon-API: an instance vouches only for its own accounts', () => {
 describe('start — input and returnTo validation', () => {
   it('refuses a returnTo that is not registered on a trusted client (no prefix matching)', async () => {
     const user = await newUser();
-    for (const returnTo of ['https://evil.example/linked', 'https://move.oxy.test/linked/../steal', 'https://move.oxy.test/linkedx']) {
-      const res = await call('POST', '/activitypub/start', { user, body: { instance: 'mastodon.example', clientId: client, returnTo } });
+    for (const returnTo of [
+      'https://evil.example/linked',
+      'https://move.oxy.test/linked/../steal',
+      'https://move.oxy.test/linkedx',
+    ]) {
+      const res = await call('POST', '/activitypub/start', {
+        user,
+        body: { instance: 'mastodon.example', clientId: client, returnTo },
+      });
       expect(res.status).toBe(400);
     }
     for (const body of [
@@ -513,7 +632,11 @@ describe('start — input and returnTo validation', () => {
       { instance: 'mastodon.example', returnTo: RETURN_TO },
       { instance: 'mastodon.example', clientId: 'oxy_dk_nope', returnTo: RETURN_TO },
       // A self-registered app may not receive link codes, even at its own URI.
-      { instance: 'mastodon.example', clientId: await registeredClient(['https://attacker.example/linked'], 'third_party'), returnTo: 'https://attacker.example/linked' },
+      {
+        instance: 'mastodon.example',
+        clientId: await registeredClient(['https://attacker.example/linked'], 'third_party'),
+        returnTo: 'https://attacker.example/linked',
+      },
     ]) {
       expect((await call('POST', '/activitypub/start', { user, body })).status).toBe(400);
     }
@@ -521,12 +644,24 @@ describe('start — input and returnTo validation', () => {
 
   it('refuses private, malformed and IP-literal instances before contacting them', async () => {
     const user = await newUser();
-    for (const instanceName of ['localhost', '127.0.0.1', 'http://mastodon.example', 'mastodon.example:8443', 'https://u:p@mastodon.example']) {
-      const res = await call('POST', '/activitypub/start', { user, body: { instance: instanceName, clientId: client, returnTo: RETURN_TO } });
+    for (const instanceName of [
+      'localhost',
+      '127.0.0.1',
+      'http://mastodon.example',
+      'mastodon.example:8443',
+      'https://u:p@mastodon.example',
+    ]) {
+      const res = await call('POST', '/activitypub/start', {
+        user,
+        body: { instance: instanceName, clientId: client, returnTo: RETURN_TO },
+      });
       expect(res.status).toBe(400);
       expect(res.body.details).toEqual({ reason: 'instance_invalid' });
     }
-    const unreachable = await call('POST', '/activitypub/start', { user, body: { instance: 'intranet.example', clientId: client, returnTo: RETURN_TO } });
+    const unreachable = await call('POST', '/activitypub/start', {
+      user,
+      body: { instance: 'intranet.example', clientId: client, returnTo: RETURN_TO },
+    });
     expect(unreachable.status).toBe(400);
     expect(unreachable.body.details).toEqual({ reason: 'instance_unreachable' });
     expect(instances.has('intranet.example')).toBe(false);
@@ -534,34 +669,66 @@ describe('start — input and returnTo validation', () => {
 
   it('tells a server that refuses Oxy from one that is down, and warns about both', async () => {
     const user = await newUser();
-    const refused = await call('POST', '/activitypub/start', { user, body: { instance: `notmastodon-${randomUUID().slice(0, 8)}.example`, clientId: client, returnTo: RETURN_TO } });
+    const refused = await call('POST', '/activitypub/start', {
+      user,
+      body: {
+        instance: `notmastodon-${randomUUID().slice(0, 8)}.example`,
+        clientId: client,
+        returnTo: RETURN_TO,
+      },
+    });
     expect(refused.status).toBe(400);
     expect(refused.body.details).toEqual({ reason: 'provider_rejected' });
-    const down = await call('POST', '/activitypub/start', { user, body: { instance: `down-${randomUUID().slice(0, 8)}.example`, clientId: client, returnTo: RETURN_TO } });
+    const down = await call('POST', '/activitypub/start', {
+      user,
+      body: {
+        instance: `down-${randomUUID().slice(0, 8)}.example`,
+        clientId: client,
+        returnTo: RETURN_TO,
+      },
+    });
     expect(down.status).toBe(400);
     expect(down.body.details).toEqual({ reason: 'provider_unavailable' });
-    expect(jest.mocked(logger.warn)).toHaveBeenCalledWith('[LinkedAccounts] Mastodon app registration refused', expect.objectContaining({ status: 404 }));
+    expect(jest.mocked(logger.warn)).toHaveBeenCalledWith(
+      '[LinkedAccounts] Mastodon app registration refused',
+      expect.objectContaining({ status: 404 }),
+    );
   });
 
   it('a refusal the client caused carries no reason to show the user', async () => {
-    const res = await call('POST', '/activitypub/start', { user: await newUser(), body: { instance: 'mastodon.example', clientId: client, returnTo: 'https://evil.example/linked' } });
+    const res = await call('POST', '/activitypub/start', {
+      user: await newUser(),
+      body: {
+        instance: 'mastodon.example',
+        clientId: client,
+        returnTo: 'https://evil.example/linked',
+      },
+    });
     expect(res.status).toBe(400);
     expect(res.body.details).toBeUndefined();
   });
 
   it('requires a session', async () => {
-    expect((await call('POST', '/activitypub/start', { body: { instance: 'mastodon.example', clientId: client, returnTo: RETURN_TO } })).status).toBe(401);
+    expect(
+      (
+        await call('POST', '/activitypub/start', {
+          body: { instance: 'mastodon.example', clientId: client, returnTo: RETURN_TO },
+        })
+      ).status,
+    ).toBe(401);
     expect((await call('POST', '/complete', { body: { code: 'x' } })).status).toBe(401);
     expect((await call('GET', '/')).status).toBe(401);
   });
 
   it('rejects an unknown network', async () => {
-    expect((await call('POST', '/twitter/start', { user: await newUser(), body: {} })).status).toBe(400);
+    expect((await call('POST', '/twitter/start', { user: await newUser(), body: {} })).status).toBe(
+      400,
+    );
   });
 });
 
 describe('revoke', () => {
-  it('revokes only the caller\'s own live link, and drops the alias', async () => {
+  it("revokes only the caller's own live link, and drops the alias", async () => {
     const user = await newUser();
     const host = `rev-${randomUUID().slice(0, 8)}.example`;
     const { linkedAccount: link } = (await linkVia(user, host, 'hal')).body.data;
@@ -580,7 +747,9 @@ describe('service read — GET /by-user/:userId', () => {
   it('requires linked-accounts:read', async () => {
     const user = await newUser();
     expect((await call('GET', `/by-user/${user}`)).status).toBe(401);
-    expect((await call('GET', `/by-user/${user}`, { scopes: 'files:write,federation:write' })).status).toBe(403);
+    expect(
+      (await call('GET', `/by-user/${user}`, { scopes: 'files:write,federation:write' })).status,
+    ).toBe(403);
     const ok = await call('GET', `/by-user/${user}`, { scopes: 'linked-accounts:read' });
     expect(ok.status).toBe(200);
     expect(ok.body.data).toEqual({ userId: user, linkedAccounts: [] });
@@ -614,11 +783,17 @@ describe('atproto', () => {
 
   it('verifies the DID, signs the session out, keeps none of it, and links on complete', async () => {
     const user = await newUser();
-    const started = await call('POST', '/atproto/start', { user, body: { handle: '@alice.bsky.social', clientId: client, returnTo: 'oxymove://linked' } });
+    const started = await call('POST', '/atproto/start', {
+      user,
+      body: { handle: '@alice.bsky.social', clientId: client, returnTo: 'oxymove://linked' },
+    });
     expect(started.status).toBe(200);
     const state = new URL(started.body.data.authorizeUrl).searchParams.get('state') ?? '';
 
-    const done = await call('GET', `/atproto/callback?state=${encodeURIComponent(state)}&code=abc&iss=https%3A%2F%2Fbsky.social`);
+    const done = await call(
+      'GET',
+      `/atproto/callback?state=${encodeURIComponent(state)}&code=abc&iss=https%3A%2F%2Fbsky.social`,
+    );
     expect(done.location).toMatch(/^oxymove:\/\/linked\?link_code=/);
     expect(signedOut).toContain(atprotoDid);
     expect(atprotoSessionsInFlight.size).toBe(0);
@@ -626,7 +801,11 @@ describe('atproto', () => {
     const completed = await complete(user, linkCode(done));
     expect(completed.status).toBe(200);
     expect(completed.body.data.linkedAccount).toMatchObject({
-      network: 'atproto', accountKey: atprotoDid, actorUri: atprotoDid, handle: 'alice.bsky.social', host: 'pds.example',
+      network: 'atproto',
+      accountKey: atprotoDid,
+      actorUri: atprotoDid,
+      handle: 'alice.bsky.social',
+      host: 'pds.example',
     });
 
     // The library's per-flow secrets are wiped from the spent row.
@@ -637,7 +816,10 @@ describe('atproto', () => {
     expect(rows).toEqual([{ providerState: null }]);
 
     // A replay finds nothing to spend.
-    const replay = await call('GET', `/atproto/callback?state=${encodeURIComponent(state)}&code=abc`);
+    const replay = await call(
+      'GET',
+      `/atproto/callback?state=${encodeURIComponent(state)}&code=abc`,
+    );
     expect(replay.status).toBe(400);
 
     // atproto links are never ActivityPub aliases.
@@ -667,17 +849,25 @@ describe('atproto', () => {
     }
 
     async function startFor(user: string): Promise<Result> {
-      return call('POST', '/atproto/start', { user, body: { handle: 'carol.bsky.social', clientId: client, returnTo: RETURN_TO } });
+      return call('POST', '/atproto/start', {
+        user,
+        body: { handle: 'carol.bsky.social', clientId: client, returnTo: RETURN_TO },
+      });
     }
 
     async function openChallenges(user: string): Promise<number> {
-      const rows = await getDb().select({ id: linkedAccountOauthChallenges.id }).from(linkedAccountOauthChallenges).where(eq(linkedAccountOauthChallenges.userId, user));
+      const rows = await getDb()
+        .select({ id: linkedAccountOauthChallenges.id })
+        .from(linkedAccountOauthChallenges)
+        .where(eq(linkedAccountOauthChallenges.userId, user));
       return rows.length;
     }
 
     it('an unresolvable handle is handle_unresolvable, before any challenge exists', async () => {
       const { OAuthResolverError } = await loadAtprotoOAuthModule();
-      withFailure({ resolve: new OAuthResolverError('Failed to resolve identity: carol.bsky.social') });
+      withFailure({
+        resolve: new OAuthResolverError('Failed to resolve identity: carol.bsky.social'),
+      });
       const user = await newUser();
       const res = await startFor(user);
       expect(res.status).toBe(400);
@@ -687,14 +877,22 @@ describe('atproto', () => {
 
     it('invalid_client_metadata from the authorization server is provider_rejected, logged at warn', async () => {
       const { OAuthResponseError } = await loadAtprotoOAuthModule();
-      withFailure({ authorize: new OAuthResponseError({ status: 400 } as never, { error: 'invalid_client_metadata' }) });
+      withFailure({
+        authorize: new OAuthResponseError({ status: 400 } as never, {
+          error: 'invalid_client_metadata',
+        }),
+      });
       const user = await newUser();
       const res = await startFor(user);
       expect(res.status).toBe(400);
       expect(res.body.details).toEqual({ reason: 'provider_rejected' });
       expect(jest.mocked(logger.warn)).toHaveBeenCalledWith(
         '[LinkedAccounts] atproto authorization server did not start the flow',
-        expect.objectContaining({ reason: 'provider_rejected', oauthError: 'invalid_client_metadata', status: 400 }),
+        expect.objectContaining({
+          reason: 'provider_rejected',
+          oauthError: 'invalid_client_metadata',
+          status: 400,
+        }),
       );
       expect(await openChallenges(user)).toBe(0);
     });
@@ -703,7 +901,9 @@ describe('atproto', () => {
       const { OAuthResponseError, OAuthResolverError } = await loadAtprotoOAuthModule();
       for (const failure of [
         new OAuthResponseError({ status: 503 } as never, { error: 'server_error' }),
-        new OAuthResolverError('Failed to resolve OAuth server metadata for resource: https://pds.example'),
+        new OAuthResolverError(
+          'Failed to resolve OAuth server metadata for resource: https://pds.example',
+        ),
         new TypeError('fetch failed'),
       ]) {
         withFailure({ authorize: failure });
@@ -716,9 +916,15 @@ describe('atproto', () => {
 
   it('returns a denied authorization to the registered returnTo', async () => {
     const user = await newUser();
-    const started = await call('POST', '/atproto/start', { user, body: { handle: 'bob.bsky.social', clientId: client, returnTo: RETURN_TO } });
+    const started = await call('POST', '/atproto/start', {
+      user,
+      body: { handle: 'bob.bsky.social', clientId: client, returnTo: RETURN_TO },
+    });
     const state = new URL(started.body.data.authorizeUrl).searchParams.get('state') ?? '';
-    const done = await call('GET', `/atproto/callback?state=${encodeURIComponent(state)}&error=access_denied`);
+    const done = await call(
+      'GET',
+      `/atproto/callback?state=${encodeURIComponent(state)}&error=access_denied`,
+    );
     expect(done.location).toBe(`${RETURN_TO}?link_error=access_denied`);
   });
 });

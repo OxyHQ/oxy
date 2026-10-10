@@ -39,9 +39,21 @@ describe('linking Commons', () => {
 
     const result = await oxy.identity.links.sign(LINK_ID, CHALLENGE);
 
-    expect(result).toEqual({ publicKey: PUBLIC_KEY, code: deriveIdentityLinkCode(LINK_ID, PUBLIC_KEY), username: 'ada' });
-    expect(makeRequest).toHaveBeenNthCalledWith(1, 'GET', `/identity/link/${LINK_ID}`, undefined, { cache: false, skipAuth: true });
-    const [, path, body, options] = makeRequest.mock.calls[1] as [string, string, { publicKey: string; proof: { signature: string; challenge: string; expiresAt: number } }, unknown];
+    expect(result).toEqual({
+      publicKey: PUBLIC_KEY,
+      code: deriveIdentityLinkCode(LINK_ID, PUBLIC_KEY),
+      username: 'ada',
+    });
+    expect(makeRequest).toHaveBeenNthCalledWith(1, 'GET', `/identity/link/${LINK_ID}`, undefined, {
+      cache: false,
+      skipAuth: true,
+    });
+    const [, path, body, options] = makeRequest.mock.calls[1] as [
+      string,
+      string,
+      { publicKey: string; proof: { signature: string; challenge: string; expiresAt: number } },
+      unknown,
+    ];
     expect(path).toBe(`/identity/link/${LINK_ID}/proof`);
     expect(options).toEqual({ cache: false, skipAuth: true });
     expect(body.publicKey).toBe(PUBLIC_KEY);
@@ -69,7 +81,12 @@ describe('linking Commons', () => {
 
   it('the web opens, completes with an email code and cancels', async () => {
     makeRequest
-      .mockResolvedValueOnce({ linkId: LINK_ID, challenge: CHALLENGE, expiresAt: 1, qrPayload: `oxycommons://link?id=${LINK_ID}&c=${CHALLENGE}` })
+      .mockResolvedValueOnce({
+        linkId: LINK_ID,
+        challenge: CHALLENGE,
+        expiresAt: 1,
+        qrPayload: `oxycommons://link?id=${LINK_ID}&c=${CHALLENGE}`,
+      })
       .mockResolvedValueOnce({ success: true })
       .mockResolvedValueOnce({});
     const reauth = { emailCode: { verificationId: 'v-1', code: '123456' } };

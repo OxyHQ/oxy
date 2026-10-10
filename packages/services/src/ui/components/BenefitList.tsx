@@ -18,93 +18,94 @@ import { Text } from '@oxy.so/bloom/typography';
 const ICON_SQUARE_SIZE = 36;
 
 export interface BenefitRowProps {
-    /** Leading icon element, rendered inside a rounded tertiary-fill square. */
-    icon: React.ReactNode;
-    /** Caption text. Provide either `label` or `children`. */
-    label?: string;
-    /** Caption content as children (alternative to `label`). */
-    children?: React.ReactNode;
-    /** Accessibility label for the row (defaults to string content). */
-    accessibilityLabel?: string;
-    className?: string;
-    style?: StyleProp<ViewStyle>;
-    textStyle?: StyleProp<TextStyle>;
+  /** Leading icon element, rendered inside a rounded tertiary-fill square. */
+  icon: React.ReactNode;
+  /** Caption text. Provide either `label` or `children`. */
+  label?: string;
+  /** Caption content as children (alternative to `label`). */
+  children?: React.ReactNode;
+  /** Accessibility label for the row (defaults to string content). */
+  accessibilityLabel?: string;
+  className?: string;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 }
 
 export const BenefitRow: React.FC<BenefitRowProps> = ({
-    icon,
-    label,
-    children,
-    accessibilityLabel,
-    className,
-    style,
-    textStyle,
+  icon,
+  label,
+  children,
+  accessibilityLabel,
+  className,
+  style,
+  textStyle,
 }) => {
-    const { colors } = useTheme();
-    const content = children ?? label;
-    const a11y = accessibilityLabel ?? (typeof content === 'string' ? content : undefined);
+  const { colors } = useTheme();
+  const content = children ?? label;
+  const a11y = accessibilityLabel ?? (typeof content === 'string' ? content : undefined);
 
-    return (
-        <View
-            className={className}
-            style={[{ flexDirection: 'row', alignItems: 'center', gap: SPACING['space-12'] }, style]}
-            accessibilityLabel={a11y}
-            {...(a11y ? { accessibilityRole: 'text' as const } : {})}
-        >
-            <View
-                style={{
-                    width: ICON_SQUARE_SIZE,
-                    height: ICON_SQUARE_SIZE,
-                    borderRadius: RADIUS['radius-12'],
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: colors.backgroundTertiary,
-                }}
-                accessibilityElementsHidden
-                aria-hidden
-            >
-                {icon}
-            </View>
-            <Text
-                style={[
-                    {
-                        flex: 1,
-                        fontSize: TYPOGRAPHY.caption.size,
-                        lineHeight: TYPOGRAPHY.caption.lineHeight,
-                        fontWeight: TYPOGRAPHY.caption.weight,
-                        color: colors.textSecondary,
-                    },
-                    textStyle,
-                ]}
-            >
-                {content}
-            </Text>
-        </View>
-    );
+  return (
+    <View
+      className={className}
+      style={[{ flexDirection: 'row', alignItems: 'center', gap: SPACING['space-12'] }, style]}
+      accessibilityLabel={a11y}
+      {...(a11y ? { accessibilityRole: 'text' as const } : {})}
+    >
+      <View
+        style={{
+          width: ICON_SQUARE_SIZE,
+          height: ICON_SQUARE_SIZE,
+          borderRadius: RADIUS['radius-12'],
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.backgroundTertiary,
+        }}
+        accessibilityElementsHidden
+        aria-hidden
+      >
+        {icon}
+      </View>
+      <Text
+        style={[
+          {
+            flex: 1,
+            fontSize: TYPOGRAPHY.caption.size,
+            lineHeight: TYPOGRAPHY.caption.lineHeight,
+            fontWeight: TYPOGRAPHY.caption.weight,
+            color: colors.textSecondary,
+          },
+          textStyle,
+        ]}
+      >
+        {content}
+      </Text>
+    </View>
+  );
 };
 
 export interface BenefitListProps {
-    /** `BenefitRow`s (or any nodes) stacked with consistent spacing. */
-    children: React.ReactNode;
-    accessibilityLabel?: string;
-    className?: string;
-    style?: StyleProp<ViewStyle>;
+  /** `BenefitRow`s (or any nodes) stacked with consistent spacing. */
+  children: React.ReactNode;
+  accessibilityLabel?: string;
+  className?: string;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const BenefitList: React.FC<BenefitListProps> = ({
-    children,
-    accessibilityLabel,
-    className,
-    style,
+  children,
+  accessibilityLabel,
+  className,
+  style,
 }) => (
-    <Card
-        radius="radius-20"
-        border="hairline"
-        elevation="s"
-        className={className}
-        style={[{ padding: SPACING['space-16'], gap: SPACING['space-16'] }, style]}
-        accessibilityLabel={accessibilityLabel} appearance="outline"
-    >
-        {children}
-    </Card>
+  <Card
+    radius="radius-20"
+    border="hairline"
+    elevation="s"
+    className={className}
+    style={[{ padding: SPACING['space-16'], gap: SPACING['space-16'] }, style]}
+    accessibilityLabel={accessibilityLabel}
+    appearance="outline"
+  >
+    {children}
+  </Card>
 );

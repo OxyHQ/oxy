@@ -48,7 +48,10 @@ export const batchAccessSchema = z.object({
       }),
     )
     .min(1, 'files must not be empty')
-    .max(MAX_BATCH_ACCESS_FILES, `Cannot request more than ${MAX_BATCH_ACCESS_FILES} files at once`),
+    .max(
+      MAX_BATCH_ACCESS_FILES,
+      `Cannot request more than ${MAX_BATCH_ACCESS_FILES} files at once`,
+    ),
   expiresIn: z.number().int().positive().optional(),
   context: z.string().optional(),
 });

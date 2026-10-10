@@ -39,7 +39,7 @@
  * caller may read as "fine, use Oxy's".
  */
 
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   kaanaCredentialOutcomeRequestSchema,
   providerConnectionSchema,
@@ -47,16 +47,16 @@ import {
   type KaanaCredentialOutcomeRequest,
   type ProviderConnection,
   type ProviderConnectionStatus,
-} from "@oxy.so/contracts";
-import { uuidv7 } from "@oxy.so/db";
-import { getDb, type Transaction } from "../config/postgres";
-import { applications } from "../db/schema/applications";
+} from '@oxy.so/contracts';
+import { uuidv7 } from '@oxy.so/db';
+import { getDb, type Transaction } from '../config/postgres';
+import { applications } from '../db/schema/applications';
 import {
   inferenceProviderConnectionAuditEvents,
   type ProviderConnectionActor,
   type ProviderConnectionActorKind,
   type ProviderConnectionAuditEventType,
-} from "../db/schema/inferenceProviderConnectionAuditEvents";
+} from '../db/schema/inferenceProviderConnectionAuditEvents';
 import {
   inferenceProviderConnections,
   type InferenceProviderConnectionRow,
@@ -64,23 +64,23 @@ import {
   type ProviderConnectionScopeKind,
   type ProviderConnectionValidationFailureCode,
   type ProviderConnectionValidationStateValue,
-} from "../db/schema/inferenceProviderConnections";
+} from '../db/schema/inferenceProviderConnections';
 import {
   inferenceProviderCredentialOperations,
   type InferenceProviderCredentialOperationRow,
   type ProviderCredentialOperationState,
-} from "../db/schema/inferenceProviderCredentialOperations";
-import { inferenceProviders } from "../db/schema/inferenceProviders";
-import { userAncestors } from "../db/schema/userAncestors";
-import { users } from "../db/schema/users";
-import { accountClosureFences } from "../db/schema/accountClosureFences";
-import { logger } from "../utils/logger";
+} from '../db/schema/inferenceProviderCredentialOperations';
+import { inferenceProviders } from '../db/schema/inferenceProviders';
+import { userAncestors } from '../db/schema/userAncestors';
+import { users } from '../db/schema/users';
+import { accountClosureFences } from '../db/schema/accountClosureFences';
+import { logger } from '../utils/logger';
 import {
   KaanaCredentialConflictError,
   KaanaCredentialOutcomeNotFoundError,
   type KaanaCredentialControl,
   type ProviderCredentialValue,
-} from "./kaanaCredentialControl";
+} from './kaanaCredentialControl';
 
 /* -------------------------------------------------------------------------- */
 /*  Serialization                                                             */
@@ -96,13 +96,11 @@ import {
  * here rather than ship it. Nothing between the row and this function ever holds
  * a secret — the row does not contain one to leak.
  */
-export function toProviderConnection(
-  row: InferenceProviderConnectionRow,
-): ProviderConnection {
+export function toProviderConnection(row: InferenceProviderConnectionRow): ProviderConnection {
   const scope =
-    row.scopeKind === "application" && row.applicationId !== null
+    row.scopeKind === 'application' && row.applicationId !== null
       ? {
-          kind: "application" as const,
+          kind: 'application' as const,
           accountId: row.ownerAccountId,
           applicationId: row.applicationId,
         }
@@ -164,7 +162,7 @@ interface AuditEntry {
 }
 
 /** The drizzle handle an audit write runs on — a transaction, in practice. */
-type Writer = Pick<ReturnType<typeof getDb>, "insert">;
+type Writer = Pick<ReturnType<typeof getDb>, 'insert'>;
 
 /**
  * Append one audit row on the caller's transaction.
@@ -174,10 +172,7 @@ type Writer = Pick<ReturnType<typeof getDb>, "insert">;
  * the whole transaction back. A connection whose creation was not recorded is a
  * credential reference nobody can account for.
  */
-async function appendAuditEvent(
-  writer: Writer,
-  entry: AuditEntry,
-): Promise<void> {
+async function appendAuditEvent(writer: Writer, entry: AuditEntry): Promise<void> {
   await writer.insert(inferenceProviderConnectionAuditEvents).values({
     connectionId: entry.connectionId,
     ownerAccountId: entry.ownerAccountId,
@@ -185,7 +180,7 @@ async function appendAuditEvent(
     actorKind: entry.actor.kind,
     // Only a `user` actor names a person. The other two kinds carry no id at
     // all, and the table's CHECK refuses one — see that file's "Who acted".
-    actorUserId: entry.actor.kind === "user" ? entry.actor.userId : null,
+    actorUserId: entry.actor.kind === 'user' ? entry.actor.userId : null,
     environment: entry.environment,
     metadata: entry.metadata ?? {},
   });
@@ -217,10 +212,7 @@ const useAuditCooldown = new Map<string, number>();
  * drive it, and so a test can reset shared module state rather than inheriting a
  * sibling case's.
  */
-export function shouldSuppressUseAudit(
-  connectionId: string,
-  now: number = Date.now(),
-): boolean {
+export function shouldSuppressUseAudit(connectionId: string, now: number = Date.now()): boolean {
   const until = useAuditCooldown.get(connectionId);
   if (until !== undefined && until > now) {
     return true;
@@ -253,10 +245,7 @@ export function resetUseAuditCooldown(): void {
  * whether a row was written so "suppressed" and "failed" stay distinguishable.
  */
 export async function recordProviderConnectionUse(
-  row: Pick<
-    InferenceProviderConnectionRow,
-    "id" | "ownerAccountId" | "environment"
-  >,
+  row: Pick<InferenceProviderConnectionRow, 'id' | 'ownerAccountId' | 'environment'>,
 ): Promise<boolean> {
   if (shouldSuppressUseAudit(row.id)) return false;
 
@@ -265,17 +254,17 @@ export async function recordProviderConnectionUse(
       connectionId: row.id,
       ownerAccountId: row.ownerAccountId,
       environment: row.environment,
-      eventType: "used",
+      eventType: 'used',
       // No principal at all: this is the data plane resolving a reference. The
       // table's CHECK refuses a named person here anyway.
-      actor: { kind: "platform" },
+      actor: { kind: 'platform' },
     });
     return true;
   } catch (error) {
     logger.error(
-      "Failed to record provider connection use",
+      'Failed to record provider connection use',
       error instanceof Error ? error : new Error(String(error)),
-      { component: "inferenceProviderConnection", connectionId: row.id },
+      { component: 'inferenceProviderConnection', connectionId: row.id },
     );
     return false;
   }
@@ -316,9 +305,7 @@ export async function listProviderConnectionAuditEvents(
       createdAt: inferenceProviderConnectionAuditEvents.createdAt,
     })
     .from(inferenceProviderConnectionAuditEvents)
-    .where(
-      eq(inferenceProviderConnectionAuditEvents.connectionId, connectionId),
-    )
+    .where(eq(inferenceProviderConnectionAuditEvents.connectionId, connectionId))
     .orderBy(
       desc(inferenceProviderConnectionAuditEvents.createdAt),
       desc(inferenceProviderConnectionAuditEvents.id),
@@ -357,7 +344,7 @@ async function lockProviderConnectionRow(
     .from(inferenceProviderConnections)
     .where(eq(inferenceProviderConnections.id, connectionId))
     .limit(1)
-    .for("update");
+    .for('update');
   return row;
 }
 
@@ -377,16 +364,10 @@ export async function listProviderConnectionsForAccount(
         ? eq(inferenceProviderConnections.ownerAccountId, accountId)
         : and(
             eq(inferenceProviderConnections.ownerAccountId, accountId),
-            eq(
-              inferenceProviderConnections.environment,
-              serviceBoundary.environment,
-            ),
+            eq(inferenceProviderConnections.environment, serviceBoundary.environment),
             or(
               isNull(inferenceProviderConnections.applicationId),
-              eq(
-                inferenceProviderConnections.applicationId,
-                serviceBoundary.applicationId,
-              ),
+              eq(inferenceProviderConnections.applicationId, serviceBoundary.applicationId),
             ),
           ),
     )
@@ -395,8 +376,7 @@ export async function listProviderConnectionsForAccount(
 }
 
 /** Where an effective connection came from — the question a customer asks. */
-export type ProviderConnectionSource =
-  "application" | "project" | "account" | "ancestor-account";
+export type ProviderConnectionSource = 'application' | 'project' | 'account' | 'ancestor-account';
 
 /**
  * The outcome of resolving BYOK for one application.
@@ -408,13 +388,13 @@ export type ProviderConnectionSource =
  */
 export type ProviderConnectionResolution =
   | {
-      readonly status: "resolved";
+      readonly status: 'resolved';
       readonly connection: ProviderConnection;
       readonly row: InferenceProviderConnectionRow;
       readonly source: ProviderConnectionSource;
     }
-  | { readonly status: "none" }
-  | { readonly status: "unknown-application"; readonly applicationId: string };
+  | { readonly status: 'none' }
+  | { readonly status: 'unknown-application'; readonly applicationId: string };
 
 /**
  * The connection in force for an application, provider and environment.
@@ -455,11 +435,11 @@ export async function resolveProviderConnectionForApplication(input: {
     .limit(1);
   if (
     application === undefined ||
-    application.applicationStatus !== "active" ||
-    application.ownerAccountStatus !== "active"
+    application.applicationStatus !== 'active' ||
+    application.ownerAccountStatus !== 'active'
   ) {
     return {
-      status: "unknown-application",
+      status: 'unknown-application',
       applicationId: input.applicationId,
     };
   }
@@ -467,7 +447,7 @@ export async function resolveProviderConnectionForApplication(input: {
   const candidateMatches = and(
     eq(inferenceProviderConnections.provider, input.provider),
     eq(inferenceProviderConnections.environment, input.environment),
-    ne(inferenceProviderConnections.status, "revoked"),
+    ne(inferenceProviderConnections.status, 'revoked'),
   );
 
   const resolveCandidate = (
@@ -476,18 +456,18 @@ export async function resolveProviderConnectionForApplication(input: {
   ): ProviderConnectionResolution | undefined => {
     if (row === undefined) return undefined;
     if (
-      row.custodyState !== "ready" ||
-      row.status !== "active" ||
-      row.validationState !== "valid"
+      row.custodyState !== 'ready' ||
+      row.status !== 'active' ||
+      row.validationState !== 'valid'
     ) {
       // A more-specific override exists but it is disabled, rejected, expired,
       // internally inconsistent, or its custody is uncertain. It shadows
       // broader scopes fail-closed; silently promoting a parent key would defeat
       // validation and quarantine.
-      return { status: "none" };
+      return { status: 'none' };
     }
     return {
-      status: "resolved",
+      status: 'resolved',
       connection: toProviderConnection(row),
       row,
       source,
@@ -498,17 +478,11 @@ export async function resolveProviderConnectionForApplication(input: {
     .select()
     .from(inferenceProviderConnections)
     .where(
-      and(
-        candidateMatches,
-        eq(inferenceProviderConnections.applicationId, input.applicationId),
-      ),
+      and(candidateMatches, eq(inferenceProviderConnections.applicationId, input.applicationId)),
     )
-    .orderBy(
-      desc(inferenceProviderConnections.createdAt),
-      asc(inferenceProviderConnections.id),
-    )
+    .orderBy(desc(inferenceProviderConnections.createdAt), asc(inferenceProviderConnections.id))
     .limit(1);
-  const ownResolution = resolveCandidate(own, "application");
+  const ownResolution = resolveCandidate(own, 'application');
   if (ownResolution !== undefined) return ownResolution;
 
   const [project] = await db
@@ -517,20 +491,14 @@ export async function resolveProviderConnectionForApplication(input: {
     .where(
       and(
         candidateMatches,
-        eq(
-          inferenceProviderConnections.ownerAccountId,
-          application.ownerAccountId,
-        ),
-        eq(inferenceProviderConnections.scopeKind, "project"),
+        eq(inferenceProviderConnections.ownerAccountId, application.ownerAccountId),
+        eq(inferenceProviderConnections.scopeKind, 'project'),
         isNull(inferenceProviderConnections.applicationId),
       ),
     )
-    .orderBy(
-      desc(inferenceProviderConnections.createdAt),
-      asc(inferenceProviderConnections.id),
-    )
+    .orderBy(desc(inferenceProviderConnections.createdAt), asc(inferenceProviderConnections.id))
     .limit(1);
-  const projectResolution = resolveCandidate(project, "project");
+  const projectResolution = resolveCandidate(project, 'project');
   if (projectResolution !== undefined) return projectResolution;
 
   const [account] = await db
@@ -539,20 +507,14 @@ export async function resolveProviderConnectionForApplication(input: {
     .where(
       and(
         candidateMatches,
-        eq(
-          inferenceProviderConnections.ownerAccountId,
-          application.ownerAccountId,
-        ),
-        eq(inferenceProviderConnections.scopeKind, "account"),
+        eq(inferenceProviderConnections.ownerAccountId, application.ownerAccountId),
+        eq(inferenceProviderConnections.scopeKind, 'account'),
         isNull(inferenceProviderConnections.applicationId),
       ),
     )
-    .orderBy(
-      desc(inferenceProviderConnections.createdAt),
-      asc(inferenceProviderConnections.id),
-    )
+    .orderBy(desc(inferenceProviderConnections.createdAt), asc(inferenceProviderConnections.id))
     .limit(1);
-  const accountResolution = resolveCandidate(account, "account");
+  const accountResolution = resolveCandidate(account, 'account');
   if (accountResolution !== undefined) return accountResolution;
 
   // Inheritance: only `account`-scoped connections travel down the tree.
@@ -567,7 +529,7 @@ export async function resolveProviderConnectionForApplication(input: {
       and(
         eq(userAncestors.userId, application.ownerAccountId),
         candidateMatches,
-        eq(inferenceProviderConnections.scopeKind, "account"),
+        eq(inferenceProviderConnections.scopeKind, 'account'),
         isNull(inferenceProviderConnections.applicationId),
       ),
     )
@@ -579,10 +541,10 @@ export async function resolveProviderConnectionForApplication(input: {
     .limit(1);
 
   const nearest = inherited[0]?.connection;
-  const inheritedResolution = resolveCandidate(nearest, "ancestor-account");
+  const inheritedResolution = resolveCandidate(nearest, 'ancestor-account');
   if (inheritedResolution !== undefined) return inheritedResolution;
 
-  return { status: "none" };
+  return { status: 'none' };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -612,20 +574,20 @@ export interface CreateProviderConnectionInput {
  * sentences into one.
  */
 export type CreateProviderConnectionResult =
-  | { readonly status: "created"; readonly connection: ProviderConnection }
-  | { readonly status: "custody-reconcile"; readonly connectionId: string }
-  | { readonly status: "custody-manual"; readonly connectionId: string }
-  | { readonly status: "unknown-provider"; readonly provider: string }
+  | { readonly status: 'created'; readonly connection: ProviderConnection }
+  | { readonly status: 'custody-reconcile'; readonly connectionId: string }
+  | { readonly status: 'custody-manual'; readonly connectionId: string }
+  | { readonly status: 'unknown-provider'; readonly provider: string }
   | {
-      readonly status: "terms-not-acknowledged";
+      readonly status: 'terms-not-acknowledged';
       readonly provider: string;
       readonly termsUrl: string | null;
     }
-  | { readonly status: "scope-taken" }
-  | { readonly status: "scope-mismatch" }
-  | { readonly status: "account-unavailable"; readonly accountId: string }
+  | { readonly status: 'scope-taken' }
+  | { readonly status: 'scope-mismatch' }
+  | { readonly status: 'account-unavailable'; readonly accountId: string }
   | {
-      readonly status: "application-unavailable";
+      readonly status: 'application-unavailable';
       readonly applicationId: string;
     };
 
@@ -645,11 +607,8 @@ export async function createProviderConnection(
   input: CreateProviderConnectionInput,
   control: KaanaCredentialControl,
 ): Promise<CreateProviderConnectionResult> {
-  if (
-    (input.scopeKind === "application") !==
-    (input.applicationId !== undefined)
-  ) {
-    return { status: "scope-mismatch" };
+  if ((input.scopeKind === 'application') !== (input.applicationId !== undefined)) {
+    return { status: 'scope-mismatch' };
   }
 
   const [provider] = await getDb()
@@ -662,11 +621,11 @@ export async function createProviderConnection(
     .where(eq(inferenceProviders.slug, input.provider))
     .limit(1);
   if (provider === undefined) {
-    return { status: "unknown-provider", provider: input.provider };
+    return { status: 'unknown-provider', provider: input.provider };
   }
   if (provider.termsRequired && !input.acknowledgeProviderTerms) {
     return {
-      status: "terms-not-acknowledged",
+      status: 'terms-not-acknowledged',
       provider: provider.slug,
       termsUrl: provider.termsUrl,
     };
@@ -683,9 +642,9 @@ export async function createProviderConnection(
         .from(users)
         .where(eq(users.id, input.ownerAccountId))
         .limit(1)
-        .for("update");
-      if (owner === undefined || owner.accountStatus !== "active") {
-        return "account-unavailable" as const;
+        .for('update');
+      if (owner === undefined || owner.accountStatus !== 'active') {
+        return 'account-unavailable' as const;
       }
       const [closureFence] = await tx
         .select({ accountId: accountClosureFences.accountId })
@@ -693,13 +652,10 @@ export async function createProviderConnection(
         .where(eq(accountClosureFences.accountId, owner.id))
         .limit(1);
       if (closureFence !== undefined) {
-        return "account-unavailable" as const;
+        return 'account-unavailable' as const;
       }
 
-      if (
-        input.scopeKind === "application" &&
-        input.applicationId !== undefined
-      ) {
+      if (input.scopeKind === 'application' && input.applicationId !== undefined) {
         // Application deletion takes this same lock before checking custody.
         // Re-read both lifecycle and ownership under it so authorization done
         // before the transaction cannot race a delete or rebind attribution.
@@ -711,13 +667,13 @@ export async function createProviderConnection(
           .from(applications)
           .where(eq(applications.id, input.applicationId))
           .limit(1)
-          .for("update");
+          .for('update');
         if (
           application === undefined ||
-          application.status === "deleted" ||
+          application.status === 'deleted' ||
           application.ownerAccountId !== input.ownerAccountId
         ) {
-          return "application-unavailable" as const;
+          return 'application-unavailable' as const;
         }
       }
 
@@ -731,18 +687,18 @@ export async function createProviderConnection(
         // Never `active` on create: nothing has checked the credential yet, and
         // a connection that claims to work before anyone asked the provider is
         // the state a customer debugs for an hour.
-        status: "pending_validation",
-        custodyState: "pending",
+        status: 'pending_validation',
+        custodyState: 'pending',
         credentialHandle: null,
         credentialRevision: null,
-        validationState: "unvalidated",
+        validationState: 'unvalidated',
         termsAcknowledgedAt: provider.termsRequired ? new Date() : null,
         providerTermsAcknowledgementRequired: provider.termsRequired,
       });
       await tx.insert(inferenceProviderCredentialOperations).values({
         id: operationId,
         connectionId,
-        action: "create",
+        action: 'create',
         provider: provider.slug,
         ownerAccountId: input.ownerAccountId,
         environment: input.environment,
@@ -750,19 +706,19 @@ export async function createProviderConnection(
         credentialHandle: null,
         expectedRevision: null,
         previousConnectionStatus: null,
-        state: "pending",
+        state: 'pending',
       });
-      return "prepared" as const;
+      return 'prepared' as const;
     });
-    if (preparation === "account-unavailable") {
+    if (preparation === 'account-unavailable') {
       return { status: preparation, accountId: input.ownerAccountId };
     }
-    if (preparation === "application-unavailable") {
+    if (preparation === 'application-unavailable') {
       return { status: preparation, applicationId: input.applicationId! };
     }
   } catch (error) {
     if (isLiveScopeCollision(error)) {
-      return { status: "scope-taken" };
+      return { status: 'scope-taken' };
     }
     throw error;
   }
@@ -780,36 +736,36 @@ export async function createProviderConnection(
     });
   } catch (error) {
     if (error instanceof KaanaCredentialConflictError) {
-      await markCredentialOperation(connectionId, operationId, "manual");
-      return { status: "custody-manual", connectionId };
+      await markCredentialOperation(connectionId, operationId, 'manual');
+      return { status: 'custody-manual', connectionId };
     }
-    await markCredentialOperation(connectionId, operationId, "reconciliation");
-    return { status: "custody-reconcile", connectionId };
+    await markCredentialOperation(connectionId, operationId, 'reconciliation');
+    return { status: 'custody-reconcile', connectionId };
   }
-  if (outcome.status !== "applied") {
-    await markCredentialOperation(connectionId, operationId, "reconciliation");
-    return { status: "custody-reconcile", connectionId };
+  if (outcome.status !== 'applied') {
+    await markCredentialOperation(connectionId, operationId, 'reconciliation');
+    return { status: 'custody-reconcile', connectionId };
   }
 
   try {
     return {
-      status: "created",
+      status: 'created',
       connection: await applyCredentialOperation(operationId, outcome),
     };
   } catch (error) {
     void error;
-    await markCredentialOperation(connectionId, operationId, "reconciliation");
-    return { status: "custody-reconcile", connectionId };
+    await markCredentialOperation(connectionId, operationId, 'reconciliation');
+    return { status: 'custody-reconcile', connectionId };
   }
 }
 
 /** Outcomes of a rotation. */
 export type RotateProviderConnectionResult =
-  | { readonly status: "rotated"; readonly connection: ProviderConnection }
-  | { readonly status: "custody-reconcile" }
-  | { readonly status: "custody-manual" }
-  | { readonly status: "unknown-connection" }
-  | { readonly status: "revoked" };
+  | { readonly status: 'rotated'; readonly connection: ProviderConnection }
+  | { readonly status: 'custody-reconcile' }
+  | { readonly status: 'custody-manual' }
+  | { readonly status: 'unknown-connection' }
+  | { readonly status: 'revoked' };
 
 /**
  * Replace the credential behind a connection.
@@ -834,15 +790,15 @@ export async function rotateProviderConnection(
   control: KaanaCredentialControl,
 ): Promise<RotateProviderConnectionResult> {
   const existing = await getProviderConnectionRow(input.connectionId);
-  if (existing === undefined) return { status: "unknown-connection" };
-  if (existing.status === "revoked") return { status: "revoked" };
+  if (existing === undefined) return { status: 'unknown-connection' };
+  if (existing.status === 'revoked') return { status: 'revoked' };
 
   if (
-    existing.custodyState !== "ready" ||
+    existing.custodyState !== 'ready' ||
     existing.credentialHandle === null ||
     existing.credentialRevision === null
   ) {
-    return { status: "custody-reconcile" };
+    return { status: 'custody-reconcile' };
   }
   const credentialHandle = existing.credentialHandle;
   const credentialRevision = existing.credentialRevision;
@@ -852,16 +808,13 @@ export async function rotateProviderConnection(
   const fenced = await getDb().transaction(async (tx) => {
     const [row] = await tx
       .update(inferenceProviderConnections)
-      .set({ custodyState: "reconcile" })
+      .set({ custodyState: 'reconcile' })
       .where(
         and(
           eq(inferenceProviderConnections.id, input.connectionId),
-          eq(inferenceProviderConnections.custodyState, "ready"),
+          eq(inferenceProviderConnections.custodyState, 'ready'),
           eq(inferenceProviderConnections.credentialHandle, credentialHandle),
-          eq(
-            inferenceProviderConnections.credentialRevision,
-            credentialRevision,
-          ),
+          eq(inferenceProviderConnections.credentialRevision, credentialRevision),
         ),
       )
       .returning({ id: inferenceProviderConnections.id });
@@ -869,7 +822,7 @@ export async function rotateProviderConnection(
     await tx.insert(inferenceProviderCredentialOperations).values({
       id: operationId,
       connectionId: existing.id,
-      action: "rotate",
+      action: 'rotate',
       provider: existing.provider,
       ownerAccountId: existing.ownerAccountId,
       environment: existing.environment,
@@ -877,11 +830,11 @@ export async function rotateProviderConnection(
       credentialHandle,
       expectedRevision: credentialRevision,
       previousConnectionStatus: null,
-      state: "pending",
+      state: 'pending',
     });
     return row;
   });
-  if (fenced === undefined) return { status: "custody-reconcile" };
+  if (fenced === undefined) return { status: 'custody-reconcile' };
 
   let outcome: KaanaCredentialOutcome;
   try {
@@ -898,35 +851,35 @@ export async function rotateProviderConnection(
     });
   } catch (error) {
     if (error instanceof KaanaCredentialConflictError) {
-      await markCredentialOperation(existing.id, operationId, "manual");
-      return { status: "custody-manual" };
+      await markCredentialOperation(existing.id, operationId, 'manual');
+      return { status: 'custody-manual' };
     }
-    await markCredentialOperation(existing.id, operationId, "reconciliation");
-    return { status: "custody-reconcile" };
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
   }
-  if (outcome.status !== "applied") {
-    await markCredentialOperation(existing.id, operationId, "reconciliation");
-    return { status: "custody-reconcile" };
+  if (outcome.status !== 'applied') {
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
   }
 
   try {
     return {
-      status: "rotated",
+      status: 'rotated',
       connection: await applyCredentialOperation(operationId, outcome),
     };
   } catch (error) {
     void error;
-    await markCredentialOperation(existing.id, operationId, "reconciliation");
-    return { status: "custody-reconcile" };
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
   }
 }
 
 /** Outcomes of a lifecycle transition that touches no credential. */
 export type ProviderConnectionStatusResult =
-  | { readonly status: "updated"; readonly connection: ProviderConnection }
-  | { readonly status: "unknown-connection" }
-  | { readonly status: "revoked" }
-  | { readonly status: "already"; readonly current: ProviderConnectionStatus };
+  | { readonly status: 'updated'; readonly connection: ProviderConnection }
+  | { readonly status: 'unknown-connection' }
+  | { readonly status: 'revoked' }
+  | { readonly status: 'already'; readonly current: ProviderConnectionStatus };
 
 /**
  * Take a connection out of service immediately.
@@ -943,9 +896,9 @@ export async function disableProviderConnection(input: {
   return transitionStatus({
     connectionId: input.connectionId,
     actor: input.actor,
-    eventType: "disabled",
-    next: () => "disabled",
-    refuseWhen: (row) => (row.status === "disabled" ? "disabled" : undefined),
+    eventType: 'disabled',
+    next: () => 'disabled',
+    refuseWhen: (row) => (row.status === 'disabled' ? 'disabled' : undefined),
   });
 }
 
@@ -964,68 +917,60 @@ export async function enableProviderConnection(input: {
   return transitionStatus({
     connectionId: input.connectionId,
     actor: input.actor,
-    eventType: "enabled",
-    next: (row) =>
-      row.validationState === "valid" ? "active" : "pending_validation",
-    refuseWhen: (row) => (row.status === "disabled" ? undefined : row.status),
+    eventType: 'enabled',
+    next: (row) => (row.validationState === 'valid' ? 'active' : 'pending_validation'),
+    refuseWhen: (row) => (row.status === 'disabled' ? undefined : row.status),
   });
 }
 
 async function transitionStatus(input: {
   readonly connectionId: string;
   readonly actor: ProviderConnectionActor;
-  readonly eventType: Extract<
-    ProviderConnectionAuditEventType,
-    "disabled" | "enabled"
-  >;
-  readonly next: (
-    row: InferenceProviderConnectionRow,
-  ) => ProviderConnectionStatus;
+  readonly eventType: Extract<ProviderConnectionAuditEventType, 'disabled' | 'enabled'>;
+  readonly next: (row: InferenceProviderConnectionRow) => ProviderConnectionStatus;
   readonly refuseWhen: (
     row: InferenceProviderConnectionRow,
   ) => ProviderConnectionStatus | undefined;
 }): Promise<ProviderConnectionStatusResult> {
-  return getDb().transaction(
-    async (tx): Promise<ProviderConnectionStatusResult> => {
-      const existing = await lockProviderConnectionRow(tx, input.connectionId);
-      if (existing === undefined) return { status: "unknown-connection" };
-      if (existing.status === "revoked") return { status: "revoked" };
+  return getDb().transaction(async (tx): Promise<ProviderConnectionStatusResult> => {
+    const existing = await lockProviderConnectionRow(tx, input.connectionId);
+    if (existing === undefined) return { status: 'unknown-connection' };
+    if (existing.status === 'revoked') return { status: 'revoked' };
 
-      const refusal = input.refuseWhen(existing);
-      if (refusal !== undefined) return { status: "already", current: refusal };
+    const refusal = input.refuseWhen(existing);
+    if (refusal !== undefined) return { status: 'already', current: refusal };
 
-      const next = input.next(existing);
-      const [row] = await tx
-        .update(inferenceProviderConnections)
-        .set({ status: next })
-        .where(eq(inferenceProviderConnections.id, input.connectionId))
-        .returning();
+    const next = input.next(existing);
+    const [row] = await tx
+      .update(inferenceProviderConnections)
+      .set({ status: next })
+      .where(eq(inferenceProviderConnections.id, input.connectionId))
+      .returning();
 
-      await appendAuditEvent(tx, {
-        connectionId: row.id,
-        ownerAccountId: row.ownerAccountId,
-        environment: row.environment,
-        eventType: input.eventType,
-        actor: input.actor,
-        metadata: { previousStatus: existing.status, status: row.status },
-      });
+    await appendAuditEvent(tx, {
+      connectionId: row.id,
+      ownerAccountId: row.ownerAccountId,
+      environment: row.environment,
+      eventType: input.eventType,
+      actor: input.actor,
+      metadata: { previousStatus: existing.status, status: row.status },
+    });
 
-      return { status: "updated", connection: toProviderConnection(row) };
-    },
-  );
+    return { status: 'updated', connection: toProviderConnection(row) };
+  });
 }
 
 /** Outcomes of a revoke. */
 export type RevokeProviderConnectionResult =
   | {
-      readonly status: "revoked";
+      readonly status: 'revoked';
       readonly connection: ProviderConnection;
       readonly credentialRevoked: true;
     }
-  | { readonly status: "custody-reconcile" }
-  | { readonly status: "custody-manual" }
-  | { readonly status: "unknown-connection" }
-  | { readonly status: "already-revoked" };
+  | { readonly status: 'custody-reconcile' }
+  | { readonly status: 'custody-manual' }
+  | { readonly status: 'unknown-connection' }
+  | { readonly status: 'already-revoked' };
 
 /**
  * Retire a connection permanently and ask Kaana to revoke the exact generation.
@@ -1044,16 +989,14 @@ export async function revokeProviderConnection(
   const operationId = uuidv7();
   const fenced = await getDb().transaction(async (tx) => {
     const existing = await lockProviderConnectionRow(tx, input.connectionId);
-    if (existing === undefined)
-      return { status: "unknown-connection" as const };
-    if (existing.status === "revoked")
-      return { status: "already-revoked" as const };
+    if (existing === undefined) return { status: 'unknown-connection' as const };
+    if (existing.status === 'revoked') return { status: 'already-revoked' as const };
     if (
-      existing.custodyState !== "ready" ||
+      existing.custodyState !== 'ready' ||
       existing.credentialHandle === null ||
       existing.credentialRevision === null
     ) {
-      return { status: "custody-reconcile" as const };
+      return { status: 'custody-reconcile' as const };
     }
 
     const operationActor = providerConnectionOperationActor(input.actor);
@@ -1061,29 +1004,24 @@ export async function revokeProviderConnection(
     const credentialRevision = existing.credentialRevision;
     const [row] = await tx
       .update(inferenceProviderConnections)
-      .set({ status: "revoked", custodyState: "reconcile" })
+      .set({ status: 'revoked', custodyState: 'reconcile' })
       .where(
         and(
           eq(inferenceProviderConnections.id, input.connectionId),
           eq(inferenceProviderConnections.status, existing.status),
-          eq(inferenceProviderConnections.custodyState, "ready"),
+          eq(inferenceProviderConnections.custodyState, 'ready'),
           eq(inferenceProviderConnections.credentialHandle, credentialHandle),
-          eq(
-            inferenceProviderConnections.credentialRevision,
-            credentialRevision,
-          ),
+          eq(inferenceProviderConnections.credentialRevision, credentialRevision),
         ),
       )
       .returning();
     if (row === undefined) {
-      throw new Error(
-        "locked provider connection could not be fenced for revocation",
-      );
+      throw new Error('locked provider connection could not be fenced for revocation');
     }
     await tx.insert(inferenceProviderCredentialOperations).values({
       id: operationId,
       connectionId: existing.id,
-      action: "revoke",
+      action: 'revoke',
       provider: existing.provider,
       ownerAccountId: existing.ownerAccountId,
       environment: existing.environment,
@@ -1091,10 +1029,10 @@ export async function revokeProviderConnection(
       credentialHandle,
       expectedRevision: credentialRevision,
       previousConnectionStatus: existing.status,
-      state: "pending",
+      state: 'pending',
     });
     return {
-      status: "fenced" as const,
+      status: 'fenced' as const,
       existing,
       operationActor,
       credentialHandle,
@@ -1102,13 +1040,12 @@ export async function revokeProviderConnection(
     };
   });
 
-  if (fenced.status !== "fenced") return fenced;
-  const { existing, operationActor, credentialHandle, credentialRevision } =
-    fenced;
+  if (fenced.status !== 'fenced') return fenced;
+  const { existing, operationActor, credentialHandle, credentialRevision } = fenced;
 
   if (control === undefined) {
-    await markCredentialOperation(existing.id, operationId, "reconciliation");
-    return { status: "custody-reconcile" };
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
   }
 
   let outcome: KaanaCredentialOutcome;
@@ -1125,45 +1062,45 @@ export async function revokeProviderConnection(
     });
   } catch (error) {
     if (error instanceof KaanaCredentialConflictError) {
-      await markCredentialOperation(existing.id, operationId, "manual");
-      return { status: "custody-manual" };
+      await markCredentialOperation(existing.id, operationId, 'manual');
+      return { status: 'custody-manual' };
     }
-    await markCredentialOperation(existing.id, operationId, "reconciliation");
-    return { status: "custody-reconcile" };
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
   }
-  if (outcome.status !== "applied") {
-    await markCredentialOperation(existing.id, operationId, "reconciliation");
-    return { status: "custody-reconcile" };
+  if (outcome.status !== 'applied') {
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
   }
 
   try {
     return {
-      status: "revoked",
+      status: 'revoked',
       connection: await applyCredentialOperation(operationId, outcome),
       credentialRevoked: true,
     };
   } catch (error) {
     void error;
-    await markCredentialOperation(existing.id, operationId, "reconciliation");
-    return { status: "custody-reconcile" };
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
   }
 }
 
 export type ReconcileProviderConnectionResult =
   | {
-      readonly status: "reconciled";
-      readonly action: InferenceProviderCredentialOperationRow["action"];
+      readonly status: 'reconciled';
+      readonly action: InferenceProviderCredentialOperationRow['action'];
       readonly connection: ProviderConnection;
     }
-  | { readonly status: "reconciliation-required" }
-  | { readonly status: "manual-required" }
+  | { readonly status: 'reconciliation-required' }
+  | { readonly status: 'manual-required' }
   | {
-      readonly status: "credential-required";
-      readonly action: "create" | "rotate";
+      readonly status: 'credential-required';
+      readonly action: 'create' | 'rotate';
     }
-  | { readonly status: "credential-not-applicable" }
-  | { readonly status: "no-unresolved-operation" }
-  | { readonly status: "unknown-connection" };
+  | { readonly status: 'credential-not-applicable' }
+  | { readonly status: 'no-unresolved-operation' }
+  | { readonly status: 'unknown-connection' };
 
 /**
  * Resolve one quarantined connection from Kaana's signed durable outcome.
@@ -1181,7 +1118,7 @@ export async function reconcileProviderConnection(
   secret?: ProviderCredentialValue,
 ): Promise<ReconcileProviderConnectionResult> {
   const existing = await getProviderConnectionRow(connectionId);
-  if (existing === undefined) return { status: "unknown-connection" };
+  if (existing === undefined) return { status: 'unknown-connection' };
 
   const [operation] = await getDb()
     .select()
@@ -1190,17 +1127,17 @@ export async function reconcileProviderConnection(
       and(
         eq(inferenceProviderCredentialOperations.connectionId, connectionId),
         inArray(inferenceProviderCredentialOperations.state, [
-          "pending",
-          "reconciliation",
-          "manual",
+          'pending',
+          'reconciliation',
+          'manual',
         ]),
       ),
     )
     .limit(1);
-  if (operation === undefined) return { status: "no-unresolved-operation" };
-  if (operation.state === "manual") return { status: "manual-required" };
-  if (operation.action === "revoke" && secret !== undefined) {
-    return { status: "credential-not-applicable" };
+  if (operation === undefined) return { status: 'no-unresolved-operation' };
+  if (operation.state === 'manual') return { status: 'manual-required' };
+  if (operation.action === 'revoke' && secret !== undefined) {
+    return { status: 'credential-not-applicable' };
   }
 
   let outcome: KaanaCredentialOutcome;
@@ -1208,29 +1145,18 @@ export async function reconcileProviderConnection(
     outcome = await control.outcome(outcomeRequestForOperation(operation));
   } catch (error) {
     if (error instanceof KaanaCredentialConflictError) {
-      await markCredentialOperation(connectionId, operation.id, "manual");
-      return { status: "manual-required" };
+      await markCredentialOperation(connectionId, operation.id, 'manual');
+      return { status: 'manual-required' };
     }
     if (!(error instanceof KaanaCredentialOutcomeNotFoundError)) {
-      await markCredentialOperation(
-        connectionId,
-        operation.id,
-        "reconciliation",
-      );
-      return { status: "reconciliation-required" };
+      await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+      return { status: 'reconciliation-required' };
     }
 
-    if (operation.action === "revoke") {
-      if (
-        operation.credentialHandle === null ||
-        operation.expectedRevision === null
-      ) {
-        await markCredentialOperation(
-          connectionId,
-          operation.id,
-          "reconciliation",
-        );
-        return { status: "reconciliation-required" };
+    if (operation.action === 'revoke') {
+      if (operation.credentialHandle === null || operation.expectedRevision === null) {
+        await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+        return { status: 'reconciliation-required' };
       }
       try {
         outcome = await control.revoke({
@@ -1245,22 +1171,17 @@ export async function reconcileProviderConnection(
         });
       } catch (replayError) {
         if (replayError instanceof KaanaCredentialConflictError) {
-          await markCredentialOperation(connectionId, operation.id, "manual");
-          return { status: "manual-required" };
+          await markCredentialOperation(connectionId, operation.id, 'manual');
+          return { status: 'manual-required' };
         }
-        await markCredentialOperation(
-          connectionId,
-          operation.id,
-          "reconciliation",
-        );
-        return { status: "reconciliation-required" };
+        await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+        return { status: 'reconciliation-required' };
       }
     } else {
-      if (secret === undefined)
-        return { status: "credential-required", action: operation.action };
+      if (secret === undefined) return { status: 'credential-required', action: operation.action };
       try {
         outcome =
-          operation.action === "create"
+          operation.action === 'create'
             ? await control.create({
                 operationId: operation.id,
                 provider: operation.provider,
@@ -1270,8 +1191,7 @@ export async function reconcileProviderConnection(
                 operationActor: operation.operationActor,
                 secret,
               })
-            : operation.credentialHandle !== null &&
-                operation.expectedRevision !== null
+            : operation.credentialHandle !== null && operation.expectedRevision !== null
               ? await control.rotate({
                   operationId: operation.id,
                   provider: operation.provider,
@@ -1284,49 +1204,43 @@ export async function reconcileProviderConnection(
                   expectedRevision: operation.expectedRevision,
                 })
               : (() => {
-                  throw new Error(
-                    "provider credential rotate operation lost exact selectors",
-                  );
+                  throw new Error('provider credential rotate operation lost exact selectors');
                 })();
       } catch (replayError) {
         if (replayError instanceof KaanaCredentialConflictError) {
-          await markCredentialOperation(connectionId, operation.id, "manual");
-          return { status: "manual-required" };
+          await markCredentialOperation(connectionId, operation.id, 'manual');
+          return { status: 'manual-required' };
         }
-        await markCredentialOperation(
-          connectionId,
-          operation.id,
-          "reconciliation",
-        );
-        return { status: "reconciliation-required" };
+        await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+        return { status: 'reconciliation-required' };
       }
     }
   }
-  if (outcome.status !== "applied") {
-    await markCredentialOperation(connectionId, operation.id, "reconciliation");
-    return { status: "reconciliation-required" };
+  if (outcome.status !== 'applied') {
+    await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+    return { status: 'reconciliation-required' };
   }
 
   try {
     return {
-      status: "reconciled",
+      status: 'reconciled',
       action: operation.action,
       connection: await applyCredentialOperation(operation.id, outcome),
     };
   } catch (error) {
     void error;
-    await markCredentialOperation(connectionId, operation.id, "reconciliation");
-    return { status: "reconciliation-required" };
+    await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+    return { status: 'reconciliation-required' };
   }
 }
 
 /** Outcomes of recording a validation verdict. */
 export type RecordValidationResult =
-  | { readonly status: "recorded"; readonly connection: ProviderConnection }
-  | { readonly status: "unknown-connection" }
-  | { readonly status: "generation-not-ready" }
-  | { readonly status: "stale-generation" }
-  | { readonly status: "revoked" };
+  | { readonly status: 'recorded'; readonly connection: ProviderConnection }
+  | { readonly status: 'unknown-connection' }
+  | { readonly status: 'generation-not-ready' }
+  | { readonly status: 'stale-generation' }
+  | { readonly status: 'revoked' };
 
 /**
  * Record the verdict of a credential check.
@@ -1355,32 +1269,30 @@ export async function recordProviderConnectionValidation(input: {
 }): Promise<RecordValidationResult> {
   return getDb().transaction(async (tx): Promise<RecordValidationResult> => {
     const existing = await lockProviderConnectionRow(tx, input.connectionId);
-    if (existing === undefined) return { status: "unknown-connection" };
-    if (existing.custodyState !== "ready")
-      return { status: "generation-not-ready" };
+    if (existing === undefined) return { status: 'unknown-connection' };
+    if (existing.custodyState !== 'ready') return { status: 'generation-not-ready' };
     if (
       existing.credentialHandle !== input.credentialHandle ||
       existing.credentialRevision !== input.credentialRevision
     ) {
-      return { status: "stale-generation" };
+      return { status: 'stale-generation' };
     }
-    if (existing.status === "revoked") return { status: "revoked" };
+    if (existing.status === 'revoked') return { status: 'revoked' };
 
-    const rejected = input.state === "invalid" || input.state === "expired";
+    const rejected = input.state === 'invalid' || input.state === 'expired';
     const nextStatus: ProviderConnectionStatus = rejected
-      ? "disabled"
-      : input.state === "valid" && existing.status === "pending_validation"
-        ? "active"
-        : input.state === "unvalidated" && existing.status === "active"
-          ? "pending_validation"
+      ? 'disabled'
+      : input.state === 'valid' && existing.status === 'pending_validation'
+        ? 'active'
+        : input.state === 'unvalidated' && existing.status === 'active'
+          ? 'pending_validation'
           : existing.status;
 
     const [row] = await tx
       .update(inferenceProviderConnections)
       .set({
         validationState: input.state,
-        validationFailureCode:
-          input.state === "invalid" ? (input.failureCode ?? "unknown") : null,
+        validationFailureCode: input.state === 'invalid' ? (input.failureCode ?? 'unknown') : null,
         lastValidatedAt: new Date(),
         status: nextStatus,
       })
@@ -1391,7 +1303,7 @@ export async function recordProviderConnectionValidation(input: {
       connectionId: row.id,
       ownerAccountId: row.ownerAccountId,
       environment: row.environment,
-      eventType: "validated",
+      eventType: 'validated',
       actor: input.actor,
       metadata: {
         credentialHandle: input.credentialHandle,
@@ -1401,20 +1313,20 @@ export async function recordProviderConnectionValidation(input: {
       },
     });
 
-    if (rejected && existing.status !== "disabled") {
+    if (rejected && existing.status !== 'disabled') {
       await appendAuditEvent(tx, {
         connectionId: row.id,
         ownerAccountId: row.ownerAccountId,
         environment: row.environment,
-        eventType: "disabled",
+        eventType: 'disabled',
         // Nobody disabled it: the provider's answer did. Naming a person here
         // would be an accusation, so the actor is Oxy's own machinery.
-        actor: { kind: "platform" },
+        actor: { kind: 'platform' },
         metadata: { previousStatus: existing.status, reason: input.state },
       });
     }
 
-    return { status: "recorded", connection: toProviderConnection(row) };
+    return { status: 'recorded', connection: toProviderConnection(row) };
   });
 }
 
@@ -1422,24 +1334,17 @@ export async function recordProviderConnectionValidation(input: {
 /*  Internals                                                                 */
 /* -------------------------------------------------------------------------- */
 
-function providerConnectionOperationActor(
-  actor: ProviderConnectionActor,
-): string {
-  return actor.kind === "user" ? `user:${actor.userId}` : actor.kind;
+function providerConnectionOperationActor(actor: ProviderConnectionActor): string {
+  return actor.kind === 'user' ? `user:${actor.userId}` : actor.kind;
 }
 
-function providerConnectionActorFromOperation(
-  operationActor: string,
-): ProviderConnectionActor {
-  if (operationActor === "service") return { kind: "service" };
-  if (operationActor === "platform") return { kind: "platform" };
-  if (
-    operationActor.startsWith("user:") &&
-    operationActor.length > "user:".length
-  ) {
-    return { kind: "user", userId: operationActor.slice("user:".length) };
+function providerConnectionActorFromOperation(operationActor: string): ProviderConnectionActor {
+  if (operationActor === 'service') return { kind: 'service' };
+  if (operationActor === 'platform') return { kind: 'platform' };
+  if (operationActor.startsWith('user:') && operationActor.length > 'user:'.length) {
+    return { kind: 'user', userId: operationActor.slice('user:'.length) };
   }
-  throw new Error("provider credential operation has an invalid Oxy actor");
+  throw new Error('provider credential operation has an invalid Oxy actor');
 }
 
 function outcomeRequestForOperation(
@@ -1454,22 +1359,22 @@ function outcomeRequestForOperation(
     environment: operation.environment,
   };
   switch (operation.action) {
-    case "create":
+    case 'create':
       return kaanaCredentialOutcomeRequestSchema.parse({
         ...identity,
-        action: "create",
+        action: 'create',
       });
-    case "rotate":
+    case 'rotate':
       return kaanaCredentialOutcomeRequestSchema.parse({
         ...identity,
-        action: "rotate",
+        action: 'rotate',
         credentialHandle: operation.credentialHandle,
         expectedRevision: operation.expectedRevision,
       });
-    case "revoke":
+    case 'revoke':
       return kaanaCredentialOutcomeRequestSchema.parse({
         ...identity,
-        action: "revoke",
+        action: 'revoke',
         credentialHandle: operation.credentialHandle,
         expectedRevision: operation.expectedRevision,
       });
@@ -1479,15 +1384,15 @@ function outcomeRequestForOperation(
 function credentialOutcomeMatchesOperation(
   operation: InferenceProviderCredentialOperationRow,
   outcome: KaanaCredentialOutcome,
-): outcome is Extract<KaanaCredentialOutcome, { status: "applied" }> {
+): outcome is Extract<KaanaCredentialOutcome, { status: 'applied' }> {
   if (
-    outcome.status !== "applied" ||
+    outcome.status !== 'applied' ||
     outcome.operationId !== operation.id ||
     outcome.action !== operation.action
   ) {
     return false;
   }
-  if (operation.action === "create") {
+  if (operation.action === 'create') {
     return outcome.revision === 1;
   }
   return (
@@ -1509,24 +1414,17 @@ async function applyCredentialOperation(
       .from(inferenceProviderCredentialOperations)
       .where(eq(inferenceProviderCredentialOperations.id, operationId))
       .limit(1)
-      .for("update");
-    if (
-      operation === undefined ||
-      !credentialOutcomeMatchesOperation(operation, outcome)
-    ) {
-      throw new Error(
-        "provider credential outcome does not match its durable operation",
-      );
+      .for('update');
+    if (operation === undefined || !credentialOutcomeMatchesOperation(operation, outcome)) {
+      throw new Error('provider credential outcome does not match its durable operation');
     }
 
-    if (operation.state === "applied") {
+    if (operation.state === 'applied') {
       if (
         operation.outcomeCredentialHandle !== outcome.credentialHandle ||
         operation.outcomeRevision !== outcome.revision
       ) {
-        throw new Error(
-          "applied provider credential operation has a different durable outcome",
-        );
+        throw new Error('applied provider credential operation has a different durable outcome');
       }
       const [current] = await tx
         .select()
@@ -1534,16 +1432,12 @@ async function applyCredentialOperation(
         .where(eq(inferenceProviderConnections.id, operation.connectionId))
         .limit(1);
       if (current === undefined) {
-        throw new Error(
-          "applied provider credential operation lost its connection",
-        );
+        throw new Error('applied provider credential operation lost its connection');
       }
       return toProviderConnection(current);
     }
-    if (!["pending", "reconciliation"].includes(operation.state)) {
-      throw new Error(
-        "provider credential operation is not recoverable automatically",
-      );
+    if (!['pending', 'reconciliation'].includes(operation.state)) {
+      throw new Error('provider credential operation is not recoverable automatically');
     }
 
     const [before] = await tx
@@ -1553,37 +1447,29 @@ async function applyCredentialOperation(
         and(
           eq(inferenceProviderConnections.id, operation.connectionId),
           eq(inferenceProviderConnections.provider, operation.provider),
-          eq(
-            inferenceProviderConnections.ownerAccountId,
-            operation.ownerAccountId,
-          ),
+          eq(inferenceProviderConnections.ownerAccountId, operation.ownerAccountId),
           eq(inferenceProviderConnections.environment, operation.environment),
         ),
       )
       .limit(1);
     if (before === undefined) {
-      throw new Error(
-        "provider credential operation lost its exact connection identity",
-      );
+      throw new Error('provider credential operation lost its exact connection identity');
     }
 
     let row: InferenceProviderConnectionRow | undefined;
     switch (operation.action) {
-      case "create": {
+      case 'create': {
         [row] = await tx
           .update(inferenceProviderConnections)
           .set({
-            custodyState: "ready",
+            custodyState: 'ready',
             credentialHandle: outcome.credentialHandle,
             credentialRevision: outcome.revision,
           })
           .where(
             and(
               eq(inferenceProviderConnections.id, operation.connectionId),
-              inArray(inferenceProviderConnections.custodyState, [
-                "pending",
-                "reconcile",
-              ]),
+              inArray(inferenceProviderConnections.custodyState, ['pending', 'reconcile']),
               isNull(inferenceProviderConnections.credentialHandle),
               isNull(inferenceProviderConnections.credentialRevision),
             ),
@@ -1591,71 +1477,49 @@ async function applyCredentialOperation(
           .returning();
         break;
       }
-      case "rotate": {
-        if (
-          operation.credentialHandle === null ||
-          operation.expectedRevision === null
-        ) {
-          throw new Error(
-            "provider credential rotate operation lost exact selectors",
-          );
+      case 'rotate': {
+        if (operation.credentialHandle === null || operation.expectedRevision === null) {
+          throw new Error('provider credential rotate operation lost exact selectors');
         }
         [row] = await tx
           .update(inferenceProviderConnections)
           .set({
-            custodyState: "ready",
+            custodyState: 'ready',
             credentialRevision: outcome.revision,
             status: sql`case when ${inferenceProviderConnections.status} = 'active' then 'pending_validation' else ${inferenceProviderConnections.status} end`,
-            validationState: "unvalidated",
+            validationState: 'unvalidated',
             validationFailureCode: null,
             rotatedAt: new Date(),
           })
           .where(
             and(
               eq(inferenceProviderConnections.id, operation.connectionId),
-              eq(inferenceProviderConnections.custodyState, "reconcile"),
-              eq(
-                inferenceProviderConnections.credentialHandle,
-                operation.credentialHandle,
-              ),
-              eq(
-                inferenceProviderConnections.credentialRevision,
-                operation.expectedRevision,
-              ),
+              eq(inferenceProviderConnections.custodyState, 'reconcile'),
+              eq(inferenceProviderConnections.credentialHandle, operation.credentialHandle),
+              eq(inferenceProviderConnections.credentialRevision, operation.expectedRevision),
             ),
           )
           .returning();
         break;
       }
-      case "revoke": {
-        if (
-          operation.credentialHandle === null ||
-          operation.expectedRevision === null
-        ) {
-          throw new Error(
-            "provider credential revoke operation lost exact selectors",
-          );
+      case 'revoke': {
+        if (operation.credentialHandle === null || operation.expectedRevision === null) {
+          throw new Error('provider credential revoke operation lost exact selectors');
         }
         [row] = await tx
           .update(inferenceProviderConnections)
           .set({
-            status: "revoked",
-            custodyState: "revoked",
+            status: 'revoked',
+            custodyState: 'revoked',
             credentialRevision: outcome.revision,
           })
           .where(
             and(
               eq(inferenceProviderConnections.id, operation.connectionId),
-              eq(inferenceProviderConnections.status, "revoked"),
-              eq(inferenceProviderConnections.custodyState, "reconcile"),
-              eq(
-                inferenceProviderConnections.credentialHandle,
-                operation.credentialHandle,
-              ),
-              eq(
-                inferenceProviderConnections.credentialRevision,
-                operation.expectedRevision,
-              ),
+              eq(inferenceProviderConnections.status, 'revoked'),
+              eq(inferenceProviderConnections.custodyState, 'reconcile'),
+              eq(inferenceProviderConnections.credentialHandle, operation.credentialHandle),
+              eq(inferenceProviderConnections.credentialRevision, operation.expectedRevision),
             ),
           )
           .returning();
@@ -1663,44 +1527,35 @@ async function applyCredentialOperation(
       }
     }
     if (row === undefined) {
-      throw new Error(
-        "provider credential operation lost its fenced connection row",
-      );
+      throw new Error('provider credential operation lost its fenced connection row');
     }
 
     const [applied] = await tx
       .update(inferenceProviderCredentialOperations)
       .set({
-        state: "applied",
+        state: 'applied',
         outcomeCredentialHandle: outcome.credentialHandle,
         outcomeRevision: outcome.revision,
       })
       .where(
         and(
           eq(inferenceProviderCredentialOperations.id, operation.id),
-          inArray(inferenceProviderCredentialOperations.state, [
-            "pending",
-            "reconciliation",
-          ]),
+          inArray(inferenceProviderCredentialOperations.state, ['pending', 'reconciliation']),
         ),
       )
       .returning({ id: inferenceProviderCredentialOperations.id });
     if (applied === undefined) {
-      throw new Error(
-        "provider credential operation lost its unresolved ledger row",
-      );
+      throw new Error('provider credential operation lost its unresolved ledger row');
     }
 
-    const actor = providerConnectionActorFromOperation(
-      operation.operationActor,
-    );
+    const actor = providerConnectionActorFromOperation(operation.operationActor);
     switch (operation.action) {
-      case "create":
+      case 'create':
         await appendAuditEvent(tx, {
           connectionId: row.id,
           ownerAccountId: row.ownerAccountId,
           environment: row.environment,
-          eventType: "created",
+          eventType: 'created',
           actor,
           metadata: {
             provider: row.provider,
@@ -1710,24 +1565,24 @@ async function applyCredentialOperation(
           },
         });
         break;
-      case "rotate":
+      case 'rotate':
         await appendAuditEvent(tx, {
           connectionId: row.id,
           ownerAccountId: row.ownerAccountId,
           environment: row.environment,
-          eventType: "rotated",
+          eventType: 'rotated',
           actor,
           metadata: {
             credentialRevision: outcome.revision,
           },
         });
         break;
-      case "revoke":
+      case 'revoke':
         await appendAuditEvent(tx, {
           connectionId: row.id,
           ownerAccountId: row.ownerAccountId,
           environment: row.environment,
-          eventType: "revoked",
+          eventType: 'revoked',
           actor,
           metadata: {
             previousStatus: operation.previousConnectionStatus,
@@ -1746,7 +1601,7 @@ async function applyCredentialOperation(
 async function markCredentialOperation(
   connectionId: string,
   operationId: string,
-  state: Extract<ProviderCredentialOperationState, "reconciliation" | "manual">,
+  state: Extract<ProviderCredentialOperationState, 'reconciliation' | 'manual'>,
 ): Promise<void> {
   await getDb().transaction(async (tx) => {
     const [operation] = await tx
@@ -1758,9 +1613,9 @@ async function markCredentialOperation(
           eq(inferenceProviderCredentialOperations.connectionId, connectionId),
           inArray(
             inferenceProviderCredentialOperations.state,
-            state === "manual"
-              ? ["pending", "reconciliation", "manual"]
-              : ["pending", "reconciliation"],
+            state === 'manual'
+              ? ['pending', 'reconciliation', 'manual']
+              : ['pending', 'reconciliation'],
           ),
         ),
       )
@@ -1768,7 +1623,7 @@ async function markCredentialOperation(
     if (operation === undefined) return;
     await tx
       .update(inferenceProviderConnections)
-      .set({ custodyState: "reconcile" })
+      .set({ custodyState: 'reconcile' })
       .where(eq(inferenceProviderConnections.id, connectionId));
   });
 }
@@ -1783,10 +1638,10 @@ async function markCredentialOperation(
  */
 function isLiveScopeCollision(error: unknown): boolean {
   const cause: unknown = error instanceof Error ? error.cause : undefined;
-  if (cause === null || typeof cause !== "object") return false;
+  if (cause === null || typeof cause !== 'object') return false;
   const detail = cause as { code?: unknown; constraint_name?: unknown };
   return (
-    detail.code === "23505" &&
-    detail.constraint_name === "inference_provider_connections_live_scope_key"
+    detail.code === '23505' &&
+    detail.constraint_name === 'inference_provider_connections_live_scope_key'
   );
 }

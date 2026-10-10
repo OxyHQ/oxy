@@ -11,7 +11,13 @@ import { wallets } from '../db/schema/wallets';
 import { logger } from '../utils/logger';
 import { validatePagination } from '../utils/validation';
 import { sendSuccess, sendPaginated } from '../utils/asyncHandler';
-import { BadRequestError, NotFoundError, ForbiddenError, UnauthorizedError, InternalServerError } from '../utils/error';
+import {
+  BadRequestError,
+  NotFoundError,
+  ForbiddenError,
+  UnauthorizedError,
+  InternalServerError,
+} from '../utils/error';
 import { TRANSACTION } from '../utils/constants';
 
 // =============================================================================
@@ -83,13 +89,9 @@ function amountParam(amount: number) {
  */
 async function ensureWallet(
   db: DatabaseOrTransaction,
-  userId: string
+  userId: string,
 ): Promise<typeof wallets.$inferSelect> {
-  const [inserted] = await db
-    .insert(wallets)
-    .values({ userId })
-    .onConflictDoNothing()
-    .returning();
+  const [inserted] = await db.insert(wallets).values({ userId }).onConflictDoNothing().returning();
   if (inserted) return inserted;
 
   const [existing] = await db.select().from(wallets).where(eq(wallets.userId, userId));
@@ -117,7 +119,7 @@ async function ensureWallet(
 async function debitWallet(
   db: DatabaseOrTransaction,
   userId: string,
-  amount: number
+  amount: number,
 ): Promise<boolean> {
   const [row] = await db
     .update(wallets)
@@ -197,7 +199,7 @@ function toReceipt(row: TransactionRow): TransactionReceipt {
 function toTransactionResponse(
   row: TransactionRow,
   payer: LedgerParty | null,
-  recipient: LedgerParty | null
+  recipient: LedgerParty | null,
 ): TransactionResponse {
   return {
     id: row.id,
@@ -255,7 +257,7 @@ function selectTransactions(db: DatabaseOrTransaction) {
 /** Existence check plus the username the transfer description needs. */
 async function selectAccount(
   db: DatabaseOrTransaction,
-  userId: string
+  userId: string,
 ): Promise<{ id: string; username: string | null } | undefined> {
   const [row] = await db
     .select({ id: users.id, username: users.username })
@@ -309,10 +311,17 @@ export const getWallet = async (req: AuthRequest, res: Response): Promise<void> 
       address: wallet.address || null,
     });
   } catch (error) {
-    if (error instanceof UnauthorizedError || error instanceof BadRequestError || error instanceof ForbiddenError) {
+    if (
+      error instanceof UnauthorizedError ||
+      error instanceof BadRequestError ||
+      error instanceof ForbiddenError
+    ) {
       throw error;
     }
-    logger.error('Error fetching wallet', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching wallet',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Server error when fetching wallet');
   }
 };
@@ -329,7 +338,7 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response): Pr
       req.query.limit,
       req.query.offset,
       TRANSACTION.MAX_LIMIT,
-      TRANSACTION.DEFAULT_LIMIT
+      TRANSACTION.DEFAULT_LIMIT,
     );
 
     // Validate user authentication
@@ -346,12 +355,13 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response): Pr
     // Either side of the ledger — the Mongo `$or` on `userId` / `recipientId`.
     const partyFilter = or(
       eq(transactionsTable.userId, userId),
-      eq(transactionsTable.recipientId, userId)
+      eq(transactionsTable.recipientId, userId),
     );
 
     const db = getDb();
     const [rows, [totals]] = await Promise.all([
-      selectTransactions(db).where(partyFilter)
+      selectTransactions(db)
+        .where(partyFilter)
         .orderBy(desc(transactionsTable.createdAt))
         .limit(parsedLimit)
         .offset(parsedOffset),
@@ -362,16 +372,23 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response): Pr
       toTransactionResponse(
         row.transaction,
         toLedgerParty(row.payerId, row.payerUsername),
-        toLedgerParty(row.recipientAccountId, row.recipientUsername)
-      )
+        toLedgerParty(row.recipientAccountId, row.recipientUsername),
+      ),
     );
 
     sendPaginated(res, formattedTransactions, totals.value, parsedLimit, parsedOffset);
   } catch (error) {
-    if (error instanceof UnauthorizedError || error instanceof BadRequestError || error instanceof ForbiddenError) {
+    if (
+      error instanceof UnauthorizedError ||
+      error instanceof BadRequestError ||
+      error instanceof ForbiddenError
+    ) {
       throw error;
     }
-    logger.error('Error fetching transaction history', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching transaction history',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Server error when fetching transaction history');
   }
 };
@@ -470,12 +487,19 @@ export const transferFunds = async (req: AuthRequest, res: Response): Promise<vo
     if (error instanceof z.ZodError) {
       throw new BadRequestError('Invalid transfer data', { errors: error.errors });
     }
-    if (error instanceof UnauthorizedError || error instanceof BadRequestError ||
-        error instanceof ForbiddenError || error instanceof NotFoundError) {
+    if (
+      error instanceof UnauthorizedError ||
+      error instanceof BadRequestError ||
+      error instanceof ForbiddenError ||
+      error instanceof NotFoundError
+    ) {
       throw error;
     }
 
-    logger.error('Error processing transfer', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error processing transfer',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Server error when processing transfer');
   }
 };
@@ -537,12 +561,19 @@ export const processPurchase = async (req: AuthRequest, res: Response): Promise<
     if (error instanceof z.ZodError) {
       throw new BadRequestError('Invalid purchase data', { errors: error.errors });
     }
-    if (error instanceof UnauthorizedError || error instanceof BadRequestError ||
-        error instanceof ForbiddenError || error instanceof NotFoundError) {
+    if (
+      error instanceof UnauthorizedError ||
+      error instanceof BadRequestError ||
+      error instanceof ForbiddenError ||
+      error instanceof NotFoundError
+    ) {
       throw error;
     }
 
-    logger.error('Error processing purchase', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error processing purchase',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Server error when processing purchase');
   }
 };
@@ -613,12 +644,19 @@ export const requestWithdrawal = async (req: AuthRequest, res: Response): Promis
     if (error instanceof z.ZodError) {
       throw new BadRequestError('Invalid withdrawal data', { errors: error.errors });
     }
-    if (error instanceof UnauthorizedError || error instanceof BadRequestError ||
-        error instanceof ForbiddenError || error instanceof NotFoundError) {
+    if (
+      error instanceof UnauthorizedError ||
+      error instanceof BadRequestError ||
+      error instanceof ForbiddenError ||
+      error instanceof NotFoundError
+    ) {
       throw error;
     }
 
-    logger.error('Error requesting withdrawal', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error requesting withdrawal',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Server error when requesting withdrawal');
   }
 };
@@ -658,15 +696,22 @@ export const getTransaction = async (req: AuthRequest, res: Response): Promise<v
       transaction: toTransactionResponse(
         row.transaction,
         toLedgerParty(row.payerId, row.payerUsername),
-        toLedgerParty(row.recipientAccountId, row.recipientUsername)
+        toLedgerParty(row.recipientAccountId, row.recipientUsername),
       ),
     });
   } catch (error) {
-    if (error instanceof UnauthorizedError || error instanceof BadRequestError ||
-        error instanceof ForbiddenError || error instanceof NotFoundError) {
+    if (
+      error instanceof UnauthorizedError ||
+      error instanceof BadRequestError ||
+      error instanceof ForbiddenError ||
+      error instanceof NotFoundError
+    ) {
       throw error;
     }
-    logger.error('Error fetching transaction', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching transaction',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Server error when fetching transaction');
   }
 };

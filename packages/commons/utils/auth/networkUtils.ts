@@ -2,7 +2,7 @@ import { getNetworkStateAsync } from 'expo-network';
 
 /**
  * Check if the device is currently offline
- * 
+ *
  * @returns Promise resolving to true if offline, false if online
  */
 export async function checkIfOffline(): Promise<boolean> {
@@ -14,4 +14,3 @@ export async function checkIfOffline(): Promise<boolean> {
     return true;
   }
 }
-

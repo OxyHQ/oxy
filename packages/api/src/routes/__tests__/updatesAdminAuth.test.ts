@@ -75,7 +75,7 @@ function makeServer(): http.Server {
 async function post(
   server: http.Server,
   path: string,
-  body: unknown
+  body: unknown,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const address = server.address() as AddressInfo;
   const res = await fetch(`http://127.0.0.1:${address.port}${path}`, {
@@ -89,7 +89,7 @@ async function post(
 
 /** A real application, plus the id of the account that owns it. */
 async function application(
-  status: 'active' | 'deleted' = 'active'
+  status: 'active' | 'deleted' = 'active',
 ): Promise<{ applicationId: string; ownerAccountId: string }> {
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({
     id: users.id,
@@ -141,7 +141,13 @@ describe('service-token authorization', () => {
   test('valid scope + matching appId → publishes', async () => {
     mockVerify.mockReturnValue({
       ok: true,
-      payload: { type: 'service', appId, appName: 'x', credentialId: 'c', scopes: ['updates:publish'] },
+      payload: {
+        type: 'service',
+        appId,
+        appName: 'x',
+        credentialId: 'c',
+        scopes: ['updates:publish'],
+      },
     });
     const { status } = await post(server, '/updates/v1/updates', createBody(appId));
     expect(status).toBe(200);
@@ -183,11 +189,13 @@ describe('user-bearer authorization', () => {
   });
 
   function authAs(userId: string): void {
-    mockAuthMiddleware.mockImplementation((req: express.Request, _res: express.Response, next: () => void) => {
-      (req as express.Request & { user?: unknown }).user = { _id: { toString: () => userId } };
-      (req as express.Request & { sessionId?: string }).sessionId = `validated-session-${userId}`;
-      next();
-    });
+    mockAuthMiddleware.mockImplementation(
+      (req: express.Request, _res: express.Response, next: () => void) => {
+        (req as express.Request & { user?: unknown }).user = { _id: { toString: () => userId } };
+        (req as express.Request & { sessionId?: string }).sessionId = `validated-session-${userId}`;
+        next();
+      },
+    );
   }
 
   /**
@@ -199,7 +207,7 @@ describe('user-bearer authorization', () => {
    */
   function accessAs(
     role: AccountRole,
-    deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] } = {}
+    deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] } = {},
   ) {
     return {
       role,
@@ -217,7 +225,11 @@ describe('user-bearer authorization', () => {
     expect(mockCreateUpdate).toHaveBeenCalledTimes(1);
     // Access is resolved against the OWNING ACCOUNT read from the row, never
     // against an id the request supplied.
-    expect(mockResolveAccess).toHaveBeenCalledWith('user1', ownerAccountId, 'validated-session-user1');
+    expect(mockResolveAccess).toHaveBeenCalledWith(
+      'user1',
+      ownerAccountId,
+      'validated-session-user1',
+    );
   });
 
   test('owner role → publishes', async () => {
@@ -285,7 +297,13 @@ describe('request validation', () => {
   test('an invalid body is rejected before any authorization side effects', async () => {
     mockVerify.mockReturnValue({
       ok: true,
-      payload: { type: 'service', appId, appName: 'x', credentialId: 'c', scopes: ['updates:publish'] },
+      payload: {
+        type: 'service',
+        appId,
+        appName: 'x',
+        credentialId: 'c',
+        scopes: ['updates:publish'],
+      },
     });
     // Missing launchAsset/assets/extra → schema failure → 422 (ValidationError).
     const { status } = await post(server, '/updates/v1/updates', {

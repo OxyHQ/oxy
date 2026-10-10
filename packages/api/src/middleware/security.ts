@@ -1,14 +1,14 @@
-import jwt from "jsonwebtoken";
-import rateLimit from "express-rate-limit";
-import slowDown from "express-slow-down";
-import { type Request } from "express";
-import helmet from "helmet";
-import { RedisStore } from "rate-limit-redis";
-import type { RedisReply } from "rate-limit-redis";
-import { getRedisClient } from "../config/redis";
-import type { AuthRequest } from "./auth";
-import { verifyServiceToken } from "./serviceToken";
-import { hashedIpKey } from "../utils/ipKey";
+import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
+import slowDown from 'express-slow-down';
+import { type Request } from 'express';
+import helmet from 'helmet';
+import { RedisStore } from 'rate-limit-redis';
+import type { RedisReply } from 'rate-limit-redis';
+import { getRedisClient } from '../config/redis';
+import type { AuthRequest } from './auth';
+import { verifyServiceToken } from './serviceToken';
+import { hashedIpKey } from '../utils/ipKey';
 
 const isProd = process.env.NODE_ENV !== 'development';
 
@@ -199,7 +199,12 @@ function userPrincipal(req: Request): string | undefined {
     try {
       const decoded = jwt.verify(authHeader.slice('Bearer '.length), secret);
       if (typeof decoded !== 'object' || decoded === null) return undefined;
-      const claims = decoded as { sessionId?: unknown; userId?: unknown; id?: unknown; _id?: unknown };
+      const claims = decoded as {
+        sessionId?: unknown;
+        userId?: unknown;
+        id?: unknown;
+        _id?: unknown;
+      };
       if (typeof claims.sessionId !== 'string' || claims.sessionId.length === 0) return undefined;
       for (const candidate of [claims.userId, claims.id, claims._id]) {
         if (typeof candidate === 'string' && candidate.length > 0) return candidate;
@@ -271,7 +276,7 @@ const serviceCredentialLimiter = rateLimit({
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
-  message: "Too many requests for this service credential, please slow down.",
+  message: 'Too many requests for this service credential, please slow down.',
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => servicePrincipal(req)?.appId ?? hashedIpKey(req),
@@ -290,7 +295,7 @@ const rateLimiter = rateLimit({
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 1000 : 2000,
-  message: "Too many requests, please try again later.",
+  message: 'Too many requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
   // Per SUBJECT for an authenticated caller, per IP for everyone else — see
@@ -325,7 +330,7 @@ const federationServiceLimiter = rateLimit({
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
-  message: "Too many federation signing requests, please slow down.",
+  message: 'Too many federation signing requests, please slow down.',
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: hashedIpKey,
@@ -345,7 +350,7 @@ const idpServiceLimiter = rateLimit({
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 20000 : 40000,
-  message: "Too many requests, please try again later.",
+  message: 'Too many requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: hashedIpKey,
@@ -364,7 +369,7 @@ const authRateLimiter = rateLimit({
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 300 : 2000,
-  message: "Too many authentication attempts from this IP, please try again later.",
+  message: 'Too many authentication attempts from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: hashedIpKey,
@@ -409,7 +414,7 @@ const userRateLimiter = rateLimit({
   ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 2000 : 4000,
-  message: "Too many requests, please try again later.",
+  message: 'Too many requests, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => {
@@ -428,7 +433,7 @@ const userRateLimiter = rateLimit({
 const bruteForceProtection = slowDown({
   windowMs: 15 * 60 * 1000,
   delayAfter: isProd ? 100 : 1000,
-  delayMs: () => isProd ? 500 : 100,
+  delayMs: () => (isProd ? 500 : 100),
   // Same key as the general limiter: an authenticated request is charged to its
   // SUBJECT. Keyed purely by IP, a relying app's shared egress crossed
   // `delayAfter` almost immediately and every signed-in reader behind it paid a
@@ -448,11 +453,14 @@ const bruteForceProtection = slowDown({
  */
 const securityHeaders = helmet({
   // Strict-Transport-Security: Enforce HTTPS for 1 year including subdomains
-  hsts: process.env.NODE_ENV === 'production' ? {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true,
-  } : false,
+  hsts:
+    process.env.NODE_ENV === 'production'
+      ? {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true,
+        }
+      : false,
 
   // No Content-Security-Policy: oxy-api is JSON-only — a source-list CSP governs
   // no browsing context here. HTML origins use @oxy.so/core/server
@@ -482,4 +490,13 @@ const securityHeaders = helmet({
   // X-Permitted-Cross-Domain-Policies: Restrict Adobe Flash and PDF
 });
 
-export { rateLimiter, serviceCredentialLimiter, idpServiceLimiter, federationServiceLimiter, authRateLimiter, userRateLimiter, bruteForceProtection, securityHeaders };
+export {
+  rateLimiter,
+  serviceCredentialLimiter,
+  idpServiceLimiter,
+  federationServiceLimiter,
+  authRateLimiter,
+  userRateLimiter,
+  bruteForceProtection,
+  securityHeaders,
+};

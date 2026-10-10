@@ -204,10 +204,10 @@ export const followEventHandlers: FollowEventHandlerRegistry = {
   'follow.accepted': observing('federate the accept and tell the follower they were let in'),
   'follow.rejected': observing('federate the reject; the follower is told nothing else'),
   'follow.context_enabled': observing(
-    'reproject the relationship for this application; never notify the target'
+    'reproject the relationship for this application; never notify the target',
   ),
   'follow.context_disabled': observing(
-    'reproject the relationship for this application; never notify the target'
+    'reproject the relationship for this application; never notify the target',
   ),
 };
 
@@ -267,8 +267,8 @@ export function claimableFollowEvents(db: Database, claimedBefore: Date, limit: 
       and(
         isNull(followEvents.processedAt),
         isNull(followEvents.failedAt),
-        or(isNull(followEvents.claimedAt), lt(followEvents.claimedAt, claimedBefore))
-      )
+        or(isNull(followEvents.claimedAt), lt(followEvents.claimedAt, claimedBefore)),
+      ),
     )
     .orderBy(asc(followEvents.createdAt))
     .limit(limit)
@@ -299,8 +299,8 @@ async function deadLetterExhausted(db: Database, rowId: string, ownerId: string)
       and(
         eq(followEvents.id, rowId),
         eq(followEvents.claimedBy, ownerId),
-        isNull(followEvents.processedAt)
-      )
+        isNull(followEvents.processedAt),
+      ),
     );
 }
 
@@ -319,8 +319,8 @@ async function acknowledge(db: Database, rowId: string, ownerId: string): Promis
       and(
         eq(followEvents.id, rowId),
         eq(followEvents.claimedBy, ownerId),
-        isNull(followEvents.processedAt)
-      )
+        isNull(followEvents.processedAt),
+      ),
     )
     .returning({ id: followEvents.id });
 
@@ -336,7 +336,7 @@ async function recordFailure(
   rowId: string,
   ownerId: string,
   reason: string,
-  deadLetter: boolean
+  deadLetter: boolean,
 ): Promise<void> {
   await db
     .update(followEvents)
@@ -345,8 +345,8 @@ async function recordFailure(
       and(
         eq(followEvents.id, rowId),
         eq(followEvents.claimedBy, ownerId),
-        isNull(followEvents.processedAt)
-      )
+        isNull(followEvents.processedAt),
+      ),
     );
 }
 
@@ -358,11 +358,12 @@ async function recordFailure(
  * not stop the batch behind it.
  */
 export async function runFollowOutboxBatch(
-  options: FollowOutboxBatchOptions
+  options: FollowOutboxBatchOptions,
 ): Promise<FollowOutboxBatchResult> {
   const db = getDb();
   const handlers = options.handlers ?? followEventHandlers;
-  const batchSize = options.batchSize ?? getEnvNumber('FOLLOW_OUTBOX_BATCH_SIZE', DEFAULT_BATCH_SIZE);
+  const batchSize =
+    options.batchSize ?? getEnvNumber('FOLLOW_OUTBOX_BATCH_SIZE', DEFAULT_BATCH_SIZE);
   const leaseMs = options.leaseMs ?? FOLLOW_OUTBOX_LEASE_MS;
   const claimedBefore = new Date(Date.now() - leaseMs);
 
@@ -477,7 +478,7 @@ async function tick(): Promise<void> {
     // interval takes the process down, and the next tick retries anyway.
     logger.error(
       '[FollowOutbox] Batch failed',
-      error instanceof Error ? error : new Error(String(error))
+      error instanceof Error ? error : new Error(String(error)),
     );
   } finally {
     tickInFlight = false;
@@ -495,7 +496,7 @@ async function tick(): Promise<void> {
 export function startFollowOutboxWorker(): boolean {
   if (!getEnvBoolean('FOLLOW_OUTBOX_WORKER_ENABLED', false)) {
     logger.info(
-      '[FollowOutbox] Worker disabled (FOLLOW_OUTBOX_WORKER_ENABLED) — follow events accumulate for whenever it is enabled'
+      '[FollowOutbox] Worker disabled (FOLLOW_OUTBOX_WORKER_ENABLED) — follow events accumulate for whenever it is enabled',
     );
     return false;
   }
@@ -504,7 +505,7 @@ export function startFollowOutboxWorker(): boolean {
 
   const intervalMs = Math.max(
     getEnvNumber('FOLLOW_OUTBOX_POLL_INTERVAL_MS', DEFAULT_POLL_INTERVAL_MS),
-    100
+    100,
   );
   timer = setInterval(() => {
     void tick();

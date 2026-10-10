@@ -1,6 +1,6 @@
 /**
  * Request utilities for HTTP clients
- * 
+ *
  * Provides reusable components for request deduplication, queuing, and logging
  */
 
@@ -47,7 +47,10 @@ function abortReason(signal: AbortSignal): unknown {
  * ```
  */
 export class RequestDeduplicator {
-  private pending = new Map<string, { promise: Promise<unknown>; controller: AbortController; waiters: number }>();
+  private pending = new Map<
+    string,
+    { promise: Promise<unknown>; controller: AbortController; waiters: number }
+  >();
 
   /**
    * Deduplicate a request by key
@@ -58,7 +61,7 @@ export class RequestDeduplicator {
   async deduplicate<T>(
     key: string,
     requestFn: (signal: AbortSignal) => Promise<T>,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<T> {
     if (signal?.aborted) {
       throw abortReason(signal);
@@ -95,8 +98,14 @@ export class RequestDeduplicator {
       };
       signal.addEventListener('abort', onAbort, { once: true });
       (shared.promise as Promise<T>).then(
-        (value) => { signal.removeEventListener('abort', onAbort); resolve(value); },
-        (error) => { signal.removeEventListener('abort', onAbort); reject(error); },
+        (value) => {
+          signal.removeEventListener('abort', onAbort);
+          resolve(value);
+        },
+        (error) => {
+          signal.removeEventListener('abort', onAbort);
+          reject(error);
+        },
       );
     });
   }
@@ -118,14 +127,14 @@ export class RequestDeduplicator {
 
 /**
  * Request queue with concurrency control
- * 
+ *
  * Limits the number of concurrent requests and queues excess requests.
  * Useful for rate limiting and preventing request flooding.
- * 
+ *
  * @example
  * ```typescript
  * const queue = new RequestQueue(5, 100); // Max 5 concurrent, queue up to 100
- * 
+ *
  * // All requests will be queued and processed with max 5 concurrent
  * await queue.enqueue(() => fetchUser('1'));
  * await queue.enqueue(() => fetchUser('2'));
@@ -285,11 +294,7 @@ export class SimpleLogger {
    * @param level Minimum log level
    * @param prefix Prefix for log messages (default: '')
    */
-  constructor(
-    enabled = false,
-    level: LogLevel = 'error',
-    prefix = ''
-  ) {
+  constructor(enabled = false, level: LogLevel = 'error', prefix = '') {
     this.enabled = enabled;
     this.level = level;
     this.prefix = prefix;
@@ -329,4 +334,3 @@ export class SimpleLogger {
     }
   }
 }
-

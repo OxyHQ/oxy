@@ -71,5 +71,5 @@ export const mailboxes = pgTable(
     index('mailboxes_user_id_special_use_idx').on(t.userId, t.specialUse),
     // Mongo also declared a standalone `{userId: 1}`. Dropped: the unique index
     // above leads with `user_id`, and a btree serves any leading prefix.
-  ]
+  ],
 );

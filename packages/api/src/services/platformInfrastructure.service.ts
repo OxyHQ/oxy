@@ -27,26 +27,45 @@ let namespace: Namespace | null = null;
 let ownHeartbeat: Promise<void> = Promise.resolve();
 let stopping = false;
 let timer: ReturnType<typeof setInterval> | null = null;
-let snapshot: { nodes: InfrastructureNode[]; emittedAt: string } = { nodes: [], emittedAt: new Date(0).toISOString() };
+let snapshot: { nodes: InfrastructureNode[]; emittedAt: string } = {
+  nodes: [],
+  emittedAt: new Date(0).toISOString(),
+};
 let refreshing: Promise<typeof snapshot> | null = null;
 
-export function infrastructureSnapshot(members: Array<{ member: InfrastructureMember; seenAt: number }>, now: number): InfrastructureNode[] {
+export function infrastructureSnapshot(
+  members: Array<{ member: InfrastructureMember; seenAt: number }>,
+  now: number,
+): InfrastructureNode[] {
   const regions = new Map<string, InfrastructureNode>();
   for (const { member, seenAt } of members) {
     if (now - seenAt >= MEMBER_TTL_MS) continue;
     let node = regions.get(member.region);
     if (!node) {
-      node = { region: member.region, label: member.label, coordinates: member.coordinates, services: [], instances: 0, status: member.status };
+      node = {
+        region: member.region,
+        label: member.label,
+        coordinates: member.coordinates,
+        services: [],
+        instances: 0,
+        status: member.status,
+      };
       regions.set(member.region, node);
     }
     node.instances++;
     if (!node.services.includes(member.service)) node.services.push(member.service);
     if (node.status !== member.status) node.status = 'degraded';
   }
-  return [...regions.values()].map(node => ({ ...node, services: node.services.sort() })).sort((a, b) => a.region.localeCompare(b.region));
+  return [...regions.values()]
+    .map((node) => ({ ...node, services: node.services.sort() }))
+    .sort((a, b) => a.region.localeCompare(b.region));
 }
 
-export async function observeInfrastructure(caller: string, member: InfrastructureMember, removed = false): Promise<void> {
+export async function observeInfrastructure(
+  caller: string,
+  member: InfrastructureMember,
+  removed = false,
+): Promise<void> {
   const key = `${caller}:${member.instanceId}`;
   const redis = getRedisClient();
   if (removed) {
@@ -75,34 +94,62 @@ export function refreshInfrastructure(): Promise<typeof snapshot> {
         if (now - value.seenAt < MEMBER_TTL_MS) localMembers.set(key, value);
         else {
           // Delete only the expired value we read; a concurrent heartbeat wins.
-          await redis.eval('if redis.call("HGET", KEYS[1], ARGV[1]) == ARGV[2] then return redis.call("HDEL", KEYS[1], ARGV[1]) end return 0', 1, REGISTRY_KEY, key, encoded);
+          await redis.eval(
+            'if redis.call("HGET", KEYS[1], ARGV[1]) == ARGV[2] then return redis.call("HDEL", KEYS[1], ARGV[1]) end return 0',
+            1,
+            REGISTRY_KEY,
+            key,
+            encoded,
+          );
         }
       }
     } else {
-      for (const [key, value] of localMembers) if (now - value.seenAt >= MEMBER_TTL_MS) localMembers.delete(key);
+      for (const [key, value] of localMembers)
+        if (now - value.seenAt >= MEMBER_TTL_MS) localMembers.delete(key);
     }
     const nodes = infrastructureSnapshot([...localMembers.values()], now);
-    if (JSON.stringify(nodes) !== JSON.stringify(snapshot.nodes) || snapshot.emittedAt === new Date(0).toISOString()) {
+    if (
+      JSON.stringify(nodes) !== JSON.stringify(snapshot.nodes) ||
+      snapshot.emittedAt === new Date(0).toISOString()
+    ) {
       snapshot = { nodes, emittedAt: new Date(now).toISOString() };
       namespace?.emit('platform_infrastructure', snapshot);
     }
     return snapshot;
-  })().finally(() => { refreshing = null; });
+  })().finally(() => {
+    refreshing = null;
+  });
   return refreshing;
 }
 
-export function initializePlatformInfrastructure(nextNamespace: Namespace, ready: () => boolean): void {
+export function initializePlatformInfrastructure(
+  nextNamespace: Namespace,
+  ready: () => boolean,
+): void {
   namespace = nextNamespace;
   stopping = false;
-  namespace.on('connection', socket => {
-    void refreshInfrastructure().then(current => socket.emit('platform_infrastructure', current)).catch(() => {});
+  namespace.on('connection', (socket) => {
+    void refreshInfrastructure()
+      .then((current) => socket.emit('platform_infrastructure', current))
+      .catch(() => {});
   });
   const region = process.env.AWS_REGION || 'unknown';
   const location = infrastructureLocation(region);
-  const heartbeat = () => location
-    ? observeInfrastructure('oxy-api', { instanceId, service: 'oxy-api', region, ...location, status: ready() ? 'online' : 'unknown' }).catch(() => {})
-    : refreshInfrastructure().then(() => {}).catch(() => {});
-  const tick = () => { if (!stopping) ownHeartbeat = ownHeartbeat.then(heartbeat); };
+  const heartbeat = () =>
+    location
+      ? observeInfrastructure('oxy-api', {
+          instanceId,
+          service: 'oxy-api',
+          region,
+          ...location,
+          status: ready() ? 'online' : 'unknown',
+        }).catch(() => {})
+      : refreshInfrastructure()
+          .then(() => {})
+          .catch(() => {});
+  const tick = () => {
+    if (!stopping) ownHeartbeat = ownHeartbeat.then(heartbeat);
+  };
   tick();
   timer = setInterval(tick, 10_000);
   timer.unref?.();

@@ -17,8 +17,15 @@
  * no per-request "acting-as" header. Identity is carried by the session/token,
  * so a switch propagates through reload and cross-domain exactly like a login.
  */
-import { agentKeyOperationSchema, executeAgentKeyOperationSchema, agentKeyOperationChallengeSchema,
-  agentKeyOperationResultSchema, agentKeyListResponseSchema, type AgentKeyOperation, type AgentKeyOperationProof } from '@oxy.so/contracts';
+import {
+  agentKeyOperationSchema,
+  executeAgentKeyOperationSchema,
+  agentKeyOperationChallengeSchema,
+  agentKeyOperationResultSchema,
+  agentKeyListResponseSchema,
+  type AgentKeyOperation,
+  type AgentKeyOperationProof,
+} from '@oxy.so/contracts';
 import type { User } from '../models/interfaces';
 import type { AccountCategoryId, AccountKind, ChildAccountKind } from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
@@ -329,7 +336,6 @@ export interface SwitchAccountResult extends SessionLoginResponse {
   authuser?: number;
 }
 
-
 /** `oxy.accounts.members` — who can act on an account, and with what role. */
 export class AccountMembersApi {
   constructor(private readonly ctx: OxyContext) {}
@@ -387,7 +393,11 @@ export class AccountMembersApi {
    * @param memberId - The member's `_id`.
    * @param data - New role (never `owner`), inheritance, permission overrides.
    */
-  async update(accountId: string, memberId: string, data: UpdateAccountMemberInput): Promise<AccountMember> {
+  async update(
+    accountId: string,
+    memberId: string,
+    data: UpdateAccountMemberInput,
+  ): Promise<AccountMember> {
     const res = await this.ctx.request<{ member: AccountMember }>(
       'PATCH',
       `/accounts/${enc(accountId)}/members/${enc(memberId)}`,
@@ -419,16 +429,28 @@ export class AccountMembersApi {
 export class AccountAgentKeysApi {
   constructor(private readonly ctx: OxyContext) {}
   async list(accountId: string) {
-    return agentKeyListResponseSchema.parse(await this.ctx.request<unknown>('GET', `/accounts/${enc(accountId)}/agent-keys`, undefined, { cache: false }));
+    return agentKeyListResponseSchema.parse(
+      await this.ctx.request<unknown>('GET', `/accounts/${enc(accountId)}/agent-keys`, undefined, {
+        cache: false,
+      }),
+    );
   }
   async requestChallenge(accountId: string, operation: AgentKeyOperation) {
-    const response = await this.ctx.request<unknown>('POST', `/accounts/${enc(accountId)}/agent-keys/challenge`,
-      agentKeyOperationSchema.parse(operation), { cache: false });
+    const response = await this.ctx.request<unknown>(
+      'POST',
+      `/accounts/${enc(accountId)}/agent-keys/challenge`,
+      agentKeyOperationSchema.parse(operation),
+      { cache: false },
+    );
     return agentKeyOperationChallengeSchema.parse(response);
   }
   async execute(accountId: string, operation: AgentKeyOperation, proof: AgentKeyOperationProof) {
-    const response = await this.ctx.request<unknown>('POST', `/accounts/${enc(accountId)}/agent-keys/execute`,
-      executeAgentKeyOperationSchema.parse({ operation, proof }), { cache: false });
+    const response = await this.ctx.request<unknown>(
+      'POST',
+      `/accounts/${enc(accountId)}/agent-keys/execute`,
+      executeAgentKeyOperationSchema.parse({ operation, proof }),
+      { cache: false },
+    );
     return agentKeyOperationResultSchema.parse(response);
   }
 }
@@ -466,10 +488,15 @@ export class AccountsApi {
    * @param accountId - The account's `_id`.
    */
   async get(accountId: string): Promise<AccountNode> {
-    const res = await this.ctx.request<{ account: AccountNode }>('GET', `/accounts/${enc(accountId)}`, undefined, {
-      cache: true,
-      cacheTTL: LONG_TTL,
-    });
+    const res = await this.ctx.request<{ account: AccountNode }>(
+      'GET',
+      `/accounts/${enc(accountId)}`,
+      undefined,
+      {
+        cache: true,
+        cacheTTL: LONG_TTL,
+      },
+    );
     return res.account;
   }
 
@@ -496,9 +523,14 @@ export class AccountsApi {
    * @returns The minted session, already planted as the active session.
    */
   async actAs(accountId: string): Promise<SwitchAccountResult> {
-    const res = await this.ctx.request<SwitchAccountResult>('POST', `/accounts/${enc(accountId)}/switch`, undefined, {
-      cache: false,
-    });
+    const res = await this.ctx.request<SwitchAccountResult>(
+      'POST',
+      `/accounts/${enc(accountId)}/switch`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
     if (res?.accessToken) {
       this.ctx.oxy.session.setAccessToken(res.accessToken);
     }
@@ -518,7 +550,9 @@ export class AccountsApi {
    * @param data - Account configuration: kind, optional parent, and profile.
    */
   async create(data: CreateAccountInput): Promise<AccountNode> {
-    const res = await this.ctx.request<{ account: AccountNode }>('POST', '/accounts', data, { cache: false });
+    const res = await this.ctx.request<{ account: AccountNode }>('POST', '/accounts', data, {
+      cache: false,
+    });
     // A new account changes the accessible forest — bust every cached list.
     evictOxyAccountForestCache(this.ctx.http);
     return res.account;
@@ -536,9 +570,14 @@ export class AccountsApi {
    * @param data - Subset of updatable profile fields.
    */
   async update(accountId: string, data: UpdateAccountInput): Promise<AccountNode> {
-    const res = await this.ctx.request<{ account: AccountNode }>('PATCH', `/accounts/${enc(accountId)}`, data, {
-      cache: false,
-    });
+    const res = await this.ctx.request<{ account: AccountNode }>(
+      'PATCH',
+      `/accounts/${enc(accountId)}`,
+      data,
+      {
+        cache: false,
+      },
+    );
     evictOxyAccountForestCache(this.ctx.http, accountId);
     // The parent's children list embeds this account's profile and is keyed by
     // the PARENT id, so it is reachable only from the response node.
@@ -556,11 +595,19 @@ export class AccountsApi {
    * @param accountId - The account's `_id`.
    */
   async archive(accountId: string): Promise<AccountSuccessResult> {
-    const result = await this.ctx.request<AccountSuccessResult>('DELETE', `/accounts/${enc(accountId)}`, undefined, {
-      cache: false,
-    });
+    const result = await this.ctx.request<AccountSuccessResult>(
+      'DELETE',
+      `/accounts/${enc(accountId)}`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
     this.ctx.http.invalidateCache({
-      keys: [`GET:/accounts/${enc(accountId)}/members`, `GET:/accounts/${enc(accountId)}/credentials`],
+      keys: [
+        `GET:/accounts/${enc(accountId)}/members`,
+        `GET:/accounts/${enc(accountId)}/credentials`,
+      ],
     });
     evictOxyAccountForestCache(this.ctx.http, accountId);
     return result;
@@ -571,7 +618,10 @@ export class AccountsApi {
    * @param accountId - The account's `_id`.
    * @param data - Target user id.
    */
-  async transferOwnership(accountId: string, data: TransferAccountOwnershipInput): Promise<AccountSuccessResult> {
+  async transferOwnership(
+    accountId: string,
+    data: TransferAccountOwnershipInput,
+  ): Promise<AccountSuccessResult> {
     const result = await this.ctx.request<AccountSuccessResult>(
       'POST',
       `/accounts/${enc(accountId)}/transfer-ownership`,

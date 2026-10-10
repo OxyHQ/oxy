@@ -76,11 +76,9 @@ describe('OxyServer.assets.metadataBySha256', () => {
     expect(result[1].url).toBeUndefined();
 
     expect(serviceRequestSpy).toHaveBeenCalledTimes(1);
-    expect(serviceRequestSpy).toHaveBeenCalledWith(
-      'POST',
-      '/assets/service/by-sha256',
-      { sha256s: ['a'.repeat(64), 'b'.repeat(64)] },
-    );
+    expect(serviceRequestSpy).toHaveBeenCalledWith('POST', '/assets/service/by-sha256', {
+      sha256s: ['a'.repeat(64), 'b'.repeat(64)],
+    });
   });
 
   it('scopes every chunk to an owner when asked, and sends no owner otherwise', async () => {
@@ -100,9 +98,7 @@ describe('OxyServer.assets.metadataBySha256', () => {
 
   it('chunks at 100 hashes per request and merges each chunk', async () => {
     // 250 distinct valid hex digests.
-    const shas = Array.from({ length: 250 }, (_, i) =>
-      i.toString(16).padStart(64, '0'),
-    );
+    const shas = Array.from({ length: 250 }, (_, i) => i.toString(16).padStart(64, '0'));
 
     serviceRequestSpy.mockImplementation(
       async (
@@ -134,9 +130,7 @@ describe('OxyServer.assets.metadataBySha256', () => {
   });
 
   it('skips a failed chunk and returns the entries that resolved', async () => {
-    const shas = Array.from({ length: 150 }, (_, i) =>
-      i.toString(16).padStart(64, '0'),
-    );
+    const shas = Array.from({ length: 150 }, (_, i) => i.toString(16).padStart(64, '0'));
 
     serviceRequestSpy
       .mockResolvedValueOnce([publicEntry]) // first chunk (100 hashes) succeeds

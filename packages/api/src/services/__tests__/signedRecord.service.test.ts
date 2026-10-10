@@ -87,7 +87,7 @@ async function keylessAccount(): Promise<{ userId: string; did: string }> {
 /** Build + sign a v1 `identity` envelope (a legacy singleton the chain gate allows). */
 function v1Envelope(
   identity: SigningIdentity,
-  overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {}
+  overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {},
 ): SignedRecordEnvelope {
   return signRecordEnvelope(
     {
@@ -101,7 +101,7 @@ function v1Envelope(
       alg: 'ES256K-DER-SHA256',
       ...overrides,
     },
-    identity.privateKey
+    identity.privateKey,
   );
 }
 
@@ -195,7 +195,7 @@ describe('the signature covers the record, and the signing input is canonical', 
 
     // ...and the equality above is not vacuous: a changed VALUE changes the input.
     expect(signedRecordSigningInput({ ...base, record: { a: 1, b: 3 } })).not.toBe(
-      signedRecordSigningInput(base)
+      signedRecordSigningInput(base),
     );
   });
 });
@@ -330,7 +330,7 @@ describe('verifyEnvelope answers a verdict and writes nothing', () => {
     // still be refused — by the CHAIN gate, not this one — so using it here
     // would leave the type gate untested while the case stayed green.
     expect(
-      await verifyEnvelope(v1Envelope(subject, { type: 'app.syra.listen' }), subject.userId)
+      await verifyEnvelope(v1Envelope(subject, { type: 'app.syra.listen' }), subject.userId),
     ).toEqual({ ok: false, reason: 'invalid_envelope' });
   });
 
@@ -339,7 +339,7 @@ describe('verifyEnvelope answers a verdict and writes nothing', () => {
     // `app_record` passes the type gate and is not a v1 legacy singleton, so it
     // must arrive chained. This is the case that tells the two gates apart.
     expect(
-      await verifyEnvelope(v1Envelope(subject, { type: 'app_record' }), subject.userId)
+      await verifyEnvelope(v1Envelope(subject, { type: 'app_record' }), subject.userId),
     ).toEqual({ ok: false, reason: 'invalid_envelope' });
   });
 
@@ -347,7 +347,7 @@ describe('verifyEnvelope answers a verdict and writes nothing', () => {
     const subject = await signer();
     const foreign = await signer();
     expect(
-      await verifyEnvelope(v1Envelope(subject, { issuer: foreign.did }), subject.userId)
+      await verifyEnvelope(v1Envelope(subject, { issuer: foreign.did }), subject.userId),
     ).toEqual({ ok: false, reason: 'untrusted_issuer' });
   });
 
@@ -366,7 +366,10 @@ describe('verifyEnvelope answers a verdict and writes nothing', () => {
   it('rejects an issuedAt beyond the tolerated clock skew', async () => {
     const subject = await signer();
     expect(
-      await verifyEnvelope(v1Envelope(subject, { issuedAt: Date.now() + 60 * 60 * 1000 }), subject.userId)
+      await verifyEnvelope(
+        v1Envelope(subject, { issuedAt: Date.now() + 60 * 60 * 1000 }),
+        subject.userId,
+      ),
     ).toEqual({ ok: false, reason: 'issued_in_future' });
   });
 
@@ -374,7 +377,7 @@ describe('verifyEnvelope answers a verdict and writes nothing', () => {
     const subject = await signer();
     const issuedAt = Date.now();
     expect((await verifyAndStoreRecord(v1Envelope(subject, { issuedAt }), subject.userId)).ok).toBe(
-      true
+      true,
     );
 
     // The frontier is read from the row just written, not from a stub.
@@ -386,7 +389,7 @@ describe('verifyEnvelope answers a verdict and writes nothing', () => {
     // ...and one millisecond later is accepted, so the comparison is against the
     // stored value rather than a blanket refusal of a second record.
     expect(
-      await verifyEnvelope(v1Envelope(subject, { issuedAt: issuedAt + 1 }), subject.userId)
+      await verifyEnvelope(v1Envelope(subject, { issuedAt: issuedAt + 1 }), subject.userId),
     ).toEqual({ ok: true });
   });
 });
@@ -409,7 +412,7 @@ describe('the custodial issuer branch', () => {
 
     const envelope = v1Envelope(
       { did: account.did, publicKey: oxyKey.publicKey, privateKey: oxyKey.privateKey },
-      { issuer: OXY_DID }
+      { issuer: OXY_DID },
     );
     expect(await verifyEnvelope(envelope, account.userId)).toEqual({ ok: true });
   });
@@ -423,7 +426,7 @@ describe('the custodial issuer branch', () => {
 
     const envelope = v1Envelope(
       { did: account.did, publicKey: impostor.publicKey, privateKey: impostor.privateKey },
-      { issuer: OXY_DID }
+      { issuer: OXY_DID },
     );
     expect(await verifyEnvelope(envelope, account.userId)).toEqual({
       ok: false,
@@ -437,7 +440,7 @@ describe('the custodial issuer branch', () => {
 
     const envelope = v1Envelope(
       { did: account.did, publicKey: oxyKey.publicKey, privateKey: oxyKey.privateKey },
-      { issuer: OXY_DID }
+      { issuer: OXY_DID },
     );
     expect(await verifyEnvelope(envelope, account.userId)).toEqual({
       ok: false,
@@ -476,7 +479,11 @@ describe('verifyAndStoreRecord — what lands in the ledger', () => {
   });
 
   const rejections: Array<[string, string, (subject: Signer) => Promise<SignedRecordEnvelope>]> = [
-    ['a subject that is another account', 'subject_mismatch', async () => v1Envelope(await signer())],
+    [
+      'a subject that is another account',
+      'subject_mismatch',
+      async () => v1Envelope(await signer()),
+    ],
     [
       // A PER-APP type: `app_record` is inside the set, so it would exercise the
       // chain gate here rather than the type gate this row names.

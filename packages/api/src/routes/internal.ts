@@ -57,7 +57,10 @@ import { OXY_SERVICE_ENVIRONMENTS } from '@oxy.so/core/server';
 import express from 'express';
 import { introspectAliaMachineCredential } from '../services/aliaMachineCredential.service';
 import { observeInfrastructure } from '../services/platformInfrastructure.service';
-import { platformActivityBatchSchema, infrastructureHeartbeatSchema } from '../services/platformActivity.schema';
+import {
+  platformActivityBatchSchema,
+  infrastructureHeartbeatSchema,
+} from '../services/platformActivity.schema';
 import { publishPlatformActivity } from '../services/platformActivity.service';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -124,39 +127,37 @@ const serviceActingAsVerifyLimiter = rateLimit({
  * populated `req.serviceApp`; this only decides whether that principal belongs
  * on this router at all.
  */
-const requireTrustedServiceApp = asyncHandler(
-  async (req: ServiceAuthRequest, _res, next) => {
-    const serviceApp = req.serviceApp;
-    if (!serviceApp) {
-      throw new UnauthorizedError('Service authentication required');
-    }
-
-    // Re-read the application rather than trusting a claim about its trust: the
-    // token lives an hour, and an application demoted out of the trusted set
-    // must lose this router immediately rather than when its last token expires.
-    // The token carries `scopes` but nothing about trust, so there is no claim
-    // to read even if that were acceptable.
-    const [app] = await getDb()
-      .select({
-        type: applications.type,
-        isOfficial: applications.isOfficial,
-        isInternal: applications.isInternal,
-      })
-      .from(applications)
-      .where(and(eq(applications.id, serviceApp.appId), eq(applications.status, 'active')))
-      .limit(1);
-
-    if (!app || !isTrustedApplication(app)) {
-      logger.warn('[internal] Untrusted application refused', {
-        appId: serviceApp.appId,
-        credentialId: serviceApp.credentialId,
-      });
-      throw new ForbiddenError('This endpoint is restricted to trusted Oxy services');
-    }
-
-    next();
+const requireTrustedServiceApp = asyncHandler(async (req: ServiceAuthRequest, _res, next) => {
+  const serviceApp = req.serviceApp;
+  if (!serviceApp) {
+    throw new UnauthorizedError('Service authentication required');
   }
-);
+
+  // Re-read the application rather than trusting a claim about its trust: the
+  // token lives an hour, and an application demoted out of the trusted set
+  // must lose this router immediately rather than when its last token expires.
+  // The token carries `scopes` but nothing about trust, so there is no claim
+  // to read even if that were acceptable.
+  const [app] = await getDb()
+    .select({
+      type: applications.type,
+      isOfficial: applications.isOfficial,
+      isInternal: applications.isInternal,
+    })
+    .from(applications)
+    .where(and(eq(applications.id, serviceApp.appId), eq(applications.status, 'active')))
+    .limit(1);
+
+  if (!app || !isTrustedApplication(app)) {
+    logger.warn('[internal] Untrusted application refused', {
+      appId: serviceApp.appId,
+      credentialId: serviceApp.credentialId,
+    });
+    throw new ForbiddenError('This endpoint is restricted to trusted Oxy services');
+  }
+
+  next();
+});
 
 router.use(serviceAuthMiddleware);
 router.use(requireTrustedServiceApp);
@@ -165,12 +166,14 @@ const aliaMachineIntrospectionLimiter = rateLimit({
   prefix: 'rl:internal:alia-machine-introspection:',
   windowMs: 60_000,
   max: 300,
-  keyGenerator: req => (req as ServiceAuthRequest).serviceApp?.appId || 'unknown',
+  keyGenerator: (req) => (req as ServiceAuthRequest).serviceApp?.appId || 'unknown',
 });
 const aliaMachineIntrospectionBody = z.object({ token: z.string().min(1).max(2048) }).strict();
 
 /** Only Alia's own authenticated resource server may resolve this audience. */
-router.post('/alia/machine-credentials/introspect', aliaMachineIntrospectionLimiter,
+router.post(
+  '/alia/machine-credentials/introspect',
+  aliaMachineIntrospectionLimiter,
   asyncHandler(async (req: ServiceAuthRequest, res) => {
     const parsed = aliaMachineIntrospectionBody.safeParse(req.body);
     if (!parsed.success) throw new BadRequestError('Invalid machine credential introspection');
@@ -178,19 +181,28 @@ router.post('/alia/machine-credentials/introspect', aliaMachineIntrospectionLimi
       sendSuccess(res, { active: false });
       return;
     }
-    sendSuccess(res, await introspectAliaMachineCredential(req.serviceApp?.appId || '', parsed.data.token));
+    sendSuccess(
+      res,
+      await introspectAliaMachineCredential(req.serviceApp?.appId || '', parsed.data.token),
+    );
   }),
 );
 
 // Aggregate-only collection from the whole first-party ecosystem. The router's
 // shared service authentication and trust gates also protect this endpoint.
-router.post('/activity/infrastructure', asyncHandler(async (req: ServiceAuthRequest, res) => {
-  const result = infrastructureHeartbeatSchema.safeParse(req.body);
-  if (!result.success) { res.status(400).json({ error: 'Invalid infrastructure heartbeat' }); return; }
-  const { removed, ...member } = result.data;
-  await observeInfrastructure(req.serviceApp!.appId, member, removed);
-  res.status(204).end();
-}));
+router.post(
+  '/activity/infrastructure',
+  asyncHandler(async (req: ServiceAuthRequest, res) => {
+    const result = infrastructureHeartbeatSchema.safeParse(req.body);
+    if (!result.success) {
+      res.status(400).json({ error: 'Invalid infrastructure heartbeat' });
+      return;
+    }
+    const { removed, ...member } = result.data;
+    await observeInfrastructure(req.serviceApp!.appId, member, removed);
+    res.status(204).end();
+  }),
+);
 
 router.post('/activity', (req, res) => {
   const result = platformActivityBatchSchema.safeParse(req.body);
@@ -201,7 +213,6 @@ router.post('/activity', (req, res) => {
   publishPlatformActivity(result.data);
   res.status(204).end();
 });
-
 
 /**
  * Both ids are opaque strings the caller supplies, and neither is trusted for
@@ -240,12 +251,20 @@ router.get(
   serviceActingAsVerifyLimiter,
   validate({ query: serviceActingAsVerifyQuery }),
   asyncHandler(async (req: ServiceAuthRequest, res) => {
-    const { appId, userId, credentialId, ownerAccountId, environment } = serviceActingAsVerifyQuery.parse(req.query);
-    const anyCredentialContext = credentialId !== undefined || ownerAccountId !== undefined || environment !== undefined;
-    const grant = anyCredentialContext && (!credentialId || !ownerAccountId || !environment)
-      ? { authorized: false, scopes: [], epoch: '0' }
-      : await resolveServiceActingAsGrant(appId, userId,
-        credentialId && ownerAccountId && environment ? { credentialId, ownerAccountId, environment } : undefined);
+    const { appId, userId, credentialId, ownerAccountId, environment } =
+      serviceActingAsVerifyQuery.parse(req.query);
+    const anyCredentialContext =
+      credentialId !== undefined || ownerAccountId !== undefined || environment !== undefined;
+    const grant =
+      anyCredentialContext && (!credentialId || !ownerAccountId || !environment)
+        ? { authorized: false, scopes: [], epoch: '0' }
+        : await resolveServiceActingAsGrant(
+            appId,
+            userId,
+            credentialId && ownerAccountId && environment
+              ? { credentialId, ownerAccountId, environment }
+              : undefined,
+          );
 
     // Logged on both outcomes. A record of who asked about whom is what makes
     // the disclosure this endpoint accepts auditable, and logging only refusals
@@ -257,9 +276,8 @@ router.get(
     });
 
     sendSuccess(res, grant);
-  })
+  }),
 );
-
 
 /**
  * Present-requester assertions (ADR 0025).
@@ -278,20 +296,26 @@ const requesterAssertionLimiter = rateLimit({
 
 const identifierSchema = z.string().min(1).max(128);
 
-const mintRequesterAssertionBody = z.object({
-  agentId: identifierSchema,
-  // The requester's Oxy access token, as the product backend received it. It
-  // is validated and dropped; it is never logged, stored or echoed.
-  subjectToken: z.string().min(1).max(8192),
-}).strict();
+const mintRequesterAssertionBody = z
+  .object({
+    agentId: identifierSchema,
+    // The requester's Oxy access token, as the product backend received it. It
+    // is validated and dropped; it is never logged, stored or echoed.
+    subjectToken: z.string().min(1).max(8192),
+  })
+  .strict();
 
-const introspectRequesterAssertionBody = z.object({
-  assertion: z.string().min(1).max(4096),
-  presenter: z.object({
-    applicationId: identifierSchema,
-    credentialId: identifierSchema,
-  }).strict(),
-}).strict();
+const introspectRequesterAssertionBody = z
+  .object({
+    assertion: z.string().min(1).max(4096),
+    presenter: z
+      .object({
+        applicationId: identifierSchema,
+        credentialId: identifierSchema,
+      })
+      .strict(),
+  })
+  .strict();
 
 /**
  * `POST /internal/native-agents/requester-assertions`
@@ -348,13 +372,17 @@ router.post(
       agentId: result.agentId,
       requesterAccountId: result.requesterAccountId,
     });
-    sendSuccess(res, {
-      assertion: result.assertion,
-      expiresAt: result.expiresAt,
-      requesterAccountId: result.requesterAccountId,
-      agentId: result.agentId,
-    }, 201);
-  })
+    sendSuccess(
+      res,
+      {
+        assertion: result.assertion,
+        expiresAt: result.expiresAt,
+        requesterAccountId: result.requesterAccountId,
+        agentId: result.agentId,
+      },
+      201,
+    );
+  }),
 );
 
 /**
@@ -398,7 +426,7 @@ router.post(
       jti: result.jti,
     });
     sendSuccess(res, result);
-  })
+  }),
 );
 
 /**
@@ -527,15 +555,13 @@ router.post(
     }
 
     if (!serviceApp.scopes?.includes(SERVICE_ACCOUNT_SWITCH_SCOPE)) {
-      throw new ForbiddenError(
-        `This endpoint requires the ${SERVICE_ACCOUNT_SWITCH_SCOPE} scope`
-      );
+      throw new ForbiddenError(`This endpoint requires the ${SERVICE_ACCOUNT_SWITCH_SCOPE} scope`);
     }
 
     const operator = serviceAccountSwitchOperator.safeParse(req.headers['x-oxy-user-id']);
     if (!operator.success) {
       throw new BadRequestError(
-        'X-Oxy-User-Id must name the human operating this account. There is no session in this request to fall back to.'
+        'X-Oxy-User-Id must name the human operating this account. There is no session in this request to fall back to.',
       );
     }
     const operatorId = operator.data;
@@ -585,7 +611,7 @@ router.post(
       throw new ForbiddenError(
         account.kind === 'channel'
           ? 'Cannot act as a channel account'
-          : 'Cannot act as a personal account'
+          : 'Cannot act as a personal account',
       );
     }
 
@@ -640,7 +666,7 @@ router.post(
     };
 
     sendSuccess(res, response);
-  })
+  }),
 );
 
 export default router;

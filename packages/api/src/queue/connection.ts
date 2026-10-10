@@ -105,8 +105,10 @@ export function getQueueConnectionOptions(): ConnectionOptions {
 
 /** Production asset variants use the isolated noeviction Valkey instance. */
 export function getAssetVariantQueueUrl(): string | undefined {
-  return process.env.QUEUE_REDIS_URL ??
-    (process.env.NODE_ENV !== 'production' ? process.env.REDIS_URL : undefined);
+  return (
+    process.env.QUEUE_REDIS_URL ??
+    (process.env.NODE_ENV !== 'production' ? process.env.REDIS_URL : undefined)
+  );
 }
 
 /** Production asset variants use the isolated noeviction Valkey instance. */

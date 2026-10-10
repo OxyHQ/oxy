@@ -81,7 +81,7 @@ describe('a taken username is refused, not renamed', () => {
     await accountService.createChildAccount(ownerId, ownerId, { kind: 'project', username });
 
     await expect(
-      accountService.createChildAccount(ownerId, ownerId, { kind: 'project', username })
+      accountService.createChildAccount(ownerId, ownerId, { kind: 'project', username }),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -117,7 +117,7 @@ describe('a taken username is refused, not renamed', () => {
       accountService.createChildAccount(ownerId, ownerId, {
         kind: 'project',
         username: username.toUpperCase(),
-      })
+      }),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -131,7 +131,7 @@ describe('a taken username is refused, not renamed', () => {
     });
 
     await expect(
-      accountService.updateAccount(account.id, { username: taken })
+      accountService.updateAccount(account.id, { username: taken }),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -154,7 +154,7 @@ describe('a taken username is refused, not renamed', () => {
     await accountService.createChildAccount(ownerId, ownerId, { kind: 'project', username });
 
     await expect(
-      accountService.createChildAccount(ownerId, ownerId, { kind: 'project', username })
+      accountService.createChildAccount(ownerId, ownerId, { kind: 'project', username }),
     ).rejects.toMatchObject({ details: { field: 'username' } });
   });
 });
@@ -227,7 +227,7 @@ describe('the lost race gets the same answer as the lost probe', () => {
       .createChildAccount(ownerId, ownerId, { kind: 'project', username })
       .then(
         () => ({ ok: true as const }),
-        (error: unknown) => ({ ok: false as const, status: statusOf(error) })
+        (error: unknown) => ({ ok: false as const, status: statusOf(error) }),
       );
 
     const reachedTheInsert = await waitForBlockedInsert();
@@ -253,8 +253,8 @@ describe('the lost race gets the same answer as the lost probe', () => {
 
     const results = await Promise.allSettled(
       Array.from({ length: 6 }, () =>
-        accountService.createChildAccount(ownerId, ownerId, { kind: 'project', username })
-      )
+        accountService.createChildAccount(ownerId, ownerId, { kind: 'project', username }),
+      ),
     );
 
     const fulfilled = results.filter((result) => result.status === 'fulfilled');
@@ -286,7 +286,7 @@ describe('the lost race gets the same answer as the lost probe', () => {
     const other = await seedOwner();
 
     await expect(
-      getDb().update(users).set({ email }).where(eq(users.id, other))
+      getDb().update(users).set({ email }).where(eq(users.id, other)),
     ).rejects.not.toMatchObject({ statusCode: 409 });
   });
 });

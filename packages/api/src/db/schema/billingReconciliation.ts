@@ -136,35 +136,29 @@ export const billingReconciliationRuns = pgTable(
   (t) => [
     // "The latest pass" — the question every operator asks first.
     index('billing_reconciliation_runs_started_at_idx').on(t.startedAt.desc()),
-    index('billing_reconciliation_runs_account_started_at_idx').on(
-      t.accountId,
-      t.startedAt.desc()
-    ),
+    index('billing_reconciliation_runs_account_started_at_idx').on(t.accountId, t.startedAt.desc()),
     index('billing_reconciliation_runs_status_idx').on(t.status),
 
     check(
       'billing_reconciliation_runs_provider_check',
-      sql`${t.provider} in (${sql.raw(inList(EXTERNAL_PAYMENT_PROVIDERS))})`
+      sql`${t.provider} in (${sql.raw(inList(EXTERNAL_PAYMENT_PROVIDERS))})`,
     ),
     check(
       'billing_reconciliation_runs_status_check',
-      sql`${t.status} in (${sql.raw(inList(RECONCILIATION_RUN_STATUS_VALUES))})`
+      sql`${t.status} in (${sql.raw(inList(RECONCILIATION_RUN_STATUS_VALUES))})`,
     ),
     check('billing_reconciliation_runs_currency_check', currencyCodeCheck(t.currency)),
     check('billing_reconciliation_runs_period_check', sql`${t.periodEnd} > ${t.periodStart}`),
     check('billing_reconciliation_runs_ledger_total_check', sql`${t.ledgerTotal} >= 0`),
     check('billing_reconciliation_runs_external_total_check', sql`${t.externalTotal} >= 0`),
-    check(
-      'billing_reconciliation_runs_discrepancy_count_check',
-      sql`${t.discrepancyCount} >= 0`
-    ),
+    check('billing_reconciliation_runs_discrepancy_count_check', sql`${t.discrepancyCount} >= 0`),
     // A pass that is no longer running says when it stopped. A `running` row
     // with a completion time would make "is a pass in flight" unanswerable.
     check(
       'billing_reconciliation_runs_completed_at_check',
-      sql`(${t.status} = 'running') = (${t.completedAt} is null)`
+      sql`(${t.status} = 'running') = (${t.completedAt} is null)`,
     ),
-  ]
+  ],
 );
 
 export const billingReconciliationDiscrepancies = pgTable(
@@ -203,19 +197,16 @@ export const billingReconciliationDiscrepancies = pgTable(
 
     check(
       'billing_reconciliation_discrepancies_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(RECONCILIATION_DISCREPANCY_KIND_VALUES))})`
+      sql`${t.kind} in (${sql.raw(inList(RECONCILIATION_DISCREPANCY_KIND_VALUES))})`,
     ),
-    check(
-      'billing_reconciliation_discrepancies_currency_check',
-      currencyCodeCheck(t.currency)
-    ),
+    check('billing_reconciliation_discrepancies_currency_check', currencyCodeCheck(t.currency)),
     check(
       'billing_reconciliation_discrepancies_ledger_amount_check',
-      sql`${t.ledgerAmount} is null or ${t.ledgerAmount} >= 0`
+      sql`${t.ledgerAmount} is null or ${t.ledgerAmount} >= 0`,
     ),
     check(
       'billing_reconciliation_discrepancies_external_amount_check',
-      sql`${t.externalAmount} is null or ${t.externalAmount} >= 0`
+      sql`${t.externalAmount} is null or ${t.externalAmount} >= 0`,
     ),
     // Each kind must carry the evidence that makes it actionable. Written as an
     // implication per kind rather than a biconditional: a row may legitimately
@@ -231,9 +222,9 @@ export const billingReconciliationDiscrepancies = pgTable(
              or (${t.externalRef} is not null
                  and ${t.ledgerAmount} is not null
                  and ${t.externalAmount} is not null))
-        and (${t.kind} <> 'account_unresolved' or ${t.externalRef} is not null)`
+        and (${t.kind} <> 'account_unresolved' or ${t.externalRef} is not null)`,
     ),
-  ]
+  ],
 );
 
 export type BillingReconciliationRunRow = typeof billingReconciliationRuns.$inferSelect;

@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import {
-  mcpAccessTokenClaimsSchema,
-  type McpAccessTokenClaims,
-} from './oauth';
+import { mcpAccessTokenClaimsSchema, type McpAccessTokenClaims } from './oauth';
 import { validateOxyEndpoint } from './serviceRequest';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -63,7 +60,7 @@ export async function introspectOxyMcpAccessToken(
       throw new Error(`Oxy MCP introspection failed (${response.status})`);
     }
 
-    const body = await response.json() as unknown;
+    const body = (await response.json()) as unknown;
     const envelope = z.object({ active: z.boolean() }).passthrough().parse(body);
     return envelope.active ? mcpAccessTokenClaimsSchema.parse(body) : null;
   }

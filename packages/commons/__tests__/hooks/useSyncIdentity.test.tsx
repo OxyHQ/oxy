@@ -32,15 +32,10 @@ jest.mock('@oxy.so/core/crypto', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { useSyncIdentity } from '@/hooks/identity/useSyncIdentity';
-// eslint-disable-next-line import/first
 import { useIdentityStore, persistIdentitySyncState } from '@/hooks/identity/identityStore';
-// eslint-disable-next-line import/first
 import { releaseSyncLock } from '@/hooks/identity/syncLock';
-// eslint-disable-next-line import/first
 import { UsernameRequiredError } from '@/hooks/identity/identityErrors';
-// eslint-disable-next-line import/first
 import { handleAuthError } from '@oxy.so/services';
 
 /** Let the on-mount hydrate settle so it can't clobber a later sync-state write. */
@@ -119,7 +114,9 @@ describe('useSyncIdentity', () => {
       await result.current.syncIdentity();
     });
 
-    expect(syncIdentityWithServerMock).toHaveBeenCalledWith(expect.objectContaining({ username: 'offline-pick' }));
+    expect(syncIdentityWithServerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'offline-pick' }),
+    );
     expect(pendingUsername.value).toBeNull();
   });
 
@@ -133,7 +130,9 @@ describe('useSyncIdentity', () => {
       await expect(result.current.syncIdentity()).rejects.toBeInstanceOf(UsernameRequiredError);
     });
 
-    expect(syncIdentityWithServerMock).toHaveBeenCalledWith(expect.objectContaining({ username: null }));
+    expect(syncIdentityWithServerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ username: null }),
+    );
     expect(persistIdentitySyncState).not.toHaveBeenCalledWith(true);
     expect(handleAuthError).not.toHaveBeenCalled();
   });

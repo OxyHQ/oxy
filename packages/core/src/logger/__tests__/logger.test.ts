@@ -102,7 +102,10 @@ describe('logger', () => {
       const entries = captureEntries();
       configureLogger({ level: 'debug' });
 
-      createLogger('svc', { component: 'Svc', userId: 'base' }).warn('x', { userId: 'call', method: 'm' });
+      createLogger('svc', { component: 'Svc', userId: 'base' }).warn('x', {
+        userId: 'call',
+        method: 'm',
+      });
 
       expect(entries[0].context).toEqual({ component: 'Svc', userId: 'call', method: 'm' });
     });

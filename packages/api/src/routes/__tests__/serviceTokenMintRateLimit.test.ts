@@ -63,7 +63,11 @@ describe('the shared per-address limiters skip the mint', () => {
     const app = express();
     app.use(rateLimiter);
     // Mounted the way server.ts mounts it, so the skip has to read `baseUrl`.
-    app.use('/auth', authRateLimiter, express.Router().post('*', (_req, res) => res.json({ ok: true })));
+    app.use(
+      '/auth',
+      authRateLimiter,
+      express.Router().post('*', (_req, res) => res.json({ ok: true })),
+    );
     app.all('*', (_req, res) => res.json({ ok: true }));
     server = await listen(app);
   });
@@ -96,13 +100,13 @@ describe('serviceTokenMintRateLimitKey', () => {
 
   it('gives two credentials behind one address two buckets', () => {
     expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '10.0.0.1'))).not.toBe(
-      serviceTokenMintRateLimitKey(requestFor('oxy_dk_mention', '10.0.0.1'))
+      serviceTokenMintRateLimitKey(requestFor('oxy_dk_mention', '10.0.0.1')),
     );
   });
 
   it('gives one credential one bucket from any address', () => {
     expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '10.0.0.1'))).toBe(
-      serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '198.51.100.7'))
+      serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '198.51.100.7')),
     );
   });
 
@@ -110,7 +114,9 @@ describe('serviceTokenMintRateLimitKey', () => {
     const address = serviceTokenMintRateLimitKey(requestFor(undefined, '10.0.0.1'));
     expect(serviceTokenMintRateLimitKey(requestFor('x'.repeat(10_000), '10.0.0.1'))).toBe(address);
     expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia\n*', '10.0.0.1'))).toBe(address);
-    expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '10.0.0.1'))).toBe('key:oxy_dk_alia');
+    expect(serviceTokenMintRateLimitKey(requestFor('oxy_dk_alia', '10.0.0.1'))).toBe(
+      'key:oxy_dk_alia',
+    );
   });
 
   it('falls back to the address when no key is presented', () => {

@@ -89,9 +89,7 @@ async function organization(): Promise<string> {
 }
 
 /** A registered application owned by `ownerId`. */
-async function application(
-  over: Partial<typeof applications.$inferInsert> = {}
-): Promise<string> {
+async function application(over: Partial<typeof applications.$inferInsert> = {}): Promise<string> {
   const ownerAccountId = over.ownerAccountId ?? (await account());
   const [row] = await getDb()
     .insert(applications)
@@ -141,7 +139,7 @@ function oauthBinding(over: Partial<typeof authSessions.$inferInsert> = {}) {
 /** An unused, unexpired signin challenge for `publicKey`. */
 async function challenge(
   publicKey: string,
-  over: Partial<typeof authChallenges.$inferInsert> = {}
+  over: Partial<typeof authChallenges.$inferInsert> = {},
 ): Promise<string> {
   const value = `ch-${randomUUID()}`;
   await getDb()
@@ -157,11 +155,7 @@ async function challenge(
 
 /** The stored row, read straight from Postgres rather than through the service. */
 async function stored(id: string) {
-  const [row] = await getDb()
-    .select()
-    .from(authSessions)
-    .where(eq(authSessions.id, id))
-    .limit(1);
+  const [row] = await getDb().select().from(authSessions).where(eq(authSessions.id, id)).limit(1);
   return row;
 }
 
@@ -240,7 +234,7 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
  */
 async function loseTheRaceTo<T>(
   competitor: (tx: Tx) => Promise<void>,
-  subject: () => Promise<T>
+  subject: () => Promise<T>,
 ): Promise<T> {
   let commit = (): void => {};
   const held = new Promise<void>((resolve) => {
@@ -311,15 +305,15 @@ describe('resolveOAuthContext', () => {
     // defence: a row this function would have to reject cannot be written.
     expect(
       await violatedConstraint(
-        authSession({ purpose: 'oauth_authorization', oauthRedirectUri: REDIRECT_URI })
-      )
+        authSession({ purpose: 'oauth_authorization', oauthRedirectUri: REDIRECT_URI }),
+      ),
     ).toBe('auth_sessions_oauth_binding_check');
   });
 
   it('the database refuses an OAuth binding on a device sign-in request', async () => {
-    expect(
-      await violatedConstraint(authSession(oauthBinding({ purpose: 'device_sign_in' })))
-    ).toBe('auth_sessions_oauth_purpose_check');
+    expect(await violatedConstraint(authSession(oauthBinding({ purpose: 'device_sign_in' })))).toBe(
+      'auth_sessions_oauth_purpose_check',
+    );
   });
 });
 
@@ -362,7 +356,7 @@ describe('claimAuthSession', () => {
           .set({ status: 'cancelled' })
           .where(eq(authSessions.id, id))
           .then(() => undefined),
-      () => claimAuthSession({ sessionToken })
+      () => claimAuthSession({ sessionToken }),
     );
 
     // VACUITY FLOOR: `already_consumed` is only reachable through the atomic
@@ -518,7 +512,7 @@ describe('authorizeSessionWithSignedChallenge', () => {
     mockCreateSession.mockResolvedValueOnce({ sessionId: 'sess-signed' });
 
     const outcome = await authorizeSessionWithSignedChallenge(
-      input({ authorizeCode, publicKey, challenge: value })
+      input({ authorizeCode, publicKey, challenge: value }),
     );
 
     expect(outcome).toMatchObject({
@@ -551,8 +545,8 @@ describe('authorizeSessionWithSignedChallenge', () => {
 
     expect(
       await authorizeSessionWithSignedChallenge(
-        input({ authorizeCode, publicKey: presented, challenge: value })
-      )
+        input({ authorizeCode, publicKey: presented, challenge: value }),
+      ),
     ).toMatchObject({ ok: true, userId });
   });
 
@@ -562,7 +556,7 @@ describe('authorizeSessionWithSignedChallenge', () => {
     mockVerifyChallengeResponse.mockReturnValueOnce(false);
 
     const outcome = await authorizeSessionWithSignedChallenge(
-      input({ authorizeCode, publicKey, challenge: value })
+      input({ authorizeCode, publicKey, challenge: value }),
     );
 
     expect(outcome).toEqual({ ok: false, status: 401, message: 'Invalid signature' });
@@ -580,7 +574,9 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const { authorizeCode } = await authSession();
 
     expect(
-      await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }))
+      await authorizeSessionWithSignedChallenge(
+        input({ authorizeCode, publicKey, challenge: value }),
+      ),
     ).toEqual({ ok: false, status: 401, message: 'Invalid or expired challenge' });
     expect(mockVerifyChallengeResponse).not.toHaveBeenCalled();
   });
@@ -592,7 +588,9 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const { authorizeCode } = await authSession();
 
     expect(
-      await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }))
+      await authorizeSessionWithSignedChallenge(
+        input({ authorizeCode, publicKey, challenge: value }),
+      ),
     ).toEqual({ ok: false, status: 401, message: 'Invalid or expired challenge' });
   });
 
@@ -603,7 +601,9 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const { authorizeCode } = await authSession();
 
     expect(
-      await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }))
+      await authorizeSessionWithSignedChallenge(
+        input({ authorizeCode, publicKey, challenge: value }),
+      ),
     ).toEqual({ ok: false, status: 401, message: 'Invalid or expired challenge' });
     // Refused before the signature is even checked, so a valid rotate_key
     // signature buys nothing on this path.
@@ -627,9 +627,7 @@ describe('authorizeSessionWithSignedChallenge', () => {
           .where(eq(authChallenges.id, row.id))
           .then(() => undefined),
       () =>
-        authorizeSessionWithSignedChallenge(
-          input({ authorizeCode, publicKey, challenge: value })
-        )
+        authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value })),
     );
 
     expect(outcome).toEqual({ ok: false, status: 401, message: 'Invalid or expired challenge' });
@@ -644,16 +642,16 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const { publicKey, challenge: value } = await signer();
     expect(
       await authorizeSessionWithSignedChallenge(
-        input({ authorizeCode: `ac-${randomUUID()}`, publicKey, challenge: value })
-      )
+        input({ authorizeCode: `ac-${randomUUID()}`, publicKey, challenge: value }),
+      ),
     ).toEqual({ ok: false, status: 404, message: 'Auth session not found or already processed' });
 
     const signerTwo = await signer();
     const { authorizeCode } = await authSession({ status: 'authorized' });
     expect(
       await authorizeSessionWithSignedChallenge(
-        input({ authorizeCode, publicKey: signerTwo.publicKey, challenge: signerTwo.challenge })
-      )
+        input({ authorizeCode, publicKey: signerTwo.publicKey, challenge: signerTwo.challenge }),
+      ),
     ).toEqual({ ok: false, status: 404, message: 'Auth session not found or already processed' });
   });
 
@@ -664,7 +662,9 @@ describe('authorizeSessionWithSignedChallenge', () => {
     });
 
     expect(
-      await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }))
+      await authorizeSessionWithSignedChallenge(
+        input({ authorizeCode, publicKey, challenge: value }),
+      ),
     ).toEqual({ ok: false, status: 400, message: 'Auth session has expired' });
     expect((await stored(id)).status).toBe('expired');
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -676,7 +676,9 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const { id, authorizeCode } = await authSession();
 
     expect(
-      await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }))
+      await authorizeSessionWithSignedChallenge(
+        input({ authorizeCode, publicKey, challenge: value }),
+      ),
     ).toEqual({ ok: false, status: 404, message: 'User not found' });
     expect((await stored(id)).status).toBe('pending');
   });
@@ -685,7 +687,9 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const { publicKey, challenge: value } = await signer();
     const { authorizeCode } = await authSession({ deviceId: 'device-xyz' });
 
-    await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }));
+    await authorizeSessionWithSignedChallenge(
+      input({ authorizeCode, publicKey, challenge: value }),
+    );
 
     const options = mockCreateSession.mock.calls[0]?.[2] as { deviceId: string };
     expect(options.deviceId).toMatch(/^[0-9a-f-]{36}$/);
@@ -697,12 +701,14 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const applicationId = await application({ name: 'Acme Widgets' });
     const { authorizeCode } = await authSession({ applicationId });
 
-    await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }));
+    await authorizeSessionWithSignedChallenge(
+      input({ authorizeCode, publicKey, challenge: value }),
+    );
 
     expect(mockCreateSession).toHaveBeenCalledWith(
       expect.any(String),
       expect.anything(),
-      expect.objectContaining({ deviceName: 'Acme Widgets App' })
+      expect.objectContaining({ deviceName: 'Acme Widgets App' }),
     );
   });
 
@@ -711,7 +717,7 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const { id, authorizeCode } = await authSession(oauthBinding());
 
     const outcome = await authorizeSessionWithSignedChallenge(
-      input({ authorizeCode, publicKey, challenge: value })
+      input({ authorizeCode, publicKey, challenge: value }),
     );
 
     expect(outcome.ok).toBe(true);
@@ -729,11 +735,13 @@ describe('authorizeSessionWithSignedChallenge', () => {
     const { publicKey, challenge: value } = await signer();
     const subject = await organization();
     const { id, authorizeCode } = await authSession(
-      oauthBinding({ oauthSubjectAccountId: subject })
+      oauthBinding({ oauthSubjectAccountId: subject }),
     );
 
     expect(
-      await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }))
+      await authorizeSessionWithSignedChallenge(
+        input({ authorizeCode, publicKey, challenge: value }),
+      ),
     ).toEqual({
       ok: false,
       status: 403,
@@ -762,7 +770,12 @@ describe('authorizeSessionWithBearer', () => {
     mockCreateSession.mockResolvedValueOnce({ sessionId: 'sess-bearer' });
 
     const outcome = await authorizeSessionWithBearer(
-      input({ authorizeCode, authenticatedUserId: userId, approvingSessionId, authenticatedPublicKey: 'pk-hub' })
+      input({
+        authorizeCode,
+        authenticatedUserId: userId,
+        approvingSessionId,
+        authenticatedPublicKey: 'pk-hub',
+      }),
     );
 
     expect(outcome).toEqual({ ok: true, sessionToken, sessionId: 'sess-bearer' });
@@ -786,7 +799,10 @@ describe('authorizeSessionWithBearer', () => {
           .set({ expiresAt: new Date(Date.now() - 1_000) })
           .where(eq(authSessions.id, id))
           .then(() => undefined),
-      () => authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
+      () =>
+        authorizeSessionWithBearer(
+          input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }),
+        ),
     );
 
     // VACUITY FLOOR: 404 comes ONLY from the atomic claim matching nothing. Had
@@ -808,13 +824,19 @@ describe('authorizeSessionWithBearer', () => {
     const approvingSessionId = await insertBearerSession(userId);
     expect(
       await authorizeSessionWithBearer(
-        input({ authorizeCode: `ac-${randomUUID()}`, authenticatedUserId: userId, approvingSessionId })
-      )
+        input({
+          authorizeCode: `ac-${randomUUID()}`,
+          authenticatedUserId: userId,
+          approvingSessionId,
+        }),
+      ),
     ).toEqual({ ok: false, status: 404, message: 'Auth session not found or already processed' });
 
     const { authorizeCode } = await authSession({ status: 'authorized' });
     expect(
-      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
+      await authorizeSessionWithBearer(
+        input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }),
+      ),
     ).toEqual({ ok: false, status: 404, message: 'Auth session not found or already processed' });
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
@@ -825,7 +847,9 @@ describe('authorizeSessionWithBearer', () => {
     const { id, authorizeCode } = await authSession({ expiresAt: new Date(Date.now() - 1_000) });
 
     expect(
-      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
+      await authorizeSessionWithBearer(
+        input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }),
+      ),
     ).toEqual({ ok: false, status: 400, message: 'Auth session has expired' });
     expect((await stored(id)).status).toBe('pending');
     expect(mockCreateSession).not.toHaveBeenCalled();
@@ -837,7 +861,9 @@ describe('authorizeSessionWithBearer', () => {
     const { id, authorizeCode, sessionToken } = await authSession(oauthBinding());
 
     expect(
-      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
+      await authorizeSessionWithBearer(
+        input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }),
+      ),
     ).toEqual({ ok: true, sessionToken });
     expect(mockCreateSession).not.toHaveBeenCalled();
     expect((await stored(id)).authorizedSessionId).toBeNull();
@@ -848,11 +874,13 @@ describe('authorizeSessionWithBearer', () => {
     const userId = await account();
     const approvingSessionId = await insertBearerSession(userId);
     const { id, authorizeCode } = await authSession(
-      oauthBinding({ oauthSubjectAccountId: await organization() })
+      oauthBinding({ oauthSubjectAccountId: await organization() }),
     );
 
     expect(
-      await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }))
+      await authorizeSessionWithBearer(
+        input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }),
+      ),
     ).toEqual({
       ok: false,
       status: 403,
@@ -866,7 +894,9 @@ describe('authorizeSessionWithBearer', () => {
     const approvingSessionId = await insertBearerSession(userId);
     const { authorizeCode } = await authSession({ deviceId: 'device-xyz' });
 
-    await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }));
+    await authorizeSessionWithBearer(
+      input({ authorizeCode, authenticatedUserId: userId, approvingSessionId }),
+    );
 
     const options = mockCreateSession.mock.calls[0]?.[2] as { deviceId: string };
     expect(options.deviceId).toMatch(/^[0-9a-f-]{36}$/);
@@ -878,7 +908,7 @@ describe('finalizeOAuthAuthorization', () => {
   /** An APPROVED, OAuth-bound request ready to be finalized. */
   async function approved(
     over: Partial<typeof authSessions.$inferInsert> = {},
-    appOver: Partial<typeof applications.$inferInsert> = {}
+    appOver: Partial<typeof applications.$inferInsert> = {},
   ) {
     const identityUserId = await account();
     const applicationId = await application(appOver);
@@ -911,7 +941,7 @@ describe('finalizeOAuthAuthorization', () => {
     // spent the request, and handed to the minter afterwards.
     expect(row.finalizedAuthCodeId).toEqual(expect.any(String));
     expect(mockIssueAuthCode).toHaveBeenCalledWith(
-      expect.objectContaining({ codeId: row.finalizedAuthCodeId })
+      expect.objectContaining({ codeId: row.finalizedAuthCodeId }),
     );
   });
 
@@ -925,7 +955,7 @@ describe('finalizeOAuthAuthorization', () => {
           .set({ status: 'cancelled' })
           .where(eq(authSessions.id, id))
           .then(() => undefined),
-      () => finalizeOAuthAuthorization({ sessionToken })
+      () => finalizeOAuthAuthorization({ sessionToken }),
     );
 
     // VACUITY FLOOR: `already_finalized` is the atomic claim's own miss. Had the
@@ -1027,23 +1057,26 @@ describe('finalizeOAuthAuthorization', () => {
   it('intersects the requested scopes with the application registered set', async () => {
     const { sessionToken } = await approved(
       { oauthScopes: ['user:read', 'files:write'] },
-      { scopes: ['user:read', 'files:read'] }
+      { scopes: ['user:read', 'files:read'] },
     );
 
     await finalizeOAuthAuthorization({ sessionToken });
 
     expect(mockIssueAuthCode).toHaveBeenCalledWith(
-      expect.objectContaining({ scopes: ['user:read'] })
+      expect.objectContaining({ scopes: ['user:read'] }),
     );
   });
 
   it('falls back to ordinary scopes for a trusted application when the request named none', async () => {
-    const { sessionToken } = await approved({ oauthScopes: [] }, { type: 'first_party', scopes: ['user:read'] });
+    const { sessionToken } = await approved(
+      { oauthScopes: [] },
+      { type: 'first_party', scopes: ['user:read'] },
+    );
 
     await finalizeOAuthAuthorization({ sessionToken });
 
     expect(mockIssueAuthCode).toHaveBeenCalledWith(
-      expect.objectContaining({ scopes: ['user:read'] })
+      expect.objectContaining({ scopes: ['user:read'] }),
     );
   });
 
@@ -1051,7 +1084,7 @@ describe('finalizeOAuthAuthorization', () => {
     const { sessionToken } = await approved({ deviceId: 'device-rp' });
     await finalizeOAuthAuthorization({ sessionToken });
     expect(mockIssueAuthCode).toHaveBeenCalledWith(
-      expect.objectContaining({ deviceId: 'device-rp' })
+      expect.objectContaining({ deviceId: 'device-rp' }),
     );
   });
 
@@ -1071,11 +1104,13 @@ describe('finalizeOAuthAuthorization', () => {
   it('UNIONS scopes onto an existing grant, keeping each scope first position', async () => {
     const identityUserId = await account();
     const applicationId = await application({ scopes: ['user:read', 'files:read'] });
-    await getDb().insert(appGrants).values({
-      userId: identityUserId,
-      applicationId,
-      scopes: ['files:read'],
-    });
+    await getDb()
+      .insert(appGrants)
+      .values({
+        userId: identityUserId,
+        applicationId,
+        scopes: ['files:read'],
+      });
     const { sessionToken } = await authSession({
       applicationId,
       ...oauthBinding({ oauthScopes: ['files:read', 'user:read'] }),
@@ -1117,7 +1152,7 @@ describe('finalizeOAuthAuthorization', () => {
     expect((await finalizeOAuthAuthorization({ sessionToken })).ok).toBe(true);
 
     expect(mockIssueAuthCode).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: subject, operatedByUserId: identityUserId })
+      expect.objectContaining({ userId: subject, operatedByUserId: identityUserId }),
     );
   });
 

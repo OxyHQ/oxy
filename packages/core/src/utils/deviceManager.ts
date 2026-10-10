@@ -30,14 +30,14 @@ export interface StoredDeviceInfo {
 // biome-ignore lint/complexity/noStaticOnlyClass: a public, static-only API surface (`X.method()`) that consumers and tests call and spy on by name.
 export class DeviceManager {
   private static DEVICE_KEY = 'oxy_device_info';
-  
+
   /**
    * Check if we're in React Native environment
    */
   private static isReactNative(): boolean {
     return typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
   }
-  
+
   /**
    * Get appropriate storage for the platform
    */
@@ -67,11 +67,11 @@ export class DeviceManager {
       return {
         getItem: async (key: string) => localStorage.getItem(key),
         setItem: async (key: string, value: string) => localStorage.setItem(key, value),
-        removeItem: async (key: string) => localStorage.removeItem(key)
+        removeItem: async (key: string) => localStorage.removeItem(key),
       };
     }
   }
-  
+
   /**
    * Get or create device fingerprint for current device
    */
@@ -80,7 +80,8 @@ export class DeviceManager {
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
       platform: typeof navigator !== 'undefined' ? navigator.platform : 'unknown',
       language: typeof navigator !== 'undefined' ? navigator.language : undefined,
-      timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined,
+      timezone:
+        typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined,
     };
 
     // Add screen info if available
@@ -88,7 +89,7 @@ export class DeviceManager {
       fingerprint.screen = {
         width: screen.width,
         height: screen.height,
-        colorDepth: screen.colorDepth
+        colorDepth: screen.colorDepth,
       };
     }
 
@@ -102,17 +103,17 @@ export class DeviceManager {
     try {
       const storage = await DeviceManager.getStorage();
       const stored = await storage.getItem(DeviceManager.DEVICE_KEY);
-      
+
       if (stored) {
         const deviceInfo: StoredDeviceInfo = JSON.parse(stored);
-        
+
         // Update last used timestamp
         deviceInfo.lastUsed = new Date().toISOString();
         await DeviceManager.saveDeviceInfo(deviceInfo);
-        
+
         return deviceInfo;
       }
-      
+
       // Create new device info
       return await DeviceManager.createNewDeviceInfo();
     } catch (error) {
@@ -129,7 +130,7 @@ export class DeviceManager {
       deviceId: DeviceManager.generateDeviceId(),
       fingerprint: JSON.stringify(DeviceManager.getDeviceFingerprint()),
       createdAt: new Date().toISOString(),
-      lastUsed: new Date().toISOString()
+      lastUsed: new Date().toISOString(),
     };
 
     await DeviceManager.saveDeviceInfo(deviceInfo);
@@ -180,7 +181,7 @@ export class DeviceManager {
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
       const array = new Uint8Array(32);
       crypto.getRandomValues(array);
-      return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+      return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
     }
     throw new Error('No secure random source available for device ID generation');
   }
@@ -191,14 +192,14 @@ export class DeviceManager {
   static getDefaultDeviceName(): string {
     const fingerprint = DeviceManager.getDeviceFingerprint();
     const platform = (fingerprint.platform || '').toLowerCase();
-    
+
     if (platform.includes('win')) return 'Windows Computer';
     if (platform.includes('mac')) return 'Mac Computer';
     if (platform.includes('linux')) return 'Linux Computer';
     if (platform.includes('iphone')) return 'iPhone';
     if (platform.includes('ipad')) return 'iPad';
     if (platform.includes('android')) return 'Android Device';
-    
+
     return 'Unknown Device';
   }
 }

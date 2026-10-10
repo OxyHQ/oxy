@@ -158,12 +158,20 @@ describe('follow-graph pagination and ordering', () => {
 
     it('discriminates the cache key, so flipping sort re-fetches', async () => {
       fetchMock.mockResolvedValueOnce(pageResponse([{ id: 'newest' }]));
-      const recent = await oxy.follows.followers('target-1', { limit: 2, offset: 0, sort: 'recent' });
+      const recent = await oxy.follows.followers('target-1', {
+        limit: 2,
+        offset: 0,
+        sort: 'recent',
+      });
       expect(recent.followers).toEqual([{ id: 'newest' }]);
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
       fetchMock.mockResolvedValueOnce(pageResponse([{ id: 'oldest' }]));
-      const oldest = await oxy.follows.followers('target-1', { limit: 2, offset: 0, sort: 'oldest' });
+      const oldest = await oxy.follows.followers('target-1', {
+        limit: 2,
+        offset: 0,
+        sort: 'oldest',
+      });
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(oldest.followers).toEqual([{ id: 'oldest' }]);
@@ -222,7 +230,11 @@ describe('follow-graph pagination and ordering', () => {
       // Prefix invalidation is what makes this page/sort agnostic — an exact-key
       // clear would only bust the single variant the caller happened to read.
       expect(invalidateSpy.mock.calls[0][0].prefixes).toEqual(
-        expect.arrayContaining(['GET:/users/target-1/followers', 'GET:/users/target-1/mutuals', 'GET:/users/me/following']),
+        expect.arrayContaining([
+          'GET:/users/target-1/followers',
+          'GET:/users/target-1/mutuals',
+          'GET:/users/me/following',
+        ]),
       );
       invalidateSpy.mockRestore();
     });
@@ -243,7 +255,11 @@ describe('follow-graph pagination and ordering', () => {
 
       expect(invalidateSpy).toHaveBeenCalledTimes(1);
       expect(invalidateSpy.mock.calls[0][0].prefixes).toEqual(
-        expect.arrayContaining(['GET:/users/a/followers', 'GET:/users/b/followers', 'GET:/users/me/following']),
+        expect.arrayContaining([
+          'GET:/users/a/followers',
+          'GET:/users/b/followers',
+          'GET:/users/me/following',
+        ]),
       );
       invalidateSpy.mockRestore();
     });

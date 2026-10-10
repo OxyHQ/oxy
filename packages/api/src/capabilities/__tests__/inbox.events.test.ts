@@ -20,8 +20,10 @@ describe('Inbox normalized events', () => {
         appId: 'inbox',
         accountId: 'account-1',
         resource: {
-          appId: 'inbox', effectiveAccountId: 'account-1',
-          resourceType: 'mailbox', resourceId: 'mailbox-1',
+          appId: 'inbox',
+          effectiveAccountId: 'account-1',
+          resourceType: 'mailbox',
+          resourceId: 'mailbox-1',
         },
         type: 'new_email',
       }),

@@ -19,7 +19,8 @@ it('batches resolves at exactly the API limit contracts declares', () => {
 it.each(SOURCES)('%s imports @oxy.so/contracts for types only', (file) => {
   const source = readFileSync(join(__dirname, '..', file), 'utf8');
   // Every import statement naming contracts must be `import type` / `export type`.
-  const statements = source.match(/(?:import|export)\s+(type\s+)?\{[^}]*\}\s*from\s*'@oxy\.so\/contracts'/g) ?? [];
+  const statements =
+    source.match(/(?:import|export)\s+(type\s+)?\{[^}]*\}\s*from\s*'@oxy\.so\/contracts'/g) ?? [];
   expect(statements.length).toBeGreaterThan(0);
   for (const statement of statements) expect(statement).toMatch(/^(?:import|export)\s+type\s/);
 });

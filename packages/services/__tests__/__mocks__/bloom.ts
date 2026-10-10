@@ -6,7 +6,14 @@
  * can spy on the exported `toast` object directly.
  */
 
-import { createContext, createElement, Fragment, useContext, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  createElement,
+  Fragment,
+  useContext,
+  useState,
+  type ReactNode,
+} from 'react';
 
 type ToastFn = (message: string, options?: Record<string, unknown>) => void;
 
@@ -38,27 +45,51 @@ export const Button = ({
 } & Record<string, unknown>) =>
   createElement(
     'button',
-    { type: 'button', onClick: onPress, disabled, 'data-testid': testID, 'aria-label': accessibilityLabel, style: Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style },
-    children, trailing,
+    {
+      type: 'button',
+      onClick: onPress,
+      disabled,
+      'data-testid': testID,
+      'aria-label': accessibilityLabel,
+      style: Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style,
+    },
+    children,
+    trailing,
   );
 
 // Shared follow visual: business tests observe binding, Bloom tests own animation.
-export const FollowButton = ({ following, onFollowChange, label = 'Follow', followingLabel = 'Following', disabled, loading }: {
+export const FollowButton = ({
+  following,
+  onFollowChange,
+  label = 'Follow',
+  followingLabel = 'Following',
+  disabled,
+  loading,
+}: {
   following: boolean;
   onFollowChange: (next: boolean) => void;
   label?: string;
   followingLabel?: string;
   disabled?: boolean;
   loading?: boolean;
-} & Record<string, unknown>) => createElement('button', {
-  type: 'button', disabled: disabled || loading,
-  'aria-label': label, 'aria-pressed': following, 'aria-busy': loading || undefined,
-  onClick: () => onFollowChange(!following),
-}, loading ? null : following ? followingLabel : label);
+} & Record<string, unknown>) =>
+  createElement(
+    'button',
+    {
+      type: 'button',
+      disabled: disabled || loading,
+      'aria-label': label,
+      'aria-pressed': following,
+      'aria-busy': loading || undefined,
+      onClick: () => onFollowChange(!following),
+    },
+    loading ? null : following ? followingLabel : label,
+  );
 
 export const Loading = () => createElement('span', null, 'loading');
 /** `@oxy.so/bloom/loading` `SpinnerIcon`: an unnamed glyph. */
-export const SpinnerIcon = () => createElement('span', { 'data-testid': 'spinner-icon', 'aria-hidden': 'true' });
+export const SpinnerIcon = () =>
+  createElement('span', { 'data-testid': 'spinner-icon', 'aria-hidden': 'true' });
 
 /** `@oxy.so/bloom/button` `LinkButton`: a text action, pressable like `Button`. */
 export const LinkButton = Button;
@@ -117,10 +148,16 @@ export const WizardProgress = ({
   formatStepCount?: (position: number, total: number) => string;
   testID?: string;
 } & Record<string, unknown>) => {
-  const count = formatStepCount ? formatStepCount(current + 1, steps.length) : `Step ${current + 1} of ${steps.length}`;
+  const count = formatStepCount
+    ? formatStepCount(current + 1, steps.length)
+    : `Step ${current + 1} of ${steps.length}`;
   return createElement(
     'div',
-    { role: 'progressbar', 'aria-label': `${count}, ${steps[current]?.title ?? ''}`, 'data-testid': testID },
+    {
+      role: 'progressbar',
+      'aria-label': `${count}, ${steps[current]?.title ?? ''}`,
+      'data-testid': testID,
+    },
     count,
   );
 };
@@ -130,7 +167,11 @@ export const WizardProgress = ({
  * relies on: the label (`children`, hidden when `iconOnly`), the accessible
  * name, press, and `disabled`.
  */
-const SOCIAL_ACTION_PHRASE = { continue: 'Continue with', signIn: 'Sign in with', signUp: 'Sign up with' } as const;
+const SOCIAL_ACTION_PHRASE = {
+  continue: 'Continue with',
+  signIn: 'Sign in with',
+  signUp: 'Sign up with',
+} as const;
 
 export const socialButtonLabel = (
   brandLabel: string,
@@ -154,7 +195,13 @@ export const SocialButton = ({
 } & Record<string, unknown>) =>
   createElement(
     'button',
-    { type: 'button', onClick: onPress, disabled, 'aria-label': accessibilityLabel, 'data-testid': testID },
+    {
+      type: 'button',
+      onClick: onPress,
+      disabled,
+      'aria-label': accessibilityLabel,
+      'data-testid': testID,
+    },
     iconOnly ? null : children,
   );
 
@@ -201,7 +248,9 @@ export const AccordionItem = ({
 }: { value: string; children?: ReactNode } & Record<string, unknown>) =>
   createElement(AccordionItemCtx.Provider, { value }, createElement('div', null, children));
 
-export const AccordionTrigger = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+export const AccordionTrigger = ({
+  children,
+}: { children?: ReactNode } & Record<string, unknown>) => {
   const ctx = useContext(AccordionCtx);
   const item = useContext(AccordionItemCtx);
   return createElement(
@@ -217,7 +266,9 @@ export const AccordionTrigger = ({ children }: { children?: ReactNode } & Record
   );
 };
 
-export const AccordionContent = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+export const AccordionContent = ({
+  children,
+}: { children?: ReactNode } & Record<string, unknown>) => {
   const ctx = useContext(AccordionCtx);
   const item = useContext(AccordionItemCtx);
   if (!ctx || item === null || !isItemOpen(ctx.value, item)) return null;
@@ -229,7 +280,9 @@ export const AccordionContent = ({ children }: { children?: ReactNode } & Record
  * `./menu`. `asChild` renders the single child AS the trigger, so a test still
  * queries the caller's own Button; the content mounts only while open.
  */
-const DropdownMenuCtx = createContext<{ open: boolean; setOpen: (next: boolean) => void } | null>(null);
+const DropdownMenuCtx = createContext<{ open: boolean; setOpen: (next: boolean) => void } | null>(
+  null,
+);
 
 export const DropdownMenu = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
   const [open, setOpen] = useState(false);
@@ -248,7 +301,9 @@ export const DropdownMenuTrigger = ({
   );
 };
 
-export const DropdownMenuContent = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+export const DropdownMenuContent = ({
+  children,
+}: { children?: ReactNode } & Record<string, unknown>) => {
   const ctx = useContext(DropdownMenuCtx);
   return ctx?.open ? createElement('div', null, children) : null;
 };
@@ -268,7 +323,10 @@ export const DropdownMenuItem = ({
  * so it never collides with `getByText(displayName)` queries.
  */
 /** `@oxy.so/bloom/avatar`: draws its `verifiedIcon` slot when `verified`, as the real one does. */
-export const Avatar = ({ verified, verifiedIcon }: { verified?: boolean; verifiedIcon?: ReactNode } & Record<string, unknown>) =>
+export const Avatar = ({
+  verified,
+  verifiedIcon,
+}: { verified?: boolean; verifiedIcon?: ReactNode } & Record<string, unknown>) =>
   createElement('span', { 'aria-hidden': 'true' }, verified ? verifiedIcon : null);
 
 /**
@@ -303,11 +361,19 @@ export const Text = ({
   children,
   testID,
   accessibilityRole,
-}: { children?: ReactNode; testID?: string; accessibilityRole?: string } & Record<string, unknown>) =>
+}: { children?: ReactNode; testID?: string; accessibilityRole?: string } & Record<
+  string,
+  unknown
+>) =>
   // Only `alert` is carried: an error line is found by its role.
-  createElement('span', { 'data-testid': testID, role: accessibilityRole === 'alert' ? 'alert' : undefined }, children);
+  createElement(
+    'span',
+    { 'data-testid': testID, role: accessibilityRole === 'alert' ? 'alert' : undefined },
+    children,
+  );
 
-export const Divider = ({ children }: { children?: ReactNode }) => createElement('div', { role: 'separator' }, children);
+export const Divider = ({ children }: { children?: ReactNode }) =>
+  createElement('div', { role: 'separator' }, children);
 
 /**
  * `@oxy.so/bloom/theme` per-account color-scope stubs used by `OxyAccountDialog`.
@@ -328,8 +394,10 @@ export const Divider = ({ children }: { children?: ReactNode }) => createElement
 export const BloomColorScope = ({
   children,
   colorPreset,
-}: { children?: ReactNode; colorPreset?: string }) =>
-  createElement('div', { 'data-color-preset': colorPreset }, children);
+}: {
+  children?: ReactNode;
+  colorPreset?: string;
+}) => createElement('div', { 'data-color-preset': colorPreset }, children);
 
 export const APP_COLOR_NAMES: readonly string[] = [
   'teal',
@@ -382,17 +450,14 @@ export const toast: {
   warning: ToastFn;
   promise: ToastFn;
   dismiss: () => void;
-} = Object.assign(
-  jest.fn() as unknown as ToastFn,
-  {
-    success: jest.fn() as ToastFn,
-    error: jest.fn() as ToastFn,
-    info: jest.fn() as ToastFn,
-    warning: jest.fn() as ToastFn,
-    promise: jest.fn() as ToastFn,
-    dismiss: jest.fn(),
-  },
-);
+} = Object.assign(jest.fn() as unknown as ToastFn, {
+  success: jest.fn() as ToastFn,
+  error: jest.fn() as ToastFn,
+  info: jest.fn() as ToastFn,
+  warning: jest.fn() as ToastFn,
+  promise: jest.fn() as ToastFn,
+  dismiss: jest.fn(),
+});
 
 /**
  * Stub for `@oxy.so/bloom/theme`'s `useTheme`. Components under test
@@ -449,7 +514,10 @@ export const SurfaceHost = () => createElement('div', { 'data-testid': 'bloom-su
 export const SurfaceProvider = ({ children }: { children?: ReactNode }) =>
   createElement(Fragment, null, children, createElement(SurfaceHost));
 
-export const useSurface = (): { dismiss: (result?: unknown) => void; present: () => Promise<unknown> } => ({
+export const useSurface = (): {
+  dismiss: (result?: unknown) => void;
+  present: () => Promise<unknown>;
+} => ({
   dismiss: () => {},
   present: () => new Promise<unknown>(() => {}),
 });
@@ -627,7 +695,8 @@ export const TextFieldInput = ({
     },
   });
 export const TextFieldLabel = passthrough('label');
-export const TextFieldHint = ({ children }: { children?: ReactNode }) => createElement('p', { role: 'alert' }, children);
+export const TextFieldHint = ({ children }: { children?: ReactNode }) =>
+  createElement('p', { role: 'alert' }, children);
 
 /**
  * `@oxy.so/bloom/field`: the label, the control, then the error (an `alert`)
@@ -649,7 +718,11 @@ export const Field = ({
     { role: 'group', 'aria-label': typeof label === 'string' ? label : undefined },
     label ? createElement('label', null, label) : null,
     children,
-    error ? createElement('p', { role: 'alert' }, error) : description ? createElement('p', null, description) : null,
+    error
+      ? createElement('p', { role: 'alert' }, error)
+      : description
+        ? createElement('p', null, description)
+        : null,
   );
 
 /**
@@ -686,14 +759,19 @@ export const InputOtp = ({
     'data-group-every': groupEvery,
     onChange: (event: { target: { value: string } }) => {
       const raw = event.target.value;
-      const cleaned = (type === 'alphanumeric' ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '') : raw.replace(/\D/g, '')).slice(0, length);
+      const cleaned = (
+        type === 'alphanumeric'
+          ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
+          : raw.replace(/\D/g, '')
+      ).slice(0, length);
       onChange?.(cleaned);
       if (cleaned.length === length) onComplete?.(cleaned);
     },
   });
 
 /** `@oxy.so/bloom/auth-card`'s carousel: a marker, so a test can see the split card's artwork. */
-export const AuthMediaCarousel = () => createElement('div', { 'data-testid': 'auth-media-carousel' });
+export const AuthMediaCarousel = () =>
+  createElement('div', { 'data-testid': 'auth-media-carousel' });
 
 export const H1 = Text;
 export const H4 = Text;
@@ -734,15 +812,39 @@ export default toast;
 
 export const Circle = () => createElement('span', { 'data-testid': 'skeleton-circle' });
 
-export function RiKey2Line() { return createElement("svg", { "data-icon": "key" }); }
-export function RiShieldLine() { return createElement("svg", { "data-icon": "shield" }); }
-export function RiQrCodeLine() { return createElement("svg", { "data-icon": "qr" }); }
-export function RiArrowLeftLine() { return createElement("svg", { "data-icon": "arrow-left" }); }
-export function RiUserAddLine() { return createElement("svg", { "data-icon": "user-add" }); }
-export function RiArrowRightSLine() { return createElement("svg", { "data-icon": "arrow-right" }); }
-export function RiCheckLine() { return createElement("svg", { "data-icon": "check" }); }
-export function RiLoader4Line() { return createElement("svg", { "data-icon": "loader" }); }
-export function RiCheckboxCircleLine() { return createElement("svg", { "data-icon": "checkbox-circle" }); }
-export function RiRefreshLine() { return createElement("svg", { "data-icon": "refresh" }); }
-export function RiLoginBoxLine() { return createElement("svg", { "data-testid": "login-icon" }); }
-export function RiMoreLine() { return createElement("svg", { "data-testid": "more-icon" }); }
+export function RiKey2Line() {
+  return createElement('svg', { 'data-icon': 'key' });
+}
+export function RiShieldLine() {
+  return createElement('svg', { 'data-icon': 'shield' });
+}
+export function RiQrCodeLine() {
+  return createElement('svg', { 'data-icon': 'qr' });
+}
+export function RiArrowLeftLine() {
+  return createElement('svg', { 'data-icon': 'arrow-left' });
+}
+export function RiUserAddLine() {
+  return createElement('svg', { 'data-icon': 'user-add' });
+}
+export function RiArrowRightSLine() {
+  return createElement('svg', { 'data-icon': 'arrow-right' });
+}
+export function RiCheckLine() {
+  return createElement('svg', { 'data-icon': 'check' });
+}
+export function RiLoader4Line() {
+  return createElement('svg', { 'data-icon': 'loader' });
+}
+export function RiCheckboxCircleLine() {
+  return createElement('svg', { 'data-icon': 'checkbox-circle' });
+}
+export function RiRefreshLine() {
+  return createElement('svg', { 'data-icon': 'refresh' });
+}
+export function RiLoginBoxLine() {
+  return createElement('svg', { 'data-testid': 'login-icon' });
+}
+export function RiMoreLine() {
+  return createElement('svg', { 'data-testid': 'more-icon' });
+}

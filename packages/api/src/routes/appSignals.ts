@@ -76,7 +76,7 @@ router.post(
       endorsements: endorsementResult,
       interests: interestResult,
     });
-  })
+  }),
 );
 
 /**
@@ -106,7 +106,7 @@ router.post(
     const affinityResult = await appSignalsService.ingestAffinityEvents(applicationId, events);
 
     sendSuccess(res, { affinity: affinityResult });
-  })
+  }),
 );
 
 export default router;

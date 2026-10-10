@@ -18,7 +18,7 @@ export default function CreateIdentityInterestsScreen() {
     (_selectedIds: string[]) => {
       router.replace('/(auth)/create-identity/username');
     },
-    [router]
+    [router],
   );
 
   return <InterestsStep onContinue={handleContinue} />;

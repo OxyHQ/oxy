@@ -51,27 +51,31 @@ async function loadPrincipal(applicationId: string, credentialId: string) {
     .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
     .innerJoin(users, eq(users.id, applications.ownerAccountId))
     .leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
-    .where(and(
-      eq(applicationCredentials.id, credentialId),
-      eq(applicationCredentials.applicationId, applicationId),
-    ))
+    .where(
+      and(
+        eq(applicationCredentials.id, credentialId),
+        eq(applicationCredentials.applicationId, applicationId),
+      ),
+    )
     .limit(1);
   if (
-    !row
-    || row.applicationStatus !== 'active'
-    || !isTrustedApplication({
+    !row ||
+    row.applicationStatus !== 'active' ||
+    !isTrustedApplication({
       type: row.applicationType,
       isOfficial: row.applicationIsOfficial,
       isInternal: row.applicationIsInternal,
-    })
-    || row.ownerAccountStatus !== 'active'
-    || row.ownerClosureFence !== null
-    || row.credentialType !== 'service'
-    || !isCredentialUsable({ status: row.credentialStatus, expiresAt: row.credentialExpiresAt })
-  ) return null;
-  const scopes = row.credentialScopes.length > 0
-    ? intersectScopes(row.credentialScopes, row.applicationScopes)
-    : row.applicationScopes;
+    }) ||
+    row.ownerAccountStatus !== 'active' ||
+    row.ownerClosureFence !== null ||
+    row.credentialType !== 'service' ||
+    !isCredentialUsable({ status: row.credentialStatus, expiresAt: row.credentialExpiresAt })
+  )
+    return null;
+  const scopes =
+    row.credentialScopes.length > 0
+      ? intersectScopes(row.credentialScopes, row.applicationScopes)
+      : row.applicationScopes;
   return { row, scopes };
 }
 
@@ -132,10 +136,11 @@ export async function resolveLiveAgencyServicePrincipal(
   if (isWorkloadAttestationHandle(token.credentialId)) {
     const binding = await resolveLiveAgencyWorkloadByHandle(token.appId, token.credentialId);
     if (
-      binding === null
-      || binding.ownerAccountId !== token.ownerAccountId
-      || token.environment !== workloadTokenEnvironment()
-    ) return null;
+      binding === null ||
+      binding.ownerAccountId !== token.ownerAccountId ||
+      token.environment !== workloadTokenEnvironment()
+    )
+      return null;
     return {
       applicationId: binding.applicationId,
       // The handle, which is what the token presented and what the usage ledger
@@ -154,10 +159,11 @@ export async function resolveLiveAgencyServicePrincipal(
 
   const loaded = await loadPrincipal(token.appId, token.credentialId);
   if (
-    !loaded
-    || loaded.row.ownerAccountId !== token.ownerAccountId
-    || loaded.row.credentialEnvironment !== token.environment
-  ) return null;
+    !loaded ||
+    loaded.row.ownerAccountId !== token.ownerAccountId ||
+    loaded.row.credentialEnvironment !== token.environment
+  )
+    return null;
   const row = loaded.row;
   return {
     applicationId: row.applicationId,
@@ -286,28 +292,31 @@ export async function resolveLiveAgencyWorkload(
     .innerJoin(applications, eq(applications.id, applicationWorkloadIdentities.applicationId))
     .innerJoin(users, eq(users.id, applications.ownerAccountId))
     .leftJoin(accountClosureFences, eq(accountClosureFences.accountId, users.id))
-    .where(and(
-      eq(applicationWorkloadIdentities.applicationId, applicationId),
-      eq(applicationWorkloadIdentities.provider, provider),
-      eq(applicationWorkloadIdentities.subject, subject),
-      or(
-        isNull(applicationWorkloadIdentities.expiresAt),
-        gt(applicationWorkloadIdentities.expiresAt, now),
+    .where(
+      and(
+        eq(applicationWorkloadIdentities.applicationId, applicationId),
+        eq(applicationWorkloadIdentities.provider, provider),
+        eq(applicationWorkloadIdentities.subject, subject),
+        or(
+          isNull(applicationWorkloadIdentities.expiresAt),
+          gt(applicationWorkloadIdentities.expiresAt, now),
+        ),
       ),
-    ))
+    )
     .limit(1);
 
   if (
-    !row
-    || row.applicationStatus !== 'active'
-    || !isTrustedApplication({
+    !row ||
+    row.applicationStatus !== 'active' ||
+    !isTrustedApplication({
       type: row.applicationType,
       isOfficial: row.applicationIsOfficial,
       isInternal: row.applicationIsInternal,
-    })
-    || row.ownerAccountStatus !== 'active'
-    || row.ownerClosureFence !== null
-  ) return null;
+    }) ||
+    row.ownerAccountStatus !== 'active' ||
+    row.ownerClosureFence !== null
+  )
+    return null;
 
   return {
     applicationId: row.applicationId,
@@ -398,8 +407,7 @@ export async function resolveLiveAgencyWorkloadByHandle(
 
   const match = candidates.find(
     (candidate) =>
-      workloadAttestationHandle(candidate.subject) === handle
-      && candidate.attributionId === handle,
+      workloadAttestationHandle(candidate.subject) === handle && candidate.attributionId === handle,
   );
   if (match === undefined) return null;
 

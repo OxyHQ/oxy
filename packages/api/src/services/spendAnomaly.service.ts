@@ -110,9 +110,9 @@ function reportUnreadableMultiple(value: string): void {
   logger.error(
     'inference.spend.anomaly_multiple_unreadable',
     new Error(
-      `${SPEND_ANOMALY_MULTIPLE_VARIABLE} is not a number above 1; the default multiple applies`
+      `${SPEND_ANOMALY_MULTIPLE_VARIABLE} is not a number above 1; the default multiple applies`,
     ),
-    { component: 'spendAnomaly', expected: 'a number greater than 1, e.g. 3' }
+    { component: 'spendAnomaly', expected: 'a number greater than 1, e.g. 3' },
   );
 }
 
@@ -187,7 +187,7 @@ function toDate(value: string | Date): Date {
  * interpolates and returns `double precision`, putting a float where money is.
  */
 export async function detectSpendAnomalies(
-  thresholdMultiple: number = resolveAnomalyMultiple()
+  thresholdMultiple: number = resolveAnomalyMultiple(),
 ): Promise<readonly SpendAnomaly[]> {
   const rows = await executeRows<AnomalyRow>(
     getDb(),
@@ -242,7 +242,7 @@ export async function detectSpendAnomalies(
         and recent.hour_amount
               > baseline.baseline_median_amount * ${String(thresholdMultiple)}::numeric
       order by recent.account_id, recent.currency
-    `
+    `,
   );
 
   return rows.map((row) => ({

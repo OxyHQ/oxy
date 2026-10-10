@@ -80,7 +80,7 @@ describe('createTestDatabase', () => {
       // caller's own `oxy_dev` database — CREATE DATABASE cannot run from
       // inside the database it targets.
       expect(constructedWith).toBe(
-        'postgres://user:pass@db.example.com:5432/postgres?sslmode=require'
+        'postgres://user:pass@db.example.com:5432/postgres?sslmode=require',
       );
 
       // Exactly one CREATE DATABASE, naming something matching the pattern
@@ -110,7 +110,7 @@ describe('createTestDatabase', () => {
               endCalls += 1;
               return Promise.resolve(undefined);
             }),
-          })
+          }),
         );
         return { __esModule: true, default: factory };
       });
@@ -118,7 +118,7 @@ describe('createTestDatabase', () => {
       const { createTestDatabase: createTestDatabaseUnderMock } = await import('../testing');
 
       await expect(
-        createTestDatabaseUnderMock({ adminUrl: 'postgres://db.example.com/oxy_dev' })
+        createTestDatabaseUnderMock({ adminUrl: 'postgres://db.example.com/oxy_dev' }),
       ).rejects.toThrow('simulated create failure');
 
       expect(endCalls).toBe(1);
@@ -145,7 +145,7 @@ describe('createTestDatabase', () => {
               return Promise.resolve([]);
             }),
             end: jest.fn(() => Promise.resolve(undefined)),
-          })
+          }),
         );
         return { __esModule: true, default: factory };
       });
@@ -191,7 +191,7 @@ describe('createTestDatabase', () => {
         createTestDatabaseUnderMock({
           adminUrl: 'postgres://db.example.com/oxy_dev',
           migrate,
-        })
+        }),
       ).rejects.toThrow('simulated migration failure');
 
       // Not just "a drop happened somewhere" — the SAME name that was
@@ -199,7 +199,7 @@ describe('createTestDatabase', () => {
       expect(statements).toHaveLength(2);
       const created = /^create database "(oxydb_test_[0-9a-f]{16})"$/.exec(statements[0]);
       const dropped = /^drop database if exists "(oxydb_test_[0-9a-f]{16})" with \(force\)$/.exec(
-        statements[1]
+        statements[1],
       );
       expect(created).not.toBeNull();
       expect(dropped).not.toBeNull();
@@ -235,7 +235,7 @@ describe('createTestDatabase', () => {
               return Promise.resolve([]);
             }),
             end: jest.fn(() => Promise.resolve(undefined)),
-          })
+          }),
         );
         return { __esModule: true, default: factory };
       });
@@ -280,16 +280,16 @@ describe('dropTestDatabase', () => {
   // idiom `extensions.test.ts` uses for `ensureExtensions`).
   it('refuses a URL that does not name a throwaway database, without opening a connection', async () => {
     await expect(
-      dropTestDatabase('postgres://unreachable.invalid/some_real_database')
+      dropTestDatabase('postgres://unreachable.invalid/some_real_database'),
     ).rejects.toThrow(/Refusing to drop/);
     await expect(
-      dropTestDatabase('postgres://unreachable.invalid/oxydb_test_shorthex')
+      dropTestDatabase('postgres://unreachable.invalid/oxydb_test_shorthex'),
     ).rejects.toThrow(/Refusing to drop/);
     // Correctly-shaped hex behind a DIFFERENT application's own throwaway
     // prefix — the case that proves the guard keys on the whole pattern and
     // not just on the hex tail.
     await expect(
-      dropTestDatabase('postgres://unreachable.invalid/otherapp_test_0123456789abcdef')
+      dropTestDatabase('postgres://unreachable.invalid/otherapp_test_0123456789abcdef'),
     ).rejects.toThrow(/Refusing to drop/);
   });
 
@@ -311,7 +311,7 @@ describe('dropTestDatabase', () => {
       const { dropTestDatabase: dropTestDatabaseUnderMock } = await import('../testing');
 
       await expect(
-        dropTestDatabaseUnderMock('postgres://db.example.com/not_a_throwaway')
+        dropTestDatabaseUnderMock('postgres://db.example.com/not_a_throwaway'),
       ).rejects.toThrow(/Refusing to drop/);
       expect(factory).not.toHaveBeenCalled();
     });
@@ -341,11 +341,11 @@ describe('dropTestDatabase', () => {
       const { dropTestDatabase: dropTestDatabaseUnderMock } = await import('../testing');
 
       await dropTestDatabaseUnderMock(
-        'postgres://user:pass@db.example.com:5432/oxydb_test_0123456789abcdef?sslmode=require'
+        'postgres://user:pass@db.example.com:5432/oxydb_test_0123456789abcdef?sslmode=require',
       );
 
       expect(constructedWith).toBe(
-        'postgres://user:pass@db.example.com:5432/postgres?sslmode=require'
+        'postgres://user:pass@db.example.com:5432/postgres?sslmode=require',
       );
       expect(statements).toEqual([
         'drop database if exists "oxydb_test_0123456789abcdef" with (force)',
@@ -370,7 +370,7 @@ describe('dropTestDatabase', () => {
               endCalls += 1;
               return Promise.resolve(undefined);
             }),
-          })
+          }),
         );
         return { __esModule: true, default: factory };
       });
@@ -378,7 +378,7 @@ describe('dropTestDatabase', () => {
       const { dropTestDatabase: dropTestDatabaseUnderMock } = await import('../testing');
 
       await expect(
-        dropTestDatabaseUnderMock('postgres://db.example.com/oxydb_test_0123456789abcdef')
+        dropTestDatabaseUnderMock('postgres://db.example.com/oxydb_test_0123456789abcdef'),
       ).rejects.toThrow('simulated drop failure');
 
       expect(endCalls).toBe(1);

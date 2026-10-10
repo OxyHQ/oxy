@@ -49,7 +49,7 @@ class SpamService {
         return { score: 0, action: 'no action', isSpam: false };
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         score?: number;
         action?: string;
         symbols?: Record<string, { score: number; description?: string }>;

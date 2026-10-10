@@ -36,7 +36,9 @@ export class FederatedAvatarWriteRefused extends Error {
  * inside the UPDATE, so a file id a concurrent mirror just stored is kept.
  */
 export function avatarKeepingMirror(): SQL<string | null> {
-  return sql<string | null>`case when ${users.avatar} ~ ${sql.raw(`'${AVATAR_FILE_ID_SQL_PATTERN}'`)} then ${users.avatar} else null end`;
+  return sql<
+    string | null
+  >`case when ${users.avatar} ~ ${sql.raw(`'${AVATAR_FILE_ID_SQL_PATTERN}'`)} then ${users.avatar} else null end`;
 }
 
 export type FederatedAvatarWrite =
@@ -60,7 +62,12 @@ export const PERMANENT_RETRY_SECONDS = 24 * 60 * 60;
 function retryState(write: Exclude<FederatedAvatarWrite, { fileId: string }>) {
   const kept = avatarKeepingMirror();
   if (write === 'no_source_picture') {
-    return { avatar: kept, federationAvatarRetryAt: null, federationAvatarAttempts: 0, federationAvatarFailure: null };
+    return {
+      avatar: kept,
+      federationAvatarRetryAt: null,
+      federationAvatarAttempts: 0,
+      federationAvatarFailure: null,
+    };
   }
   // `attempts` in the expressions is the value BEFORE this failure.
   const delay = write.permanent
@@ -97,16 +104,29 @@ export async function persistFederatedAvatar(
     throw new FederatedAvatarWriteRefused();
   }
   const {
-    avatar: _avatar, federationAvatarRetryAt: _retryAt, federationAvatarAttempts: _attempts, federationAvatarFailure: _failure,
+    avatar: _avatar,
+    federationAvatarRetryAt: _retryAt,
+    federationAvatarAttempts: _attempts,
+    federationAvatarFailure: _failure,
     ...rest
   } = extra as typeof extra & { avatar?: unknown };
   const state = isFile
-    ? { avatar: write.fileId, federationAvatarRetryAt: null, federationAvatarAttempts: 0, federationAvatarFailure: null }
+    ? {
+        avatar: write.fileId,
+        federationAvatarRetryAt: null,
+        federationAvatarAttempts: 0,
+        federationAvatarFailure: null,
+      }
     : retryState(write as Exclude<FederatedAvatarWrite, { fileId: string }>);
-  const where = expectedCurrent === undefined
-    ? eq(users.id, userId)
-    : and(eq(users.id, userId), expectedCurrent === null ? isNull(users.avatar) : eq(users.avatar, expectedCurrent));
-  const written = await getDb().update(users)
+  const where =
+    expectedCurrent === undefined
+      ? eq(users.id, userId)
+      : and(
+          eq(users.id, userId),
+          expectedCurrent === null ? isNull(users.avatar) : eq(users.avatar, expectedCurrent),
+        );
+  const written = await getDb()
+    .update(users)
     .set({ ...rest, ...state })
     .where(where)
     .returning({ id: users.id });

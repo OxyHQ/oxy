@@ -25,7 +25,6 @@ import { setPlatformOS } from '../../utils/platform';
 jest.mock(
   'expo-secure-store',
   () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createSecureStoreMock } = require('./identityMocks');
     return createSecureStoreMock();
   },
@@ -49,21 +48,16 @@ jest.mock(
 
 jest.mock('@oxy.so/protocol', () => {
   const actual = jest.requireActual('@oxy.so/protocol');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { createAsyncStorageMock } = require('./identityMocks');
   const asyncStorage = createAsyncStorageMock();
   return {
     __esModule: true,
     ...actual,
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     loadExpoCrypto: async () => require('expo-crypto'),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     loadSecureStore: async () => require('expo-secure-store'),
     loadAsyncStorage: async () => ({ default: asyncStorage }),
     loadCommonsIdentityBridge: async () => null,
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     loadNodeCrypto: async () => require('node:crypto'),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     getRandomBytesRN: (n: number) => require('expo-crypto').getRandomBytes(n),
   };
 });
@@ -81,7 +75,12 @@ interface SecureStoreTestHandle {
   __getRaw__: (key: string, service?: string) => string | null;
   __setRaw__: (key: string, value: string, service?: string) => void;
   __deleteRaw__: (key: string, service?: string) => void;
-  __failPlan__: { failKey?: string; failOp?: 'set' | 'get'; failTimes?: number; failService?: string };
+  __failPlan__: {
+    failKey?: string;
+    failOp?: 'set' | 'get';
+    failTimes?: number;
+    failService?: string;
+  };
 }
 
 describe('KeyManager atomicity & recoverability under flaky storage', () => {
@@ -239,7 +238,9 @@ describe('KeyManager atomicity & recoverability under flaky storage', () => {
     ss.__failPlan__.failOp = 'set';
     ss.__failPlan__.failKey = V2_PRIV;
     ss.__failPlan__.failService = PRIMARY_SVC;
-    await expect(KeyManager.importKeyPair(rotated.privateKey, { overwrite: true })).rejects.toBeDefined();
+    await expect(
+      KeyManager.importKeyPair(rotated.privateKey, { overwrite: true }),
+    ).rejects.toBeDefined();
 
     // Recover from the simulated fault.
     ss.__failPlan__.failKey = undefined;

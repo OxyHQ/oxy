@@ -112,7 +112,7 @@ export function normalizeDisplayValue(value: string, maxLength: number): string 
 function withNormalizedKeys(
   source: UnknownRecord,
   keys: readonly string[],
-  normalize: (value: string) => string
+  normalize: (value: string) => string,
 ): UnknownRecord {
   const result: UnknownRecord = { ...source };
   for (const key of keys) {
@@ -209,7 +209,7 @@ export function normalizeLocations(value: unknown): unknown {
       next.address = withNormalizedKeys(
         next.address,
         LOCATION_ADDRESS_TEXT_KEYS,
-        normalizeLocationText
+        normalizeLocationText,
       );
     }
     normalized.push(next);

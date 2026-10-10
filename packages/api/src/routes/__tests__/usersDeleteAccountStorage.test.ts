@@ -26,7 +26,11 @@ jest.mock('../../middleware/auth', () => ({
     if (currentUserId) req.user = { id: currentUserId };
     next();
   },
-  serviceAuthMiddleware: (req: { serviceApp?: { appId: string } }, _res: unknown, next: () => void) => {
+  serviceAuthMiddleware: (
+    req: { serviceApp?: { appId: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     if (currentServiceAppId) req.serviceApp = { appId: currentServiceAppId };
     next();
   },
@@ -102,7 +106,9 @@ let server: http.Server;
 
 beforeAll(async () => {
   process.env.SERVICE_TOKEN_SIGNING_KEY_ID = 'users-delete-storage-test';
-  process.env.SERVICE_TOKEN_PRIVATE_KEY = signingKey.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  process.env.SERVICE_TOKEN_PRIVATE_KEY = signingKey.privateKey
+    .export({ type: 'pkcs8', format: 'pem' })
+    .toString();
   delete process.env.SERVICE_TOKEN_PUBLIC_JWKS;
   await connectPostgres();
   const app = express();
@@ -118,7 +124,9 @@ afterAll(async () => {
   await closePostgres();
 });
 
-async function callDelete(body: unknown): Promise<{ status: number; body: { data?: { retained?: boolean } } }> {
+async function callDelete(
+  body: unknown,
+): Promise<{ status: number; body: { data?: { retained?: boolean } } }> {
   const address = server.address() as AddressInfo;
   const payload = JSON.stringify(body);
   return new Promise((resolve, reject) => {
@@ -128,12 +136,19 @@ async function callDelete(body: unknown): Promise<{ status: number; body: { data
         port: address.port,
         path: '/users/me',
         method: 'DELETE',
-        headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) },
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(payload),
+        },
       },
       (res) => {
         let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data ? JSON.parse(data) : {} }));
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: data ? JSON.parse(data) : {} }),
+        );
       },
     );
     req.on('error', reject);
@@ -156,13 +171,23 @@ async function seedPersonWithUploads() {
   const storageKey = `public/content/2026/09/${sha256.slice(0, 2)}/${sha256}.jpg`;
   const [photo] = await getDb()
     .insert(files)
-    .values({ sha256, size: 10, mime: 'image/jpeg', ext: 'jpg', ownerUserId: person!.id, storageKey, visibility: 'public' })
+    .values({
+      sha256,
+      size: 10,
+      mime: 'image/jpeg',
+      ext: 'jpg',
+      ownerUserId: person!.id,
+      storageKey,
+      visibility: 'public',
+    })
     .returning({ id: files.id });
-  await getDb().insert(fileVariants).values({
-    fileId: photo!.id,
-    type: 'thumb',
-    key: `public/variants/2026/09/${sha256.slice(0, 2)}/${sha256}/thumb.webp`,
-  });
+  await getDb()
+    .insert(fileVariants)
+    .values({
+      fileId: photo!.id,
+      type: 'thumb',
+      key: `public/variants/2026/09/${sha256.slice(0, 2)}/${sha256}/thumb.webp`,
+    });
   return { person: person!, photoId: photo!.id, sha256 };
 }
 
@@ -171,10 +196,12 @@ function deleteBody(username: string) {
 }
 
 async function owed(accountId: string) {
-  return (await getDb()
-    .select({ kind: storageObjectDeletions.kind, target: storageObjectDeletions.target })
-    .from(storageObjectDeletions)
-    .where(eq(storageObjectDeletions.accountId, accountId)))
+  return (
+    await getDb()
+      .select({ kind: storageObjectDeletions.kind, target: storageObjectDeletions.target })
+      .from(storageObjectDeletions)
+      .where(eq(storageObjectDeletions.accountId, accountId))
+  )
     .map((row) => `${row.kind}:${row.target}`)
     .sort();
 }
@@ -193,7 +220,9 @@ describe("DELETE /users/me deletes the account's stored uploads", () => {
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ retained: false });
 
-    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.id, photoId))).toHaveLength(0);
+    expect(
+      await getDb().select({ id: files.id }).from(files).where(eq(files.id, photoId)),
+    ).toHaveLength(0);
     expect(await owed(person.id)).toEqual([
       `object:content/2026/09/${sha256.slice(0, 2)}/${sha256}.jpg`,
       `prefix:variants/2026/09/${sha256.slice(0, 2)}/${sha256}/`,
@@ -209,9 +238,14 @@ describe("DELETE /users/me deletes the account's stored uploads", () => {
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ retained: true });
 
-    const [account] = await getDb().select({ status: users.accountStatus }).from(users).where(eq(users.id, person.id));
+    const [account] = await getDb()
+      .select({ status: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, person.id));
     expect(account).toMatchObject({ status: 'archived' });
-    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.id, photoId))).toHaveLength(0);
+    expect(
+      await getDb().select({ id: files.id }).from(files).where(eq(files.id, photoId)),
+    ).toHaveLength(0);
     expect(await owed(person.id)).toEqual([
       `object:content/2026/09/${sha256.slice(0, 2)}/${sha256}.jpg`,
       `prefix:variants/2026/09/${sha256.slice(0, 2)}/${sha256}/`,
@@ -225,7 +259,9 @@ describe("DELETE /users/me deletes the account's stored uploads", () => {
 
     const response = await callDelete(deleteBody(person.username!));
     expect(response.status).toBe(401);
-    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.id, photoId))).toHaveLength(1);
+    expect(
+      await getDb().select({ id: files.id }).from(files).where(eq(files.id, photoId)),
+    ).toHaveLength(1);
     expect(await owed(person.id)).toEqual([]);
   });
 });

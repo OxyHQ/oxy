@@ -26,7 +26,7 @@ export interface UseNetworkReconnectOptions {
 
 /**
  * Hook that monitors network connectivity and automatically syncs identity when online.
- * 
+ *
  * Features:
  * - Circuit breaker pattern to prevent excessive retries
  * - Exponential backoff for failed network checks
@@ -34,19 +34,11 @@ export interface UseNetworkReconnectOptions {
  * - Respects sync lock to prevent concurrent operations
  */
 export const useNetworkReconnect = (options: UseNetworkReconnectOptions): void => {
-  const {
-    oxyServices,
-    isAuthenticated,
-    hasIdentity,
-    syncIdentity,
-    isSyncing,
-  } = options;
+  const { oxyServices, isAuthenticated, hasIdentity, syncIdentity, isSyncing } = options;
 
   const wasOfflineRef = useRef(false);
   const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const circuitBreakerRef = useRef<CircuitBreakerState>(
-    createCircuitBreakerState()
-  );
+  const circuitBreakerRef = useRef<CircuitBreakerState>(createCircuitBreakerState());
 
   useEffect(() => {
     if (!oxyServices) return;
@@ -99,7 +91,10 @@ export const useNetworkReconnect = (options: UseNetworkReconnectOptions): void =
             } else if (!isTimeoutOrNetworkError(syncError)) {
               // Only log unexpected errors
               if (__DEV__) {
-                console.warn('[useNetworkReconnect] Error syncing identity on reconnect', syncError);
+                console.warn(
+                  '[useNetworkReconnect] Error syncing identity on reconnect',
+                  syncError,
+                );
               }
             }
           }

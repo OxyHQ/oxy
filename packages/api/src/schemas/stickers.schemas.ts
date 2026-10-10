@@ -34,7 +34,7 @@ const commaList = (maxItems: number, maxLength: number) =>
       value
         .split(',')
         .map((item) => item.trim())
-        .filter((item) => item.length > 0)
+        .filter((item) => item.length > 0),
     )
     .pipe(z.array(z.string().max(maxLength)).max(maxItems));
 

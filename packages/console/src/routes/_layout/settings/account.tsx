@@ -59,11 +59,7 @@ import {
   useTransferAccountOwnership,
   useUpdateAccountMember,
 } from '@/hooks/use-account';
-import {
-  USER_NOT_FOUND_MESSAGE,
-  getErrorMessage,
-  isUserNotFoundError,
-} from '@/lib/api-error';
+import { USER_NOT_FOUND_MESSAGE, getErrorMessage, isUserNotFoundError } from '@/lib/api-error';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
 
 export const Route = createFileRoute('/_layout/settings/account')({
@@ -87,7 +83,13 @@ const roleDescriptions: Record<AssignableAccountRole, string> = {
   viewer: 'Read-only access',
 };
 
-const ASSIGNABLE_ROLES: Array<AssignableAccountRole> = ['admin', 'editor', 'developer', 'billing', 'viewer'];
+const ASSIGNABLE_ROLES: Array<AssignableAccountRole> = [
+  'admin',
+  'editor',
+  'developer',
+  'billing',
+  'viewer',
+];
 
 /** Short, readable handle for a member identified only by user id. */
 function shortUserId(userId: string): string {
@@ -115,8 +117,7 @@ function AccountSettingsPage() {
 
   // The display label for the account: its canonical `name.displayName`, falling
   // back to the handle. Used in the header and delete confirmation.
-  const accountLabel =
-    accountUser?.name?.displayName ?? getNormalizedUserHandle(accountUser) ?? '';
+  const accountLabel = accountUser?.name?.displayName ?? getNormalizedUserHandle(accountUser) ?? '';
 
   // Personal accounts show the signed-in user's avatar (read-only — it is
   // managed in the user's Oxy account). Resolved the same way as `nav-user.tsx`.
@@ -175,7 +176,12 @@ function AccountSettingsPage() {
     setName(currentAccount.account.name?.displayName ?? '');
     setBio(currentAccount.account.bio ?? '');
     setAvatar(currentAccount.account.avatar ?? '');
-  }, [currentAccount?.accountId, currentAccount?.account.bio, currentAccount?.account.avatar, currentAccount?.account.name?.displayName]);
+  }, [
+    currentAccount?.accountId,
+    currentAccount?.account.bio,
+    currentAccount?.account.avatar,
+    currentAccount?.account.name?.displayName,
+  ]);
 
   // Invite dialog state
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -350,7 +356,7 @@ function AccountSettingsPage() {
     } catch (error) {
       // The API returns 409 when the account still owns applications.
       toast.error(
-        getErrorMessage(error, 'Failed to archive account. Move or delete its apps first.')
+        getErrorMessage(error, 'Failed to archive account. Move or delete its apps first.'),
       );
     } finally {
       setIsDeleting(false);
@@ -416,7 +422,11 @@ function AccountSettingsPage() {
                 label="Account avatar"
                 onError={(message) => toast.error(message)}
                 fallback={
-                  <HugeiconsIcon icon={UserMultiple02Icon} size={24} className="text-muted-foreground" />
+                  <HugeiconsIcon
+                    icon={UserMultiple02Icon}
+                    size={24}
+                    className="text-muted-foreground"
+                  />
                 }
               />
             )}
@@ -495,8 +505,7 @@ function AccountSettingsPage() {
                 // that ancestor's own members screen.
                 const isEditableHere = (member.source ?? 'direct') === 'direct';
                 const canEditThisRole = canManage && isEditableHere && !isOwner;
-                const canRemoveThisMember =
-                  canManage && isEditableHere && !isOwner && !isLastOwner;
+                const canRemoveThisMember = canManage && isEditableHere && !isOwner && !isLastOwner;
                 const canTransferToThis = canTransfer && isEditableHere && !isOwner;
 
                 return (
@@ -611,11 +620,7 @@ function AccountSettingsPage() {
                       </div>
                     </div>
                     {canManage && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCancelInvite(invite)}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => handleCancelInvite(invite)}>
                         Cancel
                       </Button>
                     )}

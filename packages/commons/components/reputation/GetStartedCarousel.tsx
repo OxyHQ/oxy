@@ -48,7 +48,12 @@ const CARD_WIDTH = 256;
  * the accent colour; this is a 40pt rounded SQUARE in the duty's own colour, and
  * the colour is the point — each duty is a different one.
  */
-export function GetStartedCarousel({ title, dismissLabel, items, onDismiss }: GetStartedCarouselProps) {
+export function GetStartedCarousel({
+  title,
+  dismissLabel,
+  items,
+  onDismiss,
+}: GetStartedCarouselProps) {
   const colors = useColors();
 
   return (

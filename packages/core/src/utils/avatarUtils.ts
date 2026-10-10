@@ -2,7 +2,9 @@ import { logger } from '../logger';
 
 /** What `updateAvatarVisibility` needs of a client: `oxy.assets.setVisibility`. */
 export interface AssetVisibilityService {
-  assets: { setVisibility(fileId: string, visibility: 'private' | 'public' | 'unlisted'): Promise<unknown> };
+  assets: {
+    setVisibility(fileId: string, visibility: 'private' | 'public' | 'unlisted'): Promise<unknown>;
+  };
 }
 
 /**
@@ -16,7 +18,7 @@ export interface AssetVisibilityService {
 export async function updateAvatarVisibility(
   fileId: string | undefined,
   oxyServices: AssetVisibilityService,
-  contextName = 'AvatarUtils'
+  contextName = 'AvatarUtils',
 ): Promise<void> {
   if (!fileId || fileId.startsWith('temp-')) {
     return;
@@ -26,11 +28,14 @@ export async function updateAvatarVisibility(
     await oxyServices.assets.setVisibility(fileId, 'public');
   } catch (visError: unknown) {
     // 404 is expected when asset doesn't exist yet — skip logging
-    const status = (visError instanceof Error && 'status' in visError)
-      ? (visError as Error & { status: number }).status
-      : undefined;
+    const status =
+      visError instanceof Error && 'status' in visError
+        ? (visError as Error & { status: number }).status
+        : undefined;
     if (status !== 404) {
-      logger.error(`[${contextName}] Failed to update avatar visibility for ${fileId}`, visError, { component: contextName });
+      logger.error(`[${contextName}] Failed to update avatar visibility for ${fileId}`, visError, {
+        component: contextName,
+      });
     }
   }
 }

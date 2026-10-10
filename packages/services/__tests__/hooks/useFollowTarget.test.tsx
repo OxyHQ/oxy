@@ -10,7 +10,11 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
   useOxy: () => ({
     canUsePrivateApi: true,
     oxyServices: {
-      follows: { targetStatus: jest.fn(), restoreInheritance: restoreFollowInheritance, setApplicationMode: setFollowApplicationMode },
+      follows: {
+        targetStatus: jest.fn(),
+        restoreInheritance: restoreFollowInheritance,
+        setApplicationMode: setFollowApplicationMode,
+      },
     },
   }),
 }));

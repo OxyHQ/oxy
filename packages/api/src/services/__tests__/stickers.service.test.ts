@@ -97,7 +97,17 @@ function lottie(overrides: Record<string, unknown> = {}, pretty = false): Buffer
       { ty: 'fl', c: { a: 0, k: [0.2, 0.4, 0.9, 1] }, o: { a: 0, k: 100 }, r: 1 },
     ],
   };
-  const document = { v: '5.7.4', fr: 30, ip: 0, op: 60, w: 512, h: 512, layers: [square], assets: [], ...overrides };
+  const document = {
+    v: '5.7.4',
+    fr: 30,
+    ip: 0,
+    op: 60,
+    w: 512,
+    h: 512,
+    layers: [square],
+    assets: [],
+    ...overrides,
+  };
   return Buffer.from(pretty ? JSON.stringify(document, null, 2) : JSON.stringify(document));
 }
 
@@ -134,7 +144,7 @@ async function packWithStickers(count: number, emoji = '😀') {
         fallback: { buffer: fallbackPng, mime: 'image/png' },
         emoji: [emoji],
         keywords: ['Happy', 'happy', 'Smile'],
-      })
+      }),
     );
   }
   return { pack, stickers };
@@ -142,7 +152,11 @@ async function packWithStickers(count: number, emoji = '😀') {
 
 describe('normalizing an animation', () => {
   it('accepts a 512 or 1024 square canvas and reads the loop length', () => {
-    expect(normalizeStickerAnimation(lottie())).toMatchObject({ size: 512, durationMs: 2000, removedExpressions: 0 });
+    expect(normalizeStickerAnimation(lottie())).toMatchObject({
+      size: 512,
+      durationMs: 2000,
+      removedExpressions: 0,
+    });
     expect(normalizeStickerAnimation(lottie({ w: 1024, h: 1024 })).size).toBe(1024);
   });
 
@@ -156,7 +170,9 @@ describe('normalizing an animation', () => {
   });
 
   it('removes expressions and says how many', () => {
-    const withExpression = lottie({ layers: [{ ks: { o: { a: 0, k: 100, x: 'var $bm_rt; $bm_rt = value;' } } }] });
+    const withExpression = lottie({
+      layers: [{ ks: { o: { a: 0, k: 100, x: 'var $bm_rt; $bm_rt = value;' } } }],
+    });
     const normalized = normalizeStickerAnimation(withExpression);
     expect(normalized.removedExpressions).toBe(1);
     expect(normalized.json.toString()).not.toContain('$bm_rt');
@@ -166,7 +182,10 @@ describe('normalizing an animation', () => {
     ['a canvas that is not an allowed square', lottie({ w: 512, h: 256 })],
     ['a loop over ten seconds', lottie({ op: 330 })],
     ['a frame rate over 60', lottie({ fr: 120, op: 120 })],
-    ['an embedded image', lottie({ assets: [{ id: 'img', p: 'data:image/png;base64,AAAA', e: 1 }] })],
+    [
+      'an embedded image',
+      lottie({ assets: [{ id: 'img', p: 'data:image/png;base64,AAAA', e: 1 }] }),
+    ],
     ['something that is not Lottie', Buffer.from('{"hello":"world"}')],
     ['something that is not JSON', Buffer.from('not json')],
   ])('refuses %s', (_label, buffer) => {
@@ -213,17 +232,34 @@ describe('building a pack', () => {
     })
       .png()
       .toBuffer();
-    const before = await getDb().select({ id: files.id }).from(files).where(eq(files.systemOwner, '__stickers__'));
+    const before = await getDb()
+      .select({ id: files.id })
+      .from(files)
+      .where(eq(files.systemOwner, '__stickers__'));
     await expect(
-      addSticker({ packId: pack.id, animation: lottie(), fallback: { buffer: small, mime: 'image/png' }, emoji: ['😀'], keywords: [] })
+      addSticker({
+        packId: pack.id,
+        animation: lottie(),
+        fallback: { buffer: small, mime: 'image/png' },
+        emoji: ['😀'],
+        keywords: [],
+      }),
     ).rejects.toThrow(BadRequestError);
-    const after = await getDb().select({ id: files.id }).from(files).where(eq(files.systemOwner, '__stickers__'));
+    const after = await getDb()
+      .select({ id: files.id })
+      .from(files)
+      .where(eq(files.systemOwner, '__stickers__'));
     expect(after).toHaveLength(before.length);
   });
 
   it('renders the fallback when none is supplied', async () => {
     const pack = await createPack({ slug: slug(), title: 'Rendered' });
-    const sticker = await addSticker({ packId: pack.id, animation: lottie(), emoji: ['🟦'], keywords: [] });
+    const sticker = await addSticker({
+      packId: pack.id,
+      animation: lottie(),
+      emoji: ['🟦'],
+      keywords: [],
+    });
     expect(sticker.fallback.mime).toBe('image/webp');
   });
 
@@ -273,7 +309,9 @@ describe('what readers see', () => {
     const emoji = `🧪${randomUUID().slice(0, 4)}`;
     const { pack, stickers } = await packWithStickers(1, emoji);
     await publishPack(pack.id);
-    expect((await searchStickers({ emoji, limit: 10 })).map((sticker) => sticker.id)).toEqual([stickers[0].id]);
+    expect((await searchStickers({ emoji, limit: 10 })).map((sticker) => sticker.id)).toEqual([
+      stickers[0].id,
+    ]);
     const byKeyword = await searchStickers({ q: 'SMILE', limit: 100 });
     expect(byKeyword.map((sticker) => sticker.id)).toContain(stickers[0].id);
   });
@@ -303,7 +341,10 @@ describe('the catalogue protects what messages point at', () => {
 
   it('will not let a sticker file be deleted out from under a sticker', async () => {
     const { stickers } = await packWithStickers(1);
-    const [row] = await getDb().select({ id: files.id, sha256: files.sha256 }).from(files).where(eq(files.sha256, stickers[0].animation.sha256));
+    const [row] = await getDb()
+      .select({ id: files.id, sha256: files.sha256 })
+      .from(files)
+      .where(eq(files.sha256, stickers[0].animation.sha256));
     await expect(getDb().delete(files).where(eq(files.id, row.id))).rejects.toThrow();
   });
 });
@@ -350,10 +391,15 @@ describe('a person’s picker', () => {
     await installPack(userId, b.pack.id);
 
     await expect(reorderInstalledPacks(userId, [b.pack.id])).rejects.toThrow(BadRequestError);
-    await expect(reorderInstalledPacks(userId, [b.pack.id, b.pack.id])).rejects.toThrow(BadRequestError);
+    await expect(reorderInstalledPacks(userId, [b.pack.id, b.pack.id])).rejects.toThrow(
+      BadRequestError,
+    );
 
     await reorderInstalledPacks(userId, [b.pack.id, a.pack.id]);
-    expect((await listInstalledPacks(userId)).map((pack) => pack.id)).toEqual([b.pack.id, a.pack.id]);
+    expect((await listInstalledPacks(userId)).map((pack) => pack.id)).toEqual([
+      b.pack.id,
+      a.pack.id,
+    ]);
 
     await uninstallPack(userId, b.pack.id);
     expect((await listInstalledPacks(userId)).map((pack) => pack.id)).toEqual([a.pack.id]);

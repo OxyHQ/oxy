@@ -1,6 +1,6 @@
 /**
  * Session Types
- * 
+ *
  * Centralized type definitions for session-related operations.
  */
 
@@ -106,4 +106,3 @@ export interface SessionRefreshResult {
   refreshToken: string;
   session: CachedSession;
 }
-

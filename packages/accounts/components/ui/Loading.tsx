@@ -21,11 +21,5 @@ export const LoadingSpinner: FC<LoadingSpinnerProps> = ({
   showText = false,
   style,
 }) => (
-  <Loading
-    variant="spinner"
-    iconSize={iconSize}
-    color={color}
-    showText={showText}
-    style={style}
-  />
+  <Loading variant="spinner" iconSize={iconSize} color={color} showText={showText} style={style} />
 );

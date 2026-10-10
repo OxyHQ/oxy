@@ -2,11 +2,19 @@ import { avatarKeepingMirror } from '../utils/federatedAvatar';
 import { ConflictError } from '../utils/error';
 import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
-import { canonicalUserRedirects, externalIdentities, externalIdentityActors, externalIdentityClaims } from '../db/schema/externalIdentities';
+import {
+  canonicalUserRedirects,
+  externalIdentities,
+  externalIdentityActors,
+  externalIdentityClaims,
+} from '../db/schema/externalIdentities';
 import { users } from '../db/schema/users';
 import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { revokeMetaIdentityProof } from './federation/metaIdentityProofRegistry.service';
-import { INSTAGRAM_GRAPH_PROTOCOL, instagramGraphUserIdFromActorUri } from './federation/instagramGraph';
+import {
+  INSTAGRAM_GRAPH_PROTOCOL,
+  instagramGraphUserIdFromActorUri,
+} from './federation/instagramGraph';
 import { blocks } from '../db/schema/blocks';
 import { restrictions } from '../db/schema/restrictions';
 import { userFollows } from '../db/schema/userFollows';
@@ -36,11 +44,17 @@ export function normalizeExternalAcct(value: string): string {
   return value.trim().replace(/^@/, '').toLowerCase();
 }
 
-async function resolvePhysicalUserId(id: string, db: DatabaseOrTransaction = getDb()): Promise<string> {
+async function resolvePhysicalUserId(
+  id: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<string> {
   const seen = new Set<string>();
   while (!seen.has(id)) {
     seen.add(id);
-    const [redirect] = await db.select().from(canonicalUserRedirects).where(eq(canonicalUserRedirects.userId, id));
+    const [redirect] = await db
+      .select()
+      .from(canonicalUserRedirects)
+      .where(eq(canonicalUserRedirects.userId, id));
     if (!redirect) return id;
     id = redirect.canonicalUserId;
   }
@@ -49,12 +63,24 @@ async function resolvePhysicalUserId(id: string, db: DatabaseOrTransaction = get
 
 export async function lookupExternalIdentity(value: string): Promise<string | null> {
   const db = getDb();
-  const [identity] = await db.select({ userId: externalIdentities.userId }).from(externalIdentities)
+  const [identity] = await db
+    .select({ userId: externalIdentities.userId })
+    .from(externalIdentities)
     .where(eq(externalIdentities.canonicalAcct, normalizeExternalAcct(value)));
   if (identity) return resolveCanonicalUserId(identity.userId, db);
-  const [actor] = await db.select({ userId: externalIdentities.userId }).from(externalIdentityActors)
-    .innerJoin(externalIdentities, eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct))
-    .where(or(eq(externalIdentityActors.actorUri, value), eq(externalIdentityActors.transportAcct, normalizeExternalAcct(value))));
+  const [actor] = await db
+    .select({ userId: externalIdentities.userId })
+    .from(externalIdentityActors)
+    .innerJoin(
+      externalIdentities,
+      eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct),
+    )
+    .where(
+      or(
+        eq(externalIdentityActors.actorUri, value),
+        eq(externalIdentityActors.transportAcct, normalizeExternalAcct(value)),
+      ),
+    );
   return actor ? resolveCanonicalUserId(actor.userId, db) : null;
 }
 
@@ -106,9 +132,15 @@ export function canonicalExternalUserMapQuery(seedQuery: SQL): SQL {
     having bool_and(visible_member.account_status <> 'archived' and visible_member.reputation_tier <> 'restricted' and visible_member.privacy_is_private_account = false)`;
 }
 
-export async function getEquivalentUserGroups(userIds: string[], db: DatabaseOrTransaction = getDb()): Promise<Record<string, string[]>> {
+export async function getEquivalentUserGroups(
+  userIds: string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Record<string, string[]>> {
   if (!userIds.length) return {};
-  const seeds = sql.join([...new Set(userIds)].map(id => sql`(${id}::text)`), sql`, `);
+  const seeds = sql.join(
+    [...new Set(userIds)].map((id) => sql`(${id}::text)`),
+    sql`, `,
+  );
   const rows = await db.execute<{ root_id: string; user_id: string }>(sql`
     ${externalIdentityGroupCtes(sql`values ${seeds}`)}
     select root_id, user_id from members
@@ -120,30 +152,54 @@ export async function getEquivalentUserGroups(userIds: string[], db: DatabaseOrT
   return groups;
 }
 
-export async function getEquivalentUserIds(userId: string, db: DatabaseOrTransaction = getDb()): Promise<string[]> {
+export async function getEquivalentUserIds(
+  userId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<string[]> {
   return (await getEquivalentUserGroups([userId], db))[userId] ?? [userId];
 }
 
-export async function expandEquivalentUserIds(userIds: string[], db: DatabaseOrTransaction = getDb()): Promise<string[]> {
+export async function expandEquivalentUserIds(
+  userIds: string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<string[]> {
   return [...new Set(Object.values(await getEquivalentUserGroups(userIds, db)).flat())];
 }
 
-export async function resolveCanonicalUserId(id: string, db: DatabaseOrTransaction = getDb()): Promise<string> {
+export async function resolveCanonicalUserId(
+  id: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<string> {
   const ids = await getEquivalentUserIds(id, db);
-  const [identity] = await db.select().from(externalIdentities).where(inArray(externalIdentities.userId, ids)).orderBy(externalIdentities.userId).limit(1);
+  const [identity] = await db
+    .select()
+    .from(externalIdentities)
+    .where(inArray(externalIdentities.userId, ids))
+    .orderBy(externalIdentities.userId)
+    .limit(1);
   return identity?.userId ?? resolvePhysicalUserId(id, db);
 }
 
 export async function getCanonicalUserRedirects(userId: string): Promise<string[]> {
   const canonical = await resolveCanonicalUserId(userId);
-  return (await getEquivalentUserIds(canonical)).filter(id => id !== canonical);
+  return (await getEquivalentUserIds(canonical)).filter((id) => id !== canonical);
 }
 
 export async function getExternalIdentitiesForUser(userId: string) {
-  return getDb().select({ sourceUserId: externalIdentities.userId, canonicalAcct: externalIdentities.canonicalAcct, network: externalIdentities.network,
-    protocol: externalIdentityActors.protocol, actorUri: externalIdentityActors.actorUri,
-    transportAcct: externalIdentityActors.transportAcct }).from(externalIdentities)
-    .innerJoin(externalIdentityActors, eq(externalIdentityActors.canonicalAcct, externalIdentities.canonicalAcct))
+  return getDb()
+    .select({
+      sourceUserId: externalIdentities.userId,
+      canonicalAcct: externalIdentities.canonicalAcct,
+      network: externalIdentities.network,
+      protocol: externalIdentityActors.protocol,
+      actorUri: externalIdentityActors.actorUri,
+      transportAcct: externalIdentityActors.transportAcct,
+    })
+    .from(externalIdentities)
+    .innerJoin(
+      externalIdentityActors,
+      eq(externalIdentityActors.canonicalAcct, externalIdentities.canonicalAcct),
+    )
     .where(inArray(externalIdentities.userId, await getEquivalentUserIds(userId)));
 }
 
@@ -156,56 +212,150 @@ export function linkedSourceAcct(link: string): string | null {
     const match = url.pathname.match(/^\/@?([a-zA-Z0-9._]+)\/?$/);
     if (!match || !['instagram.com', 'threads.net', 'threads.com'].includes(host)) return null;
     return `${match[1].toLowerCase()}@${host === 'threads.com' ? 'threads.net' : host}`;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function mergeUsers(tx: Transaction, from: string, to: string) {
   if (from === to) return;
-  const candidates = await tx.select({ type: users.type }).from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
-  if (candidates.length !== 2 || candidates.some(user => user.type !== 'federated')) throw new Error('Only external users may converge');
+  const candidates = await tx
+    .select({ type: users.type })
+    .from(users)
+    .where(or(eq(users.id, from), eq(users.id, to)))
+    .for('update');
+  if (candidates.length !== 2 || candidates.some((user) => user.type !== 'federated'))
+    throw new Error('Only external users may converge');
   // Keep originals for historical references; copy moderation to the canonical account first.
-  for (const row of await tx.select().from(blocks).where(or(eq(blocks.userId, from), eq(blocks.blockedId, from)))) {
+  for (const row of await tx
+    .select()
+    .from(blocks)
+    .where(or(eq(blocks.userId, from), eq(blocks.blockedId, from)))) {
     const { id: _id, ...copy } = row;
-    await tx.insert(blocks).values({ ...copy, userId: row.userId === from ? to : row.userId, blockedId: row.blockedId === from ? to : row.blockedId }).onConflictDoNothing();
+    await tx
+      .insert(blocks)
+      .values({
+        ...copy,
+        userId: row.userId === from ? to : row.userId,
+        blockedId: row.blockedId === from ? to : row.blockedId,
+      })
+      .onConflictDoNothing();
   }
-  for (const row of await tx.select().from(restrictions).where(or(eq(restrictions.userId, from), eq(restrictions.restrictedId, from)))) {
+  for (const row of await tx
+    .select()
+    .from(restrictions)
+    .where(or(eq(restrictions.userId, from), eq(restrictions.restrictedId, from)))) {
     const { id: _id, ...copy } = row;
-    await tx.insert(restrictions).values({ ...copy, userId: row.userId === from ? to : row.userId, restrictedId: row.restrictedId === from ? to : row.restrictedId }).onConflictDoNothing();
+    await tx
+      .insert(restrictions)
+      .values({
+        ...copy,
+        userId: row.userId === from ? to : row.userId,
+        restrictedId: row.restrictedId === from ? to : row.restrictedId,
+      })
+      .onConflictDoNothing();
   }
-  for (const row of await tx.select().from(userFollows).where(or(eq(userFollows.followerId, from), eq(userFollows.followedId, from)))) {
+  for (const row of await tx
+    .select()
+    .from(userFollows)
+    .where(or(eq(userFollows.followerId, from), eq(userFollows.followedId, from)))) {
     const { id: _id, ...copy } = row;
     const followerId = row.followerId === from ? to : row.followerId;
     const followedId = row.followedId === from ? to : row.followedId;
-    if (followerId !== followedId) await tx.insert(userFollows).values({ ...copy, followerId, followedId }).onConflictDoNothing();
+    if (followerId !== followedId)
+      await tx
+        .insert(userFollows)
+        .values({ ...copy, followerId, followedId })
+        .onConflictDoNothing();
     await tx.delete(userFollows).where(eq(userFollows.id, row.id));
   }
-  const [oldTarget] = await tx.select().from(followTargets).where(eq(followTargets.localUserId, from));
-  const [newTarget] = await tx.select().from(followTargets).where(eq(followTargets.localUserId, to));
-  if (oldTarget && !newTarget) await tx.update(followTargets).set({ localUserId: to }).where(eq(followTargets.id, oldTarget.id));
+  const [oldTarget] = await tx
+    .select()
+    .from(followTargets)
+    .where(eq(followTargets.localUserId, from));
+  const [newTarget] = await tx
+    .select()
+    .from(followTargets)
+    .where(eq(followTargets.localUserId, to));
+  if (oldTarget && !newTarget)
+    await tx
+      .update(followTargets)
+      .set({ localUserId: to })
+      .where(eq(followTargets.id, oldTarget.id));
   {
-    const affected = oldTarget && newTarget ? or(eq(followRelationships.followTargetId, oldTarget.id), eq(followRelationships.followerUserId, from)) : eq(followRelationships.followerUserId, from);
+    const affected =
+      oldTarget && newTarget
+        ? or(
+            eq(followRelationships.followTargetId, oldTarget.id),
+            eq(followRelationships.followerUserId, from),
+          )
+        : eq(followRelationships.followerUserId, from);
     for (const edge of await tx.select().from(followRelationships).where(affected)) {
-      const followTargetId = oldTarget && newTarget && edge.followTargetId === oldTarget.id ? newTarget.id : edge.followTargetId;
+      const followTargetId =
+        oldTarget && newTarget && edge.followTargetId === oldTarget.id
+          ? newTarget.id
+          : edge.followTargetId;
       const followerUserId = edge.followerUserId === from ? to : edge.followerUserId;
-      const [existing] = await tx.select().from(followRelationships).where(and(eq(followRelationships.followerUserId, followerUserId), eq(followRelationships.followTargetId, followTargetId)));
+      const [existing] = await tx
+        .select()
+        .from(followRelationships)
+        .where(
+          and(
+            eq(followRelationships.followerUserId, followerUserId),
+            eq(followRelationships.followTargetId, followTargetId),
+          ),
+        );
       if (!existing || existing.id === edge.id) {
-        await tx.update(followRelationships).set({ followTargetId, followerUserId }).where(eq(followRelationships.id, edge.id));
+        await tx
+          .update(followRelationships)
+          .set({ followTargetId, followerUserId })
+          .where(eq(followRelationships.id, edge.id));
       } else {
         // A rejection beats a request; an established active follow stays active.
-        const state = [existing.state, edge.state].includes('active') ? 'active' : [existing.state, edge.state].includes('rejected') ? 'rejected' : 'requested';
-        await tx.update(followRelationships).set({ state }).where(eq(followRelationships.id, existing.id));
-        for (const override of await tx.select().from(followApplicationOverrides).where(eq(followApplicationOverrides.relationshipId, edge.id))) {
+        const state = [existing.state, edge.state].includes('active')
+          ? 'active'
+          : [existing.state, edge.state].includes('rejected')
+            ? 'rejected'
+            : 'requested';
+        await tx
+          .update(followRelationships)
+          .set({ state })
+          .where(eq(followRelationships.id, existing.id));
+        for (const override of await tx
+          .select()
+          .from(followApplicationOverrides)
+          .where(eq(followApplicationOverrides.relationshipId, edge.id))) {
           const { id: _id, ...copy } = override;
-          await tx.insert(followApplicationOverrides).values({ ...copy, relationshipId: existing.id }).onConflictDoUpdate({ target: [followApplicationOverrides.relationshipId, followApplicationOverrides.applicationId], set: { mode: sql`case when ${followApplicationOverrides.mode} = 'disabled' or ${override.mode} = 'disabled' then 'disabled' else 'enabled' end` } });
+          await tx
+            .insert(followApplicationOverrides)
+            .values({ ...copy, relationshipId: existing.id })
+            .onConflictDoUpdate({
+              target: [
+                followApplicationOverrides.relationshipId,
+                followApplicationOverrides.applicationId,
+              ],
+              set: {
+                mode: sql`case when ${followApplicationOverrides.mode} = 'disabled' or ${override.mode} = 'disabled' then 'disabled' else 'enabled' end`,
+              },
+            });
         }
         // Events intentionally have no relationship foreign key: history survives deduplication.
         await tx.delete(followRelationships).where(eq(followRelationships.id, edge.id));
       }
     }
   }
-  await tx.update(externalIdentities).set({ userId: to }).where(eq(externalIdentities.userId, from));
-  await tx.update(canonicalUserRedirects).set({ canonicalUserId: to }).where(eq(canonicalUserRedirects.canonicalUserId, from));
-  await tx.insert(canonicalUserRedirects).values({ userId: from, canonicalUserId: to }).onConflictDoNothing();
+  await tx
+    .update(externalIdentities)
+    .set({ userId: to })
+    .where(eq(externalIdentities.userId, from));
+  await tx
+    .update(canonicalUserRedirects)
+    .set({ canonicalUserId: to })
+    .where(eq(canonicalUserRedirects.canonicalUserId, from));
+  await tx
+    .insert(canonicalUserRedirects)
+    .values({ userId: from, canonicalUserId: to })
+    .onConflictDoNothing();
 }
 
 /**
@@ -221,39 +371,85 @@ async function mergeUsers(tx: Transaction, from: string, to: string) {
  * (`followCommand.moveAccountFollowers`); the old account's OWN blocks, follows
  * and identity rows stay where they are.
  */
-export async function applyVerifiedMoveRedirect(tx: Transaction, input: { fromUserId: string; toUserId: string }): Promise<void> {
+export async function applyVerifiedMoveRedirect(
+  tx: Transaction,
+  input: { fromUserId: string; toUserId: string },
+): Promise<void> {
   const { fromUserId: from, toUserId: to } = input;
-  const candidates = await tx.select({ id: users.id, type: users.type }).from(users).where(or(eq(users.id, from), eq(users.id, to))).for('update');
-  if (candidates.find(user => user.id === from)?.type !== 'federated' || candidates.find(user => user.id === to)?.type !== 'local') {
+  const candidates = await tx
+    .select({ id: users.id, type: users.type })
+    .from(users)
+    .where(or(eq(users.id, from), eq(users.id, to)))
+    .for('update');
+  if (
+    candidates.find((user) => user.id === from)?.type !== 'federated' ||
+    candidates.find((user) => user.id === to)?.type !== 'local'
+  ) {
     throw new Error('A verified Move converges a federated account into a local one');
   }
-  const carriedBlocks = await tx.select().from(blocks).where(and(eq(blocks.blockedId, from), ne(blocks.userId, to)));
+  const carriedBlocks = await tx
+    .select()
+    .from(blocks)
+    .where(and(eq(blocks.blockedId, from), ne(blocks.userId, to)));
   if (carriedBlocks.length) {
-    await tx.insert(blocks).values(carriedBlocks.map(({ id: _id, ...row }) => ({ ...row, blockedId: to }))).onConflictDoNothing();
+    await tx
+      .insert(blocks)
+      .values(carriedBlocks.map(({ id: _id, ...row }) => ({ ...row, blockedId: to })))
+      .onConflictDoNothing();
   }
-  const carriedRestrictions = await tx.select().from(restrictions).where(and(eq(restrictions.restrictedId, from), ne(restrictions.userId, to)));
+  const carriedRestrictions = await tx
+    .select()
+    .from(restrictions)
+    .where(and(eq(restrictions.restrictedId, from), ne(restrictions.userId, to)));
   if (carriedRestrictions.length) {
-    await tx.insert(restrictions).values(carriedRestrictions.map(({ id: _id, ...row }) => ({ ...row, restrictedId: to }))).onConflictDoNothing();
+    await tx
+      .insert(restrictions)
+      .values(carriedRestrictions.map(({ id: _id, ...row }) => ({ ...row, restrictedId: to })))
+      .onConflictDoNothing();
   }
-  await tx.update(canonicalUserRedirects).set({ canonicalUserId: to }).where(eq(canonicalUserRedirects.canonicalUserId, from));
-  await tx.insert(canonicalUserRedirects).values({ userId: from, canonicalUserId: to }).onConflictDoNothing();
+  await tx
+    .update(canonicalUserRedirects)
+    .set({ canonicalUserId: to })
+    .where(eq(canonicalUserRedirects.canonicalUserId, from));
+  await tx
+    .insert(canonicalUserRedirects)
+    .values({ userId: from, canonicalUserId: to })
+    .onConflictDoNothing();
 }
 
 /** Refuse irreversible transport convergence when historical ownership conflicts. */
-function assertCompatibleSource(existing: Pick<typeof users.$inferSelect, 'federationActorUri' | 'nameDisplay' | 'nameFirst' | 'nameLast'>, input: RegisterExternalIdentityInput, storedStableId?: string | null) {
-  if (!existing.federationActorUri) throw new ConflictError('Existing external account has no verifiable source binding');
+function assertCompatibleSource(
+  existing: Pick<
+    typeof users.$inferSelect,
+    'federationActorUri' | 'nameDisplay' | 'nameFirst' | 'nameLast'
+  >,
+  input: RegisterExternalIdentityInput,
+  storedStableId?: string | null,
+) {
+  if (!existing.federationActorUri)
+    throw new ConflictError('Existing external account has no verifiable source binding');
   if (existing.federationActorUri === input.actorUri) return;
-  const historicalStableId = storedStableId ?? (existing.federationActorUri.startsWith('did:') ? existing.federationActorUri : undefined);
+  const historicalStableId =
+    storedStableId ??
+    (existing.federationActorUri.startsWith('did:') ? existing.federationActorUri : undefined);
   if (historicalStableId || input.stableId) {
     if (!historicalStableId || historicalStableId !== input.stableId) {
-      throw new ConflictError('External source ownership is not proven to match the existing account');
+      throw new ConflictError(
+        'External source ownership is not proven to match the existing account',
+      );
     }
     return;
   }
   // Recyclable handles retain a documented residual risk. A contradictory
   // nonempty profile is nevertheless a refusal, never a last-writer merge.
-  const normalizeName = (value: string | null | undefined) => (value ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-  const previousName = normalizeName(existing.nameDisplay || [existing.nameFirst, existing.nameLast].filter(Boolean).join(' '));
+  const normalizeName = (value: string | null | undefined) =>
+    (value ?? '')
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]/gu, '');
+  const previousName = normalizeName(
+    existing.nameDisplay || [existing.nameFirst, existing.nameLast].filter(Boolean).join(' '),
+  );
   const incomingName = normalizeName(input.profile.displayName);
   if (previousName && incomingName && previousName !== incomingName) {
     throw new ConflictError('External source profile contradicts the existing account');
@@ -262,160 +458,395 @@ function assertCompatibleSource(existing: Pick<typeof users.$inferSelect, 'feder
 
 export async function registerExternalIdentity(input: RegisterExternalIdentityInput) {
   // Persist bounded source claims only; immutable identity proof has its own field.
-  input = { ...input, evidenceLinks: [...new Set((input.evidenceLinks ?? [])
-    .filter(link => typeof link === 'string' && link.length <= 2048 && linkedSourceAcct(link) !== null))].slice(0, 32) };
+  input = {
+    ...input,
+    evidenceLinks: [
+      ...new Set(
+        (input.evidenceLinks ?? []).filter(
+          (link) =>
+            typeof link === 'string' && link.length <= 2048 && linkedSourceAcct(link) !== null,
+        ),
+      ),
+    ].slice(0, 32),
+  };
   const canonicalAcct = normalizeExternalAcct(input.canonicalAcct);
   const network = canonicalAcct.slice(canonicalAcct.lastIndexOf('@') + 1);
-  if (!canonicalAcct.includes('@') || !input.actorUri || !network) throw new Error('Invalid external identity');
-  return getDb().transaction(async tx => {
-    // Serializes convergence across networks as well as concurrent bridge discovery.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
-    let createdUser = false;
-    let [identity] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, canonicalAcct));
-    // A Graph source is a first-party Meta observation of username -> IG User id.
-    // It joins the identity its canonical account names; a pinned identity
-    // admits it only when that id is the one its owner pin recorded.
-    const graphUserId = input.protocol === INSTAGRAM_GRAPH_PROTOCOL ? instagramGraphUserIdFromActorUri(input.actorUri) : null;
-    if (input.protocol === INSTAGRAM_GRAPH_PROTOCOL && (!graphUserId || network !== 'instagram.com' || input.stableId)) {
-      throw new Error('Invalid Instagram Graph source');
-    }
-    let graphOwnerPinned = false;
-    if (graphUserId && identity?.stableId?.startsWith('instagram:pk:')) {
-      const pins = await tx.select().from(externalIdentityInstagramPins).where(and(eq(externalIdentityInstagramPins.canonicalAcct, canonicalAcct),
-        eq(externalIdentityInstagramPins.state, 'pinned'), eq(externalIdentityInstagramPins.sourceUserId, identity.userId)));
-      graphOwnerPinned = pins.some(pin => identity.stableId === `instagram:pk:${pin.instagramPk}` && pin.instagramGraphId === graphUserId);
-      if (!graphOwnerPinned) return { userId: await resolveCanonicalUserId(identity.userId, tx), identity, createdUser: false, deferredInstagramOwnerRefresh: true };
-    } else if (network === 'instagram.com' && identity?.stableId?.startsWith('instagram:pk:')) {
-      const [pin] = await tx.select().from(externalIdentityInstagramPins).where(eq(externalIdentityInstagramPins.actorUri, input.actorUri));
-      const proof = input.verifiedInstagramPin;
-      const matches = pin?.state === 'pinned' && pin.canonicalAcct === canonicalAcct && pin.sourceUserId === identity.userId
-        && identity.stableId === `instagram:pk:${pin.instagramPk}` && proof?.documentHash === pin.documentHash
-        && proof.verifiedAt === pin.verifiedAt.toISOString() && pin.verifiedAt.getTime() > Date.now() - 5 * 60_000
-        && (!identity.metaProofRevokedAt || pin.verifiedAt > identity.metaProofRevokedAt);
-      // Nothing below this boundary may refresh ownership, evidence or metadata
-      // until the persisted current owner observation matches in this transaction.
-      if (!matches) return { userId: await resolveCanonicalUserId(identity.userId, tx), identity, createdUser: false, deferredInstagramOwnerRefresh: true };
-    }
-    if (identity?.stableId && input.stableId && identity.stableId !== input.stableId) throw new Error('External stable identity changed; explicit ownership reconciliation required');
-    const [actor] = await tx.select().from(externalIdentityActors).where(eq(externalIdentityActors.actorUri, input.actorUri));
-    if (identity && !graphOwnerPinned && (!actor || actor.canonicalAcct !== canonicalAcct)) {
-      const [existing] = await tx.select({ federationActorUri: users.federationActorUri, nameDisplay: users.nameDisplay,
-        nameFirst: users.nameFirst, nameLast: users.nameLast }).from(users).where(eq(users.id, identity.userId));
-      if (existing) assertCompatibleSource(existing, input, identity.stableId);
-    }
-    let renamedFrom: typeof externalIdentities.$inferSelect | undefined;
-    if (actor && actor.canonicalAcct !== canonicalAcct) {
-      // Only a migration transport key may be promoted to its source account.
-      const [previous] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, actor.canonicalAcct));
-      // A stable ID the actor URI itself carries (a numeric Threads actor, a
-      // Bridgy Fed DID actor) names the subject that actor row always named,
-      // even when the previous identity predates stable-ID persistence: a
-      // handle change on the source is a rename, not a new person. That holds
-      // across networks too, since a legacy row may have kept the bridge's own
-      // transport domain where the source now derives its upstream network.
-      const boundToActor = !!input.stableId && (input.actorUri === input.stableId || input.actorUri.endsWith(`/${input.stableId}`));
-      const sameSubject = !!input.stableId && !!previous
-        && ((previous.stableId === input.stableId && previous.network === network) || (previous.stableId === null && boundToActor));
-      if (sameSubject) renamedFrom = previous;
-      if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct)) throw new Error('Actor already belongs to another external identity');
-    }
-    const [legacy] = await tx.select({ id: users.id, type: users.type }).from(users).where(eq(users.federationActorUri, input.actorUri));
-    if (legacy && legacy.type !== 'federated') throw new ConflictError('External actor belongs to a non-federated account');
-    if (!identity) {
-      const [named] = await tx.select({ id: users.id, type: users.type, federationActorUri: users.federationActorUri,
-        nameDisplay: users.nameDisplay, nameFirst: users.nameFirst, nameLast: users.nameLast })
-        .from(users).where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`);
-      if (named && named.type !== 'federated') throw new ConflictError('External identity conflicts with local user');
-      if (named) assertCompatibleSource(named, input);
-      const [sameSubject] = input.stableId ? await tx.select().from(externalIdentities).where(and(eq(externalIdentities.stableId, input.stableId), eq(externalIdentities.network, network))).limit(1) : [];
-      let userId = sameSubject?.userId ?? renamedFrom?.userId ?? named?.id ?? legacy?.id;
-      if (!userId) {
-        const [user] = await tx.insert(users).values({ username: canonicalAcct, type: 'federated', federationActorUri: input.actorUri,
-          federationDomain: network, nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null }).returning();
-        userId = user.id;
-        createdUser = true;
+  if (!canonicalAcct.includes('@') || !input.actorUri || !network)
+    throw new Error('Invalid external identity');
+  return getDb()
+    .transaction(async (tx) => {
+      // Serializes convergence across networks as well as concurrent bridge discovery.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
+      let createdUser = false;
+      let [identity] = await tx
+        .select()
+        .from(externalIdentities)
+        .where(eq(externalIdentities.canonicalAcct, canonicalAcct));
+      // A Graph source is a first-party Meta observation of username -> IG User id.
+      // It joins the identity its canonical account names; a pinned identity
+      // admits it only when that id is the one its owner pin recorded.
+      const graphUserId =
+        input.protocol === INSTAGRAM_GRAPH_PROTOCOL
+          ? instagramGraphUserIdFromActorUri(input.actorUri)
+          : null;
+      if (
+        input.protocol === INSTAGRAM_GRAPH_PROTOCOL &&
+        (!graphUserId || network !== 'instagram.com' || input.stableId)
+      ) {
+        throw new Error('Invalid Instagram Graph source');
       }
-      [identity] = await tx.insert(externalIdentities).values({ canonicalAcct, userId, network, stableId: input.stableId, evidenceLinks: input.evidenceLinks ?? [] }).returning();
-    } else {
-      const canonicalId = await resolvePhysicalUserId(identity.userId, tx);
-      if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), canonicalId);
-      // A Graph source carries no claims of its own; it never clears the bridge's.
-      [identity] = await tx.update(externalIdentities).set({ evidenceLinks: graphUserId ? identity.evidenceLinks : input.evidenceLinks ?? identity.evidenceLinks,
-        stableId: input.stableId ?? identity.stableId }).where(eq(externalIdentities.canonicalAcct, canonicalAcct)).returning();
-    }
-    if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), identity.userId);
-    // `avatar` is never set FROM the source here — only `persistFederatedAvatar`
-    // writes it, and only with an Oxy Cloud file id. A remote URL standing in for
-    // the mirror is what a failed download used to leave behind forever (a signed
-    // Meta CDN URL expires and 403s; measured on ibaillanos@instagram.com), so any
-    // non-file-id value is cleared on every registration and the mirror is
-    // rescheduled against the fresh source picture. A stored file id is kept: it
-    // is the previous good mirror.
-    await tx.update(users).set({ username: canonicalAcct, federationDomain: network,
-      nameFirst: input.profile.displayName || null, nameDisplay: input.profile.displayName || null, bio: input.profile.bio || null, description: input.profile.bio || null,
-      avatar: avatarKeepingMirror(),
-      federationLastResolvedAt: new Date(), federationUnavailableAt: null, federationUnavailableReason: null }).where(eq(users.id, identity.userId));
-    const actorValues = { canonicalAcct, transportAcct: normalizeExternalAcct(input.transportAcct), protocol: input.protocol, evidenceLinks: input.evidenceLinks ?? [] };
-    await tx.insert(externalIdentityActors).values({ actorUri: input.actorUri, ...actorValues })
-      .onConflictDoUpdate({ target: externalIdentityActors.actorUri, set: actorValues });
-    if (actor && actor.canonicalAcct !== canonicalAcct) {
-      const remaining = await tx.select().from(externalIdentityActors).where(eq(externalIdentityActors.canonicalAcct, actor.canonicalAcct));
-      if (!remaining.length) await tx.delete(externalIdentities).where(eq(externalIdentities.canonicalAcct, actor.canonicalAcct));
-    }
-    const claimed = (input.evidenceLinks ?? []).map(linkedSourceAcct).filter((acct): acct is string => !!acct && acct !== canonicalAcct && acct.split('@')[1] !== network);
-    const oldClaims = await tx.select().from(externalIdentityClaims).where(eq(externalIdentityClaims.actorUri, input.actorUri));
-    for (const claim of oldClaims) {
-      if (!claimed.includes(claim.targetAcct)) {
-        await tx.update(externalIdentityClaims).set({ state: 'revoked' }).where(and(eq(externalIdentityClaims.actorUri, input.actorUri), eq(externalIdentityClaims.targetAcct, claim.targetAcct)));
-        // The reverse claim is pending once reciprocity disappears.
-        await tx.execute(sql`update external_identity_claims set state = 'pending', updated_at = now()
+      let graphOwnerPinned = false;
+      if (graphUserId && identity?.stableId?.startsWith('instagram:pk:')) {
+        const pins = await tx
+          .select()
+          .from(externalIdentityInstagramPins)
+          .where(
+            and(
+              eq(externalIdentityInstagramPins.canonicalAcct, canonicalAcct),
+              eq(externalIdentityInstagramPins.state, 'pinned'),
+              eq(externalIdentityInstagramPins.sourceUserId, identity.userId),
+            ),
+          );
+        graphOwnerPinned = pins.some(
+          (pin) =>
+            identity.stableId === `instagram:pk:${pin.instagramPk}` &&
+            pin.instagramGraphId === graphUserId,
+        );
+        if (!graphOwnerPinned)
+          return {
+            userId: await resolveCanonicalUserId(identity.userId, tx),
+            identity,
+            createdUser: false,
+            deferredInstagramOwnerRefresh: true,
+          };
+      } else if (network === 'instagram.com' && identity?.stableId?.startsWith('instagram:pk:')) {
+        const [pin] = await tx
+          .select()
+          .from(externalIdentityInstagramPins)
+          .where(eq(externalIdentityInstagramPins.actorUri, input.actorUri));
+        const proof = input.verifiedInstagramPin;
+        const matches =
+          pin?.state === 'pinned' &&
+          pin.canonicalAcct === canonicalAcct &&
+          pin.sourceUserId === identity.userId &&
+          identity.stableId === `instagram:pk:${pin.instagramPk}` &&
+          proof?.documentHash === pin.documentHash &&
+          proof.verifiedAt === pin.verifiedAt.toISOString() &&
+          pin.verifiedAt.getTime() > Date.now() - 5 * 60_000 &&
+          (!identity.metaProofRevokedAt || pin.verifiedAt > identity.metaProofRevokedAt);
+        // Nothing below this boundary may refresh ownership, evidence or metadata
+        // until the persisted current owner observation matches in this transaction.
+        if (!matches)
+          return {
+            userId: await resolveCanonicalUserId(identity.userId, tx),
+            identity,
+            createdUser: false,
+            deferredInstagramOwnerRefresh: true,
+          };
+      }
+      if (identity?.stableId && input.stableId && identity.stableId !== input.stableId)
+        throw new Error(
+          'External stable identity changed; explicit ownership reconciliation required',
+        );
+      const [actor] = await tx
+        .select()
+        .from(externalIdentityActors)
+        .where(eq(externalIdentityActors.actorUri, input.actorUri));
+      if (identity && !graphOwnerPinned && (!actor || actor.canonicalAcct !== canonicalAcct)) {
+        const [existing] = await tx
+          .select({
+            federationActorUri: users.federationActorUri,
+            nameDisplay: users.nameDisplay,
+            nameFirst: users.nameFirst,
+            nameLast: users.nameLast,
+          })
+          .from(users)
+          .where(eq(users.id, identity.userId));
+        if (existing) assertCompatibleSource(existing, input, identity.stableId);
+      }
+      let renamedFrom: typeof externalIdentities.$inferSelect | undefined;
+      if (actor && actor.canonicalAcct !== canonicalAcct) {
+        // Only a migration transport key may be promoted to its source account.
+        const [previous] = await tx
+          .select()
+          .from(externalIdentities)
+          .where(eq(externalIdentities.canonicalAcct, actor.canonicalAcct));
+        // A stable ID the actor URI itself carries (a numeric Threads actor, a
+        // Bridgy Fed DID actor) names the subject that actor row always named,
+        // even when the previous identity predates stable-ID persistence: a
+        // handle change on the source is a rename, not a new person. That holds
+        // across networks too, since a legacy row may have kept the bridge's own
+        // transport domain where the source now derives its upstream network.
+        const boundToActor =
+          !!input.stableId &&
+          (input.actorUri === input.stableId || input.actorUri.endsWith(`/${input.stableId}`));
+        const sameSubject =
+          !!input.stableId &&
+          !!previous &&
+          ((previous.stableId === input.stableId && previous.network === network) ||
+            (previous.stableId === null && boundToActor));
+        if (sameSubject) renamedFrom = previous;
+        if (!sameSubject && actor.canonicalAcct !== normalizeExternalAcct(input.transportAcct))
+          throw new Error('Actor already belongs to another external identity');
+      }
+      const [legacy] = await tx
+        .select({ id: users.id, type: users.type })
+        .from(users)
+        .where(eq(users.federationActorUri, input.actorUri));
+      if (legacy && legacy.type !== 'federated')
+        throw new ConflictError('External actor belongs to a non-federated account');
+      if (!identity) {
+        const [named] = await tx
+          .select({
+            id: users.id,
+            type: users.type,
+            federationActorUri: users.federationActorUri,
+            nameDisplay: users.nameDisplay,
+            nameFirst: users.nameFirst,
+            nameLast: users.nameLast,
+          })
+          .from(users)
+          .where(sql`lower(btrim(${users.username})) = ${canonicalAcct}`);
+        if (named && named.type !== 'federated')
+          throw new ConflictError('External identity conflicts with local user');
+        if (named) assertCompatibleSource(named, input);
+        const [sameSubject] = input.stableId
+          ? await tx
+              .select()
+              .from(externalIdentities)
+              .where(
+                and(
+                  eq(externalIdentities.stableId, input.stableId),
+                  eq(externalIdentities.network, network),
+                ),
+              )
+              .limit(1)
+          : [];
+        let userId = sameSubject?.userId ?? renamedFrom?.userId ?? named?.id ?? legacy?.id;
+        if (!userId) {
+          const [user] = await tx
+            .insert(users)
+            .values({
+              username: canonicalAcct,
+              type: 'federated',
+              federationActorUri: input.actorUri,
+              federationDomain: network,
+              nameFirst: input.profile.displayName || null,
+              nameDisplay: input.profile.displayName || null,
+              bio: input.profile.bio || null,
+              description: input.profile.bio || null,
+            })
+            .returning();
+          userId = user.id;
+          createdUser = true;
+        }
+        [identity] = await tx
+          .insert(externalIdentities)
+          .values({
+            canonicalAcct,
+            userId,
+            network,
+            stableId: input.stableId,
+            evidenceLinks: input.evidenceLinks ?? [],
+          })
+          .returning();
+      } else {
+        const canonicalId = await resolvePhysicalUserId(identity.userId, tx);
+        if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), canonicalId);
+        // A Graph source carries no claims of its own; it never clears the bridge's.
+        [identity] = await tx
+          .update(externalIdentities)
+          .set({
+            evidenceLinks: graphUserId
+              ? identity.evidenceLinks
+              : (input.evidenceLinks ?? identity.evidenceLinks),
+            stableId: input.stableId ?? identity.stableId,
+          })
+          .where(eq(externalIdentities.canonicalAcct, canonicalAcct))
+          .returning();
+      }
+      if (legacy) await mergeUsers(tx, await resolvePhysicalUserId(legacy.id, tx), identity.userId);
+      // `avatar` is never set FROM the source here — only `persistFederatedAvatar`
+      // writes it, and only with an Oxy Cloud file id. A remote URL standing in for
+      // the mirror is what a failed download used to leave behind forever (a signed
+      // Meta CDN URL expires and 403s; measured on ibaillanos@instagram.com), so any
+      // non-file-id value is cleared on every registration and the mirror is
+      // rescheduled against the fresh source picture. A stored file id is kept: it
+      // is the previous good mirror.
+      await tx
+        .update(users)
+        .set({
+          username: canonicalAcct,
+          federationDomain: network,
+          nameFirst: input.profile.displayName || null,
+          nameDisplay: input.profile.displayName || null,
+          bio: input.profile.bio || null,
+          description: input.profile.bio || null,
+          avatar: avatarKeepingMirror(),
+          federationLastResolvedAt: new Date(),
+          federationUnavailableAt: null,
+          federationUnavailableReason: null,
+        })
+        .where(eq(users.id, identity.userId));
+      const actorValues = {
+        canonicalAcct,
+        transportAcct: normalizeExternalAcct(input.transportAcct),
+        protocol: input.protocol,
+        evidenceLinks: input.evidenceLinks ?? [],
+      };
+      await tx
+        .insert(externalIdentityActors)
+        .values({ actorUri: input.actorUri, ...actorValues })
+        .onConflictDoUpdate({ target: externalIdentityActors.actorUri, set: actorValues });
+      if (actor && actor.canonicalAcct !== canonicalAcct) {
+        const remaining = await tx
+          .select()
+          .from(externalIdentityActors)
+          .where(eq(externalIdentityActors.canonicalAcct, actor.canonicalAcct));
+        if (!remaining.length)
+          await tx
+            .delete(externalIdentities)
+            .where(eq(externalIdentities.canonicalAcct, actor.canonicalAcct));
+      }
+      const claimed = (input.evidenceLinks ?? [])
+        .map(linkedSourceAcct)
+        .filter(
+          (acct): acct is string =>
+            !!acct && acct !== canonicalAcct && acct.split('@')[1] !== network,
+        );
+      const oldClaims = await tx
+        .select()
+        .from(externalIdentityClaims)
+        .where(eq(externalIdentityClaims.actorUri, input.actorUri));
+      for (const claim of oldClaims) {
+        if (!claimed.includes(claim.targetAcct)) {
+          await tx
+            .update(externalIdentityClaims)
+            .set({ state: 'revoked' })
+            .where(
+              and(
+                eq(externalIdentityClaims.actorUri, input.actorUri),
+                eq(externalIdentityClaims.targetAcct, claim.targetAcct),
+              ),
+            );
+          // The reverse claim is pending once reciprocity disappears.
+          await tx.execute(sql`update external_identity_claims set state = 'pending', updated_at = now()
           where target_acct = ${canonicalAcct} and state = 'linked' and actor_uri in
           (select actor_uri from external_identity_actors where canonical_acct = ${claim.targetAcct})`);
+        }
       }
-    }
-    if (['instagram.com', 'threads.net'].includes(network)) {
-      for (const linked of claimed) {
-        const [targetIdentity] = await tx.select().from(externalIdentities).where(eq(externalIdentities.canonicalAcct, linked));
-        const reverse = await tx.select({ actorUri: externalIdentityClaims.actorUri, sourceStableId: externalIdentityClaims.sourceStableId }).from(externalIdentityClaims)
-          .innerJoin(externalIdentityActors, eq(externalIdentityActors.actorUri, externalIdentityClaims.actorUri))
-          .where(and(eq(externalIdentityActors.canonicalAcct, linked), eq(externalIdentityClaims.targetAcct, canonicalAcct),
-            sql`${externalIdentityClaims.state} <> 'revoked'`, sql`${externalIdentityActors.updatedAt} > now() - interval '7 days'`));
-        const state = input.stableId && targetIdentity?.stableId && reverse.some(claim => claim.sourceStableId === targetIdentity.stableId) ? 'linked' : 'pending';
-        const pins = { sourceStableId: input.stableId ?? null, targetStableId: targetIdentity?.stableId ?? null };
-        await tx.insert(externalIdentityClaims).values({ actorUri: input.actorUri, targetAcct: linked, state, ...pins })
-          .onConflictDoUpdate({ target: [externalIdentityClaims.actorUri, externalIdentityClaims.targetAcct], set: { state, ...pins } });
-        for (const claim of reverse) await tx.update(externalIdentityClaims).set({ state: claim.sourceStableId === targetIdentity?.stableId ? state : 'pending', targetStableId: input.stableId ?? null })
-          .where(and(eq(externalIdentityClaims.actorUri, claim.actorUri), eq(externalIdentityClaims.targetAcct, canonicalAcct)));
+      if (['instagram.com', 'threads.net'].includes(network)) {
+        for (const linked of claimed) {
+          const [targetIdentity] = await tx
+            .select()
+            .from(externalIdentities)
+            .where(eq(externalIdentities.canonicalAcct, linked));
+          const reverse = await tx
+            .select({
+              actorUri: externalIdentityClaims.actorUri,
+              sourceStableId: externalIdentityClaims.sourceStableId,
+            })
+            .from(externalIdentityClaims)
+            .innerJoin(
+              externalIdentityActors,
+              eq(externalIdentityActors.actorUri, externalIdentityClaims.actorUri),
+            )
+            .where(
+              and(
+                eq(externalIdentityActors.canonicalAcct, linked),
+                eq(externalIdentityClaims.targetAcct, canonicalAcct),
+                sql`${externalIdentityClaims.state} <> 'revoked'`,
+                sql`${externalIdentityActors.updatedAt} > now() - interval '7 days'`,
+              ),
+            );
+          const state =
+            input.stableId &&
+            targetIdentity?.stableId &&
+            reverse.some((claim) => claim.sourceStableId === targetIdentity.stableId)
+              ? 'linked'
+              : 'pending';
+          const pins = {
+            sourceStableId: input.stableId ?? null,
+            targetStableId: targetIdentity?.stableId ?? null,
+          };
+          await tx
+            .insert(externalIdentityClaims)
+            .values({ actorUri: input.actorUri, targetAcct: linked, state, ...pins })
+            .onConflictDoUpdate({
+              target: [externalIdentityClaims.actorUri, externalIdentityClaims.targetAcct],
+              set: { state, ...pins },
+            });
+          for (const claim of reverse)
+            await tx
+              .update(externalIdentityClaims)
+              .set({
+                state: claim.sourceStableId === targetIdentity?.stableId ? state : 'pending',
+                targetStableId: input.stableId ?? null,
+              })
+              .where(
+                and(
+                  eq(externalIdentityClaims.actorUri, claim.actorUri),
+                  eq(externalIdentityClaims.targetAcct, canonicalAcct),
+                ),
+              );
+        }
       }
-    }
-    return { userId: await resolveCanonicalUserId(identity.userId, tx), identity, createdUser, deferredInstagramOwnerRefresh: false };
-  }).catch(async (error: unknown) => {
-    if (error instanceof Error && error.message.startsWith('External stable identity changed')) {
-      await revokeMetaIdentityProof(canonicalAcct, 'stable_identity_changed');
-      // A contradictory source owner must immediately invalidate earlier equivalence.
-      await getDb().execute(sql`update external_identity_claims set state = 'revoked', updated_at = now()
+      return {
+        userId: await resolveCanonicalUserId(identity.userId, tx),
+        identity,
+        createdUser,
+        deferredInstagramOwnerRefresh: false,
+      };
+    })
+    .catch(async (error: unknown) => {
+      if (error instanceof Error && error.message.startsWith('External stable identity changed')) {
+        await revokeMetaIdentityProof(canonicalAcct, 'stable_identity_changed');
+        // A contradictory source owner must immediately invalidate earlier equivalence.
+        await getDb().execute(sql`update external_identity_claims set state = 'revoked', updated_at = now()
         where target_acct = ${canonicalAcct} or actor_uri in
         (select actor_uri from external_identity_actors where canonical_acct = ${canonicalAcct})`);
-    }
-    throw error;
-  });
+      }
+      throw error;
+    });
 }
 
 /** One group query and one actor query regardless of a profile page's size. */
 export async function resolveExternalIdentityUsers(userIds: string[]) {
   const groups = await getEquivalentUserGroups(userIds);
   const members = [...new Set(Object.values(groups).flat())];
-  const result = new Map<string, { userId: string; externalIdentities: Awaited<ReturnType<typeof getExternalIdentitiesForUser>>; redirectedUserIds: string[] }>();
+  const result = new Map<
+    string,
+    {
+      userId: string;
+      externalIdentities: Awaited<ReturnType<typeof getExternalIdentitiesForUser>>;
+      redirectedUserIds: string[];
+    }
+  >();
   if (!members.length) return result;
-  const identities = await getDb().select({ sourceUserId: externalIdentities.userId, canonicalAcct: externalIdentities.canonicalAcct, network: externalIdentities.network,
-    protocol: externalIdentityActors.protocol, actorUri: externalIdentityActors.actorUri, transportAcct: externalIdentityActors.transportAcct })
-    .from(externalIdentities).innerJoin(externalIdentityActors, eq(externalIdentityActors.canonicalAcct, externalIdentities.canonicalAcct))
+  const identities = await getDb()
+    .select({
+      sourceUserId: externalIdentities.userId,
+      canonicalAcct: externalIdentities.canonicalAcct,
+      network: externalIdentities.network,
+      protocol: externalIdentityActors.protocol,
+      actorUri: externalIdentityActors.actorUri,
+      transportAcct: externalIdentityActors.transportAcct,
+    })
+    .from(externalIdentities)
+    .innerJoin(
+      externalIdentityActors,
+      eq(externalIdentityActors.canonicalAcct, externalIdentities.canonicalAcct),
+    )
     .where(inArray(externalIdentities.userId, members));
   for (const requested of userIds) {
     const ids = groups[requested] ?? [requested];
-    const matched = identities.filter(identity => ids.includes(identity.sourceUserId));
-    const userId = matched.map(identity => identity.sourceUserId).sort()[0] ?? requested;
-    result.set(requested, { userId, externalIdentities: matched, redirectedUserIds: ids.filter(id => id !== userId) });
+    const matched = identities.filter((identity) => ids.includes(identity.sourceUserId));
+    const userId = matched.map((identity) => identity.sourceUserId).sort()[0] ?? requested;
+    result.set(requested, {
+      userId,
+      externalIdentities: matched,
+      redirectedUserIds: ids.filter((id) => id !== userId),
+    });
   }
   return result;
 }

@@ -71,7 +71,14 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
+import {
+  createdAt,
+  generatedId,
+  inList,
+  textArrayLiteral,
+  timestamptz,
+  updatedAt,
+} from '@oxy.so/db';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { users } from './users';
 
@@ -224,15 +231,15 @@ export const inferenceModelGpaiDocumentation = pgTable(
      */
     check(
       'inference_model_gpai_documentation_distribution_methods_check',
-      sql`cardinality(${t.distributionMethods}) >= 1 and ${t.distributionMethods} <@ ${sql.raw(textArrayLiteral(MODEL_DISTRIBUTION_METHODS))}`
+      sql`cardinality(${t.distributionMethods}) >= 1 and ${t.distributionMethods} <@ ${sql.raw(textArrayLiteral(MODEL_DISTRIBUTION_METHODS))}`,
     ),
     check(
       'inference_model_gpai_documentation_systemic_risk_check',
-      sql`${t.systemicRisk} in (${sql.raw(inList(MODEL_SYSTEMIC_RISK_TIERS))})`
+      sql`${t.systemicRisk} in (${sql.raw(inList(MODEL_SYSTEMIC_RISK_TIERS))})`,
     ),
     check(
       'inference_model_gpai_documentation_training_compute_format',
-      sql`${t.trainingComputeFlops} is null or ${t.trainingComputeFlops} ~ ${sql.raw(TRAINING_COMPUTE_CHECK_PATTERN)}`
+      sql`${t.trainingComputeFlops} is null or ${t.trainingComputeFlops} ~ ${sql.raw(TRAINING_COMPUTE_CHECK_PATTERN)}`,
     ),
 
     /**
@@ -246,7 +253,7 @@ export const inferenceModelGpaiDocumentation = pgTable(
      */
     check(
       'inference_model_gpai_documentation_annex_xi_or_exempt',
-      sql`(${t.freeAndOpenSourceRelease} and ${t.systemicRisk} = 'not_designated') or (${t.intendedTasks} is not null and ${t.architecture} is not null and ${t.parameterCount} is not null and ${t.trainingTimeHours} is not null and ${t.energyConsumptionMwh} is not null)`
+      sql`(${t.freeAndOpenSourceRelease} and ${t.systemicRisk} = 'not_designated') or (${t.intendedTasks} is not null and ${t.architecture} is not null and ${t.parameterCount} is not null and ${t.trainingTimeHours} is not null and ${t.energyConsumptionMwh} is not null)`,
     ),
 
     /**
@@ -256,7 +263,7 @@ export const inferenceModelGpaiDocumentation = pgTable(
      */
     check(
       'inference_model_gpai_documentation_presumption_has_compute',
-      sql`${t.systemicRisk} <> 'presumed_by_training_compute' or ${t.trainingComputeFlops} is not null`
+      sql`${t.systemicRisk} <> 'presumed_by_training_compute' or ${t.trainingComputeFlops} is not null`,
     ),
 
     /**
@@ -275,15 +282,15 @@ export const inferenceModelGpaiDocumentation = pgTable(
      */
     check(
       'inference_model_gpai_documentation_compute_matches_risk',
-      sql`${t.trainingComputeFlops} is null or case when ${t.trainingComputeFlops} ~ ${sql.raw(TRAINING_COMPUTE_CHECK_PATTERN)} then not (${t.trainingComputeFlops}::double precision >= ${sql.raw(SYSTEMIC_RISK_COMPUTE_THRESHOLD_SQL)} and ${t.systemicRisk} = 'not_designated') else false end`
+      sql`${t.trainingComputeFlops} is null or case when ${t.trainingComputeFlops} ~ ${sql.raw(TRAINING_COMPUTE_CHECK_PATTERN)} then not (${t.trainingComputeFlops}::double precision >= ${sql.raw(SYSTEMIC_RISK_COMPUTE_THRESHOLD_SQL)} and ${t.systemicRisk} = 'not_designated') else false end`,
     ),
 
     /** Article 55(1)(a), for every systemic-risk model however classified. */
     check(
       'inference_model_gpai_documentation_systemic_risk_has_report',
-      sql`${t.systemicRisk} = 'not_designated' or ${t.adversarialTestingReportUrl} is not null`
+      sql`${t.systemicRisk} = 'not_designated' or ${t.adversarialTestingReportUrl} is not null`,
     ),
-  ]
+  ],
 );
 
 export type InferenceModelGpaiDocumentationRow =

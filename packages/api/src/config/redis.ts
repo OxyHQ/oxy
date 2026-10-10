@@ -58,9 +58,7 @@ export function getRedisClient(): Redis | null {
       if (closing) return;
       logger.warn('Redis connection closed');
     });
-    redis.on('reconnecting', (ms: number) =>
-      logger.info('Redis reconnecting', { retryIn: ms })
-    );
+    redis.on('reconnecting', (ms: number) => logger.info('Redis reconnecting', { retryIn: ms }));
 
     redis.connect().catch((err) => {
       if (closing) {

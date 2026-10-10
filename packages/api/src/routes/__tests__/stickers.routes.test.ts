@@ -80,14 +80,22 @@ describe('public catalogue', () => {
     expect((await request(app).post('/stickers/resolve').send({ ids: [] })).status).toBe(400);
     const tooMany = Array.from({ length: 101 }, (_, index) => `id-${index}`);
     expect((await request(app).post('/stickers/resolve').send({ ids: tooMany })).status).toBe(400);
-    expect((await request(app).post('/stickers/resolve').send({ ids: ['a', 'b'] })).status).toBe(200);
+    expect(
+      (
+        await request(app)
+          .post('/stickers/resolve')
+          .send({ ids: ['a', 'b'] })
+      ).status,
+    ).toBe(200);
     expect(mockService.resolveStickers).toHaveBeenCalledWith(['a', 'b']);
   });
 
   it('takes exactly one search term', async () => {
     mockService.searchStickers.mockResolvedValue([]);
     expect((await request(app).get('/stickers/search')).status).toBe(400);
-    expect((await request(app).get('/stickers/search').query({ emoji: '😂', q: 'cat' })).status).toBe(400);
+    expect(
+      (await request(app).get('/stickers/search').query({ emoji: '😂', q: 'cat' })).status,
+    ).toBe(400);
     expect((await request(app).get('/stickers/search').query({ emoji: '😂' })).status).toBe(200);
   });
 });
@@ -106,14 +114,22 @@ describe('the picker', () => {
     expect(mockService.installPack).toHaveBeenCalledWith(USER_ID, 'pack-1');
     expect((await request(app).delete('/stickers/me/packs/pack-1')).status).toBe(204);
     expect(mockService.uninstallPack).toHaveBeenCalledWith(USER_ID, 'pack-1');
-    expect((await request(app).patch('/stickers/me/packs-order').send({ packIds: ['b', 'a'] })).status).toBe(204);
+    expect(
+      (
+        await request(app)
+          .patch('/stickers/me/packs-order')
+          .send({ packIds: ['b', 'a'] })
+      ).status,
+    ).toBe(204);
     expect(mockService.reorderInstalledPacks).toHaveBeenCalledWith(USER_ID, ['b', 'a']);
   });
 });
 
 describe('staff tools', () => {
   it('refuses a non-staff account before reaching the service', async () => {
-    const response = await request(app).post('/stickers/admin/packs').send({ slug: 'cats', title: 'Cats' });
+    const response = await request(app)
+      .post('/stickers/admin/packs')
+      .send({ slug: 'cats', title: 'Cats' });
     expect(response.status).toBe(403);
     expect(mockService.createPack).not.toHaveBeenCalled();
   });
@@ -121,8 +137,14 @@ describe('staff tools', () => {
   it('creates a pack for staff, validating the slug', async () => {
     isStaff = true;
     mockService.createPack.mockResolvedValue({ id: 'pack-1' });
-    expect((await request(app).post('/stickers/admin/packs').send({ slug: 'Not A Slug', title: 'x' })).status).toBe(400);
-    expect((await request(app).post('/stickers/admin/packs').send({ slug: 'cats', title: 'Cats' })).status).toBe(201);
+    expect(
+      (await request(app).post('/stickers/admin/packs').send({ slug: 'Not A Slug', title: 'x' }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await request(app).post('/stickers/admin/packs').send({ slug: 'cats', title: 'Cats' }))
+        .status,
+    ).toBe(201);
   });
 
   it('adds a sticker from a multipart upload, parsing the comma lists', async () => {
@@ -130,22 +152,35 @@ describe('staff tools', () => {
     mockService.addSticker.mockResolvedValue({ id: 'stk' });
     const response = await request(app)
       .post('/stickers/admin/packs/pack-1/stickers')
-      .attach('animation', Buffer.from('{}'), { filename: 'a.json', contentType: 'application/json' })
+      .attach('animation', Buffer.from('{}'), {
+        filename: 'a.json',
+        contentType: 'application/json',
+      })
       .field('emoji', '😂, 🤣')
       .field('keywords', 'laugh, lol');
     expect(response.status).toBe(201);
     expect(mockService.addSticker).toHaveBeenCalledWith(
-      expect.objectContaining({ packId: 'pack-1', emoji: ['😂', '🤣'], keywords: ['laugh', 'lol'], fallback: undefined })
+      expect.objectContaining({
+        packId: 'pack-1',
+        emoji: ['😂', '🤣'],
+        keywords: ['laugh', 'lol'],
+        fallback: undefined,
+      }),
     );
   });
 
   it('requires the animation file and an emoji', async () => {
     isStaff = true;
-    const noFile = await request(app).post('/stickers/admin/packs/pack-1/stickers').field('emoji', '😂');
+    const noFile = await request(app)
+      .post('/stickers/admin/packs/pack-1/stickers')
+      .field('emoji', '😂');
     expect(noFile.status).toBe(400);
     const noEmoji = await request(app)
       .post('/stickers/admin/packs/pack-1/stickers')
-      .attach('animation', Buffer.from('{}'), { filename: 'a.json', contentType: 'application/json' });
+      .attach('animation', Buffer.from('{}'), {
+        filename: 'a.json',
+        contentType: 'application/json',
+      });
     expect(noEmoji.status).toBe(400);
     expect(mockService.addSticker).not.toHaveBeenCalled();
   });

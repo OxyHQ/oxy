@@ -304,8 +304,7 @@ export const INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS = [
  * therefore default-DENY. What the registry adds is the implicit-whole-row-read
  * scan over `src/`, which a projection cannot give.
  */
-export const INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS =
-  GPAI_DOCUMENTATION_INTERNAL_COLUMNS;
+export const INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS = GPAI_DOCUMENTATION_INTERNAL_COLUMNS;
 
 /**
  * `linked_account_oauth_challenges` columns that complete an OAuth flow.
@@ -335,7 +334,10 @@ export const MASTODON_APP_REGISTRATIONS_PROTECTED_COLUMNS = ['clientSecret'] as 
 export const USER_PASSWORDS_PROTECTED_COLUMNS = ['passwordHash'] as const;
 export const USER_TOTP_PROTECTED_COLUMNS = ['secretCiphertext'] as const;
 export const USER_TOTP_BACKUP_CODES_PROTECTED_COLUMNS = ['codeHash'] as const;
-export const EMAIL_SIGNIN_REQUESTS_PROTECTED_COLUMNS = ['requestSecretHash', 'linkTokenHash'] as const;
+export const EMAIL_SIGNIN_REQUESTS_PROTECTED_COLUMNS = [
+  'requestSecretHash',
+  'linkTokenHash',
+] as const;
 export const SIGNIN_SECOND_FACTOR_CHALLENGES_PROTECTED_COLUMNS = ['challengeHash'] as const;
 
 /**
@@ -352,8 +354,7 @@ export const PROTECTED_COLUMNS_BY_TABLE = {
   messages: MESSAGES_PROTECTED_COLUMNS,
   inference_deployments: INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS,
   inference_deployment_routing_scores: INFERENCE_ROUTING_SCORES_PROTECTED_COLUMNS,
-  inference_deployment_routing_score_events:
-    INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS,
+  inference_deployment_routing_score_events: INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS,
   inference_model_gpai_documentation: INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS,
   linked_account_oauth_challenges: LINKED_ACCOUNT_OAUTH_CHALLENGES_PROTECTED_COLUMNS,
   mastodon_app_registrations: MASTODON_APP_REGISTRATIONS_PROTECTED_COLUMNS,
@@ -409,7 +410,7 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
     column: users.emailSignature,
     reason:
       "The owner's private mail configuration. Visible to them, never on " +
-      'anyone else\'s view of the profile.',
+      "anyone else's view of the profile.",
   },
   {
     table: users,
@@ -430,7 +431,7 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
     column: users.dateOfBirth,
     reason:
       'Raw date of birth. Owner-only, like `phone` — a caller that needs to ' +
-      "gate on age reads the derived `isAdult` boolean instead, which never " +
+      'gate on age reads the derived `isAdult` boolean instead, which never ' +
       'reveals the underlying date.',
   },
   {
@@ -586,7 +587,7 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
     table: inferenceModelGpaiDocumentation,
     column: inferenceModelGpaiDocumentation.adversarialTestingReportUrl,
     reason:
-      "Article 55(1)(a): the systemic-risk model evaluation, including " +
+      'Article 55(1)(a): the systemic-risk model evaluation, including ' +
       'adversarial testing. A red-team report is a map of what a model can be ' +
       'made to do, and the Act asks for it as documentation for an authority.',
   },

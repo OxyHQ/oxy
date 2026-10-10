@@ -358,7 +358,11 @@ export async function probeLiveness(userId: string): Promise<void> {
         lastProbeAt: probeAt,
         lastError: message.slice(0, NODE_LAST_ERROR_MAX_LEN),
       };
-      logger.debug('node liveness probe failed', { component: 'nodeRegistry', userId, error: message });
+      logger.debug('node liveness probe failed', {
+        component: 'nodeRegistry',
+        userId,
+        error: message,
+      });
     }
 
     await getDb()
@@ -399,11 +403,7 @@ export async function sweepNodeLiveness(): Promise<void> {
 
 /** The cached node row for a user (any status), or `null`. */
 export async function getUserNode(userId: string): Promise<UserNodeRecord | null> {
-  const [row] = await getDb()
-    .select()
-    .from(userNodes)
-    .where(eq(userNodes.userId, userId))
-    .limit(1);
+  const [row] = await getDb().select().from(userNodes).where(eq(userNodes.userId, userId)).limit(1);
   return row ? toUserNodeRecord(row) : null;
 }
 
@@ -522,7 +522,11 @@ export async function provisionManagedVault(userId: string): Promise<ProvisionMa
     return { ok: false, reason: 'oxy_key_unconfigured' };
   }
 
-  const [user] = await getDb().select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
+  const [user] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   if (!user) {
     return { ok: false, reason: 'user_not_found' };
   }
@@ -589,7 +593,11 @@ export async function provisionManagedVault(userId: string): Promise<ProvisionMa
 
     // A concurrent writer advanced the chain head between our read and write —
     // re-read the head and retry. Anything else is a hard failure.
-    if (result.reason === 'chain_conflict' || result.reason === 'bad_seq' || result.reason === 'chain_fork') {
+    if (
+      result.reason === 'chain_conflict' ||
+      result.reason === 'bad_seq' ||
+      result.reason === 'chain_fork'
+    ) {
       continue;
     }
 

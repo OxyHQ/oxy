@@ -48,10 +48,7 @@ export const getDisplayName = (
   if (!user) return coreGetAccountDisplayName(null, locale);
   const displayName = readDisplayName(user);
   if (displayName) return displayName;
-  return (
-    getNormalizedUserHandle(user) ??
-    coreGetAccountDisplayName(null, locale)
-  );
+  return getNormalizedUserHandle(user) ?? coreGetAccountDisplayName(null, locale);
 };
 
 /** Like {@link getDisplayName} but returns null instead of the translated "Unnamed" fallback. */

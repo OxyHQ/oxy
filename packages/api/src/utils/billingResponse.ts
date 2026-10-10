@@ -79,7 +79,7 @@ function optional(value: string | null): string | undefined {
 }
 
 export function toBillingSubscriptionResponse(
-  row: BillingSubscriptionRow
+  row: BillingSubscriptionRow,
 ): BillingSubscriptionResponse {
   return {
     _id: row.id,
@@ -103,7 +103,7 @@ export function toBillingSubscriptionResponse(
 }
 
 export function toBillingTransactionResponse(
-  row: BillingTransactionRow
+  row: BillingTransactionRow,
 ): BillingTransactionResponse {
   return {
     _id: row.id,

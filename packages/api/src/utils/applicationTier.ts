@@ -50,7 +50,7 @@ const INTERNAL_APPLICATION_TYPES = ['internal', 'system'] as const;
  * internal application's credential, never to present nothing.
  */
 export function classifyApplicationTier(
-  application: ApplicationClassification | undefined
+  application: ApplicationClassification | undefined,
 ): ApplicationTier {
   if (application === undefined) return 'third_party';
 

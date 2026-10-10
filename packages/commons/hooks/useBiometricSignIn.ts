@@ -44,7 +44,11 @@ export function useBiometricSignIn() {
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : '';
           // If it's a user cancellation, throw to prevent proceeding
-          if (message.includes('cancelled') || message.includes('cancel') || message.includes('user_cancel')) {
+          if (
+            message.includes('cancelled') ||
+            message.includes('cancel') ||
+            message.includes('user_cancel')
+          ) {
             throw new Error('Authentication cancelled');
           }
           // For other errors, re-throw

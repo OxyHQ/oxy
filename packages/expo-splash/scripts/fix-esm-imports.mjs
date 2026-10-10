@@ -37,8 +37,7 @@ async function walk(dir) {
     } else if (entry.endsWith('.js')) {
       const content = await readFile(full, 'utf8');
 
-      const barePattern =
-        /((?:from|import)\s+['"])(\.\.?\/[^'"]+?)(?<!\.js)(?<!\.json)(['"])/g;
+      const barePattern = /((?:from|import)\s+['"])(\.\.?\/[^'"]+?)(?<!\.js)(?<!\.json)(['"])/g;
       let match;
       const replacements = [];
 

@@ -89,7 +89,7 @@ export function readJournal(folder: string): JournalEntry[] {
       `Cannot read the migration journal at ${path}: \
 ${error instanceof Error ? error.message : String(error)}. \
 The migrations directory must be shipped next to the compiled migrator \
-and its path passed to readJournal explicitly.`
+and its path passed to readJournal explicitly.`,
     );
   }
 
@@ -103,7 +103,7 @@ and its path passed to readJournal explicitly.`
       `The migration journal at ${path} does not have a usable \`entries\` \
 array: ${describeJournalStructureProblem(parsed)}. The migrations directory \
 must be shipped next to the compiled migrator and its path passed to \
-readJournal explicitly.`
+readJournal explicitly.`,
     );
   }
 
@@ -125,7 +125,7 @@ readJournal explicitly.`
  */
 export function pendingEntries(
   entries: JournalEntry[],
-  lastAppliedMillis: number | null
+  lastAppliedMillis: number | null,
 ): JournalEntry[] {
   if (lastAppliedMillis === null) return [...entries];
   return entries.filter((entry) => lastAppliedMillis < entry.when);
@@ -153,7 +153,7 @@ silence and the run reports success. This happens when a migration is \
 generated on a branch that was created before another branch's migration \
 landed. Fix it by regenerating the affected migration(s) so their \`when\` \
 is newer than every applied one (rename the file and its \
-drizzle/meta/_journal.json entry), NEVER by editing the ledger.`
+drizzle/meta/_journal.json entry), NEVER by editing the ledger.`,
     );
     this.name = 'UnreachableMigrationError';
     this.entries = entries;
@@ -210,7 +210,7 @@ export function highWaterMillis(appliedMillis: readonly number[]): number | null
  */
 export function unreachableEntries(
   entries: JournalEntry[],
-  appliedMillis: readonly number[]
+  appliedMillis: readonly number[],
 ): JournalEntry[] {
   const highWater = highWaterMillis(appliedMillis);
   // Nothing recorded: drizzle's `!lastDbMigration` branch applies the whole
@@ -246,7 +246,7 @@ export function unreachableEntries(
  */
 export function planLedgerRun(
   entries: JournalEntry[],
-  appliedMillis: readonly number[]
+  appliedMillis: readonly number[],
 ): JournalEntry[] {
   const unreachable = unreachableEntries(entries, appliedMillis);
   const highWater = highWaterMillis(appliedMillis);
@@ -362,7 +362,7 @@ export class MigrationsNotCurrentError extends Error {
       `Postgres schema is not current: ${pending.length} migration(s) shipped in \
 this image have not been applied: ${pending.map((entry) => entry.tag).join(', ')}. \
 Apply them with the deployment migration one-shot before this task can \
-serve traffic.`
+serve traffic.`,
     );
     this.name = 'MigrationsNotCurrentError';
     this.pending = pending;
@@ -399,7 +399,7 @@ serve traffic.`
  */
 export async function assertPostgresMigrationsCurrent(
   client: postgres.Sql,
-  entries: JournalEntry[]
+  entries: JournalEntry[],
 ): Promise<void> {
   const pending = pendingEntries(entries, await readLastAppliedMillis(client));
   if (pending.length === 0) return;

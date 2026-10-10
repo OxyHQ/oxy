@@ -20,17 +20,14 @@ import { randomUUID } from 'node:crypto';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { userFollows } from '../../db/schema/userFollows';
 import { users } from '../../db/schema/users';
-import {
-  MAX_FOF_FIRST_HOP,
-  MAX_FOLLOWS_OF_FOLLOWS_IDS,
-} from '../../utils/recommendationWeights';
+import { MAX_FOF_FIRST_HOP, MAX_FOLLOWS_OF_FOLLOWS_IDS } from '../../utils/recommendationWeights';
 import { userService } from '../user.service';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
 async function makeUsers(
   count: number,
-  overrides: Partial<typeof users.$inferInsert> = {}
+  overrides: Partial<typeof users.$inferInsert> = {},
 ): Promise<string[]> {
   const ids = Array.from({ length: count }, () => uniqueId());
   await getDb()
@@ -157,7 +154,7 @@ describe('bounds', () => {
           followedId: hopId,
           // Index 0 is the OLDEST, so it falls outside the most-recent sample.
           createdAt: new Date(base + index * 1000),
-        }))
+        })),
       );
 
     await getDb()

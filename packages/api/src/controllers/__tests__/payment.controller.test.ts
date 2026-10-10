@@ -28,7 +28,11 @@ import type { AddressInfo } from 'net';
 let currentUserId = '';
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: { id: string; _id: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: { id: string; _id: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { id: currentUserId, _id: currentUserId };
     next();
   },
@@ -61,9 +65,12 @@ async function insertUser(): Promise<string> {
 }
 
 async function insertTransaction(
-  values: Omit<typeof transactions.$inferInsert, 'userId'> & { userId: string }
+  values: Omit<typeof transactions.$inferInsert, 'userId'> & { userId: string },
 ): Promise<string> {
-  const [row] = await getDb().insert(transactions).values(values).returning({ id: transactions.id });
+  const [row] = await getDb()
+    .insert(transactions)
+    .values(values)
+    .returning({ id: transactions.id });
   return row.id;
 }
 
@@ -186,9 +193,14 @@ describe('GET /payments/user', () => {
     expect(types).toEqual(['deposit', 'purchase']);
   });
 
-  it('returns ONLY the caller\'s rows', async () => {
+  it("returns ONLY the caller's rows", async () => {
     const stranger = await insertUser();
-    await insertTransaction({ userId: stranger, type: 'purchase', amount: '9', status: 'completed' });
+    await insertTransaction({
+      userId: stranger,
+      type: 'purchase',
+      amount: '9',
+      status: 'completed',
+    });
     await insertTransaction({
       userId: currentUserId,
       type: 'purchase',
@@ -232,7 +244,10 @@ describe('GET /payments/user', () => {
     });
 
     const res = await fetchPayments();
-    expect((res.body.data as { id: string }[]).map((payment) => payment.id)).toEqual([newer, older]);
+    expect((res.body.data as { id: string }[]).map((payment) => payment.id)).toEqual([
+      newer,
+      older,
+    ]);
   });
 
   it('returns an empty list for an account with no payments', async () => {

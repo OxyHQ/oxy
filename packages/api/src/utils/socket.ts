@@ -48,7 +48,9 @@ export function broadcastSessionAccountsChanged(
   const server = getIO();
   if (!server) return;
   const list = Array.isArray(userIds) ? userIds : [userIds as string];
-  const unique = new Set(list.filter((id): id is string => typeof id === 'string' && id.length > 0));
+  const unique = new Set(
+    list.filter((id): id is string => typeof id === 'string' && id.length > 0),
+  );
   for (const userId of unique) {
     server.to(`user:${userId}`).emit(SESSION_ACCOUNTS_CHANGED_EVENT, { userId, revision, reason });
   }

@@ -23,28 +23,28 @@
  * Production runs only through .github/workflows/renew-kaana-routing-scores.yml.
  */
 
-import { sql } from "drizzle-orm";
-import { routingScoreValidityThreshold } from "../src/config/inferenceRoutingScoreValidity";
-import { KAANA_REVIEWED_PROVIDERS } from "../src/config/kaanaInitialCatalogue";
-import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
-import { requireKaanaCatalogueBootstrapApplyAuthorization } from "../src/scripts/kaanaCatalogueBootstrapPlan";
+import { sql } from 'drizzle-orm';
+import { routingScoreValidityThreshold } from '../src/config/inferenceRoutingScoreValidity';
+import { KAANA_REVIEWED_PROVIDERS } from '../src/config/kaanaInitialCatalogue';
+import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
+import { requireKaanaCatalogueBootstrapApplyAuthorization } from '../src/scripts/kaanaCatalogueBootstrapPlan';
 import {
   type KaanaScorecardRenewalOutcome,
   createKaanaScorecardRenewalPlanSha256,
   kaanaScorecardRenewalOperations,
   renewKaanaRoutingScorecards,
   requireKaanaCatalogueReviewer,
-} from "../src/scripts/kaanaScorecardRenewal";
-import { logger } from "../src/utils/logger";
+} from '../src/scripts/kaanaScorecardRenewal';
+import { logger } from '../src/utils/logger';
 
-const APPLY = process.env.APPLY === "1";
-const RESULT_PREFIX = "KAANA_SCORE_RENEWAL_RESULT=";
+const APPLY = process.env.APPLY === '1';
+const RESULT_PREFIX = 'KAANA_SCORE_RENEWAL_RESULT=';
 // Same namespace as the catalogue bootstrap: the two writers never interleave.
-const BOOTSTRAP_LOCK_NAMESPACE = "oxy-kaana-catalogue-bootstrap-v1";
-const reviewerUserId = process.env.KAANA_CATALOGUE_REVIEWER_USER_ID ?? "";
-const expectedPlanSha256 = process.env.EXPECTED_PLAN_SHA256 ?? "";
-const renewalActor = process.env.RENEWAL_ACTOR ?? "";
-const renewalReason = process.env.RENEWAL_REASON ?? "";
+const BOOTSTRAP_LOCK_NAMESPACE = 'oxy-kaana-catalogue-bootstrap-v1';
+const reviewerUserId = process.env.KAANA_CATALOGUE_REVIEWER_USER_ID ?? '';
+const expectedPlanSha256 = process.env.EXPECTED_PLAN_SHA256 ?? '';
+const renewalActor = process.env.RENEWAL_ACTOR ?? '';
+const renewalReason = process.env.RENEWAL_REASON ?? '';
 
 class DryRunRollback extends Error {}
 
@@ -72,7 +72,7 @@ async function renew(): Promise<RenewalSummary> {
         minimumValidUntil,
       });
       if (outcomes.length === 0) {
-        throw new Error("No reviewed provider carries a scoreRenewal; nothing to renew");
+        throw new Error('No reviewed provider carries a scoreRenewal; nothing to renew');
       }
       const planSha256 = createKaanaScorecardRenewalPlanSha256({
         reviewerUserId,
@@ -90,12 +90,12 @@ async function renew(): Promise<RenewalSummary> {
         operations: kaanaScorecardRenewalOperations(outcomes),
         planSha256,
       };
-      if (!APPLY) throw new DryRunRollback("dry-run rollback");
+      if (!APPLY) throw new DryRunRollback('dry-run rollback');
     });
   } catch (error) {
     if (!(error instanceof DryRunRollback)) throw error;
   }
-  if (summary === undefined) throw new Error("Renewal transaction produced no summary");
+  if (summary === undefined) throw new Error('Renewal transaction produced no summary');
   return summary;
 }
 
@@ -103,12 +103,12 @@ renew()
   .then(async (summary) => {
     const result = {
       schemaVersion: 1,
-      database: { engine: "postgresql" },
+      database: { engine: 'postgresql' },
       ...summary,
       applied: APPLY,
     } as const;
     logger.info(
-      APPLY ? "Kaana routing score renewal applied" : "Kaana routing score renewal dry run",
+      APPLY ? 'Kaana routing score renewal applied' : 'Kaana routing score renewal dry run',
       { ...result },
     );
     process.stdout.write(`${RESULT_PREFIX}${JSON.stringify(result)}\n`);
@@ -116,7 +116,7 @@ renew()
   })
   .catch(async (error: unknown) => {
     logger.error(
-      "Kaana routing score renewal failed",
+      'Kaana routing score renewal failed',
       error instanceof Error ? error : new Error(String(error)),
     );
     await closePostgres().catch(() => undefined);

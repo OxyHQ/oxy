@@ -66,9 +66,7 @@ function isSafePublicHostname(hostname: string): boolean {
     .replace(/\.$/, '');
   if (!host || BLOCKED_HOSTNAMES.has(host) || isPrivateOrReservedIp(host)) return false;
   if (host.includes(':')) return false;
-  return /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(
-    host,
-  );
+  return /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host);
 }
 
 /**
@@ -125,7 +123,10 @@ async function lookupBimi(domain: string): Promise<string | null> {
  * Resolve avatar for a single email address.
  * Returns a relative path (prepend API base URL on the client) or null.
  */
-async function resolveAvatar(email: string): Promise<{ avatarPath: string | null; source: 'oxy' | 'bimi' | 'gravatar' | 'favicon' | 'none' }> {
+async function resolveAvatar(email: string): Promise<{
+  avatarPath: string | null;
+  source: 'oxy' | 'bimi' | 'gravatar' | 'favicon' | 'none';
+}> {
   const normalized = email.trim().toLowerCase();
 
   // 1. Oxy user — look up by username
@@ -263,7 +264,11 @@ export async function getAvatarPathsBatch(emails: string[]): Promise<Map<string,
   // Bulk cache lookup — same freshness predicate as the single read, so a stale
   // row is a MISS here too rather than a served stale avatar.
   const cached = await getDb()
-    .select({ email: senderAvatars.email, avatarPath: senderAvatars.avatarPath, source: senderAvatars.source })
+    .select({
+      email: senderAvatars.email,
+      avatarPath: senderAvatars.avatarPath,
+      source: senderAvatars.source,
+    })
     .from(senderAvatars)
     .where(and(inArray(senderAvatars.email, unique), senderAvatarIsFresh()));
   const cachedMap = new Map(cached.filter(isCurrentAvatar).map((c) => [c.email, c.avatarPath]));

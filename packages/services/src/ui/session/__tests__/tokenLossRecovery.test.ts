@@ -55,7 +55,9 @@ function harness(remintAnswers: Array<string | null | 'drop-credential'>): Harne
   return { deps, state, remint, signOutLocally, sleeps };
 }
 
-async function runToCompletion(recovery: ReturnType<typeof createTokenLossRecovery>): Promise<void> {
+async function runToCompletion(
+  recovery: ReturnType<typeof createTokenLossRecovery>,
+): Promise<void> {
   for (let i = 0; i < 200 && recovery.isRecovering(); i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }

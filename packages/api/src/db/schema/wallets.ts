@@ -82,5 +82,5 @@ export const wallets = pgTable(
     // (`wallet.controller.ts:232`, `:330`, `:427`); this is what stops a write
     // path that forgets to.
     check('wallets_balance_check', sql`${t.balance} >= 0`),
-  ]
+  ],
 );

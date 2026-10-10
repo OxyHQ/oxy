@@ -138,7 +138,7 @@ router.get(
     const { items, total } = await listPublishedPacks({ limit, offset });
     res.setHeader('Cache-Control', CATALOGUE_CACHE_CONTROL);
     sendPaginated(res, items, total, limit, offset);
-  })
+  }),
 );
 
 /** GET /stickers/packs/:slug — one pack with every sticker. */
@@ -151,7 +151,7 @@ router.get(
     if (!pack) throw new NotFoundError('Sticker pack not found');
     res.setHeader('Cache-Control', CATALOGUE_CACHE_CONTROL);
     sendSuccess(res, pack);
-  })
+  }),
 );
 
 /** GET /stickers/search?emoji=😂 | ?q=cat — stickers from published packs. */
@@ -160,10 +160,14 @@ router.get(
   readLimiter,
   validate({ query: stickerSearchQuery }),
   asyncHandler(async (req: Request, res: Response) => {
-    const { emoji, q, limit } = req.query as unknown as { emoji?: string; q?: string; limit: number };
+    const { emoji, q, limit } = req.query as unknown as {
+      emoji?: string;
+      q?: string;
+      limit: number;
+    };
     res.setHeader('Cache-Control', CATALOGUE_CACHE_CONTROL);
     sendSuccess(res, { stickers: await searchStickers({ emoji, q, limit }) });
-  })
+  }),
 );
 
 /**
@@ -178,7 +182,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const { ids } = req.body as { ids: string[] };
     sendSuccess(res, { stickers: await resolveStickers(ids) });
-  })
+  }),
 );
 
 // ============================================================================
@@ -195,7 +199,7 @@ router.get(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     res.setHeader('Cache-Control', 'private, no-cache');
     sendSuccess(res, await listInstalledPacks(requireUserId(req)));
-  })
+  }),
 );
 
 /** PUT /stickers/me/packs/:packId — install it. Idempotent. */
@@ -207,7 +211,7 @@ router.put(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await installPack(requireUserId(req), req.params.packId);
     res.status(204).end();
-  })
+  }),
 );
 
 /** DELETE /stickers/me/packs/:packId — remove it from the picker. */
@@ -219,7 +223,7 @@ router.delete(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await uninstallPack(requireUserId(req), req.params.packId);
     res.status(204).end();
-  })
+  }),
 );
 
 /** PATCH /stickers/me/packs-order — the whole installed list, first to last. */
@@ -231,7 +235,7 @@ router.patch(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await reorderInstalledPacks(requireUserId(req), (req.body as { packIds: string[] }).packIds);
     res.status(204).end();
-  })
+  }),
 );
 
 // ============================================================================
@@ -249,7 +253,7 @@ router.get(
     const { limit, offset } = req.query as unknown as { limit: number; offset: number };
     const { items, total } = await listAllPacks({ limit, offset });
     sendPaginated(res, items, total, limit, offset);
-  })
+  }),
 );
 
 /** GET /stickers/admin/packs/:packId — one pack in any status. */
@@ -261,7 +265,7 @@ router.get(
   validate({ params: stickerPackIdParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await getPackForStaff(req.params.packId));
-  })
+  }),
 );
 
 /** POST /stickers/admin/packs — a new draft. */
@@ -273,7 +277,7 @@ router.post(
   validate({ body: createStickerPackRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await createPack(req.body), 201);
-  })
+  }),
 );
 
 /** PATCH /stickers/admin/packs/:packId — re-title or re-word it. */
@@ -285,7 +289,7 @@ router.patch(
   validate({ params: stickerPackIdParams, body: updateStickerPackRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await updatePack(req.params.packId, req.body));
-  })
+  }),
 );
 
 /**
@@ -315,7 +319,7 @@ router.post(
       keywords,
     });
     sendSuccess(res, sticker, 201);
-  })
+  }),
 );
 
 /** DELETE /stickers/admin/packs/:packId/stickers/:stickerId — drafts only. */
@@ -328,7 +332,7 @@ router.delete(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await removeSticker(req.params.packId, req.params.stickerId);
     res.status(204).end();
-  })
+  }),
 );
 
 /** POST /stickers/admin/packs/:packId/publish */
@@ -340,7 +344,7 @@ router.post(
   validate({ params: stickerPackIdParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await publishPack(req.params.packId));
-  })
+  }),
 );
 
 /** POST /stickers/admin/packs/:packId/archive — out of the shop; stickers keep resolving. */
@@ -352,7 +356,7 @@ router.post(
   validate({ params: stickerPackIdParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await archivePack(req.params.packId));
-  })
+  }),
 );
 
 /** DELETE /stickers/admin/packs/:packId — a never-published draft only. */
@@ -365,7 +369,7 @@ router.delete(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await deleteDraftPack(req.params.packId);
     res.status(204).end();
-  })
+  }),
 );
 
 // ============================================================================
@@ -382,7 +386,7 @@ router.get(
     if (!sticker) throw new NotFoundError('Sticker not found');
     res.setHeader('Cache-Control', CATALOGUE_CACHE_CONTROL);
     sendSuccess(res, sticker);
-  })
+  }),
 );
 
 export default router;

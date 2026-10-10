@@ -86,5 +86,5 @@ export const appEndorsementEdges = pgTable(
     // An empty `source_id` is the sentinel this port exists to remove: NULL is
     // "unset", and `''` would be a second, silently-colliding spelling of it.
     check('app_endorsement_edges_source_id_check', sql`${t.sourceId} <> ''`),
-  ]
+  ],
 );

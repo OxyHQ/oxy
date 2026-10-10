@@ -79,17 +79,21 @@ interface RawResponse {
 async function get(target: http.Server, path: string): Promise<RawResponse> {
   const address = target.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    http.get({ host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => {
-        resolve({
-          status: res.statusCode ?? 0,
-          headers: res.headers,
-          body: raw.length > 0 ? JSON.parse(raw) : {},
+    http
+      .get({ host: '127.0.0.1', port: address.port, path }, (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
         });
-      });
-    }).on('error', reject);
+        res.on('end', () => {
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: res.headers,
+            body: raw.length > 0 ? JSON.parse(raw) : {},
+          });
+        });
+      })
+      .on('error', reject);
   });
 }
 
@@ -171,7 +175,11 @@ describe('the id format must not decide whether a DID resolves', () => {
       alsoKnownAs: ['acct:nate@oxy.so', 'https://oxy.so/@nate'],
       service: [
         { id: `${did}#oxy-api`, type: 'OxyApiService', serviceEndpoint: 'https://api.oxy.so' },
-        { id: `${did}#profile`, type: 'OxyProfileService', serviceEndpoint: 'https://oxy.so/@nate' },
+        {
+          id: `${did}#profile`,
+          type: 'OxyProfileService',
+          serviceEndpoint: 'https://oxy.so/@nate',
+        },
       ],
     });
   });
@@ -250,20 +258,32 @@ describe('GET /u/:userId/did.json', () => {
     const primary = generateSecp256k1KeyPair().publicKey;
     const second = generateSecp256k1KeyPair().publicKey;
     await linkIdentity(userId, primary);
-    await getDb().insert(userAuthMethods).values({
-      userId,
-      type: 'identity',
-      methodPublicKey: second,
-      linkedAt: new Date(Date.now() + 1000),
-    });
+    await getDb()
+      .insert(userAuthMethods)
+      .values({
+        userId,
+        type: 'identity',
+        methodPublicKey: second,
+        linkedAt: new Date(Date.now() + 1000),
+      });
     const did = `did:web:oxy.so:u:${userId}`;
 
     const first = await get(server, `/u/${userId}/did.json`);
     const again = await get(server, `/u/${userId}/did.json`);
 
     expect(first.body.verificationMethod).toEqual([
-      { id: `${did}#key-1`, type: 'EcdsaSecp256k1VerificationKey2019', controller: did, publicKeyHex: primary },
-      { id: `${did}#key-2`, type: 'EcdsaSecp256k1VerificationKey2019', controller: did, publicKeyHex: second },
+      {
+        id: `${did}#key-1`,
+        type: 'EcdsaSecp256k1VerificationKey2019',
+        controller: did,
+        publicKeyHex: primary,
+      },
+      {
+        id: `${did}#key-2`,
+        type: 'EcdsaSecp256k1VerificationKey2019',
+        controller: did,
+        publicKeyHex: second,
+      },
     ]);
     expect(again.body).toEqual(first.body);
   });
@@ -271,10 +291,24 @@ describe('GET /u/:userId/did.json', () => {
   it('publishes each verified domain as an alsoKnownAs entry, in insertion order', async () => {
     const userId = await account('domainowner');
     await linkIdentity(userId, generateSecp256k1KeyPair().publicKey);
-    await getDb().insert(userVerifiedDomains).values([
-      { userId, domain: 'first.example', verifiedAt: new Date('2026-01-01T00:00:00.000Z'), method: 'dns-txt', createdAt: new Date('2026-01-01T00:00:00.000Z') },
-      { userId, domain: 'second.example', verifiedAt: new Date('2026-02-01T00:00:00.000Z'), method: 'well-known', createdAt: new Date('2026-02-01T00:00:00.000Z') },
-    ]);
+    await getDb()
+      .insert(userVerifiedDomains)
+      .values([
+        {
+          userId,
+          domain: 'first.example',
+          verifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+          method: 'dns-txt',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        {
+          userId,
+          domain: 'second.example',
+          verifiedAt: new Date('2026-02-01T00:00:00.000Z'),
+          method: 'well-known',
+          createdAt: new Date('2026-02-01T00:00:00.000Z'),
+        },
+      ]);
 
     const res = await get(server, `/u/${userId}/did.json`);
 
@@ -292,7 +326,11 @@ describe('GET /u/:userId/did.json', () => {
     mockGetUserNode.mockResolvedValue({ status: 'active', endpoint: 'https://node.nate.com' });
 
     const res = await get(server, `/u/${userId}/did.json`);
-    const services = res.body.service as Array<{ id: string; type: string; serviceEndpoint: string }>;
+    const services = res.body.service as Array<{
+      id: string;
+      type: string;
+      serviceEndpoint: string;
+    }>;
 
     expect(mockGetUserNode).toHaveBeenCalledWith(userId);
     expect(services).toContainEqual({
@@ -341,7 +379,11 @@ describe('GET /.well-known/did.json', () => {
     expect(res.body.controller).toEqual(['did:web:oxy.so']);
     expect(res.body.alsoKnownAs).toEqual(['https://oxy.so']);
     expect(res.body.service).toEqual([
-      { id: 'did:web:oxy.so#oxy-api', type: 'OxyApiService', serviceEndpoint: 'https://api.oxy.so' },
+      {
+        id: 'did:web:oxy.so#oxy-api',
+        type: 'OxyApiService',
+        serviceEndpoint: 'https://api.oxy.so',
+      },
     ]);
   });
 });
@@ -398,7 +440,12 @@ describe('DID_WEB_DOMAIN override — anchored at api.oxy.so', () => {
       id: did,
       controller: [did],
       verificationMethod: [
-        { id: `${did}#key-1`, type: 'EcdsaSecp256k1VerificationKey2019', controller: did, publicKeyHex: publicKey },
+        {
+          id: `${did}#key-1`,
+          type: 'EcdsaSecp256k1VerificationKey2019',
+          controller: did,
+          publicKeyHex: publicKey,
+        },
       ],
       authentication: [`${did}#key-1`],
       assertionMethod: [`${did}#key-1`],
@@ -406,7 +453,11 @@ describe('DID_WEB_DOMAIN override — anchored at api.oxy.so', () => {
       alsoKnownAs: ['acct:anchored@oxy.so', 'https://oxy.so/@anchored'],
       service: [
         { id: `${did}#oxy-api`, type: 'OxyApiService', serviceEndpoint: 'https://api.oxy.so' },
-        { id: `${did}#profile`, type: 'OxyProfileService', serviceEndpoint: 'https://oxy.so/@anchored' },
+        {
+          id: `${did}#profile`,
+          type: 'OxyProfileService',
+          serviceEndpoint: 'https://oxy.so/@anchored',
+        },
       ],
     });
   });

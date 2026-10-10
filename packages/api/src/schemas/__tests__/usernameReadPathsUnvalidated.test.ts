@@ -36,7 +36,13 @@ const FEDERATED_HANDLES = [
 ];
 
 /** Local names that exist and must keep resolving. */
-const EXISTING_LOCAL_NAMES = ['nate', 'oxy', 'Viacheslav', 'community-maestro', 'alia-production-chat'];
+const EXISTING_LOCAL_NAMES = [
+  'nate',
+  'oxy',
+  'Viacheslav',
+  'community-maestro',
+  'alia-production-chat',
+];
 
 describe('the profile read path is NOT held to the write policy', () => {
   it.each(FEDERATED_HANDLES)('resolves the federated handle %s', (handle) => {
@@ -75,6 +81,6 @@ describe('the availability check IS held to the write policy', () => {
     'refuses to call %s available, because the write would refuse it',
     (username) => {
       expect(checkUsernameParams.safeParse({ username }).success).toBe(false);
-    }
+    },
   );
 });

@@ -163,7 +163,7 @@ describe('envelope jsonb round-trip — the whole justification for the column t
         collection: 'app.oxy.identity',
         rkey: 'self',
       },
-      TEST_PRIVATE_KEY
+      TEST_PRIVATE_KEY,
     );
   }
 
@@ -283,7 +283,7 @@ describe('envelope jsonb round-trip — the whole justification for the column t
         insert into signed_records (id, subject_did, user_id, type, envelope, public_key)
         values (${randomUUID()}, 'did:web:oxy.so:u:x', ${userId}, 'identity',
                 ${'{"record":{"nul":"a\\u0000b"}}'}::jsonb, 'pk')
-      `)
+      `),
     );
 
     expect(pgMessage(error)).toMatch(/unsupported Unicode escape sequence/i);
@@ -295,34 +295,38 @@ describe('signed_records — the chain constraints', () => {
     const userId = await owner();
     const subject = `did:web:oxy.so:u:${userId}`;
 
-    await getDb().insert(signedRecords).values({
-      subjectDid: subject,
-      userId,
-      type: 'identity',
-      envelope: stubEnvelope(subject, { device: 'a' }),
-      publicKey: 'pk',
-      seq: 0,
-      prev: null,
-      recordId: `rec-a-${randomUUID()}`,
-      nsid: 'app.oxy.identity',
-      rkey: 'self',
-    });
+    await getDb()
+      .insert(signedRecords)
+      .values({
+        subjectDid: subject,
+        userId,
+        type: 'identity',
+        envelope: stubEnvelope(subject, { device: 'a' }),
+        publicKey: 'pk',
+        seq: 0,
+        prev: null,
+        recordId: `rec-a-${randomUUID()}`,
+        nsid: 'app.oxy.identity',
+        rkey: 'self',
+      });
 
     // The loser of the race. `oxyRecordStore.append` turns this into
     // `chain_conflict`, and the caller re-reads the head and re-signs.
     const error = await rejection(
-      getDb().insert(signedRecords).values({
-        subjectDid: subject,
-        userId,
-        type: 'identity',
-        envelope: stubEnvelope(subject, { device: 'b' }),
-        publicKey: 'pk',
-        seq: 0,
-        prev: null,
-        recordId: `rec-b-${randomUUID()}`,
-        nsid: 'app.oxy.identity',
-        rkey: 'self',
-      })
+      getDb()
+        .insert(signedRecords)
+        .values({
+          subjectDid: subject,
+          userId,
+          type: 'identity',
+          envelope: stubEnvelope(subject, { device: 'b' }),
+          publicKey: 'pk',
+          seq: 0,
+          prev: null,
+          recordId: `rec-b-${randomUUID()}`,
+          nsid: 'app.oxy.identity',
+          rkey: 'self',
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -333,18 +337,20 @@ describe('signed_records — the chain constraints', () => {
     const userId = await owner();
     const subject = `did:web:oxy.so:u:${userId}`;
     const append = (device: string) =>
-      getDb().insert(signedRecords).values({
-        subjectDid: subject,
-        userId,
-        type: 'identity',
-        envelope: stubEnvelope(subject, { device }),
-        publicKey: 'pk',
-        seq: 7,
-        prev: null,
-        recordId: `rec-${device}-${randomUUID()}`,
-        nsid: 'app.oxy.identity',
-        rkey: 'self',
-      });
+      getDb()
+        .insert(signedRecords)
+        .values({
+          subjectDid: subject,
+          userId,
+          type: 'identity',
+          envelope: stubEnvelope(subject, { device }),
+          publicKey: 'pk',
+          seq: 7,
+          prev: null,
+          recordId: `rec-${device}-${randomUUID()}`,
+          nsid: 'app.oxy.identity',
+          rkey: 'self',
+        });
 
     const settled = await Promise.allSettled([append('a'), append('b')]);
 
@@ -362,24 +368,40 @@ describe('signed_records — the chain constraints', () => {
     const subject = `did:web:oxy.so:u:${userId}`;
 
     await expect(
-      getDb().insert(signedRecords).values([
-        { subjectDid: subject, userId, type: 'identity', envelope: stubEnvelope(subject), publicKey: 'pk' },
-        { subjectDid: subject, userId, type: 'profile', envelope: stubEnvelope(subject), publicKey: 'pk' },
-      ])
+      getDb()
+        .insert(signedRecords)
+        .values([
+          {
+            subjectDid: subject,
+            userId,
+            type: 'identity',
+            envelope: stubEnvelope(subject),
+            publicKey: 'pk',
+          },
+          {
+            subjectDid: subject,
+            userId,
+            type: 'profile',
+            envelope: stubEnvelope(subject),
+            publicKey: 'pk',
+          },
+        ]),
     ).resolves.toBeDefined();
   });
 
   it('rejects a half-chained row — v2 needs all four chain fields, v1 none', async () => {
     const userId = await owner();
     const error = await rejection(
-      getDb().insert(signedRecords).values({
-        subjectDid: `did:web:oxy.so:u:${userId}`,
-        userId,
-        type: 'identity',
-        envelope: stubEnvelope(`did:web:oxy.so:u:${userId}`),
-        publicKey: 'pk',
-        seq: 3,
-      })
+      getDb()
+        .insert(signedRecords)
+        .values({
+          subjectDid: `did:web:oxy.so:u:${userId}`,
+          userId,
+          type: 'identity',
+          envelope: stubEnvelope(`did:web:oxy.so:u:${userId}`),
+          publicKey: 'pk',
+          seq: 3,
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -389,18 +411,20 @@ describe('signed_records — the chain constraints', () => {
   it('rejects a `prev` that names no stored record', async () => {
     const userId = await owner();
     const error = await rejection(
-      getDb().insert(signedRecords).values({
-        subjectDid: `did:web:oxy.so:u:${userId}`,
-        userId,
-        type: 'identity',
-        envelope: stubEnvelope(`did:web:oxy.so:u:${userId}`),
-        publicKey: 'pk',
-        seq: 1,
-        prev: `never-stored-${randomUUID()}`,
-        recordId: `rec-${randomUUID()}`,
-        nsid: 'app.oxy.identity',
-        rkey: 'self',
-      })
+      getDb()
+        .insert(signedRecords)
+        .values({
+          subjectDid: `did:web:oxy.so:u:${userId}`,
+          userId,
+          type: 'identity',
+          envelope: stubEnvelope(`did:web:oxy.so:u:${userId}`),
+          publicKey: 'pk',
+          seq: 1,
+          prev: `never-stored-${randomUUID()}`,
+          recordId: `rec-${randomUUID()}`,
+          nsid: 'app.oxy.identity',
+          rkey: 'self',
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
@@ -417,7 +441,7 @@ describe('signed_records — the chain constraints', () => {
       getDb().execute(sql`
         insert into signed_records (id, subject_did, user_id, type, envelope, public_key)
         values (${randomUUID()}, 'did:web:oxy.so:u:x', ${await owner()}, 'app.syra.listen', '{}'::jsonb, 'pk')
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -429,13 +453,15 @@ describe('repo_heads — the O(1) head pointer', () => {
   it('refuses a head that names no stored record', async () => {
     const userId = await owner();
     const error = await rejection(
-      getDb().insert(repoHeads).values({
-        userId,
-        subjectDid: `did:web:oxy.so:u:${userId}`,
-        seq: 0,
-        headRecordId: `ghost-${randomUUID()}`,
-        recordCount: 1,
-      })
+      getDb()
+        .insert(repoHeads)
+        .values({
+          userId,
+          subjectDid: `did:web:oxy.so:u:${userId}`,
+          seq: 0,
+          headRecordId: `ghost-${randomUUID()}`,
+          recordCount: 1,
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
@@ -447,14 +473,42 @@ describe('repo_heads — the O(1) head pointer', () => {
     const first = `rec-${randomUUID()}`;
     const second = `rec-${randomUUID()}`;
 
-    await getDb().insert(signedRecords).values([
-      { subjectDid: subject, userId, type: 'identity', envelope: stubEnvelope(subject), publicKey: 'pk', seq: 0, prev: null, recordId: first, nsid: 'app.oxy.identity', rkey: 'self' },
-      { subjectDid: subject, userId, type: 'identity', envelope: stubEnvelope(subject), publicKey: 'pk', seq: 1, prev: first, recordId: second, nsid: 'app.oxy.identity', rkey: 'self' },
-    ]);
-    await getDb().insert(repoHeads).values({ userId, subjectDid: subject, seq: 0, headRecordId: first, recordCount: 1 });
+    await getDb()
+      .insert(signedRecords)
+      .values([
+        {
+          subjectDid: subject,
+          userId,
+          type: 'identity',
+          envelope: stubEnvelope(subject),
+          publicKey: 'pk',
+          seq: 0,
+          prev: null,
+          recordId: first,
+          nsid: 'app.oxy.identity',
+          rkey: 'self',
+        },
+        {
+          subjectDid: subject,
+          userId,
+          type: 'identity',
+          envelope: stubEnvelope(subject),
+          publicKey: 'pk',
+          seq: 1,
+          prev: first,
+          recordId: second,
+          nsid: 'app.oxy.identity',
+          rkey: 'self',
+        },
+      ]);
+    await getDb()
+      .insert(repoHeads)
+      .values({ userId, subjectDid: subject, seq: 0, headRecordId: first, recordCount: 1 });
 
     const error = await rejection(
-      getDb().insert(repoHeads).values({ userId, subjectDid: subject, seq: 1, headRecordId: second, recordCount: 2 })
+      getDb()
+        .insert(repoHeads)
+        .values({ userId, subjectDid: subject, seq: 1, headRecordId: second, recordCount: 2 }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -470,25 +524,43 @@ describe('repo_heads — the O(1) head pointer', () => {
 
     await getDb().transaction(async (tx) => {
       await tx.insert(signedRecords).values({
-        subjectDid: subject, userId, type: 'identity', envelope: stubEnvelope(subject), publicKey: 'pk',
-        seq: 0, prev: null, recordId: genesis, nsid: 'app.oxy.identity', rkey: 'self',
+        subjectDid: subject,
+        userId,
+        type: 'identity',
+        envelope: stubEnvelope(subject),
+        publicKey: 'pk',
+        seq: 0,
+        prev: null,
+        recordId: genesis,
+        nsid: 'app.oxy.identity',
+        rkey: 'self',
       });
-      await tx.insert(repoHeads).values({ userId, subjectDid: subject, seq: 0, headRecordId: genesis, recordCount: 1 });
+      await tx
+        .insert(repoHeads)
+        .values({ userId, subjectDid: subject, seq: 0, headRecordId: genesis, recordCount: 1 });
     });
 
     const next = `rec-${randomUUID()}`;
     await expect(
       getDb().transaction(async (tx) => {
         await tx.insert(signedRecords).values({
-          subjectDid: subject, userId, type: 'identity', envelope: stubEnvelope(subject), publicKey: 'pk',
-          seq: 1, prev: genesis, recordId: next, nsid: 'app.oxy.identity', rkey: 'self',
+          subjectDid: subject,
+          userId,
+          type: 'identity',
+          envelope: stubEnvelope(subject),
+          publicKey: 'pk',
+          seq: 1,
+          prev: genesis,
+          recordId: next,
+          nsid: 'app.oxy.identity',
+          rkey: 'self',
         });
         await tx
           .update(repoHeads)
           .set({ seq: 1, headRecordId: next })
           .where(eq(repoHeads.userId, userId));
         throw new Error('simulated failure after both writes');
-      })
+      }),
     ).rejects.toThrow('simulated failure');
 
     const [head] = await getDb().select().from(repoHeads).where(eq(repoHeads.userId, userId));
@@ -509,15 +581,31 @@ describe('account erasure', () => {
     const subject = `did:web:oxy.so:u:${userId}`;
     const genesis = `rec-${randomUUID()}`;
 
-    await getDb().insert(signedRecords).values({
-      subjectDid: subject, userId, type: 'identity', envelope: stubEnvelope(subject), publicKey: 'pk',
-      seq: 0, prev: null, recordId: genesis, nsid: 'app.oxy.identity', rkey: 'self',
-    });
-    await getDb().insert(repoHeads).values({ userId, subjectDid: subject, seq: 0, headRecordId: genesis, recordCount: 1 });
+    await getDb()
+      .insert(signedRecords)
+      .values({
+        subjectDid: subject,
+        userId,
+        type: 'identity',
+        envelope: stubEnvelope(subject),
+        publicKey: 'pk',
+        seq: 0,
+        prev: null,
+        recordId: genesis,
+        nsid: 'app.oxy.identity',
+        rkey: 'self',
+      });
+    await getDb()
+      .insert(repoHeads)
+      .values({ userId, subjectDid: subject, seq: 0, headRecordId: genesis, recordCount: 1 });
 
     await getDb().delete(users).where(eq(users.id, userId));
 
-    expect(await getDb().select().from(signedRecords).where(eq(signedRecords.userId, userId))).toHaveLength(0);
-    expect(await getDb().select().from(repoHeads).where(eq(repoHeads.userId, userId))).toHaveLength(0);
+    expect(
+      await getDb().select().from(signedRecords).where(eq(signedRecords.userId, userId)),
+    ).toHaveLength(0);
+    expect(await getDb().select().from(repoHeads).where(eq(repoHeads.userId, userId))).toHaveLength(
+      0,
+    );
   });
 });

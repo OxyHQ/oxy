@@ -8,7 +8,7 @@ import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 
 /**
  * Import Identity - Notifications Screen
- * 
+ *
  * Requests push notification permissions and completes sign-in
  */
 export default function ImportIdentityNotificationsScreen() {
@@ -29,7 +29,10 @@ export default function ImportIdentityNotificationsScreen() {
   });
 
   return (
-    <View style={[styles.container, { backgroundColor }]} pointerEvents={isSigningIn ? 'none' : 'auto'}>
+    <View
+      style={[styles.container, { backgroundColor }]}
+      pointerEvents={isSigningIn ? 'none' : 'auto'}
+    >
       <NotificationsStep
         error={error}
         onRequestNotifications={handleRequestNotifications}
@@ -47,4 +50,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

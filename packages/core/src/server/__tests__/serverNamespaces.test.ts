@@ -9,7 +9,10 @@ import { OxyServer } from '../OxyServer';
 import { OxyServices } from '../../OxyServices';
 
 function server(): OxyServer {
-  const oxy = new OxyServer({ baseURL: 'http://test.invalid', serviceAuth: { apiKey: 'oxy_dk_test', apiSecret: 'secret' } });
+  const oxy = new OxyServer({
+    baseURL: 'http://test.invalid',
+    serviceAuth: { apiKey: 'oxy_dk_test', apiSecret: 'secret' },
+  });
   jest.spyOn(oxy, 'serviceToken').mockResolvedValue('svc-token');
   return oxy;
 }
@@ -27,7 +30,10 @@ describe('OxyServer service lane', () => {
     const plain = new OxyServices({ baseURL: 'http://test.invalid' });
     expect(Reflect.get(plain, 'context').service).toBeNull();
 
-    const withKeys = new OxyServer({ baseURL: 'http://test.invalid', serviceAuth: { apiKey: 'k', apiSecret: 's' } });
+    const withKeys = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'k', apiSecret: 's' },
+    });
     expect(Reflect.get(withKeys, 'context').service.available).toBe(true);
   });
 
@@ -49,10 +55,15 @@ describe('OxyServer service lane', () => {
 
     await oxy.serviceRequest('GET', '/thing', { q: 1 }, { actAs: 'user-1' });
 
-    expect(request).toHaveBeenCalledWith('GET', '/thing', { q: 1 }, {
-      cache: false,
-      headers: { Authorization: 'Bearer svc-token', 'X-Oxy-User-Id': 'user-1' },
-    });
+    expect(request).toHaveBeenCalledWith(
+      'GET',
+      '/thing',
+      { q: 1 },
+      {
+        cache: false,
+        headers: { Authorization: 'Bearer svc-token', 'X-Oxy-User-Id': 'user-1' },
+      },
+    );
   });
 
   it('mints the service token without the user preflight', async () => {
@@ -78,7 +89,13 @@ describe('OxyServer service-only namespace methods', () => {
   it('notifications.create posts with the service token', async () => {
     const oxy = server();
     const request = captureRequest(oxy, { notification: { id: 'n1' } });
-    const data = { recipientId: 'u1', actorId: 'u1', type: 'system', entityId: 'u1', entityType: 'profile' };
+    const data = {
+      recipientId: 'u1',
+      actorId: 'u1',
+      type: 'system',
+      entityId: 'u1',
+      entityType: 'profile',
+    };
 
     await expect(oxy.notifications.create(data as never)).resolves.toEqual({ id: 'n1' });
 
@@ -105,7 +122,9 @@ describe('OxyServer service-only namespace methods', () => {
     const request = captureRequest(oxy, { transaction: { id: 't1' } });
     const deletePrefix = jest.spyOn(oxy.cache, 'deletePrefix');
 
-    await expect(oxy.reputation.award({ userId: 'u1', actionType: 'x' } as never)).resolves.toEqual({ id: 't1' });
+    await expect(oxy.reputation.award({ userId: 'u1', actionType: 'x' } as never)).resolves.toEqual(
+      { id: 't1' },
+    );
 
     expect(request.mock.calls[0]?.[3]?.headers).toEqual({ Authorization: 'Bearer svc-token' });
     expect(deletePrefix).toHaveBeenCalledWith('GET:/reputation/');

@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Navigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import type { CommonsApprovalInfo } from '@oxy.so/core';
 import type { SwitcherContextRow } from '@oxy.so/core/session';
-import { getCommonsApprovalBlockingReason } from "@oxy.so/core";
-import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxy.so/services";
+import { getCommonsApprovalBlockingReason } from '@oxy.so/core';
+import {
+  OxyAccountPicker,
+  OxyAuthLoading,
+  OxyAuthScreen,
+  OxyAuthScreenHeader,
+  OxyConsentScreen,
+  useDeviceSwitcher,
+  useOxy,
+} from '@oxy.so/services';
 
-import { buildAuthUrl, buildRelativeUrl, getAvatarUrl } from "@/lib/oxy-api-client";
-import { useTranslation } from "@/lib/i18n/use-translation";
+import { buildAuthUrl, buildRelativeUrl, getAvatarUrl } from '@/lib/oxy-api-client';
+import { useTranslation } from '@/lib/i18n/use-translation';
 
 /**
  * The shape `POST /auth/session/create` mints: 16 random bytes, hex. Checked
@@ -26,7 +34,7 @@ const DEVICE_CODE_PATTERN = /^[0-9a-f]{32}$/;
  * device displays for a person to approve, which is exactly what this is — the
  * name only, not a claim that this is that grant.
  */
-const CODE_PARAM = "user_code";
+const CODE_PARAM = 'user_code';
 
 /**
  * Approve a device sign-in in a normal browser tab.
@@ -73,7 +81,7 @@ export function DevicePage() {
   } = useDeviceSwitcher();
   const contextCount = principals.reduce(
     (total, principal) => total + principal.contexts.length,
-    0
+    0,
   );
 
   const [approval, setApproval] = useState<CommonsApprovalInfo | null>(null);
@@ -81,23 +89,21 @@ export function DevicePage() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<"approved" | "denied" | null>(null);
+  const [outcome, setOutcome] = useState<'approved' | 'denied' | null>(null);
   const [chooserDismissed, setChooserDismissed] = useState(false);
   const [pendingContextId, setPendingContextId] = useState<string | null>(null);
   const completingRef = useRef(false);
 
   const hasUsableBearer =
-    isAuthenticated ||
-    activeContext !== null ||
-    !!oxyServices.session.accessToken;
+    isAuthenticated || activeContext !== null || !!oxyServices.session.accessToken;
 
   // `approve-info` is public, so an expired or already-used code is reported
   // before anyone is sent through sign-in for nothing.
   useEffect(() => {
     if (!code) return;
     let cancelled = false;
-    void oxyServices
-      .auth.commons.approvalInfo(code)
+    void oxyServices.auth.commons
+      .approvalInfo(code)
       .then((info: CommonsApprovalInfo) => {
         if (cancelled) return;
         const blockingReason = getCommonsApprovalBlockingReason(info);
@@ -108,21 +114,21 @@ export function DevicePage() {
         setApproval(info);
       })
       .catch(() => {
-        if (!cancelled) setLoadError(t("device.loadFailed"));
+        if (!cancelled) setLoadError(t('device.loadFailed'));
       });
     return () => {
       cancelled = true;
     };
   }, [code, oxyServices, t]);
 
-  const loginUrl = code ? buildRelativeUrl("/login", { user_code: code }) : "/login";
+  const loginUrl = code ? buildRelativeUrl('/login', { user_code: code }) : '/login';
 
   async function handleChooseContext(context: SwitcherContextRow): Promise<void> {
     setPendingContextId(context.contextId);
     setError(null);
     try {
       if (!context.isActive && !(await activateContext(context.contextId))) {
-        setError(t("device.errors.switchFailed"));
+        setError(t('device.errors.switchFailed'));
         return;
       }
       // The acknowledgement was given AS an account; a different account has
@@ -140,7 +146,7 @@ export function DevicePage() {
     if (!code || !acknowledged || completingRef.current) return;
     const accessToken = oxyServices.session.accessToken;
     if (!accessToken) {
-      setError(t("device.errors.noToken"));
+      setError(t('device.errors.noToken'));
       return;
     }
     completingRef.current = true;
@@ -150,28 +156,24 @@ export function DevicePage() {
       const response = await fetch(
         buildAuthUrl(`/session/authorize-code/${encodeURIComponent(code)}`),
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "content-type": "application/json",
+            'content-type': 'application/json',
             Authorization: `Bearer ${accessToken}`,
           },
-          body: "{}",
-        }
+          body: '{}',
+        },
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
         throw new Error(
-          typeof payload?.message === "string"
-            ? payload.message
-            : t("device.errors.approveFailed")
+          typeof payload?.message === 'string' ? payload.message : t('device.errors.approveFailed'),
         );
       }
-      setOutcome("approved");
+      setOutcome('approved');
     } catch (caught) {
       completingRef.current = false;
-      setError(
-        caught instanceof Error ? caught.message : t("device.errors.approveFailed")
-      );
+      setError(caught instanceof Error ? caught.message : t('device.errors.approveFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -181,40 +183,37 @@ export function DevicePage() {
     if (code) {
       void oxyServices.auth.commons.deny(code).catch(() => undefined);
     }
-    setOutcome("denied");
+    setOutcome('denied');
   }, [code, oxyServices]);
 
   if (!code) {
     return (
       <OxyAuthScreen>
         <OxyAuthScreenHeader
-          title={t("device.noRequestTitle")}
-          description={t("device.noRequestDesc")}
+          title={t('device.noRequestTitle')}
+          description={t('device.noRequestDesc')}
         />
       </OxyAuthScreen>
     );
   }
 
-  const appName = approval?.application?.name ?? "";
+  const appName = approval?.application?.name ?? '';
 
-  if (outcome === "approved") {
+  if (outcome === 'approved') {
     return (
       <OxyAuthScreen>
         <OxyAuthScreenHeader
-          title={t("device.approvedTitle")}
-          description={t("device.approvedDesc", { app: appName })}
+          title={t('device.approvedTitle')}
+          description={t('device.approvedDesc', { app: appName })}
         />
       </OxyAuthScreen>
     );
   }
 
-  if (outcome === "denied") {
+  if (outcome === 'denied') {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader
-          title={t("device.deniedTitle")}
-          description={t("device.deniedDesc")}
-        />
+        <OxyAuthScreenHeader title={t('device.deniedTitle')} description={t('device.deniedDesc')} />
       </OxyAuthScreen>
     );
   }
@@ -222,7 +221,7 @@ export function DevicePage() {
   if (loadError) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t("device.unavailableTitle")} description={loadError} />
+        <OxyAuthScreenHeader title={t('device.unavailableTitle')} description={loadError} />
       </OxyAuthScreen>
     );
   }
@@ -259,7 +258,7 @@ export function DevicePage() {
   return (
     <OxyAuthScreen>
       <div className="flex w-full flex-col gap-space-12 rounded-radius-12 border border-border p-space-12 font-bodySmall text-bodySmall">
-        <p className="text-muted-foreground">{t("device.codeHint")}</p>
+        <p className="text-muted-foreground">{t('device.codeHint')}</p>
         <code data-testid="device-code" className="break-all font-mono text-foreground">
           {code}
         </code>
@@ -273,8 +272,8 @@ export function DevicePage() {
           />
           <span>
             {approval.originVerified
-              ? t("device.ackVerified", { app: application.name })
-              : t("device.ackUnverified", { app: application.name })}
+              ? t('device.ackVerified', { app: application.name })
+              : t('device.ackUnverified', { app: application.name })}
           </span>
         </label>
       </div>

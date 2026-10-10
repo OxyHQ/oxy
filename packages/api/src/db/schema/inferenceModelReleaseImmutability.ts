@@ -76,7 +76,7 @@ export const INFERENCE_RELEASE_SIGNATURES_IMMUTABILITY_TRIGGER_NAME =
  * the test believes is protected and the database lets through.
  */
 const IMMUTABLE_COLUMN_BRANCHES = INFERENCE_RELEASE_IMMUTABLE_COLUMNS.map(
-  (column) => `    WHEN new.${column} IS DISTINCT FROM old.${column} THEN '${column}'`
+  (column) => `    WHEN new.${column} IS DISTINCT FROM old.${column} THEN '${column}'`,
 ).join('\n');
 
 /** Column-scoped refusal for the release row itself. See this module's header. */

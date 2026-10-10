@@ -234,7 +234,8 @@ function BudgetCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-foreground">
-              {budgetPeriodLabel(budget.period)} · {formatMoney(budget.limitAmount, budget.currency)}
+              {budgetPeriodLabel(budget.period)} ·{' '}
+              {formatMoney(budget.limitAmount, budget.currency)}
             </p>
             <Badge variant={budgetUtilizationVariant(budget)}>
               {budget.status === 'disabled'

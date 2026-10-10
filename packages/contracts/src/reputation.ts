@@ -42,18 +42,18 @@
 import { z } from 'zod';
 import { type UserNameResponse, userNameSchema } from './userResponse';
 import {
-    type ReputationConduct,
-    type ReputationContextualInfluence,
-    type ReputationContribution,
-    type ReputationPersonhood,
-    type ReputationReporting,
-    type ReputationReviewing,
-    reputationConductSchema,
-    reputationContextualInfluenceSchema,
-    reputationContributionSchema,
-    reputationPersonhoodSchema,
-    reputationReportingSchema,
-    reputationReviewingSchema,
+  type ReputationConduct,
+  type ReputationContextualInfluence,
+  type ReputationContribution,
+  type ReputationPersonhood,
+  type ReputationReporting,
+  type ReputationReviewing,
+  reputationConductSchema,
+  reputationContextualInfluenceSchema,
+  reputationContributionSchema,
+  reputationPersonhoodSchema,
+  reputationReportingSchema,
+  reputationReviewingSchema,
 } from './moderationReputation';
 
 /* -------------------------------------------------------------------------- */
@@ -73,13 +73,13 @@ import {
  * - `other`      — anything that does not fit the buckets above.
  */
 export const REPUTATION_CATEGORIES = [
-    'content',
-    'social',
-    'trust',
-    'moderation',
-    'physical',
-    'penalty',
-    'other',
+  'content',
+  'social',
+  'trust',
+  'moderation',
+  'physical',
+  'penalty',
+  'other',
 ] as const;
 
 export type ReputationCategory = (typeof REPUTATION_CATEGORIES)[number];
@@ -94,10 +94,7 @@ export const reputationCategorySchema = z.enum(REPUTATION_CATEGORIES);
  *                only by policy-driven code, never by a person); the pair nets
  *                to zero.
  */
-export const REPUTATION_TRANSACTION_STATUSES = [
-    'active',
-    'reversed',
-] as const;
+export const REPUTATION_TRANSACTION_STATUSES = ['active', 'reversed'] as const;
 
 export type ReputationTransactionStatus = (typeof REPUTATION_TRANSACTION_STATUSES)[number];
 
@@ -118,15 +115,15 @@ export const trustTierSchema = z.enum(TRUST_TIERS);
 
 /** Kind of entity a transaction may target. */
 export const REPUTATION_TARGET_ENTITY_TYPES = [
-    'post',
-    'comment',
-    'report',
-    'purchase',
-    'event',
-    'check_in',
-    'manual_review',
-    'user',
-    'other',
+  'post',
+  'comment',
+  'report',
+  'purchase',
+  'event',
+  'check_in',
+  'manual_review',
+  'user',
+  'other',
 ] as const;
 
 export type ReputationTargetEntityType = (typeof REPUTATION_TARGET_ENTITY_TYPES)[number];
@@ -134,10 +131,10 @@ export type ReputationTargetEntityType = (typeof REPUTATION_TARGET_ENTITY_TYPES)
 export const reputationTargetEntityTypeSchema = z.enum(REPUTATION_TARGET_ENTITY_TYPES);
 
 export const REPUTATION_INFLUENCE_CONTEXTS = [
-    'default',
-    'report',
-    'moderation',
-    'ranking',
+  'default',
+  'report',
+  'moderation',
+  'ranking',
 ] as const;
 
 export type ReputationInfluenceContext = (typeof REPUTATION_INFLUENCE_CONTEXTS)[number];
@@ -157,78 +154,78 @@ export const reputationInfluenceContextSchema = z.enum(REPUTATION_INFLUENCE_CONT
  * appended), written only by policy-driven code — never by a person.
  */
 export interface ReputationTransaction {
-    /** The transaction's Mongo `_id` as a string. */
-    id: string;
-    /** Subject of the reputation change — the user whose balance moves. */
-    userId: string;
-    /** Signed point delta. Positive awards, negative penalties/reversals. */
-    points: number;
-    /** The rule/action key that produced this transaction (e.g. `post_created`). */
-    actionType: string;
-    /** Category bucket the points fall into. */
-    category: ReputationCategory;
-    /** Canonical source application that reported the action, if any. */
-    applicationId?: string;
-    /** The specific credential used by the source application, if any. */
-    credentialId?: string;
-    /** Opaque id of the originating action in the source system (idempotency key). */
-    sourceActionId?: string;
-    /** Source-system action type (e.g. `report_confirmed`, `event_check_in`). */
-    sourceActionType?: string;
-    /** Id of the entity the action targeted (post id, report id, etc.). */
-    targetEntityId?: string;
-    /** Kind of the targeted entity. */
-    targetEntityType?: ReputationTargetEntityType;
-    /** Lifecycle status — only `active` transactions count toward the balance. */
-    status: ReputationTransactionStatus;
-    /**
-     * Set ONLY on a compensating reversal transaction; references the original
-     * transaction it reverses. The original carries `status: 'reversed'`.
-     */
-    reversedTransactionId?: string;
-    /** Human-readable reason / note. */
-    reason?: string;
-    /**
-     * Free-form structured metadata from the source system.
-     *
-     * Names third parties (the attestor who physically met the subject, the
-     * staking voucher, a resolved validation's juror roster), which is why the
-     * ledger is readable by its subject alone.
-     */
-    metadata?: Record<string, unknown>;
-    /** The user who caused this change (the liker, the reporting user). */
-    createdByUserId?: string;
-    /** The principal whose policy-driven action reversed this transaction. */
-    reviewedByUserId?: string;
-    /** ISO 8601 timestamp the transaction was reviewed at, if reviewed. */
-    reviewedAt?: string;
-    /** ISO 8601 creation timestamp. */
-    createdAt: string;
-    /** ISO 8601 last-update timestamp. */
-    updatedAt: string;
+  /** The transaction's Mongo `_id` as a string. */
+  id: string;
+  /** Subject of the reputation change — the user whose balance moves. */
+  userId: string;
+  /** Signed point delta. Positive awards, negative penalties/reversals. */
+  points: number;
+  /** The rule/action key that produced this transaction (e.g. `post_created`). */
+  actionType: string;
+  /** Category bucket the points fall into. */
+  category: ReputationCategory;
+  /** Canonical source application that reported the action, if any. */
+  applicationId?: string;
+  /** The specific credential used by the source application, if any. */
+  credentialId?: string;
+  /** Opaque id of the originating action in the source system (idempotency key). */
+  sourceActionId?: string;
+  /** Source-system action type (e.g. `report_confirmed`, `event_check_in`). */
+  sourceActionType?: string;
+  /** Id of the entity the action targeted (post id, report id, etc.). */
+  targetEntityId?: string;
+  /** Kind of the targeted entity. */
+  targetEntityType?: ReputationTargetEntityType;
+  /** Lifecycle status — only `active` transactions count toward the balance. */
+  status: ReputationTransactionStatus;
+  /**
+   * Set ONLY on a compensating reversal transaction; references the original
+   * transaction it reverses. The original carries `status: 'reversed'`.
+   */
+  reversedTransactionId?: string;
+  /** Human-readable reason / note. */
+  reason?: string;
+  /**
+   * Free-form structured metadata from the source system.
+   *
+   * Names third parties (the attestor who physically met the subject, the
+   * staking voucher, a resolved validation's juror roster), which is why the
+   * ledger is readable by its subject alone.
+   */
+  metadata?: Record<string, unknown>;
+  /** The user who caused this change (the liker, the reporting user). */
+  createdByUserId?: string;
+  /** The principal whose policy-driven action reversed this transaction. */
+  reviewedByUserId?: string;
+  /** ISO 8601 timestamp the transaction was reviewed at, if reviewed. */
+  reviewedAt?: string;
+  /** ISO 8601 creation timestamp. */
+  createdAt: string;
+  /** ISO 8601 last-update timestamp. */
+  updatedAt: string;
 }
 
 export const reputationTransactionSchema: z.ZodType<ReputationTransaction> = z.object({
-    id: z.string(),
-    userId: z.string(),
-    points: z.number(),
-    actionType: z.string(),
-    category: reputationCategorySchema,
-    applicationId: z.string().optional(),
-    credentialId: z.string().optional(),
-    sourceActionId: z.string().optional(),
-    sourceActionType: z.string().optional(),
-    targetEntityId: z.string().optional(),
-    targetEntityType: reputationTargetEntityTypeSchema.optional(),
-    status: reputationTransactionStatusSchema,
-    reversedTransactionId: z.string().optional(),
-    reason: z.string().optional(),
-    metadata: z.record(z.unknown()).optional(),
-    createdByUserId: z.string().optional(),
-    reviewedByUserId: z.string().optional(),
-    reviewedAt: z.string().optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+  id: z.string(),
+  userId: z.string(),
+  points: z.number(),
+  actionType: z.string(),
+  category: reputationCategorySchema,
+  applicationId: z.string().optional(),
+  credentialId: z.string().optional(),
+  sourceActionId: z.string().optional(),
+  sourceActionType: z.string().optional(),
+  targetEntityId: z.string().optional(),
+  targetEntityType: reputationTargetEntityTypeSchema.optional(),
+  status: reputationTransactionStatusSchema,
+  reversedTransactionId: z.string().optional(),
+  reason: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
+  createdByUserId: z.string().optional(),
+  reviewedByUserId: z.string().optional(),
+  reviewedAt: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -241,21 +238,21 @@ export const reputationTransactionSchema: z.ZodType<ReputationTransaction> = z.o
  * named buckets carry the signed sum of transactions in that category.
  */
 export interface ReputationBalanceBreakdown {
-    content: number;
-    social: number;
-    trust: number;
-    moderation: number;
-    physical: number;
-    penalties: number;
+  content: number;
+  social: number;
+  trust: number;
+  moderation: number;
+  physical: number;
+  penalties: number;
 }
 
 export const reputationBalanceBreakdownSchema: z.ZodType<ReputationBalanceBreakdown> = z.object({
-    content: z.number(),
-    social: z.number(),
-    trust: z.number(),
-    moderation: z.number(),
-    physical: z.number(),
-    penalties: z.number(),
+  content: z.number(),
+  social: z.number(),
+  trust: z.number(),
+  moderation: z.number(),
+  physical: z.number(),
+  penalties: z.number(),
 });
 
 /**
@@ -264,47 +261,47 @@ export const reputationBalanceBreakdownSchema: z.ZodType<ReputationBalanceBreakd
  * ranking, moderation or reporting.
  */
 export interface ReputationInfluence {
-    /** General-purpose trust weight derived from the lifetime total. */
-    defaultWeight: number;
-    /** Weight applied to this user's reports (scales with report accuracy). */
-    reportWeight: number;
-    /** Weight applied to this user's moderation actions (scales with tier). */
-    moderationWeight: number;
-    /** Damped weight applied to this user's ranking feedback. */
-    rankingFeedbackWeight: number;
+  /** General-purpose trust weight derived from the lifetime total. */
+  defaultWeight: number;
+  /** Weight applied to this user's reports (scales with report accuracy). */
+  reportWeight: number;
+  /** Weight applied to this user's moderation actions (scales with tier). */
+  moderationWeight: number;
+  /** Damped weight applied to this user's ranking feedback. */
+  rankingFeedbackWeight: number;
 }
 
 export const reputationInfluenceSchema: z.ZodType<ReputationInfluence> = z.object({
-    defaultWeight: z.number(),
-    reportWeight: z.number(),
-    moderationWeight: z.number(),
-    rankingFeedbackWeight: z.number(),
+  defaultWeight: z.number(),
+  reportWeight: z.number(),
+  moderationWeight: z.number(),
+  rankingFeedbackWeight: z.number(),
 });
 
 /** Reliability signals derived from the user's moderation track record. */
 export interface ReputationReliability {
-    /** Count of active transactions stamped `report_confirmed`. */
-    accurateReports: number;
-    /** Count of active transactions stamped `report_rejected`. */
-    rejectedReports: number;
-    /** accurate / (accurate + rejected), or the neutral 0.5 when no history. */
-    reportAccuracyScore: number;
-    /** Smoothed 0..1 abuse signal; high values force the `restricted` tier. */
-    abuseScore: number;
+  /** Count of active transactions stamped `report_confirmed`. */
+  accurateReports: number;
+  /** Count of active transactions stamped `report_rejected`. */
+  rejectedReports: number;
+  /** accurate / (accurate + rejected), or the neutral 0.5 when no history. */
+  reportAccuracyScore: number;
+  /** Smoothed 0..1 abuse signal; high values force the `restricted` tier. */
+  abuseScore: number;
 }
 
 export const reputationReliabilitySchema: z.ZodType<ReputationReliability> = z.object({
-    accurateReports: z.number(),
-    rejectedReports: z.number(),
-    reportAccuracyScore: z.number(),
-    abuseScore: z.number(),
+  accurateReports: z.number(),
+  rejectedReports: z.number(),
+  reportAccuracyScore: z.number(),
+  abuseScore: z.number(),
 });
 
 /** The fields both balance views share. Kept as a shape so the full view can spread it. */
 const balanceSummaryShape = {
-    userId: z.string(),
-    total: z.number(),
-    trustTier: trustTierSchema,
+  userId: z.string(),
+  total: z.number(),
+  trustTier: trustTierSchema,
 };
 
 /**
@@ -316,14 +313,14 @@ const balanceSummaryShape = {
  * balance exposes no class of signal that is not public already.
  */
 export interface ReputationBalanceSummary {
-    userId: string;
-    /** Net lifetime total across all active transactions. */
-    total: number;
-    trustTier: TrustTier;
+  userId: string;
+  /** Net lifetime total across all active transactions. */
+  total: number;
+  trustTier: TrustTier;
 }
 
 export const reputationBalanceSummarySchema: z.ZodType<ReputationBalanceSummary> =
-    z.object(balanceSummaryShape);
+  z.object(balanceSummaryShape);
 
 /**
  * The SUBJECT view of a user's reputation — the cached, recomputable snapshot in
@@ -340,61 +337,61 @@ export const reputationBalanceSummarySchema: z.ZodType<ReputationBalanceSummary>
  * by narrowing a {@link ReputationBalanceView} with {@link isFullReputationBalance}.
  */
 export interface ReputationBalance extends ReputationBalanceSummary {
-    /** Sum of positive points only. */
-    positive: number;
-    /** Sum of negative points only (a negative number). */
-    negative: number;
-    breakdown: ReputationBalanceBreakdown;
-    influence: ReputationInfluence;
-    reliability: ReputationReliability;
-    /** ISO 8601 timestamp the snapshot was last recomputed at. */
-    recalculatedAt: string;
-    /** ISO 8601 last-update timestamp. */
-    updatedAt: string;
+  /** Sum of positive points only. */
+  positive: number;
+  /** Sum of negative points only (a negative number). */
+  negative: number;
+  breakdown: ReputationBalanceBreakdown;
+  influence: ReputationInfluence;
+  reliability: ReputationReliability;
+  /** ISO 8601 timestamp the snapshot was last recomputed at. */
+  recalculatedAt: string;
+  /** ISO 8601 last-update timestamp. */
+  updatedAt: string;
 
-    // ---------------------------------------------------------------------
-    // V2 — the multidimensional snapshot.
-    //
-    // OPTIONAL on the wire and additive by design: a client written against
-    // the single-score model keeps working, and a balance document written
-    // before the multidimensional recompute simply omits them. A current
-    // server always sends all six. Each block is a SEPARATE AXIS — the whole
-    // reason they exist is that a single `total` let contribution offset
-    // conduct, and let one small penalty restrict a new account outright.
-    // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
+  // V2 — the multidimensional snapshot.
+  //
+  // OPTIONAL on the wire and additive by design: a client written against
+  // the single-score model keeps working, and a balance document written
+  // before the multidimensional recompute simply omits them. A current
+  // server always sends all six. Each block is a SEPARATE AXIS — the whole
+  // reason they exist is that a single `total` let contribution offset
+  // conduct, and let one small penalty restrict a new account outright.
+  // ---------------------------------------------------------------------
 
-    /** Whether Oxy believes this is a real, distinct person. Confers nothing else. */
-    personhood?: ReputationPersonhood;
-    /** What the person built. Excludes conduct penalties. */
-    contribution?: ReputationContribution;
-    /**
-     * The standing moderation outcomes move. Derived from ACTIVE RISK alone, so
-     * earning contribution points cannot cancel an active strike.
-     */
-    conduct?: ReputationConduct;
-    /** Reporting accuracy, smoothed with a neutral prior plus a confidence. */
-    reporting?: ReputationReporting;
-    /** Reviewer reliability, per category and language rather than global. */
-    reviewing?: ReputationReviewing;
-    /** Contextual weights: report priority, jury selection, ranking. Never vote weight. */
-    contextualInfluence?: ReputationContextualInfluence;
+  /** Whether Oxy believes this is a real, distinct person. Confers nothing else. */
+  personhood?: ReputationPersonhood;
+  /** What the person built. Excludes conduct penalties. */
+  contribution?: ReputationContribution;
+  /**
+   * The standing moderation outcomes move. Derived from ACTIVE RISK alone, so
+   * earning contribution points cannot cancel an active strike.
+   */
+  conduct?: ReputationConduct;
+  /** Reporting accuracy, smoothed with a neutral prior plus a confidence. */
+  reporting?: ReputationReporting;
+  /** Reviewer reliability, per category and language rather than global. */
+  reviewing?: ReputationReviewing;
+  /** Contextual weights: report priority, jury selection, ranking. Never vote weight. */
+  contextualInfluence?: ReputationContextualInfluence;
 }
 
 export const reputationBalanceSchema: z.ZodType<ReputationBalance> = z.object({
-    ...balanceSummaryShape,
-    positive: z.number(),
-    negative: z.number(),
-    breakdown: reputationBalanceBreakdownSchema,
-    influence: reputationInfluenceSchema,
-    reliability: reputationReliabilitySchema,
-    recalculatedAt: z.string(),
-    updatedAt: z.string(),
-    personhood: reputationPersonhoodSchema.optional(),
-    contribution: reputationContributionSchema.optional(),
-    conduct: reputationConductSchema.optional(),
-    reporting: reputationReportingSchema.optional(),
-    reviewing: reputationReviewingSchema.optional(),
-    contextualInfluence: reputationContextualInfluenceSchema.optional(),
+  ...balanceSummaryShape,
+  positive: z.number(),
+  negative: z.number(),
+  breakdown: reputationBalanceBreakdownSchema,
+  influence: reputationInfluenceSchema,
+  reliability: reputationReliabilitySchema,
+  recalculatedAt: z.string(),
+  updatedAt: z.string(),
+  personhood: reputationPersonhoodSchema.optional(),
+  contribution: reputationContributionSchema.optional(),
+  conduct: reputationConductSchema.optional(),
+  reporting: reputationReportingSchema.optional(),
+  reviewing: reputationReviewingSchema.optional(),
+  contextualInfluence: reputationContextualInfluenceSchema.optional(),
 });
 
 /**
@@ -420,13 +417,13 @@ export type ReputationBalanceView = ReputationBalance | ReputationBalanceSummary
  * view. Read a V2 block by checking that block.
  */
 const FULL_BALANCE_FIELDS = [
-    'positive',
-    'negative',
-    'breakdown',
-    'influence',
-    'reliability',
-    'recalculatedAt',
-    'updatedAt',
+  'positive',
+  'negative',
+  'breakdown',
+  'influence',
+  'reliability',
+  'recalculatedAt',
+  'updatedAt',
 ] as const satisfies readonly (keyof Omit<ReputationBalance, keyof ReputationBalanceSummary>)[];
 
 /**
@@ -440,9 +437,9 @@ const FULL_BALANCE_FIELDS = [
  * @param balance - A balance from `getReputationBalance`.
  */
 export function isFullReputationBalance(
-    balance: ReputationBalanceView,
+  balance: ReputationBalanceView,
 ): balance is ReputationBalance {
-    return FULL_BALANCE_FIELDS.every((field) => field in balance);
+  return FULL_BALANCE_FIELDS.every((field) => field in balance);
 }
 
 /** Compile-time assertion helper: fails to instantiate unless `T` is `true`. */
@@ -462,23 +459,23 @@ type AssertTrue<T extends true> = T;
  * `build:types` both check it on every build.
  */
 type _PrivateFieldsAreUnreachableOnTheView = AssertTrue<
-    'reliability' extends keyof ReputationBalanceView
+  'reliability' extends keyof ReputationBalanceView
+    ? false
+    : 'influence' extends keyof ReputationBalanceView
+      ? false
+      : 'breakdown' extends keyof ReputationBalanceView
         ? false
-        : 'influence' extends keyof ReputationBalanceView
+        : 'positive' extends keyof ReputationBalanceView
           ? false
-          : 'breakdown' extends keyof ReputationBalanceView
+          : // The V2 blocks are the most sensitive of the lot: `conduct`
+            // names a sanction and `reporting` names the abuse verdict.
+            'conduct' extends keyof ReputationBalanceView
             ? false
-            : 'positive' extends keyof ReputationBalanceView
+            : 'reporting' extends keyof ReputationBalanceView
               ? false
-              : // The V2 blocks are the most sensitive of the lot: `conduct`
-                // names a sanction and `reporting` names the abuse verdict.
-                'conduct' extends keyof ReputationBalanceView
+              : 'reviewing' extends keyof ReputationBalanceView
                 ? false
-                : 'reporting' extends keyof ReputationBalanceView
-                  ? false
-                  : 'reviewing' extends keyof ReputationBalanceView
-                    ? false
-                    : true
+                : true
 >;
 
 /**
@@ -486,13 +483,13 @@ type _PrivateFieldsAreUnreachableOnTheView = AssertTrue<
  * narrowing, so the common "show a tier and a total" render never needs a guard.
  */
 type _PublicFieldsStayReachableOnTheView = AssertTrue<
-    'userId' extends keyof ReputationBalanceView
-        ? 'total' extends keyof ReputationBalanceView
-            ? 'trustTier' extends keyof ReputationBalanceView
-                ? true
-                : false
-            : false
+  'userId' extends keyof ReputationBalanceView
+    ? 'total' extends keyof ReputationBalanceView
+      ? 'trustTier' extends keyof ReputationBalanceView
+        ? true
         : false
+      : false
+    : false
 >;
 
 /* -------------------------------------------------------------------------- */
@@ -504,34 +501,34 @@ type _PublicFieldsStayReachableOnTheView = AssertTrue<
  * Oxy's code and versioned; no endpoint edits them.
  */
 export interface ReputationRule {
-    /** Unique action key (e.g. `post_created`). */
-    actionType: string;
-    /** Signed points the rule awards (may be negative for penalties). */
-    points: number;
-    /** Category the resulting transaction is filed under. */
-    category: ReputationCategory;
-    description: string;
-    /** Per (user, actionType) cooldown in minutes; 0 disables the cooldown. */
-    cooldownInMinutes: number;
+  /** Unique action key (e.g. `post_created`). */
+  actionType: string;
+  /** Signed points the rule awards (may be negative for penalties). */
+  points: number;
+  /** Category the resulting transaction is filed under. */
+  category: ReputationCategory;
+  description: string;
+  /** Per (user, actionType) cooldown in minutes; 0 disables the cooldown. */
+  cooldownInMinutes: number;
 }
 
 export const reputationRuleSchema: z.ZodType<ReputationRule> = z.object({
-    actionType: z.string(),
-    points: z.number(),
-    category: reputationCategorySchema,
-    description: z.string(),
-    cooldownInMinutes: z.number(),
+  actionType: z.string(),
+  points: z.number(),
+  category: reputationCategorySchema,
+  description: z.string(),
+  cooldownInMinutes: z.number(),
 });
 
 /** `GET /reputation/rules` — the rules in code and their version. */
 export interface ReputationRulesResponse {
-    version: number;
-    rules: ReputationRule[];
+  version: number;
+  rules: ReputationRule[];
 }
 
 export const reputationRulesResponseSchema: z.ZodType<ReputationRulesResponse> = z.object({
-    version: z.number().int(),
-    rules: z.array(reputationRuleSchema),
+  version: z.number().int(),
+  rules: z.array(reputationRuleSchema),
 });
 
 /**
@@ -544,40 +541,40 @@ export const reputationRulesResponseSchema: z.ZodType<ReputationRulesResponse> =
  * real name — fall back to the handle when it is absent, never recompose.
  */
 export interface ReputationLeaderboardUser {
-    /** The user's Mongo `_id` as a string. */
-    id: string;
-    username: string;
-    name: UserNameResponse;
-    /** Avatar FILE ID (not a URL) — resolve it through the SDK's media chokepoint. */
-    avatar?: string;
-    /** secp256k1 public key; absent for accounts with no self-custody identity. */
-    publicKey?: string;
+  /** The user's Mongo `_id` as a string. */
+  id: string;
+  username: string;
+  name: UserNameResponse;
+  /** Avatar FILE ID (not a URL) — resolve it through the SDK's media chokepoint. */
+  avatar?: string;
+  /** secp256k1 public key; absent for accounts with no self-custody identity. */
+  publicKey?: string;
 }
 
 export const reputationLeaderboardUserSchema: z.ZodType<ReputationLeaderboardUser> = z.object({
-    id: z.string(),
-    username: z.string(),
-    name: userNameSchema,
-    avatar: z.string().optional(),
-    publicKey: z.string().optional(),
+  id: z.string(),
+  username: z.string(),
+  name: userNameSchema,
+  avatar: z.string().optional(),
+  publicKey: z.string().optional(),
 });
 
 /** A single leaderboard row: the user, their lifetime total, tier and rank. */
 export interface ReputationLeaderboardEntry {
-    user: ReputationLeaderboardUser;
-    /** Net lifetime total. */
-    total: number;
-    /** Derived trust tier. */
-    trustTier: TrustTier;
-    /** 1-based rank within the leaderboard (`offset + index + 1`). */
-    rank: number;
+  user: ReputationLeaderboardUser;
+  /** Net lifetime total. */
+  total: number;
+  /** Derived trust tier. */
+  trustTier: TrustTier;
+  /** 1-based rank within the leaderboard (`offset + index + 1`). */
+  rank: number;
 }
 
 export const reputationLeaderboardEntrySchema: z.ZodType<ReputationLeaderboardEntry> = z.object({
-    user: reputationLeaderboardUserSchema,
-    total: z.number(),
-    trustTier: trustTierSchema,
-    rank: z.number(),
+  user: reputationLeaderboardUserSchema,
+  total: z.number(),
+  trustTier: trustTierSchema,
+  rank: z.number(),
 });
 
 /**
@@ -585,15 +582,15 @@ export const reputationLeaderboardEntrySchema: z.ZodType<ReputationLeaderboardEn
  * weight for that context, and the full influence block.
  */
 export interface ReputationInfluenceResult {
-    context: ReputationInfluenceContext;
-    weight: number;
-    influence: ReputationInfluence;
+  context: ReputationInfluenceContext;
+  weight: number;
+  influence: ReputationInfluence;
 }
 
 export const reputationInfluenceResultSchema: z.ZodType<ReputationInfluenceResult> = z.object({
-    context: reputationInfluenceContextSchema,
-    weight: z.number(),
-    influence: reputationInfluenceSchema,
+  context: reputationInfluenceContextSchema,
+  weight: z.number(),
+  influence: reputationInfluenceSchema,
 });
 
 /* -------------------------------------------------------------------------- */
@@ -609,37 +606,37 @@ export const reputationInfluenceResultSchema: z.ZodType<ReputationInfluenceResul
  * resolved from the token; client-supplied values for those two are ignored.
  */
 export interface AwardReputationInput {
-    /** The subject whose reputation changes (`_id` or publicKey). */
-    userId: string;
-    /** The enabled rule's action key (e.g. `post_created`). */
-    actionType: string;
-    /** Source application id (ignored for service tokens). */
-    applicationId?: string;
-    /** Source credential id (ignored for service tokens). */
-    credentialId?: string;
-    /** Opaque originating-action id used as the idempotency key. */
-    sourceActionId?: string;
-    /** Source-system action type. */
-    sourceActionType?: string;
-    /** Id of the targeted entity. */
-    targetEntityId?: string;
-    /** Kind of the targeted entity. */
-    targetEntityType?: ReputationTargetEntityType;
-    /** Optional human-readable reason (max 500 chars). */
-    reason?: string;
-    /** Free-form structured metadata from the source system. */
-    metadata?: Record<string, unknown>;
+  /** The subject whose reputation changes (`_id` or publicKey). */
+  userId: string;
+  /** The enabled rule's action key (e.g. `post_created`). */
+  actionType: string;
+  /** Source application id (ignored for service tokens). */
+  applicationId?: string;
+  /** Source credential id (ignored for service tokens). */
+  credentialId?: string;
+  /** Opaque originating-action id used as the idempotency key. */
+  sourceActionId?: string;
+  /** Source-system action type. */
+  sourceActionType?: string;
+  /** Id of the targeted entity. */
+  targetEntityId?: string;
+  /** Kind of the targeted entity. */
+  targetEntityType?: ReputationTargetEntityType;
+  /** Optional human-readable reason (max 500 chars). */
+  reason?: string;
+  /** Free-form structured metadata from the source system. */
+  metadata?: Record<string, unknown>;
 }
 
 export const awardReputationSchema: z.ZodType<AwardReputationInput> = z.object({
-    userId: z.string().trim().min(1),
-    actionType: z.string().trim().min(1),
-    applicationId: z.string().trim().min(1).optional(),
-    credentialId: z.string().trim().min(1).optional(),
-    sourceActionId: z.string().trim().min(1).optional(),
-    sourceActionType: z.string().trim().min(1).optional(),
-    targetEntityId: z.string().trim().min(1).optional(),
-    targetEntityType: reputationTargetEntityTypeSchema.optional(),
-    reason: z.string().trim().max(500).optional(),
-    metadata: z.record(z.unknown()).optional(),
+  userId: z.string().trim().min(1),
+  actionType: z.string().trim().min(1),
+  applicationId: z.string().trim().min(1).optional(),
+  credentialId: z.string().trim().min(1).optional(),
+  sourceActionId: z.string().trim().min(1).optional(),
+  sourceActionType: z.string().trim().min(1).optional(),
+  targetEntityId: z.string().trim().min(1).optional(),
+  targetEntityType: reputationTargetEntityTypeSchema.optional(),
+  reason: z.string().trim().max(500).optional(),
+  metadata: z.record(z.unknown()).optional(),
 });

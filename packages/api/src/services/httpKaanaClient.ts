@@ -55,7 +55,22 @@
  * edge's own test asserts a prompt marker appears in no log call.
  */
 
-import { privateAutoInferenceRequestSchema, privateAutoSourceApprovalSchema, PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION, type PrivateAutoInferenceRequest, inferenceRequestSchema, scopedInferenceRequestSchema, canonicalScopedExecutionJson, scopedExecutionAudienceSchema, SCOPED_EXECUTION_CONTRACT_VERSION, type ScopedInferenceRequest, decisionResultSchema, decisionFailureSchema, decisionAnswersMatch, inferenceErrorSchema } from '@oxy.so/contracts';
+import {
+  privateAutoInferenceRequestSchema,
+  privateAutoSourceApprovalSchema,
+  PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION,
+  type PrivateAutoInferenceRequest,
+  inferenceRequestSchema,
+  scopedInferenceRequestSchema,
+  canonicalScopedExecutionJson,
+  scopedExecutionAudienceSchema,
+  SCOPED_EXECUTION_CONTRACT_VERSION,
+  type ScopedInferenceRequest,
+  decisionResultSchema,
+  decisionFailureSchema,
+  decisionAnswersMatch,
+  inferenceErrorSchema,
+} from '@oxy.so/contracts';
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
@@ -84,7 +99,10 @@ import {
   type KaanaDataPlaneConfig,
 } from '../config/kaanaDataPlane';
 import { logger } from '../utils/logger';
-import { privateAutoClassifierSourceApproval, reviewedPrivateAutoApproval } from '../config/privateAutoClassification';
+import {
+  privateAutoClassifierSourceApproval,
+  reviewedPrivateAutoApproval,
+} from '../config/privateAutoClassification';
 import { validatePrivateAutoAttestation } from './privateAutoAttestation.service';
 import {
   KaanaEnvelopeRejectedError,
@@ -162,7 +180,9 @@ const kaanaDeploymentAttestationSchema = z
   .object({
     snapshotId: z.string().min(1).max(256),
     scopedExecutionContractVersion: z.literal(SCOPED_EXECUTION_CONTRACT_VERSION).optional(),
-    privateAutoExecutionContractVersion: z.literal(PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION).optional(),
+    privateAutoExecutionContractVersion: z
+      .literal(PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION)
+      .optional(),
     deployments: z
       .array(
         z
@@ -185,7 +205,7 @@ const kaanaDeploymentAttestationSchema = z
             providerRateCardVersionId: z.string().min(1).max(256).optional(),
             providerSourceVersion: z.string().min(1).max(256).optional(),
           })
-          .strict()
+          .strict(),
       )
       .max(MAX_KAANA_ATTESTATION_IDS),
   })
@@ -233,12 +253,12 @@ const kaanaPublishedDeploymentsSchema = kaanaDeploymentAttestationSchema.extend(
 export function kaanaSigningInput(
   keyId: string,
   timestampMillis: number,
-  body: Buffer
+  body: Buffer,
 ): Buffer<ArrayBuffer> {
   const digest = createHash('sha256').update(body).digest('hex');
   return Buffer.from(
     [KAANA_SIGNATURE_DOMAIN, keyId, String(timestampMillis), digest].join('\n'),
-    'utf8'
+    'utf8',
   );
 }
 
@@ -247,7 +267,7 @@ function signEnvelope(
   privateKey: KeyObject,
   keyId: string,
   timestampMillis: number,
-  body: Buffer
+  body: Buffer,
 ): string {
   // `null` is the algorithm for Ed25519 in Node: the curve fixes the digest, and
   // naming one here is an error rather than a preference.
@@ -264,7 +284,7 @@ function signEnvelope(
 export function kaanaSignatureHeaders(
   config: Pick<KaanaDataPlaneConfig, 'keyId' | 'privateKey'>,
   body: Buffer,
-  timestampMillis: number = Date.now()
+  timestampMillis: number = Date.now(),
 ): Record<string, string> {
   return {
     [KAANA_KEY_ID_HEADER]: config.keyId,
@@ -320,7 +340,7 @@ export interface KaanaCatalogueReader {
   /** The same signed exact-id attestation the edge's preflight uses. */
   attestDeployments(
     deploymentIds: readonly string[],
-    options: KaanaExecuteOptions
+    options: KaanaExecuteOptions,
   ): Promise<KaanaDeploymentAttestation>;
   /**
    * Every deployment Kaana's CURRENT serving snapshot publishes (the signed
@@ -333,12 +353,18 @@ export interface KaanaCatalogueReader {
 }
 
 /** Read-only projections negotiate each independent private contract separately. */
-function catalogueNegotiations(): Pick<KaanaExecuteOptions, 'scopedExecutionContractVersion' | 'privateAutoExecutionContractVersion'>[] {
-  const negotiations: Pick<KaanaExecuteOptions, 'scopedExecutionContractVersion' | 'privateAutoExecutionContractVersion'>[] = [
-    { scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION },
-  ];
+function catalogueNegotiations(): Pick<
+  KaanaExecuteOptions,
+  'scopedExecutionContractVersion' | 'privateAutoExecutionContractVersion'
+>[] {
+  const negotiations: Pick<
+    KaanaExecuteOptions,
+    'scopedExecutionContractVersion' | 'privateAutoExecutionContractVersion'
+  >[] = [{ scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION }];
   if (reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval()) !== undefined) {
-    negotiations.push({ privateAutoExecutionContractVersion: PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION });
+    negotiations.push({
+      privateAutoExecutionContractVersion: PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION,
+    });
   }
   return negotiations;
 }
@@ -348,80 +374,158 @@ export function mergeNegotiatedDeploymentReads(
   scoped: KaanaDeploymentAttestation,
   auto: KaanaDeploymentAttestation,
 ): KaanaDeploymentAttestation {
-  if (scoped.snapshotId !== auto.snapshotId || scoped.scopedExecutionContractVersion !== SCOPED_EXECUTION_CONTRACT_VERSION ||
-    scoped.privateAutoExecutionContractVersion !== undefined || auto.scopedExecutionContractVersion !== undefined ||
-    auto.privateAutoExecutionContractVersion !== PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION) {
-    throw new KaanaProtocolError('Independent catalogue projections do not match one snapshot and negotiation.');
+  if (
+    scoped.snapshotId !== auto.snapshotId ||
+    scoped.scopedExecutionContractVersion !== SCOPED_EXECUTION_CONTRACT_VERSION ||
+    scoped.privateAutoExecutionContractVersion !== undefined ||
+    auto.scopedExecutionContractVersion !== undefined ||
+    auto.privateAutoExecutionContractVersion !== PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION
+  ) {
+    throw new KaanaProtocolError(
+      'Independent catalogue projections do not match one snapshot and negotiation.',
+    );
   }
-  const ordinaryIds = (evidence: KaanaDeploymentAttestation) => evidence.deployments
-    .filter(row => row.scopedExecution === undefined && row.privateAutoSourceApproval === undefined)
-    .map(row => row.deploymentId).sort();
-  if (canonicalScopedExecutionJson(ordinaryIds(scoped)) !== canonicalScopedExecutionJson(ordinaryIds(auto))) {
+  const ordinaryIds = (evidence: KaanaDeploymentAttestation) =>
+    evidence.deployments
+      .filter(
+        (row) => row.scopedExecution === undefined && row.privateAutoSourceApproval === undefined,
+      )
+      .map((row) => row.deploymentId)
+      .sort();
+  if (
+    canonicalScopedExecutionJson(ordinaryIds(scoped)) !==
+    canonicalScopedExecutionJson(ordinaryIds(auto))
+  ) {
     throw new KaanaProtocolError('Independent catalogue ordinary deployment sets conflict.');
   }
   const descriptors = new Map<string, KaanaDeploymentAttestation['deployments'][number]>();
-  for (const [lane, evidence] of [['scoped', scoped], ['auto', auto]] as const) {
+  for (const [lane, evidence] of [
+    ['scoped', scoped],
+    ['auto', auto],
+  ] as const) {
     const seen = new Set<string>();
     for (const descriptor of evidence.deployments) {
-      if (seen.has(descriptor.deploymentId) ||
+      if (
+        seen.has(descriptor.deploymentId) ||
         (lane === 'scoped' && descriptor.privateAutoSourceApproval !== undefined) ||
-        (lane === 'auto' && descriptor.scopedExecution !== undefined)) {
-        throw new KaanaProtocolError('Independent catalogue projection contains foreign or duplicate authority.');
+        (lane === 'auto' && descriptor.scopedExecution !== undefined)
+      ) {
+        throw new KaanaProtocolError(
+          'Independent catalogue projection contains foreign or duplicate authority.',
+        );
       }
       seen.add(descriptor.deploymentId);
       const existing = descriptors.get(descriptor.deploymentId);
-      if (existing !== undefined && canonicalScopedExecutionJson(existing) !== canonicalScopedExecutionJson(descriptor)) {
+      if (
+        existing !== undefined &&
+        canonicalScopedExecutionJson(existing) !== canonicalScopedExecutionJson(descriptor)
+      ) {
         throw new KaanaProtocolError('Independent catalogue deployment identity conflicts.');
       }
       descriptors.set(descriptor.deploymentId, descriptor);
     }
   }
-  return { snapshotId: scoped.snapshotId, scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION,
+  return {
+    snapshotId: scoped.snapshotId,
+    scopedExecutionContractVersion: SCOPED_EXECUTION_CONTRACT_VERSION,
     privateAutoExecutionContractVersion: PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION,
-    deployments: [...descriptors.values()].sort((a, b) => a.deploymentId.localeCompare(b.deploymentId)) };
+    deployments: [...descriptors.values()].sort((a, b) =>
+      a.deploymentId.localeCompare(b.deploymentId),
+    ),
+  };
 }
 
-const mergeCatalogueSchema = z.object({
-  configuration: z.object({ snapshotId: z.string().min(1) }).passthrough(),
-  models: z.array(z.object({ model: z.string().min(1), modelReference: z.string().min(1),
-    listPrices: z.array(z.object({ deploymentId: z.string().min(1), provider: z.string().min(1) }).passthrough()).optional() }).passthrough()),
-  deployments: kaanaPublishedDeploymentsSchema.shape.deployments,
-  scopedExecutionContractVersion: z.literal(SCOPED_EXECUTION_CONTRACT_VERSION).optional(),
-  privateAutoExecutionContractVersion: z.literal(PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION).optional(),
-}).passthrough();
+const mergeCatalogueSchema = z
+  .object({
+    configuration: z.object({ snapshotId: z.string().min(1) }).passthrough(),
+    models: z.array(
+      z
+        .object({
+          model: z.string().min(1),
+          modelReference: z.string().min(1),
+          listPrices: z
+            .array(
+              z
+                .object({ deploymentId: z.string().min(1), provider: z.string().min(1) })
+                .passthrough(),
+            )
+            .optional(),
+        })
+        .passthrough(),
+    ),
+    deployments: kaanaPublishedDeploymentsSchema.shape.deployments,
+    scopedExecutionContractVersion: z.literal(SCOPED_EXECUTION_CONTRACT_VERSION).optional(),
+    privateAutoExecutionContractVersion: z
+      .literal(PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION)
+      .optional(),
+  })
+  .passthrough();
 
 export function mergeNegotiatedCatalogueReads(scopedBody: unknown, autoBody: unknown): unknown {
-  const scoped = mergeCatalogueSchema.parse(scopedBody), auto = mergeCatalogueSchema.parse(autoBody);
+  const scoped = mergeCatalogueSchema.parse(scopedBody),
+    auto = mergeCatalogueSchema.parse(autoBody);
   const merged = mergeNegotiatedDeploymentReads(
     { ...scoped, snapshotId: scoped.configuration.snapshotId },
     { ...auto, snapshotId: auto.configuration.snapshotId },
   );
-  const ordinaryIds = new Set(merged.deployments.filter(row => row.scopedExecution === undefined && row.privateAutoSourceApproval === undefined).map(row => row.deploymentId));
-  const ordinaryModels = new Set(merged.deployments.filter(row => ordinaryIds.has(row.deploymentId)).map(row => row.modelReference));
-  const ordinaryProjection = (projection: typeof scoped) => projection.models.filter(model => ordinaryModels.has(model.modelReference))
-    .map(model => ({ ...model, listPrices: (model.listPrices ?? []).filter(price => ordinaryIds.has(price.deploymentId)).sort((a,b) => a.deploymentId.localeCompare(b.deploymentId)) }))
-    .sort((a,b) => a.modelReference.localeCompare(b.modelReference));
-  if (canonicalScopedExecutionJson(ordinaryProjection(scoped)) !== canonicalScopedExecutionJson(ordinaryProjection(auto))) {
-    throw new KaanaProtocolError('Independent catalogue ordinary model or price projections conflict.');
+  const ordinaryIds = new Set(
+    merged.deployments
+      .filter(
+        (row) => row.scopedExecution === undefined && row.privateAutoSourceApproval === undefined,
+      )
+      .map((row) => row.deploymentId),
+  );
+  const ordinaryModels = new Set(
+    merged.deployments
+      .filter((row) => ordinaryIds.has(row.deploymentId))
+      .map((row) => row.modelReference),
+  );
+  const ordinaryProjection = (projection: typeof scoped) =>
+    projection.models
+      .filter((model) => ordinaryModels.has(model.modelReference))
+      .map((model) => ({
+        ...model,
+        listPrices: (model.listPrices ?? [])
+          .filter((price) => ordinaryIds.has(price.deploymentId))
+          .sort((a, b) => a.deploymentId.localeCompare(b.deploymentId)),
+      }))
+      .sort((a, b) => a.modelReference.localeCompare(b.modelReference));
+  if (
+    canonicalScopedExecutionJson(ordinaryProjection(scoped)) !==
+    canonicalScopedExecutionJson(ordinaryProjection(auto))
+  ) {
+    throw new KaanaProtocolError(
+      'Independent catalogue ordinary model or price projections conflict.',
+    );
   }
   // Age and checkedAt are request-time observations; snapshot configuration is immutable.
   const { ageSeconds: _scopedAge, ...scopedConfiguration } = scoped.configuration;
   const { ageSeconds: _autoAge, ...autoConfiguration } = auto.configuration;
-  if (canonicalScopedExecutionJson(scopedConfiguration) !== canonicalScopedExecutionJson(autoConfiguration) ||
-    ['contractVersion', 'servesUnpinned', 'pinnedOnlyReferences'].some(key =>
-      canonicalScopedExecutionJson(scoped[key] ?? null) !== canonicalScopedExecutionJson(auto[key] ?? null))) {
+  if (
+    canonicalScopedExecutionJson(scopedConfiguration) !==
+      canonicalScopedExecutionJson(autoConfiguration) ||
+    ['contractVersion', 'servesUnpinned', 'pinnedOnlyReferences'].some(
+      (key) =>
+        canonicalScopedExecutionJson(scoped[key] ?? null) !==
+        canonicalScopedExecutionJson(auto[key] ?? null),
+    )
+  ) {
     throw new KaanaProtocolError('Independent catalogue snapshot configuration conflicts.');
   }
-  const models = new Map<string, typeof scoped.models[number]>();
+  const models = new Map<string, (typeof scoped.models)[number]>();
   const modelIds = new Map<string, string>();
   for (const projection of [scoped, auto]) {
-    const descriptors = new Map(projection.deployments.map(row => [row.deploymentId, row]));
+    const descriptors = new Map(projection.deployments.map((row) => [row.deploymentId, row]));
     const seen = new Set<string>();
     for (const model of projection.models) {
-      if (seen.has(model.modelReference) || (modelIds.has(model.model) && modelIds.get(model.model) !== model.modelReference)) {
+      if (
+        seen.has(model.modelReference) ||
+        (modelIds.has(model.model) && modelIds.get(model.model) !== model.modelReference)
+      ) {
         throw new KaanaProtocolError('Independent catalogue model revision is ambiguous.');
       }
-      seen.add(model.modelReference); modelIds.set(model.model, model.modelReference);
+      seen.add(model.modelReference);
+      modelIds.set(model.model, model.modelReference);
       const { listPrices = [], ...facts } = model;
       const existing = models.get(model.modelReference);
       if (existing !== undefined) {
@@ -430,26 +534,45 @@ export function mergeNegotiatedCatalogueReads(scopedBody: unknown, autoBody: unk
           throw new KaanaProtocolError('Independent catalogue model facts conflict.');
         }
       }
-      const prices = new Map<string, typeof listPrices[number]>();
+      const prices = new Map<string, (typeof listPrices)[number]>();
       for (const price of existing?.listPrices ?? []) prices.set(price.deploymentId, price);
       const seenPrices = new Set<string>();
       for (const price of listPrices) {
-        if (seenPrices.has(price.deploymentId)) throw new KaanaProtocolError('Independent catalogue repeats a price identity.');
+        if (seenPrices.has(price.deploymentId))
+          throw new KaanaProtocolError('Independent catalogue repeats a price identity.');
         seenPrices.add(price.deploymentId);
         const descriptor = descriptors.get(price.deploymentId);
-        if (descriptor === undefined || descriptor.modelReference !== model.modelReference || descriptor.provider !== price.provider) {
-          throw new KaanaProtocolError('Independent catalogue price lacks its exact deployment descriptor.');
+        if (
+          descriptor === undefined ||
+          descriptor.modelReference !== model.modelReference ||
+          descriptor.provider !== price.provider
+        ) {
+          throw new KaanaProtocolError(
+            'Independent catalogue price lacks its exact deployment descriptor.',
+          );
         }
         const previous = prices.get(price.deploymentId);
-        if (previous !== undefined && canonicalScopedExecutionJson(previous) !== canonicalScopedExecutionJson(price)) {
+        if (
+          previous !== undefined &&
+          canonicalScopedExecutionJson(previous) !== canonicalScopedExecutionJson(price)
+        ) {
           throw new KaanaProtocolError('Independent catalogue price identity conflicts.');
         }
         prices.set(price.deploymentId, price);
       }
-      models.set(model.modelReference, { ...facts, listPrices: [...prices.values()].sort((a, b) => a.deploymentId.localeCompare(b.deploymentId)) });
+      models.set(model.modelReference, {
+        ...facts,
+        listPrices: [...prices.values()].sort((a, b) =>
+          a.deploymentId.localeCompare(b.deploymentId),
+        ),
+      });
     }
   }
-  return { ...scoped, ...merged, models: [...models.values()].sort((a, b) => a.modelReference.localeCompare(b.modelReference)) };
+  return {
+    ...scoped,
+    ...merged,
+    models: [...models.values()].sort((a, b) => a.modelReference.localeCompare(b.modelReference)),
+  };
 }
 
 /** `undefined` whenever the data plane is not fully configured. */
@@ -467,29 +590,57 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
         const body = Buffer.from(JSON.stringify(requested), 'utf8');
         const timestamp = Date.now();
         const response = await fetch(`${config.baseUrl}/internal/v1/models/query`, {
-          method: 'POST', body,
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'Cache-Control': 'no-store',
-            [KAANA_KEY_ID_HEADER]: config.keyId, [KAANA_TIMESTAMP_HEADER]: String(timestamp),
-            [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestamp, body) },
-          cache: 'no-store', signal,
+          method: 'POST',
+          body,
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+            [KAANA_KEY_ID_HEADER]: config.keyId,
+            [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+            [KAANA_SIGNATURE_HEADER]: signEnvelope(
+              config.privateKey,
+              config.keyId,
+              timestamp,
+              body,
+            ),
+          },
+          cache: 'no-store',
+          signal,
         });
         if (!response.ok) {
           await readBounded(response);
-          throw new KaanaProtocolError(`The inference data plane refused the catalogue read with HTTP ${response.status}.`);
+          throw new KaanaProtocolError(
+            `The inference data plane refused the catalogue read with HTTP ${response.status}.`,
+          );
         }
         if (!response.headers.get('Cache-Control')?.toLowerCase().includes('no-store')) {
           throw new KaanaProtocolError('The inference catalogue projection was cacheable.');
         }
         const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
-        let parsed: { scopedExecutionContractVersion?: unknown; privateAutoExecutionContractVersion?: unknown };
-        try { parsed = JSON.parse(raw); } catch { throw new KaanaProtocolError('The inference data plane returned a catalogue that is not JSON.'); }
-        if (parsed.privateAutoExecutionContractVersion !== requested.privateAutoExecutionContractVersion ||
-          parsed.scopedExecutionContractVersion !== requested.scopedExecutionContractVersion) {
+        let parsed: {
+          scopedExecutionContractVersion?: unknown;
+          privateAutoExecutionContractVersion?: unknown;
+        };
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          throw new KaanaProtocolError(
+            'The inference data plane returned a catalogue that is not JSON.',
+          );
+        }
+        if (
+          parsed.privateAutoExecutionContractVersion !==
+            requested.privateAutoExecutionContractVersion ||
+          parsed.scopedExecutionContractVersion !== requested.scopedExecutionContractVersion
+        ) {
           throw new KaanaProtocolError('Missing exact independent catalogue acknowledgement.');
         }
         responses.push(parsed);
       }
-      return responses.length === 1 ? responses[0] : mergeNegotiatedCatalogueReads(responses[0], responses[1]);
+      return responses.length === 1
+        ? responses[0]
+        : mergeNegotiatedCatalogueReads(responses[0], responses[1]);
     },
   };
 }
@@ -503,7 +654,7 @@ class HttpKaanaClient implements KaanaClient {
 
   async attestDeployments(
     deploymentIds: readonly string[],
-    options: KaanaExecuteOptions
+    options: KaanaExecuteOptions,
   ): Promise<KaanaDeploymentAttestation> {
     if (
       deploymentIds.length === 0 ||
@@ -511,44 +662,52 @@ class HttpKaanaClient implements KaanaClient {
       new Set(deploymentIds).size !== deploymentIds.length
     ) {
       throw new KaanaProtocolError(
-        `The edge attempted an invalid deployment attestation batch; expected 1..${MAX_KAANA_ATTESTATION_IDS} unique exact ids.`
+        `The edge attempted an invalid deployment attestation batch; expected 1..${MAX_KAANA_ATTESTATION_IDS} unique exact ids.`,
       );
     }
 
-    const body = Buffer.from(JSON.stringify({ deploymentIds: [...deploymentIds], ...(options.scopedExecutionContractVersion === undefined ? {} : { scopedExecutionContractVersion: options.scopedExecutionContractVersion }), ...(options.privateAutoExecutionContractVersion === undefined ? {} : { privateAutoExecutionContractVersion: options.privateAutoExecutionContractVersion }) }), 'utf8');
-    const timestamp = Date.now();
-    const response = await fetch(
-      `${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          'Cache-Control': 'no-store',
-          [KAANA_KEY_ID_HEADER]: this.config.keyId,
-          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
-          [KAANA_SIGNATURE_HEADER]: signEnvelope(
-            this.config.privateKey,
-            this.config.keyId,
-            timestamp,
-            body
-          ),
-        },
-        body,
-        cache: 'no-store',
-        signal: options.signal,
-      }
+    const body = Buffer.from(
+      JSON.stringify({
+        deploymentIds: [...deploymentIds],
+        ...(options.scopedExecutionContractVersion === undefined
+          ? {}
+          : { scopedExecutionContractVersion: options.scopedExecutionContractVersion }),
+        ...(options.privateAutoExecutionContractVersion === undefined
+          ? {}
+          : { privateAutoExecutionContractVersion: options.privateAutoExecutionContractVersion }),
+      }),
+      'utf8',
     );
+    const timestamp = Date.now();
+    const response = await fetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'Cache-Control': 'no-store',
+        [KAANA_KEY_ID_HEADER]: this.config.keyId,
+        [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+        [KAANA_SIGNATURE_HEADER]: signEnvelope(
+          this.config.privateKey,
+          this.config.keyId,
+          timestamp,
+          body,
+        ),
+      },
+      body,
+      cache: 'no-store',
+      signal: options.signal,
+    });
 
     if (!response.ok) {
       await readBounded(response);
       throw new KaanaProtocolError(
-        `The inference data plane refused deployment attestation with HTTP ${response.status}.`
+        `The inference data plane refused deployment attestation with HTTP ${response.status}.`,
       );
     }
     if (!response.headers.get('Cache-Control')?.toLowerCase().includes('no-store')) {
       throw new KaanaProtocolError(
-        'The inference data plane returned cacheable deployment identity evidence.'
+        'The inference data plane returned cacheable deployment identity evidence.',
       );
     }
 
@@ -558,19 +717,25 @@ class HttpKaanaClient implements KaanaClient {
       payload = JSON.parse(raw);
     } catch {
       throw new KaanaProtocolError(
-        'The inference data plane returned deployment identity evidence that is not JSON.'
+        'The inference data plane returned deployment identity evidence that is not JSON.',
       );
     }
     const parsed = kaanaDeploymentAttestationSchema.safeParse(payload);
     if (!parsed.success) {
       throw new KaanaProtocolError(
-        `The inference data plane returned deployment identity evidence Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
+        `The inference data plane returned deployment identity evidence Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`,
       );
     }
-    if (options.scopedExecutionContractVersion !== undefined && parsed.data.scopedExecutionContractVersion !== options.scopedExecutionContractVersion) {
+    if (
+      options.scopedExecutionContractVersion !== undefined &&
+      parsed.data.scopedExecutionContractVersion !== options.scopedExecutionContractVersion
+    ) {
       throw new KaanaProtocolError('The data plane did not acknowledge scoped execution 3.6.');
     }
-    if (options.scopedExecutionContractVersion === undefined && parsed.data.deployments.some((row) => row.scopedExecution !== undefined)) {
+    if (
+      options.scopedExecutionContractVersion === undefined &&
+      parsed.data.deployments.some((row) => row.scopedExecution !== undefined)
+    ) {
       throw new KaanaProtocolError('A legacy query returned restricted deployments.');
     }
     validatePrivateAutoAttestation(parsed.data, options.privateAutoExecutionContractVersion);
@@ -580,13 +745,21 @@ class HttpKaanaClient implements KaanaClient {
   /** The whole serving snapshot, read through separately signed private projections. */
   async listPublishedDeployments(signal: AbortSignal): Promise<KaanaDeploymentAttestation> {
     const reads: KaanaDeploymentAttestation[] = [];
-    for (const negotiation of catalogueNegotiations()) reads.push(await this.readPublishedDeployments(signal, negotiation));
+    for (const negotiation of catalogueNegotiations())
+      reads.push(await this.readPublishedDeployments(signal, negotiation));
     const [scoped, auto] = reads;
-    if (scoped === undefined) throw new KaanaProtocolError('No catalogue negotiation was performed.');
+    if (scoped === undefined)
+      throw new KaanaProtocolError('No catalogue negotiation was performed.');
     return auto === undefined ? scoped : mergeNegotiatedDeploymentReads(scoped, auto);
   }
 
-  private async readPublishedDeployments(signal: AbortSignal, requested: Pick<KaanaExecuteOptions, 'scopedExecutionContractVersion' | 'privateAutoExecutionContractVersion'>): Promise<KaanaDeploymentAttestation> {
+  private async readPublishedDeployments(
+    signal: AbortSignal,
+    requested: Pick<
+      KaanaExecuteOptions,
+      'scopedExecutionContractVersion' | 'privateAutoExecutionContractVersion'
+    >,
+  ): Promise<KaanaDeploymentAttestation> {
     const body = Buffer.from(JSON.stringify(requested), 'utf8');
     const timestamp = Date.now();
     const response = await fetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
@@ -597,7 +770,12 @@ class HttpKaanaClient implements KaanaClient {
         'Cache-Control': 'no-store',
         [KAANA_KEY_ID_HEADER]: this.config.keyId,
         [KAANA_TIMESTAMP_HEADER]: String(timestamp),
-        [KAANA_SIGNATURE_HEADER]: signEnvelope(this.config.privateKey, this.config.keyId, timestamp, body),
+        [KAANA_SIGNATURE_HEADER]: signEnvelope(
+          this.config.privateKey,
+          this.config.keyId,
+          timestamp,
+          body,
+        ),
       },
       body,
       cache: 'no-store',
@@ -606,7 +784,7 @@ class HttpKaanaClient implements KaanaClient {
     if (!response.ok) {
       await readBounded(response);
       throw new KaanaProtocolError(
-        `The inference data plane refused the published-deployment read with HTTP ${response.status}.`
+        `The inference data plane refused the published-deployment read with HTTP ${response.status}.`,
       );
     }
     const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
@@ -615,17 +793,19 @@ class HttpKaanaClient implements KaanaClient {
       payload = JSON.parse(raw);
     } catch {
       throw new KaanaProtocolError(
-        'The inference data plane returned a published-deployment list that is not JSON.'
+        'The inference data plane returned a published-deployment list that is not JSON.',
       );
     }
     const parsed = kaanaPublishedDeploymentsSchema.safeParse(payload);
     if (!parsed.success) {
       throw new KaanaProtocolError(
-        `The inference data plane returned a published-deployment list Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
+        `The inference data plane returned a published-deployment list Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`,
       );
     }
     if (parsed.data.scopedExecutionContractVersion !== requested.scopedExecutionContractVersion) {
-      throw new KaanaProtocolError('The data plane did not acknowledge publication scope restrictions.');
+      throw new KaanaProtocolError(
+        'The data plane did not acknowledge publication scope restrictions.',
+      );
     }
     validatePrivateAutoAttestation(parsed.data, requested.privateAutoExecutionContractVersion);
     return parsed.data;
@@ -643,9 +823,10 @@ class HttpKaanaClient implements KaanaClient {
    */
   async *stream(
     envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
-    options: KaanaExecuteOptions
+    options: KaanaExecuteOptions,
   ): AsyncGenerator<KaanaStreamFrame> {
-    if (envelope.schemaVersion === 4) throw new KaanaProtocolError('Private Auto has no streaming inference path.');
+    if (envelope.schemaVersion === 4)
+      throw new KaanaProtocolError('Private Auto has no streaming inference path.');
     const body = kaanaEnvelopeBytes(envelope);
     const timestamp = Date.now();
     const hop = new AbortController();
@@ -664,7 +845,7 @@ class HttpKaanaClient implements KaanaClient {
             this.config.privateKey,
             this.config.keyId,
             timestamp,
-            body
+            body,
           ),
         },
         // The SAME buffer that was hashed. Handing `fetch` the object and letting
@@ -678,7 +859,7 @@ class HttpKaanaClient implements KaanaClient {
       }
       if (response.body === null) {
         throw new KaanaProtocolError(
-          'The inference data plane answered 200 with no body, so no event stream could be read.'
+          'The inference data plane answered 200 with no body, so no event stream could be read.',
         );
       }
 
@@ -701,21 +882,33 @@ class HttpKaanaClient implements KaanaClient {
    */
   async execute(
     envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
-    options: KaanaExecuteOptions
+    options: KaanaExecuteOptions,
   ): Promise<KaanaCompletion> {
     if (envelope.schemaVersion === 4) {
-      if (options.privateAutoExecutionContractVersion !== PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION || options.scopedExecutionContractVersion !== undefined) {
+      if (
+        options.privateAutoExecutionContractVersion !== PRIVATE_AUTO_EXECUTION_CONTRACT_VERSION ||
+        options.scopedExecutionContractVersion !== undefined
+      ) {
         throw new KaanaProtocolError('Private Auto requires its independent negotiated contract.');
       }
       // The original parent-owned deadline covers serialization, send and response; no renewal.
       const remaining = Date.parse(envelope.privateAutoExecution.runtimeExpiresAt) - Date.now();
-      if (remaining <= 0 || remaining > 1000 || options.signal.aborted) throw new KaanaProtocolError('Private Auto deadline unavailable.');
+      if (remaining <= 0 || remaining > 1000 || options.signal.aborted)
+        throw new KaanaProtocolError('Private Auto deadline unavailable.');
       const controller = new AbortController();
       const cancel = () => controller.abort();
       options.signal.addEventListener('abort', cancel, { once: true });
       const timeout = setTimeout(cancel, remaining);
-      try { return await executeDecisions(this.config, envelope, { ...options, signal: controller.signal }); }
-      finally { clearTimeout(timeout); options.signal.removeEventListener('abort', cancel); controller.abort(); }
+      try {
+        return await executeDecisions(this.config, envelope, {
+          ...options,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+        options.signal.removeEventListener('abort', cancel);
+        controller.abort();
+      }
     }
     if (envelope.input.format === 'decisions') {
       return executeDecisions(this.config, envelope, options);
@@ -738,7 +931,7 @@ class HttpKaanaClient implements KaanaClient {
 async function executeDecisions(
   config: KaanaDataPlaneConfig,
   envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
-  options: KaanaExecuteOptions
+  options: KaanaExecuteOptions,
 ): Promise<KaanaCompletion> {
   const requestId = envelope.attribution.requestId;
   const uncertain = (message: string): KaanaIncompleteError =>
@@ -789,7 +982,9 @@ async function executeDecisions(
     const failure = typed.success ? typed.data.error : bare?.success ? bare.data : undefined;
     logDecisionsFailure(response, requestId, failure?.code);
     if (failure === undefined || failure.requestId !== requestId) {
-      throw uncertain(`The decisions data plane answered HTTP ${response.status} without a typed failure for this request.`);
+      throw uncertain(
+        `The decisions data plane answered HTTP ${response.status} without a typed failure for this request.`,
+      );
     }
     const usage = typed.success ? typed.data.usage : undefined;
     throw new KaanaIncompleteError('terminal_error', failure.message, {
@@ -821,7 +1016,7 @@ async function executeDecisions(
 function logDecisionsFailure(
   response: Response,
   requestId: string,
-  upstreamCode: string | undefined
+  upstreamCode: string | undefined,
 ): void {
   logger.error(
     'inference.kaana.decisions_failed',
@@ -831,7 +1026,7 @@ function logDecisionsFailure(
       requestId,
       status: response.status,
       ...(upstreamCode === undefined ? {} : { upstreamCode }),
-    }
+    },
   );
 }
 
@@ -860,9 +1055,7 @@ function logDecisionsFailure(
  * Tool calls attach to output 0: the stream's `tool_call` event carries a
  * `toolCallId` and no output index, so there is no value to distribute them by.
  */
-async function foldStream(
-  frames: AsyncIterable<KaanaStreamFrame>
-): Promise<KaanaCompletion> {
+async function foldStream(frames: AsyncIterable<KaanaStreamFrame>): Promise<KaanaCompletion> {
   const texts = new Map<number, string>();
   const transcripts = new Map<number, string>();
   const audio = new Map<number, { mediaType: string; chunks: Buffer[] }>();
@@ -910,7 +1103,7 @@ async function foldStream(
           } else if (event.channel === 'output_audio_transcript') {
             transcripts.set(
               event.outputIndex,
-              (transcripts.get(event.outputIndex) ?? '') + event.text
+              (transcripts.get(event.outputIndex) ?? '') + event.text,
             );
           }
           break;
@@ -919,9 +1112,14 @@ async function foldStream(
           const existing = audio.get(event.outputIndex);
           audioBytes += chunk.length;
           // Re-encoding catches non-canonical padding bits the contract regex admits.
-          if (chunk.toString('base64') !== event.data || audioBytes > MAX_INFERENCE_AUDIO_BYTES ||
-              (existing !== undefined && existing.mediaType !== event.mediaType)) {
-            throw new KaanaProtocolError('The inference data plane sent invalid or oversized audio.');
+          if (
+            chunk.toString('base64') !== event.data ||
+            audioBytes > MAX_INFERENCE_AUDIO_BYTES ||
+            (existing !== undefined && existing.mediaType !== event.mediaType)
+          ) {
+            throw new KaanaProtocolError(
+              'The inference data plane sent invalid or oversized audio.',
+            );
           }
           if (existing === undefined) {
             audio.set(event.outputIndex, { mediaType: event.mediaType, chunks: [chunk] });
@@ -977,7 +1175,7 @@ async function foldStream(
     throw new KaanaIncompleteError(
       'stream_truncated',
       'The inference data plane stopped responding before the request completed.',
-      cut === undefined ? {} : { usage: cut }
+      cut === undefined ? {} : { usage: cut },
     );
   }
 
@@ -990,7 +1188,7 @@ async function foldStream(
       {
         failure: terminalFailure,
         ...(evidence === undefined ? {} : { usage: evidence }),
-      }
+      },
     );
   }
 
@@ -998,7 +1196,7 @@ async function foldStream(
     throw new KaanaIncompleteError(
       'stream_truncated',
       'The inference data plane ended the stream without a terminal event.',
-      evidence === undefined ? {} : { usage: evidence }
+      evidence === undefined ? {} : { usage: evidence },
     );
   }
 
@@ -1010,7 +1208,7 @@ async function foldStream(
     throw new KaanaIncompleteError(
       'usage_missing',
       'The inference data plane completed the request without a usage report.',
-      evidence === undefined ? {} : { usage: evidence }
+      evidence === undefined ? {} : { usage: evidence },
     );
   }
 
@@ -1035,7 +1233,7 @@ function usageEvidence(
         units: readonly UsageQuantity[];
         usageSource: UsageSource;
       }
-    | undefined
+    | undefined,
 ): KaanaUsageEvidence | undefined {
   if (report !== undefined) return { kind: 'report', report };
   if (partial !== undefined) {
@@ -1057,7 +1255,7 @@ function foldedOutput(
   texts: ReadonlyMap<number, string>,
   toolCalls: ReadonlyMap<string, { name: string; args: string }>,
   audio: ReadonlyMap<number, { mediaType: string; chunks: Buffer[] }>,
-  transcripts: ReadonlyMap<number, string>
+  transcripts: ReadonlyMap<number, string>,
 ): { output: InferenceMessage[]; transcripts: (string | null)[] } {
   const calls: InferenceToolCall[] = [...toolCalls.entries()].map(([id, call]) => ({
     id,
@@ -1066,7 +1264,7 @@ function foldedOutput(
   }));
 
   const indexes = [...new Set([...texts.keys(), ...audio.keys(), ...transcripts.keys()])].sort(
-    (left, right) => left - right
+    (left, right) => left - right,
   );
   if (indexes.length === 0) {
     // A completed generation is always ONE assistant turn, even when it
@@ -1091,11 +1289,18 @@ function foldedOutput(
       role: 'assistant' as const,
       content: [
         ...(text === undefined ? [] : [{ type: 'text' as const, text }]),
-        ...(clip === undefined ? [] : [{ type: 'audio' as const, source: {
-          kind: 'inline' as const,
-          mediaType: clip.mediaType,
-          data: Buffer.concat(clip.chunks).toString('base64'),
-        } }]),
+        ...(clip === undefined
+          ? []
+          : [
+              {
+                type: 'audio' as const,
+                source: {
+                  kind: 'inline' as const,
+                  mediaType: clip.mediaType,
+                  data: Buffer.concat(clip.chunks).toString('base64'),
+                },
+              },
+            ]),
       ],
       ...(position === 0 && calls.length > 0 ? { toolCalls: calls } : {}),
     };
@@ -1132,7 +1337,7 @@ function readFrame(frame: RawFrame): KaanaStreamFrame | undefined {
     payload = JSON.parse(frame.data);
   } catch {
     throw new KaanaProtocolError(
-      `The inference data plane sent a ${frame.name} frame that is not JSON.`
+      `The inference data plane sent a ${frame.name} frame that is not JSON.`,
     );
   }
 
@@ -1140,7 +1345,7 @@ function readFrame(frame: RawFrame): KaanaStreamFrame | undefined {
     const parsed = normalizedUsageReportSchema.safeParse(payload);
     if (!parsed.success) {
       throw new KaanaProtocolError(
-        `The inference data plane sent a usage report Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
+        `The inference data plane sent a usage report Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`,
       );
     }
     return { kind: 'usage', usage: parsed.data };
@@ -1149,7 +1354,7 @@ function readFrame(frame: RawFrame): KaanaStreamFrame | undefined {
   const parsed = inferenceStreamEventSchema.safeParse(payload);
   if (!parsed.success) {
     throw new KaanaProtocolError(
-      `The inference data plane sent a stream event Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
+      `The inference data plane sent a stream event Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`,
     );
   }
   return { kind: 'event', event: parsed.data };
@@ -1170,9 +1375,7 @@ function issuePath(path: readonly (string | number)[] | undefined): string {
  * has usually already sent output worth counting, and discarding an unterminated
  * frame would lose the usage a partial settlement depends on.
  */
-async function* decodeEventStream(
-  body: ReadableStream<Uint8Array>
-): AsyncGenerator<RawFrame> {
+async function* decodeEventStream(body: ReadableStream<Uint8Array>): AsyncGenerator<RawFrame> {
   const reader = body.getReader();
   const decoder = new TextDecoder('utf-8');
   let pending = '';
@@ -1200,7 +1403,7 @@ async function* decodeEventStream(
       accumulated += text.length;
       if (accumulated > MAX_KAANA_EVENT_CHARACTERS) {
         throw new KaanaProtocolError(
-          `The inference data plane sent an event over ${MAX_KAANA_EVENT_CHARACTERS} characters.`
+          `The inference data plane sent an event over ${MAX_KAANA_EVENT_CHARACTERS} characters.`,
         );
       }
       data.push(text);
@@ -1220,7 +1423,7 @@ async function* decodeEventStream(
     pending += decoder.decode(chunk.value, { stream: true });
     if (pending.length > MAX_KAANA_EVENT_CHARACTERS) {
       throw new KaanaProtocolError(
-        `The inference data plane sent a line over ${MAX_KAANA_EVENT_CHARACTERS} characters with no frame boundary.`
+        `The inference data plane sent a line over ${MAX_KAANA_EVENT_CHARACTERS} characters with no frame boundary.`,
       );
     }
 
@@ -1272,7 +1475,7 @@ async function rejection(response: Response, requestId: string): Promise<Error> 
       ...(response.headers.get('X-Oxy-Request-Id') === null
         ? {}
         : { kaanaRequestId: response.headers.get('X-Oxy-Request-Id') }),
-    }
+    },
   );
 
   if (response.status >= 500) {
@@ -1311,7 +1514,9 @@ async function readBoundedStrict(response: Response, limit: number): Promise<str
     text += decoder.decode(chunk.value, { stream: true });
     if (text.length > limit) {
       await reader.cancel();
-      throw new KaanaProtocolError(`The inference data plane returned a catalogue over ${limit} characters.`);
+      throw new KaanaProtocolError(
+        `The inference data plane returned a catalogue over ${limit} characters.`,
+      );
     }
   }
   return text + decoder.decode();
@@ -1336,12 +1541,20 @@ async function readBounded(response: Response): Promise<string> {
 }
 
 /** Validate without changing legacy bytes; scoped input hashes cover the actual JSON wire. */
-export function kaanaEnvelopeBytes(envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest): Buffer<ArrayBuffer> {
+export function kaanaEnvelopeBytes(
+  envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
+): Buffer<ArrayBuffer> {
   if (envelope.schemaVersion === 4) {
     const validated = privateAutoInferenceRequestSchema.parse(envelope);
-    const inputSha256 = createHash('sha256').update(canonicalScopedExecutionJson(validated.input), 'utf8').digest('hex');
-    if (inputSha256 !== validated.privateAutoExecution.inputSha256) throw new KaanaProtocolError('Private Auto input hash mismatch.');
-    return Buffer.from(canonicalScopedExecutionJson(JSON.parse(JSON.stringify(validated)) as unknown), 'utf8');
+    const inputSha256 = createHash('sha256')
+      .update(canonicalScopedExecutionJson(validated.input), 'utf8')
+      .digest('hex');
+    if (inputSha256 !== validated.privateAutoExecution.inputSha256)
+      throw new KaanaProtocolError('Private Auto input hash mismatch.');
+    return Buffer.from(
+      canonicalScopedExecutionJson(JSON.parse(JSON.stringify(validated)) as unknown),
+      'utf8',
+    );
   }
   if (envelope.schemaVersion === 3) {
     const validated = scopedInferenceRequestSchema.parse(envelope);

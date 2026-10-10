@@ -28,9 +28,9 @@ describe('normalizeInlineText', () => {
   });
 
   it('collapses Unicode spaces (NBSP, U+2000 block, ideographic, narrow NBSP)', () => {
-    expect(
-      normalizeInlineText(`a${NBSP}b${EN_QUAD}c${IDEOGRAPHIC_SPACE}d${NARROW_NBSP}e`)
-    ).toBe('a b c d e');
+    expect(normalizeInlineText(`a${NBSP}b${EN_QUAD}c${IDEOGRAPHIC_SPACE}d${NARROW_NBSP}e`)).toBe(
+      'a b c d e',
+    );
   });
 
   it('collapses the Unicode line and paragraph separators', () => {
@@ -60,7 +60,7 @@ describe('normalizeInlineText', () => {
   it('leaves already-clean text untouched', () => {
     expect(normalizeInlineText('Hacker News')).toBe('Hacker News');
     expect(normalizeInlineText('Título en español — con guion')).toBe(
-      'Título en español — con guion'
+      'Título en español — con guion',
     );
   });
 
@@ -69,7 +69,7 @@ describe('normalizeInlineText', () => {
     expect(normalizeInlineText(long)).toHaveLength(500);
   });
 
-  it('does not strip markup or punctuation (that is the sanitizer\'s job)', () => {
+  it("does not strip markup or punctuation (that is the sanitizer's job)", () => {
     expect(normalizeInlineText('  <b>Bold</b> & "quoted"  ')).toBe('<b>Bold</b> & "quoted"');
   });
 
@@ -90,7 +90,7 @@ describe('normalizeInlineText', () => {
 });
 
 describe('normalizeMultilineText', () => {
-  it('preserves the author\'s paragraphs', () => {
+  it("preserves the author's paragraphs", () => {
     const body = 'First paragraph.\n\nSecond paragraph.\nSame paragraph, next line.';
     expect(normalizeMultilineText(body)).toBe(body);
   });
@@ -120,7 +120,7 @@ describe('normalizeMultilineText', () => {
 
   it('collapses runs of horizontal whitespace to one space, keeping newlines', () => {
     expect(normalizeMultilineText('hello    world\nsecond\t\tline')).toBe(
-      'hello world\nsecond line'
+      'hello world\nsecond line',
     );
   });
 
@@ -161,7 +161,7 @@ describe('normalizeMultilineText', () => {
 
   it('NFC-normalizes so decomposed accents are stored composed', () => {
     expect(normalizeMultilineText(`Caf${DECOMPOSED_E_ACUTE}\n\nabierto`)).toBe(
-      `Caf${COMPOSED_E_ACUTE}\n\nabierto`
+      `Caf${COMPOSED_E_ACUTE}\n\nabierto`,
     );
   });
 
@@ -172,9 +172,7 @@ describe('normalizeMultilineText', () => {
 
   it('cleans a realistic federated post body without losing its paragraphs', () => {
     const federated = '  Hola a todos.\r\n   \r\n\r\nEsto  es  una   prueba.\t\r\nFin.   ';
-    expect(normalizeMultilineText(federated)).toBe(
-      'Hola a todos.\n\nEsto es una prueba.\nFin.'
-    );
+    expect(normalizeMultilineText(federated)).toBe('Hola a todos.\n\nEsto es una prueba.\nFin.');
   });
 
   it('is idempotent', () => {

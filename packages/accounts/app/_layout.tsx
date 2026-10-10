@@ -14,12 +14,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import type { ReactNode } from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { OxyProvider , useOxy } from '@oxy.so/services';
+import { OxyProvider, useOxy } from '@oxy.so/services';
 import { productAnalytics } from '@/lib/product-analytics';
 import { BloomThemeProvider, useNavigationTheme } from '@oxy.so/bloom/theme';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
-
 
 import { ScrollProvider } from '@/contexts/scroll-context';
 import { ThemeModeProvider, useThemeMode } from '@/contexts/theme-mode-context';
@@ -28,10 +27,7 @@ import { AppInitializer } from '@/lib/appInitializer';
 import { LocaleProvider, useTranslation } from '@/lib/i18n';
 import { MinimalErrorFallback } from '@/components/error-fallback';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/constants/oxy';
-import {
-  preventNativeSplashAutoHide,
-  useHideNativeSplashWhenReady,
-} from '@oxy.so/expo-splash';
+import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
 
 // Reanimated 4 ships with a strict logger that surfaces `.value` reads during
 // render as runtime warnings. Several deeply nested third-party components in
@@ -153,7 +149,12 @@ function RootLayoutInner() {
             theme mode from ThemeModeProvider. */}
         <BloomThemeProvider mode={themeMode}>
           <ConnectionStatusToasts />
-          <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={OXY_AUTH_REDIRECT_URI} productAnalytics={productAnalytics}>
+          <OxyProvider
+            baseURL={API_URL}
+            clientId={OXY_CLIENT_ID}
+            authRedirectUri={OXY_AUTH_REDIRECT_URI}
+            productAnalytics={productAnalytics}
+          >
             <AppImageResolver>
               <LocaleProvider>
                 <AppHead />

@@ -118,5 +118,5 @@ export const appListings = pgTable(
     /** The storefront's own reads: a shelf, newest published first. */
     index('app_listings_category_id_idx').on(t.categoryId),
     index('app_listings_status_published_at_idx').on(t.status, t.publishedAt),
-  ]
+  ],
 );

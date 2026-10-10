@@ -39,7 +39,9 @@ import fileCache from '../../utils/fileCache';
 const mockGenerateVariants = jest.fn();
 jest.mock('../variantService', () => ({
   VariantService: class {
-    constructor(_s3: unknown) { /* no-op */ }
+    constructor(_s3: unknown) {
+      /* no-op */
+    }
 
     generateVariants(...args: unknown[]) {
       return mockGenerateVariants(...args);
@@ -92,7 +94,7 @@ async function insertUser(): Promise<string> {
 }
 
 async function insertFile(
-  values: Partial<typeof files.$inferInsert> & { sha256: string }
+  values: Partial<typeof files.$inferInsert> & { sha256: string },
 ): Promise<typeof files.$inferSelect> {
   const [row] = await getDb()
     .insert(files)
@@ -123,16 +125,31 @@ interface FakeS3 {
   downloadBuffer: jest.Mock<Promise<Buffer>, [string]>;
 }
 
-type FakeS3Input = Partial<Pick<FakeS3, 'uploadStream' | 'uploadBuffer' | 'fileExists' | 'copyFile' | 'deleteFile' | 'downloadBuffer'>>;
+type FakeS3Input = Partial<
+  Pick<
+    FakeS3,
+    'uploadStream' | 'uploadBuffer' | 'fileExists' | 'copyFile' | 'deleteFile' | 'downloadBuffer'
+  >
+>;
 
 function buildAssetService(input: FakeS3Input): { service: AssetService; fake: FakeS3 } {
   const fake: FakeS3 = {
-    uploadStream: jest.fn((): Promise<FileInfo> => Promise.resolve({ key: 'unused', size: 0, contentType: 'application/octet-stream' } as FileInfo)),
-    uploadBuffer: jest.fn((key: string, buffer: Buffer, options?: UploadOptions): Promise<FileInfo> => Promise.resolve({
-      key,
-      size: buffer.length,
-      contentType: options?.contentType || 'application/octet-stream',
-    } as FileInfo)),
+    uploadStream: jest.fn(
+      (): Promise<FileInfo> =>
+        Promise.resolve({
+          key: 'unused',
+          size: 0,
+          contentType: 'application/octet-stream',
+        } as FileInfo),
+    ),
+    uploadBuffer: jest.fn(
+      (key: string, buffer: Buffer, options?: UploadOptions): Promise<FileInfo> =>
+        Promise.resolve({
+          key,
+          size: buffer.length,
+          contentType: options?.contentType || 'application/octet-stream',
+        } as FileInfo),
+    ),
     deleteFile: jest.fn((): Promise<void> => Promise.resolve()),
     fileExists: jest.fn((): Promise<boolean> => Promise.resolve(true)),
     copyFile: jest.fn((): Promise<void> => Promise.resolve()),
@@ -183,12 +200,16 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
           if (!signal) {
             return; // never resolves; the test only exercises the abort path
           }
-          signal.addEventListener('abort', () => {
-            abortObserved = true;
-            reject(new Error('Upload aborted'));
-          }, { once: true });
+          signal.addEventListener(
+            'abort',
+            () => {
+              abortObserved = true;
+              reject(new Error('Upload aborted'));
+            },
+            { once: true },
+          );
         });
-      }
+      },
     );
 
     const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
@@ -197,13 +218,17 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
 
     // A source stream that never ends; we trigger the client-disconnect path
     // by emitting 'aborted' after the upload has started.
-    const source = new Readable({ read() { /* no data — wait for abort */ } });
+    const source = new Readable({
+      read() {
+        /* no data — wait for abort */
+      },
+    });
 
     const promise = service.uploadCachedMediaStream(
       source,
       'video/mp4',
       'federation-cache-media',
-      CACHE_MAX_BYTES
+      CACHE_MAX_BYTES,
     );
 
     // Let uploadStream register its abort listener, then simulate the client
@@ -235,9 +260,17 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     const uploadStream = jest.fn(
       (_key: string, _body: Readable, options?: UploadOptions): Promise<FileInfo> => {
         const signal = options?.abortSignal;
-        signal?.addEventListener('abort', () => { abortObserved = true; }, { once: true });
-        return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
-      }
+        signal?.addEventListener(
+          'abort',
+          () => {
+            abortObserved = true;
+          },
+          { once: true },
+        );
+        return new Promise<FileInfo>((resolve) => {
+          resolveUpload = resolve;
+        });
+      },
     );
 
     const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
@@ -259,7 +292,7 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
       source,
       'image/png',
       'federation-cache-media',
-      CACHE_MAX_BYTES
+      CACHE_MAX_BYTES,
     );
 
     // Let the meter drain the body so the source's 'end' fires and
@@ -290,12 +323,12 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     let resolveUpload: ((info: FileInfo) => void) | undefined;
     let capturedTempKey: string | undefined;
 
-    const uploadStream = jest.fn(
-      (key: string, _body: Readable): Promise<FileInfo> => {
-        capturedTempKey = key;
-        return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
-      }
-    );
+    const uploadStream = jest.fn((key: string, _body: Readable): Promise<FileInfo> => {
+      capturedTempKey = key;
+      return new Promise<FileInfo>((resolve) => {
+        resolveUpload = resolve;
+      });
+    });
     const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
     const fileExists = jest.fn((): Promise<boolean> => Promise.resolve(false));
     const copyFile = jest.fn((): Promise<void> => Promise.resolve());
@@ -315,11 +348,15 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
       source,
       'image/png',
       'federation-cache-media',
-      CACHE_MAX_BYTES
+      CACHE_MAX_BYTES,
     );
 
     await new Promise((resolve) => setImmediate(resolve));
-    resolveUpload?.({ key: capturedTempKey || 'cache/incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
+    resolveUpload?.({
+      key: capturedTempKey || 'cache/incoming/x',
+      size: 4,
+      contentType: 'image/png',
+    } as FileInfo);
 
     await expect(promise).resolves.toMatchObject({ id: existing.id });
 
@@ -337,11 +374,14 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     // revive/reassign that record (cross-tenant ownership takeover).
     const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
     const fileExists = jest.fn((): Promise<boolean> => Promise.resolve(false));
-    const uploadBuffer = jest.fn((key: string, buffer: Buffer, options?: UploadOptions): Promise<FileInfo> => Promise.resolve({
-      key,
-      size: buffer.length,
-      contentType: options?.contentType || 'application/octet-stream',
-    } as FileInfo));
+    const uploadBuffer = jest.fn(
+      (key: string, buffer: Buffer, options?: UploadOptions): Promise<FileInfo> =>
+        Promise.resolve({
+          key,
+          size: buffer.length,
+          contentType: options?.contentType || 'application/octet-stream',
+        } as FileInfo),
+    );
     const { service } = buildAssetService({ deleteFile, fileExists, uploadBuffer });
 
     // Valid JPEG magic (FF D8 FF E0) so the image-content guard accepts it.
@@ -360,7 +400,7 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
       'image/jpeg',
       'fresh-avatar.jpg',
       'public',
-      { source: 'federation-avatar' }
+      { source: 'federation-avatar' },
     );
 
     // A brand-new row owned by the UPLOADER — never a revived tombstone
@@ -386,12 +426,12 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     let resolveUpload: ((info: FileInfo) => void) | undefined;
     let capturedTempKey: string | undefined;
 
-    const uploadStream = jest.fn(
-      (key: string, _body: Readable): Promise<FileInfo> => {
-        capturedTempKey = key;
-        return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
-      }
-    );
+    const uploadStream = jest.fn((key: string, _body: Readable): Promise<FileInfo> => {
+      capturedTempKey = key;
+      return new Promise<FileInfo>((resolve) => {
+        resolveUpload = resolve;
+      });
+    });
     const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
     const fileExists = jest.fn((): Promise<boolean> => Promise.resolve(false));
     const copyFile = jest.fn((): Promise<void> => Promise.resolve());
@@ -410,11 +450,15 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
       source,
       'image/png',
       'federation-cache-media',
-      CACHE_MAX_BYTES
+      CACHE_MAX_BYTES,
     );
 
     await new Promise((resolve) => setImmediate(resolve));
-    resolveUpload?.({ key: capturedTempKey || 'cache/incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
+    resolveUpload?.({
+      key: capturedTempKey || 'cache/incoming/x',
+      size: 4,
+      contentType: 'image/png',
+    } as FileInfo);
 
     const result = await promise;
 
@@ -443,19 +487,25 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     let capturedTempKey: string | undefined;
     const uploadStream = jest.fn((key: string, _body: Readable): Promise<FileInfo> => {
       capturedTempKey = key;
-      return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
+      return new Promise<FileInfo>((resolve) => {
+        resolveUpload = resolve;
+      });
     });
     const built = buildAssetService({ uploadStream, ...fake });
     const source = bodySource(content);
     const promise = start(built.service, source);
     await new Promise((resolve) => setImmediate(resolve));
-    resolveUpload?.({ key: capturedTempKey || 'incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
+    resolveUpload?.({
+      key: capturedTempKey || 'incoming/x',
+      size: 4,
+      contentType: 'image/png',
+    } as FileInfo);
     const value = await promise;
     source.destroy();
     return { value, fake: built.fake, tempKey: capturedTempKey };
   }
 
-  it('gives a federated owner its OWN row instead of another user\'s private file, which stays untouched', async () => {
+  it("gives a federated owner its OWN row instead of another user's private file, which stays untouched", async () => {
     const content = uniqueBody();
     const existing = await insertFile({
       sha256: hashOf(content),
@@ -468,17 +518,27 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
 
     const { value, fake, tempKey } = await streamThrough(
       { fileExists: jest.fn(() => Promise.resolve(false)) },
-      (service, source) => service.uploadFederatedMediaStream(
-        source, 'image/png', 'federated-post.png', CACHE_MAX_BYTES, federatedOwner, 'app-mention',
-        { sourceUri: 'https://remote.example/media/1' },
-      ),
+      (service, source) =>
+        service.uploadFederatedMediaStream(
+          source,
+          'image/png',
+          'federated-post.png',
+          CACHE_MAX_BYTES,
+          federatedOwner,
+          'app-mention',
+          { sourceUri: 'https://remote.example/media/1' },
+        ),
       content,
     );
 
     const result = value as { file: typeof files.$inferSelect; deduplicated: boolean };
     expect(result.deduplicated).toBe(false);
     expect(result.file.id).not.toBe(existing.id);
-    expect(result.file).toMatchObject({ ownerUserId: federatedOwner, visibility: 'public', purpose: 'user' });
+    expect(result.file).toMatchObject({
+      ownerUserId: federatedOwner,
+      visibility: 'public',
+      purpose: 'user',
+    });
     // Same bytes, the PUBLIC spelling of the existing key — written from this
     // upload, since the private owner's object is not CDN-reachable.
     expect(result.file.storageKey).toBe(`public/${existing.storageKey}`);
@@ -486,7 +546,7 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
     expect(await readFile(existing.id)).toEqual(existing);
   });
 
-  it('gives a user-media owner its OWN row sharing another user\'s stored object, which stays untouched', async () => {
+  it("gives a user-media owner its OWN row sharing another user's stored object, which stays untouched", async () => {
     const content = uniqueBody();
     const existing = await insertFile({
       sha256: hashOf(content),
@@ -500,9 +560,15 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
 
     const { value, fake, tempKey } = await streamThrough(
       {},
-      (service, source) => service.uploadUserMediaStream(
-        source, 'image/png', 'mention-post.png', CACHE_MAX_BYTES, uploader, { source: 'mention-service' },
-      ),
+      (service, source) =>
+        service.uploadUserMediaStream(
+          source,
+          'image/png',
+          'mention-post.png',
+          CACHE_MAX_BYTES,
+          uploader,
+          { source: 'mention-service' },
+        ),
       content,
     );
 
@@ -530,10 +596,16 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
 
     const { value, fake } = await streamThrough(
       {},
-      (service, source) => service.uploadFederatedMediaStream(
-        source, 'image/png', 'federated-post.png', CACHE_MAX_BYTES, federatedOwnerId, 'app-mention',
-        { sourceUri: 'https://remote.example/media/1' },
-      ),
+      (service, source) =>
+        service.uploadFederatedMediaStream(
+          source,
+          'image/png',
+          'federated-post.png',
+          CACHE_MAX_BYTES,
+          federatedOwnerId,
+          'app-mention',
+          { sourceUri: 'https://remote.example/media/1' },
+        ),
       content,
     );
 
@@ -545,7 +617,11 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
         systemOwner: null,
         purpose: 'user',
         storageKey: existing.storageKey,
-        metadata: { source: 'federation', serviceAppId: 'app-mention', sourceUri: 'https://remote.example/media/1' },
+        metadata: {
+          source: 'federation',
+          serviceAppId: 'app-mention',
+          sourceUri: 'https://remote.example/media/1',
+        },
       },
     });
     expect(result.file.id).not.toBe(existing.id);
@@ -557,11 +633,14 @@ describe('uploadCachedMediaStream — abort cleanup', () => {
 
 describe('AssetService.uploadFileDirect — empty-file guard', () => {
   it('rejects a 0-byte buffer and creates NO File record or storage object', async () => {
-    const uploadBuffer = jest.fn((key: string, buffer: Buffer, options?: UploadOptions): Promise<FileInfo> => Promise.resolve({
-      key,
-      size: buffer.length,
-      contentType: options?.contentType || 'application/octet-stream',
-    } as FileInfo));
+    const uploadBuffer = jest.fn(
+      (key: string, buffer: Buffer, options?: UploadOptions): Promise<FileInfo> =>
+        Promise.resolve({
+          key,
+          size: buffer.length,
+          contentType: options?.contentType || 'application/octet-stream',
+        } as FileInfo),
+    );
     const { service } = buildAssetService({ uploadBuffer });
 
     const emptyHash = hashOf(Buffer.alloc(0));
@@ -598,10 +677,17 @@ describe('AssetService visibility relocation', () => {
       existingKeys.delete(key);
       return Promise.resolve();
     });
-    const fileExists = jest.fn((key: string): Promise<boolean> => Promise.resolve(existingKeys.has(key)));
+    const fileExists = jest.fn(
+      (key: string): Promise<boolean> => Promise.resolve(existingKeys.has(key)),
+    );
     const copyFile = jest.fn((): Promise<void> => Promise.resolve());
     const { service } = buildAssetService({ deleteFile, fileExists, copyFile });
-    const row = await insertFile({ sha256: hashOf(content), ownerUserId: await insertUser(), storageKey: bareKey, visibility: 'public' });
+    const row = await insertFile({
+      sha256: hashOf(content),
+      ownerUserId: await insertUser(),
+      storageKey: bareKey,
+      visibility: 'public',
+    });
 
     const relocated = await service.updateFileVisibility(row.id, 'private');
 
@@ -612,7 +698,7 @@ describe('AssetService visibility relocation', () => {
     expect(existingKeys.has(bareKey)).toBe(true);
   });
 
-  it('keeps the public copy on a downgrade while ANOTHER owner\'s public row still serves it', async () => {
+  it("keeps the public copy on a downgrade while ANOTHER owner's public row still serves it", async () => {
     const content = uniqueBody();
     const sha256 = hashOf(content);
     const publicKey = `public/content/2026/06/${sha256}.jpg`;
@@ -621,14 +707,26 @@ describe('AssetService visibility relocation', () => {
       existingKeys.delete(key);
       return Promise.resolve();
     });
-    const fileExists = jest.fn((key: string): Promise<boolean> => Promise.resolve(existingKeys.has(key)));
+    const fileExists = jest.fn(
+      (key: string): Promise<boolean> => Promise.resolve(existingKeys.has(key)),
+    );
     const copyFile = jest.fn((_from: string, to: string): Promise<void> => {
       existingKeys.add(to);
       return Promise.resolve();
     });
     const { service } = buildAssetService({ deleteFile, fileExists, copyFile });
-    const mine = await insertFile({ sha256, ownerUserId: await insertUser(), storageKey: publicKey, visibility: 'public' });
-    await insertFile({ sha256, ownerUserId: await insertUser(), storageKey: publicKey, visibility: 'public' });
+    const mine = await insertFile({
+      sha256,
+      ownerUserId: await insertUser(),
+      storageKey: publicKey,
+      visibility: 'public',
+    });
+    await insertFile({
+      sha256,
+      ownerUserId: await insertUser(),
+      storageKey: publicKey,
+      visibility: 'public',
+    });
 
     const relocated = await service.updateFileVisibility(mine.id, 'private');
 
@@ -649,7 +747,9 @@ describe('AssetService visibility relocation', () => {
       present.delete(key);
       return Promise.resolve();
     });
-    const fileExists = jest.fn((key: string): Promise<boolean> => Promise.resolve(present.has(key)));
+    const fileExists = jest.fn(
+      (key: string): Promise<boolean> => Promise.resolve(present.has(key)),
+    );
     const copyFile = jest.fn((_from: string, to: string): Promise<void> => {
       present.add(to);
       return Promise.resolve();
@@ -684,7 +784,8 @@ describe('AssetService visibility relocation', () => {
     // the rows alone made a public ladder whose every segment 403'd on the CDN
     // (a 3-minute reel, 2026-10-10: playlists under `public/`, 38 segments not).
     const dir = 'variants/2026/10/16/ab/sha';
-    const playlist = '#EXTM3U\n#EXTINF:10,\nsegment_360p_000.ts\n#EXTINF:4,\nsegment_360p_001.ts\n#EXT-X-ENDLIST\n';
+    const playlist =
+      '#EXTM3U\n#EXTINF:10,\nsegment_360p_000.ts\n#EXTINF:4,\nsegment_360p_001.ts\n#EXT-X-ENDLIST\n';
     const present = new Set([
       'content/2026/10/ab/original.mp4',
       `${dir}/hls_360p.m3u8`,
@@ -695,15 +796,19 @@ describe('AssetService visibility relocation', () => {
       present.delete(key);
       return Promise.resolve();
     });
-    const fileExists = jest.fn((key: string): Promise<boolean> => Promise.resolve(present.has(key)));
+    const fileExists = jest.fn(
+      (key: string): Promise<boolean> => Promise.resolve(present.has(key)),
+    );
     const copyFile = jest.fn((_from: string, to: string): Promise<void> => {
       present.add(to);
       return Promise.resolve();
     });
-    const downloadBuffer = jest.fn((key: string): Promise<Buffer> =>
-      key.endsWith('hls_360p.m3u8') && present.has(key)
-        ? Promise.resolve(Buffer.from(playlist))
-        : Promise.reject(new Error(`no object ${key}`)));
+    const downloadBuffer = jest.fn(
+      (key: string): Promise<Buffer> =>
+        key.endsWith('hls_360p.m3u8') && present.has(key)
+          ? Promise.resolve(Buffer.from(playlist))
+          : Promise.reject(new Error(`no object ${key}`)),
+    );
     const { service } = buildAssetService({ deleteFile, fileExists, copyFile, downloadBuffer });
 
     const file = await insertFile({
@@ -714,12 +819,14 @@ describe('AssetService visibility relocation', () => {
       ext: 'mp4',
       storageKey: 'content/2026/10/ab/original.mp4',
     });
-    await getDb().insert(fileVariants).values({
-      fileId: file.id,
-      type: 'hls_360p',
-      key: `${dir}/hls_360p.m3u8`,
-      readyAt: new Date(),
-    });
+    await getDb()
+      .insert(fileVariants)
+      .values({
+        fileId: file.id,
+        type: 'hls_360p',
+        key: `${dir}/hls_360p.m3u8`,
+        readyAt: new Date(),
+      });
 
     await service.updateFileVisibility(file.id, 'public');
 
@@ -737,11 +844,13 @@ describe('ensureOwnedAssetPublic — profile media is promoted to public', () =>
   const asFile = (f: { ownerUserId: string; visibility: string }): MaybeFile =>
     ({ id: 'f1', ...f }) as unknown as MaybeFile;
   const okVisibility = (): Awaited<ReturnType<AssetService['updateFileVisibility']>> =>
-    ({} as unknown as Awaited<ReturnType<AssetService['updateFileVisibility']>>);
+    ({}) as unknown as Awaited<ReturnType<AssetService['updateFileVisibility']>>;
 
   it("promotes the owner's private asset to public", async () => {
     const { service } = buildAssetService({});
-    jest.spyOn(service, 'getFile').mockResolvedValue(asFile({ ownerUserId: 'u1', visibility: 'private' }));
+    jest
+      .spyOn(service, 'getFile')
+      .mockResolvedValue(asFile({ ownerUserId: 'u1', visibility: 'private' }));
     const updateVis = jest.spyOn(service, 'updateFileVisibility').mockResolvedValue(okVisibility());
     await service.ensureOwnedAssetPublic('f1', 'u1');
     expect(updateVis).toHaveBeenCalledWith('f1', 'public');
@@ -763,7 +872,9 @@ describe('ensureOwnedAssetPublic — profile media is promoted to public', () =>
 
   it('never throws when the visibility update fails (best-effort)', async () => {
     const { service } = buildAssetService({});
-    jest.spyOn(service, 'getFile').mockResolvedValue(asFile({ ownerUserId: 'u1', visibility: 'private' }));
+    jest
+      .spyOn(service, 'getFile')
+      .mockResolvedValue(asFile({ ownerUserId: 'u1', visibility: 'private' }));
     jest.spyOn(service, 'updateFileVisibility').mockRejectedValue(new Error('boom'));
     await expect(service.ensureOwnedAssetPublic('f1', 'u1')).resolves.toBeUndefined();
   });
@@ -792,7 +903,9 @@ describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () 
     let capturedTempKey: string | undefined;
     const uploadStream = jest.fn((key: string, _body: Readable): Promise<FileInfo> => {
       capturedTempKey = key;
-      return new Promise<FileInfo>((resolve) => { resolveUpload = resolve; });
+      return new Promise<FileInfo>((resolve) => {
+        resolveUpload = resolve;
+      });
     });
     const deleteFile = jest.fn((): Promise<void> => Promise.resolve());
     const copyFile = jest.fn((): Promise<void> => Promise.resolve());
@@ -810,16 +923,31 @@ describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () 
       call.metadata,
     );
     await new Promise((resolve) => setImmediate(resolve));
-    resolveUpload?.({ key: capturedTempKey || 'federation/incoming/x', size: 4, contentType: 'image/png' } as FileInfo);
+    resolveUpload?.({
+      key: capturedTempKey || 'federation/incoming/x',
+      size: 4,
+      contentType: 'image/png',
+    } as FileInfo);
     const settled = await promise.then(
       (value) => ({ ok: true as const, value }),
       (error: unknown) => ({ ok: false as const, error }),
     );
     source.destroy();
-    return { settled, row, copyFile, deleteFile, tempKey: capturedTempKey, sha256: hashOf(content) };
+    return {
+      settled,
+      row,
+      copyFile,
+      deleteFile,
+      tempKey: capturedTempKey,
+      sha256: hashOf(content),
+    };
   }
 
-  const federatedRow = (ownerUserId: string, appId: string, extra: Partial<typeof files.$inferInsert> = {}) => ({
+  const federatedRow = (
+    ownerUserId: string,
+    appId: string,
+    extra: Partial<typeof files.$inferInsert> = {},
+  ) => ({
     ownerUserId,
     purpose: 'user' as const,
     visibility: 'public' as const,
@@ -830,7 +958,10 @@ describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () 
 
   it('returns the EXISTING row with deduplicated: true for the same owner and application, creating nothing', async () => {
     const owner = await insertUser();
-    const r = await uploadOver(federatedRow(owner, 'app-mention'), { ownerUserId: owner, appId: 'app-mention' });
+    const r = await uploadOver(federatedRow(owner, 'app-mention'), {
+      ownerUserId: owner,
+      appId: 'app-mention',
+    });
 
     expect(r.settled.ok).toBe(true);
     if (!r.settled.ok || !r.row) throw new Error('unreachable');
@@ -839,17 +970,19 @@ describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () 
     expect(await readFile(r.row.id)).toEqual(r.row);
     expect(r.copyFile).not.toHaveBeenCalled();
     expect(r.deleteFile).toHaveBeenCalledWith(r.tempKey);
-    const live = await getDb().select({ id: files.id }).from(files)
+    const live = await getDb()
+      .select({ id: files.id })
+      .from(files)
       .where(and(eq(files.sha256, r.sha256), ne(files.status, 'deleted')));
     expect(live).toEqual([{ id: r.row.id }]);
   });
 
   it('reactivates a reused row that had fallen to trash', async () => {
     const owner = await insertUser();
-    const r = await uploadOver(
-      federatedRow(owner, 'app-mention', { status: 'trash' }),
-      { ownerUserId: owner, appId: 'app-mention' },
-    );
+    const r = await uploadOver(federatedRow(owner, 'app-mention', { status: 'trash' }), {
+      ownerUserId: owner,
+      appId: 'app-mention',
+    });
 
     expect(r.settled.ok).toBe(true);
     if (!r.row) throw new Error('unreachable');
@@ -867,23 +1000,35 @@ describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () 
   it('gives a DIFFERENT federated owner (same application) its OWN row sharing the object, the other row untouched', async () => {
     const owner = await insertUser();
     const caller = await insertUser();
-    const r = await uploadOver(federatedRow(owner, 'app-mention'), { ownerUserId: caller, appId: 'app-mention' });
+    const r = await uploadOver(federatedRow(owner, 'app-mention'), {
+      ownerUserId: caller,
+      appId: 'app-mention',
+    });
 
     expect(r.settled.ok).toBe(true);
     if (!r.settled.ok || !r.row) throw new Error('unreachable');
     expect(r.settled.value.deduplicated).toBe(false);
     expect(r.settled.value.file.id).not.toBe(r.row.id);
-    expect(r.settled.value.file).toMatchObject({ ownerUserId: caller, storageKey: r.row.storageKey });
+    expect(r.settled.value.file).toMatchObject({
+      ownerUserId: caller,
+      storageKey: r.row.storageKey,
+    });
     expect(await readFile(r.row.id)).toEqual(r.row);
   });
 
   it('refuses the same owner, a DIFFERENT application: 409 FEDERATED_MEDIA_OWNED_ELSEWHERE, the row untouched', async () => {
     const owner = await insertUser();
-    const r = await uploadOver(federatedRow(owner, 'app-mention'), { ownerUserId: owner, appId: 'app-other' });
+    const r = await uploadOver(federatedRow(owner, 'app-mention'), {
+      ownerUserId: owner,
+      appId: 'app-other',
+    });
 
     expect(r.settled.ok).toBe(false);
     if (r.settled.ok || !r.row) throw new Error('unreachable');
-    expect(r.settled.error).toMatchObject({ statusCode: 409, code: 'FEDERATED_MEDIA_OWNED_ELSEWHERE' });
+    expect(r.settled.error).toMatchObject({
+      statusCode: 409,
+      code: 'FEDERATED_MEDIA_OWNED_ELSEWHERE',
+    });
     expect(await readFile(r.row.id)).toEqual(r.row);
     expect(r.deleteFile).toHaveBeenCalledWith(r.tempKey);
   });
@@ -891,7 +1036,9 @@ describe('AssetService.uploadFederatedMediaStream — idempotent re-upload', () 
   it('refuses a row with the right owner and app but NOT written by the federation path', async () => {
     const owner = await insertUser();
     const r = await uploadOver(
-      federatedRow(owner, 'app-mention', { metadata: { source: 'mention-service', serviceAppId: 'app-mention' } }),
+      federatedRow(owner, 'app-mention', {
+        metadata: { source: 'mention-service', serviceAppId: 'app-mention' },
+      }),
       { ownerUserId: owner, appId: 'app-mention' },
     );
 

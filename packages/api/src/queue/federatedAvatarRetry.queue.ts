@@ -42,7 +42,10 @@ let fallbackTimer: ReturnType<typeof setInterval> | null = null;
 /** Run one sweep. Never throws — the next tick retries whatever is still due. */
 export async function runFederatedAvatarRetryTick(): Promise<void> {
   try {
-    const summary = await runFederatedAvatarRetrySweep({ maxUsers: USERS_PER_TICK, concurrency: CONCURRENCY });
+    const summary = await runFederatedAvatarRetrySweep({
+      maxUsers: USERS_PER_TICK,
+      concurrency: CONCURRENCY,
+    });
     if (summary.claimed > 0) logger.info('Federated avatar retry sweep', { ...summary });
   } catch (err) {
     logger.error(

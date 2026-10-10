@@ -91,7 +91,7 @@ describe('display name', () => {
     const id = await makeUser({ nameFirst: 'Ada' });
 
     await expect(
-      userService.updateUserProfile(id, { name: { first: 'Ada 3000 🚀' } })
+      userService.updateUserProfile(id, { name: { first: 'Ada 3000 🚀' } }),
     ).rejects.toBeInstanceOf(BadRequestError);
 
     expect((await storedRow(id)).nameFirst).toBe('Ada');
@@ -224,9 +224,7 @@ describe('location child rows', () => {
     const id = await makeUser();
 
     await userService.updateUserProfile(id, {
-      locations: [
-        { id: 'loc-1', name: 'Barcelona', coordinates: { lat: 41.3874, lon: 2.1686 } },
-      ],
+      locations: [{ id: 'loc-1', name: 'Barcelona', coordinates: { lat: 41.3874, lon: 2.1686 } }],
     });
 
     const [row] = await getDb()
@@ -273,17 +271,18 @@ describe('username policy', () => {
   it('rejects interior whitespace with a 400', async () => {
     const id = await makeUser();
 
-    await expect(
-      userService.updateUserProfile(id, { username: 'al ice' })
-    ).rejects.toMatchObject({ statusCode: 400, message: USERNAME_INVALID_MESSAGE });
+    await expect(userService.updateUserProfile(id, { username: 'al ice' })).rejects.toMatchObject({
+      statusCode: 400,
+      message: USERNAME_INVALID_MESSAGE,
+    });
   });
 
   it('rejects punctuation with a 400', async () => {
     const id = await makeUser();
 
-    await expect(
-      userService.updateUserProfile(id, { username: 'al.ice' })
-    ).rejects.toBeInstanceOf(BadRequestError);
+    await expect(userService.updateUserProfile(id, { username: 'al.ice' })).rejects.toBeInstanceOf(
+      BadRequestError,
+    );
   });
 
   it('stores a clean username change trimmed', async () => {
@@ -315,7 +314,7 @@ describe('username policy', () => {
     const id = await makeUser();
 
     await expect(
-      userService.updateUserProfile(id, { username: taken.toUpperCase() })
+      userService.updateUserProfile(id, { username: taken.toUpperCase() }),
     ).rejects.toThrow('Username already exists');
   });
 });

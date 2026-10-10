@@ -36,13 +36,11 @@ import { getAvatarPath, getAvatarPathsBatch } from '../senderAvatar.service';
 const unique = () => randomUUID().replace(/-/g, '');
 
 /** The path the proxy serves an external image through. */
-const proxied = (url: string) => `/email/proxy?url=${encodeURIComponent(Buffer.from(url).toString('base64'))}`;
+const proxied = (url: string) =>
+  `/email/proxy?url=${encodeURIComponent(Buffer.from(url).toString('base64'))}`;
 
 async function cachedRow(email: string) {
-  const [row] = await getDb()
-    .select()
-    .from(senderAvatars)
-    .where(eq(senderAvatars.email, email));
+  const [row] = await getDb().select().from(senderAvatars).where(eq(senderAvatars.email, email));
   return row;
 }
 
@@ -75,9 +73,9 @@ describe('senderAvatar.service — SSRF posture', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0][0])).toContain('https://www.gravatar.com/avatar/');
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes(`${domain}/favicon.ico`))).toBe(
-      false,
-    );
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes(`${domain}/favicon.ico`)),
+    ).toBe(false);
     expect(avatarPath).toBeNull();
     expect(fetchMock.mock.calls[1][0]).toBe(`https://api.clarity.surf/favicons/${domain}`);
   });
@@ -154,12 +152,14 @@ describe('senderAvatar.service — the cache', () => {
     // assertion below reads `/stale`. The sweep is not involved: the row is
     // still present, deliberately.
     const email = `stale${unique().slice(0, 8)}@example.com`;
-    await getDb().insert(senderAvatars).values({
-      email,
-      avatarPath: '/stale',
-      source: 'gravatar',
-      expiresAt: new Date(Date.now() - 60_000),
-    });
+    await getDb()
+      .insert(senderAvatars)
+      .values({
+        email,
+        avatarPath: '/stale',
+        source: 'gravatar',
+        expiresAt: new Date(Date.now() - 60_000),
+      });
 
     const path = await getAvatarPath(email);
 
@@ -173,12 +173,14 @@ describe('senderAvatar.service — the cache', () => {
     // The batch is a SECOND query. Carrying the predicate on only one of the
     // two is exactly the shape that ships and is never noticed.
     const email = `stalebatch${unique().slice(0, 8)}@example.com`;
-    await getDb().insert(senderAvatars).values({
-      email,
-      avatarPath: '/stale-batch',
-      source: 'gravatar',
-      expiresAt: new Date(Date.now() - 60_000),
-    });
+    await getDb()
+      .insert(senderAvatars)
+      .values({
+        email,
+        avatarPath: '/stale-batch',
+        source: 'gravatar',
+        expiresAt: new Date(Date.now() - 60_000),
+      });
 
     const resolved = await getAvatarPathsBatch([email]);
 
@@ -188,12 +190,14 @@ describe('senderAvatar.service — the cache', () => {
 
   it('serves a still-fresh row from the batch without resolving it again', async () => {
     const email = `fresh${unique().slice(0, 8)}@example.com`;
-    await getDb().insert(senderAvatars).values({
-      email,
-      avatarPath: '/fresh',
-      source: 'gravatar',
-      expiresAt: new Date(Date.now() + 60_000),
-    });
+    await getDb()
+      .insert(senderAvatars)
+      .values({
+        email,
+        avatarPath: '/fresh',
+        source: 'gravatar',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
 
     const resolved = await getAvatarPathsBatch([email]);
 
@@ -203,12 +207,14 @@ describe('senderAvatar.service — the cache', () => {
 
   it('deduplicates and normalizes a batch, and returns one entry per address', async () => {
     const email = `Batch${unique().slice(0, 8)}@Example.com`;
-    await getDb().insert(senderAvatars).values({
-      email: email.toLowerCase(),
-      avatarPath: '/one',
-      source: 'gravatar',
-      expiresAt: new Date(Date.now() + 60_000),
-    });
+    await getDb()
+      .insert(senderAvatars)
+      .values({
+        email: email.toLowerCase(),
+        avatarPath: '/one',
+        source: 'gravatar',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
 
     const resolved = await getAvatarPathsBatch([email, `  ${email.toUpperCase()}  `]);
 
@@ -221,16 +227,20 @@ describe('senderAvatar.service — the cache', () => {
   });
 });
 
-
 describe('senderAvatar.service — resource validity', () => {
   it('parses adjacent BIMI tags and concatenated TXT segments', async () => {
-    mockResolveTxt.mockResolvedValue([['v=BIMI1;l=https://vmc.example/logo.svg;', 'a=https://vmc.example/certificate.pem']]);
+    mockResolveTxt.mockResolvedValue([
+      ['v=BIMI1;l=https://vmc.example/logo.svg;', 'a=https://vmc.example/certificate.pem'],
+    ]);
     const email = `bimi${unique().slice(0, 8)}@example.com`;
     await expect(getAvatarPath(email)).resolves.toBe(proxied('https://vmc.example/logo.svg'));
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it.each(['v=BIMI1;l=javascript:alert(1)', 'v=BIMI1;l=https://a.example/a.svg;l=https://b.example/b.svg'])('rejects invalid or ambiguous BIMI: %s', async (record) => {
+  it.each([
+    'v=BIMI1;l=javascript:alert(1)',
+    'v=BIMI1;l=https://a.example/a.svg;l=https://b.example/b.svg',
+  ])('rejects invalid or ambiguous BIMI: %s', async (record) => {
     mockResolveTxt.mockResolvedValue([[record]]);
     await expect(getAvatarPath(`invalid${unique().slice(0, 8)}@example.com`)).resolves.toBeNull();
   });
@@ -239,7 +249,9 @@ describe('senderAvatar.service — resource validity', () => {
     fetchMock.mockResolvedValueOnce({ ok: false });
     fetchMock.mockResolvedValueOnce({ ok: true, headers: { get: () => 'image/png' } });
     const domain = `d${unique().slice(0, 8)}.example`;
-    await expect(getAvatarPath(`sender@${domain}`)).resolves.toBe(proxied(`https://api.clarity.surf/favicons/${domain}`));
+    await expect(getAvatarPath(`sender@${domain}`)).resolves.toBe(
+      proxied(`https://api.clarity.surf/favicons/${domain}`),
+    );
     expect(fetchMock.mock.calls[1]).toEqual([
       `https://api.clarity.surf/favicons/${domain}`,
       expect.objectContaining({ method: 'HEAD', redirect: 'error' }),
@@ -252,18 +264,30 @@ describe('senderAvatar.service — resource validity', () => {
     await expect(getAvatarPath(`html${unique().slice(0, 8)}@example.com`)).resolves.toBeNull();
   });
 
-  it.each(['single', 'batch'])('renews broken cached BIMI and guessed favicon paths through the %s reader', async (reader) => {
-    for (const source of ['bimi', 'favicon'] as const) {
-      const email = `legacy${unique().slice(0, 8)}@example.com`;
-      const oldUrl = source === 'bimi'
-        ? 'https://vmc.example/logo.svg;a=https://vmc.example/certificate.pem'
-        : 'https://example.com/favicon.ico';
-      await getDb().insert(senderAvatars).values({
-        email, source, avatarPath: proxied(oldUrl), expiresAt: new Date(Date.now() + 60_000),
-      });
-      const path = reader === 'single' ? await getAvatarPath(email) : (await getAvatarPathsBatch([email])).get(email);
-      expect(path).toBeNull();
-      expect(await cachedRow(email)).toMatchObject({ source: 'none', avatarPath: null });
-    }
-  });
+  it.each(['single', 'batch'])(
+    'renews broken cached BIMI and guessed favicon paths through the %s reader',
+    async (reader) => {
+      for (const source of ['bimi', 'favicon'] as const) {
+        const email = `legacy${unique().slice(0, 8)}@example.com`;
+        const oldUrl =
+          source === 'bimi'
+            ? 'https://vmc.example/logo.svg;a=https://vmc.example/certificate.pem'
+            : 'https://example.com/favicon.ico';
+        await getDb()
+          .insert(senderAvatars)
+          .values({
+            email,
+            source,
+            avatarPath: proxied(oldUrl),
+            expiresAt: new Date(Date.now() + 60_000),
+          });
+        const path =
+          reader === 'single'
+            ? await getAvatarPath(email)
+            : (await getAvatarPathsBatch([email])).get(email);
+        expect(path).toBeNull();
+        expect(await cachedRow(email)).toMatchObject({ source: 'none', avatarPath: null });
+      }
+    },
+  );
 });

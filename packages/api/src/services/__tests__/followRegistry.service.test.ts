@@ -197,7 +197,7 @@ describe('releasing a namespace', () => {
 
   it('succeeds when there was nothing to release', async () => {
     expect(
-      await releaseNamespace({ capability: capabilityFor(appA), namespace: unique('gone') })
+      await releaseNamespace({ capability: capabilityFor(appA), namespace: unique('gone') }),
     ).toMatchObject({ ok: true, value: { released: false } });
   });
 });
@@ -206,7 +206,7 @@ describe('registering a kind', () => {
   it('registers inside a namespace the caller owns', async () => {
     const ns = await ownedNamespace();
     expect(
-      await registerKind({ capability: capabilityFor(appA), kind: `${ns}.store` })
+      await registerKind({ capability: capabilityFor(appA), kind: `${ns}.store` }),
     ).toMatchObject({ ok: true, value: { kind: `${ns}.store` } });
   });
 
@@ -222,7 +222,7 @@ describe('registering a kind', () => {
 
   it('refuses a kind whose namespace nobody claimed', async () => {
     expect(
-      await registerKind({ capability: capabilityFor(appA), kind: 'unclaimed99.thing' })
+      await registerKind({ capability: capabilityFor(appA), kind: 'unclaimed99.thing' }),
     ).toEqual({ ok: false, reason: 'namespace_not_owned' });
   });
 
@@ -240,7 +240,7 @@ describe('registering a kind', () => {
         capability: capabilityFor(appB),
         kind: `${ns}.store`,
         capabilities: { reverse: 'public' },
-      })
+      }),
     ).toEqual({ ok: false, reason: 'namespace_not_owned' });
 
     expect((await getKindCapabilities(`${ns}.store`))?.capabilities).toEqual({
@@ -265,7 +265,7 @@ describe('registering a kind', () => {
         capability: capabilityFor(appA),
         kind: `${ns}.legacy`,
         capabilities: { reverse: 'public' },
-      })
+      }),
     ).toEqual({ ok: false, reason: 'kind_not_owned' });
 
     // And the other application's declaration is untouched.
@@ -380,7 +380,7 @@ describe('ensuring a target', () => {
         capability: capabilityFor(appA),
         uri: unique('https://x.example/a'),
         kind: 'nobody99.registered',
-      })
+      }),
     ).toEqual({ ok: false, reason: 'unknown_kind' });
   });
 
@@ -389,7 +389,7 @@ describe('ensuring a target', () => {
     await registerKind({ capability: capabilityFor(appA), kind: `${ns}.store` });
     for (const bad of ['', '/stores/1', 'stores/1', ' ']) {
       expect(
-        await ensureTarget({ capability: capabilityFor(appA), uri: bad, kind: `${ns}.store` })
+        await ensureTarget({ capability: capabilityFor(appA), uri: bad, kind: `${ns}.store` }),
       ).toEqual({ ok: false, reason: 'invalid_uri' });
     }
   });
@@ -403,7 +403,7 @@ describe('ensuring a target', () => {
         uri: unique('https://mercaria.example/stores/'),
         kind: `${ns}.store`,
         metadata: { blob: 'x'.repeat(5000) },
-      })
+      }),
     ).toEqual({ ok: false, reason: 'metadata_too_large' });
   });
 
@@ -436,7 +436,7 @@ describe('ensuring a target', () => {
         uri,
         kind: 'oxy.user',
         localUserId: userId,
-      })
+      }),
     ).toEqual({ ok: false, reason: 'local_user_mismatch' });
   });
 });
@@ -448,7 +448,7 @@ describe('the database keeps the rule even if the service stops', () => {
     await expect(
       getDb()
         .insert(followTargetKinds)
-        .values({ kind: 'ghost99.thing', namespace: 'ghost99', applicationId: appA })
+        .values({ kind: 'ghost99.thing', namespace: 'ghost99', applicationId: appA }),
     ).rejects.toThrow();
   });
 });

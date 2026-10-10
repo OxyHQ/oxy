@@ -133,7 +133,9 @@ export class NodeStore implements RecordStore, BlobStore {
          head_record_id = @head_record_id,
          record_count = record_count + 1`,
     );
-    this.getHeadStmt = this.db.prepare(`SELECT seq, head_record_id, record_count FROM head WHERE id = 1`);
+    this.getHeadStmt = this.db.prepare(
+      `SELECT seq, head_record_id, record_count FROM head WHERE id = 1`,
+    );
     this.getRecordStmt = this.db.prepare(
       `SELECT seq, collection, rkey, record_id, prev, issued_at, envelope
        FROM records WHERE collection = @collection AND rkey = @rkey
@@ -147,7 +149,9 @@ export class NodeStore implements RecordStore, BlobStore {
       `SELECT seq, collection, rkey, record_id, prev, issued_at, envelope
        FROM records WHERE seq > @since ORDER BY seq ASC LIMIT @limit`,
     );
-    this.seqByRecordIdStmt = this.db.prepare(`SELECT seq FROM records WHERE record_id = @record_id`);
+    this.seqByRecordIdStmt = this.db.prepare(
+      `SELECT seq FROM records WHERE record_id = @record_id`,
+    );
     this.putBlobStmt = this.db.prepare(
       `INSERT INTO blobs (hash, bytes, size, created_at)
        VALUES (@hash, @bytes, @size, @created_at)
@@ -158,7 +162,11 @@ export class NodeStore implements RecordStore, BlobStore {
     this.appendTxn = this.db.transaction((args: AppendArgs): AppendOutcome => {
       const headRow = this.getHeadStmt.get() as HeadRow | undefined;
       const head: ChainHead | null = headRow
-        ? { headRecordId: headRow.head_record_id, seq: headRow.seq, recordCount: headRow.record_count }
+        ? {
+            headRecordId: headRow.head_record_id,
+            seq: headRow.seq,
+            recordCount: headRow.record_count,
+          }
         : null;
 
       // Single source of continuity truth — the shared protocol check (no copy).
@@ -201,7 +209,11 @@ export class NodeStore implements RecordStore, BlobStore {
    * A node holds a v2 hash chain — a non-v2 envelope can never reach this store
    * (the node app rejects it as `not_v2` before append), so this requires v2.
    */
-  async append(_subject: string, env: SignedRecordEnvelope, recordId: string): Promise<AppendOutcome> {
+  async append(
+    _subject: string,
+    env: SignedRecordEnvelope,
+    recordId: string,
+  ): Promise<AppendOutcome> {
     if (
       env.version !== 2 ||
       typeof env.seq !== 'number' ||
@@ -233,14 +245,20 @@ export class NodeStore implements RecordStore, BlobStore {
   }
 
   /** Ordered log entries strictly AFTER the numeric `sinceSeq` cursor (`-1` = from genesis). */
-  async getLogSince(_subject: string, sinceSeq: number, limit: number): Promise<SignedRecordEnvelope[]> {
+  async getLogSince(
+    _subject: string,
+    sinceSeq: number,
+    limit: number,
+  ): Promise<SignedRecordEnvelope[]> {
     const rows = this.logSinceStmt.all({ since: sinceSeq, limit }) as RecordRow[];
     return rows.map((row) => JSON.parse(row.envelope) as SignedRecordEnvelope);
   }
 
   /** Resolve a `recordId` cursor to its chain `seq`, or `null` when unknown. */
   async resolveCursorSeq(_subject: string, recordId: string): Promise<number | null> {
-    const row = this.seqByRecordIdStmt.get({ record_id: recordId.toLowerCase() }) as SeqRow | undefined;
+    const row = this.seqByRecordIdStmt.get({ record_id: recordId.toLowerCase() }) as
+      | SeqRow
+      | undefined;
     return row ? row.seq : null;
   }
 
@@ -259,7 +277,9 @@ export class NodeStore implements RecordStore, BlobStore {
     if (env.version !== 2 || typeof env.collection !== 'string' || typeof env.rkey !== 'string') {
       return null;
     }
-    const row = this.latestIssuedAtStmt.get({ collection: env.collection, rkey: env.rkey }) as IssuedAtRow | undefined;
+    const row = this.latestIssuedAtStmt.get({ collection: env.collection, rkey: env.rkey }) as
+      | IssuedAtRow
+      | undefined;
     return row ? row.issued_at : null;
   }
 

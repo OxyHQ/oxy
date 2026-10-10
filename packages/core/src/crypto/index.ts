@@ -12,10 +12,10 @@
 import './polyfill';
 
 export {
-    KeyManager,
-    IdentityAlreadyExistsError,
-    IdentityPersistError,
-    IdentityUnavailableError,
+  KeyManager,
+  IdentityAlreadyExistsError,
+  IdentityPersistError,
+  IdentityUnavailableError,
 } from './keyManager';
 export type { KeyPair, IdentityStatus, IdentityRecoveryResult } from './keyManager';
 export { readIdentityMarker, updateIdentityMarker } from './identityMarker';
@@ -36,13 +36,13 @@ export { deriveSharedSecret } from './ecdh';
 // What the identity key computes without leaving its holder: the same functions
 // Commons' identity host implements natively on Android.
 export {
-    SCOPED_SEED_KDF_SALT,
-    SOCIAL_RECEIVE_CHAIN_CODE_KEY,
-    MAX_SOCIAL_RECEIVE_INDEX,
-    deriveScopedSeedFromKey,
-    deriveSocialReceiveKey,
-    signSocialReceiveDigest,
-    authChallengeDigest,
+  SCOPED_SEED_KDF_SALT,
+  SOCIAL_RECEIVE_CHAIN_CODE_KEY,
+  MAX_SOCIAL_RECEIVE_INDEX,
+  deriveScopedSeedFromKey,
+  deriveSocialReceiveKey,
+  signSocialReceiveDigest,
+  authChallengeDigest,
 } from './identityDerivations';
 
 // Identity proofs — the one signed format for operations on a personal root

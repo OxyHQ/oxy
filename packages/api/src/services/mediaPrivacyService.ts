@@ -47,7 +47,7 @@ export class MediaPrivacyService {
   async checkMediaAccess(
     file: FileRecord,
     viewerUserId?: string,
-    context?: MediaAccessContext
+    context?: MediaAccessContext,
   ): Promise<MediaAccessResult> {
     try {
       // NULL means a system namespace owns this asset (`files.system_owner`);
@@ -70,8 +70,14 @@ export class MediaPrivacyService {
         return { allowed: false, reason: 'authentication_required' };
       }
 
-      const groups = await getEquivalentUserGroups([ownerId, viewerUserId, context?.authorId].filter((id): id is string => !!id));
-      const [external] = await getDb().select({ id: users.id }).from(users).where(and(inArray(users.id, Object.keys(groups)), eq(users.type, 'federated'))).limit(1);
+      const groups = await getEquivalentUserGroups(
+        [ownerId, viewerUserId, context?.authorId].filter((id): id is string => !!id),
+      );
+      const [external] = await getDb()
+        .select({ id: users.id })
+        .from(users)
+        .where(and(inArray(users.id, Object.keys(groups)), eq(users.type, 'federated')))
+        .limit(1);
       const useCache = !external;
       if (viewerUserId && ownerId) {
         const isBlocked = await this.isUserBlocked(ownerId, viewerUserId, groups, useCache);
@@ -115,7 +121,6 @@ export class MediaPrivacyService {
       }
 
       return { allowed: true };
-
     } catch (error) {
       logger.error('Error in checkMediaAccess:', error);
       return { allowed: false, reason: 'error' };
@@ -126,7 +131,12 @@ export class MediaPrivacyService {
    * Block is MUTUAL: either direction denies. One indexed query answers both,
    * which is what `blocks(blocked_id)` was added for.
    */
-  private async isUserBlocked(ownerId: string, viewerId: string, groups?: Record<string, string[]>, useCache = false): Promise<boolean> {
+  private async isUserBlocked(
+    ownerId: string,
+    viewerId: string,
+    groups?: Record<string, string[]>,
+    useCache = false,
+  ): Promise<boolean> {
     groups ??= await getEquivalentUserGroups([ownerId, viewerId]);
     const cached = useCache ? blockCache.get(ownerId, viewerId) : null;
     if (cached !== null) return cached;
@@ -135,9 +145,15 @@ export class MediaPrivacyService {
       .from(blocks)
       .where(
         or(
-          and(inArray(blocks.userId, groups[ownerId] ?? [ownerId]), inArray(blocks.blockedId, groups[viewerId] ?? [viewerId])),
-          and(inArray(blocks.userId, groups[viewerId] ?? [viewerId]), inArray(blocks.blockedId, groups[ownerId] ?? [ownerId]))
-        )
+          and(
+            inArray(blocks.userId, groups[ownerId] ?? [ownerId]),
+            inArray(blocks.blockedId, groups[viewerId] ?? [viewerId]),
+          ),
+          and(
+            inArray(blocks.userId, groups[viewerId] ?? [viewerId]),
+            inArray(blocks.blockedId, groups[ownerId] ?? [ownerId]),
+          ),
+        ),
       )
       .limit(1);
 
@@ -150,14 +166,24 @@ export class MediaPrivacyService {
    * Restrict is asymmetric: when the media owner has restricted the viewer,
    * the viewer cannot access the owner's media (unlike block, which is mutual).
    */
-  private async isUserRestricted(ownerId: string, viewerId: string, groups?: Record<string, string[]>, useCache = false): Promise<boolean> {
+  private async isUserRestricted(
+    ownerId: string,
+    viewerId: string,
+    groups?: Record<string, string[]>,
+    useCache = false,
+  ): Promise<boolean> {
     groups ??= await getEquivalentUserGroups([ownerId, viewerId]);
     const cached = useCache ? restrictCache.get(ownerId, viewerId) : null;
     if (cached !== null) return cached;
     const [row] = await getDb()
       .select({ id: restrictions.id })
       .from(restrictions)
-      .where(and(inArray(restrictions.userId, groups[ownerId] ?? [ownerId]), inArray(restrictions.restrictedId, groups[viewerId] ?? [viewerId])))
+      .where(
+        and(
+          inArray(restrictions.userId, groups[ownerId] ?? [ownerId]),
+          inArray(restrictions.restrictedId, groups[viewerId] ?? [viewerId]),
+        ),
+      )
       .limit(1);
 
     const isRestricted = row !== undefined;
@@ -173,12 +199,21 @@ export class MediaPrivacyService {
    * it) to learn one boolean. `users.followers[]` no longer exists: the edge
    * lives in `user_follows`, where the compound unique makes this a point read.
    */
-  private async isFollowing(followerId: string, followedId: string, groups?: Record<string, string[]>): Promise<boolean> {
+  private async isFollowing(
+    followerId: string,
+    followedId: string,
+    groups?: Record<string, string[]>,
+  ): Promise<boolean> {
     groups ??= await getEquivalentUserGroups([followerId, followedId]);
     const [row] = await getDb()
       .select({ id: userFollows.id })
       .from(userFollows)
-      .where(and(inArray(userFollows.followerId, groups[followerId] ?? [followerId]), inArray(userFollows.followedId, groups[followedId] ?? [followedId])))
+      .where(
+        and(
+          inArray(userFollows.followerId, groups[followerId] ?? [followerId]),
+          inArray(userFollows.followedId, groups[followedId] ?? [followedId]),
+        ),
+      )
       .limit(1);
 
     return row !== undefined;
@@ -196,7 +231,7 @@ export class MediaPrivacyService {
   private async checkEntityAccess(
     context: MediaAccessContext,
     viewerUserId?: string,
-    groups?: Record<string, string[]>
+    groups?: Record<string, string[]>,
   ): Promise<{ allowed: boolean }> {
     const { postVisibility, authorId } = context;
 

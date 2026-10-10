@@ -27,10 +27,19 @@ const mockEmitAuthSessionUpdate = jest.fn();
 const mockBroadcastSessionAccountsChanged = jest.fn();
 const mockVerifyActingAs = jest.fn();
 
-let authenticatedUser: { _id: string; username?: string; publicKey?: string; sessionId?: string } | null = null;
+let authenticatedUser: {
+  _id: string;
+  username?: string;
+  publicKey?: string;
+  sessionId?: string;
+} | null = null;
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: unknown }, res: { status: (code: number) => { json: (body: unknown) => void } }, next: () => void) => {
+  authMiddleware: (
+    req: { user?: unknown },
+    res: { status: (code: number) => { json: (body: unknown) => void } },
+    next: () => void,
+  ) => {
     if (!authenticatedUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
@@ -96,7 +105,11 @@ interface JsonResponse {
 
 let server: http.Server;
 
-function post(path: string, body: unknown = {}, headers: Record<string, string> = {}): Promise<JsonResponse> {
+function post(
+  path: string,
+  body: unknown = {},
+  headers: Record<string, string> = {},
+): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const payload = JSON.stringify(body);
   return new Promise((resolve, reject) => {
@@ -133,7 +146,9 @@ async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise
   return row.id;
 }
 
-async function application(fields: Partial<typeof applications.$inferInsert> = {}): Promise<string> {
+async function application(
+  fields: Partial<typeof applications.$inferInsert> = {},
+): Promise<string> {
   const ownerAccountId = fields.ownerAccountId ?? (await account());
   const [row] = await getDb()
     .insert(applications)
@@ -143,7 +158,11 @@ async function application(fields: Partial<typeof applications.$inferInsert> = {
 }
 
 /** Authenticate as `userId` with a real session row, the only bearer the real middleware admits. */
-async function signInAs(user: { _id: string; username?: string; publicKey?: string }): Promise<void> {
+async function signInAs(user: {
+  _id: string;
+  username?: string;
+  publicKey?: string;
+}): Promise<void> {
   authenticatedUser = { ...user, sessionId: await insertBearerSession(user._id) };
 }
 
@@ -214,9 +233,13 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
   it('returns 401 with no Authorization header, even with an x-session-id', async () => {
     const sessionToken = await pendingRequest();
 
-    const res = await post(`/auth/session/authorize/${sessionToken}`, {}, {
-      'x-session-id': 'captured-session-id',
-    });
+    const res = await post(
+      `/auth/session/authorize/${sessionToken}`,
+      {},
+      {
+        'x-session-id': 'captured-session-id',
+      },
+    );
 
     expect(res.status).toBe(401);
     // The request is untouched: still pending, still nobody's approval.
@@ -233,12 +256,20 @@ describe('POST /auth/session/authorize/:sessionToken — the bearer is the princ
       .from(users)
       .where(eq(users.id, approverId))
       .limit(1);
-    await signInAs({ _id: approverId, username: 'nate', publicKey: approver.publicKey ?? undefined });
+    await signInAs({
+      _id: approverId,
+      username: 'nate',
+      publicKey: approver.publicKey ?? undefined,
+    });
     const sessionToken = await pendingRequest();
 
-    const res = await post(`/auth/session/authorize/${sessionToken}`, {}, {
-      'x-session-id': 'captured-session-id',
-    });
+    const res = await post(
+      `/auth/session/authorize/${sessionToken}`,
+      {},
+      {
+        'x-session-id': 'captured-session-id',
+      },
+    );
 
     expect(res.status).toBe(200);
     const row = await stored(sessionToken);

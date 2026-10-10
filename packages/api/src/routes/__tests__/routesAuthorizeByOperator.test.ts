@@ -63,7 +63,11 @@ const ACCESS_RESOLVERS = ['resolveEffectiveAccess', 'effectiveAccessForAccount']
  * Spellings that name the operator. Anything else — `userId`, `req.user._id`, a
  * subject helper — is the defect this exists to catch.
  */
-const OPERATOR_PRINCIPALS = new Set(['operatorId', 'requireOperatorId(req)', 'await resolveOperatorId(req)']);
+const OPERATOR_PRINCIPALS = new Set([
+  'operatorId',
+  'requireOperatorId(req)',
+  'await resolveOperatorId(req)',
+]);
 
 interface Call {
   readonly file: string;
@@ -140,10 +144,7 @@ describe('every route authorizes against the operator', () => {
   it('the scan finds the authorization calls it is checking', () => {
     expect(calls.length).toBeGreaterThanOrEqual(6);
     expect(calls.map((call) => call.file)).toEqual(
-      expect.arrayContaining([
-        'src/routes/accounts.ts',
-        'src/routes/applications.ts',
-      ])
+      expect.arrayContaining(['src/routes/accounts.ts', 'src/routes/applications.ts']),
     );
   });
 

@@ -3,9 +3,7 @@ export type AuthorizationHeaders = Readonly<{
 }>;
 
 /** Parse one RFC 6750 Bearer credential without accepting duplicates. */
-export function extractBearerToken(
-  headers: AuthorizationHeaders,
-): string | undefined {
+export function extractBearerToken(headers: AuthorizationHeaders): string | undefined {
   const value = headers.authorization;
   if (typeof value === 'string' || value === undefined) {
     return parseBearerValue(value);

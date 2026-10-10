@@ -6,11 +6,7 @@ import { AppIcon, Icons } from '@/constants/icons';
 import { buildUserDid } from '@oxy.so/core';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
-import {
-  Screen,
-  StackHeader,
-  SessionGate,
-} from '@/components/ui';
+import { Screen, StackHeader, SessionGate } from '@/components/ui';
 import { useOxy } from '@oxy.so/services';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
@@ -107,7 +103,8 @@ export default function AboutIdentityScreen() {
         await oxyServices.users.updateMe({ accountExpiresAfterInactivityDays: selectedDays });
         toast.success(t('aboutIdentity.expirationUpdated'));
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : t('aboutIdentity.expirationUpdateFailed');
+        const message =
+          error instanceof Error ? error.message : t('aboutIdentity.expirationUpdateFailed');
         toast.error(message);
       } finally {
         setIsSavingExpiration(false);
@@ -173,7 +170,7 @@ export default function AboutIdentityScreen() {
     (short: string) => (
       <View style={styles.valueTrail}>
         <Text style={[styles.valueText, { color: colors.textSecondary }]}>{short}</Text>
-        <Icons.copy size='sm' fill={colors.tint} />
+        <Icons.copy size="sm" fill={colors.tint} />
       </View>
     ),
     [colors.textSecondary, colors.tint],
@@ -198,7 +195,7 @@ export default function AboutIdentityScreen() {
       <SettingsListGroup title={t('aboutIdentity.identifiersTitle')}>
         {publicKey && (
           <SettingsListItem
-            icon={<Icons.key size='md' fill={colors.tint} />}
+            icon={<Icons.key size="md" fill={colors.tint} />}
             title={t('aboutIdentity.publicKeyRow')}
             rightElement={copyValue(shorten(publicKey))}
             showChevron={false}
@@ -207,7 +204,7 @@ export default function AboutIdentityScreen() {
         )}
         {did && (
           <SettingsListItem
-            icon={<Icons.web size='md' fill={colors.tint} />}
+            icon={<Icons.web size="md" fill={colors.tint} />}
             title={t('aboutIdentity.didRow')}
             rightElement={copyValue(shorten(did, 6, 4))}
             showChevron={false}
@@ -224,7 +221,7 @@ export default function AboutIdentityScreen() {
         {selfCustodyItems.map((item) => (
           <SettingsListItem
             key={item.id}
-            icon={<AppIcon name={item.icon} size='md' fill={item.iconColor} />}
+            icon={<AppIcon name={item.icon} size="md" fill={item.iconColor} />}
             title={item.title}
             description={item.subtitle}
             showChevron={false}
@@ -235,7 +232,7 @@ export default function AboutIdentityScreen() {
       {/* Account settings */}
       <SettingsListGroup title={t('aboutIdentity.accountSettings')}>
         <SettingsListItem
-          icon={<Icons.pending size='md' fill={colors.tint} />}
+          icon={<Icons.pending size="md" fill={colors.tint} />}
           title={t('aboutIdentity.accountExpiration')}
           value={formatExpirationSetting(currentExpirationDays)}
           onPress={isSavingExpiration ? undefined : showExpirationPicker}

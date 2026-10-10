@@ -62,7 +62,7 @@ function holder(overrides: Partial<NonNullable<CostCenterObservation['usernameHo
 describe('computeCostCenterPlan', () => {
   describe('a centre that is already registered', () => {
     const registered = (
-      overrides: Partial<NonNullable<CostCenterObservation['costCenter']>> = {}
+      overrides: Partial<NonNullable<CostCenterObservation['costCenter']>> = {},
     ): CostCenterObservation => ({
       costCenter: { accountId: 'labelled-account', label: 'Codea', status: 'active', ...overrides },
       usernameHolder: null,
@@ -89,7 +89,7 @@ describe('computeCostCenterPlan', () => {
     it('never mints an account for a centre that already has one', () => {
       for (const status of ['active', 'retired'] as const) {
         expect(computeCostCenterPlan(SPEC, registered({ status }), OWNER).action.kind).toBe(
-          'registered'
+          'registered',
         );
       }
     });
@@ -144,7 +144,7 @@ describe('computeCostCenterPlan', () => {
 
     it('refuses an organization account', () => {
       expect(computeCostCenterPlan(SPEC, holder({ kind: 'organization' }), OWNER).action.kind).toBe(
-        'refuse'
+        'refuse',
       );
     });
 
@@ -215,7 +215,7 @@ describe('computeCostCenterPlan', () => {
         // fails INSIDE the ECS one-shot, after earlier entries in the run have
         // already minted accounts.
         expect(center.name).toMatch(/^[a-z0-9][a-z0-9-]{0,62}$/);
-      }
+      },
     );
 
     it.each(INTERNAL_COST_CENTERS)('$name is a usable account username', (center) => {
@@ -246,7 +246,7 @@ describe('computeCostCenterPlan', () => {
         // would stay green while the shipped policy tightened underneath it, and
         // the mint would 400 in production against a passing test.
         expect(isValidDisplayName(center.displayName)).toBe(true);
-      }
+      },
     );
 
     it('that validator rejects something — the positive control', () => {

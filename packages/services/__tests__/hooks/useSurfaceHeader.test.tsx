@@ -8,11 +8,7 @@ import {
 
 const makeWrapper = (setContent = jest.fn()) => {
   const Wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(
-      SurfaceHeaderContext.Provider,
-      { value: { setContent } },
-      children,
-    );
+    createElement(SurfaceHeaderContext.Provider, { value: { setContent } }, children);
   return { Wrapper, setContent };
 };
 
@@ -37,10 +33,10 @@ describe('useSurfaceHeader', () => {
   it('pushes again only when a scalar header field changes', () => {
     const { Wrapper, setContent } = makeWrapper();
 
-    const { rerender } = renderHook(
-      ({ title }: { title: string }) => useSurfaceHeader({ title }),
-      { wrapper: Wrapper, initialProps: { title: 'First' } },
-    );
+    const { rerender } = renderHook(({ title }: { title: string }) => useSurfaceHeader({ title }), {
+      wrapper: Wrapper,
+      initialProps: { title: 'First' },
+    });
 
     expect(setContent).toHaveBeenCalledTimes(1);
 
@@ -53,8 +49,7 @@ describe('useSurfaceHeader', () => {
     const { Wrapper, setContent } = makeWrapper();
 
     const { rerender } = renderHook(
-      ({ onBack }: { onBack: () => void }) =>
-        useSurfaceHeader({ title: 'Edit', onBack }),
+      ({ onBack }: { onBack: () => void }) => useSurfaceHeader({ title: 'Edit', onBack }),
       {
         wrapper: Wrapper,
         initialProps: { onBack: () => undefined },

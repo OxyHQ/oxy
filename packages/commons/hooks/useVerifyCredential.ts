@@ -16,10 +16,7 @@
 import { useCallback, useState } from 'react';
 import { useOxy } from '@oxy.so/services';
 import type { CredentialVerifyResult } from '@oxy.so/contracts';
-import {
-  credentialVerifyReason,
-  type CredentialVerifyReasonCode,
-} from '@/lib/civic/civic-errors';
+import { credentialVerifyReason, type CredentialVerifyReasonCode } from '@/lib/civic/civic-errors';
 
 /**
  *   idle      → not yet verified

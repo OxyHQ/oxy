@@ -41,10 +41,8 @@ export function ProvenanceBanner({
         // authoritative figure gets a solid border, an eventually consistent one
         // a dashed border and a warning tone, so the two are told apart at a
         // glance and not only by reading.
-        isLedger
-          ? 'border-border bg-muted/40'
-          : 'border-dashed border-amber-500/40 bg-amber-500/5',
-        className
+        isLedger ? 'border-border bg-muted/40' : 'border-dashed border-amber-500/40 bg-amber-500/5',
+        className,
       )}
     >
       <HugeiconsIcon

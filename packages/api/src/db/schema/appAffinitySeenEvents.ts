@@ -39,12 +39,9 @@ export const appAffinitySeenEvents = pgTable(
   },
   (t) => [
     // A duplicate insert loses this race and is treated as "already seen".
-    unique('app_affinity_seen_events_application_id_event_id_key').on(
-      t.applicationId,
-      t.eventId
-    ),
+    unique('app_affinity_seen_events_application_id_event_id_key').on(t.applicationId, t.eventId),
     // Supports the expiry sweep in `db/expiry.ts` — the replacement for Mongo's
     // TTL index on this column.
     index('app_affinity_seen_events_created_at_idx').on(t.createdAt),
-  ]
+  ],
 );

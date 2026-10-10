@@ -75,7 +75,7 @@ export class UnknownCurrencyExponentError extends Error {
   constructor(readonly currency: string) {
     super(
       `no minor-unit exponent is registered for ${currency}; add it to ` +
-        'CURRENCY_MINOR_UNIT_EXPONENTS before transacting in it'
+        'CURRENCY_MINOR_UNIT_EXPONENTS before transacting in it',
     );
     this.name = 'UnknownCurrencyExponentError';
   }
@@ -174,7 +174,7 @@ export function exactDecimalToMinorUnits(amount: string, exponent: number): numb
  */
 export function roundExactDecimalToMinorUnits(
   amount: string,
-  exponent: number
+  exponent: number,
 ): {
   minorUnits: number;
   roundedAmount: string;

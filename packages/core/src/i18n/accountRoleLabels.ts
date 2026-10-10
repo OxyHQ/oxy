@@ -18,9 +18,6 @@ export const EN_ACCOUNT_ROLE_LABELS: Record<AccountRole, string> = {
   viewer: enUS.accounts.roles.viewer.label,
 };
 
-export function accountRoleLabel(
-  locale: string | undefined,
-  role: AccountRole,
-): string {
+export function accountRoleLabel(locale: string | undefined, role: AccountRole): string {
   return translate(locale, `accounts.roles.${role}.label`);
 }

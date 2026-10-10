@@ -227,7 +227,6 @@ function queryOf<T extends object>(params: T): string {
   return rendered ? `?${rendered}` : '';
 }
 
-
 /** `oxy.store.reviews` — what people say about an app, and the caller's own review. */
 export class StoreReviewsApi {
   constructor(private readonly ctx: OxyContext) {}
@@ -245,9 +244,14 @@ export class StoreReviewsApi {
 
   /** The caller's own review of an app, or `null` if they have not written one. */
   async mine(slug: string): Promise<StoreOwnReview | null> {
-    const res = await this.ctx.request<{ data: StoreOwnReview | null }>('GET', reviewPath(slug), undefined, {
-      cache: false,
-    });
+    const res = await this.ctx.request<{ data: StoreOwnReview | null }>(
+      'GET',
+      reviewPath(slug),
+      undefined,
+      {
+        cache: false,
+      },
+    );
     return res.data ?? null;
   }
 
@@ -259,7 +263,9 @@ export class StoreReviewsApi {
    * hidden when its author edits it.
    */
   async write(slug: string, input: WriteStoreReviewInput): Promise<StoreOwnReview> {
-    const res = await this.ctx.request<{ data: StoreOwnReview }>('PUT', reviewPath(slug), input, { cache: false });
+    const res = await this.ctx.request<{ data: StoreOwnReview }>('PUT', reviewPath(slug), input, {
+      cache: false,
+    });
     return res.data;
   }
 
@@ -275,7 +281,9 @@ export class ListingScreenshotsApi {
 
   /** Every picture on the listing, in the author's order. */
   async list(applicationId: string): Promise<StoreScreenshot[]> {
-    return this.ctx.request<StoreScreenshot[]>('GET', screenshotsPath(applicationId), undefined, { cache: false });
+    return this.ctx.request<StoreScreenshot[]>('GET', screenshotsPath(applicationId), undefined, {
+      cache: false,
+    });
   }
 
   /**
@@ -286,11 +294,17 @@ export class ListingScreenshotsApi {
    * one the caller is entitled to.
    */
   async add(applicationId: string, input: AddScreenshotInput): Promise<StoreScreenshot> {
-    return this.ctx.request<StoreScreenshot>('POST', screenshotsPath(applicationId), input, { cache: false });
+    return this.ctx.request<StoreScreenshot>('POST', screenshotsPath(applicationId), input, {
+      cache: false,
+    });
   }
 
   /** Edit a picture's caption or the frame it was taken in. Order is `reorder`. */
-  async update(applicationId: string, screenshotId: string, input: UpdateScreenshotInput): Promise<StoreScreenshot> {
+  async update(
+    applicationId: string,
+    screenshotId: string,
+    input: UpdateScreenshotInput,
+  ): Promise<StoreScreenshot> {
     return this.ctx.request<StoreScreenshot>(
       'PATCH',
       `${screenshotsPath(applicationId)}/${enc(screenshotId)}`,
@@ -301,9 +315,14 @@ export class ListingScreenshotsApi {
 
   /** Remove a picture. The uploaded file stays — it may be in use elsewhere. */
   async delete(applicationId: string, screenshotId: string): Promise<void> {
-    await this.ctx.request<void>('DELETE', `${screenshotsPath(applicationId)}/${enc(screenshotId)}`, undefined, {
-      cache: false,
-    });
+    await this.ctx.request<void>(
+      'DELETE',
+      `${screenshotsPath(applicationId)}/${enc(screenshotId)}`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 
   /**
@@ -314,9 +333,14 @@ export class ListingScreenshotsApi {
    * pictures it omits at their old positions, interleaved with the new ones.
    */
   async reorder(applicationId: string, screenshotIds: string[]): Promise<StoreScreenshot[]> {
-    return this.ctx.request<StoreScreenshot[]>('PUT', `${screenshotsPath(applicationId)}/order`, { screenshotIds }, {
-      cache: false,
-    });
+    return this.ctx.request<StoreScreenshot[]>(
+      'PUT',
+      `${screenshotsPath(applicationId)}/order`,
+      { screenshotIds },
+      {
+        cache: false,
+      },
+    );
   }
 }
 
@@ -331,7 +355,9 @@ export class StoreListingApi {
 
   /** The application's store page in whatever state, or `null` if it has none. */
   async get(applicationId: string): Promise<PublisherListing | null> {
-    return this.ctx.request<PublisherListing | null>('GET', listingPath(applicationId), undefined, { cache: false });
+    return this.ctx.request<PublisherListing | null>('GET', listingPath(applicationId), undefined, {
+      cache: false,
+    });
   }
 
   /**
@@ -341,14 +367,21 @@ export class StoreListingApi {
    * it live, and fixing a rejected one does not re-submit it.
    */
   async write(applicationId: string, input: WriteListingInput): Promise<PublisherListing> {
-    return this.ctx.request<PublisherListing>('PUT', listingPath(applicationId), input, { cache: false });
+    return this.ctx.request<PublisherListing>('PUT', listingPath(applicationId), input, {
+      cache: false,
+    });
   }
 
   /** Hand the page to the store for review. From a draft, or a rejected page once fixed. */
   async submit(applicationId: string): Promise<PublisherListing> {
-    return this.ctx.request<PublisherListing>('POST', `${listingPath(applicationId)}/submit`, undefined, {
-      cache: false,
-    });
+    return this.ctx.request<PublisherListing>(
+      'POST',
+      `${listingPath(applicationId)}/submit`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 
   /**
@@ -359,9 +392,14 @@ export class StoreListingApi {
    * them.
    */
   async unpublish(applicationId: string): Promise<PublisherListing> {
-    return this.ctx.request<PublisherListing>('POST', `${listingPath(applicationId)}/unpublish`, undefined, {
-      cache: false,
-    });
+    return this.ctx.request<PublisherListing>(
+      'POST',
+      `${listingPath(applicationId)}/unpublish`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 }
 
@@ -380,10 +418,15 @@ export class StoreApi {
 
   /** The shelves, in the order the store curates them. */
   async categories(): Promise<StoreCategory[]> {
-    const res = await this.ctx.request<{ data: StoreCategory[] }>('GET', '/store/categories', undefined, {
-      cache: true,
-      cacheTTL: MEDIUM_TTL,
-    });
+    const res = await this.ctx.request<{ data: StoreCategory[] }>(
+      'GET',
+      '/store/categories',
+      undefined,
+      {
+        cache: true,
+        cacheTTL: MEDIUM_TTL,
+      },
+    );
     return res.data ?? [];
   }
 
@@ -395,7 +438,9 @@ export class StoreApi {
    *
    * @param options - `category` is a category slug; `limit` defaults to 24.
    */
-  async apps(options: StorePageOptions & { category?: string } = {}): Promise<StorePage<StoreListingSummary>> {
+  async apps(
+    options: StorePageOptions & { category?: string } = {},
+  ): Promise<StorePage<StoreListingSummary>> {
     const res = await this.ctx.request<PaginatedResponse<StoreListingSummary>>(
       'GET',
       `/store/apps${queryOf(options)}`,
@@ -414,10 +459,15 @@ export class StoreApi {
    * @param slug - The listing's public slug, not an application id.
    */
   async app(slug: string): Promise<StoreListingDetail> {
-    const res = await this.ctx.request<{ data: StoreListingDetail }>('GET', `/store/apps/${enc(slug)}`, undefined, {
-      cache: true,
-      cacheTTL: SHORT_TTL,
-    });
+    const res = await this.ctx.request<{ data: StoreListingDetail }>(
+      'GET',
+      `/store/apps/${enc(slug)}`,
+      undefined,
+      {
+        cache: true,
+        cacheTTL: SHORT_TTL,
+      },
+    );
     return res.data;
   }
 }

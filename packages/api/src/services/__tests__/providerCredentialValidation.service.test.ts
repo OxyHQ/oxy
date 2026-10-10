@@ -227,7 +227,8 @@ describe('durable provider credential bootstrap validation', () => {
       dispatcher,
     );
     expect(afterTopup.status).toBe('accepted');
-    if (afterTopup.status !== 'accepted') throw new Error('post-top-up validation was not accepted');
+    if (afterTopup.status !== 'accepted')
+      throw new Error('post-top-up validation was not accepted');
     expect(afterTopup.operation.operationId).not.toBe(first.operation.operationId);
     expect(dispatcher.tasks[2]).toMatchObject({
       credentialHandle: f.handle,
@@ -245,7 +246,8 @@ describe('durable provider credential bootstrap validation', () => {
       environment: 'production',
     });
     expect(resolved.status).toBe('resolved');
-    if (resolved.status === 'resolved') expect(resolved.connection.connectionId).toBe(f.connectionId);
+    if (resolved.status === 'resolved')
+      expect(resolved.connection.connectionId).toBe(f.connectionId);
 
     expect(
       await recordProviderCredentialValidationOutcome({

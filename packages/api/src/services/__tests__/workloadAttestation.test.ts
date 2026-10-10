@@ -30,7 +30,11 @@ const NONCE = 'challenge-nonce-value';
 const ARN = 'arn:aws:sts::237343248947:assumed-role/oxy-mention-task/abc123';
 
 const SIGNED_AT = Date.UTC(2026, 8, 18, 4, 15, 0);
-const amzDate = (at: number) => new Date(at).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+const amzDate = (at: number) =>
+  new Date(at)
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
 
 function attestation(overrides: Record<string, string> = {}) {
   return {
@@ -47,8 +51,8 @@ function attestation(overrides: Record<string, string> = {}) {
 }
 
 function stsResponder(body: string, ok = true) {
-  const fetchImpl = jest.fn(async () =>
-    new Response(body, { status: ok ? 200 : 403 }),
+  const fetchImpl = jest.fn(
+    async () => new Response(body, { status: ok ? 200 : 403 }),
   ) as unknown as typeof fetch;
   return fetchImpl;
 }
@@ -89,7 +93,9 @@ describe('AwsIamAttestationVerifier', () => {
   ])('refuses %s without calling it', async (_label, host) => {
     const fetchImpl = stsResponder(IDENTITY_XML);
 
-    await expect(verifierWith(fetchImpl).verify(attestation({ host }), NONCE)).rejects.toMatchObject({
+    await expect(
+      verifierWith(fetchImpl).verify(attestation({ host }), NONCE),
+    ).rejects.toMatchObject({
       reason: 'host_not_sts',
     });
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -97,7 +103,10 @@ describe('AwsIamAttestationVerifier', () => {
 
   it('accepts a regional STS endpoint', async () => {
     const fetchImpl = stsResponder(IDENTITY_XML);
-    const verified = await verifierWith(fetchImpl).verify(attestation({ host: 'sts.us-west-2.amazonaws.com' }), NONCE);
+    const verified = await verifierWith(fetchImpl).verify(
+      attestation({ host: 'sts.us-west-2.amazonaws.com' }),
+      NONCE,
+    );
     expect(verified.subject).toBe('arn:aws:iam::237343248947:role/oxy-mention-task');
   });
 
@@ -132,7 +141,10 @@ describe('AwsIamAttestationVerifier', () => {
     const fetchImpl = stsResponder(IDENTITY_XML);
 
     await expect(
-      verifierWith(fetchImpl).verify(attestation({ [ATTESTATION_NONCE_HEADER]: 'someone-elses-nonce' }), NONCE),
+      verifierWith(fetchImpl).verify(
+        attestation({ [ATTESTATION_NONCE_HEADER]: 'someone-elses-nonce' }),
+        NONCE,
+      ),
     ).rejects.toMatchObject({ reason: 'nonce_mismatch' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -157,7 +169,10 @@ describe('AwsIamAttestationVerifier', () => {
 
   it('refuses an unsigned request', async () => {
     await expect(
-      verifierWith(stsResponder(IDENTITY_XML)).verify(attestation({ authorization: 'Bearer something' }), NONCE),
+      verifierWith(stsResponder(IDENTITY_XML)).verify(
+        attestation({ authorization: 'Bearer something' }),
+        NONCE,
+      ),
     ).rejects.toMatchObject({ reason: 'unsigned' });
   });
 
@@ -166,9 +181,9 @@ describe('AwsIamAttestationVerifier', () => {
     ['no headers', {}],
     ['headers that are not strings', { headers: { host: 42 } }],
   ])('refuses a payload with %s', async (_label, payload) => {
-    await expect(verifierWith(stsResponder(IDENTITY_XML)).verify(payload, NONCE)).rejects.toBeInstanceOf(
-      AttestationError,
-    );
+    await expect(
+      verifierWith(stsResponder(IDENTITY_XML)).verify(payload, NONCE),
+    ).rejects.toBeInstanceOf(AttestationError);
   });
 
   it('refuses when AWS refuses', async () => {
@@ -196,9 +211,9 @@ describe('AwsIamAttestationVerifier', () => {
 
 describe('canonicalAwsSubject', () => {
   it('reduces an assumed-role ARN to the role that was assumed', () => {
-    expect(canonicalAwsSubject('arn:aws:sts::237343248947:assumed-role/oxy-mention-task/1a2b3c')).toBe(
-      'arn:aws:iam::237343248947:role/oxy-mention-task',
-    );
+    expect(
+      canonicalAwsSubject('arn:aws:sts::237343248947:assumed-role/oxy-mention-task/1a2b3c'),
+    ).toBe('arn:aws:iam::237343248947:role/oxy-mention-task');
   });
 
   it('keeps a partition that is not the commercial one', () => {

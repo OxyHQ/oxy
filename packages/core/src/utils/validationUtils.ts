@@ -367,13 +367,16 @@ export function isValidObjectId(id: string): boolean {
 /**
  * Validate and sanitize user input
  */
-export function validateAndSanitizeUserInput(input: unknown, type: 'string' | 'email' | 'username'): string | null {
+export function validateAndSanitizeUserInput(
+  input: unknown,
+  type: 'string' | 'email' | 'username',
+): string | null {
   if (typeof input !== 'string') {
     return null;
   }
 
   const sanitized = sanitizeString(input);
-  
+
   switch (type) {
     case 'email':
       return isValidEmail(sanitized) ? sanitized : null;
@@ -387,4 +390,4 @@ export function validateAndSanitizeUserInput(input: unknown, type: 'string' | 'e
     default:
       return null;
   }
-} 
+}

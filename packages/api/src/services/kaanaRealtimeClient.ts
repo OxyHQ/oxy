@@ -93,7 +93,11 @@ export interface KaanaRealtimeClient {
 /** How a WebSocket is dialled. Replaceable only so a test can reach a loopback stub. */
 export type KaanaRealtimeDialer = (
   url: string,
-  options: { readonly headers: Record<string, string>; readonly maxPayload: number; readonly handshakeTimeout: number }
+  options: {
+    readonly headers: Record<string, string>;
+    readonly maxPayload: number;
+    readonly handshakeTimeout: number;
+  },
 ) => WebSocket;
 
 const defaultDialer: KaanaRealtimeDialer = (url, options) =>
@@ -110,7 +114,7 @@ const defaultDialer: KaanaRealtimeDialer = (url, options) =>
  * same three variables.
  */
 export function createKaanaRealtimeClient(
-  options: { readonly dial?: KaanaRealtimeDialer } = {}
+  options: { readonly dial?: KaanaRealtimeDialer } = {},
 ): KaanaRealtimeClient | undefined {
   const resolution = resolveKaanaDataPlane();
   if (resolution.status !== 'configured') return undefined;
@@ -127,13 +131,13 @@ export function kaanaRealtimeUrl(baseUrl: string): string {
 class WebSocketKaanaRealtimeClient implements KaanaRealtimeClient {
   constructor(
     private readonly config: KaanaDataPlaneConfig,
-    private readonly dial: KaanaRealtimeDialer
+    private readonly dial: KaanaRealtimeDialer,
   ) {}
 
   open(firstFrame: Buffer, handlers: KaanaRealtimeHandlers): Promise<KaanaRealtimeConnection> {
     if (firstFrame.length > MAX_KAANA_REALTIME_FIRST_FRAME_BYTES) {
       return Promise.reject(
-        new KaanaProtocolError('The realtime first frame exceeds the data plane’s 64 KiB bound.')
+        new KaanaProtocolError('The realtime first frame exceeds the data plane’s 64 KiB bound.'),
       );
     }
 
@@ -177,7 +181,10 @@ class WebSocketKaanaRealtimeClient implements KaanaRealtimeClient {
             if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(command));
           },
           close: (code, reason) => {
-            if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+            if (
+              socket.readyState === WebSocket.OPEN ||
+              socket.readyState === WebSocket.CONNECTING
+            ) {
               socket.close(code, reason);
             }
           },
@@ -205,7 +212,7 @@ class WebSocketKaanaRealtimeClient implements KaanaRealtimeClient {
           const report = normalizedUsageReportSchema.safeParse(payload);
           if (!report.success) {
             protocolError(
-              `The data plane sent a usage report Oxy could not read: ${issuePath(report.error.issues[0]?.path)}.`
+              `The data plane sent a usage report Oxy could not read: ${issuePath(report.error.issues[0]?.path)}.`,
             );
             return;
           }
@@ -216,7 +223,7 @@ class WebSocketKaanaRealtimeClient implements KaanaRealtimeClient {
         const event = realtimeServerEventSchema.safeParse(payload);
         if (!event.success) {
           protocolError(
-            `The data plane sent a realtime event Oxy could not read: ${issuePath(event.error.issues[0]?.path)}.`
+            `The data plane sent a realtime event Oxy could not read: ${issuePath(event.error.issues[0]?.path)}.`,
           );
           return;
         }

@@ -1,33 +1,19 @@
 {
-    "compilerOptions": {
-        "target": "es2020",
-        "module": "ESNext",
-        "moduleResolution": "bundler",
-        "lib": [
-            "es2020",
-            "dom"
-        ],
-        "typeRoots": [
-            "./node_modules/@types",
-            "./src/types"
-        ],
-        "declaration": true,
-        "rootDir": "./src",
-        "strict": true,
-        "esModuleInterop": true,
-        "resolveJsonModule": true,
-        "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true,
-        "jsx": "react-jsx"
-    },
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist",
-        "**/__tests__/**/*",
-        "**/*.test.ts",
-        "**/*.test.tsx"
-    ]
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["es2020", "dom"],
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "declaration": true,
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/__tests__/**/*", "**/*.test.ts", "**/*.test.tsx"]
 }

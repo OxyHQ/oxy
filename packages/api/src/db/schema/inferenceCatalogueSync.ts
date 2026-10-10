@@ -48,13 +48,13 @@ export const inferenceCatalogueAutoApprovalPolicies = pgTable(
   (t) => [
     check(
       'inference_catalogue_auto_approval_policies_internal_only',
-      sql`${t.availabilityScope} = 'platform_internal' and ${t.commercialPermission} = 'standard_application_use'`
+      sql`${t.availabilityScope} = 'platform_internal' and ${t.commercialPermission} = 'standard_application_use'`,
     ),
     check(
       'inference_catalogue_auto_approval_policies_description_check',
-      sql`length(btrim(${t.description})) between 1 and 2000`
+      sql`length(btrim(${t.description})) between 1 and 2000`,
     ),
-  ]
+  ],
 );
 
 export const inferenceCatalogueBlocklist = pgTable(
@@ -71,13 +71,13 @@ export const inferenceCatalogueBlocklist = pgTable(
     unique('inference_catalogue_blocklist_model_id_key').on(t.modelId),
     check(
       'inference_catalogue_blocklist_model_id_format',
-      sql`${t.modelId} ~ ${sql.raw(MODEL_ID_CHECK_PATTERN)}`
+      sql`${t.modelId} ~ ${sql.raw(MODEL_ID_CHECK_PATTERN)}`,
     ),
     check(
       'inference_catalogue_blocklist_reason_check',
-      sql`length(btrim(${t.reason})) between 1 and 500`
+      sql`length(btrim(${t.reason})) between 1 and 500`,
     ),
-  ]
+  ],
 );
 
 export type InferenceCatalogueBlocklistRow = typeof inferenceCatalogueBlocklist.$inferSelect;

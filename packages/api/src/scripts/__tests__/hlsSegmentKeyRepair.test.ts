@@ -30,32 +30,43 @@ afterAll(async () => {
 async function seedLegacyLadder() {
   const sha256 = createHash('sha256').update(randomBytes(16)).digest('hex');
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
-  const [file] = await getDb().insert(files).values({
-    sha256,
-    size: 4,
-    mime: 'video/mp4',
-    ext: 'mp4',
-    ownerUserId: owner.id,
-    visibility: 'public',
-    status: 'active',
-    storageKey: `public/content/2026/10/16/${sha256}.mp4`,
-  }).returning();
+  const [file] = await getDb()
+    .insert(files)
+    .values({
+      sha256,
+      size: 4,
+      mime: 'video/mp4',
+      ext: 'mp4',
+      ownerUserId: owner.id,
+      visibility: 'public',
+      status: 'active',
+      storageKey: `public/content/2026/10/16/${sha256}.mp4`,
+    })
+    .returning();
   const dir = `variants/2026/10/16/${sha256}`;
-  await getDb().insert(fileVariants).values({
-    fileId: file.id,
-    type: 'hls_360p',
-    key: `public/${dir}/hls_360p.m3u8`,
-    readyAt: new Date(),
-  });
+  await getDb()
+    .insert(fileVariants)
+    .values({
+      fileId: file.id,
+      type: 'hls_360p',
+      key: `public/${dir}/hls_360p.m3u8`,
+      readyAt: new Date(),
+    });
 
   const objects = new Map<string, string>([
-    [`public/${dir}/hls_360p.m3u8`, '#EXTM3U\n#EXTINF:10,\nsegment_360p_000.ts\n#EXTINF:4,\nsegment_360p_001.ts\n#EXT-X-ENDLIST\n'],
+    [
+      `public/${dir}/hls_360p.m3u8`,
+      '#EXTM3U\n#EXTINF:10,\nsegment_360p_000.ts\n#EXTINF:4,\nsegment_360p_001.ts\n#EXT-X-ENDLIST\n',
+    ],
     [`${dir}/hls_360p_segment_360p_000.ts.ts`, 'seg0'],
     [`${dir}/hls_360p_segment_360p_001.ts.ts`, 'seg1'],
   ]);
   const s3 = {
     downloadBuffer: jest.fn((key: string) =>
-      objects.has(key) ? Promise.resolve(Buffer.from(objects.get(key)!)) : Promise.reject(new Error(`no object ${key}`))),
+      objects.has(key)
+        ? Promise.resolve(Buffer.from(objects.get(key)!))
+        : Promise.reject(new Error(`no object ${key}`)),
+    ),
     fileExists: jest.fn((key: string) => Promise.resolve(objects.has(key))),
     copyFile: jest.fn((from: string, to: string) => {
       objects.set(to, objects.get(from)!);

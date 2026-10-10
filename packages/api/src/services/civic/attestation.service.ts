@@ -77,7 +77,11 @@ export async function attestAward(
   const subjectDid = buildUserDid(subjectUserId);
 
   // Idempotency: at most one attestation per txn (keyed by rkey = txnId).
-  const existing = await materializeCurrent(subjectUserId, REPUTATION_ATTESTATION_COLLECTION, txnId);
+  const existing = await materializeCurrent(
+    subjectUserId,
+    REPUTATION_ATTESTATION_COLLECTION,
+    txnId,
+  );
   if (existing) {
     return existing;
   }
@@ -124,7 +128,11 @@ export async function attestAward(
 
     // A concurrent writer advanced the chain head between our read and write —
     // re-read the head and retry.
-    if (result.reason === 'chain_conflict' || result.reason === 'bad_seq' || result.reason === 'chain_fork') {
+    if (
+      result.reason === 'chain_conflict' ||
+      result.reason === 'bad_seq' ||
+      result.reason === 'chain_fork'
+    ) {
       continue;
     }
 
@@ -200,10 +208,9 @@ export async function attestModerationEffect(
   const privateKey = process.env.OXY_PRIVATE_KEY;
   const publicKey = process.env.OXY_PUBLIC_KEY;
   if (!privateKey || !publicKey) {
-    logger.warn(
-      'Moderation attestation skipped: OXY_PRIVATE_KEY/OXY_PUBLIC_KEY not configured',
-      { component: 'civic.attestation' },
-    );
+    logger.warn('Moderation attestation skipped: OXY_PRIVATE_KEY/OXY_PUBLIC_KEY not configured', {
+      component: 'civic.attestation',
+    });
     return null;
   }
 

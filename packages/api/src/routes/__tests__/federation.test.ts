@@ -95,11 +95,7 @@ interface JsonResponse {
   };
 }
 
-async function requestJson(
-  method: string,
-  path: string,
-  payload?: unknown,
-): Promise<JsonResponse> {
+async function requestJson(method: string, path: string, payload?: unknown): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const hasBody = method !== 'GET';
   const body = hasBody ? JSON.stringify(payload ?? {}) : '';
@@ -230,7 +226,9 @@ describe('loadAllowedDomains — the allow-list must FAIL CLOSED', () => {
   it.each<ApplicationStatus>(['suspended', 'deleted', 'pending_review'])(
     'denies a credential whose application is %s, even though its redirectUris name the host',
     async (status) => {
-      presentCredential(await seedApplication([`https://${MENTION_DOMAIN}/oauth/callback`], status));
+      presentCredential(
+        await seedApplication([`https://${MENTION_DOMAIN}/oauth/callback`], status),
+      );
 
       const res = await requestJson('POST', '/federation/sign', {
         keyId: MENTION_KEY_ID,
@@ -308,10 +306,12 @@ describe('loadAllowedDomains — the allow-list must FAIL CLOSED', () => {
     // Warm the cache for the application that IS authorised for mention.earth…
     presentCredential(mention);
     expect(
-      (await requestJson('POST', '/federation/sign', {
-        keyId: MENTION_KEY_ID,
-        signingString: SIGNING_STRING,
-      })).status,
+      (
+        await requestJson('POST', '/federation/sign', {
+          keyId: MENTION_KEY_ID,
+          signingString: SIGNING_STRING,
+        })
+      ).status,
     ).toBe(200);
 
     // …then ask with the other application's credential. Its own allow-list is
@@ -406,10 +406,7 @@ describe('POST /federation/sign', () => {
   });
 
   it('rejects when the service token lacks federation:write scope (403)', async () => {
-    presentCredential(
-      await seedApplication([`https://${MENTION_DOMAIN}/oauth/callback`]),
-      [],
-    );
+    presentCredential(await seedApplication([`https://${MENTION_DOMAIN}/oauth/callback`]), []);
 
     const res = await requestJson('POST', '/federation/sign', {
       keyId: MENTION_KEY_ID,
@@ -521,10 +518,7 @@ describe('GET /federation/public-key/:username', () => {
   });
 
   it('rejects a missing federation:write scope (403)', async () => {
-    presentCredential(
-      await seedApplication([`https://${MENTION_DOMAIN}/oauth/callback`]),
-      [],
-    );
+    presentCredential(await seedApplication([`https://${MENTION_DOMAIN}/oauth/callback`]), []);
 
     const res = await requestJson('GET', `/federation/public-key/bob?domain=${MENTION_DOMAIN}`);
 
@@ -537,10 +531,7 @@ describe('GET /federation/public-key/:username', () => {
   });
 
   it('accepts a www. domain query when the credential is registered for the bare domain', async () => {
-    const res = await requestJson(
-      'GET',
-      `/federation/public-key/bob?domain=www.${MENTION_DOMAIN}`,
-    );
+    const res = await requestJson('GET', `/federation/public-key/bob?domain=www.${MENTION_DOMAIN}`);
 
     expect(res.status).toBe(200);
     expect(mockGetUserPublicKey).toHaveBeenCalledWith('bob', `www.${MENTION_DOMAIN}`);
@@ -556,7 +547,12 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
     const lookup = await requestJson('POST', '/federation/identities/lookup', lookupBody);
     expect(lookup.status).toBe(200);
     expect(lookup.body.data?.identities).toEqual([
-      { identifier: lookupBody.identifiers[0], userId: null, externalIdentities: [], redirectedUserIds: [] },
+      {
+        identifier: lookupBody.identifiers[0],
+        userId: null,
+        externalIdentities: [],
+        redirectedUserIds: [],
+      },
     ]);
 
     // Past the scope gate the route asks the identity authority; "not
@@ -564,21 +560,33 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
     mockResolveExternalIdentity.mockResolvedValueOnce(null);
     const resolve = await requestJson('POST', '/federation/identities/resolve', resolveBody);
     expect(resolve.status).toBe(404);
-    expect(mockResolveExternalIdentity).toHaveBeenCalledWith({ actorUri: resolveBody.actorUri, handle: undefined, transportAcct: undefined });
+    expect(mockResolveExternalIdentity).toHaveBeenCalledWith({
+      actorUri: resolveBody.actorUri,
+      handle: undefined,
+      transportAcct: undefined,
+    });
   });
 
   it('refuses a files:write-only token on both routes', async () => {
     presentCredential('move-app', ['files:write']);
-    expect((await requestJson('POST', '/federation/identities/lookup', lookupBody)).status).toBe(403);
-    expect((await requestJson('POST', '/federation/identities/resolve', resolveBody)).status).toBe(403);
+    expect((await requestJson('POST', '/federation/identities/lookup', lookupBody)).status).toBe(
+      403,
+    );
+    expect((await requestJson('POST', '/federation/identities/resolve', resolveBody)).status).toBe(
+      403,
+    );
     expect(mockResolveExternalIdentity).not.toHaveBeenCalled();
   });
 
   it('keeps accepting federation:write', async () => {
     presentCredential('mention-app', ['federation:write']);
-    expect((await requestJson('POST', '/federation/identities/lookup', lookupBody)).status).toBe(200);
+    expect((await requestJson('POST', '/federation/identities/lookup', lookupBody)).status).toBe(
+      200,
+    );
     mockResolveExternalIdentity.mockResolvedValueOnce(null);
-    expect((await requestJson('POST', '/federation/identities/resolve', resolveBody)).status).toBe(404);
+    expect((await requestJson('POST', '/federation/identities/resolve', resolveBody)).status).toBe(
+      404,
+    );
   });
 
   /**
@@ -595,22 +603,47 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
   const MENTION_RESOLVE_BODIES: Record<string, unknown>[] = [
     { handle: 'plex@instagram.com' },
     { handle: 'https://www.instagram.com/Plex/' },
-    { actorUri: 'https://mastodon.social/users/alice', transportAcct: 'alice@mastodon.social', protocol: 'activitypub' },
-    { actorUri: 'https://kilogram.makeup/users/plex', transportAcct: 'plex@kilogram.makeup', protocol: 'activitypub' },
-    { actorUri: 'did:plc:abcdefghijklmnopqrstuvwx', transportAcct: 'alice.bsky.social', protocol: 'atproto' },
+    {
+      actorUri: 'https://mastodon.social/users/alice',
+      transportAcct: 'alice@mastodon.social',
+      protocol: 'activitypub',
+    },
+    {
+      actorUri: 'https://kilogram.makeup/users/plex',
+      transportAcct: 'plex@kilogram.makeup',
+      protocol: 'activitypub',
+    },
+    {
+      actorUri: 'did:plc:abcdefghijklmnopqrstuvwx',
+      transportAcct: 'alice.bsky.social',
+      protocol: 'atproto',
+    },
     { actorUri: 'instagram-graph:17841401746480004', protocol: 'instagram-graph' },
-    { actorUri: 'instagram-graph:17841401746480004', transportAcct: 'plex@instagram.com', protocol: 'instagram-graph' },
+    {
+      actorUri: 'instagram-graph:17841401746480004',
+      transportAcct: 'plex@instagram.com',
+      protocol: 'instagram-graph',
+    },
     { handle: 'plex@instagram.com', protocol: 'instagram-graph' },
   ];
 
-  it.each(MENTION_RESOLVE_BODIES)('passes Mention\'s resolve body %j through unchanged', async (body) => {
-    presentCredential('mention-app', ['federation:write']);
-    mockResolveExternalIdentity.mockResolvedValueOnce(null);
-    const res = await requestJson('POST', '/federation/identities/resolve', body);
-    expect(res.status).toBe(404);
-    expect(mockResolveExternalIdentity).toHaveBeenCalledTimes(1);
-    expect(mockResolveExternalIdentity).toHaveBeenCalledWith({ actorUri: undefined, handle: undefined, transportAcct: undefined, protocol: undefined, ...body });
-  });
+  it.each(MENTION_RESOLVE_BODIES)(
+    "passes Mention's resolve body %j through unchanged",
+    async (body) => {
+      presentCredential('mention-app', ['federation:write']);
+      mockResolveExternalIdentity.mockResolvedValueOnce(null);
+      const res = await requestJson('POST', '/federation/identities/resolve', body);
+      expect(res.status).toBe(404);
+      expect(mockResolveExternalIdentity).toHaveBeenCalledTimes(1);
+      expect(mockResolveExternalIdentity).toHaveBeenCalledWith({
+        actorUri: undefined,
+        handle: undefined,
+        transportAcct: undefined,
+        protocol: undefined,
+        ...body,
+      });
+    },
+  );
 
   it.each([
     { handle: 'bob@mastodon.social', protocol: 'instagram-graph' },
@@ -629,7 +662,10 @@ describe('identity lookup/resolve — federation:identities:resolve without fede
 
   it('does not let the narrow scope sign', async () => {
     presentCredential('move-app', ['federation:identities:resolve']);
-    const res = await requestJson('POST', '/federation/sign', { keyId: MENTION_KEY_ID, signingString: SIGNING_STRING });
+    const res = await requestJson('POST', '/federation/sign', {
+      keyId: MENTION_KEY_ID,
+      signingString: SIGNING_STRING,
+    });
     expect(res.status).toBe(403);
     expect(mockSignWithKeyId).not.toHaveBeenCalled();
   });
@@ -687,7 +723,10 @@ describe('POST /federation/instance-fetch/sign — the instance actor signs one 
 
   it('does not let federation:instance-fetch reach /federation/sign', async () => {
     presentCredential('move-app', ['federation:instance-fetch']);
-    const res = await requestJson('POST', '/federation/sign', { keyId: MENTION_KEY_ID, signingString: SIGNING_STRING });
+    const res = await requestJson('POST', '/federation/sign', {
+      keyId: MENTION_KEY_ID,
+      signingString: SIGNING_STRING,
+    });
     expect(res.status).toBe(403);
     expect(mockSignWithKeyId).not.toHaveBeenCalled();
   });
@@ -709,11 +748,17 @@ describe('POST /federation/instance-fetch/sign — the instance actor signs one 
 
   it('accepts a URL and nothing else — no keyId, no signing string, no method', async () => {
     presentCredential('move-app', ['federation:instance-fetch']);
-    for (const extra of [{ keyId: MENTION_KEY_ID }, { signingString: SIGNING_STRING }, { method: 'POST' }]) {
-      const res = await requestJson('POST', '/federation/instance-fetch/sign', { url: OUTBOX, ...extra });
+    for (const extra of [
+      { keyId: MENTION_KEY_ID },
+      { signingString: SIGNING_STRING },
+      { method: 'POST' },
+    ]) {
+      const res = await requestJson('POST', '/federation/instance-fetch/sign', {
+        url: OUTBOX,
+        ...extra,
+      });
       expect(res.status).toBe(400);
     }
     expect(mockSignWithKeyId).not.toHaveBeenCalled();
   });
 });
-

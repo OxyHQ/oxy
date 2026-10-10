@@ -9,7 +9,10 @@
   "exports": {
     ".": "./src/checks.mjs"
   },
-  "files": ["src", "README.md"],
+  "files": [
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "test": "bun test tests",
     "prepublishOnly": "bun run test"

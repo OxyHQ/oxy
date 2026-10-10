@@ -49,18 +49,20 @@ async function storedColor(userId: string): Promise<string> {
 /** A live Stripe subscription on `planName` — the production premium source. */
 async function giveSubscription(userId: string, planName: string): Promise<void> {
   const now = new Date();
-  await getDb().insert(billingSubscriptions).values({
-    userId,
-    stripeCustomerId: `cus_${uniqueId()}`,
-    stripeSubscriptionId: `sub_${uniqueId()}`,
-    stripePriceId: `price_${uniqueId()}`,
-    status: 'active',
-    currentPeriodStart: now,
-    currentPeriodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-    planName,
-    planCreditsPerMonth: 1000,
-    planPriceMinorUnits: 900,
-  });
+  await getDb()
+    .insert(billingSubscriptions)
+    .values({
+      userId,
+      stripeCustomerId: `cus_${uniqueId()}`,
+      stripeSubscriptionId: `sub_${uniqueId()}`,
+      stripePriceId: `price_${uniqueId()}`,
+      status: 'active',
+      currentPeriodStart: now,
+      currentPeriodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      planName,
+      planCreditsPerMonth: 1000,
+      planPriceMinorUnits: 900,
+    });
 }
 
 beforeAll(async () => {
@@ -107,13 +109,13 @@ describe('the `oxy` colour is refused without premium', () => {
       // assertion below is exactly that), so asking twice costs nothing.
       await expect(userService.updateUserProfile(id, { color })).rejects.toThrow(BadRequestError);
       await expect(userService.updateUserProfile(id, { color })).rejects.toThrow(
-        'The oxy color is exclusive to premium subscribers'
+        'The oxy color is exclusive to premium subscribers',
       );
 
       // The load-bearing half: the write did not happen. A gate that throws
       // AFTER persisting would pass a rejects-only assertion.
       expect(await storedColor(id)).toBe('blue');
-    }
+    },
   );
 
   it('rejects it for a subscriber on the free tier', async () => {
@@ -121,7 +123,7 @@ describe('the `oxy` colour is refused without premium', () => {
     await giveSubscription(id, 'basic');
 
     await expect(userService.updateUserProfile(id, { color: 'oxy' })).rejects.toThrow(
-      'The oxy color is exclusive to premium subscribers'
+      'The oxy color is exclusive to premium subscribers',
     );
     expect(await storedColor(id)).toBe('blue');
   });
@@ -129,36 +131,41 @@ describe('the `oxy` colour is refused without premium', () => {
   it('rejects it for a subscription that is no longer live', async () => {
     const id = await makeUser();
     const now = new Date();
-    await getDb().insert(billingSubscriptions).values({
-      userId: id,
-      stripeCustomerId: `cus_${uniqueId()}`,
-      stripeSubscriptionId: `sub_${uniqueId()}`,
-      stripePriceId: `price_${uniqueId()}`,
-      status: 'canceled',
-      currentPeriodStart: now,
-      currentPeriodEnd: now,
-      planName: 'pro',
-      planCreditsPerMonth: 1000,
-      planPriceMinorUnits: 900,
-    });
+    await getDb()
+      .insert(billingSubscriptions)
+      .values({
+        userId: id,
+        stripeCustomerId: `cus_${uniqueId()}`,
+        stripeSubscriptionId: `sub_${uniqueId()}`,
+        stripePriceId: `price_${uniqueId()}`,
+        status: 'canceled',
+        currentPeriodStart: now,
+        currentPeriodEnd: now,
+        planName: 'pro',
+        planCreditsPerMonth: 1000,
+        planPriceMinorUnits: 900,
+      });
 
     await expect(userService.updateUserProfile(id, { color: 'oxy' })).rejects.toThrow(
-      'The oxy color is exclusive to premium subscribers'
+      'The oxy color is exclusive to premium subscribers',
     );
     expect(await storedColor(id)).toBe('blue');
   });
 });
 
 describe('existing premium identity colors and added mono benefit', () => {
-  it.each([['pro'], ['business']])('preserves reserved identity color for a live %p subscriber', async (plan) => {
-    const id = await makeUser();
-    await giveSubscription(id, plan);
+  it.each([['pro'], ['business']])(
+    'preserves reserved identity color for a live %p subscriber',
+    async (plan) => {
+      const id = await makeUser();
+      await giveSubscription(id, plan);
 
-    await userService.updateUserProfile(id, { color: ' OXY ' });
-    expect(await storedColor(id)).toBe('oxy');
-    await userService.updateUserProfile(id,{color:'mono'});
-    expect(await storedColor(id)).toBe('mono');
-  });
+      await userService.updateUserProfile(id, { color: ' OXY ' });
+      expect(await storedColor(id)).toBe('oxy');
+      await userService.updateUserProfile(id, { color: 'mono' });
+      expect(await storedColor(id)).toBe('mono');
+    },
+  );
 
   it('allows the `oxy` account itself with no subscription', async () => {
     // The brand account owns the preset; it is identified by username, and the
@@ -180,7 +187,10 @@ describe('existing premium identity colors and added mono benefit', () => {
       expect(await storedColor(id)).toBe('oxy');
     } finally {
       if (existing) {
-        await getDb().update(users).set({ username: existing.username, color: existing.color }).where(eq(users.id, id));
+        await getDb()
+          .update(users)
+          .set({ username: existing.username, color: existing.color })
+          .where(eq(users.id, id));
       } else {
         await getDb().delete(users).where(eq(users.id, id));
       }
@@ -191,7 +201,7 @@ describe('existing premium identity colors and added mono benefit', () => {
     const id = await makeUser({ username: `oxy${uniqueId().slice(0, 8)}` });
 
     await expect(userService.updateUserProfile(id, { color: 'oxy' })).rejects.toThrow(
-      'The oxy color is exclusive to premium subscribers'
+      'The oxy color is exclusive to premium subscribers',
     );
     expect(await storedColor(id)).toBe('blue');
   });

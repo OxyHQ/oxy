@@ -58,71 +58,83 @@ export default function ManagedAccountsScreen() {
   // True account switch — selecting an account makes the whole app sign in as
   // it (a real session switch). Returning to the personal account is itself a
   // switch, performed from the account switcher, never an "un-act-as".
-  const handleSwitchTo = useCallback((accountId: string) => {
-    Promise.resolve(switchToAccount(accountId)).catch((error) => {
-      console.error('Failed to switch account', error);
-    });
-  }, [switchToAccount]);
-
-  const handleManageMembers = useCallback((accountId: string) => {
-    showBottomSheet?.({ screen: 'AccountMembers', props: { accountId } });
-  }, [showBottomSheet]);
-
-  const handleEditProfile = useCallback((accountId: string) => {
-    const node = accounts.find((entry) => entry.accountId === accountId);
-    // An account the caller cannot switch into — a channel, or a membership
-    // without `account:act_as` — cannot be edited by switching into it first.
-    // Edit via the per-account settings sheet, which PATCHes by id without a
-    // session switch. `canSwitchIntoAccount` encodes both the kind rule and the
-    // permission gate so this branch stays aligned with the API's switch route.
-    if (!node || !canSwitchIntoAccount(node)) {
-      showBottomSheet?.({ screen: 'AccountSettings', props: { accountId } });
-      return;
-    }
-    // Editing a non-personal account's profile happens through the shared
-    // profile editor, which targets the current account — so switch into the
-    // account first, then open the editor.
-    Promise.resolve(switchToAccount(accountId))
-      .then(() => {
-        showBottomSheet?.({
-          screen: 'EditProfileField',
-          props: { fieldType: 'displayName' },
-        });
-      })
-      .catch((error) => {
-        console.error('Failed to switch account before editing', error);
+  const handleSwitchTo = useCallback(
+    (accountId: string) => {
+      Promise.resolve(switchToAccount(accountId)).catch((error) => {
+        console.error('Failed to switch account', error);
       });
-  }, [switchToAccount, showBottomSheet, accounts]);
+    },
+    [switchToAccount],
+  );
 
-  const handleArchiveAccount = useCallback((node: AccountNode) => {
-    const name =
-      node.account?.name?.displayName ??
-      getNormalizedUserHandle(node.account) ??
-      getAccountDisplayName(null, locale);
-    alert(
-      t('managedAccounts.archive.confirmTitle'),
-      t('managedAccounts.archive.confirmBody', { name }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('managedAccounts.archive.confirm'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setArchivingId(node.accountId);
-              await oxyServices.accounts.archive(node.accountId);
-              await refreshAccounts();
-            } catch (error) {
-              console.error('Failed to archive account', error);
-              toast.error(t('managedAccounts.archive.error'));
-            } finally {
-              setArchivingId(null);
-            }
+  const handleManageMembers = useCallback(
+    (accountId: string) => {
+      showBottomSheet?.({ screen: 'AccountMembers', props: { accountId } });
+    },
+    [showBottomSheet],
+  );
+
+  const handleEditProfile = useCallback(
+    (accountId: string) => {
+      const node = accounts.find((entry) => entry.accountId === accountId);
+      // An account the caller cannot switch into — a channel, or a membership
+      // without `account:act_as` — cannot be edited by switching into it first.
+      // Edit via the per-account settings sheet, which PATCHes by id without a
+      // session switch. `canSwitchIntoAccount` encodes both the kind rule and the
+      // permission gate so this branch stays aligned with the API's switch route.
+      if (!node || !canSwitchIntoAccount(node)) {
+        showBottomSheet?.({ screen: 'AccountSettings', props: { accountId } });
+        return;
+      }
+      // Editing a non-personal account's profile happens through the shared
+      // profile editor, which targets the current account — so switch into the
+      // account first, then open the editor.
+      Promise.resolve(switchToAccount(accountId))
+        .then(() => {
+          showBottomSheet?.({
+            screen: 'EditProfileField',
+            props: { fieldType: 'displayName' },
+          });
+        })
+        .catch((error) => {
+          console.error('Failed to switch account before editing', error);
+        });
+    },
+    [switchToAccount, showBottomSheet, accounts],
+  );
+
+  const handleArchiveAccount = useCallback(
+    (node: AccountNode) => {
+      const name =
+        node.account?.name?.displayName ??
+        getNormalizedUserHandle(node.account) ??
+        getAccountDisplayName(null, locale);
+      alert(
+        t('managedAccounts.archive.confirmTitle'),
+        t('managedAccounts.archive.confirmBody', { name }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('managedAccounts.archive.confirm'),
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setArchivingId(node.accountId);
+                await oxyServices.accounts.archive(node.accountId);
+                await refreshAccounts();
+              } catch (error) {
+                console.error('Failed to archive account', error);
+                toast.error(t('managedAccounts.archive.error'));
+              } finally {
+                setArchivingId(null);
+              }
+            },
           },
-        },
-      ],
-    );
-  }, [oxyServices, refreshAccounts, locale, t]);
+        ],
+      );
+    },
+    [oxyServices, refreshAccounts, locale, t],
+  );
 
   const buildItem = useAccountRowBuilder({
     currentAccountId: user?.id ?? null,
@@ -139,9 +151,17 @@ export default function ManagedAccountsScreen() {
   if (oxyLoading) {
     return (
       <ScreenContentWrapper>
-        <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.container,
+            styles.loadingContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('common.loading')}</ThemedText>
+          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+            {t('common.loading')}
+          </ThemedText>
         </View>
       </ScreenContentWrapper>
     );

@@ -14,23 +14,23 @@ export const ErrorCodes = {
   FORBIDDEN: 'FORBIDDEN',
   INVALID_TOKEN: 'INVALID_TOKEN',
   MISSING_TOKEN: 'MISSING_TOKEN',
-  
+
   // Validation errors
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   BAD_REQUEST: 'BAD_REQUEST',
   MISSING_PARAMETER: 'MISSING_PARAMETER',
   INVALID_FORMAT: 'INVALID_FORMAT',
-  
+
   // Resource errors
   NOT_FOUND: 'NOT_FOUND',
   ALREADY_EXISTS: 'ALREADY_EXISTS',
   CONFLICT: 'CONFLICT',
-  
+
   // Server errors
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
   TIMEOUT: 'TIMEOUT',
-  
+
   // Network errors
   NETWORK_ERROR: 'NETWORK_ERROR',
   CONNECTION_FAILED: 'CONNECTION_FAILED',
@@ -47,7 +47,7 @@ export const ErrorCodes = {
    * nothing may retry it. See `retryAsync`'s default predicate, which refuses
    * this code specifically.
    */
-  CANCELLED: 'CANCELLED'
+  CANCELLED: 'CANCELLED',
 } as const;
 
 /**
@@ -61,22 +61,22 @@ export const ErrorCodes = {
  * Narrow a caught value with {@link isHttpRequestError} instead of asserting.
  */
 export interface HttpRequestError extends Error {
-    /** HTTP status of the failed response. */
+  /** HTTP status of the failed response. */
+  status: number;
+  /** Machine-readable code the server sent, when it sent one. */
+  code?: string;
+  /** Structured error detail the server sent, when it sent an object. */
+  details?: Record<string, unknown>;
+  /**
+   * Present on errors thrown directly by `HttpService`. `data` is the parsed
+   * JSON error body verbatim — the escape hatch for any server field the SDK
+   * does not lift onto `code`/`details`.
+   */
+  response?: {
     status: number;
-    /** Machine-readable code the server sent, when it sent one. */
-    code?: string;
-    /** Structured error detail the server sent, when it sent an object. */
-    details?: Record<string, unknown>;
-    /**
-     * Present on errors thrown directly by `HttpService`. `data` is the parsed
-     * JSON error body verbatim — the escape hatch for any server field the SDK
-     * does not lift onto `code`/`details`.
-     */
-    response?: {
-        status: number;
-        statusText: string;
-        data?: unknown;
-    };
+    statusText: string;
+    data?: unknown;
+  };
 }
 
 /**
@@ -87,26 +87,26 @@ export interface HttpRequestError extends Error {
  * first if you need one normalized.
  */
 export function isHttpRequestError(value: unknown): value is HttpRequestError {
-    if (!(value instanceof Error)) {
-        return false;
-    }
-    return typeof (value as Partial<HttpRequestError>).status === 'number';
+  if (!(value instanceof Error)) {
+    return false;
+  }
+  return typeof (value as Partial<HttpRequestError>).status === 'number';
 }
 
 /**
  * The fields {@link parseHttpErrorBody} lifts off a parsed error response body.
  */
 export interface ParsedHttpErrorBody {
-    message?: string;
-    code?: string;
-    details?: Record<string, unknown>;
+  message?: string;
+  code?: string;
+  details?: Record<string, unknown>;
 }
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const nonEmptyString = (value: unknown): string | undefined =>
-    typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+  typeof value === 'string' && value.trim().length > 0 ? value : undefined;
 
 /**
  * Extract `message` / `code` / `details` from a parsed HTTP error response body.
@@ -131,27 +131,27 @@ const nonEmptyString = (value: unknown): string | undefined =>
  * its status-based fallback message. Total function: never throws.
  */
 export function parseHttpErrorBody(body: unknown): ParsedHttpErrorBody {
-    if (!isPlainRecord(body)) {
-        return {};
-    }
+  if (!isPlainRecord(body)) {
+    return {};
+  }
 
-    const nested = isPlainRecord(body.error) ? body.error : undefined;
-    const errorString = nonEmptyString(body.error);
-    // A sibling that proves the top-level `error` is a CODE rather than prose.
-    const siblingMessage = nonEmptyString(body.message) ?? nonEmptyString(body.error_description);
+  const nested = isPlainRecord(body.error) ? body.error : undefined;
+  const errorString = nonEmptyString(body.error);
+  // A sibling that proves the top-level `error` is a CODE rather than prose.
+  const siblingMessage = nonEmptyString(body.message) ?? nonEmptyString(body.error_description);
 
-    return {
-        message: siblingMessage ?? (nested ? nonEmptyString(nested.message) : errorString),
-        code:
-            (nested ? nonEmptyString(nested.code) : undefined) ??
-            nonEmptyString(body.code) ??
-            (siblingMessage ? errorString : undefined),
-        details: isPlainRecord(body.details)
-            ? body.details
-            : nested && isPlainRecord(nested.details)
-                ? nested.details
-                : undefined,
-    };
+  return {
+    message: siblingMessage ?? (nested ? nonEmptyString(nested.message) : errorString),
+    code:
+      (nested ? nonEmptyString(nested.code) : undefined) ??
+      nonEmptyString(body.code) ??
+      (siblingMessage ? errorString : undefined),
+    details: isPlainRecord(body.details)
+      ? body.details
+      : nested && isPlainRecord(nested.details)
+        ? nested.details
+        : undefined,
+  };
 }
 
 /**
@@ -161,13 +161,13 @@ export function createApiError(
   message: string,
   code: string = ErrorCodes.INTERNAL_ERROR,
   status = 500,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): ApiError {
   return {
     message,
     code,
     status,
-    details
+    details,
   };
 }
 
@@ -251,28 +251,24 @@ export function handleHttpError(error: unknown): ApiError {
   // anywhere else, and it stays TIMEOUT: a caller that never passed a signal
   // cannot have cancelled anything.
   if (isAbortLike(error)) {
-    return createApiError(
-      'Request timeout or cancelled',
-      ErrorCodes.TIMEOUT,
-      0
-    );
+    return createApiError('Request timeout or cancelled', ErrorCodes.TIMEOUT, 0);
   }
 
   // Handle TypeError (network failures, CORS, etc.)
   if (error instanceof TypeError) {
     // Check if it's a network-related TypeError
-    if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('Failed to fetch')) {
+    if (
+      error.message.includes('fetch') ||
+      error.message.includes('network') ||
+      error.message.includes('Failed to fetch')
+    ) {
       return createApiError(
         'Network error - failed to connect to server',
         ErrorCodes.NETWORK_ERROR,
-        0
+        0,
       );
     }
-    return createApiError(
-      error.message || 'Network error occurred',
-      ErrorCodes.NETWORK_ERROR,
-      0
-    );
+    return createApiError(error.message || 'Network error occurred', ErrorCodes.NETWORK_ERROR, 0);
   }
 
   // Handle fetch Response errors - check if it has response property with status
@@ -298,7 +294,7 @@ export function handleHttpError(error: unknown): ApiError {
         fetchError.message || `HTTP ${status} error`,
         getErrorCodeFromStatus(status),
         status,
-        isPlainRecord(fetchError.details) ? fetchError.details : undefined
+        isPlainRecord(fetchError.details) ? fetchError.details : undefined,
       );
     }
   }
@@ -307,36 +303,24 @@ export function handleHttpError(error: unknown): ApiError {
   if (error instanceof Error) {
     // Check for common error patterns
     if (error.message.includes('timeout') || error.message.includes('aborted')) {
-      return createApiError(
-        'Request timeout',
-        ErrorCodes.TIMEOUT,
-        0
-      );
+      return createApiError('Request timeout', ErrorCodes.TIMEOUT, 0);
     }
-    
+
     if (error.message.includes('network') || error.message.includes('fetch')) {
-      return createApiError(
-        error.message || 'Network error occurred',
-        ErrorCodes.NETWORK_ERROR,
-        0
-      );
+      return createApiError(error.message || 'Network error occurred', ErrorCodes.NETWORK_ERROR, 0);
     }
 
     return createApiError(
       error.message || 'Unknown error occurred',
       ErrorCodes.INTERNAL_ERROR,
-      500
+      500,
     );
   }
 
   // Handle other errors - ensure we always return a non-empty message
   const errorString = error ? String(error) : '';
   const message = errorString.trim() || 'Unknown error occurred';
-  return createApiError(
-    message,
-    ErrorCodes.INTERNAL_ERROR,
-    500
-  );
+  return createApiError(message, ErrorCodes.INTERNAL_ERROR, 500);
 }
 
 /**
@@ -395,13 +379,13 @@ export function extractErrorStatus(error: unknown): number | undefined {
  * Validate required fields and throw error if missing
  */
 export function validateRequiredFields(data: Record<string, unknown>, fields: string[]): void {
-  const missing = fields.filter(field => !data[field]);
-  
+  const missing = fields.filter((field) => !data[field]);
+
   if (missing.length > 0) {
     throw createApiError(
       `Missing required fields: ${missing.join(', ')}`,
       ErrorCodes.MISSING_PARAMETER,
-      400
+      400,
     );
   }
 }
@@ -423,5 +407,3 @@ export function logError(error: unknown, context?: string): void {
     });
   }
 }
-
- 

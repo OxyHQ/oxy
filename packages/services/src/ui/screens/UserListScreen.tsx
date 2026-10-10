@@ -1,12 +1,6 @@
 import type React from 'react';
 import { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  StyleSheet,
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-} from 'react-native';
+import { View, StyleSheet, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { H6, Text } from '@oxy.so/bloom/typography';
@@ -90,12 +84,20 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         let hasMore: boolean;
 
         if (mode === 'followers') {
-          const result = await oxyServices.follows.followers(userId, { limit: PAGE_SIZE, offset, sort });
+          const result = await oxyServices.follows.followers(userId, {
+            limit: PAGE_SIZE,
+            offset,
+            sort,
+          });
           newUsers = result.followers;
           total = result.total;
           hasMore = result.hasMore;
         } else {
-          const result = await oxyServices.follows.following(userId, { limit: PAGE_SIZE, offset, sort });
+          const result = await oxyServices.follows.following(userId, {
+            limit: PAGE_SIZE,
+            offset,
+            sort,
+          });
           newUsers = result.following;
           total = result.total;
           hasMore = result.hasMore;
@@ -110,9 +112,13 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         setTotal(total);
         setHasMore(hasMore);
       } catch (err) {
-        logger.error(`Failed to fetch ${mode}`, err instanceof Error ? err : new Error(String(err)), {
-          component: 'UserListScreen',
-        });
+        logger.error(
+          `Failed to fetch ${mode}`,
+          err instanceof Error ? err : new Error(String(err)),
+          {
+            component: 'UserListScreen',
+          },
+        );
         setError(`Failed to load ${mode}. Please try again.`);
       } finally {
         setIsLoading(false);
@@ -123,7 +129,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
     // `sort` belongs here: without it the callback would close over the first
     // ordering forever, and the mount effect below (keyed on `fetchUsers`)
     // would never re-run — flipping the control would change nothing.
-    [userId, mode, sort, oxyServices]
+    [userId, mode, sort, oxyServices],
   );
 
   useEffect(() => {
@@ -147,7 +153,7 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         navigate('Profile', { userId: targetUserId });
       }
     },
-    [navigate]
+    [navigate],
   );
 
   const renderUser = useCallback(
@@ -160,23 +166,37 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
 
       return (
         <View className="px-screen-margin flex-row items-center gap-space-12">
-          <ContactRow id={itemUserId || displayName} name={displayName}
+          <ContactRow
+            id={itemUserId || displayName}
+            name={displayName}
             subtitle={handle ? (item.username ? `@${handle}` : handle) : undefined}
             avatar={item.avatar ? oxyServices.assets.publicUrl(item.avatar, 'thumb') : undefined}
-            horizontalInset={0} style={{ flex: 1 }}
+            horizontalInset={0}
+            style={{ flex: 1 }}
             onPress={() => handleUserPress(item)}
-            identitySlot={<View style={styles.userInfo}>
-              <Text variant="body-medium" numberOfLines={1}>{displayName}</Text>
-              {handle ? <Text className="text-text-secondary text-sm mt-space-2" numberOfLines={1}>
-                {item.username ? `@${handle}` : handle}
-              </Text> : null}
-              {description ? <Text className="text-text-secondary text-sm mt-space-4" numberOfLines={2}>{description}</Text> : null}
-            </View>} />
+            identitySlot={
+              <View style={styles.userInfo}>
+                <Text variant="body-medium" numberOfLines={1}>
+                  {displayName}
+                </Text>
+                {handle ? (
+                  <Text className="text-text-secondary text-sm mt-space-2" numberOfLines={1}>
+                    {item.username ? `@${handle}` : handle}
+                  </Text>
+                ) : null}
+                {description ? (
+                  <Text className="text-text-secondary text-sm mt-space-4" numberOfLines={2}>
+                    {description}
+                  </Text>
+                ) : null}
+              </View>
+            }
+          />
           {!isCurrentUser && itemUserId ? <FollowButton userId={itemUserId} size="sm" /> : null}
         </View>
       );
     },
-    [handleUserPress, currentUserId, oxyServices]
+    [handleUserPress, currentUserId, oxyServices],
   );
 
   const renderEmpty = useCallback(() => {
@@ -195,8 +215,10 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
         </H6>
         <Text className="text-text-secondary text-sm text-center">
           {mode === 'followers'
-            ? t('userList.noFollowersDesc') || 'When people follow this user, they will appear here.'
-            : t('userList.noFollowingDesc') || 'When this user follows people, they will appear here.'}
+            ? t('userList.noFollowersDesc') ||
+              'When people follow this user, they will appear here.'
+            : t('userList.noFollowingDesc') ||
+              'When this user follows people, they will appear here.'}
         </Text>
       </View>
     );
@@ -211,9 +233,10 @@ const UserListScreen: React.FC<UserListScreenProps> = ({
     );
   }, [isLoadingMore, bloomTheme]);
 
-  const title = mode === 'followers'
-    ? (t('userList.followers') || 'Followers')
-    : (t('userList.following') || 'Following');
+  const title =
+    mode === 'followers'
+      ? t('userList.followers') || 'Followers'
+      : t('userList.following') || 'Following';
 
   const headerSubtitle = total > 0 ? String(total) : undefined;
   useSurfaceHeader({ title, subtitle: headerSubtitle });

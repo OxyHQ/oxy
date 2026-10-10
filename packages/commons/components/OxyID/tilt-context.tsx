@@ -14,9 +14,9 @@ import { type StyleProp, type ViewStyle } from 'react-native';
 
 import { createContext, useContext } from 'react';
 import Animated, {
-    useAnimatedStyle,
-    type DerivedValue,
-    type SharedValue,
+  useAnimatedStyle,
+  type DerivedValue,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 // Per-layer depths (screen-space parallax lead/trail). Kept at 0 so the printed
@@ -33,46 +33,46 @@ const PARALLAX_SCALE = 0;
 const DEG_TO_RAD = Math.PI / 180;
 
 export interface TiltContextValue {
-    pitchDeg: SharedValue<number>;
-    yawDeg: SharedValue<number>;
-    nx: SharedValue<number>;
-    ny: SharedValue<number>;
-    mag: SharedValue<number>;
-    pressRotateX: SharedValue<number>;
-    isPressed: SharedValue<number>;
-    rotation: SharedValue<number>;
-    /** 0→1→0 on server-confirmed attestation — full shimmer (level-2 feedback). */
-    attestGlow: SharedValue<number>;
-    isFront: DerivedValue<boolean>;
-    motionEnabled: boolean;
+  pitchDeg: SharedValue<number>;
+  yawDeg: SharedValue<number>;
+  nx: SharedValue<number>;
+  ny: SharedValue<number>;
+  mag: SharedValue<number>;
+  pressRotateX: SharedValue<number>;
+  isPressed: SharedValue<number>;
+  rotation: SharedValue<number>;
+  /** 0→1→0 on server-confirmed attestation — full shimmer (level-2 feedback). */
+  attestGlow: SharedValue<number>;
+  isFront: DerivedValue<boolean>;
+  motionEnabled: boolean;
 }
 
 const TiltContext = createContext<TiltContextValue | null>(null);
 
 export const TiltProvider = ({
-    value,
-    children,
+  value,
+  children,
 }: {
-    value: TiltContextValue;
-    children: ReactNode;
+  value: TiltContextValue;
+  children: ReactNode;
 }) => <TiltContext.Provider value={value}>{children}</TiltContext.Provider>;
 
 export const useTilt = (): TiltContextValue => {
-    const ctx = useContext(TiltContext);
-    if (!ctx) {
-        throw new Error('useTilt must be used within a TiltProvider');
-    }
-    return ctx;
+  const ctx = useContext(TiltContext);
+  if (!ctx) {
+    throw new Error('useTilt must be used within a TiltProvider');
+  }
+  return ctx;
 };
 
 interface ParallaxLayerProps {
-    /** Depth of this layer; see the elevation constants above. */
-    elevation: number;
-    /** Which face the layer belongs to (back layers translate in mirror). */
-    face?: 'front' | 'back';
-    pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
-    children: ReactNode;
-    style?: StyleProp<ViewStyle>;
+  /** Depth of this layer; see the elevation constants above. */
+  elevation: number;
+  /** Which face the layer belongs to (back layers translate in mirror). */
+  face?: 'front' | 'back';
+  pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
 }
 
 /**
@@ -81,29 +81,29 @@ interface ParallaxLayerProps {
  * `scaleX: -1` mirror the caller adds, so back-side content parallaxes correctly.
  */
 export const ParallaxLayer = ({
-    elevation,
-    face = 'front',
-    pointerEvents,
-    children,
-    style,
+  elevation,
+  face = 'front',
+  pointerEvents,
+  children,
+  style,
 }: ParallaxLayerProps) => {
-    const { yawDeg, pitchDeg, pressRotateX } = useTilt();
-    const facing = face === 'front' ? 1 : -1;
+  const { yawDeg, pitchDeg, pressRotateX } = useTilt();
+  const facing = face === 'front' ? 1 : -1;
 
-    const animatedStyle = useAnimatedStyle(() => {
-        const yr = yawDeg.value * DEG_TO_RAD;
-        const pr = (pitchDeg.value + pressRotateX.value) * DEG_TO_RAD;
-        return {
-            transform: [
-                { translateX: facing * elevation * PARALLAX_SCALE * Math.sin(yr) },
-                { translateY: -elevation * PARALLAX_SCALE * Math.sin(pr) },
-            ],
-        };
-    });
+  const animatedStyle = useAnimatedStyle(() => {
+    const yr = yawDeg.value * DEG_TO_RAD;
+    const pr = (pitchDeg.value + pressRotateX.value) * DEG_TO_RAD;
+    return {
+      transform: [
+        { translateX: facing * elevation * PARALLAX_SCALE * Math.sin(yr) },
+        { translateY: -elevation * PARALLAX_SCALE * Math.sin(pr) },
+      ],
+    };
+  });
 
-    return (
-        <Animated.View pointerEvents={pointerEvents} style={[style, animatedStyle]}>
-            {children}
-        </Animated.View>
-    );
+  return (
+    <Animated.View pointerEvents={pointerEvents} style={[style, animatedStyle]}>
+      {children}
+    </Animated.View>
+  );
 };

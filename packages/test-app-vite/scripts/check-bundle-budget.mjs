@@ -6,7 +6,9 @@ const assetsDir = new URL('../dist/assets/', import.meta.url);
 const entryFiles = readdirSync(assetsDir).filter((name) => /^index-[^.]+\.js$/.test(name));
 
 if (entryFiles.length !== 1) {
-  throw new Error(`Expected one Vite entry chunk, found ${entryFiles.length}: ${entryFiles.join(', ')}`);
+  throw new Error(
+    `Expected one Vite entry chunk, found ${entryFiles.length}: ${entryFiles.join(', ')}`,
+  );
 }
 
 const entryPath = join(assetsDir.pathname, entryFiles[0]);
@@ -28,13 +30,13 @@ const budget = {
 for (const format of ['raw', 'gzip']) {
   if (sizes[format] > budget[format]) {
     throw new Error(
-      `Initial JS ${format} size ${sizes[format].toLocaleString()} exceeds `
-      + `${budget[format].toLocaleString()} byte budget`,
+      `Initial JS ${format} size ${sizes[format].toLocaleString()} exceeds ` +
+        `${budget[format].toLocaleString()} byte budget`,
     );
   }
 }
 
 console.log(
-  `[bundle-budget] ok — initial JS ${sizes.raw.toLocaleString()} raw / `
-  + `${sizes.gzip.toLocaleString()} gzip`,
+  `[bundle-budget] ok — initial JS ${sizes.raw.toLocaleString()} raw / ` +
+    `${sizes.gzip.toLocaleString()} gzip`,
 );

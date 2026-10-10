@@ -28,7 +28,10 @@ const SES_SMTP_HOST = /^email-smtp\.([a-z0-9-]+)\.amazonaws\.com$/i;
 /** `250 Ok <ses id>`; the id is hex groups joined by dashes. */
 const SES_ACCEPTED = /^250[ -]Ok ([0-9a-f]+(?:-[0-9a-f]+)+)\s*$/i;
 
-export function relayAssignedMessageId(relayHost: string, smtpResponse: string | undefined): string | null {
+export function relayAssignedMessageId(
+  relayHost: string,
+  smtpResponse: string | undefined,
+): string | null {
   const region = SES_SMTP_HOST.exec(relayHost.trim())?.[1];
   if (!region || !smtpResponse) return null;
   const sesId = SES_ACCEPTED.exec(smtpResponse.trim())?.[1];

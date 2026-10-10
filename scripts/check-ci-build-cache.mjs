@@ -90,8 +90,10 @@ try {
 const steps = (job) => (Array.isArray(job?.steps) ? job.steps : []);
 const TURBO_RUN = /\bturbo\s+(?:run\s+)?([A-Za-z0-9:_-]+)((?:\s+[^\n&|;]*)?)/g;
 const FILTER = /--filter(?:=|\s+)['"]?([^\s'"]+)/g;
-const isRestore = (step) => typeof step?.uses === 'string' && step.uses.startsWith('actions/cache/restore@');
-const isSave = (step) => typeof step?.uses === 'string' && step.uses.startsWith('actions/cache/save@');
+const isRestore = (step) =>
+  typeof step?.uses === 'string' && step.uses.startsWith('actions/cache/restore@');
+const isSave = (step) =>
+  typeof step?.uses === 'string' && step.uses.startsWith('actions/cache/save@');
 const isCache = (step) => typeof step?.uses === 'string' && /^actions\/cache@/.test(step.uses);
 
 function prefixOf(step) {
@@ -111,7 +113,7 @@ if (!tasks || typeof tasks !== 'object' || !tasks.build) {
     if (task?.cache !== false) {
       fail(
         `${TURBO} task \`${name}\` is cacheable. Only \`build\` may be: a cached \`${name}\` is a result Turbo ` +
-          'replays instead of running, and for a test that is a suite that never executed. Add `"cache": false`.'
+          'replays instead of running, and for a test that is a suite that never executed. Add `"cache": false`.',
       );
     }
   }
@@ -120,28 +122,36 @@ if (!tasks || typeof tasks !== 'object' || !tasks.build) {
     fail(
       `${TURBO} narrows \`build.inputs\` without \`$TURBO_DEFAULT$\`. A file outside the globs — a babel ` +
         'config, a root-level build script — would change the output and not the hash, and a hit would restore ' +
-        'a stale build.'
+        'a stale build.',
     );
   }
   if (!Array.isArray(tasks.build.outputs) || tasks.build.outputs.length === 0) {
-    fail(`${TURBO} \`build.outputs\` is empty, so a hit would restore nothing and every job would build against no dist.`);
+    fail(
+      `${TURBO} \`build.outputs\` is empty, so a hit would restore nothing and every job would build against no dist.`,
+    );
   }
 }
 const globals = Array.isArray(turbo?.globalDependencies) ? turbo.globalDependencies : [];
 for (const file of GLOBAL_INPUTS) {
   if (!globals.includes(file)) {
-    fail(`${TURBO} \`globalDependencies\` does not name ${file}, so changing it would not change any build hash.`);
+    fail(
+      `${TURBO} \`globalDependencies\` does not name ${file}, so changing it would not change any build hash.`,
+    );
   }
 }
 if (turbo?.envMode === 'loose') {
-  fail(`${TURBO} sets \`envMode: loose\`: every variable reaches the build while only declared ones reach the hash.`);
+  fail(
+    `${TURBO} sets \`envMode: loose\`: every variable reaches the build while only declared ones reach the hash.`,
+  );
 }
 
 // ── ci.yml ─────────────────────────────────────────────────────────────────
 const ciText = read(CI);
 for (const marker of ['TURBO_API', 'TURBO_TOKEN', 'TURBO_REMOTE', 'caching-for-turbo']) {
   if (ciText.includes(marker)) {
-    fail(`${CI} mentions ${marker}: a remote cache is a write path from pull-request code into what the queue reads.`);
+    fail(
+      `${CI} mentions ${marker}: a remote cache is a write path from pull-request code into what the queue reads.`,
+    );
   }
 }
 
@@ -152,29 +162,42 @@ for (const [id, job] of Object.entries(ci?.jobs ?? {})) {
   let restored = false;
   for (const step of steps(job)) {
     if (isCache(step) || isSave(step)) {
-      fail(`${CI} job \`${id}\` uses ${step.uses}, which SAVES a cache. ${CI} may only restore (actions/cache/restore).`);
+      fail(
+        `${CI} job \`${id}\` uses ${step.uses}, which SAVES a cache. ${CI} may only restore (actions/cache/restore).`,
+      );
     }
     if (isRestore(step) && String(step?.with?.path ?? '').includes('.turbo')) {
       restored = true;
       const prefix = prefixOf(step);
       if (restorePrefix === null) restorePrefix = prefix;
-      else if (prefix !== restorePrefix) fail(`${CI} job \`${id}\` restores the Turbo cache under ${prefix}, others under ${restorePrefix}.`);
+      else if (prefix !== restorePrefix)
+        fail(
+          `${CI} job \`${id}\` restores the Turbo cache under ${prefix}, others under ${restorePrefix}.`,
+        );
     }
     const run = typeof step?.run === 'string' ? step.run : '';
     if (!step?.['working-directory'] && /\bbun\s+run\s+test\b(?!:)/.test(run)) {
-      fail(`${CI} job \`${id}\` runs the ROOT \`test\` script, which is \`turbo run test\`; run each package's own \`bun run test\` in its directory.`);
+      fail(
+        `${CI} job \`${id}\` runs the ROOT \`test\` script, which is \`turbo run test\`; run each package's own \`bun run test\` in its directory.`,
+      );
     }
     let usesTurbo = false;
     for (const match of run.matchAll(TURBO_RUN)) {
       usesTurbo = true;
       if (match[1] !== 'build') {
-        fail(`${CI} job \`${id}\` runs \`turbo ${match[1]}\`. Turbo runs \`build\` here and nothing else, so no cached result can stand in for a check.`);
+        fail(
+          `${CI} job \`${id}\` runs \`turbo ${match[1]}\`. Turbo runs \`build\` here and nothing else, so no cached result can stand in for a check.`,
+        );
       }
-      for (const filter of (match[2] ?? '').matchAll(FILTER)) ciFilters.add(filter[1].replace(/^\.\.\./, '').replace(/\.\.\.$/, ''));
+      for (const filter of (match[2] ?? '').matchAll(FILTER))
+        ciFilters.add(filter[1].replace(/^\.\.\./, '').replace(/\.\.\.$/, ''));
     }
     if (usesTurbo) {
       turboJobs += 1;
-      if (!restored) fail(`${CI} job \`${id}\` runs Turbo before restoring the Turbo build cache, so it always builds from scratch.`);
+      if (!restored)
+        fail(
+          `${CI} job \`${id}\` runs Turbo before restoring the Turbo build cache, so it always builds from scratch.`,
+        );
     }
   }
 }
@@ -182,7 +205,8 @@ if (turboJobs === 0) fail(`${CI} runs Turbo nowhere; this check would be vacuous
 
 // ── ci-build-cache.yml ─────────────────────────────────────────────────────
 const triggers = writer?.on ?? writer?.[true];
-const triggerNames = triggers && typeof triggers === 'object' ? Object.keys(triggers) : [String(triggers)];
+const triggerNames =
+  triggers && typeof triggers === 'object' ? Object.keys(triggers) : [String(triggers)];
 const pushBranches = triggers?.push?.branches;
 if (
   triggerNames.length !== 1 ||
@@ -193,22 +217,37 @@ if (
 ) {
   fail(
     `${WRITER} must trigger on \`push\` to \`main\` and nothing else (found ${JSON.stringify(triggers)}). Any other ` +
-      'trigger runs code that has not passed the merge queue with the power to write the cache.'
+      'trigger runs code that has not passed the merge queue with the power to write the cache.',
   );
 }
 const permissions = writer?.permissions;
-if (!permissions || typeof permissions !== 'object' || Object.keys(permissions).length !== 1 || permissions.contents !== 'read') {
-  fail(`${WRITER} must declare exactly \`permissions: contents: read\` (found ${JSON.stringify(permissions ?? null)}).`);
+if (
+  !permissions ||
+  typeof permissions !== 'object' ||
+  Object.keys(permissions).length !== 1 ||
+  permissions.contents !== 'read'
+) {
+  fail(
+    `${WRITER} must declare exactly \`permissions: contents: read\` (found ${JSON.stringify(permissions ?? null)}).`,
+  );
 }
 const writerSteps = Object.values(writer?.jobs ?? {}).flatMap(steps);
 const saves = writerSteps.filter((step) => isSave(step) || isCache(step));
 if (writerSteps.some(isRestore) || writerSteps.some(isCache)) {
-  fail(`${WRITER} restores a cache before building, so an entry could carry artifacts this commit did not produce. Build from empty.`);
+  fail(
+    `${WRITER} restores a cache before building, so an entry could carry artifacts this commit did not produce. Build from empty.`,
+  );
 }
-if (saves.length !== 1 || !isSave(saves[0]) || String(saves[0]?.with?.path ?? '').trim() !== CACHE_PATH) {
+if (
+  saves.length !== 1 ||
+  !isSave(saves[0]) ||
+  String(saves[0]?.with?.path ?? '').trim() !== CACHE_PATH
+) {
   fail(`${WRITER} must save exactly one cache, \`${CACHE_PATH}\`, with actions/cache/save.`);
 } else if (restorePrefix !== null && !String(saves[0].with.key ?? '').startsWith(restorePrefix)) {
-  fail(`${WRITER} saves under ${saves[0].with.key}, which ${CI}'s restore prefix ${restorePrefix} never matches.`);
+  fail(
+    `${WRITER} saves under ${saves[0].with.key}, which ${CI}'s restore prefix ${restorePrefix} never matches.`,
+  );
 }
 
 // The writer's build set, closed over workspace dependencies, must cover every
@@ -218,11 +257,14 @@ for (const step of writerSteps) {
   const run = typeof step?.run === 'string' ? step.run : '';
   for (const match of run.matchAll(TURBO_RUN)) {
     if (match[1] !== 'build') fail(`${WRITER} runs \`turbo ${match[1]}\`; it exists to build.`);
-    for (const filter of (match[2] ?? '').matchAll(FILTER)) writerFilters.push(filter[1].replace(/^\.\.\./, '').replace(/\.\.\.$/, ''));
+    for (const filter of (match[2] ?? '').matchAll(FILTER))
+      writerFilters.push(filter[1].replace(/^\.\.\./, '').replace(/\.\.\.$/, ''));
   }
 }
 const root = JSON.parse(read('package.json'));
-const workspaceDirs = Array.isArray(root.workspaces) ? root.workspaces : root.workspaces?.packages ?? [];
+const workspaceDirs = Array.isArray(root.workspaces)
+  ? root.workspaces
+  : (root.workspaces?.packages ?? []);
 const manifests = new Map();
 for (const dir of workspaceDirs) {
   const path = join(dir, 'package.json');
@@ -237,14 +279,23 @@ while (queue.length > 0) {
   if (covered.has(name) || !manifests.has(name)) continue;
   covered.add(name);
   const manifest = manifests.get(name);
-  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
-    for (const dependency of Object.keys(manifest[field] ?? {})) if (manifests.has(dependency)) queue.push(dependency);
+  for (const field of [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ]) {
+    for (const dependency of Object.keys(manifest[field] ?? {}))
+      if (manifests.has(dependency)) queue.push(dependency);
   }
 }
-if (writerFilters.length === 0) fail(`${WRITER} builds nothing through Turbo, so it writes an empty cache.`);
+if (writerFilters.length === 0)
+  fail(`${WRITER} builds nothing through Turbo, so it writes an empty cache.`);
 for (const name of [...ciFilters].sort()) {
   if (!covered.has(name)) {
-    fail(`${CI} asks Turbo to build ${name}, which ${WRITER} does not build: every job would miss it.`);
+    fail(
+      `${CI} asks Turbo to build ${name}, which ${WRITER} does not build: every job would miss it.`,
+    );
   }
 }
 
@@ -255,5 +306,5 @@ if (problems.length > 0) {
 }
 console.log(
   `Turbo build cache: only \`build\` is cacheable, ${GLOBAL_INPUTS.length} global inputs hashed, ${turboJobs} ci.yml ` +
-    `step(s) run Turbo after a read-only restore, and ${WRITER} (push to main only) builds all ${ciFilters.size} of their targets.`
+    `step(s) run Turbo after a read-only restore, and ${WRITER} (push to main only) builds all ${ciFilters.size} of their targets.`,
 );

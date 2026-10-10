@@ -35,7 +35,7 @@ export default {
         method: 'POST',
         headers: {
           'Content-Type': 'message/rfc822',
-          'Authorization': `Bearer ${env.EMAIL_INBOUND_WEBHOOK_SECRET}`,
+          Authorization: `Bearer ${env.EMAIL_INBOUND_WEBHOOK_SECRET}`,
           'X-Envelope-From': envelopeFrom,
           'X-Envelope-To': envelopeTo,
         },

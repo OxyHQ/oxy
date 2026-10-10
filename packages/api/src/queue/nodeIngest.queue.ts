@@ -214,7 +214,11 @@ export async function startNodeIngestJobs(): Promise<void> {
       { connection: getQueueConnectionOptions() },
     );
     worker.on('failed', (job, err: Error) =>
-      logger.error('Node ingest job failed', { jobName: job?.name, jobId: job?.id, error: err.message }),
+      logger.error('Node ingest job failed', {
+        jobName: job?.name,
+        jobId: job?.id,
+        error: err.message,
+      }),
     );
     worker.on('error', (err: Error) =>
       logger.error('Node ingest worker error', { error: err.message }),
@@ -242,7 +246,10 @@ function startFallback(): void {
   if (fallbackTimer) return;
   fallbackTimer = setInterval(() => {
     sweepPullNodes().catch((err) =>
-      logger.error('Node ingest pull sweep failed', err instanceof Error ? err : new Error(String(err))),
+      logger.error(
+        'Node ingest pull sweep failed',
+        err instanceof Error ? err : new Error(String(err)),
+      ),
     );
   }, NODE_INGEST_SWEEP_INTERVAL_MS);
   fallbackTimer.unref();
@@ -256,12 +263,16 @@ async function teardownQueue(): Promise<void> {
   queue = null;
   if (w) {
     await w.close().catch((err) =>
-      logger.warn('Node ingest worker close failed', { error: err instanceof Error ? err.message : String(err) }),
+      logger.warn('Node ingest worker close failed', {
+        error: err instanceof Error ? err.message : String(err),
+      }),
     );
   }
   if (q) {
     await q.close().catch((err) =>
-      logger.warn('Node ingest queue close failed', { error: err instanceof Error ? err.message : String(err) }),
+      logger.warn('Node ingest queue close failed', {
+        error: err instanceof Error ? err.message : String(err),
+      }),
     );
   }
 }

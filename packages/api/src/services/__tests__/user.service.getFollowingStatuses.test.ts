@@ -50,7 +50,7 @@ describe('every requested id is answered', () => {
       ]);
 
     expect(
-      await userService.getFollowingStatuses(viewer, [followedA, notFollowed, followedB])
+      await userService.getFollowingStatuses(viewer, [followedA, notFollowed, followedB]),
     ).toEqual({
       [followedA]: true,
       [notFollowed]: false,
@@ -83,11 +83,7 @@ describe('every requested id is answered', () => {
     const [viewer, followed] = await makeUsers(2);
     await getDb().insert(userFollows).values({ followerId: viewer, followedId: followed });
 
-    const statuses = await userService.getFollowingStatuses(viewer, [
-      followed,
-      followed,
-      followed,
-    ]);
+    const statuses = await userService.getFollowingStatuses(viewer, [followed, followed, followed]);
     expect(statuses).toEqual({ [followed]: true });
     expect(Object.keys(statuses)).toHaveLength(1);
   });

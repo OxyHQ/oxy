@@ -54,15 +54,12 @@ export const moderationPolicyStandingThresholds = pgTable(
     }).onDelete('cascade'),
     unique('moderation_policy_standing_thresholds_policy_id_standing_key').on(
       t.policyId,
-      t.standing
+      t.standing,
     ),
     check(
       'moderation_policy_standing_thresholds_standing_check',
-      sql`${t.standing} in (${sql.raw(CONDUCT_STANDINGS.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.standing} in (${sql.raw(CONDUCT_STANDINGS.map((value) => `'${value}'`).join(', '))})`,
     ),
-    check(
-      'moderation_policy_standing_thresholds_min_risk_check',
-      sql`${t.minRisk} >= 0`
-    ),
-  ]
+    check('moderation_policy_standing_thresholds_min_risk_check', sql`${t.minRisk} >= 0`),
+  ],
 );

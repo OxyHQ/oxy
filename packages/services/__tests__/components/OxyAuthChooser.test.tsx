@@ -39,7 +39,7 @@ import type { User } from '@oxy.so/core';
 import { resolveActiveContext } from '@oxy.so/core/session';
 
 const makeUser = (id: string, displayName: string): User =>
-  ({ id, username: id, name: { displayName } } as unknown as User);
+  ({ id, username: id, name: { displayName } }) as unknown as User;
 
 interface ContextSpec {
   id: string;
@@ -70,11 +70,16 @@ const makeDirectory = (
     id: principal.id,
     userId: principal.userId,
     authuser: index,
-    user: { id: principal.userId, username: principal.userId, name: { displayName: principal.displayName } },
+    user: {
+      id: principal.userId,
+      username: principal.userId,
+      name: { displayName: principal.displayName },
+    },
     contexts: principal.contexts.map((context) => ({
       id: context.id,
       accountId: context.accountId,
-      kind: context.accountId === principal.userId ? ('personal' as const) : ('organization' as const),
+      kind:
+        context.accountId === principal.userId ? ('personal' as const) : ('organization' as const),
       relationship: context.accountId === principal.userId ? ('self' as const) : ('owner' as const),
       account: {
         id: context.accountId,
@@ -93,7 +98,14 @@ const makeDirectory = (
 /** The one-person, one-account device — the ordinary case. */
 const soloDirectory = (activeContextId: string | null = 'ctx-alice'): DeviceDirectory =>
   makeDirectory(
-    [{ id: 'p-alice', userId: 'a', displayName: 'Alice', contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }] }],
+    [
+      {
+        id: 'p-alice',
+        userId: 'a',
+        displayName: 'Alice',
+        contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }],
+      },
+    ],
     activeContextId,
   );
 
@@ -139,7 +151,9 @@ const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnaps
     signIn: IDLE_SIGN_IN,
     commonsAvailability: 'unknown',
     ...over,
-    ...(over?.directory !== undefined ? { activeContext: resolveActiveContext(over.directory) } : {}),
+    ...(over?.directory !== undefined
+      ? { activeContext: resolveActiveContext(over.directory) }
+      : {}),
   };
 };
 
@@ -180,7 +194,9 @@ const controller = {
       return 'signing-in' as const;
     }
     if (contextId === snapshot.activeContext?.contextId) return 'current' as const;
-    return (await controller.activateContext(contextId)) ? ('switched' as const) : ('failed' as const);
+    return (await controller.activateContext(contextId))
+      ? ('switched' as const)
+      : ('failed' as const);
   }),
   signOutContext: jest.fn(async () => true),
   signOutPrincipal: jest.fn(async () => true),
@@ -201,9 +217,11 @@ const controller = {
 const openAvatarPicker = jest.fn();
 const closeAccountDialog = jest.fn();
 const showBottomSheet = jest.fn();
-const logout = jest.fn(async (): Promise<{ status: 'signed-out' } | { status: 'failed'; error: unknown }> => ({
-  status: 'signed-out',
-}));
+const logout = jest.fn(
+  async (): Promise<{ status: 'signed-out' } | { status: 'failed'; error: unknown }> => ({
+    status: 'signed-out',
+  }),
+);
 const invalidateQueries = jest.fn();
 
 /** `null` reproduces `sessionMode: 'identity'`, where no controller is built. */
@@ -274,9 +292,7 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
   isWebBrowser: () => isWebBrowserMock(),
 }));
 
-// eslint-disable-next-line import/first
 import OxyAuthChooser from '../../src/ui/components/OxyAuthChooser';
-// eslint-disable-next-line import/first
 import { registerAccountDialogConsumerHooks } from '../../src/ui/navigation/accountDialogManager';
 
 describe('OxyAuthChooser', () => {
@@ -467,7 +483,9 @@ describe('OxyAuthChooser', () => {
     // The failure is a toast — never inline text (neither the friendly copy nor
     // the raw controller error string is painted in the dialog body), and the
     // success side effects never run.
-    expect(screen.queryByText('There was a problem switching accounts. Please try again.')).toBeNull();
+    expect(
+      screen.queryByText('There was a problem switching accounts. Please try again.'),
+    ).toBeNull();
     expect(screen.queryByText('Context not on this device')).toBeNull();
     expect(invalidateQueries).not.toHaveBeenCalled();
   });
@@ -541,9 +559,7 @@ describe('OxyAuthChooser', () => {
       // The SECOND `org` row is Alice's — the directory enumerates Nate first.
       fireEvent.click(screen.getAllByRole('button', { name: 'The Oxy Collective' })[1]);
 
-      await waitFor(() =>
-        expect(controller.activateContext).toHaveBeenCalledWith('ctx-alice-org'),
-      );
+      await waitFor(() => expect(controller.activateContext).toHaveBeenCalledWith('ctx-alice-org'));
       expect(controller.activateContext).not.toHaveBeenCalledWith('ctx-nate-org');
     });
 
@@ -553,8 +569,18 @@ describe('OxyAuthChooser', () => {
       snapshot = makeSnapshot({
         directory: makeDirectory(
           [
-            { id: 'p-alice', userId: 'a', displayName: 'Alice', contexts: [{ id: 'ctx-a', accountId: 'a', displayName: 'Alice' }] },
-            { id: 'p-bob', userId: 'b', displayName: 'Bob', contexts: [{ id: 'ctx-b', accountId: 'b', displayName: 'Bob' }] },
+            {
+              id: 'p-alice',
+              userId: 'a',
+              displayName: 'Alice',
+              contexts: [{ id: 'ctx-a', accountId: 'a', displayName: 'Alice' }],
+            },
+            {
+              id: 'p-bob',
+              userId: 'b',
+              displayName: 'Bob',
+              contexts: [{ id: 'ctx-b', accountId: 'b', displayName: 'Bob' }],
+            },
           ],
           'ctx-a',
         ),
@@ -591,7 +617,12 @@ describe('OxyAuthChooser', () => {
                 // A revoked membership. The server returns it rather than
                 // omitting it, so the UI can explain the row instead of having
                 // it silently vanish.
-                { id: 'ctx-nate-org', accountId: 'org', displayName: 'The Oxy Collective', available: false },
+                {
+                  id: 'ctx-nate-org',
+                  accountId: 'org',
+                  displayName: 'The Oxy Collective',
+                  available: false,
+                },
               ],
             },
           ],
@@ -648,13 +679,9 @@ describe('OxyAuthChooser', () => {
       snapshot = makeSnapshot({ directory: nateAndAlice() });
 
       openSwitcher();
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }),
-      );
+      fireEvent.click(screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }));
 
-      await waitFor(() =>
-        expect(controller.signOutContext).toHaveBeenCalledWith('ctx-alice-org'),
-      );
+      await waitFor(() => expect(controller.signOutContext).toHaveBeenCalledWith('ctx-alice-org'));
       // Never the principal endpoint, and never Nate's route to the same
       // organization — that is a different session with a different actor.
       expect(controller.signOutPrincipal).not.toHaveBeenCalled();
@@ -686,9 +713,7 @@ describe('OxyAuthChooser', () => {
 
       openSwitcher();
       fireEvent.click(screen.getByRole('button', { name: 'Sign Alice out of this device' }));
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }),
-      );
+      fireEvent.click(screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }));
 
       await waitFor(() => expect(surfaces.confirm).toHaveBeenCalledTimes(2));
       expect(controller.signOutPrincipal).not.toHaveBeenCalled();
@@ -700,9 +725,7 @@ describe('OxyAuthChooser', () => {
       snapshot = makeSnapshot({ directory: nateAndAlice() });
 
       openSwitcher();
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }),
-      );
+      fireEvent.click(screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }));
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
@@ -754,8 +777,18 @@ describe('OxyAuthChooser', () => {
     const twoPeople = () =>
       makeDirectory(
         [
-          { id: 'p-alice', userId: 'a', displayName: 'Alice', contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }] },
-          { id: 'p-bob', userId: 'b', displayName: 'Bob', contexts: [{ id: 'ctx-bob', accountId: 'b', displayName: 'Bob' }] },
+          {
+            id: 'p-alice',
+            userId: 'a',
+            displayName: 'Alice',
+            contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }],
+          },
+          {
+            id: 'p-bob',
+            userId: 'b',
+            displayName: 'Bob',
+            contexts: [{ id: 'ctx-bob', accountId: 'b', displayName: 'Bob' }],
+          },
         ],
         'ctx-alice',
       );
@@ -813,7 +846,9 @@ describe('OxyAuthChooser', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
       await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith('There was a problem signing you out. Please try again.'),
+        expect(toast.error).toHaveBeenCalledWith(
+          'There was a problem signing you out. Please try again.',
+        ),
       );
       // Closing here would read as "signed out" while the device still holds the session.
       expect(closeAccountDialog).not.toHaveBeenCalled();
@@ -879,9 +914,7 @@ describe('OxyAuthChooser', () => {
       render(<OxyAuthChooser />);
 
       expect(screen.queryByTestId('qrcode')).toBeNull();
-      expect(screen.getByTestId('signin-progress').textContent).toBe(
-        'Check Commons on your phone',
-      );
+      expect(screen.getByTestId('signin-progress').textContent).toBe('Check Commons on your phone');
     });
 
     it('renders the hand-off surface for the open-commons route — no QR', () => {
@@ -996,7 +1029,9 @@ describe('OxyAuthChooser', () => {
 
       render(<OxyAuthChooser />);
 
-      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Sign-in was declined in Commons.'));
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith('Sign-in was declined in Commons.'),
+      );
       expect(toast.error).toHaveBeenCalledTimes(1);
       // Neither the copy nor the controller's raw, English diagnostic is painted.
       expect(screen.queryByText('Sign-in was declined in Commons.')).toBeNull();

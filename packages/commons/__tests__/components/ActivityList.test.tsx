@@ -45,7 +45,11 @@ describe('ActivityList', () => {
   });
 
   it('renders recent transactions with human labels and signed deltas', () => {
-    const { container } = renderList({ transactions: TRANSACTIONS, isLoading: false, isError: false });
+    const { container } = renderList({
+      transactions: TRANSACTIONS,
+      isLoading: false,
+      isError: false,
+    });
     expect(container.textContent).toContain('Real-life confirmation');
     expect(container.textContent).toContain('Incorrect verdict');
     expect(container.textContent).toContain('+25');

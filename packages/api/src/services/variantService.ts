@@ -82,14 +82,17 @@ function getFfmpegPath(): string {
 
   try {
     // ffmpeg-static exports the path as a string directly
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // biome-ignore lint/style/noCommonJs: ffmpeg-static exports the path as a string directly
     const ffmpegStatic = require('ffmpeg-static');
-    logger.debug('[VariantService] ffmpeg-static require result', { type: typeof ffmpegStatic, value: ffmpegStatic });
-    
+    logger.debug('[VariantService] ffmpeg-static require result', {
+      type: typeof ffmpegStatic,
+      value: ffmpegStatic,
+    });
+
     if (ffmpegStatic && typeof ffmpegStatic === 'string') {
       const binaryPath = ffmpegStatic;
       logger.debug('[VariantService] Checking ffmpeg path', { binaryPath });
-      
+
       // Verify the path exists and is a file
       if (fs.existsSync(binaryPath)) {
         const stats = fs.statSync(binaryPath);
@@ -109,7 +112,10 @@ function getFfmpegPath(): string {
         logger.warn('[VariantService] ffmpeg-static path does not exist', { binaryPath });
       }
     } else {
-      logger.warn('[VariantService] ffmpeg-static did not return a string', { type: typeof ffmpegStatic, value: ffmpegStatic });
+      logger.warn('[VariantService] ffmpeg-static did not return a string', {
+        type: typeof ffmpegStatic,
+        value: ffmpegStatic,
+      });
     }
   } catch (error) {
     logger.debug('[VariantService] ffmpeg-static is unavailable', {
@@ -117,7 +123,9 @@ function getFfmpegPath(): string {
     });
   }
 
-  logger.warn('[VariantService] System ffmpeg not found in PATH - video processing may fail. Install with: apk add ffmpeg (or apt-get install ffmpeg)');
+  logger.warn(
+    '[VariantService] System ffmpeg not found in PATH - video processing may fail. Install with: apk add ffmpeg (or apt-get install ffmpeg)',
+  );
   // Still return the bare command as a last resort - spawn will surface the error.
   return 'ffmpeg';
 }
@@ -137,18 +145,22 @@ function getFfprobePath(): string {
 
   try {
     // ffprobe-static exports an object with a path property
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // biome-ignore lint/style/noCommonJs: ffprobe-static exports an object with a path property
     const ffprobeStatic = require('ffprobe-static');
-    logger.debug('[VariantService] ffprobe-static require result', { type: typeof ffprobeStatic, value: ffprobeStatic });
-    
+    logger.debug('[VariantService] ffprobe-static require result', {
+      type: typeof ffprobeStatic,
+      value: ffprobeStatic,
+    });
+
     if (ffprobeStatic) {
-      const binaryPath = typeof ffprobeStatic === 'string' 
-        ? ffprobeStatic 
-        : (ffprobeStatic.path || ffprobeStatic.default);
-      
+      const binaryPath =
+        typeof ffprobeStatic === 'string'
+          ? ffprobeStatic
+          : ffprobeStatic.path || ffprobeStatic.default;
+
       if (binaryPath) {
         logger.debug('[VariantService] Checking ffprobe path', { binaryPath });
-        
+
         // Verify the path exists and is a file
         if (fs.existsSync(binaryPath)) {
           const stats = fs.statSync(binaryPath);
@@ -177,7 +189,9 @@ function getFfprobePath(): string {
     });
   }
 
-  logger.warn('[VariantService] System ffprobe not found in PATH - video metadata extraction may fail. Install with: apk add ffmpeg (or apt-get install ffmpeg)');
+  logger.warn(
+    '[VariantService] System ffprobe not found in PATH - video metadata extraction may fail. Install with: apk add ffmpeg (or apt-get install ffmpeg)',
+  );
   // Still return the bare command as a last resort - spawn will surface the error.
   return 'ffprobe';
 }
@@ -195,7 +209,7 @@ try {
     ffmpegPath,
     ffprobePath,
     ffmpegExists: fs.existsSync(ffmpegPath),
-    ffprobeExists: fs.existsSync(ffprobePath)
+    ffprobeExists: fs.existsSync(ffprobePath),
   });
 } catch {
   // Logger might not be initialized yet, ignore
@@ -259,13 +273,37 @@ export class VariantService {
     { type: 'w320', width: 320, quality: 82, format: 'webp' },
     { type: 'w640', width: 640, quality: 82, format: 'webp' },
     { type: 'w1280', width: 1280, quality: 82, format: 'webp' },
-    { type: 'w2048', width: 2048, quality: 82, format: 'webp' }
+    { type: 'w2048', width: 2048, quality: 82, format: 'webp' },
   ];
 
   private readonly videoVariants: VideoVariantConfig[] = [
-    { type: '360p', width: 640, height: 360, bitrate: '500k', videoCodec: 'libx264', audioCodec: 'aac', preset: 'fast' },
-    { type: '720p', width: 1280, height: 720, bitrate: '1M', videoCodec: 'libx264', audioCodec: 'aac', preset: 'fast' },
-    { type: '1080p', width: 1920, height: 1080, bitrate: '2M', videoCodec: 'libx264', audioCodec: 'aac', preset: 'medium' }
+    {
+      type: '360p',
+      width: 640,
+      height: 360,
+      bitrate: '500k',
+      videoCodec: 'libx264',
+      audioCodec: 'aac',
+      preset: 'fast',
+    },
+    {
+      type: '720p',
+      width: 1280,
+      height: 720,
+      bitrate: '1M',
+      videoCodec: 'libx264',
+      audioCodec: 'aac',
+      preset: 'fast',
+    },
+    {
+      type: '1080p',
+      width: 1920,
+      height: 1080,
+      bitrate: '2M',
+      videoCodec: 'libx264',
+      audioCodec: 'aac',
+      preset: 'medium',
+    },
   ];
 
   constructor(private s3Service: S3Service) {}
@@ -291,7 +329,7 @@ export class VariantService {
     const rows = await upsertVariantSet(
       file.id,
       variants,
-      file.metadata === undefined ? undefined : { metadata: file.metadata }
+      file.metadata === undefined ? undefined : { metadata: file.metadata },
     );
     const written = new Set(rows.map((row) => row.type));
     file.variants = [...file.variants.filter((v) => !written.has(v.type)), ...rows];
@@ -299,9 +337,9 @@ export class VariantService {
 
   private async getUsableReadyVariant(
     file: FileRecord,
-    variantType: string
+    variantType: string,
   ): Promise<FileVariantRecord | undefined> {
-    const existing = file.variants.find(v => v.type === variantType && v.readyAt);
+    const existing = file.variants.find((v) => v.type === variantType && v.readyAt);
     if (!existing) {
       return undefined;
     }
@@ -371,7 +409,10 @@ export class VariantService {
    * repair for renditions whose objects were lost: the twins name the same
    * content-addressed objects, so copying from one would copy the loss.
    */
-  async generateVariants(fileId: string, { reencode = false }: { reencode?: boolean } = {}): Promise<void> {
+  async generateVariants(
+    fileId: string,
+    { reencode = false }: { reencode?: boolean } = {},
+  ): Promise<void> {
     try {
       const file = await findFileById(fileId);
       if (!file) {
@@ -381,20 +422,22 @@ export class VariantService {
       logger.info('Starting variant generation', {
         fileId,
         mime: file.mime,
-        size: file.size
+        size: file.size,
       });
 
       // Rows are per owner and share content-addressed storage: another live
       // row with these bytes whose renditions are already the spelling this
       // row's visibility needs gives them to this row without re-encoding.
-      const existingFile = reencode ? null : await findVariantTwin(file.sha256, file.id, file.visibility);
+      const existingFile = reencode
+        ? null
+        : await findVariantTwin(file.sha256, file.id, file.visibility);
 
       if (existingFile && existingFile.variants.length > 0) {
         await this.copyVariantSet(existingFile, file);
         logger.info('Reused existing variants for duplicate content', {
           fileId,
           sourceFileId: existingFile.id,
-          variantCount: existingFile.variants.length
+          variantCount: existingFile.variants.length,
         });
         return;
       }
@@ -408,9 +451,9 @@ export class VariantService {
         await this.generatePdfVariants(file);
       }
 
-      logger.info('Variant generation completed', { 
-        fileId, 
-        variantCount: file.variants.length 
+      logger.info('Variant generation completed', {
+        fileId,
+        variantCount: file.variants.length,
       });
 
       await this.shareVariantsWithTwins(file, { variantless: !reencode });
@@ -448,7 +491,7 @@ export class VariantService {
         readyAt: variant.readyAt,
         size: variant.size,
         metadata: variant.metadata,
-      }))
+      })),
     );
   }
 
@@ -460,10 +503,18 @@ export class VariantService {
    * after a re-encode it is every such twin (see `generateVariants`).
    * Best-effort: a twin that misses out generates (or copies) on its own job.
    */
-  private async shareVariantsWithTwins(file: FileRecord, twins: { variantless: boolean }): Promise<void> {
+  private async shareVariantsWithTwins(
+    file: FileRecord,
+    twins: { variantless: boolean },
+  ): Promise<void> {
     if (file.variants.length === 0) return;
     try {
-      for (const twin of await findSameSpellingTwins(file.sha256, file.id, file.visibility, twins)) {
+      for (const twin of await findSameSpellingTwins(
+        file.sha256,
+        file.id,
+        file.visibility,
+        twins,
+      )) {
         await this.copyVariantSet(file, twin);
       }
     } catch (error) {
@@ -506,9 +557,7 @@ export class VariantService {
       durationSec?: number;
     };
     const mediaComplete =
-      !!media.width &&
-      !!media.height &&
-      (!isVideo || typeof media.durationSec === 'number');
+      !!media.width && !!media.height && (!isVideo || typeof media.durationSec === 'number');
     if (mediaComplete) {
       return 'skipped';
     }
@@ -552,7 +601,8 @@ export class VariantService {
       const videoUrl = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
       const probed = await this.extractVideoMetadataFromUrl(videoUrl);
       const width = typeof probed.width === 'number' && probed.width > 0 ? probed.width : undefined;
-      const height = typeof probed.height === 'number' && probed.height > 0 ? probed.height : undefined;
+      const height =
+        typeof probed.height === 'number' && probed.height > 0 ? probed.height : undefined;
       if (!width || !height) {
         return false;
       }
@@ -600,8 +650,16 @@ export class VariantService {
       let reused = 0;
       for (const config of this.imageVariants) {
         const existing = await this.getUsableReadyVariant(file, config.type);
-        if (existing) { reused++; continue; }
-        const variantKey = this.generateVariantKey(file.sha256, config.type, config.format || 'webp', file.visibility);
+        if (existing) {
+          reused++;
+          continue;
+        }
+        const variantKey = this.generateVariantKey(
+          file.sha256,
+          config.type,
+          config.format || 'webp',
+          file.visibility,
+        );
 
         const width = config.width || meta.width || 1280;
         const height = config.height; // let sharp maintain aspect by only setting width unless both provided
@@ -609,24 +667,37 @@ export class VariantService {
         pipeline = pipeline.resize({ width, height, fit: 'inside', withoutEnlargement: true });
 
         // Set format and quality
-        const format = (config.format || 'webp');
-  if (format === 'webp') pipeline = pipeline.webp({ quality: config.quality ?? 82 });
-  if (format === 'jpeg') pipeline = pipeline.jpeg({ quality: config.quality ?? 82 });
-  if (format === 'png') pipeline = pipeline.png();
+        const format = config.format || 'webp';
+        if (format === 'webp') pipeline = pipeline.webp({ quality: config.quality ?? 82 });
+        if (format === 'jpeg') pipeline = pipeline.jpeg({ quality: config.quality ?? 82 });
+        if (format === 'png') pipeline = pipeline.png();
 
         const out = await pipeline.toBuffer();
-        const variant = await uploadAdmittedVariant(file, {
-          type: config.type, key: variantKey, width,
-          height: height || Math.round((meta.height || width) * (width / (meta.width || width))),
-          readyAt: new Date(), size: out.length,
-          metadata: { format, quality: config.quality }
-        }, key => this.s3Service.uploadBuffer(key, out, {
-          contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
-          cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-        }), key => this.s3Service.deleteFile(key));
+        const variant = await uploadAdmittedVariant(
+          file,
+          {
+            type: config.type,
+            key: variantKey,
+            width,
+            height: height || Math.round((meta.height || width) * (width / (meta.width || width))),
+            readyAt: new Date(),
+            size: out.length,
+            metadata: { format, quality: config.quality },
+          },
+          (key) =>
+            this.s3Service.uploadBuffer(key, out, {
+              contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
+              cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+            }),
+          (key) => this.s3Service.deleteFile(key),
+        );
         variants.push(variant);
 
-        logger.debug('Generated image variant', { fileId: file.id, type: config.type, key: variantKey });
+        logger.debug('Generated image variant', {
+          fileId: file.id,
+          type: config.type,
+          key: variantKey,
+        });
       }
 
       if (meta.width && meta.height) {
@@ -639,7 +710,11 @@ export class VariantService {
 
       await this.commitVariants(file, variants);
 
-      logger.info('Image variants generated', { fileId: file.id, variantCount: variants.length, reused });
+      logger.info('Image variants generated', {
+        fileId: file.id,
+        variantCount: variants.length,
+        reused,
+      });
     } catch (error) {
       logger.error('Error generating image variants:', error);
       throw error;
@@ -657,10 +732,10 @@ export class VariantService {
 
       // Get S3 presigned URL - FFmpeg can read directly from HTTP URLs
       const videoUrl = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
-      
+
       // Extract video metadata using S3 presigned URL (no download needed)
       const metadata = await this.extractVideoMetadataFromUrl(videoUrl);
-      
+
       const variants: NewFileVariant[] = [];
 
       // Generate poster frame at 1 second (or 10% of duration, whichever is smaller)
@@ -670,7 +745,7 @@ export class VariantService {
         file.sha256,
         posterTime,
         file.visibility,
-        metadata // Pass metadata to preserve exact aspect ratio
+        metadata, // Pass metadata to preserve exact aspect ratio
       );
       variants.push(posterVariant);
 
@@ -693,7 +768,7 @@ export class VariantService {
             logger.debug('Skipping variant larger than source', {
               type: config.type,
               sourceWidth: metadata.width,
-              targetWidth: config.width
+              targetWidth: config.width,
             });
             continue;
           }
@@ -704,7 +779,7 @@ export class VariantService {
           videoUrl, // Use S3 presigned URL directly - no temp files
           file.sha256,
           config,
-          file.visibility
+          file.visibility,
         );
         if (variant) {
           renditionsSucceeded += 1;
@@ -717,7 +792,7 @@ export class VariantService {
         videoUrl, // Use S3 presigned URL directly - no temp files
         file.sha256,
         metadata,
-        file.visibility
+        file.visibility,
       );
       variants.push(...hlsVariants);
 
@@ -731,8 +806,8 @@ export class VariantService {
           bitrate: metadata.bitrate,
           fps: metadata.fps,
           codec: metadata.codec,
-          audioCodec: metadata.audioCodec
-        }
+          audioCodec: metadata.audioCodec,
+        },
       };
       applyCanonicalMediaMetadata(file, {
         width: metadata.width,
@@ -750,7 +825,7 @@ export class VariantService {
       // no renditions look exactly like a healthy upload (issue #759).
       if (renditionsAttempted > 0 && renditionsSucceeded === 0) {
         throw new Error(
-          `All ${renditionsAttempted} video rendition(s) failed to encode for file ${file.id}`
+          `All ${renditionsAttempted} video rendition(s) failed to encode for file ${file.id}`,
         );
       }
 
@@ -768,7 +843,7 @@ export class VariantService {
         variantCount: variants.length,
         renditionsAttempted,
         renditionsSucceeded,
-        metadata
+        metadata,
       });
     } catch (error) {
       logger.error('Error generating video variants:', error);
@@ -794,13 +869,13 @@ export class VariantService {
     sha256: string,
     timeSeconds: number,
     visibility: FileVisibility,
-    metadata?: { width?: number; height?: number }
+    metadata?: { width?: number; height?: number },
   ): Promise<NewFileVariant> {
     const posterKey = this.generateVariantKey(sha256, 'poster', 'jpg', visibility);
 
     // Get S3 presigned URL for the video (FFmpeg supports HTTP input)
     const videoUrl = await this.s3Service.getPresignedDownloadUrl(videoStorageKey, 3600);
-    
+
     // Extract metadata if not provided (using S3 URL)
     if (!metadata || !metadata.width || !metadata.height) {
       metadata = await this.extractVideoMetadataFromUrl(videoUrl);
@@ -813,7 +888,7 @@ export class VariantService {
     // Use FFmpeg's built-in aspect ratio preservation
     // Scale to max 1920px while maintaining exact aspect ratio (no stretching)
     let scaleFilter: string;
-    
+
     if (videoWidth >= videoHeight) {
       // Landscape or square: constrain width to 1920, let FFmpeg calculate height to preserve aspect ratio
       scaleFilter = 'scale=1920:-1:force_original_aspect_ratio=decrease';
@@ -830,34 +905,47 @@ export class VariantService {
         // block waiting on a stdin that will never be written, and the protocol
         // whitelist so a crafted container cannot make ffmpeg open a local file
         // or an unrelated network target (see `posterProtocolWhitelist`).
-        '-loglevel', 'error',
+        '-loglevel',
+        'error',
         '-nostdin',
-        '-protocol_whitelist', posterProtocolWhitelist(videoUrl),
-        '-i', videoUrl, // Use S3 presigned URL directly
-        '-ss', timeSeconds.toString(),
-        '-vframes', '1',
-        '-vf', scaleFilter,
-        '-q:v', '2',
-        '-f', 'image2pipe', // Output to pipe
-        '-vcodec', 'mjpeg', // JPEG format for pipe
-        'pipe:1' // Output to stdout
+        '-protocol_whitelist',
+        posterProtocolWhitelist(videoUrl),
+        '-i',
+        videoUrl, // Use S3 presigned URL directly
+        '-ss',
+        timeSeconds.toString(),
+        '-vframes',
+        '1',
+        '-vf',
+        scaleFilter,
+        '-q:v',
+        '2',
+        '-f',
+        'image2pipe', // Output to pipe
+        '-vcodec',
+        'mjpeg', // JPEG format for pipe
+        'pipe:1', // Output to stdout
       ];
 
       // Only verify absolute paths — a bare `ffmpeg` command is resolved via PATH at spawn time.
       if (path.isAbsolute(ffmpegPath) && !fs.existsSync(ffmpegPath)) {
-        reject(new Error(`FFmpeg binary not found at path: ${ffmpegPath}. Please install ffmpeg-static or ensure system ffmpeg is available.`));
+        reject(
+          new Error(
+            `FFmpeg binary not found at path: ${ffmpegPath}. Please install ffmpeg-static or ensure system ffmpeg is available.`,
+          ),
+        );
         return;
       }
 
-      logger.debug('Spawning ffmpeg process for poster from S3', { 
-        path: ffmpegPath, 
+      logger.debug('Spawning ffmpeg process for poster from S3', {
+        path: ffmpegPath,
         videoUrl: videoUrl.substring(0, 50) + '...',
         videoWidth,
         videoHeight,
         aspectRatio,
-        scaleFilter
+        scaleFilter,
       });
-      
+
       // Node kills the process itself once the wall-clock ceiling elapses; the
       // `close` handler below sees a null exit code and a signal.
       const ffmpegProcess = spawn(ffmpegPath, args, {
@@ -906,8 +994,8 @@ export class VariantService {
           if (code === null) {
             reject(
               new Error(
-                `Poster generation aborted after ${POSTER_FFMPEG_TIMEOUT_MS}ms (signal ${String(signal)})`
-              )
+                `Poster generation aborted after ${POSTER_FFMPEG_TIMEOUT_MS}ms (signal ${String(signal)})`,
+              ),
             );
             return;
           }
@@ -918,11 +1006,9 @@ export class VariantService {
         try {
           // Get poster from stdout (no temp file needed)
           const posterBuffer = Buffer.concat(stdoutChunks);
-          
+
           // Optimize poster with Sharp (no resize, just optimize)
-          const optimized = await sharp(posterBuffer)
-            .jpeg({ quality: 85 })
-            .toBuffer();
+          const optimized = await sharp(posterBuffer).jpeg({ quality: 85 }).toBuffer();
 
           // Upload to S3
           await this.s3Service.uploadBuffer(posterKey, optimized, {
@@ -938,14 +1024,14 @@ export class VariantService {
             height: imageMetadata.height || videoHeight,
             readyAt: new Date(),
             size: optimized.length,
-            metadata: { 
-              type: 'poster', 
-              position: `${timeSeconds}s`, 
+            metadata: {
+              type: 'poster',
+              position: `${timeSeconds}s`,
               format: 'jpg',
               originalAspectRatio: aspectRatio,
               videoWidth,
-              videoHeight
-            }
+              videoHeight,
+            },
           });
         } catch (error) {
           reject(error);
@@ -969,11 +1055,13 @@ export class VariantService {
       // Use spawn for better cross-platform compatibility
       return new Promise((resolve) => {
         const args = [
-          '-v', 'quiet',
-          '-print_format', 'json',
+          '-v',
+          'quiet',
+          '-print_format',
+          'json',
           '-show_format',
           '-show_streams',
-          videoUrl
+          videoUrl,
         ];
 
         const ffprobeProcess = spawn(ffprobePath, args);
@@ -1002,13 +1090,17 @@ export class VariantService {
             const audioStream = metadata.streams?.find((s) => s.codec_type === 'audio');
 
             resolve({
-              duration: metadata.format?.duration ? Number.parseFloat(metadata.format.duration) : undefined,
+              duration: metadata.format?.duration
+                ? Number.parseFloat(metadata.format.duration)
+                : undefined,
               width: videoStream?.width,
               height: videoStream?.height,
-              bitrate: metadata.format?.bit_rate ? Number.parseInt(metadata.format.bit_rate) : undefined,
+              bitrate: metadata.format?.bit_rate
+                ? Number.parseInt(metadata.format.bit_rate)
+                : undefined,
               fps: videoStream?.r_frame_rate ? this.parseFps(videoStream.r_frame_rate) : undefined,
               codec: videoStream?.codec_name,
-              audioCodec: audioStream?.codec_name
+              audioCodec: audioStream?.codec_name,
             });
           } catch (error) {
             logger.warn('Error parsing FFprobe output from URL', { error, stdout });
@@ -1035,16 +1127,20 @@ export class VariantService {
     videoUrl: string,
     sha256: string,
     config: VideoVariantConfig,
-    visibility: FileVisibility
+    visibility: FileVisibility,
   ): Promise<NewFileVariant | null> {
     const variantKey = this.generateVariantKey(sha256, config.type, 'mp4', visibility);
 
     return new Promise((resolve) => {
       const args = [
-        '-i', videoUrl, // Use S3 presigned URL directly
-        '-c:v', config.videoCodec || 'libx264',
-        '-c:a', config.audioCodec || 'aac',
-        '-b:v', config.bitrate || '1M',
+        '-i',
+        videoUrl, // Use S3 presigned URL directly
+        '-c:v',
+        config.videoCodec || 'libx264',
+        '-c:a',
+        config.audioCodec || 'aac',
+        '-b:v',
+        config.bitrate || '1M',
         // `+faststart` needs to seek back and rewrite the header once encoding
         // finishes — impossible on `pipe:1`, so the mp4 muxer refused to write
         // ANY output at all ("muxer does not support non seekable output"),
@@ -1052,18 +1148,27 @@ export class VariantService {
         // (fragmented mp4) is the streaming-safe equivalent: no seek required,
         // and still progressively playable. Reproduced and confirmed fixed
         // locally against this exact ffmpeg invocation before changing it.
-        '-movflags', 'frag_keyframe+empty_moov',
-        '-preset', config.preset || 'fast',
-        '-crf', '23', // Constant rate factor for quality
-        '-pix_fmt', 'yuv420p', // Compatibility
-        '-avoid_negative_ts', 'make_zero',
-        '-f', 'mp4', // Output format
-        'pipe:1' // Output to stdout (memory)
+        '-movflags',
+        'frag_keyframe+empty_moov',
+        '-preset',
+        config.preset || 'fast',
+        '-crf',
+        '23', // Constant rate factor for quality
+        '-pix_fmt',
+        'yuv420p', // Compatibility
+        '-avoid_negative_ts',
+        'make_zero',
+        '-f',
+        'mp4', // Output format
+        'pipe:1', // Output to stdout (memory)
       ];
 
       // Set resolution if specified
       if (config.width && config.height) {
-        args.push('-vf', `scale=${config.width}:${config.height}:force_original_aspect_ratio=decrease,pad=${config.width}:${config.height}:(ow-iw)/2:(oh-ih)/2`);
+        args.push(
+          '-vf',
+          `scale=${config.width}:${config.height}:force_original_aspect_ratio=decrease,pad=${config.width}:${config.height}:(ow-iw)/2:(oh-ih)/2`,
+        );
       }
 
       // Only verify absolute paths — a bare `ffmpeg` command is resolved via PATH at spawn time.
@@ -1073,9 +1178,9 @@ export class VariantService {
         return;
       }
 
-      logger.debug('FFmpeg command for variant', { 
+      logger.debug('FFmpeg command for variant', {
         variant: config.type,
-        videoUrl: videoUrl.substring(0, 50) + '...'
+        videoUrl: videoUrl.substring(0, 50) + '...',
       });
 
       const ffmpegProcess = spawn(ffmpegPath, args);
@@ -1087,7 +1192,7 @@ export class VariantService {
       ffmpegProcess.stderr.on('data', (data) => {
         const output = data.toString();
         stderr += output;
-        
+
         // Parse progress from ffmpeg output
         const timeMatch = output.match(/time=(\d+):(\d+):(\d+\.\d+)/);
         if (timeMatch) {
@@ -1111,7 +1216,7 @@ export class VariantService {
           logger.error('Video variant generation failed', {
             variant: config.type,
             code,
-            error: stderr.slice(-500)
+            error: stderr.slice(-500),
           });
           resolve(null); // Don't fail entire process if one variant fails
           return;
@@ -1139,8 +1244,8 @@ export class VariantService {
               codec: config.videoCodec,
               audioCodec: config.audioCodec,
               preset: config.preset,
-              format: 'mp4'
-            }
+              format: 'mp4',
+            },
           });
         } catch (error) {
           logger.error('Error processing video variant', { variant: config.type, error });
@@ -1164,7 +1269,7 @@ export class VariantService {
     videoUrl: string,
     sha256: string,
     metadata: { width?: number; height?: number; duration?: number },
-    visibility: FileVisibility
+    visibility: FileVisibility,
   ): Promise<NewFileVariant[]> {
     // Use /tmp for HLS segments (ephemeral, OS cleans up automatically)
     // FFmpeg needs to write multiple segment files for HLS
@@ -1186,7 +1291,7 @@ export class VariantService {
 
       // Generate HLS variants for each quality
       const hlsVariants: Array<{ resolution: string; bitrate: string; playlist: string }> = [];
-      const availableVariants = this.videoVariants.filter(v => {
+      const availableVariants = this.videoVariants.filter((v) => {
         // Only include variants that are smaller or equal to source
         return !v.width || !metadata.width || v.width <= metadata.width;
       });
@@ -1200,7 +1305,7 @@ export class VariantService {
           bitrate: '2M',
           videoCodec: 'libx264',
           audioCodec: 'aac',
-          preset: 'fast'
+          preset: 'fast',
         });
       }
 
@@ -1213,25 +1318,43 @@ export class VariantService {
         const segmentPattern = path.join(hlsDir, `segment_${config.type}_%03d.ts`);
 
         const args = [
-          '-i', videoUrl, // Use S3 presigned URL directly
-          '-c:v', config.videoCodec || 'libx264',
-          '-c:a', config.audioCodec || 'aac',
-          '-b:v', config.bitrate || '1M',
-          '-f', 'hls',
-          '-hls_time', '10', // 10 second segments
-          '-hls_list_size', '0', // Keep all segments in playlist
-          '-hls_segment_filename', segmentPattern,
-          '-hls_flags', 'independent_segments',
-          '-preset', config.preset || 'fast',
-          '-crf', '23',
-          '-pix_fmt', 'yuv420p',
-          '-sc_threshold', '0',
-          '-g', '48',
-          '-keyint_min', '48'
+          '-i',
+          videoUrl, // Use S3 presigned URL directly
+          '-c:v',
+          config.videoCodec || 'libx264',
+          '-c:a',
+          config.audioCodec || 'aac',
+          '-b:v',
+          config.bitrate || '1M',
+          '-f',
+          'hls',
+          '-hls_time',
+          '10', // 10 second segments
+          '-hls_list_size',
+          '0', // Keep all segments in playlist
+          '-hls_segment_filename',
+          segmentPattern,
+          '-hls_flags',
+          'independent_segments',
+          '-preset',
+          config.preset || 'fast',
+          '-crf',
+          '23',
+          '-pix_fmt',
+          'yuv420p',
+          '-sc_threshold',
+          '0',
+          '-g',
+          '48',
+          '-keyint_min',
+          '48',
         ];
 
         if (config.width && config.height) {
-          args.push('-vf', `scale=${config.width}:${config.height}:force_original_aspect_ratio=decrease,pad=${config.width}:${config.height}:(ow-iw)/2:(oh-ih)/2`);
+          args.push(
+            '-vf',
+            `scale=${config.width}:${config.height}:force_original_aspect_ratio=decrease,pad=${config.width}:${config.height}:(ow-iw)/2:(oh-ih)/2`,
+          );
         }
 
         args.push('-y', outputPath); // Overwrite output file
@@ -1246,10 +1369,10 @@ export class VariantService {
 
         ffmpegProcess.on('close', async (code) => {
           if (code !== 0) {
-            logger.error('HLS variant generation failed', { 
-              variant: config.type, 
+            logger.error('HLS variant generation failed', {
+              variant: config.type,
               code,
-              error: stderr 
+              error: stderr,
             });
             processedCount++;
             if (processedCount === totalVariants) {
@@ -1261,14 +1384,21 @@ export class VariantService {
           try {
             // Upload HLS playlist and segments
             const playlistBuffer = fs.readFileSync(outputPath);
-            const playlistKey = this.generateVariantKey(sha256, `hls_${config.type}`, 'm3u8', visibility);
+            const playlistKey = this.generateVariantKey(
+              sha256,
+              `hls_${config.type}`,
+              'm3u8',
+              visibility,
+            );
             await this.s3Service.uploadBuffer(playlistKey, playlistBuffer, {
               contentType: 'application/vnd.apple.mpegurl',
               cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
             });
 
             // Upload all segment files and delete immediately after upload
-            const segments = fs.readdirSync(hlsDir).filter(f => f.startsWith(`segment_${config.type}_`));
+            const segments = fs
+              .readdirSync(hlsDir)
+              .filter((f) => f.startsWith(`segment_${config.type}_`));
             for (const segment of segments) {
               const segmentPath = path.join(hlsDir, segment);
               const segmentBuffer = fs.readFileSync(segmentPath);
@@ -1295,9 +1425,10 @@ export class VariantService {
             }
 
             hlsVariants.push({
-              resolution: config.width && config.height ? `${config.width}x${config.height}` : 'source',
+              resolution:
+                config.width && config.height ? `${config.width}x${config.height}` : 'source',
               bitrate: config.bitrate || '1M',
-              playlist: playlistKey
+              playlist: playlistKey,
             });
 
             variants.push({
@@ -1309,8 +1440,8 @@ export class VariantService {
               metadata: {
                 format: 'hls',
                 bitrate: config.bitrate,
-                segments: segments.length
-              }
+                segments: segments.length,
+              },
             });
 
             processedCount++;
@@ -1330,8 +1461,8 @@ export class VariantService {
                 metadata: {
                   format: 'hls',
                   variantCount: hlsVariants.length,
-                  variants: hlsVariants.map(v => v.resolution)
-                }
+                  variants: hlsVariants.map((v) => v.resolution),
+                },
               });
 
               // Cleanup temp directory after all uploads (all segments uploaded to S3)
@@ -1389,7 +1520,9 @@ export class VariantService {
    * from the server — the master is served, S3 has all the objects, and the only
    * broken thing is a string inside a text file.
    */
-  private generateMasterPlaylist(variants: Array<{ resolution: string; bitrate: string; playlist: string }>): string {
+  private generateMasterPlaylist(
+    variants: Array<{ resolution: string; bitrate: string; playlist: string }>,
+  ): string {
     let playlist = '#EXTM3U\n#EXT-X-VERSION:3\n\n';
 
     variants.forEach((variant) => {
@@ -1424,27 +1557,29 @@ export class VariantService {
     await assertPhysicalStoragePathSupported(file.ownerUserId, 'generatePdfVariants');
     // This would use pdf2pic or similar to generate thumbnails
     // For now, this is a placeholder
-    
+
     try {
       logger.info('Generating PDF variants (placeholder)', { fileId: file.id });
 
       const thumbnailKey = this.generateVariantKey(file.sha256, 'thumb', 'jpg', file.visibility);
-      
+
       // Placeholder variant
-      const variants: NewFileVariant[] = [{
-        type: 'thumb',
-        key: thumbnailKey,
-        width: 256,
-        height: 256,
-        readyAt: new Date(),
-        metadata: { page: 1 }
-      }];
+      const variants: NewFileVariant[] = [
+        {
+          type: 'thumb',
+          key: thumbnailKey,
+          width: 256,
+          height: 256,
+          readyAt: new Date(),
+          metadata: { page: 1 },
+        },
+      ];
 
       await this.commitVariants(file, variants);
 
       logger.info('PDF variants generated (placeholder)', {
         fileId: file.id,
-        variantCount: variants.length
+        variantCount: variants.length,
       });
     } catch (error) {
       logger.error('Error generating PDF variants:', error);
@@ -1459,7 +1594,7 @@ export class VariantService {
     sha256: string,
     variantType: string,
     format: string,
-    visibility: FileVisibility
+    visibility: FileVisibility,
   ): string {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -1482,7 +1617,7 @@ export class VariantService {
         throw new Error('File not found');
       }
 
-      return file.variants.filter(variant => variant.readyAt);
+      return file.variants.filter((variant) => variant.readyAt);
     } catch (error) {
       logger.error('Error getting variants:', error);
       throw error;
@@ -1499,7 +1634,7 @@ export class VariantService {
         return false;
       }
 
-      const variant = file.variants.find(v => v.type === variantType);
+      const variant = file.variants.find((v) => v.type === variantType);
       return Boolean(variant?.readyAt);
     } catch (error) {
       logger.error('Error checking variant readiness:', error);
@@ -1520,10 +1655,10 @@ export class VariantService {
    */
   private async storeVariant(
     file: FileRecord,
-    variant: NewFileVariant
+    variant: NewFileVariant,
   ): Promise<FileVariantRecord> {
     const row = await upsertVariant(file.id, variant);
-    const idx = file.variants.findIndex(v => v.type === variant.type);
+    const idx = file.variants.findIndex((v) => v.type === variant.type);
     if (idx >= 0) file.variants[idx] = row;
     else file.variants.push(row);
     return row;
@@ -1531,7 +1666,7 @@ export class VariantService {
 
   /** Mp4 bitrate rendition names produced by upload-time `generateVideoVariants`. */
   isVideoMp4Rendition(variantType: string): boolean {
-    return this.videoVariants.some(v => v.type === variantType);
+    return this.videoVariants.some((v) => v.type === variantType);
   }
 
   /**
@@ -1549,7 +1684,7 @@ export class VariantService {
 
     await assertPhysicalStoragePathSupported(file.ownerUserId, 'video/HLS generation');
 
-    const config = this.videoVariants.find(v => v.type === variantType);
+    const config = this.videoVariants.find((v) => v.type === variantType);
     if (!config) {
       throw new Error(`Unsupported video mp4 rendition: ${variantType}`);
     }
@@ -1570,16 +1705,11 @@ export class VariantService {
 
     if (metadata.width && config.width && config.width > metadata.width) {
       throw new Error(
-        `Variant ${variantType} exceeds source resolution (${metadata.width}px wide)`
+        `Variant ${variantType} exceeds source resolution (${metadata.width}px wide)`,
       );
     }
 
-    const variant = await this.generateVideoVariant(
-      videoUrl,
-      file.sha256,
-      config,
-      file.visibility
-    );
+    const variant = await this.generateVideoVariant(videoUrl, file.sha256, config, file.visibility);
     if (!variant) {
       throw new Error(`Failed to generate video rendition: ${variantType}`);
     }
@@ -1611,7 +1741,7 @@ export class VariantService {
         file.sha256,
         posterTime,
         file.visibility,
-        metadata // Pass metadata to preserve exact aspect ratio
+        metadata, // Pass metadata to preserve exact aspect ratio
       );
 
       // main's shape returned the in-memory variant; the ported store returns
@@ -1637,12 +1767,15 @@ export class VariantService {
   private async renderAndUploadImageVariant(
     file: FileRecord,
     config: VariantConfigWithType,
-    sourceBuffer: Buffer
+    sourceBuffer: Buffer,
   ): Promise<NewFileVariant> {
     const format = config.format || 'webp';
-    let pipeline = sharp(sourceBuffer, { failOn: 'none' })
-      .rotate()
-      .resize({ width: config.width, height: config.height, fit: 'inside', withoutEnlargement: true });
+    let pipeline = sharp(sourceBuffer, { failOn: 'none' }).rotate().resize({
+      width: config.width,
+      height: config.height,
+      fit: 'inside',
+      withoutEnlargement: true,
+    });
     if (format === 'webp') pipeline = pipeline.webp({ quality: config.quality ?? 82 });
     if (format === 'jpeg') pipeline = pipeline.jpeg({ quality: config.quality ?? 82 });
     if (format === 'png') pipeline = pipeline.png();
@@ -1654,16 +1787,25 @@ export class VariantService {
     // variant has always relied on the same property).
     const key = this.generateVariantKey(file.sha256, config.type, format, file.visibility);
     const imgMeta = await sharp(out).metadata();
-    return uploadAdmittedVariant(file, {
-      type: config.type, key,
-      width: imgMeta.width || config.width || 0, height: imgMeta.height || config.height || 0,
-      readyAt: new Date(), size: out.length, metadata: { format, quality: config.quality }
-    }, admittedKey => this.s3Service.uploadBuffer(admittedKey, out, {
-      contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
-      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-    }), admittedKey => this.s3Service.deleteFile(admittedKey));
+    return uploadAdmittedVariant(
+      file,
+      {
+        type: config.type,
+        key,
+        width: imgMeta.width || config.width || 0,
+        height: imgMeta.height || config.height || 0,
+        readyAt: new Date(),
+        size: out.length,
+        metadata: { format, quality: config.quality },
+      },
+      (admittedKey) =>
+        this.s3Service.uploadBuffer(admittedKey, out, {
+          contentType: format === 'jpeg' ? 'image/jpeg' : `image/${format}`,
+          cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+        }),
+      (admittedKey) => this.s3Service.deleteFile(admittedKey),
+    );
   }
-
 
   /**
    * Ensure a specific image variant exists, generate via Sharp if missing.
@@ -1675,7 +1817,7 @@ export class VariantService {
     }
 
     // Map variantType to config
-    const config = this.imageVariants.find(v => v.type === variantType);
+    const config = this.imageVariants.find((v) => v.type === variantType);
     if (!config) {
       throw new Error(`Unsupported image variant: ${variantType}`);
     }
@@ -1711,7 +1853,7 @@ export class VariantService {
       return existing;
     }
 
-    const config = this.imageVariants.find(v => v.type === variantType);
+    const config = this.imageVariants.find((v) => v.type === variantType);
     if (!config) {
       throw new Error(`Unsupported video image variant: ${variantType}`);
     }

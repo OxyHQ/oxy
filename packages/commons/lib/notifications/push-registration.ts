@@ -54,7 +54,10 @@ export interface VaultChannelCopy {
 /** The localized {@link VaultChannelCopy}, from a hook call site's `t`. */
 export function vaultChannelCopy(t: (key: string) => string): VaultChannelCopy {
   return {
-    approval: { name: t('signInApproval.channel.name'), description: t('signInApproval.channel.description') },
+    approval: {
+      name: t('signInApproval.channel.name'),
+      description: t('signInApproval.channel.description'),
+    },
     account: {
       name: t('accountNotifications.channel.name'),
       description: t('accountNotifications.channel.description'),

@@ -17,4 +17,9 @@ export { encryptAead, decryptAead, AEAD_KEY_LENGTH, AEAD_NONCE_LENGTH } from './
 export { digestIdentityPayload, signIdentityProof } from './identityProof';
 export { deriveIdentityLinkCode } from './identityLink';
 export { solveRegistrationPow } from './registrationPow';
-export { canonicalize, loadCommonsIdentityBridge, signMessage, verifySignature } from '@oxy.so/protocol';
+export {
+  canonicalize,
+  loadCommonsIdentityBridge,
+  signMessage,
+  verifySignature,
+} from '@oxy.so/protocol';
