@@ -124,6 +124,8 @@ export const sendMessageSchema = z.object({
   attachments: z.array(attachmentInputSchema).max(20).optional(),
   scheduledAt: z.string().optional(),
   requestReadReceipt: z.boolean().optional(),
+  // Row id of the draft being sent; the server removes it after the send.
+  draftId: z.string().trim().min(1).optional(),
 });
 
 // POST /email/drafts

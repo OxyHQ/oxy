@@ -522,6 +522,11 @@ export interface SendEmailCommand {
   attachments?: AttachmentInput[];
   scheduledAt?: string;
   requestReadReceipt?: boolean;
+  /**
+   * Row id of the draft this message was composed from. It is removed once the
+   * message is sent or scheduled, so the same text is never left in Drafts.
+   */
+  draftId?: string;
 }
 
 export interface SendEmailResult {
@@ -545,6 +550,7 @@ export async function sendMessageForUser(
     attachments,
     scheduledAt,
     requestReadReceipt,
+    draftId,
   } = command;
 
   // Schema validation already guarantees to.length >= 1 and recipient shape.
@@ -619,6 +625,10 @@ export async function sendMessageForUser(
       await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
     }
 
+    if (draftId) {
+      await emailService.deleteSentDraft(userId, draftId);
+    }
+
     emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
       logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
     });
@@ -655,6 +665,12 @@ export async function sendMessageForUser(
 
   if (threading.parentRowId) {
     await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
+  }
+
+  // A queued message is held by the server's durable outbox, so the draft has
+  // done its job either way.
+  if (draftId) {
+    await emailService.deleteSentDraft(userId, draftId);
   }
 
   emailService.autoCollectContacts(userId, allRecipients).catch((err) => {

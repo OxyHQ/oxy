@@ -1880,6 +1880,39 @@ class EmailService {
     }
   }
 
+  /**
+   * Remove the draft a message was composed from, once that message has been
+   * sent or scheduled. Only a row that is still the caller's draft is touched,
+   * and a draft that is already gone is not an error: a retried send (same
+   * Idempotency-Key) and the same draft sent from two devices both land here
+   * a second time.
+   */
+  async deleteSentDraft(userId: string, draftId: string): Promise<void> {
+    const db = getDb();
+    const [draft] = await db
+      .select({ id: messages.id, messageId: messages.messageId, mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(and(eq(messages.id, draftId), eq(messages.userId, userId), eq(messages.draft, true)))
+      .limit(1);
+    if (!draft) return;
+
+    // The sent copy links the same files under its own entity id, so dropping
+    // the draft's links never orphans an attachment the sent message uses.
+    await this.deleteMessageAttachments(draft);
+    const removed = await db
+      .delete(messages)
+      .where(and(eq(messages.id, draft.id), eq(messages.userId, userId), eq(messages.draft, true)))
+      .returning({ id: messages.id });
+    if (removed.length === 0) return;
+
+    await emitEmailChanged({
+      userId,
+      id: draft.id,
+      mailboxIds: [draft.mailboxId],
+      reason: 'deleted',
+    });
+  }
+
   // ─── Storing an incoming message (from SMTP inbound) ──────────────
 
   async storeIncomingMessage(params: {
@@ -2261,6 +2294,13 @@ class EmailService {
             currentRevision: current.draftRevision,
           });
         }
+        // The client held a revision of this draft, so it existed; it is gone
+        // now because it was sent or deleted. Creating it again would put a
+        // message that already left back into Drafts.
+        throw new ConflictError('Draft was sent or deleted', {
+          draftId: existingDraftId,
+          currentRevision: null,
+        });
       }
     }
 
