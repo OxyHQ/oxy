@@ -86,8 +86,6 @@ const SUPPLIED_AS_PLAIN_ENV = new Map([
  * docs/runbooks/45-shared-ssm-parameters.md).
  */
 const INFRA_OWNED_SHARED_SECRETS = [
-  'AWS_ACCESS_KEY_ID',
-  'AWS_SECRET_ACCESS_KEY',
   'REDIS_URL',
   'LIVEKIT_API_KEY',
   'LIVEKIT_API_SECRET',

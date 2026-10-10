@@ -24,8 +24,6 @@ const REQUIRED_BASE_ENV: Record<string, string> = {
   ACCESS_TOKEN_SECRET: 'a'.repeat(64),
   REFRESH_TOKEN_SECRET: 'b'.repeat(64),
   AWS_REGION: 'eu-west-1',
-  AWS_ACCESS_KEY_ID: 'test-access-key',
-  AWS_SECRET_ACCESS_KEY: 'test-secret-key',
   AWS_S3_BUCKET: 'test-bucket',
 };
 
@@ -107,6 +105,13 @@ describe('validateRequiredEnvVars — DATABASE_URL', () => {
 
   it('boots with no MONGODB_URI at all — Mongo left the serving path', () => {
     delete process.env.MONGODB_URI;
+    expect(() => validateRequiredEnvVars()).not.toThrow();
+  });
+
+  it('boots in production with no static AWS keys — S3 uses the task role', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.AWS_ACCESS_KEY_ID;
+    delete process.env.AWS_SECRET_ACCESS_KEY;
     expect(() => validateRequiredEnvVars()).not.toThrow();
   });
 });

@@ -41,12 +41,12 @@ export class S3Service {
 
   constructor(config: S3Config, deletedObjectListener?: DeletedObjectListener) {
     this.deletedObjectListener = deletedObjectListener;
+    // Explicit keys only when both are configured (local dev); otherwise the
+    // default provider chain resolves the ECS task role.
+    const { accessKeyId, secretAccessKey } = config;
     const clientConfig: any = {
       region: config.region,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
+      ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
     };
 
     // Add a custom endpoint for non-AWS S3-compatible services.

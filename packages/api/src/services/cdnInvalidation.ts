@@ -151,8 +151,7 @@ class CloudFrontSender implements InvalidationSender {
 
   async send(distributionId: string, paths: string[], callerReference: string): Promise<void> {
     // Credentials resolve exactly as the S3 client's do: explicit env keys when
-    // the task carries them (oxy-api's running revision does — the shared
-    // `oxy-s3-apps` user), else the default provider chain (the task role).
+    // both are set (local dev), else the default provider chain (the task role).
     if (!this.client) {
       const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
       const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
