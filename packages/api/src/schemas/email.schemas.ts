@@ -195,7 +195,9 @@ export const updateBundleSchema = z.object({
 // stores a Date, and anything at all could be written. The forwarding address
 // was unchecked too — mail was then forwarded to whatever was typed.
 const optionalInstant = z
-  .union([z.string().trim(), z.null()])
+  .string()
+  .trim()
+  .nullable()
   .optional()
   .refine((value) => value == null || value === '' || !Number.isNaN(Date.parse(value)), 'Must be a valid date')
   .transform((value) => (value ? new Date(value) : undefined));

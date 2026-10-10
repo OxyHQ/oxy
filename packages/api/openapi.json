@@ -17776,11 +17776,55 @@
                 "type": "object",
                 "properties": {
                   "signature": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 10000
                   },
-                  "autoReply": {},
+                  "autoReply": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "subject": {
+                        "type": "string",
+                        "maxLength": 998
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "startDate": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "endDate": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "startDate",
+                      "endDate"
+                    ]
+                  },
                   "autoForwardTo": {
-                    "type": "string"
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          ""
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "format": "email"
+                      }
+                    ]
                   },
                   "autoForwardKeepCopy": {
                     "type": "boolean"
