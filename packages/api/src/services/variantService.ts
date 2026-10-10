@@ -27,6 +27,7 @@ import {
   updateFile,
   upsertVariant,
 } from './fileRepository';
+import { playlistSiblingKey } from './hlsPlaylist';
 
 /**
  * `files.metadata` keys that describe the BYTES (written by generation from the
@@ -1265,7 +1266,9 @@ export class VariantService {
             for (const segment of segments) {
               const segmentPath = path.join(hlsDir, segment);
               const segmentBuffer = fs.readFileSync(segmentPath);
-              const segmentKey = this.generateVariantKey(sha256, `hls_${config.type}_${segment}`, 'ts', visibility);
+              // The playlist lists each segment by this exact file name, and its
+              // URIs resolve against its own URL: the segment is its sibling.
+              const segmentKey = playlistSiblingKey(playlistKey, segment);
               await this.s3Service.uploadBuffer(segmentKey, segmentBuffer, {
                 contentType: 'video/mp2t',
                 cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,

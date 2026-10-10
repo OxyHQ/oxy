@@ -74,6 +74,7 @@ import {
   updateFile,
   updateVariantKey,
 } from './fileRepository';
+import { isHlsRenditionVariant, playlistSiblingKey, playlistUris } from './hlsPlaylist';
 
 /**
  * A readable stream that may also emit the HTTP `'aborted'` event. Express
@@ -1723,8 +1724,12 @@ export class AssetService {
   private async relocateAllForVisibility(file: FileRecord): Promise<FileRecord> {
     const wantPublic = file.visibility === 'public';
     const keys = [
-      { variantId: null as string | null, key: file.storageKey },
-      ...file.variants.map((variant) => ({ variantId: variant.id as string | null, key: variant.key })),
+      { variantId: null as string | null, key: file.storageKey, hlsRendition: false },
+      ...file.variants.map((variant) => ({
+        variantId: variant.id as string | null,
+        key: variant.key,
+        hlsRendition: isHlsRenditionVariant(variant.type),
+      })),
     ];
     const moves = keys
       .map((entry) => ({ ...entry, target: this.targetKeyForVisibility(entry.key, file.visibility) }))
@@ -1746,18 +1751,20 @@ export class AssetService {
 
     const ledgerIds = await withContentHashLock(file.sha256, async (tx) => {
       for (const move of moves) {
-        if (await this.s3Service.fileExists(move.target)) continue;
-        if (!(await this.s3Service.fileExists(move.key))) {
-          logger.warn('Cannot copy object for visibility change; source missing', {
-            fileId: file.id,
-            sourceKey: move.key,
-            targetKey: move.target,
-            visibility: file.visibility,
-          });
-          continue;
+        if (!(await this.s3Service.fileExists(move.target))) {
+          if (!(await this.s3Service.fileExists(move.key))) {
+            logger.warn('Cannot copy object for visibility change; source missing', {
+              fileId: file.id,
+              sourceKey: move.key,
+              targetKey: move.target,
+              visibility: file.visibility,
+            });
+            continue;
+          }
+          await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
+          await this.s3Service.copyFile(move.key, move.target);
         }
-        await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
-        await this.s3Service.copyFile(move.key, move.target);
+        if (move.hlsRendition) await this.copyHlsSegments(file, move.key, move.target);
       }
       for (const move of moves) {
         if (move.variantId === null) {
@@ -1784,6 +1791,39 @@ export class AssetService {
       moved: moves.length,
     });
     return updated;
+  }
+
+  /**
+   * Copy the segments a rendition playlist lists next to the playlist's new
+   * spelling. Segments are not variant rows — the playlist is their only record
+   * — so moving the rows alone left a public ladder whose every segment 403'd on
+   * the CDN. The old copies are not owed a delete here: segment keys are
+   * content-addressed and may be another owner's, and deleting the asset sweeps
+   * its whole variant directory in both spellings (`storageTargetsForAsset`).
+   */
+  private async copyHlsSegments(file: FileRecord, fromPlaylistKey: string, toPlaylistKey: string): Promise<void> {
+    const playlist = (await this.s3Service.downloadBuffer(toPlaylistKey)).toString('utf8');
+    let missing = 0;
+    await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
+    await Promise.all(playlistUris(playlist).map(async (uri) => {
+      const target = playlistSiblingKey(toPlaylistKey, uri);
+      if (await this.s3Service.fileExists(target)) return;
+      const source = playlistSiblingKey(fromPlaylistKey, uri);
+      if (!(await this.s3Service.fileExists(source))) {
+        missing += 1;
+        return;
+      }
+      await this.s3Service.copyFile(source, target);
+    }));
+    if (missing > 0) {
+      // A ladder generated before segments were stored under the names its
+      // playlist lists: `scripts/repair-hls-segment-keys.ts` restores them.
+      logger.warn('HLS segments missing for visibility change', {
+        fileId: file.id,
+        playlistKey: fromPlaylistKey,
+        missing,
+      });
+    }
   }
 
   /**
