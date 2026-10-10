@@ -1,88 +1,89 @@
 #!/usr/bin/env node
 /**
- * Fail the build when a secret the API needs at boot would never reach SSM.
+ * Fail the build when the API deploy starts copying secrets into SSM again, or
+ * reads a runtime secret out of GitHub.
  *
- * THE BUG THIS EXISTS FOR
+ * THE STANDARD
  *
- * `.github/workflows/deploy-aws.yml` copies GitHub secrets into SSM through two
- * hand-maintained allowlists that have to agree: a `SYNC_<NAME>` env block, and
- * the `API_SECRETS` name list the sync loop iterates. A name
- * missing from either one fails SILENTLY — the loop just never writes that
- * parameter, the deploy step goes green, and the failure surfaces later and
- * somewhere else, as `ResourceInitializationError: unable to pull secrets` when
- * ECS launches a task whose definition references the parameter that was never
- * created.
+ * Runtime secrets of oxy-api live ONLY in SSM Parameter Store: `/oxy/oxy-api/*`
+ * (SecureString) and the oxy-infra-owned `/oxy/_shared/*`. The ECS task
+ * definition reads them at task start. Setting or rotating one is
+ * `aws ssm put-parameter --overwrite` by its owner (oxy-infra
+ * docs/runbooks/46-app-secrets-in-ssm.md), never a repo secret and never a
+ * workflow.
  *
- * `DATABASE_URL` was in neither list. Nothing anywhere would have said so.
+ * Until 2026-10-10 `.github/workflows/deploy-aws.yml` copied an allowlist of
+ * GitHub repo secrets into `/oxy/oxy-api/*` on every deploy, and this gate held
+ * that allowlist consistent. That made GitHub the source of truth for the
+ * identity API's production credentials: whoever could edit a repo secret
+ * changed what production ran with, every value lived in two systems, and a
+ * placeholder synced over a real value took the API down (2026-06-12). Before
+ * that, several app deploys each wrote their own GitHub copy into
+ * `/oxy/_shared/REDIS_URL` and flipped it between clusters (2026-09-27).
  *
  * WHAT IS CHECKED
  *
- *   1. The two allowlists are consistent with each other: every `SYNC_<NAME>`
- *      is in `API_SECRETS` exactly once, every listed name has a `SYNC_<NAME>`,
- *      and each `SYNC_<NAME>` reads `secrets.<NAME>` — not some other secret.
- *   2. Every environment variable `validateRequiredEnvVars()` requires at boot
- *      (`packages/api/src/config/env.ts`) is either synced, named in
- *      SUPPLIED_WITHOUT_SECRET_SYNC below with the reason it is not a secret,
- *      or an oxy-infra-owned shared parameter (INFRA_OWNED_SHARED_SECRETS).
- *   3. Secrets whose authority is SSM-only are never read or copied from a
- *      GitHub Actions secret and retain their exact task-definition ARN binding.
- *   4. The deploy never writes a `/oxy/_shared/*` parameter: no shared name is
- *      bound from `secrets.*` or listed, no `SHARED_SECRETS` list comes back,
- *      and no executable line names a `/oxy/_shared/` path except as a
+ *   1. Nothing the deploy runs writes or deletes an SSM parameter: no
+ *      executable line of the workflow, nor of any `.github/scripts/*` file it
+ *      reaches (followed transitively), names `put-parameter`,
+ *      `delete-parameter` or `put-secure-parameter.sh`.
+ *   2. The workflow reads no repo secret except the CI-only allowlist below,
+ *      never the whole `secrets` context (`toJSON(secrets)`, `secrets[...]`,
+ *      `secrets: inherit`), and names no `/oxy/_shared/` path except as a
  *      task-definition ARN (a READ).
- *   5. Every name in `BOUND_API_SECRETS` — GitHub secrets the task definition
- *      binds by exact ARN, which the sync step refuses to run without — is
- *      synced AND carries its exact `/oxy/oxy-api/<NAME>` binding. A name in
- *      that guard with no binding is a refusal protecting nothing; a binding
- *      whose name left the guard is the dangling reference the guard exists
- *      to prevent.
- *
- * (2) is the half that catches the `DATABASE_URL` shape, and it is anchored on
- * the API's own boot contract rather than on a second copy of the list — the
- * moment a required env var is added, this goes red and names it.
+ *   3. Every secret binding the deploy re-asserts (TASK_SECRET_OVERRIDES_JSON)
+ *      is present with its exact SSM ARN, and every entry there is an SSM ARN
+ *      in this account and region.
+ *   4. Every environment variable `validateRequiredEnvVars()` requires at boot
+ *      (`packages/api/src/config/env.ts`) has a recorded home: an SSM-owned
+ *      secret, an oxy-infra-owned shared parameter, or plain task-definition
+ *      environment with the reason it is not a secret. A new required variable
+ *      forces that decision on the pull request instead of surfacing as a task
+ *      that cannot start.
  *
  * WHAT IS NOT CHECKED, DELIBERATELY
  *
- * Whether the ECS task definition REFERENCES the SSM parameter. That lives in
- * terraform in `oxy-infra`, not in this repo, and reaching AWS from a PR check
- * would mean handing pull requests deploy credentials. So this gate covers
- * "required at boot ⇒ written to SSM"; the task definition's own reference list
- * is oxy-infra's to guard. The two together are the full chain; this is the end
- * of it that lives here.
+ * Whether each parameter EXISTS in SSM, and whether the task definition's
+ * inherited bindings reference it. Both live in AWS and in oxy-infra, and
+ * reaching AWS from a PR check would hand pull requests deploy credentials.
  *
  * Paths are resolved from the working directory, so the fixture tests in
  * `scripts/test-check-deploy-secrets-sync.mjs` can run it against a mutated
  * copy of the real files.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const WORKFLOW_PATH = join('.github', 'workflows', 'deploy-aws.yml');
+const SCRIPTS_DIR = join('.github', 'scripts');
 const ENV_MODULE_PATH = join('packages', 'api', 'src', 'config', 'env.ts');
 
+const SSM_ARN_PREFIX = 'arn:aws:ssm:us-west-2:237343248947:parameter';
+
 /**
- * Required env vars that are deliberately NOT GitHub secrets, with the reason.
- * Anything required at boot and absent from both this map and the sync lists is
- * a hard failure — which is the point: a new required variable forces an
- * explicit decision instead of a silent omission.
+ * Repo secrets this workflow may read: only what CI itself spends. Today the
+ * deploy reads none (it uses `github.token`); GITHUB_TOKEN is the one name it
+ * may spell as a secret.
  */
-const SUPPLIED_WITHOUT_SECRET_SYNC = new Map([
-  [
-    'AWS_REGION',
-    'not a secret — a plain region string set directly in the ECS task ' +
-    'definition (oxy-infra terraform-uswest2), never stored in SSM',
-  ],
+const CI_ONLY_SECRETS = new Set(['GITHUB_TOKEN']);
+
+/** An executable mention of any of these is an SSM write or delete. */
+const SSM_MUTATION = /put-parameter|delete-parameter|put-secure-parameter\.sh/;
+
+/**
+ * Required env vars that are NOT secrets, with the reason. They are plain
+ * environment in the ECS task definition (oxy-infra terraform-uswest2).
+ */
+const SUPPLIED_AS_PLAIN_ENV = new Map([
+  ['AWS_REGION', 'a region string, not a secret'],
+  ['AWS_S3_BUCKET', 'a bucket name, not a secret'],
 ]);
 
 /**
  * `/oxy/_shared/*` parameters the API reads. oxy-infra owns them, not any app,
- * and they are rotated once, centrally (oxy-infra
- * docs/runbooks/45-shared-ssm-parameters.md). Several app deploys used to copy
- * their own GitHub secret into `/oxy/_shared/REDIS_URL`; two held different
- * values, and every deploy flipped it between Redis clusters (incident
- * 2026-09-27). The task definition still READS these; this deploy never writes
- * them, and a `secrets.<NAME>` reference for any of them is refused.
+ * and rotates them once, centrally (oxy-infra
+ * docs/runbooks/45-shared-ssm-parameters.md).
  */
 const INFRA_OWNED_SHARED_SECRETS = [
   'AWS_ACCESS_KEY_ID',
@@ -93,60 +94,55 @@ const INFRA_OWNED_SHARED_SECRETS = [
 ];
 
 /**
- * Env vars that are production-mandatory but validated OUTSIDE the `required`
- * array in `validateRequiredEnvVars()` — still secrets that MUST reach SSM.
- * DEVICE_ID_SALT lives here: production boot fails without it, but dev installs
- * a placeholder, so it cannot sit in `required` without breaking local runs.
+ * Boot-required secrets and their SSM home. The task definition binds each one
+ * (inherited from the running revision); the parameter is written by its owner.
+ * DEVICE_ID_SALT is validated outside the `required` array (dev installs a
+ * placeholder) but production boot fails without it.
  */
-const PRODUCTION_MANDATORY_SYNCED_SECRETS = ['DEVICE_ID_SALT'];
-
-/**
- * Secrets provisioned directly in SSM, outside this repository's GitHub
- * secret-sync authority. The value is the only task binding deploy-aws.yml may
- * carry for the name; any `secrets.<NAME>` reference would create a second
- * source of truth and an automated overwrite path back into SSM.
- */
-const SSM_ONLY_SECRET_BINDINGS = new Map([
-  [
-    'QUEUE_REDIS_URL',
-    'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL',
-  ],
-  [
-    'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
-    'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
-  ],
-  // ADR 0012: the Ed25519 service-token mint key and its active kid.
-  [
-    'SERVICE_TOKEN_PRIVATE_KEY',
-    'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY',
-  ],
-  [
-    'SERVICE_TOKEN_SIGNING_KEY_ID',
-    'arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID',
-  ],
+const SSM_OWNED_BOOT_SECRETS = new Map([
+  ['DATABASE_URL', '/oxy/oxy-api/DATABASE_URL'],
+  ['ACCESS_TOKEN_SECRET', '/oxy/oxy-api/ACCESS_TOKEN_SECRET'],
+  ['REFRESH_TOKEN_SECRET', '/oxy/oxy-api/REFRESH_TOKEN_SECRET'],
+  ['DEVICE_ID_SALT', '/oxy/oxy-api/DEVICE_ID_SALT'],
 ]);
+const PRODUCTION_MANDATORY_SECRETS = ['DEVICE_ID_SALT'];
 
 /**
- * Vacuity guards for the boot-contract parse — and ONLY for that parse.
- *
- * The two workflow allowlists check each OTHER, so a regex that degrades on
- * that side is already loud: every name it fails to see is reported as missing
- * from the other list. Adding count floors there would be machinery for a
- * failure that cannot occur, which reads as load-bearing to the next person.
- *
- * `required` in env.ts has no such counterpart. If that regex ever matched a
- * SHORTER array — a refactor splitting the list, a second `required:` earlier
- * in the file — the gate would silently stop checking the names it no longer
- * sees and report "0 problems". These two guards are the only thing standing
- * between that and a false green, and `test-check-deploy-secrets-sync.mjs`
- * covers each with a case that goes green if the guard is deleted.
+ * The bindings the deploy re-asserts on every rollout, because it renders from
+ * the RUNNING task definition rather than Terraform's latest revision. Kept as
+ * an exact expectation, not derived from the workflow: the failure this guards
+ * is a binding silently dropping out, and deriving the list would hide it.
+ */
+const EXPECTED_TASK_SECRET_BINDINGS = new Map(
+  [
+    ['SERVICE_TOKEN_PRIVATE_KEY', '/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY'],
+    ['SERVICE_TOKEN_SIGNING_KEY_ID', '/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID'],
+    ['CAPABILITY_TICKET_SIGNING_PRIVATE_KEY', '/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY'],
+    ['CAPABILITY_TICKET_SIGNING_KEY_ID', '/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID'],
+    ['KAANA_EDGE_SIGNING_PRIVATE_KEY', '/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY'],
+    ['KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY', '/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY'],
+    ['INBOX_APPLICATION_KEY', '/oxy/inbox/OXY_APPLICATION_KEY'],
+    ['INBOX_APPLICATION_SECRET', '/oxy/inbox/OXY_APPLICATION_SECRET'],
+    ['QUEUE_REDIS_URL', '/oxy/_shared/QUEUE_REDIS_URL'],
+    ['META_GRAPH_ACCESS_TOKEN', '/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN'],
+    ['META_IG_BUSINESS_ACCOUNT_ID', '/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID'],
+  ].map(([name, path]) => [name, `${SSM_ARN_PREFIX}${path}`]),
+);
+
+/**
+ * Vacuity guards. Each parse below can degrade into reading LESS than it should
+ * and then report "0 problems"; each guard is covered by a fixture case in
+ * `test-check-deploy-secrets-sync.mjs` that goes green if it is deleted.
  */
 const MINIMUM_REQUIRED_ENV_VARS = 5;
 // `DATABASE_URL`, not `MONGODB_URI`: the sentinel has to be a name that will
 // still be in the required array. MONGODB_URI left the serving path on
-// 2026-08-02 and is no longer synced to ECS — only backfill/admin scripts read
+// 2026-08-02 and is no longer bound into ECS — only backfill/admin scripts read
 // it locally — so the sentinel moved rather than being dropped.
 const REQUIRED_ENV_SENTINEL = 'DATABASE_URL';
+// The script that performs every rollout. If the scan of reached scripts does
+// not see it, the scan is not reading what the deploy runs.
+const REACHED_SCRIPT_SENTINEL = 'deploy-ecs-image.sh';
 
 const problems = [];
 
@@ -163,26 +159,27 @@ function read(path) {
   }
 }
 
-/** `SYNC_<NAME>: ${{ secrets.<SECRET> }}` entries, as a map of NAME -> SECRET. */
-function parseSyncEntries(workflow) {
-  const entries = new Map();
-  const pattern = /^\s+SYNC_([A-Z0-9_]+):\s*\$\{\{\s*secrets\.([A-Za-z0-9_]+)\s*\}\}\s*$/gm;
-  for (const match of workflow.matchAll(pattern)) {
-    const [, name, secret] = match;
-    if (entries.has(name)) fail(`deploy-aws.yml declares SYNC_${name} more than once.`);
-    entries.set(name, secret);
-  }
-  return entries;
+/**
+ * Lines that execute: a whole-line comment does not. `#` for YAML, shell and
+ * Python; `//`, `/*` and ` *` for JavaScript (a shell `*)` case arm is code).
+ */
+function executableLines(text, path = '') {
+  const comment = /\.m?js$/.test(path) ? /^\s*(\/\/|\/\*|\*(?!\)))/ : /^\s*#/;
+  return text
+    .split('\n')
+    .map((line, index) => ({ line, number: index + 1 }))
+    .filter(({ line }) => !comment.test(line));
 }
 
-/** A `NAME="a b c"` shell assignment in the sync step, as an array of names. */
-function parseSecretList(workflow, variable) {
-  const match = workflow.match(new RegExp(`^\\s*${variable}="([^"]*)"`, 'm'));
-  if (!match) {
-    fail(`deploy-aws.yml no longer contains a ${variable}="..." assignment; the gate cannot read the allowlist.`);
-    return [];
+/** `.github/scripts/<name>` and bare `<name>.sh|.mjs|.py` tokens that exist there. */
+function referencedScripts(text, path = '') {
+  const names = new Set();
+  for (const { line } of executableLines(text, path)) {
+    for (const match of line.matchAll(/(?:\.github\/scripts\/)?([A-Za-z0-9_.-]+\.(?:sh|mjs|js|py))\b/g)) {
+      if (existsSync(join(SCRIPTS_DIR, match[1]))) names.add(match[1]);
+    }
   }
-  return match[1].split(/\s+/).filter(Boolean);
+  return names;
 }
 
 /** The names in `validateRequiredEnvVars()`'s `required` array. */
@@ -195,152 +192,130 @@ function parseRequiredEnvVars(envModule) {
   return [...block[1].matchAll(/'([A-Za-z0-9_]+)'/g)].map((match) => match[1]);
 }
 
+/** TASK_SECRET_OVERRIDES_JSON's folded value, parsed. */
+function parseTaskSecretOverrides(workflow) {
+  const match = workflow.match(/^\s*TASK_SECRET_OVERRIDES_JSON:\s*>-\s*\n\s*(\{.*\})\s*$/m);
+  if (!match) {
+    fail('deploy-aws.yml no longer contains a one-line `TASK_SECRET_OVERRIDES_JSON: >-` object; the gate cannot read the re-asserted bindings.');
+    return null;
+  }
+  try {
+    return JSON.parse(match[1]);
+  } catch (error) {
+    fail(`deploy-aws.yml TASK_SECRET_OVERRIDES_JSON is not valid JSON: ${error.message}`);
+    return null;
+  }
+}
+
 const workflow = read(WORKFLOW_PATH);
 const envModule = read(ENV_MODULE_PATH);
 
-const syncEntries = parseSyncEntries(workflow);
-const apiSecrets = parseSecretList(workflow, 'API_SECRETS');
-const boundApiSecrets = parseSecretList(workflow, 'BOUND_API_SECRETS');
-const requiredEnvVars = parseRequiredEnvVars(envModule);
+// ── 1. Nothing the deploy runs writes or deletes an SSM parameter ──────────
+for (const { line, number } of executableLines(workflow)) {
+  if (SSM_MUTATION.test(line)) {
+    fail(
+      `deploy-aws.yml:${number} writes or deletes an SSM parameter (${line.trim()}). Runtime secrets live ONLY in SSM ` +
+      'and are set by their owner with `aws ssm put-parameter --overwrite`; the deploy never writes one.',
+    );
+  }
+}
+const reached = new Set();
+const queue = [...referencedScripts(workflow)];
+while (queue.length > 0) {
+  const name = queue.shift();
+  if (reached.has(name)) continue;
+  reached.add(name);
+  const text = read(join(SCRIPTS_DIR, name));
+  for (const { line, number } of executableLines(text, name)) {
+    if (SSM_MUTATION.test(line)) {
+      fail(`.github/scripts/${name}:${number}, which the deploy runs, writes or deletes an SSM parameter (${line.trim()}).`);
+    }
+  }
+  for (const next of referencedScripts(text, name)) queue.push(next);
+}
+if (!reached.has(REACHED_SCRIPT_SENTINEL)) {
+  fail(`${REACHED_SCRIPT_SENTINEL} was not among the scripts the deploy reaches — the scan is not reading what the deploy runs.`);
+}
 
-// ── Vacuity guards (boot-contract parse only — see the constants above) ────
+// ── 2. No repo secret but the CI-only allowlist, never the whole context ───
+for (const { line, number } of executableLines(workflow)) {
+  if (/^\s*secrets:\s*inherit\b/.test(line)) {
+    fail(`deploy-aws.yml:${number} passes \`secrets: inherit\`; that hands every repo secret to the callee.`);
+  }
+}
+for (const expression of workflow.matchAll(/\$\{\{([\s\S]*?)\}\}/g)) {
+  const body = expression[1];
+  if (/toJSON\s*\(\s*secrets\s*\)/.test(body)) {
+    fail('deploy-aws.yml reads `toJSON(secrets)`, the whole secrets context.');
+    continue;
+  }
+  for (const use of body.matchAll(/\bsecrets\b(\s*\.\s*([A-Za-z0-9_]+)|\s*\[)?/g)) {
+    const name = use[2];
+    if (!name) {
+      fail(`deploy-aws.yml reads the secrets context without a literal name (\`${body.trim()}\`).`);
+    } else if (!CI_ONLY_SECRETS.has(name)) {
+      fail(
+        `deploy-aws.yml reads secrets.${name}. Runtime secrets live ONLY in SSM (/oxy/oxy-api/${name}), bound by the task ` +
+        `definition; the deploy reads no repo secret but ${[...CI_ONLY_SECRETS].join(', ')}.`,
+      );
+    }
+  }
+}
+// A task-definition ARN (`...:parameter/oxy/_shared/NAME`) is a READ and is
+// fine; any other executable mention of the path is a candidate write.
+for (const { line, number } of executableLines(workflow)) {
+  if (/(?<!parameter)\/oxy\/_shared\//.test(line)) {
+    fail(`deploy-aws.yml:${number} names a /oxy/_shared/ path outside a task-definition ARN; app deploys never write shared parameters, which oxy-infra owns.`);
+  }
+}
+
+// ── 3. Re-asserted bindings: exact, and SSM only ──────────────────────────
+const overrides = parseTaskSecretOverrides(workflow);
+if (overrides) {
+  for (const [name, arn] of EXPECTED_TASK_SECRET_BINDINGS) {
+    if (overrides[name] !== arn) {
+      fail(`${name} is missing its exact TASK_SECRET_OVERRIDES_JSON binding to ${arn} (found ${JSON.stringify(overrides[name] ?? null)}).`);
+    }
+  }
+  for (const [name, value] of Object.entries(overrides)) {
+    if (typeof value !== 'string' || !value.startsWith(`${SSM_ARN_PREFIX}/oxy/`)) {
+      fail(`TASK_SECRET_OVERRIDES_JSON binds ${name} to ${JSON.stringify(value)}, which is not an SSM parameter under ${SSM_ARN_PREFIX}/oxy/.`);
+    }
+  }
+}
+
+// ── 4. Every boot-required variable has a recorded home ───────────────────
+const requiredEnvVars = parseRequiredEnvVars(envModule);
 if (requiredEnvVars.length > 0 && requiredEnvVars.length < MINIMUM_REQUIRED_ENV_VARS) {
   fail(`Only ${requiredEnvVars.length} required env vars parsed out of ${ENV_MODULE_PATH} (expected at least ${MINIMUM_REQUIRED_ENV_VARS}). The parse is broken, not the source.`);
 }
 if (requiredEnvVars.length > 0 && !requiredEnvVars.includes(REQUIRED_ENV_SENTINEL)) {
   fail(`${REQUIRED_ENV_SENTINEL} was not among the parsed required env vars — the gate is reading the wrong array in ${ENV_MODULE_PATH}.`);
 }
-
-// ── 1. The two allowlists must agree ───────────────────────────────────────
-const listed = new Map();
-for (const name of apiSecrets) {
-  if (listed.has(name)) {
-    fail(`${name} appears twice in API_SECRETS; the sync loop would write it twice.`);
-    continue;
-  }
-  listed.set(name, 'API_SECRETS');
-}
-
-for (const [name, secret] of syncEntries) {
-  if (secret !== name) {
-    fail(`SYNC_${name} reads \${{ secrets.${secret} }}; it must read \${{ secrets.${name} }}, or the sync writes the wrong value under that name.`);
-  }
-  if (!listed.has(name)) {
-    fail(`${name} has a SYNC_${name} env entry but is not in API_SECRETS, so the sync loop never writes it to SSM.`);
-  }
-}
-
-for (const [name, listName] of listed) {
-  if (!syncEntries.has(name)) {
-    fail(`${name} is in ${listName} but has no \`SYNC_${name}: \${{ secrets.${name} }}\` env entry, so the loop reads an empty value and skips it as a placeholder.`);
-  }
-}
-
-// ── 2. Everything the API requires at boot must be reachable ───────────────
-for (const name of requiredEnvVars) {
-  if (listed.has(name)) continue;
-  if (SUPPLIED_WITHOUT_SECRET_SYNC.has(name)) continue;
+for (const name of [...requiredEnvVars, ...PRODUCTION_MANDATORY_SECRETS]) {
+  if (SSM_OWNED_BOOT_SECRETS.has(name)) continue;
+  if (SUPPLIED_AS_PLAIN_ENV.has(name)) continue;
   if (INFRA_OWNED_SHARED_SECRETS.includes(name)) continue;
   fail(
-    `${name} is required at boot by validateRequiredEnvVars() but deploy-aws.yml never syncs it to SSM. ` +
-    `Add \`SYNC_${name}: \${{ secrets.${name} }}\` and put ${name} in API_SECRETS — ` +
-    'or, if it is not a secret, record why in SUPPLIED_WITHOUT_SECRET_SYNC in ' +
-    'scripts/check-deploy-secrets-sync.mjs.'
+    `${name} is required at boot by validateRequiredEnvVars() but has no recorded home. If it is a secret, write ` +
+    `/oxy/oxy-api/${name} (SecureString) with \`aws ssm put-parameter\` FIRST, bind it in the task definition, and record ` +
+    'it in SSM_OWNED_BOOT_SECRETS in scripts/check-deploy-secrets-sync.mjs; if it is not, record why in SUPPLIED_AS_PLAIN_ENV.',
   );
-}
-
-for (const name of PRODUCTION_MANDATORY_SYNCED_SECRETS) {
-  if (listed.has(name)) continue;
-  fail(
-    `${name} is production-mandatory (validateRequiredEnvVars) but deploy-aws.yml never syncs it to SSM. ` +
-    `Add \`SYNC_${name}: \${{ secrets.${name} }}\` and put ${name} in API_SECRETS.`
-  );
-}
-
-for (const name of SUPPLIED_WITHOUT_SECRET_SYNC.keys()) {
-  if (listed.has(name)) {
-    fail(`${name} is recorded as supplied without a secret sync, but deploy-aws.yml also syncs it. Remove one of the two.`);
-  }
-}
-
-// ── 3. SSM-only secrets must never gain a GitHub overwrite channel ─────────
-for (const [name, parameterArn] of SSM_ONLY_SECRET_BINDINGS) {
-  const githubSecretReference = new RegExp(`\\$\\{\\{\\s*secrets\\.${name}\\s*\\}\\}`);
-  if (syncEntries.has(name) || listed.has(name) || githubSecretReference.test(workflow)) {
-    fail(
-      `${name} is SSM-owned and must never be read or copied from GitHub Actions secrets; ` +
-      `keep only its TASK_SECRET_OVERRIDES_JSON binding to ${parameterArn}.`,
-    );
-  }
-  if (!workflow.includes(`"${name}":"${parameterArn}"`)) {
-    fail(`${name} is missing its exact TASK_SECRET_OVERRIDES_JSON binding to ${parameterArn}.`);
-  }
-}
-
-// ── 4. The deploy never writes an oxy-infra-owned /oxy/_shared/* parameter ──
-for (const name of INFRA_OWNED_SHARED_SECRETS) {
-  const githubSecretReference = new RegExp(`\\$\\{\\{\\s*secrets\\.${name}\\s*\\}\\}`);
-  if (syncEntries.has(name) || listed.has(name) || githubSecretReference.test(workflow)) {
-    fail(
-      `${name} is a /oxy/_shared/ parameter owned by oxy-infra and rotated centrally; ` +
-      'deploy-aws.yml must never read it from GitHub Actions secrets or sync it to SSM.',
-    );
-  }
-}
-if (/^\s*SHARED_SECRETS=/m.test(workflow)) {
-  fail('deploy-aws.yml assigns SHARED_SECRETS again; app deploys never write /oxy/_shared/* parameters, which oxy-infra owns.');
-}
-// A task-definition ARN (`...:parameter/oxy/_shared/NAME`) is a READ and is
-// fine; any other executable mention of the path is a candidate write.
-workflow.split('\n').forEach((line, index) => {
-  if (line.trimStart().startsWith('#')) return;
-  if (/(?<!parameter)\/oxy\/_shared\//.test(line)) {
-    fail(`deploy-aws.yml:${index + 1} names a /oxy/_shared/ path outside a task-definition ARN; app deploys never write shared parameters, which oxy-infra owns.`);
-  }
-});
-
-// ── 5. Bound GitHub secrets are refused when empty AND actually bound ──────
-/**
- * GitHub-synced secrets bound into the task definition whose empty value must
- * fail the run. Kept as an exact expectation, not derived from the workflow:
- * the failure this guards is a name silently dropping out of
- * BOUND_API_SECRETS while its binding stays, and deriving the list from the
- * guard would make that edit invisible.
- */
-const REQUIRED_BOUND_API_SECRETS = ['META_GRAPH_ACCESS_TOKEN', 'META_IG_BUSINESS_ACCOUNT_ID'];
-for (const name of REQUIRED_BOUND_API_SECRETS) {
-  if (!boundApiSecrets.includes(name)) {
-    fail(
-      `${name} is bound into the task definition but is not in BOUND_API_SECRETS, so an unset ` +
-      `secrets.${name} is skipped with a warning and the new revision names a parameter that may not exist.`,
-    );
-  }
-}
-for (const name of boundApiSecrets) {
-  if (!listed.has(name)) {
-    fail(`${name} is in BOUND_API_SECRETS but not in API_SECRETS; the guard would demand a value the sync never writes.`);
-  }
-  const parameterArn = `arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/${name}`;
-  if (!workflow.includes(`"${name}":"${parameterArn}"`)) {
-    fail(`${name} is in BOUND_API_SECRETS but has no exact TASK_SECRET_OVERRIDES_JSON binding to ${parameterArn}.`);
-  }
 }
 
 if (problems.length > 0) {
-  console.error('Deploy secret sync is BROKEN:\n');
+  console.error('Deploy secrets are BROKEN:\n');
   for (const problem of problems) console.error(`- ${problem}`);
   console.error(
-    '\nA name missing from either allowlist is never written to SSM and never reported;' +
-    '\nthe ECS task then fails to start with `ResourceInitializationError: unable to pull secrets`.'
+    '\nRuntime secrets live ONLY in SSM /oxy/oxy-api/* (oxy-infra docs/runbooks/46-app-secrets-in-ssm.md);' +
+    '\nthe deploy reads them through the task definition and writes none.',
   );
   process.exit(1);
 }
 
 console.log(
-  `Deploy secret sync is consistent: ${syncEntries.size} SYNC_* entries match ${listed.size} listed secrets, ` +
-  `all ${requiredEnvVars.length} boot-required env vars are accounted for, ` +
-  `all ${PRODUCTION_MANDATORY_SYNCED_SECRETS.length} production-mandatory secrets are synced, ` +
-  `all ${SSM_ONLY_SECRET_BINDINGS.size} SSM-only secret bindings have no GitHub copy channel, ` +
-  `all ${boundApiSecrets.length} bound GitHub secrets are refused when empty and bound by exact ARN, ` +
-  `and none of the ${INFRA_OWNED_SHARED_SECRETS.length} oxy-infra-owned /oxy/_shared/ parameters is written.`
+  `Deploy secrets are SSM-only: no SSM write in deploy-aws.yml or the ${reached.size} scripts it reaches, ` +
+  `no repo secret read but ${[...CI_ONLY_SECRETS].join(', ')}, ` +
+  `all ${EXPECTED_TASK_SECRET_BINDINGS.size} re-asserted bindings exact, ` +
+  `and all ${requiredEnvVars.length} boot-required env vars have a recorded home.`,
 );

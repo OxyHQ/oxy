@@ -16,10 +16,11 @@ export interface RequiredEnvVars {
   // PostgreSQL connection string, consumed by `config/postgres.ts` (Drizzle
   // over postgres.js) and by the migrator (`db/migrate.ts`). The live store.
   //
-  // Every name in the `required` list below must reach the ECS task, which
-  // means being synced to SSM by `.github/workflows/deploy-aws.yml`. CI job
-  // "Deploy Secrets Sync" reads THIS array and fails the build on any entry
-  // that is neither synced nor recorded as a non-secret.
+  // Every name in the `required` list below must reach the ECS task. A secret
+  // lives only in SSM (`/oxy/oxy-api/<NAME>`, SecureString), bound by the task
+  // definition; nothing copies it there from GitHub. CI step "Deploy Secrets
+  // (SSM only)" (`scripts/check-deploy-secrets-sync.mjs`) reads THIS array and
+  // fails the build on any entry with no recorded SSM home or non-secret reason.
   DATABASE_URL: string;
 
   // Authentication
@@ -31,12 +32,12 @@ export interface RequiredEnvVars {
   // refuse every remaining v1 bearer — safe once one refresh-token lifetime
   // (7 days) has passed since deploy, because by then no v1 token can still be
   // live. Absent/anything else keeps the window open. Read per request in
-  // `utils/sessionUtils.ts`; NOT a secret, so it is not synced to SSM.
+  // `utils/sessionUtils.ts`; NOT a secret, so it is not stored in SSM.
   ACCESS_TOKEN_V1_WINDOW?: string;
 
   // Legacy cross-domain SSO secret (FedCM / POST /sso/code removed in wave 2).
-  // Still synced from GitHub → SSM for environments that haven't dropped it yet;
-  // no live route reads it. Safe to omit in new deployments.
+  // Still in SSM and bound for environments that haven't dropped it yet; no
+  // live route reads it. Safe to omit in new deployments.
   SSO_INTERNAL_SECRET?: string;
 
   // Device-id derivation salt (security review H1). Required in production
@@ -72,7 +73,7 @@ export interface RequiredEnvVars {
   // accounts when the kilogram bridge fails. Runs whenever the token AND a
   // numeric business account id are set, inert otherwise; read per call by
   // `services/federation/instagramGraph.ts`, which pins the Graph version in
-  // code. Both are SSM-synced and bound into the oxy-api task definition.
+  // code. Both live in SSM and are bound into the oxy-api task definition.
   META_GRAPH_ACCESS_TOKEN?: string;
   META_IG_BUSINESS_ACCOUNT_ID?: string;
 
@@ -145,12 +146,11 @@ export interface RequiredEnvVars {
   //    the data plane parses its key set as `kid:base64,kid:base64`.
   KAANA_EDGE_SIGNING_KEY_ID?: string;
   //  - the Ed25519 PRIVATE key, as PEM or that PEM base64-encoded. THIS ONE IS A
-  //    SECRET: it belongs in SSM at `/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`,
-  //    which means adding it to BOTH allowlists in `deploy-aws.yml` (the
-  //    `SYNC_<NAME>` env block and `API_SECRETS`) when a data plane is first
-  //    deployed — `scripts/check-deploy-secrets-sync.mjs` guards that the two
-  //    agree. Absent from the `required` list below on purpose: unset means no
-  //    data plane, not a broken boot. The data plane holds only the matching
+  //    SECRET: it lives only in SSM at `/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`,
+  //    bound by `TASK_SECRET_OVERRIDES_JSON` in `deploy-aws.yml`, whose exact
+  //    ARN `scripts/check-deploy-secrets-sync.mjs` holds. Absent from the
+  //    `required` list below on purpose: unset means no data plane, not a
+  //    broken boot. The data plane holds only the matching
   //    PUBLIC key and so cannot construct an envelope it would itself accept.
   KAANA_EDGE_SIGNING_PRIVATE_KEY?: string;
 

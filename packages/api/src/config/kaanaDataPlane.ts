@@ -38,13 +38,12 @@
  *
  * ## The private key is the only secret here
  *
- * `KAANA_EDGE_SIGNING_PRIVATE_KEY` is a signing key and belongs in SSM
- * (`/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`), which means adding it to BOTH
- * hand-maintained allowlists in `.github/workflows/deploy-aws.yml` — the
- * `SYNC_<NAME>` env block and the `API_SECRETS` list — at the moment a Kaana
- * deployment first needs it. `scripts/check-deploy-secrets-sync.mjs` guards that
- * pair. The base URL and the key id are not secrets and belong in the ECS task
- * definition's plain environment.
+ * `KAANA_EDGE_SIGNING_PRIVATE_KEY` is a signing key and lives only in SSM
+ * (`/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`, SecureString), bound into the
+ * task definition by `TASK_SECRET_OVERRIDES_JSON` in
+ * `.github/workflows/deploy-aws.yml`; `scripts/check-deploy-secrets-sync.mjs`
+ * keeps that binding exact. The base URL and the key id are not secrets and
+ * belong in the ECS task definition's plain environment.
  *
  * The key material never leaves this module: {@link KaanaDataPlaneConfig} carries
  * a `KeyObject`, whose `toString()` is `[object Object]` rather than a PEM, and

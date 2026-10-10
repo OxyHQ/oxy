@@ -35,28 +35,20 @@ There is no Caddy, no SMTP server, and no NAT gateway in this path. Outbound ema
 
 `.github/workflows/deploy-aws.yml` runs on every push to `main`:
 
-1. Sync the relevant GitHub Actions secrets into SSM (`/oxy/oxy-api/*` and the shared parameter namespace). The deploy workflow is the source of truth that mirrors GitHub secrets to AWS — see lines 36-46 of the workflow.
-2. Authenticate to AWS using **GitHub OIDC** (no static AWS keys in repo secrets) -> assume the IAM role `oxy-github-deploy`.
-3. `docker buildx build --platform linux/arm64 ...` against the API Dockerfile.
-4. Push the resulting image to ECR (`237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api`).
-5. `aws ecs update-service --cluster oxy-cluster --service oxy-api --force-new-deployment` -- ECS pulls the new image, drains old tasks behind the ALB and replaces them.
+1. Authenticate to AWS using **GitHub OIDC** (no static AWS keys in repo secrets) -> assume the IAM role `oxy-github-deploy`.
+2. `docker buildx build --platform linux/arm64 ...` against the API Dockerfile.
+3. Push the resulting image to ECR (`237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api`).
+4. `aws ecs update-service --cluster oxy-cluster --service oxy-api --force-new-deployment` -- ECS pulls the new image, drains old tasks behind the ALB and replaces them.
 
 Task definitions are versioned (`oxy-oxy-api:N`). New revisions are registered with `aws ecs register-task-definition` when env / secret mappings change; image-only updates reuse the existing task definition.
 
-### GitHub secrets
+### Runtime secrets live only in SSM
 
-| Secret | Description |
-|--------|-------------|
-| `AWS_GITHUB_OIDC_ROLE_ARN` | ARN of `oxy-github-deploy`; assumed via OIDC |
-| `ACCESS_TOKEN_SECRET` | JWT signing secret for access tokens |
-| `REFRESH_TOKEN_SECRET` | JWT signing secret for refresh tokens |
-| `DEVICE_ID_SALT` | 64-hex salt for `deriveStableDeviceId` |
-| `DATABASE_URL` | Postgres connection string for the `oxy_api` database on `oxy-postgres` |
-| `REDIS_URL` | ElastiCache Valkey URI |
-| `CLOUDFLARE_API_TOKEN` | For Cloudflare Pages deploys + DNS-01 ACM validation |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account |
+The API's runtime secrets (`DATABASE_URL`, `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN_SECRET`, `DEVICE_ID_SALT`, the signing keys, …) live ONLY in SSM Parameter Store under `/oxy/oxy-api/*` (SecureString). Shared parameters (`REDIS_URL`, `QUEUE_REDIS_URL`, the `AWS_*` access-key variables) live under `/oxy/_shared/*` and are owned by oxy-infra. The ECS task definition reads them at task start; the deploy workflow writes none and reads no repo secret (`scripts/check-deploy-secrets-sync.mjs` fails CI otherwise).
 
-Shared secrets (AWS access-key variables for SES / app-level S3 usage where IAM roles aren't applied, shared runtime variables) are mirrored under the shared parameter namespace and consumed across services.
+Setting or rotating a value is `aws ssm put-parameter --type SecureString --overwrite --name /oxy/oxy-api/<NAME>` by its owner, then a rollout (oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`). A NEW secret: write the parameter FIRST, then bind it in the task definition — a task naming a parameter that does not exist cannot start. Until 2026-10-10 the deploy copied GitHub repo secrets into SSM on every run; that path is gone.
+
+GitHub holds only what CI itself spends: `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` (Cloudflare deploys and DNS), `NPM_TOKEN` (package releases), `ADD_TO_PROJECT_TOKEN` (roadmap automation) and `CREDENTIAL_OUTPUT_ENCRYPTION_KEY` (encrypts `provision-service-credential.yml`'s output).
 
 ### Dockerfile (multi-stage, linux/arm64)
 
