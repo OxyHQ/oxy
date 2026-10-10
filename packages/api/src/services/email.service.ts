@@ -31,6 +31,7 @@ import type {
   MessageCardType,
 } from '@oxy.so/contracts';
 import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
+import { isUniqueViolation } from '@oxy.so/db';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb, type Database, type Transaction } from '../config/postgres';
 import { bundles } from '../db/schema/bundles';
@@ -44,6 +45,7 @@ import {
 import { emailFilters, incompleteEmailFilters } from '../db/schema/emailFilters';
 import { emailTemplates } from '../db/schema/emailTemplates';
 import { labels as labelsTable } from '../db/schema/labels';
+import { emailUnsubscribedSenders, type EmailUnsubscribeMethod } from '../db/schema/emailUnsubscribedSenders';
 import { mailboxes } from '../db/schema/mailboxes';
 import { messageAttachments, type MessageAttachment } from '../db/schema/messageAttachments';
 import { messageRecipients } from '../db/schema/messageRecipients';
@@ -173,6 +175,143 @@ function textArray(values: readonly string[]): SQL {
     values.map((value) => sql`${value}`),
     sql`, `,
   )}]::text[]`;
+}
+
+// ─── Label references ──────────────────────────────────────────────
+
+/** The case-insensitive per-user unique index on label names. */
+const LABEL_NAME_UNIQUE_INDEX = 'labels_user_id_lower_name_key';
+
+/**
+ * `column` with every `from` replaced by `to`, each distinct entry kept ONCE at
+ * its first position. A bare `array_replace` would leave `{to, to}` on a row
+ * that already carried the new name, and every reader treats these arrays as
+ * sets.
+ */
+function renameInTextArray(column: SQLWrapper, from: string, to: string): SQL {
+  return sql`(
+    select coalesce(array_agg(entry.label order by entry.idx), '{}'::text[])
+    from (
+      select renamed.label, min(renamed.idx) as idx
+      from unnest(array_replace(${column}, ${from}::text, ${to}::text)) with ordinality as renamed(label, idx)
+      group by renamed.label
+    ) as entry
+  )`;
+}
+
+/**
+ * The tokens of a saved search's query, split the way the Inbox client's
+ * `parseSearchQuery` splits them: on whitespace, except inside quotes.
+ */
+function tokenizeSearchQuery(query: string): string[] {
+  const tokens: string[] = [];
+  let token = '';
+  let quote: '"' | "'" | null = null;
+  for (const character of query.trim()) {
+    if (quote) {
+      token += character;
+      if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      token += character;
+    } else if (/\s/.test(character)) {
+      if (token) tokens.push(token);
+      token = '';
+    } else {
+      token += character;
+    }
+  }
+  if (token) tokens.push(token);
+  return tokens;
+}
+
+function unquoteSearchValue(value: string): string {
+  const trimmed = value.trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function quoteSearchValue(value: string): string {
+  if (!/[\s"']/.test(value)) return value;
+  return value.includes('"') ? `'${value}'` : `"${value}"`;
+}
+
+/**
+ * A saved search's query with every `label:<from>` operator renamed to `<to>`,
+ * or the query unchanged when it names no such label. The client reads the
+ * operator from the query BEFORE the stored `filters.label`, so rewriting only
+ * the structured filter would leave the search pointing at the old name.
+ */
+export function renameLabelInSearchQuery(query: string, from: string, to: string): string {
+  let changed = false;
+  const tokens = tokenizeSearchQuery(query).map((token) => {
+    const match = /^label:(.*)$/i.exec(token);
+    if (!match || unquoteSearchValue(match[1] ?? '') !== from) return token;
+    changed = true;
+    return `label:${quoteSearchValue(to)}`;
+  });
+  return changed ? tokens.join(' ') : query;
+}
+
+/**
+ * Point every reference to the label `from` at `to`, for one user, inside the
+ * caller's transaction. Returns the mailboxes whose messages changed.
+ */
+async function renameLabelReferences(
+  tx: Transaction,
+  userId: string,
+  from: string,
+  to: string,
+): Promise<string[]> {
+  const relabelled = await tx
+    .update(messages)
+    .set({ labels: renameInTextArray(messages.labels, from, to) })
+    .where(and(eq(messages.userId, userId), sql`${messages.labels} @> array[${from}::text]`))
+    .returning({ mailboxId: messages.mailboxId });
+
+  await tx
+    .update(bundles)
+    .set({ matchLabels: renameInTextArray(bundles.matchLabels, from, to) })
+    .where(and(eq(bundles.userId, userId), sql`${bundles.matchLabels} @> array[${from}::text]`));
+
+  // A filter's `label` action names the label in `value`; no other action type
+  // and no condition field holds a label name.
+  await tx
+    .update(emailFilterActions)
+    .set({ value: to })
+    .where(
+      and(
+        eq(emailFilterActions.type, 'label'),
+        eq(emailFilterActions.value, from),
+        inArray(
+          emailFilterActions.filterId,
+          tx.select({ id: emailFilters.id }).from(emailFilters).where(eq(emailFilters.userId, userId)),
+        ),
+      ),
+    );
+
+  const searches = await tx
+    .select({ id: emailSavedSearches.id, query: emailSavedSearches.query, filters: emailSavedSearches.filters })
+    .from(emailSavedSearches)
+    .where(eq(emailSavedSearches.userId, userId));
+  for (const search of searches) {
+    const query = renameLabelInSearchQuery(search.query, from, to);
+    const relabelFilter = search.filters.label === from;
+    if (query === search.query && !relabelFilter) continue;
+    await tx
+      .update(emailSavedSearches)
+      .set({ query, filters: relabelFilter ? { ...search.filters, label: to } : search.filters })
+      .where(eq(emailSavedSearches.id, search.id));
+  }
+
+  return [...new Set(relabelled.map((row) => row.mailboxId))];
 }
 
 // ─── Wire shapes ────────────────────────────────────────────────────
@@ -424,6 +563,23 @@ export interface SubscriptionSenderDto {
   hasListUnsubscribe: boolean;
   type: 'list-unsubscribe' | 'pattern-match' | 'frequent';
   senderAvatarPath?: string | null;
+  /** The user has already unsubscribed from this sender. */
+  unsubscribed: boolean;
+  /** When they first did, or `null` when they have not. */
+  unsubscribedAt: Date | null;
+}
+
+/** What `POST /email/subscriptions/unsubscribe` reports. */
+export interface UnsubscribeResultDto {
+  success: true;
+  method: EmailUnsubscribeMethod;
+  /** When the user first unsubscribed from this sender. */
+  unsubscribedAt: Date;
+  /**
+   * True when the sender was already unsubscribed and nothing was sent to it
+   * this time — the stored result is returned instead.
+   */
+  alreadyUnsubscribed: boolean;
 }
 
 // ─── Message reads ──────────────────────────────────────────────────
@@ -1482,6 +1638,21 @@ class EmailService {
     };
   }
 
+  /**
+   * Delete a user-created folder, KEEPING its mail.
+   *
+   * The client promises "messages inside are not deleted", and
+   * `messages.mailbox_id` CASCADEs — so deleting the row alone destroyed every
+   * message in the folder. The messages move to Archive first (Inbox when the
+   * user has no Archive), in the same transaction as the delete. The folder row
+   * is locked before the move: an insert into `messages` takes a KEY SHARE lock
+   * on the mailbox it references, so a delivery racing this delete waits and
+   * then fails its foreign key instead of landing after the move and being
+   * cascaded away.
+   *
+   * Counters need no bookkeeping: they are derived from `messages`, so the move
+   * IS the counter update for both folders.
+   */
   async deleteMailbox(userId: string, mailboxId: string): Promise<void> {
     const mailbox = await this.getMailboxById(userId, mailboxId);
     if (!mailbox) {
@@ -1491,12 +1662,59 @@ class EmailService {
       throw new BadRequestError('Cannot delete a system mailbox');
     }
 
-    // Unlink the attachments first — the file manager owns blob lifecycle and
-    // has to be told. Deleting the mailbox then takes its messages with it:
-    // `messages.mailbox_id` CASCADEs, which is the same two-step this method
-    // used to perform by hand, except Postgres cannot forget the second half.
-    await this.deleteAttachmentsForMailbox(userId, mailboxId);
-    await getDb().delete(mailboxes).where(eq(mailboxes.id, mailboxId));
+    const destination = await this.mailDestinationForDeletedFolder(userId);
+    const db = getDb();
+
+    await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ id: mailboxes.id, specialUse: mailboxes.specialUse })
+        .from(mailboxes)
+        .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.userId, userId)))
+        .for('update')
+        .limit(1);
+      if (!locked) throw new NotFoundError('Mailbox not found');
+      if (locked.specialUse) throw new BadRequestError('Cannot delete a system mailbox');
+
+      // Every row in the folder, not only the caller's: any row left behind is
+      // a row the cascade below would delete.
+      await tx
+        .update(messages)
+        .set({ mailboxId: destination.id })
+        .where(eq(messages.mailboxId, mailboxId));
+      // A message snoozed OUT of this folder would otherwise lose its return
+      // address to `ON DELETE SET NULL` and never wake up.
+      await tx
+        .update(messages)
+        .set({ snoozedFromMailbox: destination.id })
+        .where(eq(messages.snoozedFromMailbox, mailboxId));
+      await tx.delete(mailboxes).where(eq(mailboxes.id, mailboxId));
+    });
+
+    // One signal for the whole folder rather than one per message: the client
+    // re-reads every mail view and the folder list on any `email:changed`, and
+    // a large folder would otherwise be thousands of events and unread
+    // recounts. `id` is the deleted folder's.
+    await emitEmailChanged({
+      userId,
+      id: mailboxId,
+      mailboxIds: [destination.id],
+      reason: 'moved',
+    });
+  }
+
+  /** Where a deleted folder's mail goes: Archive, else Inbox, provisioning if needed. */
+  private async mailDestinationForDeletedFolder(
+    userId: string,
+  ): Promise<typeof mailboxes.$inferSelect> {
+    const find = async () =>
+      (await this.getMailboxBySpecialUse(userId, '\\Archive')) ??
+      (await this.getMailboxBySpecialUse(userId, '\\Inbox'));
+    const existing = await find();
+    if (existing) return existing;
+    await this.ensureMailboxes(userId);
+    const provisioned = await find();
+    if (!provisioned) throw new NotFoundError('Archive mailbox not found');
+    return provisioned;
   }
 
   // ─── Messages ─────────────────────────────────────────────────────
@@ -2093,16 +2311,42 @@ class EmailService {
       });
     }
 
-    // Fire-and-forget filter application (non-blocking)
-    this.applyFilters(userId, storedMessageId).catch((err) => {
+    // The user's filters run BEFORE anything is announced. They used to be
+    // fire-and-forget, racing the push and `email:new` below — so a message a
+    // rule moved out of the Inbox, marked read or deleted still buzzed the
+    // phone and toasted on every open client. A failing rule is logged and
+    // delivery carries on: the message is stored, and that is what matters.
+    try {
+      await this.applyFilters(userId, storedMessageId);
+    } catch (err) {
       logger.warn('Email filter application failed', { messageId: storedMessageId, error: String(err) });
-    });
+    }
 
     // Fire-and-forget global auto-forwarding (non-blocking, only for non-spam)
     if (!isSpam) {
       this.applyGlobalAutoForward(userId, storedMessageId).catch((err) => {
         logger.warn('Global auto-forward failed', { userId, error: String(err) });
       });
+    }
+
+    const dto = await readMessageDto(db, storedMessageId);
+
+    // Still unread where it was delivered: the filters left it as new mail, so
+    // it is announced as new mail. Anything else — moved (archived, deleted to
+    // Trash, filed), or marked read — is not news to the user.
+    const stillNew = dto.mailboxId === mailbox.id && !dto.flags.seen;
+
+    if (!stillNew) {
+      // The filter actions already emitted their own `email:changed`; this one
+      // names the delivery folder as well, so a client showing either side
+      // re-reads even if a rule's emit was lost. No toast, no unread bump.
+      await emitEmailChanged({
+        userId,
+        id: dto.id,
+        mailboxIds: dto.mailboxId === mailbox.id ? [mailbox.id] : [mailbox.id, dto.mailboxId],
+        reason: dto.mailboxId === mailbox.id ? 'flags' : 'moved',
+      });
+      return dto;
     }
 
     // Fire-and-forget push notification (non-blocking, only for non-spam)
@@ -2117,8 +2361,6 @@ class EmailService {
         mailboxId: mailbox.id,
       });
     }
-
-    const dto = await readMessageDto(db, storedMessageId);
 
     // Realtime fan-out lives HERE, at the one chokepoint every ingest path goes
     // through, and no longer in `routes/emailInbound.ts`. When the emit sat in
@@ -2729,7 +2971,7 @@ class EmailService {
   }
 
   async createLabel(userId: string, name: string, color: string): Promise<LabelDto> {
-    if (isSystemLabel(name)) throw new BadRequestError(`Label "${name.trim()}" already exists`);
+    if (isSystemLabel(name)) throw new ConflictError(`Label "${name.trim()}" already exists`);
     const db = getDb();
 
     // `lower(name)`, matching `labels_user_id_lower_name_key`. A plain equality
@@ -2740,42 +2982,109 @@ class EmailService {
       .from(labelsTable)
       .where(and(eq(labelsTable.userId, userId), sql`lower(${labelsTable.name}) = lower(${name})`))
       .limit(1);
-    if (existing) throw new BadRequestError(`Label "${name}" already exists`);
+    if (existing) throw new ConflictError(`Label "${name}" already exists`);
 
     const [countRow] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(labelsTable)
       .where(eq(labelsTable.userId, userId));
 
-    const [label] = await db
-      .insert(labelsTable)
-      .values({ userId, name: name.trim(), color, order: countRow?.count ?? 0 })
-      .returning();
-    return toLabelDto(label);
+    // The read above is a courtesy, not the guarantee: two creates racing past
+    // it both reach the insert, and the index refuses the second. That refusal
+    // is the same conflict, and must not surface as a 500.
+    try {
+      const [label] = await db
+        .insert(labelsTable)
+        .values({ userId, name: name.trim(), color, order: countRow?.count ?? 0 })
+        .returning();
+      return toLabelDto(label);
+    } catch (error) {
+      if (isUniqueViolation(error, LABEL_NAME_UNIQUE_INDEX)) {
+        throw new ConflictError(`Label "${name.trim()}" already exists`);
+      }
+      throw error;
+    }
   }
 
+  /**
+   * Recolour and/or rename one label.
+   *
+   * A label is referenced BY NAME, not by id: `messages.labels`,
+   * `bundles.match_labels`, a filter's `label` action and a saved search's
+   * `label` filter (and `label:` operator in its query) all hold the string.
+   * Renaming only the `labels` row therefore orphaned every message carrying it
+   * — the chip vanished, the label's view went empty, and the old name could no
+   * longer be removed from anything. So a rename rewrites every reference in the
+   * same transaction as the row, under a lock on that row.
+   */
   async updateLabel(userId: string, labelId: string, updates: { name?: string; color?: string }): Promise<LabelDto> {
     if (isSystemLabelId(labelId)) throw new BadRequestError('System labels cannot be edited');
     if (updates.name && isSystemLabel(updates.name)) {
-      throw new BadRequestError(`Label "${updates.name.trim()}" already exists`);
+      throw new ConflictError(`Label "${updates.name.trim()}" already exists`);
     }
-    if (Object.keys(updates).length === 0) {
-      const [current] = await getDb()
-        .select()
-        .from(labelsTable)
-        .where(and(eq(labelsTable.id, labelId), eq(labelsTable.userId, userId)))
-        .limit(1);
-      if (!current) throw new NotFoundError('Label not found');
-      return toLabelDto(current);
+    const db = getDb();
+
+    let outcome: { label: typeof labelsTable.$inferSelect; renamedIn: string[] | null };
+    try {
+      outcome = await db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(labelsTable)
+          .where(and(eq(labelsTable.id, labelId), eq(labelsTable.userId, userId)))
+          .for('update')
+          .limit(1);
+        if (!current) throw new NotFoundError('Label not found');
+        if (Object.keys(updates).length === 0) return { label: current, renamedIn: null };
+
+        const renaming = updates.name !== undefined && updates.name !== current.name;
+        if (renaming) {
+          // Case-only renames (`work` → `Work`) are this label colliding with
+          // itself, hence `id <>`.
+          const [clash] = await tx
+            .select({ id: labelsTable.id })
+            .from(labelsTable)
+            .where(
+              and(
+                eq(labelsTable.userId, userId),
+                ne(labelsTable.id, current.id),
+                sql`lower(${labelsTable.name}) = lower(${updates.name})`,
+              ),
+            )
+            .limit(1);
+          if (clash) throw new ConflictError(`Label "${updates.name}" already exists`);
+        }
+
+        const [label] = await tx
+          .update(labelsTable)
+          .set(updates)
+          .where(eq(labelsTable.id, current.id))
+          .returning();
+
+        const renamedIn = renaming
+          ? await renameLabelReferences(tx, userId, current.name, label.name)
+          : null;
+        return { label, renamedIn };
+      });
+    } catch (error) {
+      if (isUniqueViolation(error, LABEL_NAME_UNIQUE_INDEX)) {
+        throw new ConflictError(`Label "${updates.name?.trim() ?? ''}" already exists`);
+      }
+      throw error;
     }
 
-    const [label] = await getDb()
-      .update(labelsTable)
-      .set(updates)
-      .where(and(eq(labelsTable.id, labelId), eq(labelsTable.userId, userId)))
-      .returning();
-    if (!label) throw new NotFoundError('Label not found');
-    return toLabelDto(label);
+    if (outcome.renamedIn) {
+      // One signal for the whole rename, not one per message: a label on
+      // thousands of messages would otherwise be thousands of events and as
+      // many unread recounts. `id` is the label's — the client keys nothing on
+      // it and re-reads every mail view, bundles included.
+      await emitEmailChanged({
+        userId,
+        id: outcome.label.id,
+        mailboxIds: outcome.renamedIn,
+        reason: 'labels',
+      });
+    }
+    return toLabelDto(outcome.label);
   }
 
   async deleteLabel(userId: string, labelId: string): Promise<void> {
@@ -2792,8 +3101,8 @@ class EmailService {
     // Detaching the name from every message and deleting the row are one
     // change: a crash between them leaves messages carrying a label the user
     // can no longer see or remove.
-    await db.transaction(async (tx) => {
-      await tx
+    const detachedFrom = await db.transaction(async (tx) => {
+      const detached = await tx
         .update(messages)
         .set({ labels: sql`array_remove(${messages.labels}, ${label.name})` })
         .where(
@@ -2801,9 +3110,15 @@ class EmailService {
             eq(messages.userId, userId),
             sql`${messages.labels} @> array[${label.name}]::text[]`,
           ),
-        );
+        )
+        .returning({ mailboxId: messages.mailboxId });
       await tx.delete(labelsTable).where(eq(labelsTable.id, labelId));
+      return [...new Set(detached.map((row) => row.mailboxId))];
     });
+
+    if (detachedFrom.length > 0) {
+      await emitEmailChanged({ userId, id: label.id, mailboxIds: detachedFrom, reason: 'labels' });
+    }
   }
 
   /**
@@ -4068,6 +4383,20 @@ class EmailService {
       .from(messages)
       .where(inArray(messages.id, senders.map((s) => s.latest_message_id)));
 
+    const unsubscribedRows = await db
+      .select({
+        senderAddress: emailUnsubscribedSenders.senderAddress,
+        unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt,
+      })
+      .from(emailUnsubscribedSenders)
+      .where(
+        and(
+          eq(emailUnsubscribedSenders.userId, userId),
+          inArray(emailUnsubscribedSenders.senderAddress, senders.map((s) => s.address)),
+        ),
+      );
+    const unsubscribedAtBySender = new Map(unsubscribedRows.map((row) => [row.senderAddress, row.unsubscribedAt]));
+
     const headerMap = new Map<string, Record<string, string>>();
     for (const msg of latestMessages) {
       const headers: Record<string, string> = {};
@@ -4099,6 +4428,8 @@ class EmailService {
         latestMessageId: sender.latest_message_id,
         hasListUnsubscribe: Boolean(listUnsub),
         type,
+        unsubscribed: unsubscribedAtBySender.has(sender.address),
+        unsubscribedAt: unsubscribedAtBySender.get(sender.address) ?? null,
       };
     });
 
@@ -4116,15 +4447,51 @@ class EmailService {
   }
 
   /**
-   * Unsubscribe from a sender via List-Unsubscribe header or by blocking.
+   * Unsubscribe from a sender via List-Unsubscribe header or by blocking, and
+   * remember that it was done.
+   *
+   * Idempotent: a sender already unsubscribed is answered from the stored row
+   * and NOTHING is sent to it again — each retry used to fire another
+   * one-click POST, GET or `mailto:` message, because the subscriptions list
+   * kept showing the sender as if the first attempt had failed. A `block` is
+   * the exception: it only moves mail locally, so it always runs (new mail may
+   * have arrived since) and upgrades the stored method to `blocked`.
    */
   async unsubscribe(
     userId: string,
     senderAddress: string,
     method: 'list-unsubscribe' | 'block' = 'list-unsubscribe',
-  ): Promise<{ success: boolean; method: string }> {
+  ): Promise<UnsubscribeResultDto> {
     const db = getDb();
     const normalizedSender = senderAddress.trim().toLowerCase();
+
+    const [already] = await db
+      .select({ method: emailUnsubscribedSenders.method, unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt })
+      .from(emailUnsubscribedSenders)
+      .where(
+        and(
+          eq(emailUnsubscribedSenders.userId, userId),
+          eq(emailUnsubscribedSenders.senderAddress, normalizedSender),
+        ),
+      )
+      .limit(1);
+    if (already && method !== 'block') {
+      return { success: true, method: already.method, unsubscribedAt: already.unsubscribedAt, alreadyUnsubscribed: true };
+    }
+
+    const done = async (performed: EmailUnsubscribeMethod): Promise<UnsubscribeResultDto> => {
+      // Upsert: two requests racing past the read above both land here, and the
+      // first `unsubscribed_at` is the one kept.
+      const [row] = await db
+        .insert(emailUnsubscribedSenders)
+        .values({ userId, senderAddress: normalizedSender, method: performed })
+        .onConflictDoUpdate({
+          target: [emailUnsubscribedSenders.userId, emailUnsubscribedSenders.senderAddress],
+          set: { method: performed, updatedAt: new Date() },
+        })
+        .returning({ unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt });
+      return { success: true, method: performed, unsubscribedAt: row.unsubscribedAt, alreadyUnsubscribed: Boolean(already) };
+    };
 
     if (method === 'list-unsubscribe') {
       // Find the latest message from this sender. `headers` is PROTECTED and
@@ -4159,7 +4526,7 @@ class EmailService {
                   'List-Unsubscribe': 'One-Click-Unsubscribe',
                 },
               });
-              return { success: true, method: 'one-click' };
+              return done('one-click');
             } catch (err) {
               logger.warn('One-click unsubscribe failed, trying fallback', {
                 sender: senderAddress,
@@ -4172,7 +4539,7 @@ class EmailService {
           if (httpMatch) {
             try {
               await this.fetchUnsubscribeUrl(httpMatch[1], { method: 'GET' });
-              return { success: true, method: 'http' };
+              return done('http');
             } catch (err) {
               logger.warn('HTTP unsubscribe failed, trying mailto', {
                 sender: senderAddress,
@@ -4199,7 +4566,7 @@ class EmailService {
                   subject: params.get('subject') || 'Unsubscribe',
                   text: params.get('body') || 'Unsubscribe',
                 });
-                return { success: true, method: 'mailto' };
+                return done('mailto');
               }
             } catch (err) {
               logger.warn('Mailto unsubscribe failed', {
@@ -4234,7 +4601,7 @@ class EmailService {
         );
     }
 
-    return { success: true, method: 'blocked' };
+    return done('blocked');
   }
 
   /**
@@ -4392,12 +4759,6 @@ class EmailService {
       after = page[page.length - 1].id;
       if (page.length < ATTACHMENT_SWEEP_PAGE_SIZE) return;
     }
-  }
-
-  private async deleteAttachmentsForMailbox(userId: string, mailboxId: string): Promise<void> {
-    await this.unlinkAttachmentsMatching(
-      and(eq(messages.userId, userId), eq(messages.mailboxId, mailboxId)),
-    );
   }
 
   private async deleteAttachmentsForUser(userId: string): Promise<void> {
@@ -4772,7 +5133,10 @@ class EmailService {
         .select()
         .from(contacts)
         .where(where)
-        .orderBy(desc(contacts.starred), asc(contacts.name))
+        // `id` makes the order TOTAL: two contacts with the same name could
+        // otherwise swap sides of a page boundary between two requests, so one
+        // is returned twice and the other never.
+        .orderBy(desc(contacts.starred), asc(contacts.name), asc(contacts.id))
         .limit(limit)
         .offset(offset),
       db.select({ total: sql<number>`count(*)::int` }).from(contacts).where(where),

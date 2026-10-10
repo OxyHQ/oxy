@@ -15020,8 +15020,8 @@
         "tags": [
           "Email"
         ],
-        "summary": "POST /email/labels",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "Create a label.",
+        "description": "Names are unique per user, ignoring case, and may not reuse\na system label's name.",
         "parameters": [],
         "responses": {
           "200": {
@@ -15039,6 +15039,16 @@
           },
           "401": {
             "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A label with this name (in any case) already exists.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15093,8 +15103,8 @@
         "tags": [
           "Email"
         ],
-        "summary": "PUT /email/labels/{labelId}",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "Rename and/or recolour a label.",
+        "description": "A rename is applied to every message\ncarrying the label, to bundles matching it, to filter rules that apply it\nand to saved searches naming it, all in one transaction.",
         "parameters": [
           {
             "name": "labelId",
@@ -15132,6 +15142,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another label with this name (in any case) already exists.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15376,8 +15396,8 @@
         "tags": [
           "Email"
         ],
-        "summary": "DELETE /email/mailboxes/{mailboxId}",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "Delete a user-created folder, keeping its messages.",
+        "description": "Its messages are kept: they move to Archive\n(Inbox when there is no Archive) before the folder is removed. System\nfolders cannot be deleted.",
         "parameters": [
           {
             "name": "mailboxId",
@@ -17842,12 +17862,119 @@
         "tags": [
           "Email"
         ],
-        "summary": "GET /email/subscriptions",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "List the senders the user receives regular mail from.",
+        "description": "Senders with three or more received messages (Inbox and Archive), most\nfrequent first, offset-paginated with `limit` (default 50, max 100) and\n`offset`. A sender the user already unsubscribed from stays listed with\n`unsubscribed: true` and the time in `unsubscribedAt`.",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/email.ts`, naming a Zod schema the file imports."
+            "description": "One page of senders, with the total.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "_id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "messageCount": {
+                            "type": "integer"
+                          },
+                          "readCount": {
+                            "type": "integer"
+                          },
+                          "latestDate": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "oldestDate": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "latestMessageId": {
+                            "type": "string"
+                          },
+                          "hasListUnsubscribe": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "list-unsubscribe",
+                              "pattern-match",
+                              "frequent"
+                            ]
+                          },
+                          "senderAvatarPath": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "unsubscribed": {
+                            "type": "boolean"
+                          },
+                          "unsubscribedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "_id",
+                          "name",
+                          "messageCount",
+                          "readCount",
+                          "latestDate",
+                          "oldestDate",
+                          "latestMessageId",
+                          "hasListUnsubscribe",
+                          "type",
+                          "unsubscribed",
+                          "unsubscribedAt"
+                        ]
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "offset": {
+                          "type": "integer"
+                        },
+                        "hasMore": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "limit",
+                        "offset",
+                        "hasMore"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "pagination"
+                  ]
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication required",
@@ -17883,12 +18010,57 @@
         "tags": [
           "Email"
         ],
-        "summary": "POST /email/subscriptions/unsubscribe",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "Unsubscribe from a sender, or block it.",
+        "description": "Unsubscribes through the sender's List-Unsubscribe header (one-click\nPOST, then GET, then mailto), falling back to moving its mail to Spam; or\nblock it outright with `method: \"block\"`. Idempotent: a sender already\nunsubscribed is answered from the stored result with\n`alreadyUnsubscribed: true` and nothing is sent to it again. A `block`\nalways runs, since it only moves mail locally.",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/email.ts`, naming a Zod schema the file imports."
+            "description": "How the unsubscribe was carried out, and when.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "method": {
+                          "type": "string",
+                          "enum": [
+                            "one-click",
+                            "http",
+                            "mailto",
+                            "blocked"
+                          ]
+                        },
+                        "unsubscribedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "alreadyUnsubscribed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "success",
+                        "method",
+                        "unsubscribedAt",
+                        "alreadyUnsubscribed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
           },
           "400": {
             "description": "Validation failed",

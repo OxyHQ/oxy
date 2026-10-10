@@ -71,6 +71,7 @@ export * from './emailTemplates';
 export * from './emailOutbox';
 export * from './emailSuppressions';
 export * from './emailSavedSearches';
+export * from './emailUnsubscribedSenders';
 export * from './federationKeyPairs';
 export * from './fileLinks';
 export * from './fileVariants';

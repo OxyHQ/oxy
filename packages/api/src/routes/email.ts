@@ -48,6 +48,9 @@ import {
   contactIdParams,
   updateContactSchema,
 } from '../schemas/email.schemas';
+// Schema-only bindings consumed by generate-openapi's `@response` annotations.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { listSubscriptionsResponseSchema, unsubscribeResponseSchema } from '../schemas/email.schemas';
 import {
   listMailboxes,
   createMailbox,
@@ -158,6 +161,13 @@ router.get('/ai-context', asyncHandler(getEmailAgentContext));
 
 router.get('/mailboxes', asyncHandler(listMailboxes));
 router.post('/mailboxes', validate({ body: createMailboxSchema }), asyncHandler(createMailbox));
+/**
+ * Delete a user-created folder, keeping its messages.
+ *
+ * Its messages are kept: they move to Archive
+ * (Inbox when there is no Archive) before the folder is removed. System
+ * folders cannot be deleted.
+ */
 router.delete('/mailboxes/:mailboxId', validate({ params: mailboxIdParams }), asyncHandler(deleteMailbox));
 
 // ─── Messages ─────────────────────────────────────────────────────
@@ -184,7 +194,22 @@ router.post('/messages/:messageId/unsnooze', validate({ params: messageIdParams 
 // ─── Labels ──────────────────────────────────────────────────────
 
 router.get('/labels', asyncHandler(listLabels));
+/**
+ * Create a label.
+ *
+ * Names are unique per user, ignoring case, and may not reuse
+ * a system label's name.
+ * @response 409 Error A label with this name (in any case) already exists.
+ */
 router.post('/labels', validate({ body: createLabelSchema }), asyncHandler(createLabel));
+/**
+ * Rename and/or recolour a label.
+ *
+ * A rename is applied to every message
+ * carrying the label, to bundles matching it, to filter rules that apply it
+ * and to saved searches naming it, all in one transaction.
+ * @response 409 Error Another label with this name (in any case) already exists.
+ */
 router.put('/labels/:labelId', validate({ params: labelIdParams, body: updateLabelSchema }), asyncHandler(updateLabel));
 router.delete('/labels/:labelId', validate({ params: labelIdParams }), asyncHandler(deleteLabel));
 
@@ -224,7 +249,27 @@ router.post('/import', importUploadMiddleware, asyncHandler(importMessages));
 
 // ─── Subscriptions ───────────────────────────────────────────
 
+/**
+ * List the senders the user receives regular mail from.
+ *
+ * Senders with three or more received messages (Inbox and Archive), most
+ * frequent first, offset-paginated with `limit` (default 50, max 100) and
+ * `offset`. A sender the user already unsubscribed from stays listed with
+ * `unsubscribed: true` and the time in `unsubscribedAt`.
+ * @response 200 listSubscriptionsResponseSchema One page of senders, with the total.
+ */
 router.get('/subscriptions', asyncHandler(listSubscriptions));
+/**
+ * Unsubscribe from a sender, or block it.
+ *
+ * Unsubscribes through the sender's List-Unsubscribe header (one-click
+ * POST, then GET, then mailto), falling back to moving its mail to Spam; or
+ * block it outright with `method: "block"`. Idempotent: a sender already
+ * unsubscribed is answered from the stored result with
+ * `alreadyUnsubscribed: true` and nothing is sent to it again. A `block`
+ * always runs, since it only moves mail locally.
+ * @response 200 unsubscribeResponseSchema How the unsubscribe was carried out, and when.
+ */
 router.post('/subscriptions/unsubscribe', validate({ body: unsubscribeSchema }), asyncHandler(unsubscribe));
 
 // ─── Bundles ──────────────────────────────────────────────────────

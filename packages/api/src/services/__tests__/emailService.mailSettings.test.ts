@@ -400,6 +400,29 @@ describe('contacts — the normalization Mongoose did with a setter', () => {
     expect(onlyStarred.data.map((c) => c.id)).toEqual([starred.id]);
   });
 
+  it('pages through same-named contacts with every one returned exactly once', async () => {
+    // `starred desc, name asc` alone is not a total order: equal names may
+    // swap across a page boundary between requests. `id` breaks the tie.
+    const userId = await owner();
+    const tag = unique().slice(0, 8);
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const contact = await emailService.createContact(userId, {
+        name: `Sam${tag}`,
+        email: `sam${i}-${tag}@example.com`,
+      });
+      ids.push(contact.id);
+    }
+
+    const seen: string[] = [];
+    for (let offset = 0; offset < 5; offset += 2) {
+      const page = await emailService.listContacts(userId, { q: tag, limit: 2, offset });
+      expect(page.total).toBe(5);
+      seen.push(...page.data.map((c) => c.id));
+    }
+    expect(seen).toEqual([...ids].sort());
+  });
+
   it('auto-collects a new correspondent and only touches the stamp on the next one', async () => {
     const userId = await owner();
     const email = `auto${unique().slice(0, 8)}@example.com`;
