@@ -484,11 +484,9 @@ async function register(): Promise<void> {
   const byKey = (key: ClientKey): string =>
     mapping.find((m) => m.key === key)?.clientId ?? 'ERROR-missing';
 
-  /* eslint-disable no-console */
   console.log(`COMMONS_CLIENT_ID=${byKey('COMMONS_CLIENT_ID')}`);
   console.log(`AUTH_IDP_CLIENT_ID=${byKey('AUTH_IDP_CLIENT_ID')}`);
   console.log('OXY_SIGNIN_CLIENTS_JSON=' + JSON.stringify({ dryRun, clients: mapping }));
-  /* eslint-enable no-console */
 }
 
 async function main(): Promise<void> {

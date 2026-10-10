@@ -103,7 +103,6 @@ export default function WelcomeScreen() {
       clearTimeout(t2);
       clearTimeout(t3);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleContinue = useCallback(() => {

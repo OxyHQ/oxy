@@ -14,7 +14,6 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
   isWebBrowser: () => isWebBrowserMock(),
 }));
 
-// eslint-disable-next-line import/first
 import { resolveDeliveryPlatform } from '../../src/ui/utils/deliveryPlatform';
 
 /** Install a `navigator.userAgentData.mobile` bit, or remove it entirely. */

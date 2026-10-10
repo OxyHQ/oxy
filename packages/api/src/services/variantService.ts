@@ -82,7 +82,7 @@ function getFfmpegPath(): string {
 
   try {
     // ffmpeg-static exports the path as a string directly
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // biome-ignore lint/style/noCommonJs: ffmpeg-static exports the path as a string directly
     const ffmpegStatic = require('ffmpeg-static');
     logger.debug('[VariantService] ffmpeg-static require result', { type: typeof ffmpegStatic, value: ffmpegStatic });
     
@@ -137,7 +137,7 @@ function getFfprobePath(): string {
 
   try {
     // ffprobe-static exports an object with a path property
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // biome-ignore lint/style/noCommonJs: ffprobe-static exports an object with a path property
     const ffprobeStatic = require('ffprobe-static');
     logger.debug('[VariantService] ffprobe-static require result', { type: typeof ffprobeStatic, value: ffprobeStatic });
     

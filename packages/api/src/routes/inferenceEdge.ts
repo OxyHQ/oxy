@@ -48,9 +48,9 @@
 import { decisionRequestSchema, decisionSuccessSchema } from '@oxy.so/contracts';
 
 // Schema-only bindings consumed by generate-openapi's route-owned annotations.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// biome-ignore lint/correctness/noUnusedImports: schema-only binding consumed by generate-openapi's route-owned annotations
 import type { inferenceErrorSchema } from '@oxy.so/contracts';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// biome-ignore lint/correctness/noUnusedImports: schema-only binding consumed by generate-openapi's route-owned annotations
 import type { originalGenerationReceiptHeadersSchema } from '../schemas/inferenceEdge.schemas';
 
 import { Router, type NextFunction, type Request, type Response } from 'express';

@@ -274,9 +274,7 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
   isWebBrowser: () => isWebBrowserMock(),
 }));
 
-// eslint-disable-next-line import/first
 import OxyAuthChooser from '../../src/ui/components/OxyAuthChooser';
-// eslint-disable-next-line import/first
 import { registerAccountDialogConsumerHooks } from '../../src/ui/navigation/accountDialogManager';
 
 describe('OxyAuthChooser', () => {

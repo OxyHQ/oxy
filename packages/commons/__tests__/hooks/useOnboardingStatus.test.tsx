@@ -52,14 +52,12 @@ jest.mock('@/hooks/identity/identityStore', () => {
 });
 
 // Imported AFTER jest.mock so the hook sees the patched modules.
-// eslint-disable-next-line import/first
 import {
   useOnboardingStatus,
   ONBOARDING_IDENTITY_QUERY_KEY,
   ONBOARDING_COMPLETE_QUERY_KEY,
   getOnboardingResumeHref,
 } from '@/hooks/useOnboardingStatus';
-// eslint-disable-next-line import/first
 import { persistOnboardingComplete } from '@/hooks/identity/identityStore';
 
 const PRESENT: IdentityStatus = { state: 'present', publicKey: 'pub-abc' };

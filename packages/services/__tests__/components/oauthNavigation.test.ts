@@ -17,7 +17,6 @@ jest.mock(
   { virtual: true },
 );
 
-// eslint-disable-next-line import/first
 import { openAuthorizeUrlNative } from '../../src/ui/components/oauthNavigation';
 
 const AUTHORIZE_URL = 'https://auth.oxy.so/authorize?client_id=c&state=s';

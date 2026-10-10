@@ -79,9 +79,7 @@ jest.mock('@/hooks/identity/identityStore', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { useIdentity } from '@/hooks/useIdentity';
-// eslint-disable-next-line import/first
 import { persistPendingUsername } from '@/hooks/identity/identityStore';
 
 function createWrapper() {

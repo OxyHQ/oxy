@@ -16,7 +16,6 @@ jest.mock('expo-haptics', () => ({
 // outside a BloomThemeProvider; the shared-UI primitives are irrelevant to the
 // reveal state machine under test, so stand them in with plain DOM nodes.
 jest.mock('@/components/ui', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react');
   return {
     Screen: ({ children }: { children: React.ReactNode }) => R.createElement('div', null, children),

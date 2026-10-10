@@ -11,7 +11,7 @@ const SSM = "arn:aws:ssm:us-west-2:237343248947:parameter";
 
 /** The shape `describe-task-definition` returns for the live service, sidecar included. */
 // A describe-task-definition fixture that each negative case mutates in place.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: a describe-task-definition fixture that each negative case mutates in place
 type LiveTaskDefinition = Record<string, any>;
 
 function liveTaskDefinition(): LiveTaskDefinition {

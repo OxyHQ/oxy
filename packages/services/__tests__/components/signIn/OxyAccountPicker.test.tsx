@@ -13,7 +13,6 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { OxyAccountPicker } from '../../../src/ui/components/signIn/OxyAccountPicker';
 
 const row = (contextId: string, displayName: string, isActive: boolean) => ({

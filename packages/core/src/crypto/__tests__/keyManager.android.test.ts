@@ -18,7 +18,6 @@ import { deriveScopedSeedFromKey, signSocialReceiveDigest } from '../identityDer
 jest.mock(
   'expo-secure-store',
   () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createSecureStoreMock } = require('./identityMocks');
     return createSecureStoreMock();
   },
@@ -50,7 +49,6 @@ jest.mock('@oxy.so/protocol', () => ({
   loadAsyncStorage: async () => ({ default: mockAsyncStorage }),
   loadCommonsIdentityBridge: async () => mockBridge.current,
 }));
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const mockAsyncStorage = require('./identityMocks').createAsyncStorageMock();
 
 const KEY_A = 'aa'.repeat(32);

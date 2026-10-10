@@ -65,7 +65,6 @@ jest.mock('../../../src/ui/hooks/queries/useAuthMethods', () => ({
   useSignInMethods: () => ({ data: { hasEmail: true, hasPassword: false, totpEnabled, backupCodesRemaining: 0 } }),
 }));
 
-// eslint-disable-next-line import/first
 import { IDENTITY_LINK_POLL_MS, OxyLinkCommonsPanel } from '../../../src/ui/components/signIn/OxyLinkCommonsPanel';
 
 beforeEach(() => {

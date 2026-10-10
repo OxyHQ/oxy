@@ -78,7 +78,6 @@
     "zod": "^3.25.64"
   },
   "devDependencies": {
-    "@biomejs/biome": "catalog:",
     "@types/node": "^20.19.43",
     "jest": "^30.5.1",
     "release-it": "catalog:",

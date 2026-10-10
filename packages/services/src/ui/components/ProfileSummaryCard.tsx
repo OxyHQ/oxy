@@ -83,7 +83,7 @@ const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
                 </H4>
                 {subtitleLines.map((line, index) => (
                     <Text
-                        // Subtitle order is stable within a render; index keys are safe here.
+                        // biome-ignore lint/suspicious/noArrayIndexKey: subtitle order is stable within a render; index keys are safe here.
                         key={`${index}-${line}`}
                         className="text-text-secondary text-sm mt-space-2"
                         numberOfLines={1}

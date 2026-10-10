@@ -95,7 +95,6 @@ export default function AuthIndexScreen() {
       if (innerHello.current) clearTimeout(innerHello.current);
       if (innerTap.current) clearTimeout(innerTap.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePress = useCallback(() => {

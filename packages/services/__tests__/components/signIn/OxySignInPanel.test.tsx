@@ -177,15 +177,12 @@ jest.mock('../../../src/ui/utils/isWebBrowser', () => ({
   isWebBrowser: () => isWebBrowserMock(),
 }));
 
-// eslint-disable-next-line import/first
 import {
   EMAIL_RESEND_COOLDOWN_SECONDS,
   EMAIL_SIGNIN_POLL_MS,
   OxySignInPanel,
 } from '../../../src/ui/components/signIn/OxySignInPanel';
-// eslint-disable-next-line import/first
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
-// eslint-disable-next-line import/first
 import { InlineCommonsQr } from '../../../src/ui/components/signIn/InlineCommonsQr';
 
 const onSignedIn = jest.fn();
@@ -465,7 +462,6 @@ describe('"Check your email" — the code or the link', () => {
       expect(screen.getByText(`Send a new email in ${EMAIL_RESEND_COOLDOWN_SECONDS}s`)).toBeTruthy();
 
       for (let i = 0; i < EMAIL_RESEND_COOLDOWN_SECONDS; i += 1) {
-        // biome-ignore lint/nursery/noAwaitInLoop: one tick per second, in order
         await act(async () => {
           jest.advanceTimersByTime(1000);
         });

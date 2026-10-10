@@ -115,15 +115,10 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { OxySignUpPanel } from '../../../src/ui/components/signIn/OxySignUpPanel';
-// eslint-disable-next-line import/first
 import { clearSignInFlows } from '../../../src/ui/components/signIn/signInFlowStore';
-// eslint-disable-next-line import/first
 import { OxyDeleteAccountPanel } from '../../../src/ui/components/signIn/OxyDeleteAccountPanel';
-// eslint-disable-next-line import/first
 import { OxyPasswordPanel } from '../../../src/ui/components/signIn/OxyPasswordPanel';
-// eslint-disable-next-line import/first
 import { OxyAuthenticatorPanel } from '../../../src/ui/components/signIn/OxyAuthenticatorPanel';
 
 const type = (testID: string, value: string) => fireEvent.change(screen.getByTestId(testID), { target: { value } });

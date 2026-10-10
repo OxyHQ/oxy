@@ -24,7 +24,6 @@ jest.mock('@oxy.so/core/crypto', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import {
   persistOnboardingComplete,
   getOnboardingCompleteFromStorage,
@@ -33,7 +32,6 @@ import {
   ONBOARDING_COMPLETE_STORAGE_KEY,
   ONBOARDING_FLOW_STORAGE_KEY,
 } from '@/hooks/identity/identityStore';
-// eslint-disable-next-line import/first
 import {
   __resetSecureStore,
   __seedSecureStore,

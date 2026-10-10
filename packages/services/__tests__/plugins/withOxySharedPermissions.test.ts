@@ -6,11 +6,9 @@ jest.mock('@expo/config-plugins', () => ({
   withAndroidManifest: (config: unknown, action: (c: unknown) => unknown) => action(config),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const withOxySharedPermissions = require('../../plugins/withOxySharedPermissions') as ((config: unknown) => {
   modResults: { manifest: Manifest };
 }) & { HOST_AUTHORITIES: string[] };
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const withSharedDeviceSessionProvider = require('../../plugins/withSharedDeviceSessionProvider') as (config: unknown) => {
   modResults: { manifest: Manifest };
 };

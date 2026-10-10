@@ -106,7 +106,6 @@ export function useTranslation(): UseTranslationResult {
     },
     // `localesVersion` is read by nothing inside: it is here so `t` changes identity
     // when a lazily loaded dictionary lands, re-rendering memoised consumers.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dict, locale, localesVersion],
   );
 

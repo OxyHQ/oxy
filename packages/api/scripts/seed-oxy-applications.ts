@@ -478,7 +478,6 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
     .where(eq(applications.createdByUserId, oxyId));
   logger.info('Read-back: applications owned by oxy', { count: ownedAppCount });
 
-  // eslint-disable-next-line no-console
   console.log('OXY_APP_MAPPING_JSON=' + JSON.stringify(mapping));
 }
 

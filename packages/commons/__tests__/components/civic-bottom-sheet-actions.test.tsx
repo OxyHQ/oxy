@@ -27,7 +27,6 @@ let mockAttestQrState = {
 };
 
 jest.mock('@oxy.so/bloom/dialog', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react') as typeof import('react');
   return {
     useDialogControl: () => {
@@ -52,9 +51,7 @@ jest.mock('@/hooks/useAttestQr', () => ({
 jest.mock('react-native-qrcode-svg', () => () => null);
 
 // Imported after the mocks so both sheets bind to the captured Dialog contract.
-// eslint-disable-next-line import/first
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
-// eslint-disable-next-line import/first
 import { AttestReviewSheet } from '@/components/civic/AttestReviewSheet';
 
 const CARD = {

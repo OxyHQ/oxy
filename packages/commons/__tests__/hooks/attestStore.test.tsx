@@ -10,9 +10,7 @@ jest.mock('@/lib/biometricAuth', () => ({
   authenticate: (...args: [string?]) => authenticateMock(...args),
 }));
 
-// eslint-disable-next-line import/first
 import { useAttestStore, type AttestSubmitParams } from '@/hooks/civic/attestStore';
-// eslint-disable-next-line import/first
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
 
 const SUBJECT_DID = 'did:web:oxy.so:u:subjectUser';

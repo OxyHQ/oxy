@@ -25,9 +25,7 @@ jest.mock('@/lib/i18n', () => ({
   }),
 }));
 
-// eslint-disable-next-line import/first
 import { useSignInMethodItems } from '@/components/security/useSignInMethodItems';
-// eslint-disable-next-line import/first
 import { useOpenLinkCommons } from '@/hooks/useIdentityRootStatus';
 
 beforeEach(() => {

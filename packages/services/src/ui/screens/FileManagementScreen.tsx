@@ -1050,8 +1050,9 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                         // biome-ignore lint/suspicious/noArrayIndexKey: fixed-size skeleton grid, order never changes
                         <Skeleton.Row key={`skeleton-row-${row}`} style={{ gap: TILE_GAP }}>
                             {Array.from({ length: GRID_COLUMNS }, (_, col) => (
-                                // biome-ignore lint/suspicious/noArrayIndexKey: fixed-size skeleton grid, order never changes
-                                <Skeleton.Box key={`skeleton-${row}-${col}`} width={tileSize} height={tileSize} borderRadius={6} />
+                                <Skeleton.Box
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-size skeleton grid, order never changes
+                                    key={`skeleton-${row}-${col}`} width={tileSize} height={tileSize} borderRadius={6} />
                             ))}
                         </Skeleton.Row>
                     ))}

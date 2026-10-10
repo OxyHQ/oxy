@@ -100,10 +100,12 @@ describe('S3Service.deleteFile reports successful deletes to the CDN listener', 
 describe('the S3 singleton is wired to the process-wide invalidation queue', () => {
   it('passes getCdnInvalidationQueue() as the delete listener', () => {
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { s3Service } = require('../s3ServiceSingleton') as typeof import('../s3ServiceSingleton');
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { getCdnInvalidationQueue } = require('../cdnInvalidation') as typeof import('../cdnInvalidation');
+      const { s3Service } =
+        // biome-ignore lint/style/noCommonJs: required inside jest.isolateModules to get a fresh module registry
+        require('../s3ServiceSingleton') as typeof import('../s3ServiceSingleton');
+      const { getCdnInvalidationQueue } =
+        // biome-ignore lint/style/noCommonJs: required inside jest.isolateModules to get a fresh module registry
+        require('../cdnInvalidation') as typeof import('../cdnInvalidation');
       const listener = (s3Service as unknown as { deletedObjectListener?: unknown }).deletedObjectListener;
       expect(listener).toBeDefined();
       expect(listener).toBe(getCdnInvalidationQueue());

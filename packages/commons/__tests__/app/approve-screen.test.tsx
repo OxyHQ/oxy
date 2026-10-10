@@ -21,7 +21,6 @@ jest.mock('@/lib/biometricAuth', () => ({
  * dismissed, so there is no sheet behaviour left to stand in for an answer.
  */
 jest.mock('@oxy.so/bloom/dialog', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react') as typeof import('react');
   interface MockControl {
     open: jest.Mock;
@@ -68,7 +67,6 @@ jest.mock('@oxy.so/bloom/dialog', () => {
 });
 
 // Imported AFTER the mocks so the screen binds to them.
-// eslint-disable-next-line import/first
 import ApproveSignInScreen from '@/app/approve';
 
 /** The request exactly as the SERVER resolves it from the authorize code. */

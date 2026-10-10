@@ -21,7 +21,6 @@ type PluginEntry = string | [string, UpdatesPluginOptions?];
 
 /** The `withOxyUpdates` entries in the app config's plugins array. */
 function updatesPluginEntries(): [string, UpdatesPluginOptions?][] {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const appConfig = require('../../app.config.js') as { expo: { plugins: PluginEntry[] } };
   return appConfig.expo.plugins.filter(
     (entry): entry is [string, UpdatesPluginOptions?] =>

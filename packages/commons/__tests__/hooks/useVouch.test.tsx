@@ -8,7 +8,6 @@ jest.mock('@/lib/biometricAuth', () => ({
   authenticate: (...args: [string?]) => authenticateMock(...args),
 }));
 
-// eslint-disable-next-line import/first
 import { useVouch } from '@/hooks/useVouch';
 
 const SUBJECT_DID = 'did:web:oxy.so:u:subjectUser';

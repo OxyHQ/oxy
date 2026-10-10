@@ -71,7 +71,6 @@ export const useDeviceTilt = () => {
       Gyroscope.removeAllListeners();
       lastUpdateTime.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // rotateX and rotateY are stable SharedValue references
 
   return {

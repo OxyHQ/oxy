@@ -49,7 +49,7 @@ import {
   updateContactSchema,
 } from '../schemas/email.schemas';
 // Schema-only bindings consumed by generate-openapi's `@response` annotations.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// biome-ignore lint/correctness/noUnusedImports: schema-only bindings consumed by generate-openapi's `@response` annotations
 import type { listSubscriptionsResponseSchema, unsubscribeResponseSchema } from '../schemas/email.schemas';
 import {
   listMailboxes,

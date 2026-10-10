@@ -40,7 +40,6 @@ jest.mock('react-native-qrcode-svg', () => ({
     require('react').createElement('span', { 'data-testid': 'qrcode' }, value),
 }));
 
-// eslint-disable-next-line import/first
 import { OxySignInRequestSurface } from '../../src/ui/components/OxySignInRequestSurface';
 
 const QR_PAYLOAD = 'oxycommons://approve?v=1&code=CODE';

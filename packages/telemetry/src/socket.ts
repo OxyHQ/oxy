@@ -74,6 +74,7 @@ export interface TrafficWebSocket {
   readonly readyState: number;
   // ws accepts data/options overloads; they are forwarded without inspecting
   // or changing them. Keep this boundary permissive for Node ws versions.
+  // biome-ignore lint/suspicious/noExplicitAny: ws overloads are forwarded unchanged; this boundary stays permissive for Node ws versions
   send(...args: any[]): unknown;
   on(event: 'message', listener: () => void): unknown;
   once(event: 'close', listener: () => void): unknown;

@@ -254,7 +254,6 @@ async function seed(specs: readonly InternalCostCenterSpec[]): Promise<void> {
     slugs: registered.map((center) => center.slug),
   });
 
-  // eslint-disable-next-line no-console
   console.log('OXY_COST_CENTER_MAPPING_JSON=' + JSON.stringify(mapping));
 }
 

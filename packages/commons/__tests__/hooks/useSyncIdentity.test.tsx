@@ -32,15 +32,10 @@ jest.mock('@oxy.so/core/crypto', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { useSyncIdentity } from '@/hooks/identity/useSyncIdentity';
-// eslint-disable-next-line import/first
 import { useIdentityStore, persistIdentitySyncState } from '@/hooks/identity/identityStore';
-// eslint-disable-next-line import/first
 import { releaseSyncLock } from '@/hooks/identity/syncLock';
-// eslint-disable-next-line import/first
 import { UsernameRequiredError } from '@/hooks/identity/identityErrors';
-// eslint-disable-next-line import/first
 import { handleAuthError } from '@oxy.so/services';
 
 /** Let the on-mount hydrate settle so it can't clobber a later sync-state write. */

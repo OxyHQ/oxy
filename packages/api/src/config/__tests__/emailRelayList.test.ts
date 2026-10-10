@@ -20,7 +20,7 @@ function parse(env: Record<string, string | undefined>) {
   }
   try {
     jest.resetModules();
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // biome-ignore lint/style/noCommonJs: re-required after jest.resetModules so the config reads the env set above
     return (require('../email.config') as typeof import('../email.config')).parseRelayList();
   } finally {
     for (const [key, value] of Object.entries(previous)) {

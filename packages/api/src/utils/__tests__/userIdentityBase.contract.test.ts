@@ -38,7 +38,6 @@ describe('shared identity base — all three user-DTO serializers agree', () => 
   // The single definer the three serializers delegate to.
   const base = userIdentityFields(input);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cross-shape fixture; ts-jest does not type-check tests
   const self = formatUserResponse(input);
   const publicDto = userService.formatUserResponse(input as never);
   const privateDto = userService.formatUserResponse(input as never, undefined, {

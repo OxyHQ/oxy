@@ -18,13 +18,9 @@ jest.mock('@oxy.so/core/crypto', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import type { OxyServices } from '@oxy.so/core';
-// eslint-disable-next-line import/first
 import { syncIdentityWithServer } from '@/hooks/identity/syncService';
-// eslint-disable-next-line import/first
 import { UsernameRequiredError } from '@/hooks/identity/identityErrors';
-// eslint-disable-next-line import/first
 import { isUsernameRequiredError } from '@/utils/auth/errorUtils';
 
 function httpError(status: number, message: string) {

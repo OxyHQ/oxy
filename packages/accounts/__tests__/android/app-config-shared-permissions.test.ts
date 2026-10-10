@@ -12,7 +12,6 @@ function pluginNames(variant?: string): string[] {
   try {
     let names: string[] = [];
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const appConfig = require('../../app.config.js') as { expo: { plugins: PluginEntry[] } };
       names = appConfig.expo.plugins
         .map((entry) => (typeof entry === 'string' ? entry : Array.isArray(entry) ? entry[0] : null))

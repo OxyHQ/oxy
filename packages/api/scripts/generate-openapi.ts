@@ -1793,7 +1793,6 @@ async function main(): Promise<void> {
     }
   }
   for (const specifier of [...neededSpecifiers].sort()) {
-    // eslint-disable-next-line no-await-in-loop
     await loadSchemaModule(specifier);
   }
   const seen = new Set<string>();
