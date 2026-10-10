@@ -422,7 +422,12 @@ describe('unsubscribe — blocking a sender', () => {
 
     const result = await emailService.unsubscribe(userId, spammer.toUpperCase(), 'block');
 
-    expect(result).toEqual({ success: true, method: 'blocked' });
+    expect(result).toEqual({
+      success: true,
+      method: 'blocked',
+      unsubscribedAt: expect.any(Date),
+      alreadyUnsubscribed: false,
+    });
     for (const id of [first, second]) {
       const [row] = await getDb()
         .select({ mailboxId: messages.mailboxId })
@@ -447,6 +452,8 @@ describe('unsubscribe — blocking a sender', () => {
     await expect(emailService.unsubscribe(userId, sender)).resolves.toEqual({
       success: true,
       method: 'blocked',
+      unsubscribedAt: expect.any(Date),
+      alreadyUnsubscribed: false,
     });
   });
 });

@@ -14,6 +14,11 @@
  * raising.
  */
 
+const mockEmitEmailChanged = jest.fn();
+jest.mock('../inboxRealtime', () => ({
+  ...jest.requireActual('../inboxRealtime'),
+  emitEmailChanged: (...args: unknown[]) => mockEmitEmailChanged(...args),
+}));
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
@@ -24,7 +29,7 @@ jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn()
 jest.mock('../assetServiceSingleton', () => ({ assetService: { unlinkFile: jest.fn() } }));
 
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
@@ -218,18 +223,98 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
     );
   });
 
-  it('takes a folder`s messages with it when the folder is deleted', async () => {
+  it('keeps a deleted folder`s messages, moving them to Archive', async () => {
+    // `messages.mailbox_id` CASCADEs, so deleting the row alone destroyed the
+    // folder's mail — while the client told the user "messages inside are not
+    // deleted". Exact counts on both sides, read back after the delete.
     const userId = await owner();
+    await emailService.provisionMailboxes(userId);
+    const archive = (await emailService.listMailboxes(userId)).find((m) => m.specialUse === '\\Archive');
+    if (!archive) throw new Error('no archive');
     const created = await emailService.createMailbox(userId, `Temp-${unique()}`);
-    const messageId = await store(userId, created.id, { size: 10 });
+    const kept = [
+      await store(userId, created.id, { size: 10, seen: false }),
+      await store(userId, created.id, { size: 20, seen: true }),
+    ];
 
     await emailService.deleteMailbox(userId, created.id);
 
     const remaining = await getDb()
-      .select({ id: messages.id })
+      .select({ id: messages.id, mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(inArray(messages.id, kept));
+    expect(remaining).toHaveLength(2);
+    expect(remaining.every((row) => row.mailboxId === archive.id)).toBe(true);
+
+    const listed = await emailService.listMailboxes(userId);
+    expect(listed.map((m) => m.id)).not.toContain(created.id);
+    expect(listed.find((m) => m.id === archive.id)).toMatchObject({
+      totalMessages: 2,
+      unseenMessages: 1,
+      size: 30,
+    });
+    expect(mockEmitEmailChanged).toHaveBeenCalledWith({
+      userId,
+      id: created.id,
+      mailboxIds: [archive.id],
+      reason: 'moved',
+    });
+  });
+
+  it('falls back to the Inbox when the user has no Archive', async () => {
+    const userId = await owner();
+    const [inbox] = await getDb()
+      .insert(mailboxes)
+      .values({ userId, name: 'INBOX', path: `INBOX-${unique()}`, specialUse: '\\Inbox' })
+      .returning({ id: mailboxes.id });
+    const created = await emailService.createMailbox(userId, `Temp-${unique()}`);
+    const messageId = await store(userId, created.id, { size: 5 });
+
+    await emailService.deleteMailbox(userId, created.id);
+
+    const [row] = await getDb()
+      .select({ mailboxId: messages.mailboxId })
       .from(messages)
       .where(eq(messages.id, messageId));
-    expect(remaining).toEqual([]);
+    expect(row?.mailboxId).toBe(inbox.id);
+  });
+
+  it('points a message snoozed out of the folder at the destination, so it still wakes up', async () => {
+    const userId = await owner();
+    await emailService.provisionMailboxes(userId);
+    const listed = await emailService.listMailboxes(userId);
+    const archive = listed.find((m) => m.specialUse === '\\Archive');
+    const snoozed = listed.find((m) => m.specialUse === '\\Snoozed');
+    if (!archive || !snoozed) throw new Error('no folders');
+    const created = await emailService.createMailbox(userId, `Temp-${unique()}`);
+    const messageId = await store(userId, snoozed.id, { size: 5 });
+    await getDb()
+      .update(messages)
+      .set({ snoozedFromMailbox: created.id, snoozedUntil: new Date(Date.now() + 60_000) })
+      .where(eq(messages.id, messageId));
+
+    await emailService.deleteMailbox(userId, created.id);
+
+    const [row] = await getDb()
+      .select({ mailboxId: messages.mailboxId, snoozedFromMailbox: messages.snoozedFromMailbox })
+      .from(messages)
+      .where(eq(messages.id, messageId));
+    expect(row).toEqual({ mailboxId: snoozed.id, snoozedFromMailbox: archive.id });
+  });
+
+  it('refuses another user`s folder and leaves its mail alone', async () => {
+    const mine = await owner();
+    const theirs = await owner();
+    const theirFolder = await emailService.createMailbox(theirs, `Theirs-${unique()}`);
+    const messageId = await store(theirs, theirFolder.id, { size: 5 });
+
+    await expect(emailService.deleteMailbox(mine, theirFolder.id)).rejects.toThrow(/not found/);
+
+    const [row] = await getDb()
+      .select({ mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(eq(messages.id, messageId));
+    expect(row?.mailboxId).toBe(theirFolder.id);
   });
 });
 

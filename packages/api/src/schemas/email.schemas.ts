@@ -178,6 +178,52 @@ export const unsubscribeSchema = z.object({
   method: z.enum(['list-unsubscribe', 'block']).optional(),
 });
 
+/** How an unsubscribe was carried out. `blocked` = the sender's mail moved to Spam. */
+const unsubscribeMethodSchema = z.enum(['one-click', 'http', 'mailto', 'blocked']);
+
+const offsetPaginationSchema = z.object({
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+  hasMore: z.boolean(),
+});
+
+// GET /email/subscriptions — response
+export const subscriptionSenderSchema = z.object({
+  /** The sender address, lower-cased. Not a row id. */
+  _id: z.string(),
+  name: z.string(),
+  messageCount: z.number().int(),
+  readCount: z.number().int(),
+  latestDate: z.date(),
+  oldestDate: z.date(),
+  latestMessageId: z.string(),
+  hasListUnsubscribe: z.boolean(),
+  type: z.enum(['list-unsubscribe', 'pattern-match', 'frequent']),
+  senderAvatarPath: z.string().nullable().optional(),
+  /** The user already unsubscribed from this sender. */
+  unsubscribed: z.boolean(),
+  /** When the user first unsubscribed; null when they have not. */
+  unsubscribedAt: z.date().nullable(),
+});
+
+export const listSubscriptionsResponseSchema = z.object({
+  data: z.array(subscriptionSenderSchema),
+  pagination: offsetPaginationSchema,
+});
+
+// POST /email/subscriptions/unsubscribe — response
+export const unsubscribeResponseSchema = z.object({
+  data: z.object({
+    success: z.literal(true),
+    method: unsubscribeMethodSchema,
+    /** When the user first unsubscribed from this sender. */
+    unsubscribedAt: z.date(),
+    /** True when the sender was already unsubscribed and nothing was sent to it again. */
+    alreadyUnsubscribed: z.boolean(),
+  }),
+});
+
 // PUT /email/bundles/:bundleId
 export const bundleIdParams = z.object({
   bundleId: z.string().trim().min(1),

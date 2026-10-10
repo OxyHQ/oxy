@@ -27,7 +27,13 @@ import {
 import { logger } from '../utils/logger';
 import { resolveEmailFromName } from '../utils/displayName';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
-import type { RecipientInput, AttachmentInput } from '../schemas/email.schemas';
+import type { z } from 'zod';
+import type {
+  RecipientInput,
+  AttachmentInput,
+  listSubscriptionsResponseSchema,
+  unsubscribeResponseSchema,
+} from '../schemas/email.schemas';
 import { cancelEmailOutbox, listEmailOutbox, retryEmailOutbox } from '../services/emailOutbox.service';
 
 /**
@@ -911,7 +917,7 @@ export async function listSubscriptions(req: AuthRequest, res: Response): Promis
   const offset = Number.parseInt(req.query.offset as string) || 0;
 
   const result = await emailService.getSubscriptions(userId, { limit, offset });
-  res.json({
+  const body: z.infer<typeof listSubscriptionsResponseSchema> = {
     data: result.data,
     pagination: {
       total: result.total,
@@ -919,7 +925,8 @@ export async function listSubscriptions(req: AuthRequest, res: Response): Promis
       offset,
       hasMore: offset + limit < result.total,
     },
-  });
+  };
+  res.json(body);
 }
 
 export async function unsubscribe(req: AuthRequest, res: Response): Promise<void> {
@@ -936,7 +943,8 @@ export async function unsubscribe(req: AuthRequest, res: Response): Promise<void
   }
 
   const result = await emailService.unsubscribe(userId, senderAddress, method || 'list-unsubscribe');
-  res.json({ data: result });
+  const body: z.infer<typeof unsubscribeResponseSchema> = { data: result };
+  res.json(body);
 }
 
 // ─── Bundles ──────────────────────────────────────────────────────
@@ -1135,8 +1143,10 @@ export async function listContacts(req: AuthRequest, res: Response): Promise<voi
   const userId = req.user!.id;
   const q = req.query.q as string | undefined;
   const starred = req.query.starred === 'true';
-  const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
-  const offset = Number.parseInt(req.query.offset as string) || 0;
+  // Clamped on both sides: a negative `limit` or `offset` reached Postgres as
+  // `LIMIT -1` / `OFFSET -1` and answered 500.
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit as string) || 50, 1), 100);
+  const offset = Math.max(Number.parseInt(req.query.offset as string) || 0, 0);
 
   const result = await emailService.listContacts(userId, { q, starred: starred || undefined, limit, offset });
   res.json({
