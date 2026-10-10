@@ -178,9 +178,13 @@ function skipRawText(html: string, from: number, name: string): number {
  * Build a short plain-text snippet from a message body. Prefers `text` when
  * present; otherwise strips tags and entities from `html` with a minimal
  * regex (no new dependency). The result has whitespace collapsed and is
- * trimmed to {@link SNIPPET_MAX_LENGTH} characters.
+ * trimmed to `maxLength` characters ({@link SNIPPET_MAX_LENGTH} by default).
  */
-export function buildSnippet(text?: string | null, html?: string | null): string {
+export function buildSnippet(
+  text?: string | null,
+  html?: string | null,
+  maxLength: number = SNIPPET_MAX_LENGTH,
+): string {
   const source = text && text.trim().length > 0
     ? text
     : html
@@ -191,8 +195,8 @@ export function buildSnippet(text?: string | null, html?: string | null): string
   // markup happened to contain becomes a space. (Clients render it in an RN
   // `Text`, which would otherwise preserve them.)
   const collapsed = normalizeInlineText(source);
-  return collapsed.length > SNIPPET_MAX_LENGTH
-    ? collapsed.slice(0, SNIPPET_MAX_LENGTH)
+  return collapsed.length > maxLength
+    ? collapsed.slice(0, maxLength)
     : collapsed;
 }
 

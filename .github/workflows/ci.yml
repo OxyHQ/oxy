@@ -968,7 +968,7 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run validate:agents-md
 
-      - name: 'API Checks: guard exact metadata-only Inbox Daily Brief counts'
+      - name: 'API Checks: guard the Inbox Daily Brief read boundary'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: |
           node scripts/test-check-inbox-daily-brief.mjs
