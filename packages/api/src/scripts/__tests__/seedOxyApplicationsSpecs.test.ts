@@ -581,6 +581,7 @@ describe('the canonical official-application registry', () => {
         'capability-audit:write',
         'payments:read',
         'payments:write',
+        'files:user-media:write',
       ]);
     });
 
