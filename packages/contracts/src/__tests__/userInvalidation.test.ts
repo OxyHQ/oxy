@@ -48,12 +48,11 @@ describe('@oxy.so/contracts userInvalidation', () => {
   });
 
   it('rejects a payload missing an id, or carrying an empty one', () => {
+    expect(oxyUserInvalidationEventSchema.safeParse({ reason: 'profile', at: 1 }).success).toBe(
+      false,
+    );
     expect(
-      oxyUserInvalidationEventSchema.safeParse({ reason: 'profile', at: 1 }).success,
-    ).toBe(false);
-    expect(
-      oxyUserInvalidationEventSchema.safeParse({ userId: '', reason: 'profile', at: 1 })
-        .success,
+      oxyUserInvalidationEventSchema.safeParse({ userId: '', reason: 'profile', at: 1 }).success,
     ).toBe(false);
   });
 

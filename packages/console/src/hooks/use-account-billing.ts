@@ -56,7 +56,7 @@ export function useAccountBillingState(accountId: string | undefined, enabled: b
         'GET',
         `/billing/accounts/${accountId ?? ''}`,
         undefined,
-        { cache: false }
+        { cache: false },
       ),
     enabled: isReady && isAuthenticated && !!accountId && enabled,
     staleTime: 1000 * 15,
@@ -81,7 +81,7 @@ export function useProvisionAccountBilling() {
         'POST',
         `/billing/accounts/${accountId}`,
         currency === undefined ? {} : { currency },
-        { retry: false }
+        { retry: false },
       ),
     onSuccess: (_state, { accountId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.state(accountId) });
@@ -123,7 +123,7 @@ export function useUpdateAutoRecharge() {
         'PATCH',
         `/billing/accounts/${accountId}`,
         { autoRecharge },
-        { retry: false }
+        { retry: false },
       ),
     onSuccess: (_profile, { accountId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.state(accountId) });
@@ -143,7 +143,7 @@ export function useAccountInvoices(accountId: string | undefined, enabled: boole
         'GET',
         `/billing/accounts/${accountId ?? ''}/invoices`,
         undefined,
-        { cache: false }
+        { cache: false },
       ),
     enabled: isReady && isAuthenticated && !!accountId && enabled,
     staleTime: 1000 * 60,
@@ -162,7 +162,7 @@ export function useAutoRechargeAttempts(accountId: string | undefined, enabled: 
         'GET',
         `/billing/accounts/${accountId ?? ''}/auto-recharge`,
         undefined,
-        { cache: false }
+        { cache: false },
       ),
     enabled: isReady && isAuthenticated && !!accountId && enabled,
     staleTime: 1000 * 60,
@@ -188,7 +188,7 @@ export function useAccountEntitlements(accountId: string | undefined, enabled: b
         'GET',
         `/billing/accounts/${accountId ?? ''}/entitlements`,
         undefined,
-        { cache: false }
+        { cache: false },
       ),
     enabled: isReady && isAuthenticated && !!accountId && enabled,
     staleTime: 1000 * 60,
@@ -223,7 +223,7 @@ export function useAccountTopUpCheckout() {
         'POST',
         `/billing/accounts/${accountId}/checkout`,
         { amount, successUrl, cancelUrl },
-        { retry: false }
+        { retry: false },
       ),
   });
 }
@@ -244,7 +244,7 @@ export function useAccountBillingPortal() {
         'POST',
         `/billing/accounts/${accountId}/portal`,
         { returnUrl },
-        { retry: false }
+        { retry: false },
       );
       return result.url;
     },

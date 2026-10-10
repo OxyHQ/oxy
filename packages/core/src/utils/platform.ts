@@ -136,4 +136,3 @@ export function isWebBrowser(): boolean {
     typeof document.documentElement !== 'undefined'
   );
 }
-

@@ -92,10 +92,7 @@ export interface DeviceGroup {
  * @param devices - The device records to group.
  * @param nameFallback - Display-name fallback for records missing a name.
  */
-export function groupDevicesByType(
-  devices: DeviceRecord[],
-  nameFallback: string,
-): DeviceGroup[] {
+export function groupDevicesByType(devices: DeviceRecord[], nameFallback: string): DeviceGroup[] {
   const groups = new Map<string, DeviceGroup>();
 
   devices.forEach((device) => {

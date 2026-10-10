@@ -138,15 +138,13 @@ async function refreshStats(now: number): Promise<PlatformStats> {
       db
         .select({ n: count() })
         .from(sessions)
-        .where(and(eq(sessions.isActive, true), gt(sessions.expiresAt, new Date())))
+        .where(and(eq(sessions.isActive, true), gt(sessions.expiresAt, new Date()))),
     ),
     total(db.select({ n: count() }).from(messages)),
     total(db.select({ n: count() }).from(notifications)),
     total(db.select({ n: count() }).from(files)),
     total(db.select({ n: count() }).from(transactions)),
-    total(
-      db.select({ n: count() }).from(applications).where(eq(applications.status, 'active'))
-    ),
+    total(db.select({ n: count() }).from(applications).where(eq(applications.status, 'active'))),
     total(db.select({ n: count() }).from(userFollows)),
   ]);
 
@@ -193,7 +191,7 @@ router.get('/stream', (req: Request, res: Response) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
     'X-Accel-Buffering': 'no', // Disable Nginx buffering
   });
 

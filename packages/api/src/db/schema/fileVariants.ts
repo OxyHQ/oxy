@@ -55,5 +55,5 @@ export const fileVariants = pgTable(
     // type. Mongo had neither — the array came along with its parent document.
     index('file_variants_file_id_type_idx').on(t.fileId, t.type),
     check('file_variants_size_check', sql`${t.size} is null or ${t.size} >= 0`),
-  ]
+  ],
 );

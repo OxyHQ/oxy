@@ -126,4 +126,3 @@ export const getStorageKeys = (prefix: string = STORAGE_KEY_PREFIX): SessionStor
   sessionIds: `${prefix}_session_ids`,
   language: `${prefix}_language`,
 });
-

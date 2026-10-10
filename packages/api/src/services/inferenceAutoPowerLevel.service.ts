@@ -17,7 +17,10 @@ import {
 export const AUTO_CLASSIFIER_LIMITS = Object.freeze({
   timeoutMs: 1_000,
   maxStateBytes: 8_192,
-  maxPricePerRequest: Object.freeze({ currency: 'USD' as const, amount: exactDecimalSchema.parse('0.001000000000') }),
+  maxPricePerRequest: Object.freeze({
+    currency: 'USD' as const,
+    amount: exactDecimalSchema.parse('0.001000000000'),
+  }),
 });
 
 export const AUTO_CLASSIFIER_VERSION = 'jev-auto-v1';
@@ -44,42 +47,63 @@ export interface AutoClassificationChild {
 
 export interface JevAutoClassifier {
   readonly modelReference: string;
-  readonly review: AutoClassifierReview | {
-    readonly purpose: 'private_auto_classifier';
-    readonly sourceApprovalSha256: string;
-    readonly internalUseAllowed: true;
-    readonly commercialUseAllowed: boolean;
-    readonly privacy: true;
-    readonly zdr: true;
-  };
+  readonly review:
+    | AutoClassifierReview
+    | {
+        readonly purpose: 'private_auto_classifier';
+        readonly sourceApprovalSha256: string;
+        readonly internalUseAllowed: true;
+        readonly commercialUseAllowed: boolean;
+        readonly privacy: true;
+        readonly zdr: true;
+      };
   /** Return a normalized { level, confidence }, never provider reasoning or error text. */
   readonly admitAndExecute: (child: AutoClassificationChild) => Promise<unknown>;
 }
 
 /** Both fields come from the provider's typed reply; neither is ever inferred. */
-const classificationSchema = z.object({
-  level: z.enum(AUTO_POWER_LEVELS),
-  confidence: z.number().finite().min(0).max(1),
-}).strict();
+const classificationSchema = z
+  .object({
+    level: z.enum(AUTO_POWER_LEVELS),
+    confidence: z.number().finite().min(0).max(1),
+  })
+  .strict();
 
-type FallbackReason = 'disabled' | 'invalid_model' | 'input_limit' | 'timeout' | 'cancelled'
-  | 'provider_error' | 'invalid_result';
+type FallbackReason =
+  | 'disabled'
+  | 'invalid_model'
+  | 'input_limit'
+  | 'timeout'
+  | 'cancelled'
+  | 'provider_error'
+  | 'invalid_result';
 
 /**
  * Snapshot configuration at construction; the per-request adapter pins identity
  * and policy before calling this. No result cache, payload persistence or retry.
  * Feature-based floors still apply when semantic classification suggests less.
  */
-export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): AutoPowerLevelResolver {
+export function createAutoPowerLevelResolver(
+  classifier?: JevAutoClassifier,
+): AutoPowerLevelResolver {
   const modelReference = classifier?.modelReference;
   const execute = classifier?.admitAndExecute;
   const review = classifier?.review;
-  const reviewed = review !== undefined && ('purpose' in review
-    ? review.purpose === 'private_auto_classifier' && /^[a-f0-9]{64}$/.test(review.sourceApprovalSha256) &&
-      review.internalUseAllowed === true && review.privacy === true && review.zdr === true
-    : review.commercial === true && review.internalEligibility === true && review.privacy === true && review.zdr === true);
-  const pinned = modelReferenceSchema.safeParse(modelReference).success
-    && modelReference?.includes('@') === true;
+  const reviewed =
+    review !== undefined &&
+    ('purpose' in review
+      ? review.purpose === 'private_auto_classifier' &&
+        /^[a-f0-9]{64}$/.test(review.sourceApprovalSha256) &&
+        review.internalUseAllowed === true &&
+        review.privacy === true &&
+        review.zdr === true
+      : review.commercial === true &&
+        review.internalEligibility === true &&
+        review.privacy === true &&
+        review.zdr === true);
+  const pinned =
+    modelReferenceSchema.safeParse(modelReference).success &&
+    modelReference?.includes('@') === true;
 
   return async (features, context) => {
     const deterministic = classifyAutoPowerLevel(features);
@@ -107,7 +131,9 @@ export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): Au
     const deadlineAt = Date.now() + AUTO_CLASSIFIER_LIMITS.timeoutMs;
     type Outcome = { kind: 'result'; value: unknown } | { kind: FallbackReason };
     let finish!: (outcome: Outcome) => void;
-    const stopped = new Promise<Outcome>((resolve) => { finish = resolve; });
+    const stopped = new Promise<Outcome>((resolve) => {
+      finish = resolve;
+    });
     const stop = (kind: 'timeout' | 'cancelled'): void => {
       // Resolve before abort: an adapter may reject synchronously on abort.
       finish({ kind });
@@ -130,10 +156,12 @@ export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): Au
       });
       // The microtask also catches a synchronous adapter throw. Both completion
       // handlers stay attached after timeout; late failures cannot be unhandled.
-      const execution: Promise<Outcome> = Promise.resolve().then<Outcome>(async () => {
-        if (context.signal.aborted) return { kind: 'cancelled' } as const;
-        return execute(child).then((value) => ({ kind: 'result', value }) as const);
-      }).catch(() => ({ kind: 'provider_error' }));
+      const execution: Promise<Outcome> = Promise.resolve()
+        .then<Outcome>(async () => {
+          if (context.signal.aborted) return { kind: 'cancelled' } as const;
+          return execute(child).then((value) => ({ kind: 'result', value }) as const);
+        })
+        .catch(() => ({ kind: 'provider_error' }));
       const outcome = await Promise.race([stopped, execution]);
       if (context.signal.aborted) return fallback('cancelled');
       if (performance.now() >= deadline) {
@@ -144,13 +172,18 @@ export function createAutoPowerLevelResolver(classifier?: JevAutoClassifier): Au
       const parsed = classificationSchema.safeParse(outcome.value);
       if (!parsed.success) return fallback('invalid_result');
       const semantic = parsed.data.level;
-      const level = AUTO_POWER_LEVELS.indexOf(semantic) > AUTO_POWER_LEVELS.indexOf(deterministic.level)
-        ? semantic : deterministic.level;
+      const level =
+        AUTO_POWER_LEVELS.indexOf(semantic) > AUTO_POWER_LEVELS.indexOf(deterministic.level)
+          ? semantic
+          : deterministic.level;
       return {
         level,
         reasons: deterministic.reasons,
         classification: {
-          source: 'jev', version: AUTO_CLASSIFIER_VERSION, modelReference, recommendedLevel: semantic,
+          source: 'jev',
+          version: AUTO_CLASSIFIER_VERSION,
+          modelReference,
+          recommendedLevel: semantic,
           providerConfidence: parsed.data.confidence,
         },
       };

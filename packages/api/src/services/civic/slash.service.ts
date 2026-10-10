@@ -79,11 +79,7 @@ export async function slashForReversedTransaction(txn: SlashableTransaction): Pr
       .from(validationVotes)
       .where(and(eq(validationVotes.requestId, request.id), eq(validationVotes.verdict, 'valid')));
     for (const vote of votes) {
-      await slashUser(
-        vote.validatorUserId,
-        txnId,
-        'Endorsed a verdict later reverted as fraud',
-      );
+      await slashUser(vote.validatorUserId, txnId, 'Endorsed a verdict later reverted as fraud');
       slashed += 1;
     }
     return slashed;

@@ -38,15 +38,20 @@ interface OxyOverrides {
 function makeOxy(overrides: OxyOverrides = {}): OxyServices {
   return {
     auth: {
-      requestChallenge: overrides.requestChallenge
-      ?? (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
+      requestChallenge:
+        overrides.requestChallenge ??
+        (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
       verifyChallenge: overrides.verifyChallenge ?? (async () => SESSION),
     },
   } as unknown as OxyServices;
 }
 
 function signWith(publicKey: string): (challenge: string) => Promise<AuthChallenge> {
-  return async (challenge) => ({ challenge: `sig(${challenge})`, publicKey, timestamp: 1_700_000_000_000 });
+  return async (challenge) => ({
+    challenge: `sig(${challenge})`,
+    publicKey,
+    timestamp: 1_700_000_000_000,
+  });
 }
 
 describe('resolveIdentityPin', () => {
@@ -61,14 +66,18 @@ describe('resolveIdentityPin', () => {
   it('returns the pin when the local key still matches', async () => {
     const pinStore = createMemoryIdentityPinStore();
     await pinStore.save(PIN);
-    expect(await resolveIdentityPin({ pinStore, readPublicKey: async () => PUBLIC_KEY })).toEqual(PIN);
+    expect(await resolveIdentityPin({ pinStore, readPublicKey: async () => PUBLIC_KEY })).toEqual(
+      PIN,
+    );
   });
 
   it('CLEARS the pin when the local key was replaced', async () => {
     const pinStore = createMemoryIdentityPinStore();
     await pinStore.save(PIN);
 
-    expect(await resolveIdentityPin({ pinStore, readPublicKey: async () => OTHER_PUBLIC_KEY })).toBeNull();
+    expect(
+      await resolveIdentityPin({ pinStore, readPublicKey: async () => OTHER_PUBLIC_KEY }),
+    ).toBeNull();
     expect(await pinStore.load()).toBeNull();
   });
 
@@ -187,7 +196,11 @@ describe('establishIdentitySession', () => {
     const established = await establishIdentitySession({
       oxy: makeOxy(),
       store: createMemoryAuthStateStore(),
-      binding: { pinStore, readPublicKey: async () => PUBLIC_KEY, signChallenge: signWith(PUBLIC_KEY) },
+      binding: {
+        pinStore,
+        readPublicKey: async () => PUBLIC_KEY,
+        signChallenge: signWith(PUBLIC_KEY),
+      },
     });
 
     expect(established?.session.accessToken).toBe('access-identity');

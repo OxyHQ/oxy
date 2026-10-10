@@ -11,22 +11,45 @@ if (!/^\/oxy_test_[a-f0-9]+$/.test(new URL(databaseUrl).pathname)) {
   throw new Error('Rollback fixture requires the Jest-owned database');
 }
 const sql = postgres(databaseUrl, { max: 1 });
-const script = resolve(__dirname, '../../../../../docs/architecture/1519-consumer-rollout-preflight/goway-rollback.sql');
+const script = resolve(
+  __dirname,
+  '../../../../../docs/architecture/1519-consumer-rollout-preflight/goway-rollback.sql',
+);
 
 async function receipt() {
   const [app] = await sql`select xmin::text as version from applications where id=${appId}`;
-  const [credential] = await sql`select xmin::text as version from application_credentials where id=${credentialId}`;
+  const [credential] =
+    await sql`select xmin::text as version from application_credentials where id=${credentialId}`;
   return { app: app.version as string, credential: credential.version as string };
 }
 function rollback(version: { app: string; credential: string }) {
-  return spawnSync('psql', [databaseUrl, '-X', '-v', 'ON_ERROR_STOP=1',
-    '-v', `owner_id=${ownerId}`, '-v', `credential_id=${credentialId}`,
-    '-v', `public_client_id=${publicKey}`, '-v', `app_xmin=${version.app}`,
-    '-v', `credential_xmin=${version.credential}`, '-f', script], { encoding: 'utf8' });
+  return spawnSync(
+    'psql',
+    [
+      databaseUrl,
+      '-X',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-v',
+      `owner_id=${ownerId}`,
+      '-v',
+      `credential_id=${credentialId}`,
+      '-v',
+      `public_client_id=${publicKey}`,
+      '-v',
+      `app_xmin=${version.app}`,
+      '-v',
+      `credential_xmin=${version.credential}`,
+      '-f',
+      script,
+    ],
+    { encoding: 'utf8' },
+  );
 }
 async function state() {
   const [app] = await sql`select status from applications where id=${appId}`;
-  const [credential] = await sql`select status from application_credentials where id=${credentialId}`;
+  const [credential] =
+    await sql`select status from application_credentials where id=${credentialId}`;
   return [app.status, credential.status];
 }
 beforeEach(async () => {
@@ -37,7 +60,9 @@ beforeEach(async () => {
   await sql`insert into application_credentials (id,application_id,name,type,environment,status,public_key,created_by_user_id,scopes)
     values (${credentialId},${appId},'fixture','public','production','active',${publicKey},${ownerId},ARRAY['user:read'])`;
 });
-afterAll(async () => { await sql.end(); });
+afterAll(async () => {
+  await sql.end();
+});
 
 it('executes the exact SQL template atomically and retains both history rows', async () => {
   const result = rollback(await receipt());

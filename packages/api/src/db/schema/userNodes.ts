@@ -74,7 +74,7 @@ export const userNodes = pgTable(
     check('user_nodes_mode_check', sql`${t.mode} in (${sql.raw(inList(USER_NODE_MODES))})`),
     check(
       'user_nodes_controller_check',
-      sql`${t.controller} in (${sql.raw(inList(USER_NODE_CONTROLLERS))})`
+      sql`${t.controller} in (${sql.raw(inList(USER_NODE_CONTROLLERS))})`,
     ),
     check('user_nodes_status_check', sql`${t.status} in (${sql.raw(inList(USER_NODE_STATUSES))})`),
     check('user_nodes_cursor_check', sql`${t.cursor} is null or ${t.cursor} >= 0`),
@@ -84,7 +84,7 @@ export const userNodes = pgTable(
     // rather than leaving two readers to disagree about which field wins.
     check(
       'user_nodes_managed_controller_check',
-      sql`(${t.managed} = true and ${t.controller} = 'oxy') or (${t.managed} = false and ${t.controller} = 'self')`
+      sql`(${t.managed} = true and ${t.controller} = 'oxy') or (${t.managed} = false and ${t.controller} = 'self')`,
     ),
-  ]
+  ],
 );

@@ -52,7 +52,9 @@ export interface AccountEventWebhookRequest {
 export type AccountEventWebhookDelivery = (request: AccountEventWebhookRequest) => Promise<number>;
 
 /** POST the token to the receiver through the SSRF guard. Resolves to the HTTP status. */
-export async function postAccountEventWebhook(request: AccountEventWebhookRequest): Promise<number> {
+export async function postAccountEventWebhook(
+  request: AccountEventWebhookRequest,
+): Promise<number> {
   const result = await safeFetch(request.url, {
     method: 'POST',
     headers: {
@@ -97,15 +99,17 @@ function claimableDeliveries(db: Database, now: Date, claimedBefore: Date, limit
   return db
     .select({ id: accountEventDeliveries.id })
     .from(accountEventDeliveries)
-    .where(and(
-      isNull(accountEventDeliveries.deliveredAt),
-      isNull(accountEventDeliveries.failedAt),
-      lte(accountEventDeliveries.nextAttemptAt, now),
-      or(
-        isNull(accountEventDeliveries.claimedAt),
-        lt(accountEventDeliveries.claimedAt, claimedBefore),
+    .where(
+      and(
+        isNull(accountEventDeliveries.deliveredAt),
+        isNull(accountEventDeliveries.failedAt),
+        lte(accountEventDeliveries.nextAttemptAt, now),
+        or(
+          isNull(accountEventDeliveries.claimedAt),
+          lt(accountEventDeliveries.claimedAt, claimedBefore),
+        ),
       ),
-    ))
+    )
     .orderBy(asc(accountEventDeliveries.nextAttemptAt))
     .limit(limit)
     .for('update', { skipLocked: true });
@@ -116,8 +120,8 @@ export async function runAccountEventWebhookBatch(
 ): Promise<AccountEventWebhookBatchResult> {
   const db = getDb();
   const now = options.now ?? (() => new Date());
-  const batchSize = options.batchSize
-    ?? getEnvNumber('ACCOUNT_EVENT_WEBHOOK_BATCH_SIZE', DEFAULT_BATCH_SIZE);
+  const batchSize =
+    options.batchSize ?? getEnvNumber('ACCOUNT_EVENT_WEBHOOK_BATCH_SIZE', DEFAULT_BATCH_SIZE);
   const leaseMs = options.leaseMs ?? ACCOUNT_EVENT_WEBHOOK_LEASE_MS;
   const deliver = options.deliver ?? postAccountEventWebhook;
   const claimTime = now();
@@ -125,10 +129,12 @@ export async function runAccountEventWebhookBatch(
   const claimed = await db
     .update(accountEventDeliveries)
     .set({ claimedAt: claimTime, claimedBy: options.ownerId })
-    .where(inArray(
-      accountEventDeliveries.id,
-      claimableDeliveries(db, claimTime, new Date(claimTime.getTime() - leaseMs), batchSize),
-    ))
+    .where(
+      inArray(
+        accountEventDeliveries.id,
+        claimableDeliveries(db, claimTime, new Date(claimTime.getTime() - leaseMs), batchSize),
+      ),
+    )
     .returning({
       id: accountEventDeliveries.id,
       eventId: accountEventDeliveries.eventId,
@@ -146,32 +152,35 @@ export async function runAccountEventWebhookBatch(
   if (claimed.length === 0) return result;
 
   const events = new Map<string, AccountEventForToken>(
-    (await db
-      .select({
-        id: accountEvents.id,
-        type: accountEvents.type,
-        userId: accountEvents.userId,
-        username: accountEvents.username,
-        retained: accountEvents.retained,
-        createdAt: accountEvents.createdAt,
-      })
-      .from(accountEvents)
-      .where(inArray(accountEvents.id, [...new Set(claimed.map((row) => row.eventId))])))
-      .map((event) => [event.id, event]),
+    (
+      await db
+        .select({
+          id: accountEvents.id,
+          type: accountEvents.type,
+          userId: accountEvents.userId,
+          username: accountEvents.username,
+          retained: accountEvents.retained,
+          createdAt: accountEvents.createdAt,
+        })
+        .from(accountEvents)
+        .where(inArray(accountEvents.id, [...new Set(claimed.map((row) => row.eventId))]))
+    ).map((event) => [event.id, event]),
   );
   const webhooks = new Map<string, string | null>(
-    (await db
-      .select({ id: applications.id, webhookUrl: applications.webhookUrl })
-      .from(applications)
-      .where(inArray(applications.id, [...new Set(claimed.map((row) => row.applicationId))])))
-      .map((application) => [application.id, application.webhookUrl]),
+    (
+      await db
+        .select({ id: applications.id, webhookUrl: applications.webhookUrl })
+        .from(applications)
+        .where(inArray(applications.id, [...new Set(claimed.map((row) => row.applicationId))]))
+    ).map((application) => [application.id, application.webhookUrl]),
   );
 
-  const ownedBy = (id: string) => and(
-    eq(accountEventDeliveries.id, id),
-    eq(accountEventDeliveries.claimedBy, options.ownerId),
-    isNull(accountEventDeliveries.deliveredAt),
-  );
+  const ownedBy = (id: string) =>
+    and(
+      eq(accountEventDeliveries.id, id),
+      eq(accountEventDeliveries.claimedBy, options.ownerId),
+      isNull(accountEventDeliveries.deliveredAt),
+    );
 
   for (const row of claimed) {
     const event = events.get(row.eventId);
@@ -179,10 +188,15 @@ export async function runAccountEventWebhookBatch(
     if (!event || !url) {
       // No webhook registered (or the event was swept under us): the push path
       // is done. The pull feed is how this application learns of the event.
-      await db.update(accountEventDeliveries).set({
-        failedAt: now(),
-        lastError: event ? 'No webhook URL registered; available from the pull feed' : 'Event no longer exists',
-      }).where(ownedBy(row.id));
+      await db
+        .update(accountEventDeliveries)
+        .set({
+          failedAt: now(),
+          lastError: event
+            ? 'No webhook URL registered; available from the pull feed'
+            : 'Event no longer exists',
+        })
+        .where(ownedBy(row.id));
       result.noWebhook += 1;
       continue;
     }
@@ -199,32 +213,40 @@ export async function runAccountEventWebhookBatch(
       });
       if (status < 200 || status >= 300) error = `Receiver answered HTTP ${status}`;
     } catch (caught) {
-      error = caught instanceof SsrfRejection
-        ? `Webhook URL refused by the SSRF guard: ${describeError(caught)}`
-        : describeError(caught);
+      error =
+        caught instanceof SsrfRejection
+          ? `Webhook URL refused by the SSRF guard: ${describeError(caught)}`
+          : describeError(caught);
     }
 
     if (error === null) {
-      const acknowledged = await db.update(accountEventDeliveries).set({
-        attempts,
-        deliveredAt: now(),
-        lastStatus: status,
-        lastError: null,
-      }).where(ownedBy(row.id)).returning({ id: accountEventDeliveries.id });
+      const acknowledged = await db
+        .update(accountEventDeliveries)
+        .set({
+          attempts,
+          deliveredAt: now(),
+          lastStatus: status,
+          lastError: null,
+        })
+        .where(ownedBy(row.id))
+        .returning({ id: accountEventDeliveries.id });
       if (acknowledged.length === 1) result.delivered += 1;
       continue;
     }
 
     const deadLetter = attempts >= ACCOUNT_EVENT_WEBHOOK_MAX_ATTEMPTS;
-    await db.update(accountEventDeliveries).set({
-      attempts,
-      lastStatus: status,
-      lastError: error,
-      claimedAt: null,
-      claimedBy: null,
-      nextAttemptAt: new Date(now().getTime() + accountEventBackoffMs(attempts)),
-      ...(deadLetter ? { failedAt: now() } : {}),
-    }).where(ownedBy(row.id));
+    await db
+      .update(accountEventDeliveries)
+      .set({
+        attempts,
+        lastStatus: status,
+        lastError: error,
+        claimedAt: null,
+        claimedBy: null,
+        nextAttemptAt: new Date(now().getTime() + accountEventBackoffMs(attempts)),
+        ...(deadLetter ? { failedAt: now() } : {}),
+      })
+      .where(ownedBy(row.id));
     result.failed += 1;
     if (deadLetter) result.deadLettered += 1;
     logger.warn('[AccountEventWebhook] Delivery failed', {
@@ -245,7 +267,9 @@ export async function countPendingAccountEventDeliveries(): Promise<number> {
   const [row] = await getDb()
     .select({ count: sql<number>`count(*)::int` })
     .from(accountEventDeliveries)
-    .where(and(isNull(accountEventDeliveries.deliveredAt), isNull(accountEventDeliveries.failedAt)));
+    .where(
+      and(isNull(accountEventDeliveries.deliveredAt), isNull(accountEventDeliveries.failedAt)),
+    );
   return row?.count ?? 0;
 }
 
@@ -277,7 +301,9 @@ async function tick(): Promise<void> {
  */
 export function startAccountEventWebhookWorker(): boolean {
   if (!getEnvBoolean('ACCOUNT_EVENT_WEBHOOK_WORKER_ENABLED', true)) {
-    logger.info('[AccountEventWebhook] Worker disabled; events remain available from the pull feed');
+    logger.info(
+      '[AccountEventWebhook] Worker disabled; events remain available from the pull feed',
+    );
     return false;
   }
   if (timer) return true;

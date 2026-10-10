@@ -30,13 +30,21 @@ export const delegationGrants = pgTable(
   'delegation_grants',
   {
     id: generatedId(),
-    ownerAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
-    actorAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    ownerAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    actorAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     resourceApp: text().notNull(),
-    effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    effectiveAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     resourceType: text().notNull(),
     resourceKey: text().notNull(),
-    catalogRegistrationId: text().references(() => appCapabilityCatalogRegistrations.id, { onDelete: 'restrict' }),
+    catalogRegistrationId: text().references(() => appCapabilityCatalogRegistrations.id, {
+      onDelete: 'restrict',
+    }),
     capabilityPackages: text({ enum: CAPABILITY_PACKAGES })
       .array()
       .notNull()
@@ -50,8 +58,14 @@ export const delegationGrants = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check('delegation_grants_autonomy_check', sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`),
-    check('delegation_grants_packages_check', sql`${t.capabilityPackages} <@ array[${sql.raw(inList(CAPABILITY_PACKAGES))}]::text[]`),
+    check(
+      'delegation_grants_autonomy_check',
+      sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`,
+    ),
+    check(
+      'delegation_grants_packages_check',
+      sql`${t.capabilityPackages} <@ array[${sql.raw(inList(CAPABILITY_PACKAGES))}]::text[]`,
+    ),
     index('delegation_grants_actor_resource_idx').on(
       t.ownerAccountId,
       t.actorAccountId,
@@ -70,7 +84,9 @@ export const delegationCapabilities = pgTable(
   'delegation_capabilities',
   {
     id: generatedId(),
-    grantId: text().notNull().references(() => delegationGrants.id, { onDelete: 'cascade' }),
+    grantId: text()
+      .notNull()
+      .references(() => delegationGrants.id, { onDelete: 'cascade' }),
     capability: text().notNull(),
     createdAt: createdAt(),
   },
@@ -81,7 +97,9 @@ export const delegationToolOverrides = pgTable(
   'delegation_tool_overrides',
   {
     id: generatedId(),
-    grantId: text().notNull().references(() => delegationGrants.id, { onDelete: 'cascade' }),
+    grantId: text()
+      .notNull()
+      .references(() => delegationGrants.id, { onDelete: 'cascade' }),
     tool: text().notNull(),
     decision: text({ enum: ['allow', 'deny'] }).notNull(),
     createdAt: createdAt(),
@@ -96,7 +114,9 @@ export const delegationLimits = pgTable(
   'delegation_limits',
   {
     id: generatedId(),
-    grantId: text().notNull().references(() => delegationGrants.id, { onDelete: 'cascade' }),
+    grantId: text()
+      .notNull()
+      .references(() => delegationGrants.id, { onDelete: 'cascade' }),
     tool: text().notNull(),
     key: text().notNull(),
     value: jsonb().$type<GrantLimit['value']>().notNull(),
@@ -116,23 +136,35 @@ export const capabilityExecutionAuthorizations = pgTable(
   {
     id: generatedId(),
     kind: text({ enum: ['direct_request', 'automation'] }).notNull(),
-    requesterAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    requesterAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     /** Autonomous approval provenance; revocation is live, never SET NULL. */
     requesterAuthMethodId: text(),
-    ownerAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
-    coordinatorApplicationId: text().notNull().references(() => applications.id, { onDelete: 'cascade' }),
-    coordinatorCredentialId: text().notNull().references(() => applicationCredentials.id, { onDelete: 'cascade' }),
+    ownerAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    coordinatorApplicationId: text()
+      .notNull()
+      .references(() => applications.id, { onDelete: 'cascade' }),
+    coordinatorCredentialId: text()
+      .notNull()
+      .references(() => applicationCredentials.id, { onDelete: 'cascade' }),
     actorType: text({ enum: ['alia', 'agent', 'requester'] }).notNull(),
     /** Historical approval handle: live session checks deny absent/expired rows. */
     requesterSessionId: text(),
     requesterSessionBindingDigest: text(),
     /** Frozen foreground approval: a new catalogue requires new approval. */
-    requesterCatalogRegistrationId: text().references(() => appCapabilityCatalogRegistrations.id, { onDelete: 'restrict' }),
+    requesterCatalogRegistrationId: text().references(() => appCapabilityCatalogRegistrations.id, {
+      onDelete: 'restrict',
+    }),
     requesterCatalogVersion: text(),
     requesterCatalogDigest: text(),
     actorAccountId: text().references(() => users.id, { onDelete: 'cascade' }),
     resourceApp: text().notNull(),
-    effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    effectiveAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     resourceType: text().notNull(),
     resourceKey: text().notNull(),
     tool: text().notNull(),
@@ -148,20 +180,35 @@ export const capabilityExecutionAuthorizations = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    foreignKey({ name: 'capability_execution_requester_method_fk',
-      columns: [t.requesterAuthMethodId, t.requesterAccountId], foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
+    foreignKey({
+      name: 'capability_execution_requester_method_fk',
+      columns: [t.requesterAuthMethodId, t.requesterAccountId],
+      foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
     }).onDelete('restrict'),
-    index('capability_execution_requester_method_idx').on(t.requesterAuthMethodId).where(sql`${t.requesterAuthMethodId} is not null`),
-    check('capability_execution_authorizations_kind_check', sql`${t.kind} in ('direct_request', 'automation')`),
-    check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} in ('agent', 'requester') and ${t.actorAccountId} is not null)`),
-    check('capability_execution_requester_session_check', sql`
+    index('capability_execution_requester_method_idx')
+      .on(t.requesterAuthMethodId)
+      .where(sql`${t.requesterAuthMethodId} is not null`),
+    check(
+      'capability_execution_authorizations_kind_check',
+      sql`${t.kind} in ('direct_request', 'automation')`,
+    ),
+    check(
+      'capability_execution_authorizations_actor_check',
+      sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} in ('agent', 'requester') and ${t.actorAccountId} is not null)`,
+    ),
+    check(
+      'capability_execution_requester_session_check',
+      sql`
       (${t.actorType} = 'requester' and ${t.requesterSessionId} is not null and length(${t.requesterSessionId}) > 0
        and ${t.requesterSessionBindingDigest} is not null
        and ${t.requesterSessionBindingDigest} ~ '^[a-f0-9]{64}$'
        and ${t.kind} = 'direct_request' and ${t.maximumAutonomy} = 'read_only'
        and ${t.actorAccountId} = ${t.requesterAccountId})
-      or (${t.actorType} <> 'requester' and ${t.requesterSessionId} is null and ${t.requesterSessionBindingDigest} is null)`),
-    check('capability_execution_requester_catalog_check', sql`
+      or (${t.actorType} <> 'requester' and ${t.requesterSessionId} is null and ${t.requesterSessionBindingDigest} is null)`,
+    ),
+    check(
+      'capability_execution_requester_catalog_check',
+      sql`
       (${t.actorType} = 'requester' and (
         (${t.requesterCatalogRegistrationId} is not null and length(${t.requesterCatalogRegistrationId}) > 0
          and ${t.requesterCatalogVersion} is not null and length(${t.requesterCatalogVersion}) > 0
@@ -169,14 +216,21 @@ export const capabilityExecutionAuthorizations = pgTable(
         or (${t.revokedAt} is not null and ${t.requesterCatalogRegistrationId} is null
          and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)))
       or (${t.actorType} <> 'requester' and ${t.requesterCatalogRegistrationId} is null
-       and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)`),
-    check('capability_execution_authorizations_automation_check', sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`),
+       and ${t.requesterCatalogVersion} is null and ${t.requesterCatalogDigest} is null)`,
+    ),
+    check(
+      'capability_execution_authorizations_automation_check',
+      sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`,
+    ),
     check(
       'capability_execution_authorizations_run_scope_check',
       sql`(${t.kind} = 'direct_request' and ${t.runId} is not null)
         or (${t.kind} = 'automation' and ${t.runId} is null and ${t.stepId} is null)`,
     ),
-    check('capability_execution_authorizations_autonomy_check', sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`),
+    check(
+      'capability_execution_authorizations_autonomy_check',
+      sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`,
+    ),
     check(
       'capability_execution_authorizations_limits_check',
       sql`jsonb_typeof(${t.limits}) = 'array'
@@ -185,7 +239,10 @@ export const capabilityExecutionAuthorizations = pgTable(
     ),
     index('capability_execution_authorizations_live_idx').on(t.id, t.expiresAt, t.revokedAt),
     index('capability_execution_authorizations_owner_idx').on(t.ownerAccountId, t.createdAt),
-    index('capability_execution_authorizations_coordinator_idx').on(t.coordinatorApplicationId, t.coordinatorCredentialId),
+    index('capability_execution_authorizations_coordinator_idx').on(
+      t.coordinatorApplicationId,
+      t.coordinatorCredentialId,
+    ),
   ],
 );
 
@@ -193,7 +250,9 @@ export const accountCapabilityPolicies = pgTable(
   'account_capability_policies',
   {
     id: generatedId(),
-    accountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    accountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     appSlug: text().notNull(),
     maximumAutonomy: text({ enum: AUTONOMY_LEVELS }).$type<AutonomyLevel>().notNull(),
     deniedCapabilities: text().array().notNull().default(sql`'{}'::text[]`),
@@ -201,7 +260,10 @@ export const accountCapabilityPolicies = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check('account_capability_policies_autonomy_check', sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`),
+    check(
+      'account_capability_policies_autonomy_check',
+      sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`,
+    ),
     unique('account_capability_policies_account_app_key').on(t.accountId, t.appSlug),
   ],
 );
@@ -216,8 +278,12 @@ export const appCapabilityCatalogRegistrations = pgTable(
     catalog: jsonb().$type<AppCapabilityCatalog>().notNull(),
     digest: text().notNull(),
     signature: text().notNull(),
-    registeredByApplicationId: text().notNull().references(() => applications.id, { onDelete: 'cascade' }),
-    registeredByCredentialId: text().notNull().references(() => applicationCredentials.id, { onDelete: 'cascade' }),
+    registeredByApplicationId: text()
+      .notNull()
+      .references(() => applications.id, { onDelete: 'cascade' }),
+    registeredByCredentialId: text()
+      .notNull()
+      .references(() => applicationCredentials.id, { onDelete: 'cascade' }),
     deployedAt: timestamptz().notNull(),
     active: boolean().notNull().default(true),
     createdAt: createdAt(),
@@ -263,7 +329,9 @@ export const capabilityIdempotencyKeys = pgTable(
   'capability_idempotency_keys',
   {
     id: generatedId(),
-    effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    effectiveAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     appSlug: text().notNull(),
     tool: text().notNull(),
     keyHash: text().notNull(),
@@ -274,7 +342,10 @@ export const capabilityIdempotencyKeys = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check('capability_idempotency_keys_status_check', sql`${t.status} in ('started', 'succeeded', 'failed')`),
+    check(
+      'capability_idempotency_keys_status_check',
+      sql`${t.status} in ('started', 'succeeded', 'failed')`,
+    ),
     unique('capability_idempotency_keys_effect_key').on(
       t.effectiveAccountId,
       t.appSlug,

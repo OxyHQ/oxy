@@ -71,11 +71,11 @@ function eligibleDefaults(id: string): typeof users.$inferInsert {
   };
 }
 
-async function makeUser(
-  overrides: Partial<typeof users.$inferInsert> = {}
-): Promise<string> {
+async function makeUser(overrides: Partial<typeof users.$inferInsert> = {}): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({ ...eligibleDefaults(id), ...overrides });
+  await getDb()
+    .insert(users)
+    .values({ ...eligibleDefaults(id), ...overrides });
   return id;
 }
 
@@ -112,7 +112,7 @@ describe('discoverableUserPredicate', () => {
     const scope = [trusted, brandNew];
 
     expect(await idsMatching(discoverableUserPredicate(), scope)).toEqual(
-      [trusted, brandNew].sort()
+      [trusted, brandNew].sort(),
     );
   });
 });
@@ -128,9 +128,7 @@ describe('peopleSearchPredicate', () => {
     // The private account IS still discoverable — the two gates are distinct,
     // and conflating them would silently hide private accounts from the follow
     // graph too.
-    expect(await idsMatching(discoverableUserPredicate(), scope)).toEqual(
-      [findable, priv].sort()
-    );
+    expect(await idsMatching(discoverableUserPredicate(), scope)).toEqual([findable, priv].sort());
   });
 });
 
@@ -174,7 +172,7 @@ describe('peopleSearchPredicate — account kind', () => {
     const scope = [personal, bot, organization, project, channel, privateBot, archivedBot];
 
     expect(await idsMatching(peopleSearchPredicate(), scope)).toEqual(
-      [personal, bot, organization, project, channel].sort()
+      [personal, bot, organization, project, channel].sort(),
     );
   });
 });
@@ -209,8 +207,9 @@ describe('peopleSearchMatch — a pasted upstream profile URL', () => {
     const lookalike = await makeUser({ username: `${marker}@mastodon.social`, type: 'federated' });
     const scope = [bridged, lookalike];
 
-    expect(await idsMatching(peopleSearchMatch(`https://x.com/${marker}`), scope))
-      .toEqual([bridged]);
+    expect(await idsMatching(peopleSearchMatch(`https://x.com/${marker}`), scope)).toEqual([
+      bridged,
+    ]);
   });
 
   it('treats twitter.com and mobile.x.com as the same network, and ignores case', async () => {
@@ -218,20 +217,24 @@ describe('peopleSearchMatch — a pasted upstream profile URL', () => {
     const bridged = await makeUser({ username: `${marker}@x.com`, type: 'federated' });
     const scope = [bridged];
 
-    expect(await idsMatching(peopleSearchMatch(`https://twitter.com/${marker}`), scope))
-      .toEqual([bridged]);
-    expect(await idsMatching(peopleSearchMatch(`https://mobile.x.com/${marker}`), scope))
-      .toEqual([bridged]);
-    expect(await idsMatching(peopleSearchMatch(`https://x.com/${marker.toUpperCase()}`), scope))
-      .toEqual([bridged]);
+    expect(await idsMatching(peopleSearchMatch(`https://twitter.com/${marker}`), scope)).toEqual([
+      bridged,
+    ]);
+    expect(await idsMatching(peopleSearchMatch(`https://mobile.x.com/${marker}`), scope)).toEqual([
+      bridged,
+    ]);
+    expect(
+      await idsMatching(peopleSearchMatch(`https://x.com/${marker.toUpperCase()}`), scope),
+    ).toEqual([bridged]);
   });
 
   it('drops the tracking parameters a pasted link usually carries', async () => {
     const marker = uniqueId().slice(0, 10);
     const bridged = await makeUser({ username: `${marker}@x.com`, type: 'federated' });
 
-    expect(await idsMatching(peopleSearchMatch(`https://x.com/${marker}?s=20&t=abc`), [bridged]))
-      .toEqual([bridged]);
+    expect(
+      await idsMatching(peopleSearchMatch(`https://x.com/${marker}?s=20&t=abc`), [bridged]),
+    ).toEqual([bridged]);
   });
 
   it('applies the Bluesky suffix rule, so a default handle URL still resolves', async () => {
@@ -240,18 +243,20 @@ describe('peopleSearchMatch — a pasted upstream profile URL', () => {
     const marker = uniqueId().slice(0, 10);
     const bridged = await makeUser({ username: `${marker}@bsky.social`, type: 'federated' });
 
-    expect(await idsMatching(
-      peopleSearchMatch(`https://bsky.app/profile/${marker}.bsky.social`),
-      [bridged]
-    )).toEqual([bridged]);
+    expect(
+      await idsMatching(peopleSearchMatch(`https://bsky.app/profile/${marker}.bsky.social`), [
+        bridged,
+      ]),
+    ).toEqual([bridged]);
   });
 
   it('returns nothing — not noise — for a URL naming an account we do not hold', async () => {
     // "We do not have this account" is a fine answer and must look like one.
     const unrelated = await makeUser({ description: `mentions x.com/${uniqueId()} in passing` });
 
-    expect(await idsMatching(peopleSearchMatch(`https://x.com/${uniqueId()}`), [unrelated]))
-      .toEqual([]);
+    expect(
+      await idsMatching(peopleSearchMatch(`https://x.com/${uniqueId()}`), [unrelated]),
+    ).toEqual([]);
   });
 
   it('does not let a bio quoting the URL crowd out the precise answer', async () => {
@@ -261,8 +266,9 @@ describe('peopleSearchMatch — a pasted upstream profile URL', () => {
     const scope = [bridged, quoter];
 
     // A pasted URL is an exact request; whoever merely quotes it was not asked for.
-    expect(await idsMatching(peopleSearchMatch(`https://x.com/${marker}`), scope))
-      .toEqual([bridged]);
+    expect(await idsMatching(peopleSearchMatch(`https://x.com/${marker}`), scope)).toEqual([
+      bridged,
+    ]);
   });
 
   it('finds a row whose STORED username carries uppercase', async () => {
@@ -274,8 +280,9 @@ describe('peopleSearchMatch — a pasted upstream profile URL', () => {
     const marker = uniqueId().slice(0, 10);
     const mixedCase = await makeUser({ username: `Mi${marker}@X.com`, type: 'federated' });
 
-    expect(await idsMatching(peopleSearchMatch(`https://x.com/MI${marker}`), [mixedCase]))
-      .toEqual([mixedCase]);
+    expect(await idsMatching(peopleSearchMatch(`https://x.com/MI${marker}`), [mixedCase])).toEqual([
+      mixedCase,
+    ]);
   });
 
   it('leaves an ordinary search term on the substring path', async () => {
@@ -287,8 +294,9 @@ describe('peopleSearchMatch — a pasted upstream profile URL', () => {
   it('leaves a non-profile URL on the substring path', async () => {
     const marker = uniqueId().slice(0, 10);
     const quoter = await makeUser({ description: `https://mastodon.social/@${marker}` });
-    expect(await idsMatching(peopleSearchMatch(`https://mastodon.social/@${marker}`), [quoter]))
-      .toEqual([quoter]);
+    expect(
+      await idsMatching(peopleSearchMatch(`https://mastodon.social/@${marker}`), [quoter]),
+    ).toEqual([quoter]);
   });
 });
 
@@ -324,7 +332,7 @@ describe('peopleSearchMatch', () => {
     const scope = [byUsername, byFirst, byLast, byDescription, unrelated];
 
     expect(await idsMatching(peopleSearchMatch(marker), scope)).toEqual(
-      [byUsername, byFirst, byLast, byDescription].sort()
+      [byUsername, byFirst, byLast, byDescription].sort(),
     );
   });
 
@@ -338,7 +346,7 @@ describe('peopleSearchMatch', () => {
     const scope = [byName, byDescription];
 
     expect(
-      await idsMatching(peopleSearchMatch(marker, { includeDescription: false }), scope)
+      await idsMatching(peopleSearchMatch(marker, { includeDescription: false }), scope),
     ).toEqual([byName]);
   });
 
@@ -366,9 +374,9 @@ describe('peopleSearchMatch', () => {
     // that fails if the correlated subquery's references stop being qualified:
     // the bare-identifier form compares the subquery's own columns and returns
     // an empty set with no error, so the result would be `[]` here too.
-    expect(
-      await idsMatching(peopleSearchMatch(marker, { includeLocations: true }), scope)
-    ).toEqual([byLocationName, byCity, byCountry].sort());
+    expect(await idsMatching(peopleSearchMatch(marker, { includeLocations: true }), scope)).toEqual(
+      [byLocationName, byCity, byCountry].sort(),
+    );
   });
 
   it('correlates each location to ITS OWN user, never to any located user', async () => {
@@ -384,9 +392,9 @@ describe('peopleSearchMatch', () => {
       .insert(userLocations)
       .values({ userId: located, locationKey: 'home', name: 'Home', city: marker });
 
-    expect(
-      await idsMatching(peopleSearchMatch(marker, { includeLocations: true }), scope)
-    ).toEqual([located]);
+    expect(await idsMatching(peopleSearchMatch(marker, { includeLocations: true }), scope)).toEqual(
+      [located],
+    );
   });
 
   it('treats LIKE metacharacters in the term as literal text', async () => {
@@ -469,7 +477,7 @@ describe('profileQualityPredicate', () => {
     const scope = [curatedByAvatar, curatedByVerified, shell, keyOnly];
 
     expect(await idsMatching(profileQualityPredicate(), scope)).toEqual(
-      [curatedByAvatar, curatedByVerified].sort()
+      [curatedByAvatar, curatedByVerified].sort(),
     );
   });
 
@@ -505,38 +513,34 @@ describe('federatedRecommendationEligibility', () => {
 
   it('passes a non-federated account unconditionally', async () => {
     const local = await makeUser();
-    expect(await idsMatching(federatedRecommendationEligibility(minResolvedAt()), [local])).toEqual([
-      local,
-    ]);
+    expect(await idsMatching(federatedRecommendationEligibility(minResolvedAt()), [local])).toEqual(
+      [local],
+    );
   });
 
   it('passes a federated actor that is complete, fresh and available', async () => {
     const fresh = await makeUser(federatedActor());
-    expect(await idsMatching(federatedRecommendationEligibility(minResolvedAt()), [fresh])).toEqual([
-      fresh,
-    ]);
+    expect(await idsMatching(federatedRecommendationEligibility(minResolvedAt()), [fresh])).toEqual(
+      [fresh],
+    );
   });
 
   it('rejects a federated actor that is stale, unavailable, or missing its identifiers', async () => {
     const stale = await makeUser(
       federatedActor({
         federationLastResolvedAt: new Date(
-          Date.now() - FEDERATED_RECOMMENDATION_MAX_AGE_MS - 60_000
+          Date.now() - FEDERATED_RECOMMENDATION_MAX_AGE_MS - 60_000,
         ),
-      })
+      }),
     );
-    const unavailable = await makeUser(
-      federatedActor({ federationUnavailableAt: new Date() })
-    );
+    const unavailable = await makeUser(federatedActor({ federationUnavailableAt: new Date() }));
     const noUri = await makeUser(federatedActor({ federationActorUri: null }));
     const noDomain = await makeUser(federatedActor({ federationDomain: null }));
-    const neverResolved = await makeUser(
-      federatedActor({ federationLastResolvedAt: null })
-    );
+    const neverResolved = await makeUser(federatedActor({ federationLastResolvedAt: null }));
     const scope = [stale, unavailable, noUri, noDomain, neverResolved];
 
     expect(await idsMatching(federatedRecommendationEligibility(minResolvedAt()), scope)).toEqual(
-      []
+      [],
     );
   });
 });
@@ -569,9 +573,7 @@ describe('eligibleUserPredicate', () => {
       type: 'federated',
       federationActorUri: `https://remote.test/users/${uniqueId()}`,
       federationDomain: 'remote.test',
-      federationLastResolvedAt: new Date(
-        Date.now() - FEDERATED_RECOMMENDATION_MAX_AGE_MS - 60_000
-      ),
+      federationLastResolvedAt: new Date(Date.now() - FEDERATED_RECOMMENDATION_MAX_AGE_MS - 60_000),
     });
     const scope = [archived, restricted, sensitive, shell, staleFederated];
 
@@ -584,7 +586,7 @@ describe('eligibleUserPredicate', () => {
     // merely opted into seeing sensitive content.
     const optedIntoSeeingSensitive = await makeUser({ privacySensitiveContent: true });
     expect(
-      await idsMatching(eligibleUserPredicate(minResolvedAt()), [optedIntoSeeingSensitive])
+      await idsMatching(eligibleUserPredicate(minResolvedAt()), [optedIntoSeeingSensitive]),
     ).toEqual([optedIntoSeeingSensitive]);
   });
 });
@@ -600,7 +602,7 @@ describe('isDiscoverableUser', () => {
 
   it('rejects restricted-tier accounts', () => {
     expect(isDiscoverableUser({ accountStatus: 'active', reputationTier: 'restricted' })).toBe(
-      false
+      false,
     );
   });
 
@@ -627,7 +629,10 @@ describe('isDiscoverableUser', () => {
       .from(users)
       .where(inArray(users.id, scope));
 
-    const inMemory = rows.filter(isDiscoverableUser).map((row) => row.id).sort();
+    const inMemory = rows
+      .filter(isDiscoverableUser)
+      .map((row) => row.id)
+      .sort();
     expect(inMemory).toEqual(await idsMatching(discoverableUserPredicate(), scope));
   });
 });
@@ -643,14 +648,14 @@ describe('isPublicGraphTarget', () => {
         accountStatus: 'active',
         reputationTier: 'trusted',
         privacySettings: { isPrivateAccount: true },
-      })
+      }),
     ).toBe(false);
   });
 
   it('rejects archived and restricted users', () => {
     expect(isPublicGraphTarget({ accountStatus: 'archived' })).toBe(false);
     expect(isPublicGraphTarget({ accountStatus: 'active', reputationTier: 'restricted' })).toBe(
-      false
+      false,
     );
   });
 });
@@ -659,7 +664,7 @@ describe('isFederatableUser', () => {
   it('accepts discoverable users with sharing enabled or unset', () => {
     expect(isFederatableUser({ accountStatus: 'active' })).toBe(true);
     expect(
-      isFederatableUser({ accountStatus: 'active', privacySettings: { fediverseSharing: true } })
+      isFederatableUser({ accountStatus: 'active', privacySettings: { fediverseSharing: true } }),
     ).toBe(true);
   });
 
@@ -668,7 +673,7 @@ describe('isFederatableUser', () => {
       isFederatableUser({
         accountStatus: 'active',
         privacySettings: { fediverseSharing: false },
-      })
+      }),
     ).toBe(false);
   });
 
@@ -677,14 +682,14 @@ describe('isFederatableUser', () => {
       isFederatableUser({
         accountStatus: 'archived',
         privacySettings: { fediverseSharing: true },
-      })
+      }),
     ).toBe(false);
     expect(
       isFederatableUser({
         accountStatus: 'active',
         reputationTier: 'restricted',
         privacySettings: { fediverseSharing: true },
-      })
+      }),
     ).toBe(false);
   });
 });

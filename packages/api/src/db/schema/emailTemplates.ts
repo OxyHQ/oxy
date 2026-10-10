@@ -41,5 +41,7 @@ export const emailTemplates = pgTable(
   },
   // Mongo also declared a standalone `{userId}`; dropped, since this index
   // leads with `user_id` and a btree serves any leading prefix.
-  (t) => [uniqueIndex('email_templates_user_id_lower_name_key').on(t.userId, sql`lower(${t.name})`)]
+  (t) => [
+    uniqueIndex('email_templates_user_id_lower_name_key').on(t.userId, sql`lower(${t.name})`),
+  ],
 );

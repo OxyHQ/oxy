@@ -34,7 +34,10 @@ export function StatColumns({ items }: StatColumnsProps) {
             <Text style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
               {item.label}
             </Text>
-            <Text style={[styles.value, { color: item.valueColor ?? colors.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.value, { color: item.valueColor ?? colors.text }]}
+              numberOfLines={1}
+            >
               {item.value}
             </Text>
           </View>

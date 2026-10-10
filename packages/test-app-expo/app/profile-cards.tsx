@@ -63,7 +63,10 @@ export default function ProfileCardsScreen() {
     for (let dayOffset = 0; dayOffset < 119; dayOffset += 1) {
       const day = new Date(now);
       day.setDate(now.getDate() - dayOffset);
-      const count = Math.max(0, Math.round((Math.sin(dayOffset / 5) + Math.cos(dayOffset / 11)) * 2 + 2));
+      const count = Math.max(
+        0,
+        Math.round((Math.sin(dayOffset / 5) + Math.cos(dayOffset / 11)) * 2 + 2),
+      );
       for (let i = 0; i < count; i += 1) events.push({ ts: new Date(day) });
     }
     return bucketByDay(events, (event) => event.ts);
@@ -78,7 +81,9 @@ export default function ProfileCardsScreen() {
       contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
     >
       <View className="mb-1 gap-1.5">
-        <Text className="text-[30px] font-extrabold tracking-[-0.5px] text-foreground">Profile preview cards</Text>
+        <Text className="text-[30px] font-extrabold tracking-[-0.5px] text-foreground">
+          Profile preview cards
+        </Text>
         <Text className="text-[15px] leading-[21px] text-muted-foreground">
           @oxy.so/bloom metric primitives for profile previews.
         </Text>
@@ -151,9 +156,10 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
 function Card({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View className="gap-3 rounded-2xl border border-border bg-background p-4">
-      <Text className="text-[12px] font-semibold uppercase tracking-[0.5px] text-muted-foreground">{label}</Text>
+      <Text className="text-[12px] font-semibold uppercase tracking-[0.5px] text-muted-foreground">
+        {label}
+      </Text>
       {children}
     </View>
   );
 }
-

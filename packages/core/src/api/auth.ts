@@ -57,7 +57,8 @@ import { isAndroid } from '../utils/platform';
 // use: an app that never signs anything must not ship secp256k1.
 const loadKeyManager = async () => (await import('../crypto/internal')).KeyManager;
 const loadSignatureService = async () => (await import('../crypto/internal')).SignatureService;
-const loadCommonsBridge = async () => (await import('../crypto/internal')).loadCommonsIdentityBridge();
+const loadCommonsBridge = async () =>
+  (await import('../crypto/internal')).loadCommonsIdentityBridge();
 
 /**
  * Default lifetime of a "Sign in with Oxy" device-flow session / authorize code.
@@ -454,7 +455,6 @@ interface CommonsSessionCreateResponse {
   sessionToken?: string;
 }
 
-
 /** The device-session fields a sign-in may carry. */
 export interface SignInDeviceOptions {
   deviceName?: string;
@@ -474,7 +474,10 @@ export interface ClaimedSession {
 }
 
 /** The body fields a session-ending call sends: the options, plus the device proof. */
-async function signInEnvelope(ctx: OxyContext, options: SignInDeviceOptions = {}): Promise<Record<string, unknown>> {
+async function signInEnvelope(
+  ctx: OxyContext,
+  options: SignInDeviceOptions = {},
+): Promise<Record<string, unknown>> {
   const { device: explicit, deviceName, deviceFingerprint } = options;
   const device = explicit === undefined ? await ctx.oxy.session.readDeviceProof() : explicit;
   return {
@@ -508,7 +511,9 @@ export class AuthEmailApi {
    * (`purpose: 'signup'`). The answer is the same whether or not the address
    * already has an account; nothing is revealed about who has one.
    */
-  async startVerification(request: EmailVerificationStartRequest): Promise<EmailVerificationStartResponse> {
+  async startVerification(
+    request: EmailVerificationStartRequest,
+  ): Promise<EmailVerificationStartResponse> {
     const res = await this.ctx.request<unknown>('POST', '/auth/email/verify/start', request, {
       cache: false,
       skipAuth: true,
@@ -523,7 +528,10 @@ export class AuthEmailApi {
    * short-lived one-use ticket, which a sign-up passes (with the email) to
    * {@link AuthApi.signUp}.
    */
-  async confirmVerification(verificationId: string, code: string): Promise<EmailVerificationConfirmResponse> {
+  async confirmVerification(
+    verificationId: string,
+    code: string,
+  ): Promise<EmailVerificationConfirmResponse> {
     const res = await this.ctx.request<unknown>(
       'POST',
       '/auth/email/verify/confirm',
@@ -540,8 +548,12 @@ export class AuthEmailApi {
    * answer is the same whether or not the account exists. Keep
    * `requestSecret` in memory only.
    */
-  async start(identifier: string, options: { device?: DeviceProof | null } = {}): Promise<EmailSignInStartResponse> {
-    const device = options.device === undefined ? await this.ctx.oxy.session.readDeviceProof() : options.device;
+  async start(
+    identifier: string,
+    options: { device?: DeviceProof | null } = {},
+  ): Promise<EmailSignInStartResponse> {
+    const device =
+      options.device === undefined ? await this.ctx.oxy.session.readDeviceProof() : options.device;
     const res = await this.ctx.request<unknown>(
       'POST',
       '/auth/signin/email/start',
@@ -609,14 +621,15 @@ export class AuthEmailApi {
     if (!parsed) throw new Error('auth/signin/email/link returned an unexpected response shape');
     return parsed;
   }
-
 }
 
 /** `oxy.auth.password` — password sign-in and setting the password. */
 export class AuthPasswordApi {
   constructor(private readonly ctx: OxyContext) {}
 
-  async signIn(request: { identifier: string; password: string } & SignInDeviceOptions): Promise<SignInStepResult> {
+  async signIn(
+    request: { identifier: string; password: string } & SignInDeviceOptions,
+  ): Promise<SignInStepResult> {
     const { identifier, password, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
@@ -627,10 +640,15 @@ export class AuthPasswordApi {
     return signInStep(this.ctx, res, 'auth/signin/password');
   }
 
-  async set(request: { newPassword: string; reauth: ReauthProof; revokeOtherSessions?: boolean }): Promise<{ success: true }> {
-    return this.ctx.request<{ success: true }>('PUT', '/users/me/password', request, { cache: false });
+  async set(request: {
+    newPassword: string;
+    reauth: ReauthProof;
+    revokeOtherSessions?: boolean;
+  }): Promise<{ success: true }> {
+    return this.ctx.request<{ success: true }>('PUT', '/users/me/password', request, {
+      cache: false,
+    });
   }
-
 }
 
 /** `oxy.auth.totp` — the account’s authenticator app. */
@@ -638,30 +656,47 @@ export class AuthTotpApi {
   constructor(private readonly ctx: OxyContext) {}
 
   async enroll(): Promise<TotpEnrollResponse> {
-    const res = await this.ctx.request<unknown>('POST', '/users/me/totp/enroll', undefined, { cache: false });
+    const res = await this.ctx.request<unknown>('POST', '/users/me/totp/enroll', undefined, {
+      cache: false,
+    });
     const parsed = safeParseContract(totpEnrollResponseSchema, res);
     if (!parsed) throw new Error('users/me/totp/enroll returned an unexpected response shape');
     return parsed;
   }
 
   async confirm(code: string, reauth: ReauthProof): Promise<string[]> {
-    const res = await this.ctx.request<unknown>('POST', '/users/me/totp/confirm', { code, reauth }, { cache: false });
+    const res = await this.ctx.request<unknown>(
+      'POST',
+      '/users/me/totp/confirm',
+      { code, reauth },
+      { cache: false },
+    );
     const parsed = safeParseContract(totpBackupCodesResponseSchema, res);
     if (!parsed) throw new Error('users/me/totp/confirm returned an unexpected response shape');
     return parsed.backupCodes;
   }
 
   async disable(reauth: ReauthProof): Promise<{ success: true }> {
-    return this.ctx.request<{ success: true }>('POST', '/users/me/totp/disable', { reauth }, { cache: false });
+    return this.ctx.request<{ success: true }>(
+      'POST',
+      '/users/me/totp/disable',
+      { reauth },
+      { cache: false },
+    );
   }
 
   async regenerateBackupCodes(reauth: ReauthProof): Promise<string[]> {
-    const res = await this.ctx.request<unknown>('POST', '/users/me/totp/backup-codes', { reauth }, { cache: false });
+    const res = await this.ctx.request<unknown>(
+      'POST',
+      '/users/me/totp/backup-codes',
+      { reauth },
+      { cache: false },
+    );
     const parsed = safeParseContract(totpBackupCodesResponseSchema, res);
-    if (!parsed) throw new Error('users/me/totp/backup-codes returned an unexpected response shape');
+    if (!parsed)
+      throw new Error('users/me/totp/backup-codes returned an unexpected response shape');
     return parsed.backupCodes;
   }
-
 }
 
 /** `oxy.auth.oauth` — a relying party’s OAuth authorization-code exchange. */
@@ -699,12 +734,15 @@ export class AuthOAuthApi {
    * session that looks alive and cannot refresh.
    */
   /** `plantTokens: false` defers bearer installation to a validated provider commit. */
-  async exchangeCode(params: {
-    code: string;
-    clientId: string;
-    redirectUri: string;
-    codeVerifier: string;
-  }, options: { plantTokens?: boolean } = {}): Promise<OAuthTokenExchangeResult> {
+  async exchangeCode(
+    params: {
+      code: string;
+      clientId: string;
+      redirectUri: string;
+      codeVerifier: string;
+    },
+    options: { plantTokens?: boolean } = {},
+  ): Promise<OAuthTokenExchangeResult> {
     const form = new URLSearchParams({
       grant_type: 'authorization_code',
       code: params.code,
@@ -712,12 +750,10 @@ export class AuthOAuthApi {
       client_id: params.clientId,
       code_verifier: params.codeVerifier,
     });
-    const res = await this.ctx.request<unknown>(
-      'POST',
-      '/auth/oauth/token',
-      form,
-      { cache: false, skipAuth: true },
-    );
+    const res = await this.ctx.request<unknown>('POST', '/auth/oauth/token', form, {
+      cache: false,
+      skipAuth: true,
+    });
     if (!res || typeof res !== 'object') {
       throw new Error('auth/oauth/token returned an unexpected response shape');
     }
@@ -773,12 +809,9 @@ export class AuthOAuthApi {
    * The response is a flat JSON document — no `{ data }` wrapper.
    */
   async userInfo(): Promise<OAuthUserInfoResponse> {
-    const res = await this.ctx.request<unknown>(
-      'GET',
-      '/auth/oauth/userinfo',
-      undefined,
-      { cache: false },
-    );
+    const res = await this.ctx.request<unknown>('GET', '/auth/oauth/userinfo', undefined, {
+      cache: false,
+    });
     if (!res || typeof res !== 'object') {
       throw new Error('auth/oauth/userinfo returned an unexpected response shape');
     }
@@ -796,7 +829,6 @@ export class AuthOAuthApi {
       ...(typeof record.picture === 'string' ? { picture: record.picture } : {}),
     };
   }
-
 }
 
 /**
@@ -899,7 +931,7 @@ export class AuthCommonsApi {
       // Public/pre-session (no bearer): a preflight here is wrong per se and,
       // if ever reached while a refresh is pending, would re-enter
       // refreshAccessToken and await the very promise it runs inside.
-      { cache: false, retry: false, skipAuth: true }
+      { cache: false, retry: false, skipAuth: true },
     );
 
     if (res === null || typeof res !== 'object') {
@@ -1070,7 +1102,7 @@ export class AuthCommonsApi {
       undefined,
       // Public (no auth required) — skip the bearer preflight (avoids the
       // pre-session self-await class).
-      { cache: false, skipAuth: true }
+      { cache: false, skipAuth: true },
     );
     return {
       application: raw.application,
@@ -1136,7 +1168,7 @@ export class AuthCommonsApi {
         ...(params.deviceFingerprint ? { deviceFingerprint: params.deviceFingerprint } : {}),
       },
       // Key-signed, cookieless (no bearer) — skip the preflight.
-      { cache: false, skipAuth: true }
+      { cache: false, skipAuth: true },
     );
   }
 
@@ -1160,10 +1192,9 @@ export class AuthCommonsApi {
       `/auth/session/deny/${encodeURIComponent(authorizeCode)}`,
       reason ? { reason } : undefined,
       // Public (no auth required) — skip the bearer preflight.
-      { cache: false, skipAuth: true }
+      { cache: false, skipAuth: true },
     );
   }
-
 }
 
 /** Bot entry uses caller-owned keys and the normal account session lane. */
@@ -1172,15 +1203,19 @@ export class AuthAgentApi {
 
   async requestChallenge(publicKey: string): Promise<AgentProofClaims> {
     const body = agentChallengeRequestSchema.parse({ publicKey });
-    const response = await this.ctx.request<unknown>('POST', '/auth/agent/challenge', body,
-      { cache: false, skipAuth: true });
+    const response = await this.ctx.request<unknown>('POST', '/auth/agent/challenge', body, {
+      cache: false,
+      skipAuth: true,
+    });
     return agentProofClaimsSchema.parse(response);
   }
 
   async verify(publicKey: string, proof: AgentSignature): Promise<LoginResult> {
     const body = agentVerifyRequestSchema.parse({ publicKey, ...proof });
-    const response = await this.ctx.request<unknown>('POST', '/auth/agent/verify', body,
-      { cache: false, skipAuth: true });
+    const response = await this.ctx.request<unknown>('POST', '/auth/agent/verify', body, {
+      cache: false,
+      skipAuth: true,
+    });
     return plantSession(this.ctx, response, 'auth/agent/verify');
   }
 }
@@ -1224,7 +1259,7 @@ export class AuthApi {
     publicKey: string,
     signature: string,
     timestamp: number,
-    username: string
+    username: string,
   ): Promise<{ message: string; user: User }> {
     // Advisory for now (server soft-enforces — see
     // `SessionController.register`), but solved unconditionally so every
@@ -1232,13 +1267,18 @@ export class AuthApi {
     const { solveRegistrationPow } = await import('../crypto/internal');
     const powNonce = await solveRegistrationPow(publicKey, timestamp);
 
-    const res = await this.ctx.request<{ message: string; user: User }>('POST', '/auth/register', {
-      publicKey,
-      signature,
-      timestamp,
-      username,
-      powNonce,
-    }, { cache: false, skipAuth: true });
+    const res = await this.ctx.request<{ message: string; user: User }>(
+      'POST',
+      '/auth/register',
+      {
+        publicKey,
+        signature,
+        timestamp,
+        username,
+        powNonce,
+      },
+      { cache: false, skipAuth: true },
+    );
 
     if (!res || (typeof res === 'object' && Object.keys(res).length === 0)) {
       throw new OxyAuthenticationError('Registration failed', 'REGISTER_FAILED', 400);
@@ -1261,14 +1301,19 @@ export class AuthApi {
     publicKey: string,
     requestOptions?: { retry?: boolean; timeout?: number },
   ): Promise<ChallengeResponse> {
-    return this.ctx.request<ChallengeResponse>('POST', '/auth/challenge', {
-      publicKey,
-    }, { cache: false, skipAuth: true, ...requestOptions });
+    return this.ctx.request<ChallengeResponse>(
+      'POST',
+      '/auth/challenge',
+      {
+        publicKey,
+      },
+      { cache: false, skipAuth: true, ...requestOptions },
+    );
   }
 
   /**
    * Verify a signed challenge and create a session
-   * 
+   *
    * @param publicKey - The user's public key
    * @param challenge - The challenge string from requestChallenge
    * @param signature - Signature of the auth message
@@ -1294,14 +1339,19 @@ export class AuthApi {
     requestOptions?: { retry?: boolean; timeout?: number },
     options: { plantTokens?: boolean } = {},
   ): Promise<SessionLoginResponse> {
-    const res = await this.ctx.request<SessionLoginResponse>('POST', '/auth/verify', {
-      publicKey,
-      challenge,
-      signature,
-      timestamp,
-      deviceName,
-      deviceFingerprint,
-    }, { cache: false, skipAuth: true, ...requestOptions });
+    const res = await this.ctx.request<SessionLoginResponse>(
+      'POST',
+      '/auth/verify',
+      {
+        publicKey,
+        challenge,
+        signature,
+        timestamp,
+        deviceName,
+        deviceFingerprint,
+      },
+      { cache: false, skipAuth: true, ...requestOptions },
+    );
 
     // Plant the freshly-minted tokens, mirroring `auth.claimSession`.
     // `/auth/verify` returns the first access token (and refresh token) in
@@ -1326,7 +1376,7 @@ export class AuthApi {
       'GET',
       `/auth/check-publickey/${encodeURIComponent(publicKey)}`,
       undefined,
-      { cache: false, skipAuth: true }
+      { cache: false, skipAuth: true },
     );
   }
 
@@ -1356,11 +1406,16 @@ export class AuthApi {
    */
   async claimSession(
     sessionToken: string,
-    options: { deviceFingerprint?: string; plantTokens?: boolean; device?: DeviceProof | null } = {}
+    options: {
+      deviceFingerprint?: string;
+      plantTokens?: boolean;
+      device?: DeviceProof | null;
+    } = {},
   ): Promise<ClaimedSession> {
     // The device this client holds, so an official app's claim joins it
     // (ADR 0029 D2). `null` opts out explicitly.
-    const device = options.device === undefined ? await this.ctx.oxy.session.readDeviceProof() : options.device;
+    const device =
+      options.device === undefined ? await this.ctx.oxy.session.readDeviceProof() : options.device;
     const res = await this.ctx.request<ClaimedSession>(
       'POST',
       '/auth/session/claim',
@@ -1370,7 +1425,7 @@ export class AuthApi {
         ...(device ? { device } : {}),
       },
       // Body-authenticated device-flow claim (no bearer) — skip the preflight.
-      { cache: false, retry: false, skipAuth: true }
+      { cache: false, retry: false, skipAuth: true },
     );
 
     if (options.plantTokens !== false) {
@@ -1409,7 +1464,7 @@ export class AuthApi {
       deviceFingerprint?: string;
       requestOptions?: { retry?: boolean; timeout?: number };
       plantTokens?: boolean;
-    } = {}
+    } = {},
   ): Promise<SessionLoginResponse | null> {
     if (isAndroid()) {
       const bridge = await loadCommonsBridge();
@@ -1465,7 +1520,10 @@ export class AuthApi {
    */
   async checkUsername(username: string): Promise<{ available: boolean; message: string }> {
     // Public availability lookup (pre-session) — skip the bearer preflight.
-    return this.ctx.request('GET', `/auth/check-username/${username}`, undefined, { cache: false, skipAuth: true });
+    return this.ctx.request('GET', `/auth/check-username/${username}`, undefined, {
+      cache: false,
+      skipAuth: true,
+    });
   }
 
   /**
@@ -1473,7 +1531,9 @@ export class AuthApi {
    * challenge → the session. Send the same device proof the first factor did
    * (the default does).
    */
-  async completeSecondFactor(request: { challengeId: string; code: string } & SignInDeviceOptions): Promise<LoginResult> {
+  async completeSecondFactor(
+    request: { challengeId: string; code: string } & SignInDeviceOptions,
+  ): Promise<LoginResult> {
     const { challengeId, code, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
@@ -1484,7 +1544,9 @@ export class AuthApi {
     return plantSession(this.ctx, res, 'auth/signin/second-factor');
   }
 
-  async signUp(request: { username: string; email: string; emailTicket: string } & SignInDeviceOptions): Promise<LoginResult> {
+  async signUp(
+    request: { username: string; email: string; emailTicket: string } & SignInDeviceOptions,
+  ): Promise<LoginResult> {
     const { username, email, emailTicket, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
@@ -1496,7 +1558,9 @@ export class AuthApi {
   }
 
   async methods(): Promise<SignInMethods> {
-    const res = await this.ctx.request<unknown>('GET', '/users/me/sign-in-methods', undefined, { cache: false });
+    const res = await this.ctx.request<unknown>('GET', '/users/me/sign-in-methods', undefined, {
+      cache: false,
+    });
     const parsed = safeParseContract(signInMethodsSchema, res);
     if (!parsed) throw new Error('users/me/sign-in-methods returned an unexpected response shape');
     return parsed;
@@ -1509,10 +1573,14 @@ export class AuthApi {
    * names it.
    */
   async requestReauthCode(action: ReauthAction): Promise<EmailVerificationStartResponse> {
-    const res = await this.ctx.request<unknown>('POST', '/users/me/reauth/email', { action }, { cache: false });
+    const res = await this.ctx.request<unknown>(
+      'POST',
+      '/users/me/reauth/email',
+      { action },
+      { cache: false },
+    );
     const parsed = safeParseContract(emailVerificationStartResponseSchema, res);
     if (!parsed) throw new Error('users/me/reauth/email returned an unexpected response shape');
     return parsed;
   }
-
 }

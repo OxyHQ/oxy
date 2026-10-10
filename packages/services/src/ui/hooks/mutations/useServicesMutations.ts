@@ -20,10 +20,10 @@ export const useSwitchSession = () => {
     onSuccess: (user, sessionId) => {
       // Invalidate all session queries
       invalidateSessionQueries(queryClient);
-      
+
       // Update current user query
       queryClient.setQueryData(queryKeys.accounts.current(sessionId), user);
-      
+
       // Invalidate account queries
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
     },
@@ -46,28 +46,28 @@ export const useLogoutSession = () => {
       if (!activeSessionId) {
         throw new Error('No active session');
       }
-      
+
       const sessionToLogout = targetSessionId || activeSessionId;
       await oxyServices.session.logout(activeSessionId, sessionToLogout);
-      
+
       return sessionToLogout;
     },
     onMutate: async (targetSessionId) => {
       // Cancel outgoing queries
       await queryClient.cancelQueries({ queryKey: queryKeys.sessions.all });
-      
+
       // Snapshot previous sessions
       const previousSessions = queryClient.getQueryData(queryKeys.sessions.list());
-      
+
       // Optimistically remove session
       if (previousSessions) {
         const sessionToLogout = targetSessionId || activeSessionId;
         const updatedSessions = (previousSessions as ClientSession[]).filter(
-          (s) => s.sessionId !== sessionToLogout
+          (s) => s.sessionId !== sessionToLogout,
         );
         queryClient.setQueryData(queryKeys.sessions.list(), updatedSessions);
       }
-      
+
       return { previousSessions };
     },
     onError: (error, targetSessionId, context) => {
@@ -100,7 +100,7 @@ export const useLogoutAll = () => {
       if (!activeSessionId) {
         throw new Error('No active session');
       }
-      
+
       await oxyServices.session.logoutAll(activeSessionId);
       await clearSessionState();
     },
@@ -128,7 +128,7 @@ export const useUpdateDeviceName = () => {
       if (!activeSessionId) {
         throw new Error('No active session');
       }
-      
+
       return await oxyServices.devices.rename(activeSessionId, deviceName);
     },
     onSuccess: () => {
@@ -167,4 +167,3 @@ export const useRemoveDevice = () => {
     },
   });
 };
-

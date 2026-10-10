@@ -1,9 +1,6 @@
 import { composeDisplayName } from '../utils/displayName';
 
-export type NativeProductAgentDisplayNameDisposition =
-  | 'exact'
-  | 'normalize_legacy'
-  | 'drift';
+export type NativeProductAgentDisplayNameDisposition = 'exact' | 'normalize_legacy' | 'drift';
 
 /**
  * Classify an account title without broadening the bootstrap's authority.
@@ -32,7 +29,5 @@ export function classifyNativeProductAgentDisplayName(input: {
       last: input.storedLastName,
     },
   });
-  return effectiveDisplayName === input.expectedDisplayName
-    ? 'normalize_legacy'
-    : 'drift';
+  return effectiveDisplayName === input.expectedDisplayName ? 'normalize_legacy' : 'drift';
 }

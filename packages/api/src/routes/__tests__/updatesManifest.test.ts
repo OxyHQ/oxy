@@ -48,11 +48,15 @@ function makeServer(): http.Server {
 async function get(
   server: http.Server,
   path: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
 ): Promise<{ status: number; text: string; contentType: string | null }> {
   const address = server.address() as AddressInfo;
   const res = await fetch(`http://127.0.0.1:${address.port}${path}`, { method: 'GET', headers });
-  return { status: res.status, text: await res.text(), contentType: res.headers.get('content-type') };
+  return {
+    status: res.status,
+    text: await res.text(),
+    contentType: res.headers.get('content-type'),
+  };
 }
 
 const VALID_HEADERS = {
@@ -71,7 +75,7 @@ async function registerClient(
     applicationStatus?: 'active' | 'suspended';
     credentialStatus?: 'active' | 'deprecated' | 'revoked';
     expiresAt?: Date;
-  } = {}
+  } = {},
 ): Promise<{ clientId: string; applicationId: string }> {
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({
     id: users.id,
@@ -85,15 +89,17 @@ async function registerClient(
     })
     .returning({ id: applications.id });
   const clientId = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
-  await getDb().insert(applicationCredentials).values({
-    applicationId: application.id,
-    name: 'updates',
-    publicKey: clientId,
-    type: 'public',
-    environment: 'production',
-    status: options.credentialStatus ?? 'active',
-    expiresAt: options.expiresAt,
-  });
+  await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: 'updates',
+      publicKey: clientId,
+      type: 'public',
+      environment: 'production',
+      status: options.credentialStatus ?? 'active',
+      expiresAt: options.expiresAt,
+    });
   return { clientId, applicationId: application.id };
 }
 
@@ -211,7 +217,7 @@ describe('GET /updates/v1/apps/:clientId/manifest — wiring', () => {
         'expo-expect-signature': 'sig, keyid="main", alg="rsa-v1_5-sha256"',
         'expo-extra-params': 'oxy-device-id="device-abc", other="y"',
         'expo-current-update-id': 'cur-1',
-      }
+      },
     );
 
     expect(status).toBe(200);
@@ -228,7 +234,7 @@ describe('GET /updates/v1/apps/:clientId/manifest — wiring', () => {
         protocolVersion: 1,
         expectSignature: true,
         deviceKey: 'device-abc',
-      })
+      }),
     );
   });
 

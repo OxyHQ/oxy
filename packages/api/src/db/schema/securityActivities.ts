@@ -137,13 +137,13 @@ export const securityActivities = pgTable(
     index('security_activities_user_id_event_type_occurred_at_idx').on(
       t.userId,
       t.eventType,
-      t.occurredAt.desc()
+      t.occurredAt.desc(),
     ),
     // …filtered to one device.
     index('security_activities_user_id_device_id_occurred_at_idx').on(
       t.userId,
       t.deviceId,
-      t.occurredAt.desc()
+      t.occurredAt.desc(),
     ),
     // Supports the expiry sweep in `db/expiry.ts`. None of the compounds above
     // can: each leads with `user_id`, and the sweep is a bare range scan.
@@ -154,11 +154,11 @@ export const securityActivities = pgTable(
     // event types or on a device id can never be the cheaper plan.
     check(
       'security_activities_event_type_check',
-      sql`${t.eventType} in (${sql.raw(SECURITY_EVENT_TYPES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.eventType} in (${sql.raw(SECURITY_EVENT_TYPES.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'security_activities_severity_check',
-      sql`${t.severity} in (${sql.raw(SECURITY_EVENT_SEVERITIES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.severity} in (${sql.raw(SECURITY_EVENT_SEVERITIES.map((value) => `'${value}'`).join(', '))})`,
     ),
-  ]
+  ],
 );

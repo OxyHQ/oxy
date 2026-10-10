@@ -8,8 +8,9 @@ describe('client workload identity boundary', () => {
 
   it('rejects before contacting a server when explicitly requested', async () => {
     const fetchSpy = jest.spyOn(globalThis, 'fetch');
-    await expect(requestWorkloadServiceToken({ baseUrl: 'https://example.test' }))
-      .rejects.toThrow('only available on a Node host');
+    await expect(requestWorkloadServiceToken({ baseUrl: 'https://example.test' })).rejects.toThrow(
+      'only available on a Node host',
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });

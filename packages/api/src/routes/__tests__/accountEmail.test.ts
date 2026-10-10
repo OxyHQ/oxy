@@ -36,7 +36,10 @@ jest.mock('../../middleware/rateLimiter', () => ({
 
 import { emailTicketSchema } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { resetOriginRegistryForTests, setOriginSnapshotForTests } from '../../config/dynamicOriginRegistry';
+import {
+  resetOriginRegistryForTests,
+  setOriginSnapshotForTests,
+} from '../../config/dynamicOriginRegistry';
 import { emailVerifications } from '../../db/schema/emailVerifications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -74,7 +77,11 @@ function sentCode(to: string): string {
 }
 
 async function storedVerification(id: string) {
-  const [row] = await getDb().select().from(emailVerifications).where(eq(emailVerifications.id, id)).limit(1);
+  const [row] = await getDb()
+    .select()
+    .from(emailVerifications)
+    .where(eq(emailVerifications.id, id))
+    .limit(1);
   return row;
 }
 
@@ -96,7 +103,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   await closePostgres();
 });
 
@@ -110,12 +119,21 @@ beforeEach(() => {
 describe('sign-up', () => {
   it('sends a 6-digit code to the new email and stores neither the address nor the code', async () => {
     const email = freshEmail();
-    const { verificationId, expiresAt } = await start({ purpose: 'signup', email: email.toUpperCase() });
+    const { verificationId, expiresAt } = await start({
+      purpose: 'signup',
+      email: email.toUpperCase(),
+    });
 
     expect(mockSendCode).toHaveBeenCalledWith(email, expect.stringMatching(/^\d{6}$/));
     expect(expiresAt).toBeGreaterThan(Date.now());
     const row = await storedVerification(verificationId);
-    expect(row).toMatchObject({ purpose: 'signup', emailHash: hashEmail(email), userId: null, attempts: 0, confirmedAt: null });
+    expect(row).toMatchObject({
+      purpose: 'signup',
+      emailHash: hashEmail(email),
+      userId: null,
+      attempts: 0,
+      confirmedAt: null,
+    });
     expect(JSON.stringify(row)).not.toContain(email);
     expect(row.codeHash).not.toContain(sentCode(email));
   });
@@ -131,7 +149,11 @@ describe('sign-up', () => {
     expect(Object.keys(res.body).sort()).toEqual(['expiresAt', 'ticket']);
     const row = await storedVerification(verificationId);
     expect(row.confirmedAt).toBeInstanceOf(Date);
-    expect(row.ticketHash).toBe(createHash('sha256').update(res.body.ticket as string).digest('hex'));
+    expect(row.ticketHash).toBe(
+      createHash('sha256')
+        .update(res.body.ticket as string)
+        .digest('hex'),
+    );
 
     // A confirmed code cannot be confirmed again.
     const again = await post('/verify/confirm', { verificationId, code: sentCode(email) });
@@ -182,7 +204,10 @@ describe('sign-up', () => {
     expect(mockSendCode).not.toHaveBeenCalled();
     expect(mockSendNotice).toHaveBeenCalledWith(email);
     // The decoy's code was never sent, so nothing confirms it.
-    const guess = await post('/verify/confirm', { verificationId: res.body.verificationId, code: '123456' });
+    const guess = await post('/verify/confirm', {
+      verificationId: res.body.verificationId,
+      code: '123456',
+    });
     expect(guess.status).toBe(401);
   });
 

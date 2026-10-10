@@ -40,11 +40,11 @@ const { projectRootOf, requireFromProject } = require('./requireFromProject');
 
 const REMOVED_OPTIONS = {
   sharedUserId:
-    'Oxy Android apps no longer share a UID: they share the identity and the session with Commons '
-    + 'over signature-protected IPC. Remove the option (and any android:sharedUserId).',
+    'Oxy Android apps no longer share a UID: they share the identity and the session with Commons ' +
+    'over signature-protected IPC. Remove the option (and any android:sharedUserId).',
   sharedIdentityReader:
-    'the reader plugin is gone; every Oxy app now applies @oxy.so/services/plugins/withOxySharedPermissions, '
-    + 'which the preset always does. Remove the option.',
+    'the reader plugin is gone; every Oxy app now applies @oxy.so/services/plugins/withOxySharedPermissions, ' +
+    'which the preset always does. Remove the option.',
 };
 
 module.exports = function withOxyAppPreset(config, options = {}) {
@@ -54,11 +54,7 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     }
   }
 
-  const {
-    keychainGroup = 'group.so.oxy.shared',
-    ios = {},
-    android = {},
-  } = options;
+  const { keychainGroup = 'group.so.oxy.shared', ios = {}, android = {} } = options;
 
   let next = config;
 
@@ -78,8 +74,8 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     );
   } catch (error) {
     throw new Error(
-      "[@oxy.so/app-preset] needs '@oxy.so/services' 11 or later (for plugins/withOxySharedPermissions). "
-        + `Install it in the app. (${error instanceof Error ? error.message : String(error)})`,
+      "[@oxy.so/app-preset] needs '@oxy.so/services' 11 or later (for plugins/withOxySharedPermissions). " +
+        `Install it in the app. (${error instanceof Error ? error.message : String(error)})`,
     );
   }
   next = withOxySharedPermissions(next);

@@ -32,12 +32,12 @@ async function main(): Promise<void> {
         earliest === undefined
           ? 'none'
           : `${earliest.validUntil.toISOString()} (${earliest.deploymentId ?? '<unmapped>'})`
-      }.\n`
+      }.\n`,
     );
 
     if (assessment.status === 'empty') {
       process.stderr.write(
-        'Kaana routing readiness FAILED: the selectable route census is empty, so score coverage cannot be proven.\n'
+        'Kaana routing readiness FAILED: the selectable route census is empty, so score coverage cannot be proven.\n',
       );
       process.exitCode = 1;
     } else if (assessment.status === 'collision') {
@@ -46,7 +46,7 @@ async function main(): Promise<void> {
         .map(([deploymentId, count]) => `${deploymentId} (${count})`)
         .join(', ');
       process.stderr.write(
-        `Kaana routing readiness FAILED: ${assessment.collisions.length} deployment identity collision(s) are simultaneously visible to the internal-viewer scope superset. Runtime refuses every duplicate exact deploymentId, even when metadata matches, until a viewer-aware cross-scope commercial contract exists. First identities: ${identities}\n`
+        `Kaana routing readiness FAILED: ${assessment.collisions.length} deployment identity collision(s) are simultaneously visible to the internal-viewer scope superset. Runtime refuses every duplicate exact deploymentId, even when metadata matches, until a viewer-aware cross-scope commercial contract exists. First identities: ${identities}\n`,
       );
       process.exitCode = 1;
     } else if (assessment.status === 'incomplete') {
@@ -54,16 +54,16 @@ async function main(): Promise<void> {
         .slice(0, 20)
         .map(
           (route) =>
-            `${route.deploymentId ?? '<unmapped>'} (balanced validUntil ${route.balancedValidUntil?.toISOString() ?? 'none'})`
+            `${route.deploymentId ?? '<unmapped>'} (balanced validUntil ${route.balancedValidUntil?.toISOString() ?? 'none'})`,
         )
         .join(', ');
       process.stderr.write(
-        `Kaana routing readiness FAILED: ${assessment.routes.length} selectable route(s) lack an exact deploymentId, an explicit requests unit price, the current priceVersionId, a price score, or (reviewed routes) all four scores with live non-future evidence; a synced price-only route also fails when it shares a model revision with a measured route. First identities: ${identities}\n`
+        `Kaana routing readiness FAILED: ${assessment.routes.length} selectable route(s) lack an exact deploymentId, an explicit requests unit price, the current priceVersionId, a price score, or (reviewed routes) all four scores with live non-future evidence; a synced price-only route also fails when it shares a model revision with a measured route. First identities: ${identities}\n`,
       );
       process.exitCode = 1;
     } else {
       process.stdout.write(
-        'Kaana routing readiness passed: every selectable route has an exact deploymentId, an explicit requests unit price, the current priceVersionId and a price score; every measured route also has all four scores with evidence covering INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS. Run this command periodically and alert on any failure before evidence expiry.\n'
+        'Kaana routing readiness passed: every selectable route has an exact deploymentId, an explicit requests unit price, the current priceVersionId and a price score; every measured route also has all four scores with evidence covering INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS. Run this command periodically and alert on any failure before evidence expiry.\n',
       );
     }
   } finally {

@@ -30,7 +30,9 @@ function harness(overrides: { tokenStatus?: number } = {}) {
     const url = String(input);
     calls.push({ url, init });
     if (url.endsWith('/auth/service-token/workload/challenge')) {
-      return new Response(JSON.stringify({ data: { nonce: 'nonce-from-oxy', expiresIn: 60 } }), { status: 200 });
+      return new Response(JSON.stringify({ data: { nonce: 'nonce-from-oxy', expiresIn: 60 } }), {
+        status: 200,
+      });
     }
     if (url.includes('169.254.170.2')) {
       return new Response(JSON.stringify(CREDENTIALS), { status: 200 });
@@ -63,14 +65,21 @@ describe('workload identity client', () => {
   });
 
   it('knows whether this process can attest at all', () => {
-    expect(canAttestWorkloadIdentity({ AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/x' } as NodeJS.ProcessEnv)).toBe(true);
+    expect(
+      canAttestWorkloadIdentity({
+        AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/x',
+      } as NodeJS.ProcessEnv),
+    ).toBe(true);
     expect(canAttestWorkloadIdentity({} as NodeJS.ProcessEnv)).toBe(false);
   });
 
   it('answers the challenge with a signature that covers the nonce', async () => {
     const { calls, fetchImpl } = harness();
 
-    const granted = await requestWorkloadServiceToken({ baseUrl: 'https://api.oxy.so/', fetch: fetchImpl });
+    const granted = await requestWorkloadServiceToken({
+      baseUrl: 'https://api.oxy.so/',
+      fetch: fetchImpl,
+    });
 
     expect(granted).toEqual({ token: 'service-token', expiresIn: 3600, appName: 'Mention' });
 

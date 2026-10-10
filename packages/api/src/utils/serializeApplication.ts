@@ -72,7 +72,7 @@ export interface PublicApplication {
  */
 export function serializePublicApplication(
   app: SerializableApplication,
-  developerName?: string
+  developerName?: string,
 ): PublicApplication {
   const result: PublicApplication = {
     id: app.id,
@@ -104,7 +104,12 @@ export function serializePublicApplication(
 
   // Developer attribution is only meaningful for non-official apps, and only
   // when the caller could resolve a name.
-  if (!app.isOfficial && developerName !== undefined && developerName !== null && developerName !== '') {
+  if (
+    !app.isOfficial &&
+    developerName !== undefined &&
+    developerName !== null &&
+    developerName !== ''
+  ) {
     result.developerName = developerName;
   }
 

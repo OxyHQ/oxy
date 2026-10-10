@@ -1,9 +1,6 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import {
-  View,
-  ActivityIndicator,
-} from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
@@ -12,16 +9,19 @@ import { Text } from '@oxy.so/bloom/typography';
 import { Button } from '@oxy.so/bloom/button';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { DISPLAY_NAME_INVALID_MESSAGE, getNormalizedUserHandle, isValidDisplayName, MAX_DISPLAY_NAME_LENGTH, type UpdateAccountInput } from '@oxy.so/core';
+import {
+  DISPLAY_NAME_INVALID_MESSAGE,
+  getNormalizedUserHandle,
+  isValidDisplayName,
+  MAX_DISPLAY_NAME_LENGTH,
+  type UpdateAccountInput,
+} from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
-import {
-  clearedFieldsFromAccountUpdate,
-  upsertCachedUser,
-} from '../hooks/queries/userCache';
+import { clearedFieldsFromAccountUpdate, upsertCachedUser } from '../hooks/queries/userCache';
 
 const DISPLAY_NAME_MAX = MAX_DISPLAY_NAME_LENGTH;
 const BIO_MAX = 160;
@@ -36,7 +36,12 @@ const errorMessage = (error: unknown, fallback: string): string =>
  * {@link ManageAccountScreen}; this screen manages a non-personal account in the
  * graph.
  */
-const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigate, accountId }) => {
+const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
+  onClose,
+  goBack,
+  navigate,
+  accountId,
+}) => {
   const bloomTheme = useTheme();
   const colors = bloomTheme.colors;
   const { t } = useI18n();
@@ -72,9 +77,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
   // Seed the form from the account during render (no useEffect): the first time
   // the query resolves we capture its values into local edit state.
   if (node && !seeded) {
-    setDisplayName(
-      node.account?.name?.displayName ?? getNormalizedUserHandle(node.account) ?? '',
-    );
+    setDisplayName(node.account?.name?.displayName ?? getNormalizedUserHandle(node.account) ?? '');
     setBio(node.account?.bio ?? '');
     setSeeded(true);
   }
@@ -92,7 +95,9 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
       toast.success(t('accounts.settings.toasts.saved') || 'Account updated');
     },
     onError: (error) => {
-      toast.error(errorMessage(error, t('accounts.settings.toasts.saveFailed') || 'Failed to update account'));
+      toast.error(
+        errorMessage(error, t('accounts.settings.toasts.saveFailed') || 'Failed to update account'),
+      );
     },
   });
 
@@ -113,7 +118,12 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
       (onClose ?? goBack)?.();
     },
     onError: (error) => {
-      toast.error(errorMessage(error, t('accounts.settings.toasts.archiveFailed') || 'Failed to archive account'));
+      toast.error(
+        errorMessage(
+          error,
+          t('accounts.settings.toasts.archiveFailed') || 'Failed to archive account',
+        ),
+      );
     },
   });
 
@@ -121,8 +131,8 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
     const confirmed = await surfaces.confirm({
       title: t('accounts.settings.archive.confirmTitle') || 'Archive account',
       description:
-        t('accounts.settings.archive.confirmDescription')
-        || 'Archive this account? It will be deactivated and its members will lose access.',
+        t('accounts.settings.archive.confirmDescription') ||
+        'Archive this account? It will be deactivated and its members will lose access.',
       confirmLabel: t('accounts.settings.archive.title') || 'Archive account',
       cancelLabel: t('common.cancel') || 'Cancel',
       destructive: true,
@@ -130,23 +140,26 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
     if (confirmed) archiveMutation.mutate();
   }, [archiveMutation, t]);
 
-  const handleDisplayNameChange = useCallback((value: string) => {
-    setDisplayName(value);
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setDisplayNameError('');
-      return;
-    }
-    const nameParts = trimmed.split(/\s+/).filter(Boolean);
-    const first = nameParts[0] || '';
-    const last = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-    const invalidPart = [first, last].find((part) => part && !isValidDisplayName(part));
-    setDisplayNameError(
-      invalidPart
-        ? (t('accounts.settings.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE)
-        : '',
-    );
-  }, [t]);
+  const handleDisplayNameChange = useCallback(
+    (value: string) => {
+      setDisplayName(value);
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setDisplayNameError('');
+        return;
+      }
+      const nameParts = trimmed.split(/\s+/).filter(Boolean);
+      const first = nameParts[0] || '';
+      const last = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+      const invalidPart = [first, last].find((part) => part && !isValidDisplayName(part));
+      setDisplayNameError(
+        invalidPart
+          ? t('accounts.settings.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE
+          : '',
+      );
+    },
+    [t],
+  );
 
   const handleSave = useCallback(() => {
     const trimmed = displayName.trim();
@@ -170,7 +183,8 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
   // generic screen title before the account resolves).
   useSurfaceHeader({
     title: accountHandle || title,
-    subtitle: t('accounts.settings.subtitle') || 'Manage this account’s profile, members, and access.',
+    subtitle:
+      t('accounts.settings.subtitle') || 'Manage this account’s profile, members, and access.',
   });
 
   if (!id) {
@@ -187,89 +201,95 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
 
   return (
     <>
-
       <View className="px-screen-margin pt-space-24 pb-space-32 gap-space-24">
-          {accountQuery.isLoading ? (
-            <View className="items-center py-space-32">
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : (
-            <>
-              {/* Profile edit */}
-              {canUpdate ? (
-                <View className="gap-space-16 p-space-16 rounded-radius-20 bg-fill">
-                  <View className="gap-space-4">
-                    <TextField isInvalid={Boolean(displayNameError)}>
-                      <TextFieldInput
-                        floatingLabel
-                        label={t('accounts.settings.displayName.label') || 'Display name'}
-                        value={displayName}
-                        onChangeText={handleDisplayNameChange}
-                        isInvalid={Boolean(displayNameError)}
-                        maxLength={DISPLAY_NAME_MAX}
-                      />
-                    </TextField>
-                    {displayNameError ? (
-                      <Text className="text-caption font-caption text-negative px-space-4">
-                        {displayNameError}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View className="gap-space-4">
-                    <TextField>
-                      <TextFieldInput
-                        floatingLabel
-                        label={t('accounts.settings.bio.label') || 'Bio (optional)'}
-                        value={bio}
-                        onChangeText={setBio}
-                        maxLength={BIO_MAX}
-                        multiline
-                        numberOfLines={3}
-                        textAlignVertical="top"
-                      />
-                    </TextField>
-                    <Text className="text-caption font-caption text-text-tertiary px-space-4 text-right">
-                      {bio.length}/{BIO_MAX}
+        {accountQuery.isLoading ? (
+          <View className="items-center py-space-32">
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : (
+          <>
+            {/* Profile edit */}
+            {canUpdate ? (
+              <View className="gap-space-16 p-space-16 rounded-radius-20 bg-fill">
+                <View className="gap-space-4">
+                  <TextField isInvalid={Boolean(displayNameError)}>
+                    <TextFieldInput
+                      floatingLabel
+                      label={t('accounts.settings.displayName.label') || 'Display name'}
+                      value={displayName}
+                      onChangeText={handleDisplayNameChange}
+                      isInvalid={Boolean(displayNameError)}
+                      maxLength={DISPLAY_NAME_MAX}
+                    />
+                  </TextField>
+                  {displayNameError ? (
+                    <Text className="text-caption font-caption text-negative px-space-4">
+                      {displayNameError}
                     </Text>
-                  </View>
-                  <Button
-                    appearance="solid" tone="accent"
-                    onPress={handleSave}
-                    disabled={updateMutation.isPending || !displayName.trim() || Boolean(displayNameError)}
-                    loading={updateMutation.isPending}
-                    accessibilityLabel={t('accounts.settings.save') || 'Save changes'}
-                    className="w-full"
-                  >
-                    {t('accounts.settings.save') || 'Save changes'}
-                  </Button>
+                  ) : null}
                 </View>
-              ) : null}
+                <View className="gap-space-4">
+                  <TextField>
+                    <TextFieldInput
+                      floatingLabel
+                      label={t('accounts.settings.bio.label') || 'Bio (optional)'}
+                      value={bio}
+                      onChangeText={setBio}
+                      maxLength={BIO_MAX}
+                      multiline
+                      numberOfLines={3}
+                      textAlignVertical="top"
+                    />
+                  </TextField>
+                  <Text className="text-caption font-caption text-text-tertiary px-space-4 text-right">
+                    {bio.length}/{BIO_MAX}
+                  </Text>
+                </View>
+                <Button
+                  appearance="solid"
+                  tone="accent"
+                  onPress={handleSave}
+                  disabled={
+                    updateMutation.isPending || !displayName.trim() || Boolean(displayNameError)
+                  }
+                  loading={updateMutation.isPending}
+                  accessibilityLabel={t('accounts.settings.save') || 'Save changes'}
+                  className="w-full"
+                >
+                  {t('accounts.settings.save') || 'Save changes'}
+                </Button>
+              </View>
+            ) : null}
 
-              {/* Members entry */}
-              {canViewMembers ? (
-                <SettingsListGroup title={t('accounts.settings.sections.access') || 'Access'}>
-                  <SettingsListItem
-                    icon={<SettingsIcon name="account-multiple" color={colors.info} />}
-                    title={t('accounts.members.title') || 'Members'}
-                    description={t('accounts.settings.members.subtitle') || 'Invite people and manage roles'}
-                    onPress={() => navigate?.('AccountMembers', { accountId: id })}
-                  />
-                </SettingsListGroup>
-              ) : null}
+            {/* Members entry */}
+            {canViewMembers ? (
+              <SettingsListGroup title={t('accounts.settings.sections.access') || 'Access'}>
+                <SettingsListItem
+                  icon={<SettingsIcon name="account-multiple" color={colors.info} />}
+                  title={t('accounts.members.title') || 'Members'}
+                  description={
+                    t('accounts.settings.members.subtitle') || 'Invite people and manage roles'
+                  }
+                  onPress={() => navigate?.('AccountMembers', { accountId: id })}
+                />
+              </SettingsListGroup>
+            ) : null}
 
-              {/* Danger zone */}
-              {canArchive ? (
-                <SettingsListGroup title={t('accounts.settings.sections.dangerZone') || 'Danger zone'}>
-                  <SettingsListItem
-                    icon={<SettingsIcon name="archive-arrow-down" color={colors.error} />}
-                    title={t('accounts.settings.archive.title') || 'Archive account'}
-                    description={t('accounts.settings.archive.subtitle') || 'Deactivate this account'}
-                    onPress={handleArchive}
-                  />
-                </SettingsListGroup>
-              ) : null}
-            </>
-          )}
+            {/* Danger zone */}
+            {canArchive ? (
+              <SettingsListGroup
+                title={t('accounts.settings.sections.dangerZone') || 'Danger zone'}
+              >
+                <SettingsListItem
+                  icon={<SettingsIcon name="archive-arrow-down" color={colors.error} />}
+                  title={t('accounts.settings.archive.title') || 'Archive account'}
+                  description={t('accounts.settings.archive.subtitle') || 'Deactivate this account'}
+                  onPress={handleArchive}
+                />
+              </SettingsListGroup>
+            ) : null}
+          </>
+        )}
       </View>
     </>
   );

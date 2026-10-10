@@ -22,8 +22,12 @@ jest.mock('@oxy.so/core/server', () => ({
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
@@ -344,7 +348,10 @@ describe('unsubscribe — remembered, reported, and never repeated', () => {
     await sender(userId, inbox, other, 3);
 
     const before = (await emailService.getSubscriptions(userId)).data;
-    expect(before.find((s) => s._id === address)).toMatchObject({ unsubscribed: false, unsubscribedAt: null });
+    expect(before.find((s) => s._id === address)).toMatchObject({
+      unsubscribed: false,
+      unsubscribedAt: null,
+    });
 
     const result = await emailService.unsubscribe(userId, address.toUpperCase());
     expect(result).toEqual({
@@ -360,7 +367,10 @@ describe('unsubscribe — remembered, reported, and never repeated', () => {
       unsubscribed: true,
       unsubscribedAt: result.unsubscribedAt,
     });
-    expect(after.find((s) => s._id === other)).toMatchObject({ unsubscribed: false, unsubscribedAt: null });
+    expect(after.find((s) => s._id === other)).toMatchObject({
+      unsubscribed: false,
+      unsubscribedAt: null,
+    });
   });
 
   it('answers a repeat from the stored result without contacting the sender again', async () => {

@@ -69,7 +69,18 @@ const tryCompleteOAuthReturnMock = tryCompleteOAuthReturn as jest.MockedFunction
 
 function makeOpts() {
   return {
-    oxyServices: { apps: { getPublic: jest.fn(async () => ({ id: 'registered-app', name: 'Registered App', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) } } as never,
+    oxyServices: {
+      apps: {
+        getPublic: jest.fn(async () => ({
+          id: 'registered-app',
+          name: 'Registered App',
+          type: 'first_party',
+          isOfficial: false,
+          isInternal: false,
+          scopes: [],
+        })),
+      },
+    } as never,
     authStore: {} as never,
     sessionClient: { start: jest.fn(async () => undefined) } as never,
     syncDeviceCredentialToHost: jest.fn(async () => undefined),

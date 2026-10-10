@@ -53,13 +53,25 @@ export function checkPartition({ shardResults, listed, committedSeconds }) {
       problems.push(`shard ${shard}: no Jest results (jest-results.json missing or malformed)`);
       return;
     }
-    if (result.success !== true || result.numFailedTestSuites > 0 || result.numRuntimeErrorTestSuites > 0) {
-      problems.push(`shard ${shard}: Jest reported failure (success=${result.success}, failed suites=${result.numFailedTestSuites})`);
+    if (
+      result.success !== true ||
+      result.numFailedTestSuites > 0 ||
+      result.numRuntimeErrorTestSuites > 0
+    ) {
+      problems.push(
+        `shard ${shard}: Jest reported failure (success=${result.success}, failed suites=${result.numFailedTestSuites})`,
+      );
     }
     if (result.testResults.length === 0) problems.push(`shard ${shard}: executed zero test files`);
-    if (result.wasInterrupted === true) problems.push(`shard ${shard}: Jest reports the run was interrupted`);
-    if (Number.isInteger(result.numTotalTestSuites) && result.numTotalTestSuites !== result.testResults.length) {
-      problems.push(`shard ${shard}: Jest counted ${result.numTotalTestSuites} suites but reported ${result.testResults.length}`);
+    if (result.wasInterrupted === true)
+      problems.push(`shard ${shard}: Jest reports the run was interrupted`);
+    if (
+      Number.isInteger(result.numTotalTestSuites) &&
+      result.numTotalTestSuites !== result.testResults.length
+    ) {
+      problems.push(
+        `shard ${shard}: Jest counted ${result.numTotalTestSuites} suites but reported ${result.testResults.length}`,
+      );
     }
     // Jest's `--json` gives each file `startTime`/`endTime` (ms); `perfStats` is
     // the in-process shape, accepted too so either form measures.
@@ -68,7 +80,8 @@ export function checkPartition({ shardResults, listed, committedSeconds }) {
     const ordered = [...result.testResults].sort((a, b) => (startOf(a) ?? 0) - (startOf(b) ?? 0));
     ordered.forEach((file, position) => {
       const path = packageRelative(file.name);
-      if (seen.has(path)) problems.push(`${path} ran on shard ${seen.get(path)} AND shard ${shard}`);
+      if (seen.has(path))
+        problems.push(`${path} ran on shard ${seen.get(path)} AND shard ${shard}`);
       else seen.set(path, shard);
       const start = startOf(file);
       const end = endOf(file);
@@ -79,16 +92,19 @@ export function checkPartition({ shardResults, listed, committedSeconds }) {
   });
 
   const expected = new Set(listed.map(packageRelative));
-  if (expected.size === 0) problems.push('`jest --listTests` listed no files; the comparison would be vacuous');
-  for (const path of expected) if (!seen.has(path)) problems.push(`${path} is in the suite but ran on no shard`);
-  for (const path of seen.keys()) if (!expected.has(path)) problems.push(`${path} ran but is not in \`jest --listTests\``);
+  if (expected.size === 0)
+    problems.push('`jest --listTests` listed no files; the comparison would be vacuous');
+  for (const path of expected)
+    if (!seen.has(path)) problems.push(`${path} is in the suite but ran on no shard`);
+  for (const path of seen.keys())
+    if (!expected.has(path)) problems.push(`${path} ran but is not in \`jest --listTests\``);
 
   // Only files that still exist, so the committed file does not accrete ghosts.
   const current = Object.fromEntries(
     Object.keys(seconds)
       .filter((path) => expected.has(path))
       .sort()
-      .map((path) => [path, seconds[path]])
+      .map((path) => [path, seconds[path]]),
   );
   return { problems, seconds: current, executed: seen.size };
 }
@@ -96,7 +112,11 @@ export function checkPartition({ shardResults, listed, committedSeconds }) {
 function main(argv) {
   const { values } = parseArgs({
     args: argv,
-    options: { shards: { type: 'string' }, list: { type: 'string' }, 'durations-out': { type: 'string' } },
+    options: {
+      shards: { type: 'string' },
+      list: { type: 'string' },
+      'durations-out': { type: 'string' },
+    },
   });
   if (!/^[1-9]\d*$/.test(values.shards ?? '')) throw new Error('--shards=<N> is required');
   if (!values.list) throw new Error('--list=<file> is required');
@@ -111,23 +131,34 @@ function main(argv) {
       return null;
     }
   });
-  const listed = readFileSync(values.list, 'utf8').split('\n').map((line) => line.trim()).filter(Boolean);
+  const listed = readFileSync(values.list, 'utf8')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
   const committedPath = resolve(packageRoot, 'test-durations.json');
   const committed = JSON.parse(readFileSync(committedPath, 'utf8'));
-  const { problems, seconds, executed } = checkPartition({ shardResults, listed, committedSeconds: committed.seconds ?? {} });
+  const { problems, seconds, executed } = checkPartition({
+    shardResults,
+    listed,
+    committedSeconds: committed.seconds ?? {},
+  });
   if (values['durations-out']) {
     writeFileSync(
       values['durations-out'],
-      `${JSON.stringify({ ...committed, measuredFrom: `${process.env.GITHUB_RUN_ID ? `CI run ${process.env.GITHUB_RUN_ID}` : 'a local run'}, ${shardCount} shards: Jest's per-file startTime/endTime, each shard's first file keeping its previous value (it absorbs the cold transform).`, seconds }, null, 2)}\n`
+      `${JSON.stringify({ ...committed, measuredFrom: `${process.env.GITHUB_RUN_ID ? `CI run ${process.env.GITHUB_RUN_ID}` : 'a local run'}, ${shardCount} shards: Jest's per-file startTime/endTime, each shard's first file keeping its previous value (it absorbs the cold transform).`, seconds }, null, 2)}\n`,
     );
   }
   if (problems.length > 0) {
-    console.error(`The API shards did NOT run the suite exactly once (${problems.length} problem(s)):`);
+    console.error(
+      `The API shards did NOT run the suite exactly once (${problems.length} problem(s)):`,
+    );
     for (const problem of problems.slice(0, 50)) console.error(`  - ${problem}`);
     process.exitCode = 1;
     return;
   }
-  console.log(`Partition verified: ${executed} test files across ${shardCount} shards, each exactly once, matching jest --listTests.`);
+  console.log(
+    `Partition verified: ${executed} test files across ${shardCount} shards, each exactly once, matching jest --listTests.`,
+  );
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

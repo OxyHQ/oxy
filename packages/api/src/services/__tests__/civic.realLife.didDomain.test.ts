@@ -84,7 +84,7 @@ async function account(): Promise<string> {
 /** B's self-issued attestation about A, spelled however the caller says. */
 function attestation(
   attestor: Signer,
-  overrides: { subject?: string; issuer?: string; about?: string } = {}
+  overrides: { subject?: string; issuer?: string; about?: string } = {},
 ): SignedRecordEnvelope {
   const subject = overrides.subject ?? sdkDid(attestor.id);
   const nonce = `nonce-${unique()}`;
@@ -108,7 +108,7 @@ function attestation(
       publicKey: attestor.publicKey,
       alg: 'ES256K-DER-SHA256',
     },
-    attestor.privateKey
+    attestor.privateKey,
   );
 }
 
@@ -123,8 +123,8 @@ async function awards(subjectUserId: string) {
     .where(
       and(
         eq(reputationTransactions.userId, subjectUserId),
-        eq(reputationTransactions.actionType, REAL_LIFE_ATTESTED_ACTION)
-      )
+        eq(reputationTransactions.actionType, REAL_LIFE_ATTESTED_ACTION),
+      ),
     );
 }
 
@@ -165,10 +165,7 @@ describe('both anchors name the same account', () => {
     const subject = await account();
     const attestor = await signer();
 
-    const result = await submit(
-      attestation(attestor, { about: sdkDid(subject) }),
-      attestor.id
-    );
+    const result = await submit(attestation(attestor, { about: sdkDid(subject) }), attestor.id);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -185,10 +182,7 @@ describe('both anchors name the same account', () => {
       .select({ subjectDid: signedRecords.subjectDid, recordId: signedRecords.recordId })
       .from(signedRecords)
       .where(
-        and(
-          eq(signedRecords.userId, attestor.id),
-          eq(signedRecords.nsid, ATTESTATION_COLLECTION)
-        )
+        and(eq(signedRecords.userId, attestor.id), eq(signedRecords.nsid, ATTESTATION_COLLECTION)),
       );
     expect(stored).toBeDefined();
     expect(stored.subjectDid).toBe(sdkDid(attestor.id));
@@ -205,7 +199,7 @@ describe('both anchors name the same account', () => {
 
     const result = await submit(
       attestation(attestor, { subject: serverDid(attestor.id), about: serverDid(subject) }),
-      attestor.id
+      attestor.id,
     );
 
     expect(result.ok).toBe(true);
@@ -221,7 +215,7 @@ describe('both anchors name the same account', () => {
 
     const result = await submit(
       attestation(attestor, { subject: sdkDid(attestor.id), about: serverDid(subject) }),
-      attestor.id
+      attestor.id,
     );
 
     expect(result.ok).toBe(true);
@@ -241,8 +235,8 @@ describe('both anchors name the same account', () => {
       .where(
         and(
           eq(signedRecords.userId, subject),
-          eq(signedRecords.nsid, REPUTATION_ATTESTATION_COLLECTION)
-        )
+          eq(signedRecords.nsid, REPUTATION_ATTESTATION_COLLECTION),
+        ),
       );
     expect(provenance).toBeDefined();
     expect(provenance.subjectDid).toBe(serverDid(subject));
@@ -258,14 +252,14 @@ describe('the gate is still a gate', () => {
     expect(
       await submit(
         attestation(attestor, { subject: sdkDid(subject), about: sdkDid(subject) }),
-        attestor.id
-      )
+        attestor.id,
+      ),
     ).toEqual({ ok: false, reason: 'not_self_issued' });
     expect(
       await submit(
         attestation(attestor, { subject: serverDid(subject), about: serverDid(subject) }),
-        attestor.id
-      )
+        attestor.id,
+      ),
     ).toEqual({ ok: false, reason: 'not_self_issued' });
 
     expect(await awards(subject)).toEqual([]);
@@ -277,7 +271,10 @@ describe('the gate is still a gate', () => {
     const foreign = `did:web:evil.com:u:${attestor.id}`;
 
     expect(
-      await submit(attestation(attestor, { subject: foreign, about: sdkDid(subject) }), attestor.id)
+      await submit(
+        attestation(attestor, { subject: foreign, about: sdkDid(subject) }),
+        attestor.id,
+      ),
     ).toEqual({ ok: false, reason: 'not_self_issued' });
     expect(await awards(subject)).toEqual([]);
   });
@@ -289,8 +286,8 @@ describe('the gate is still a gate', () => {
     expect(
       await submit(
         attestation(attestor, { issuer: sdkDid(subject), about: sdkDid(subject) }),
-        attestor.id
-      )
+        attestor.id,
+      ),
     ).toEqual({ ok: false, reason: 'not_self_issued' });
   });
 
@@ -298,10 +295,7 @@ describe('the gate is still a gate', () => {
     const attestor = await signer();
 
     expect(
-      await submit(
-        attestation(attestor, { about: `did:web:evil.com:u:${unique()}` }),
-        attestor.id
-      )
+      await submit(attestation(attestor, { about: `did:web:evil.com:u:${unique()}` }), attestor.id),
     ).toEqual({ ok: false, reason: 'invalid_subject' });
   });
 });

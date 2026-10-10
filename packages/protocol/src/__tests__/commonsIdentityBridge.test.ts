@@ -9,7 +9,9 @@
 const PUBLIC_KEY = `04${'ab'.repeat(64)}`;
 
 function mockNative(native: unknown): void {
-  jest.doMock('expo-modules-core', () => ({ requireOptionalNativeModule: () => native }), { virtual: true });
+  jest.doMock('expo-modules-core', () => ({ requireOptionalNativeModule: () => native }), {
+    virtual: true,
+  });
 }
 
 async function loadBridge() {
@@ -102,7 +104,10 @@ describe('tweakAddSecp256k1PrivateKey', () => {
     expect(() => tweakAddSecp256k1PrivateKey(nMinusOne, `${'0'.repeat(63)}1`)).toThrow('zero');
     // A tweak at or above n is invalid.
     expect(() =>
-      tweakAddSecp256k1PrivateKey('01', 'fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141'),
+      tweakAddSecp256k1PrivateKey(
+        '01',
+        'fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141',
+      ),
     ).toThrow('curve order');
     expect(() => tweakAddSecp256k1PrivateKey('01', 'zz')).toThrow();
   });

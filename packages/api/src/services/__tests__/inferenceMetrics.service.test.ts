@@ -52,16 +52,8 @@ import {
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
 import { usageReservations } from '../../db/schema/usageReservations';
 import { users } from '../../db/schema/users';
-import {
-  provisionBillingProfile,
-  recordTopUp,
-  reserve,
-  settle,
-} from '../inferenceLedger.service';
-import {
-  readInferenceOperationalMetrics,
-  type MetricsScope,
-} from '../inferenceMetrics.service';
+import { provisionBillingProfile, recordTopUp, reserve, settle } from '../inferenceLedger.service';
+import { readInferenceOperationalMetrics, type MetricsScope } from '../inferenceMetrics.service';
 import { recordInferenceUsage, type RecordUsageInput } from '../inferenceTelemetry.service';
 
 jest.setTimeout(60_000);
@@ -131,7 +123,12 @@ async function makeFixture(options: { fund?: string } = {}): Promise<Fixture> {
     .returning({ id: priceVersions.id });
   await db.insert(priceVersionUnitPrices).values([
     { priceVersionId: version.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: version.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
+    {
+      priceVersionId: version.id,
+      unit: 'output_tokens',
+      amount: '15.000000000000',
+      per: 1_000_000,
+    },
   ]);
 
   await provisionBillingProfile({ accountId: account.id });
@@ -672,8 +669,8 @@ describe('the payload', () => {
       KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
     ] as const;
     const original = Object.fromEntries(variables.map((name) => [name, process.env[name]]));
-    const key = generateKeyPairSync('ed25519').privateKey
-      .export({ format: 'pem', type: 'pkcs8' })
+    const key = generateKeyPairSync('ed25519')
+      .privateKey.export({ format: 'pem', type: 'pkcs8' })
       .toString();
 
     try {
@@ -718,7 +715,6 @@ describe('the payload', () => {
     expect(metrics.requests).toMatchObject({ state: 'measured', requestCount: 2 });
     expect(metrics.totalLatencyMs).toMatchObject({ observedRows: 2 });
   });
-
 });
 
 /* -------------------------------------------------------------------------- */

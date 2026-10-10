@@ -99,13 +99,16 @@ async function request(method: string, path: string, payload?: unknown): Promise
         host: '127.0.0.1',
         port: address.port,
         path,
-        headers: body !== undefined
-          ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
-          : {},
+        headers:
+          body !== undefined
+            ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
+            : {},
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           // The rate-limit middleware answers with a plain-text body, not JSON.
           let parsed: JsonResponse['body'] = {};
@@ -155,7 +158,12 @@ async function storedBadges(userId: string) {
 }
 
 /** Seed a pending challenge directly, so its expiry can be chosen. */
-async function seedChallenge(userId: string, domain: string, token: string, expiresAt: Date): Promise<string> {
+async function seedChallenge(
+  userId: string,
+  domain: string,
+  token: string,
+  expiresAt: Date,
+): Promise<string> {
   const [row] = await getDb()
     .insert(domainVerifications)
     .values({ userId, domain, token, expiresAt })
@@ -206,7 +214,9 @@ describe('the id format must not decide whether a domain can be proven', () => {
     const issued = await request('POST', '/identity/domains', { domain: 'nate.example' });
     expect(issued.status).toBe(201);
 
-    mockResolveTxt.mockResolvedValueOnce([[`oxy-domain-verification=${issued.body.token as string}`]]);
+    mockResolveTxt.mockResolvedValueOnce([
+      [`oxy-domain-verification=${issued.body.token as string}`],
+    ]);
     const verified = await request('POST', '/identity/domains/nate.example/verify');
 
     expect(verified.status).toBe(200);
@@ -328,7 +338,9 @@ describe('POST /identity/domains/:domain/verify', () => {
     expect(badges[0].method).toBe('dns-txt');
     expect(badges[0].verifiedAt).toBeInstanceOf(Date);
     // The response echoes exactly what was stored.
-    expect(badges[0].verifiedAt.toISOString()).toBe((res.body.domain as { verifiedAt: string }).verifiedAt);
+    expect(badges[0].verifiedAt.toISOString()).toBe(
+      (res.body.domain as { verifiedAt: string }).verifiedAt,
+    );
 
     // Atomic with the grant: a spent challenge must not remain spendable.
     expect(await storedChallenges(currentUserId)).toHaveLength(0);
@@ -343,10 +355,10 @@ describe('POST /identity/domains/:domain/verify', () => {
 
     const res = await request('POST', '/identity/domains/nate.example/verify');
 
-    expect(mockSafeFetch).toHaveBeenCalledWith(
-      'https://nate.example/.well-known/oxy-domain',
-      { maxRedirects: 2, headersTimeoutMs: 5000 },
-    );
+    expect(mockSafeFetch).toHaveBeenCalledWith('https://nate.example/.well-known/oxy-domain', {
+      maxRedirects: 2,
+      headersTimeoutMs: 5000,
+    });
     expect(res.status).toBe(200);
     expect((await storedBadges(currentUserId))[0].method).toBe('well-known');
     expect(await storedChallenges(currentUserId)).toHaveLength(0);
@@ -404,7 +416,8 @@ describe('POST /identity/domains/:domain/verify', () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({
       error: 'BAD_REQUEST',
-      message: 'Domain ownership could not be verified. Publish the DNS-TXT record or well-known file and try again.',
+      message:
+        'Domain ownership could not be verified. Publish the DNS-TXT record or well-known file and try again.',
     });
     expect(await storedBadges(currentUserId)).toHaveLength(0);
     // The challenge survives a failed attempt, so the owner can publish and retry.
@@ -424,7 +437,12 @@ describe('POST /identity/domains/:domain/verify', () => {
   });
 
   it('does not crash when safeFetch rejects an SSRF target', async () => {
-    await seedChallenge(currentUserId, 'internal.example', 'tok-ssrf', new Date(Date.now() + 60_000));
+    await seedChallenge(
+      currentUserId,
+      'internal.example',
+      'tok-ssrf',
+      new Date(Date.now() + 60_000),
+    );
     mockResolveTxt.mockRejectedValueOnce(new Error('ENOTFOUND'));
     mockSafeFetch.mockRejectedValueOnce(new Error('SSRF: private IP blocked'));
 
@@ -457,12 +475,14 @@ describe('POST /identity/domains/:domain/verify', () => {
   });
 
   it('REFRESHES an already-proven domain in place instead of adding a second badge', async () => {
-    await getDb().insert(userVerifiedDomains).values({
-      userId: currentUserId,
-      domain: 'nate.example',
-      verifiedAt: new Date('2026-01-01T00:00:00.000Z'),
-      method: 'well-known',
-    });
+    await getDb()
+      .insert(userVerifiedDomains)
+      .values({
+        userId: currentUserId,
+        domain: 'nate.example',
+        verifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+        method: 'well-known',
+      });
     await seedChallenge(currentUserId, 'nate.example', 'tok-again', new Date(Date.now() + 60_000));
     mockResolveTxt.mockResolvedValueOnce([['oxy-domain-verification=tok-again']]);
 
@@ -472,7 +492,9 @@ describe('POST /identity/domains/:domain/verify', () => {
     const badges = await storedBadges(currentUserId);
     expect(badges).toHaveLength(1);
     expect(badges[0].method).toBe('dns-txt');
-    expect(badges[0].verifiedAt.getTime()).toBeGreaterThan(new Date('2026-01-01T00:00:00.000Z').getTime());
+    expect(badges[0].verifiedAt.getTime()).toBeGreaterThan(
+      new Date('2026-01-01T00:00:00.000Z').getTime(),
+    );
   });
 
   it('rejects a malformed domain with 400 before touching the database', async () => {
@@ -486,10 +508,24 @@ describe('POST /identity/domains/:domain/verify', () => {
 
 describe('GET /identity/domains', () => {
   it('returns the badges as { domains }, in insertion order', async () => {
-    await getDb().insert(userVerifiedDomains).values([
-      { userId: currentUserId, domain: 'first.example', verifiedAt: new Date('2026-01-01T00:00:00.000Z'), method: 'dns-txt', createdAt: new Date('2026-01-01T00:00:00.000Z') },
-      { userId: currentUserId, domain: 'second.example', verifiedAt: new Date('2026-02-01T00:00:00.000Z'), method: 'well-known', createdAt: new Date('2026-02-01T00:00:00.000Z') },
-    ]);
+    await getDb()
+      .insert(userVerifiedDomains)
+      .values([
+        {
+          userId: currentUserId,
+          domain: 'first.example',
+          verifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+          method: 'dns-txt',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        {
+          userId: currentUserId,
+          domain: 'second.example',
+          verifiedAt: new Date('2026-02-01T00:00:00.000Z'),
+          method: 'well-known',
+          createdAt: new Date('2026-02-01T00:00:00.000Z'),
+        },
+      ]);
 
     const res = await request('GET', '/identity/domains');
 
@@ -533,7 +569,12 @@ describe('DELETE /identity/domains/:domain', () => {
       verifiedAt: new Date(),
       method: 'dns-txt',
     });
-    await seedChallenge(currentUserId, 'nate.example', 'tok-leftover', new Date(Date.now() + 60_000));
+    await seedChallenge(
+      currentUserId,
+      'nate.example',
+      'tok-leftover',
+      new Date(Date.now() + 60_000),
+    );
 
     const res = await request('DELETE', '/identity/domains/nate.example');
 
@@ -546,10 +587,22 @@ describe('DELETE /identity/domains/:domain', () => {
   });
 
   it('leaves other badges untouched', async () => {
-    await getDb().insert(userVerifiedDomains).values([
-      { userId: currentUserId, domain: 'keep.example', verifiedAt: new Date(), method: 'dns-txt' },
-      { userId: currentUserId, domain: 'drop.example', verifiedAt: new Date(), method: 'dns-txt' },
-    ]);
+    await getDb()
+      .insert(userVerifiedDomains)
+      .values([
+        {
+          userId: currentUserId,
+          domain: 'keep.example',
+          verifiedAt: new Date(),
+          method: 'dns-txt',
+        },
+        {
+          userId: currentUserId,
+          domain: 'drop.example',
+          verifiedAt: new Date(),
+          method: 'dns-txt',
+        },
+      ]);
 
     await request('DELETE', '/identity/domains/drop.example');
 
@@ -584,7 +637,12 @@ describe('DELETE /identity/domains/:domain', () => {
       await getDb()
         .select({ id: userVerifiedDomains.id })
         .from(userVerifiedDomains)
-        .where(and(eq(userVerifiedDomains.userId, other), eq(userVerifiedDomains.domain, 'theirs.example'))),
+        .where(
+          and(
+            eq(userVerifiedDomains.userId, other),
+            eq(userVerifiedDomains.domain, 'theirs.example'),
+          ),
+        ),
     ).toHaveLength(1);
   });
 });

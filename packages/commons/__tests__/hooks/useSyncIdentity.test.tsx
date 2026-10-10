@@ -114,7 +114,9 @@ describe('useSyncIdentity', () => {
       await result.current.syncIdentity();
     });
 
-    expect(syncIdentityWithServerMock).toHaveBeenCalledWith(expect.objectContaining({ username: 'offline-pick' }));
+    expect(syncIdentityWithServerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'offline-pick' }),
+    );
     expect(pendingUsername.value).toBeNull();
   });
 
@@ -128,7 +130,9 @@ describe('useSyncIdentity', () => {
       await expect(result.current.syncIdentity()).rejects.toBeInstanceOf(UsernameRequiredError);
     });
 
-    expect(syncIdentityWithServerMock).toHaveBeenCalledWith(expect.objectContaining({ username: null }));
+    expect(syncIdentityWithServerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ username: null }),
+    );
     expect(persistIdentitySyncState).not.toHaveBeenCalledWith(true);
     expect(handleAuthError).not.toHaveBeenCalled();
   });

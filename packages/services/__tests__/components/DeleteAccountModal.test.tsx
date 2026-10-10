@@ -16,12 +16,7 @@ const t = (key: string, vars?: Record<string, string>) =>
 const renderModal = (onDelete: (confirmText: string) => Promise<void>) => {
   const surface = { dismiss: jest.fn() };
   render(
-    <DeleteAccountModal
-      surface={surface as never}
-      username="nate"
-      onDelete={onDelete}
-      t={t}
-    />,
+    <DeleteAccountModal surface={surface as never} username="nate" onDelete={onDelete} t={t} />,
   );
   return surface;
 };
@@ -29,7 +24,9 @@ const renderModal = (onDelete: (confirmText: string) => Promise<void>) => {
 const confirmAndDelete = async () => {
   fireEvent.change(screen.getByPlaceholderText('nate'), { target: { value: 'nate' } });
   await act(async () => {
-    fireEvent.click(screen.getByText('deleteAccount.confirm').closest('button') as HTMLButtonElement);
+    fireEvent.click(
+      screen.getByText('deleteAccount.confirm').closest('button') as HTMLButtonElement,
+    );
   });
 };
 

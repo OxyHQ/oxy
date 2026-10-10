@@ -135,14 +135,10 @@ export function ImageUploadField({
           'relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-muted/40 text-muted-foreground transition-colors',
           !interactionDisabled && 'cursor-pointer hover:border-primary/60 hover:bg-muted/60',
           isDragging && 'border-primary bg-primary/5',
-          interactionDisabled && 'cursor-not-allowed opacity-60'
+          interactionDisabled && 'cursor-not-allowed opacity-60',
         )}
       >
-        {value ? (
-          <img src={value} alt={label} className="size-full object-cover" />
-        ) : (
-          fallback
-        )}
+        {value ? <img src={value} alt={label} className="size-full object-cover" /> : fallback}
         {isUploading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/70">
             <Spinner />

@@ -1,9 +1,22 @@
-jest.mock('../logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
-import { initializeIO, closeIO, broadcastDeviceState, broadcastSessionAccountsChanged } from '../socket';
+jest.mock('../logger', () => ({
+  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
+import {
+  initializeIO,
+  closeIO,
+  broadcastDeviceState,
+  broadcastSessionAccountsChanged,
+} from '../socket';
 import type { DeviceSessionState } from '@oxy.so/contracts';
 import { SESSION_ACCOUNTS_CHANGED_EVENT } from '@oxy.so/contracts';
 
-const state: DeviceSessionState = { deviceId: 'd1', accounts: [], activeAccountId: null, revision: 5, updatedAt: 1720000000000 };
+const state: DeviceSessionState = {
+  deviceId: 'd1',
+  accounts: [],
+  activeAccountId: null,
+  revision: 5,
+  updatedAt: 1720000000000,
+};
 
 afterEach(() => closeIO());
 
@@ -30,7 +43,11 @@ describe('broadcastSessionAccountsChanged', () => {
     initializeIO({ to } as never);
     broadcastSessionAccountsChanged('user-1', 7, 'add');
     expect(to).toHaveBeenCalledWith('user:user-1');
-    expect(emit).toHaveBeenCalledWith(SESSION_ACCOUNTS_CHANGED_EVENT, { userId: 'user-1', revision: 7, reason: 'add' });
+    expect(emit).toHaveBeenCalledWith(SESSION_ACCOUNTS_CHANGED_EVENT, {
+      userId: 'user-1',
+      revision: 7,
+      reason: 'add',
+    });
     // Signal only — never carries a token/secret.
     const payload = emit.mock.calls[0][1] as Record<string, unknown>;
     expect(Object.keys(payload).sort()).toEqual(['reason', 'revision', 'userId']);

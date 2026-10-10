@@ -73,10 +73,7 @@ describe('groupDevicesByType', () => {
   });
 
   it('coalesces the type field variants and defaults to "unknown"', () => {
-    const devices: DeviceRecord[] = [
-      { id: '1', deviceType: 'tablet' },
-      { id: '2' },
-    ];
+    const devices: DeviceRecord[] = [{ id: '1', deviceType: 'tablet' }, { id: '2' }];
 
     const groups = groupDevicesByType(devices, 'Unknown');
 
@@ -110,10 +107,7 @@ describe('groupDevicesByType', () => {
   });
 
   it('falls back to the provided name fallback for records missing a name', () => {
-    const devices: DeviceRecord[] = [
-      { deviceId: 'd1', type: 'mobile' },
-      { type: 'mobile' },
-    ];
+    const devices: DeviceRecord[] = [{ deviceId: 'd1', type: 'mobile' }, { type: 'mobile' }];
 
     const [group] = groupDevicesByType(devices, 'Unknown Device');
 

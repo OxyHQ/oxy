@@ -28,8 +28,17 @@ const LOADERS: Record<string, () => Promise<{ default: LocaleDict }>> = {
 
 /** Base subtag → the dictionary that serves it. */
 const ALIASES: Record<string, string> = {
-  en: 'en-US', es: 'es-ES', ca: 'ca-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
-  pt: 'pt-PT', ja: 'ja-JP', ko: 'ko-KR', zh: 'zh-CN', ar: 'ar-SA',
+  en: 'en-US',
+  es: 'es-ES',
+  ca: 'ca-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  it: 'it-IT',
+  pt: 'pt-PT',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+  zh: 'zh-CN',
+  ar: 'ar-SA',
 };
 
 const DICTS: Record<string, LocaleDict> = { [FALLBACK]: enUS };
@@ -107,13 +116,22 @@ function resolveLang(locale: string | undefined): string {
 }
 
 function getNested(obj: unknown, path: string): unknown {
-  return path.split('.').reduce<unknown>(
-    (acc, key) => (acc && typeof acc === 'object' && (acc as Record<string, unknown>)[key] != null ? (acc as Record<string, unknown>)[key] : undefined),
-    obj,
-  );
+  return path
+    .split('.')
+    .reduce<unknown>(
+      (acc, key) =>
+        acc && typeof acc === 'object' && (acc as Record<string, unknown>)[key] != null
+          ? (acc as Record<string, unknown>)[key]
+          : undefined,
+      obj,
+    );
 }
 
-export function translate(locale: string | undefined, key: string, vars?: Record<string, string | number>): string {
+export function translate(
+  locale: string | undefined,
+  key: string,
+  vars?: Record<string, string | number>,
+): string {
   const lang = resolveLang(locale);
   const dict = DICTS[lang] || DICTS[FALLBACK];
   let val = getNested(dict, key);

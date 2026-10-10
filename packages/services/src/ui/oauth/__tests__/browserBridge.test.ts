@@ -66,7 +66,11 @@ describe('openBridgeWindow', () => {
     const handle = fakePopup();
     const open = jest.spyOn(window, 'open').mockReturnValue(handle as unknown as Window);
     expect(openBridgeWindow()).toBe(handle);
-    expect(open).toHaveBeenCalledWith('', OXY_BRIDGE_WINDOW_NAME, expect.stringContaining('width=1,height=1'));
+    expect(open).toHaveBeenCalledWith(
+      '',
+      OXY_BRIDGE_WINDOW_NAME,
+      expect.stringContaining('width=1,height=1'),
+    );
   });
 
   it('is null when blocked or when open throws', () => {
@@ -85,14 +89,34 @@ describe('readBridgeMessage', () => {
   const code = { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'c1', state: 'st' };
 
   it('accepts only its own window, origin and state', () => {
-    expect(readBridgeMessage({ origin: AUTH, source: popup as never, data: code }, context)).toEqual({ kind: 'code', code: 'c1' });
-    expect(readBridgeMessage({ origin: 'https://evil.example', source: popup as never, data: code }, context).kind).toBe('ignore');
-    expect(readBridgeMessage({ origin: AUTH, source: fakePopup() as never, data: code }, context).kind).toBe('ignore');
-    expect(readBridgeMessage({ origin: AUTH, source: popup as never, data: { ...code, state: 'other' } }, context).kind).toBe('ignore');
-    expect(readBridgeMessage({ origin: AUTH, source: popup as never, data: 'nope' }, context).kind).toBe('ignore');
+    expect(
+      readBridgeMessage({ origin: AUTH, source: popup as never, data: code }, context),
+    ).toEqual({ kind: 'code', code: 'c1' });
     expect(
       readBridgeMessage(
-        { origin: AUTH, source: popup as never, data: { type: OXY_BRIDGE_ERROR_MESSAGE_TYPE, error: 'x', state: 'st' } },
+        { origin: 'https://evil.example', source: popup as never, data: code },
+        context,
+      ).kind,
+    ).toBe('ignore');
+    expect(
+      readBridgeMessage({ origin: AUTH, source: fakePopup() as never, data: code }, context).kind,
+    ).toBe('ignore');
+    expect(
+      readBridgeMessage(
+        { origin: AUTH, source: popup as never, data: { ...code, state: 'other' } },
+        context,
+      ).kind,
+    ).toBe('ignore');
+    expect(
+      readBridgeMessage({ origin: AUTH, source: popup as never, data: 'nope' }, context).kind,
+    ).toBe('ignore');
+    expect(
+      readBridgeMessage(
+        {
+          origin: AUTH,
+          source: popup as never,
+          data: { type: OXY_BRIDGE_ERROR_MESSAGE_TYPE, error: 'x', state: 'st' },
+        },
         context,
       ),
     ).toEqual({ kind: 'error', error: 'x' });
@@ -102,10 +126,18 @@ describe('readBridgeMessage', () => {
 describe('runBrowserBridge', () => {
   it('navigates with a PKCE-bound request, joins with the verifier, and closes', async () => {
     const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
-    const join = jest.spyOn(oxy.devices, 'joinBrowser').mockResolvedValue({ deviceId: 'dev-1', deviceSecret: 'app-secret' });
+    const join = jest
+      .spyOn(oxy.devices, 'joinBrowser')
+      .mockResolvedValue({ deviceId: 'dev-1', deviceSecret: 'app-secret' });
     const popup = fakePopup();
 
-    const result = runBrowserBridge({ popup, bridgeOrigin: AUTH, oxyServices: oxy, clientId: 'oxy_dk_1', redirectUri: APP });
+    const result = runBrowserBridge({
+      popup,
+      bridgeOrigin: AUTH,
+      oxyServices: oxy,
+      clientId: 'oxy_dk_1',
+      redirectUri: APP,
+    });
     const url = await navigated(popup);
     expect(url.origin + url.pathname).toBe(`${AUTH}/bridge`);
     expect(url.searchParams.get('client_id')).toBe('oxy_dk_1');
@@ -114,8 +146,16 @@ describe('runBrowserBridge', () => {
     const state = url.searchParams.get('state');
     const challenge = url.searchParams.get('code_challenge');
 
-    dispatchMessage({ origin: 'https://evil.example', source: popup, data: { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'forged', state } });
-    dispatchMessage({ origin: AUTH, source: popup, data: { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'code-1', state } });
+    dispatchMessage({
+      origin: 'https://evil.example',
+      source: popup,
+      data: { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'forged', state },
+    });
+    dispatchMessage({
+      origin: AUTH,
+      source: popup,
+      data: { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'code-1', state },
+    });
 
     expect(await result).toEqual({ ok: true, deviceId: 'dev-1', deviceSecret: 'app-secret' });
     const [request] = join.mock.calls[0];
@@ -132,20 +172,43 @@ describe('runBrowserBridge', () => {
     const join = jest.spyOn(oxy.devices, 'joinBrowser');
 
     let popup = fakePopup();
-    let result = runBrowserBridge({ popup, bridgeOrigin: AUTH, oxyServices: oxy, clientId: 'c', redirectUri: APP });
+    let result = runBrowserBridge({
+      popup,
+      bridgeOrigin: AUTH,
+      oxyServices: oxy,
+      clientId: 'c',
+      redirectUri: APP,
+    });
     let state = (await navigated(popup)).searchParams.get('state');
-    dispatchMessage({ origin: AUTH, source: popup, data: { type: OXY_BRIDGE_ERROR_MESSAGE_TYPE, error: 'invalid_client', state } });
+    dispatchMessage({
+      origin: AUTH,
+      source: popup,
+      data: { type: OXY_BRIDGE_ERROR_MESSAGE_TYPE, error: 'invalid_client', state },
+    });
     expect(await result).toEqual({ ok: false, reason: 'bridge-error' });
     expect(popup.close).toHaveBeenCalled();
 
     popup = fakePopup();
-    result = runBrowserBridge({ popup, bridgeOrigin: AUTH, oxyServices: oxy, clientId: 'c', redirectUri: APP });
+    result = runBrowserBridge({
+      popup,
+      bridgeOrigin: AUTH,
+      oxyServices: oxy,
+      clientId: 'c',
+      redirectUri: APP,
+    });
     await navigated(popup);
     popup.close();
     expect(await result).toEqual({ ok: false, reason: 'closed' });
 
     popup = fakePopup();
-    result = runBrowserBridge({ popup, bridgeOrigin: AUTH, oxyServices: oxy, clientId: 'c', redirectUri: APP, timeoutMs: 50 });
+    result = runBrowserBridge({
+      popup,
+      bridgeOrigin: AUTH,
+      oxyServices: oxy,
+      clientId: 'c',
+      redirectUri: APP,
+      timeoutMs: 50,
+    });
     state = (await navigated(popup)).searchParams.get('state');
     expect(state).toBeTruthy();
     expect(await result).toEqual({ ok: false, reason: 'timed-out' });
@@ -157,16 +220,31 @@ describe('runBrowserBridge', () => {
     const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
     jest.spyOn(oxy.devices, 'joinBrowser').mockRejectedValue(new Error('invalid_grant'));
     const popup = fakePopup();
-    const result = runBrowserBridge({ popup, bridgeOrigin: AUTH, oxyServices: oxy, clientId: 'c', redirectUri: APP });
+    const result = runBrowserBridge({
+      popup,
+      bridgeOrigin: AUTH,
+      oxyServices: oxy,
+      clientId: 'c',
+      redirectUri: APP,
+    });
     const state = (await navigated(popup)).searchParams.get('state');
-    dispatchMessage({ origin: AUTH, source: popup, data: { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'code-1', state } });
+    dispatchMessage({
+      origin: AUTH,
+      source: popup,
+      data: { type: OXY_BRIDGE_CODE_MESSAGE_TYPE, code: 'code-1', state },
+    });
     expect(await result).toEqual({ ok: false, reason: 'join-failed' });
   });
 });
 
 describe('trackDeviceCredential', () => {
   it('knows the held credential synchronously once the store has been read', async () => {
-    let stored: { sessionId: string; userId: string; deviceId?: string; deviceSecret?: string } | null = null;
+    let stored: {
+      sessionId: string;
+      userId: string;
+      deviceId?: string;
+      deviceSecret?: string;
+    } | null = null;
     const store = trackDeviceCredential({
       load: async () => stored,
       save: async (state) => {
@@ -190,9 +268,18 @@ describe('trackDeviceCredential', () => {
 describe('hasPersistedSessionCredential', () => {
   it('a credential without an account cannot bring a lost session back', async () => {
     const { hasPersistedSessionCredential } = await import('../../utils/deviceCredential');
-    const store = (state: unknown) => ({ load: async () => state, save: async () => true, clear: async () => undefined }) as never;
-    expect(await hasPersistedSessionCredential(store({ sessionId: 's', userId: 'u', deviceId: 'd', deviceSecret: 'x' }))).toBe(true);
-    expect(await hasPersistedSessionCredential(store({ sessionId: '', userId: '', deviceId: 'd', deviceSecret: 'x' }))).toBe(false);
+    const store = (state: unknown) =>
+      ({ load: async () => state, save: async () => true, clear: async () => undefined }) as never;
+    expect(
+      await hasPersistedSessionCredential(
+        store({ sessionId: 's', userId: 'u', deviceId: 'd', deviceSecret: 'x' }),
+      ),
+    ).toBe(true);
+    expect(
+      await hasPersistedSessionCredential(
+        store({ sessionId: '', userId: '', deviceId: 'd', deviceSecret: 'x' }),
+      ),
+    ).toBe(false);
     expect(await hasPersistedSessionCredential(store(null))).toBe(false);
   });
 });

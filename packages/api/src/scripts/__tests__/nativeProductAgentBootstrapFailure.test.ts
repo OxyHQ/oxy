@@ -34,11 +34,7 @@ describe('native product-agent bootstrap failure projection', () => {
 
   it('returns only the reviewed holder projection and explicit expected account id', () => {
     const result = nativeProductAgentBootstrapFailureResult(
-      new NativeProductAgentUsernameCollisionError(
-        expectedAccountId,
-        holder,
-        boundApplication,
-      ),
+      new NativeProductAgentUsernameCollisionError(expectedAccountId, holder, boundApplication),
     );
 
     expect(result).toEqual({
@@ -161,10 +157,7 @@ describe('native product-agent bootstrap failure projection', () => {
       'manifest_binding_mismatch',
     ],
     [new Error('EXPECTED_PLAN_SHA256 mismatch'), 'plan_rejected'],
-    [
-      new Error('Sindi service credential secret hash is malformed'),
-      'service_credential_invalid',
-    ],
+    [new Error('Sindi service credential secret hash is malformed'), 'service_credential_invalid'],
     [new Error('Client-id collision'), 'identity_collision'],
     [new Error('Existing Homiio application was not found'), 'required_record_missing'],
     [new Error('Account kind drifted'), 'live_state_drift'],

@@ -103,7 +103,11 @@ async function insertCredential(applicationId: string): Promise<string> {
 }
 
 /** Oxy's own record of consent, which the service prefers over the clock. */
-async function seedGrant(userId: string, applicationId: string, firstGrantedAt: Date): Promise<void> {
+async function seedGrant(
+  userId: string,
+  applicationId: string,
+  firstGrantedAt: Date,
+): Promise<void> {
   await getDb().insert(appGrants).values({ userId, applicationId, firstGrantedAt });
 }
 
@@ -115,8 +119,8 @@ async function storedBindings(applicationId: string, localPrincipalId: string) {
     .where(
       and(
         eq(identityBindings.applicationId, applicationId),
-        eq(identityBindings.localPrincipalId, localPrincipalId)
-      )
+        eq(identityBindings.localPrincipalId, localPrincipalId),
+      ),
     );
 }
 
@@ -202,7 +206,7 @@ describe('registerIdentityBinding', () => {
         applicationId: APP_ID,
         localPrincipalId: 'local-1',
         userProofToken: 'garbage',
-      })
+      }),
     ).rejects.toThrow(/user proof token/i);
 
     expect(await storedBindings(APP_ID, 'local-1')).toHaveLength(0);
@@ -348,7 +352,9 @@ describe('registerIdentityBinding', () => {
       userProofToken: 'valid-other',
     });
 
-    const active = (await storedBindings(APP_ID, 'local-1')).filter((row) => row.status === 'active');
+    const active = (await storedBindings(APP_ID, 'local-1')).filter(
+      (row) => row.status === 'active',
+    );
     expect(active).toHaveLength(1);
     expect(active[0].userId).toBe(OTHER_USER_ID);
   });

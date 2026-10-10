@@ -36,5 +36,4 @@ describe('pre-session public endpoints use skipAuth', () => {
       expect.objectContaining({ skipAuth: true }),
     );
   });
-
 });

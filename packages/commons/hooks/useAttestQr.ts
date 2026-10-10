@@ -39,8 +39,8 @@ export function useAttestQr(context: string): UseAttestQr {
     if (!oxyServices) return;
     let cancelled = false;
     setState('loading');
-    oxyServices
-      .civic.buildAttestQrPayload({ context })
+    oxyServices.civic
+      .buildAttestQrPayload({ context })
       .then((result) => {
         if (cancelled) return;
         setData(result);

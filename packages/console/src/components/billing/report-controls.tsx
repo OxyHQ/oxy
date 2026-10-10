@@ -80,10 +80,12 @@ export function ReportControls<TDimension extends string>({
                   isSelected
                     ? 'border-foreground bg-foreground text-background'
                     : 'border-border text-muted-foreground hover:text-foreground',
-                  isLastSelected && 'cursor-not-allowed opacity-70'
+                  isLastSelected && 'cursor-not-allowed opacity-70',
                 )}
                 title={
-                  isLastSelected ? 'A report is always grouped by at least one dimension' : undefined
+                  isLastSelected
+                    ? 'A report is always grouped by at least one dimension'
+                    : undefined
                 }
               >
                 {dimensionLabel(dimension)}

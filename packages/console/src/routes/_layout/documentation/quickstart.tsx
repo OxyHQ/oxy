@@ -49,16 +49,24 @@ function QuickStartPage() {
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
             1
           </span>
-          <h2 className="text-lg font-semibold text-foreground">Create an application credential</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            Create an application credential
+          </h2>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Go to the <Link to="/apps" className="text-primary hover:underline">Applications</Link> section,
-          create an application, and add a credential. You get back a pair: a
-          public <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code> beginning
-          with <code className="text-xs bg-muted px-1 py-0.5 rounded">oxy_dk_</code>, and a secret
-          shown exactly once. The <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code> is
-          a public identifier and never authenticates on its own — see
-          the <Link to="/documentation/authentication" className="text-primary hover:underline">authentication guide</Link>.
+          Go to the{' '}
+          <Link to="/apps" className="text-primary hover:underline">
+            Applications
+          </Link>{' '}
+          section, create an application, and add a credential. You get back a pair: a public{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code> beginning with{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">oxy_dk_</code>, and a secret shown
+          exactly once. The <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code>{' '}
+          is a public identifier and never authenticates on its own — see the{' '}
+          <Link to="/documentation/authentication" className="text-primary hover:underline">
+            authentication guide
+          </Link>
+          .
         </p>
         <EnvironmentVariables className="max-w-md">
           <EnvironmentVariablesHeader>
@@ -89,7 +97,11 @@ function QuickStartPage() {
             <CodeBlock code="npm install openai" language="bash">
               <CodeBlockHeader>
                 <CodeBlockTitle>
-                  <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+                  <HugeiconsIcon
+                    icon={SourceCodeIcon}
+                    size={14}
+                    className="text-muted-foreground"
+                  />
                   <CodeBlockFilename>Terminal</CodeBlockFilename>
                 </CodeBlockTitle>
                 <CodeBlockActions>
@@ -103,7 +115,11 @@ function QuickStartPage() {
             <CodeBlock code="pip install openai" language="bash">
               <CodeBlockHeader>
                 <CodeBlockTitle>
-                  <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+                  <HugeiconsIcon
+                    icon={SourceCodeIcon}
+                    size={14}
+                    className="text-muted-foreground"
+                  />
                   <CodeBlockFilename>Terminal</CodeBlockFilename>
                 </CodeBlockTitle>
                 <CodeBlockActions>
@@ -124,10 +140,10 @@ function QuickStartPage() {
           <h2 className="text-lg font-semibold text-foreground">Make Your First Request</h2>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Every request carries a <strong className="text-foreground">token</strong> in
-          the <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization</code> header —
-          never the <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code>. Mint a
-          service token from your credential first:
+          Every request carries a <strong className="text-foreground">token</strong> in the{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization</code> header — never
+          the <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code>. Mint a service
+          token from your credential first:
         </p>
         <CodeBlock
           language="bash"
@@ -146,9 +162,7 @@ function QuickStartPage() {
             </CodeBlockActions>
           </CodeBlockHeader>
         </CodeBlock>
-        <p className="text-sm text-muted-foreground mt-4 mb-4">
-          Then call the API with it:
-        </p>
+        <p className="text-sm text-muted-foreground mt-4 mb-4">Then call the API with it:</p>
         <InferenceAvailabilityNotice className="mb-4" />
         <ModelPlaceholderNotice className="mb-4" />
         <CodeBlock
@@ -183,9 +197,7 @@ function QuickStartPage() {
           </span>
           <h2 className="text-lg font-semibold text-foreground">Handle the Response</h2>
         </div>
-        <p className="text-sm text-muted-foreground mb-4">
-          You'll receive a response like this:
-        </p>
+        <p className="text-sm text-muted-foreground mb-4">You'll receive a response like this:</p>
         <CodeBlock
           language="json"
           code={`{

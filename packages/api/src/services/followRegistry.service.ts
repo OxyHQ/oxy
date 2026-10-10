@@ -28,10 +28,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { followNamespaces } from '../db/schema/followNamespaces';
-import {
-  followTargetKinds,
-  type FollowKindCapabilities,
-} from '../db/schema/followTargetKinds';
+import { followTargetKinds, type FollowKindCapabilities } from '../db/schema/followTargetKinds';
 import { followTargets } from '../db/schema/followTargets';
 import { users } from '../db/schema/users';
 import type { FollowCapability } from './followCapability.service';
@@ -225,8 +222,8 @@ export async function releaseNamespace(input: {
     .where(
       and(
         eq(followNamespaces.namespace, namespace),
-        eq(followNamespaces.applicationId, input.capability.applicationId)
-      )
+        eq(followNamespaces.applicationId, input.capability.applicationId),
+      ),
     );
 
   return { ok: true, value: { namespace, released: true } };
@@ -323,9 +320,7 @@ export async function ensureTarget(input: {
   metadata?: Record<string, unknown>;
   providerReference?: string;
   localUserId?: string;
-}): Promise<
-  RegistryResult<{ id: string; uri: string; kind: string; created: boolean }>
-> {
+}): Promise<RegistryResult<{ id: string; uri: string; kind: string; created: boolean }>> {
   const uri = input.uri.trim();
   // A URI has to be an absolute address: it is the identity two applications
   // independently arrive at, and a relative or empty string cannot be.
@@ -417,7 +412,7 @@ export async function ensureTarget(input: {
  * cannot disagree about whether a store is followed or subscribed to.
  */
 export async function getKindCapabilities(
-  kind: string
+  kind: string,
 ): Promise<{ kind: string; label: string | null; capabilities: FollowKindCapabilities } | null> {
   const [row] = await getDb()
     .select({
@@ -435,7 +430,7 @@ export async function getKindCapabilities(
 
 /** Every kind an application owns. For a console listing, and for its own boot. */
 export async function listKindsForApplication(
-  applicationId: string
+  applicationId: string,
 ): Promise<Array<{ kind: string; label: string | null }>> {
   return getDb()
     .select({ kind: followTargetKinds.kind, label: followTargetKinds.label })
@@ -443,8 +438,8 @@ export async function listKindsForApplication(
     .where(
       and(
         eq(followTargetKinds.applicationId, applicationId),
-        sql`${followTargetKinds.kind} is not null`
-      )
+        sql`${followTargetKinds.kind} is not null`,
+      ),
     )
     .orderBy(followTargetKinds.kind);
 }

@@ -82,7 +82,11 @@ describe('exactDecimalToMinorUnits', () => {
 describe('roundExactDecimalToMinorUnits', () => {
   it('rounds half-up and conserves the value it moved', () => {
     const down = roundExactDecimalToMinorUnits('12.344000000000', 2);
-    expect(down).toMatchObject({ minorUnits: 1234, roundedAmount: '12.34', direction: 'rounded_down' });
+    expect(down).toMatchObject({
+      minorUnits: 1234,
+      roundedAmount: '12.34',
+      direction: 'rounded_down',
+    });
     // rounded + remainder === subtotal
     expect(down.remainder).toBe('0.004000000000');
 
@@ -119,7 +123,11 @@ describe('roundExactDecimalToMinorUnits', () => {
 
   it('carries across a minor-unit boundary', () => {
     const carry = roundExactDecimalToMinorUnits('9.999000000000', 2);
-    expect(carry).toMatchObject({ minorUnits: 1000, roundedAmount: '10.00', direction: 'rounded_up' });
+    expect(carry).toMatchObject({
+      minorUnits: 1000,
+      roundedAmount: '10.00',
+      direction: 'rounded_up',
+    });
     expect(carry.remainder).toBe('0.001000000000');
   });
 });

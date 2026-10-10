@@ -69,12 +69,17 @@ describe('updates signing.service', () => {
   });
 
   test('signs bytes (base64 PEM env) and the signature verifies against the certificate', () => {
-    process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY = Buffer.from(privateKeyPEM, 'utf8').toString('base64');
+    process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY = Buffer.from(privateKeyPEM, 'utf8').toString(
+      'base64',
+    );
     resetSigningKeyCache();
 
     expect(isCodeSigningConfigured()).toBe(true);
 
-    const body = Buffer.from(JSON.stringify({ id: 'abc', createdAt: '2026-01-01T00:00:00.000Z' }), 'utf8');
+    const body = Buffer.from(
+      JSON.stringify({ id: 'abc', createdAt: '2026-01-01T00:00:00.000Z' }),
+      'utf8',
+    );
     const header = signPartBytes(body);
     const { sig, keyid } = parseSignatureHeader(header);
 

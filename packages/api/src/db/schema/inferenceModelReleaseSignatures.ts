@@ -58,8 +58,7 @@ export type ReleaseSignatureAlgorithm = (typeof RELEASE_SIGNATURE_ALGORITHMS)[nu
  */
 export const RELEASE_SIGNATURE_CANONICALIZATIONS = ['jcs'] as const;
 
-export type ReleaseSignatureCanonicalization =
-  (typeof RELEASE_SIGNATURE_CANONICALIZATIONS)[number];
+export type ReleaseSignatureCanonicalization = (typeof RELEASE_SIGNATURE_CANONICALIZATIONS)[number];
 
 export const inferenceModelReleaseSignatures = pgTable(
   'inference_model_release_signatures',
@@ -97,11 +96,11 @@ export const inferenceModelReleaseSignatures = pgTable(
 
     check(
       'inference_model_release_signatures_algorithm_check',
-      sql`${t.algorithm} in (${sql.raw(inList(RELEASE_SIGNATURE_ALGORITHMS))})`
+      sql`${t.algorithm} in (${sql.raw(inList(RELEASE_SIGNATURE_ALGORITHMS))})`,
     ),
     check(
       'inference_model_release_signatures_canonicalization_check',
-      sql`${t.canonicalization} in (${sql.raw(inList(RELEASE_SIGNATURE_CANONICALIZATIONS))})`
+      sql`${t.canonicalization} in (${sql.raw(inList(RELEASE_SIGNATURE_CANONICALIZATIONS))})`,
     ),
     /**
      * The wire format, at the length the one permitted algorithm produces. A
@@ -110,10 +109,9 @@ export const inferenceModelReleaseSignatures = pgTable(
      */
     check(
       'inference_model_release_signatures_signature_format',
-      sql`${t.signature} ~ ${sql.raw(String.raw`'^[A-Za-z0-9_-]{86}$'`)}`
+      sql`${t.signature} ~ ${sql.raw(String.raw`'^[A-Za-z0-9_-]{86}$'`)}`,
     ),
-  ]
+  ],
 );
 
-export type InferenceModelReleaseSignatureRow =
-  typeof inferenceModelReleaseSignatures.$inferSelect;
+export type InferenceModelReleaseSignatureRow = typeof inferenceModelReleaseSignatures.$inferSelect;

@@ -104,9 +104,15 @@ export interface ActorRouterConfig {
     /** Whether to trust `X-Forwarded-Host` when reconstructing the signed host line. */
     trustForwardedHost: boolean;
     /** Enqueue a verified inbound activity for async processing (false ⇒ process inline). */
-    enqueueInboxActivity(job: { activity: Record<string, unknown>; verifiedActorUri: string }): Promise<boolean>;
+    enqueueInboxActivity(job: {
+      activity: Record<string, unknown>;
+      verifiedActorUri: string;
+    }): Promise<boolean>;
     /** The inbound dispatcher (the inline-fallback + post-enqueue processor). */
-    processInboxActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void>;
+    processInboxActivity(
+      activity: Record<string, unknown>,
+      verifiedActorUri: string,
+    ): Promise<void>;
   };
   /** Fetch one page of a user's Oxy follow graph (followers OR following). */
   fetchFollowPage(
@@ -161,7 +167,11 @@ export function createActorRouter(config: ActorRouterConfig): Router {
   async function handleInbox(req: InboxRequest, res: Response): Promise<Response> {
     try {
       // Verify HTTP signature (use originalUrl to avoid proxy path mangling).
-      const { verified, actorUri, reason: signatureError } = await verifyHttpSignature(
+      const {
+        verified,
+        actorUri,
+        reason: signatureError,
+      } = await verifyHttpSignature(
         {
           method: req.method,
           path: req.originalUrl || req.path,
@@ -186,7 +196,8 @@ export function createActorRouter(config: ActorRouterConfig): Router {
       }
 
       // Verify the actor in the activity matches the signature.
-      const activityActor = typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
+      const activityActor =
+        typeof activity.actor === 'string' ? activity.actor : activity.actor?.id;
       if (activityActor !== actorUri) {
         logger.debug(`Inbox: Actor mismatch. Signed: ${actorUri}, Activity: ${activityActor}`);
         return res.status(403).json({ error: 'Actor mismatch' });
@@ -199,7 +210,10 @@ export function createActorRouter(config: ActorRouterConfig): Router {
       // is never dropped.
       let enqueued = false;
       try {
-        enqueued = await config.inbound.enqueueInboxActivity({ activity, verifiedActorUri: actorUri });
+        enqueued = await config.inbound.enqueueInboxActivity({
+          activity,
+          verifiedActorUri: actorUri,
+        });
       } catch (err) {
         logger.error('Failed to enqueue inbox activity — processing inline:', err);
         enqueued = false;
@@ -243,7 +257,8 @@ export function createActorRouter(config: ActorRouterConfig): Router {
 
       const userId = String(user._id || user.id);
 
-      const rawCount: unknown = direction === 'followers' ? user._count?.followers : user._count?.following;
+      const rawCount: unknown =
+        direction === 'followers' ? user._count?.followers : user._count?.following;
       const profileTotal = typeof rawCount === 'number' ? rawCount : undefined;
 
       if (!page) {
@@ -256,7 +271,9 @@ export function createActorRouter(config: ActorRouterConfig): Router {
             totalItems = (await config.fetchFollowPage(userId, direction, 0, 1)).total;
           } catch (err) {
             logger.warn('[Federation] follow-collection summary total lookup failed', {
-              username, direction, error: err,
+              username,
+              direction,
+              error: err,
             });
           }
         }
@@ -277,7 +294,12 @@ export function createActorRouter(config: ActorRouterConfig): Router {
       let total = profileTotal ?? 0;
       let hasMore = false;
       try {
-        const pageResult = await config.fetchFollowPage(userId, direction, offset, FOLLOW_PAGE_SIZE);
+        const pageResult = await config.fetchFollowPage(
+          userId,
+          direction,
+          offset,
+          FOLLOW_PAGE_SIZE,
+        );
         members = pageResult.members;
         total = pageResult.total;
         hasMore = pageResult.hasMore;
@@ -285,7 +307,10 @@ export function createActorRouter(config: ActorRouterConfig): Router {
         // Fail-soft: never 500 the whole collection on an Oxy graph hiccup — serve
         // an empty page against the best-known total rather than crashing.
         logger.warn('[Federation] follow-collection Oxy graph list failed, serving empty page', {
-          username, direction, offset, error: err,
+          username,
+          direction,
+          offset,
+          error: err,
         });
       }
 
@@ -293,9 +318,10 @@ export function createActorRouter(config: ActorRouterConfig): Router {
         .map((member) => memberActorUri(member, urls))
         .filter((uri): uri is string => uri !== null);
 
-      const pageId = offset > 0
-        ? `${collectionUrl(username)}?page=true&offset=${offset}`
-        : `${collectionUrl(username)}?page=true`;
+      const pageId =
+        offset > 0
+          ? `${collectionUrl(username)}?page=true&offset=${offset}`
+          : `${collectionUrl(username)}?page=true`;
 
       const pageResponse: Record<string, unknown> = {
         '@context': AP_CONTEXT,

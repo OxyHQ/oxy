@@ -113,7 +113,7 @@ export type CloseInvoicePeriodResult =
  * the query builder (which binds them fine) with `execute` (which does not).
  */
 export async function closeInvoicePeriod(
-  input: CloseInvoicePeriodInput
+  input: CloseInvoicePeriodInput,
 ): Promise<CloseInvoicePeriodResult> {
   return getDb().transaction(async (tx): Promise<CloseInvoicePeriodResult> => {
     const [profile] = await tx
@@ -141,8 +141,8 @@ export async function closeInvoicePeriod(
           eq(billingInvoices.accountId, input.accountId),
           eq(billingInvoices.currency, input.currency),
           eq(billingInvoices.periodStart, input.periodStart),
-          eq(billingInvoices.periodEnd, input.periodEnd)
-        )
+          eq(billingInvoices.periodEnd, input.periodEnd),
+        ),
       )
       .limit(1);
     if (existing && existing.status !== 'void') {
@@ -168,8 +168,8 @@ export async function closeInvoicePeriod(
             select 1 from ${billingInvoiceReceipts} link
             join ${billingInvoices} inv on inv.id = link.invoice_id
             where link.receipt_id = ${usageReceipts.id} and inv.status <> 'void'
-          )`
-        )
+          )`,
+        ),
       );
 
     if (unbilled.length === 0) {
@@ -185,7 +185,7 @@ export async function closeInvoicePeriod(
         select round(sum(r.billed_amount), 12)::text as subtotal
         from ${usageReceipts} r
         where r.id = any(${sql.param(unbilled.map((row) => row.id))}::text[])
-      `
+      `,
     );
     const subtotal = totals?.subtotal ?? '0';
 
@@ -295,7 +295,7 @@ export type RecordInvoicePaymentResult =
  * duplicate-key error.
  */
 export async function recordInvoicePayment(
-  input: RecordInvoicePaymentInput
+  input: RecordInvoicePaymentInput,
 ): Promise<RecordInvoicePaymentResult> {
   return getDb().transaction(async (tx): Promise<RecordInvoicePaymentResult> => {
     const [invoice] = await tx
@@ -392,17 +392,14 @@ export async function recordInvoicePayment(
   });
 }
 
-async function countInvoiceReceipts(
-  tx: DatabaseOrTransaction,
-  invoiceId: string
-): Promise<number> {
+async function countInvoiceReceipts(tx: DatabaseOrTransaction, invoiceId: string): Promise<number> {
   const rows = await executeRows<{ total: string }>(
     tx,
     sql`
       select count(*)::text as total
       from ${billingInvoiceReceipts}
       where invoice_id = ${invoiceId}
-    `
+    `,
   );
   // `count(*)` is a bigint, which postgres.js decodes as a STRING. Cast in SQL
   // and convert here so the coercion is visible rather than a string sitting in
@@ -413,7 +410,7 @@ async function countInvoiceReceipts(
 /** An account's invoices, newest period first. */
 export async function listAccountInvoices(
   accountId: string,
-  limit = 24
+  limit = 24,
 ): Promise<BillingInvoice[]> {
   const db = getDb();
   const rows = await db
@@ -423,5 +420,7 @@ export async function listAccountInvoices(
     .orderBy(sql`${billingInvoices.periodStart} desc`)
     .limit(limit);
 
-  return Promise.all(rows.map(async (row) => toBillingInvoice(row, await countInvoiceReceipts(db, row.id))));
+  return Promise.all(
+    rows.map(async (row) => toBillingInvoice(row, await countInvoiceReceipts(db, row.id))),
+  );
 }

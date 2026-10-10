@@ -42,7 +42,12 @@ import { identityLinkRequests } from '../db/schema/identityLinkRequests';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { users } from '../db/schema/users';
 import { ApiError, BadRequestError, NotFoundError } from '../utils/error';
-import { mintIdentityProofChallenge, proofInvalid, sha256Hex, verifyIdentityProof } from './identityProof.service';
+import {
+  mintIdentityProofChallenge,
+  proofInvalid,
+  sha256Hex,
+  verifyIdentityProof,
+} from './identityProof.service';
 import SignatureService from './signature.service';
 import { verifyEmailReauth } from './reauth.service';
 
@@ -51,11 +56,19 @@ function publicKeyMatches(candidate: string) {
 }
 
 function linkedElsewhere(): ApiError {
-  return new ApiError(409, 'This identity is already linked to another account', IDENTITY_ERROR_CODES.rootLinkedElsewhere);
+  return new ApiError(
+    409,
+    'This identity is already linked to another account',
+    IDENTITY_ERROR_CODES.rootLinkedElsewhere,
+  );
 }
 
 function freshFactorRequired(): ApiError {
-  return new ApiError(401, 'Confirm with a code sent to this account’s email', IDENTITY_ERROR_CODES.freshFactorRequired);
+  return new ApiError(
+    401,
+    'Confirm with a code sent to this account’s email',
+    IDENTITY_ERROR_CODES.freshFactorRequired,
+  );
 }
 
 function linkGone(): NotFoundError {
@@ -80,7 +93,10 @@ export interface LinkRootInput {
  * different existing root is refused, the same root heals its method row.
  * Returns whether the account gained its root now.
  */
-export async function linkRootToAccount(tx: DatabaseOrTransaction, input: LinkRootInput): Promise<{ linked: boolean }> {
+export async function linkRootToAccount(
+  tx: DatabaseOrTransaction,
+  input: LinkRootInput,
+): Promise<{ linked: boolean }> {
   const { userId, publicKey, proof } = input;
   const [account] = await tx
     .select({ kind: users.kind, publicKey: users.publicKey })
@@ -96,7 +112,11 @@ export async function linkRootToAccount(tx: DatabaseOrTransaction, input: LinkRo
   }
   const current = account.publicKey?.trim().toLowerCase() || null;
   if (current && current !== publicKey) {
-    throw new ApiError(409, 'This account already has an identity', IDENTITY_ERROR_CODES.rootAlreadyLinked);
+    throw new ApiError(
+      409,
+      'This account already has an identity',
+      IDENTITY_ERROR_CODES.rootAlreadyLinked,
+    );
   }
 
   if (!current && !input.emailReauthVerified) throw freshFactorRequired();
@@ -112,7 +132,11 @@ export async function linkRootToAccount(tx: DatabaseOrTransaction, input: LinkRo
   });
 
   if (!current) {
-    const [existingUser] = await tx.select({ id: users.id }).from(users).where(publicKeyMatches(publicKey)).limit(1);
+    const [existingUser] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(publicKeyMatches(publicKey))
+      .limit(1);
     if (existingUser && existingUser.id !== userId) throw linkedElsewhere();
     // Self-custodied from here: the recovery email, and every code sent to it,
     // goes with the custodial way back in (ADR 0029 D3).
@@ -133,9 +157,14 @@ export async function linkRootToAccount(tx: DatabaseOrTransaction, input: LinkRo
     .where(and(eq(userAuthMethods.userId, userId), eq(userAuthMethods.type, 'identity')))
     .limit(1);
   if (!existingMethod) {
-    await tx.insert(userAuthMethods).values({ userId, type: 'identity', methodPublicKey: publicKey });
+    await tx
+      .insert(userAuthMethods)
+      .values({ userId, type: 'identity', methodPublicKey: publicKey });
   } else if (existingMethod.methodPublicKey?.toLowerCase() !== publicKey) {
-    await tx.update(userAuthMethods).set({ methodPublicKey: publicKey }).where(eq(userAuthMethods.id, existingMethod.id));
+    await tx
+      .update(userAuthMethods)
+      .set({ methodPublicKey: publicKey })
+      .where(eq(userAuthMethods.id, existingMethod.id));
   }
   return { linked: !current };
 }
@@ -150,7 +179,10 @@ function liveRequest(linkId: string, statuses: readonly ('pending' | 'signed')[]
 }
 
 /** Open a link request for an account without a key; earlier open ones are withdrawn. */
-export async function createLinkRequest(userId: string, now: Date = new Date()): Promise<IdentityLinkCreateResponse> {
+export async function createLinkRequest(
+  userId: string,
+  now: Date = new Date(),
+): Promise<IdentityLinkCreateResponse> {
   const db = getDb();
   const [account] = await db
     .select({ publicKey: users.publicKey, email: users.email })
@@ -158,7 +190,11 @@ export async function createLinkRequest(userId: string, now: Date = new Date()):
     .where(eq(users.id, userId))
     .limit(1);
   if (account?.publicKey) {
-    throw new ApiError(409, 'This account already has an identity', IDENTITY_ERROR_CODES.rootAlreadyLinked);
+    throw new ApiError(
+      409,
+      'This account already has an identity',
+      IDENTITY_ERROR_CODES.rootAlreadyLinked,
+    );
   }
   // The link is confirmed with a code sent to the email, so the account needs one.
   if (!account?.email) throw freshFactorRequired();
@@ -169,7 +205,12 @@ export async function createLinkRequest(userId: string, now: Date = new Date()):
   await db
     .update(identityLinkRequests)
     .set({ status: 'cancelled' })
-    .where(and(eq(identityLinkRequests.userId, userId), inArray(identityLinkRequests.status, ['pending', 'signed'])));
+    .where(
+      and(
+        eq(identityLinkRequests.userId, userId),
+        inArray(identityLinkRequests.status, ['pending', 'signed']),
+      ),
+    );
   await db.insert(identityLinkRequests).values({
     linkId,
     userId,
@@ -185,7 +226,10 @@ export async function createLinkRequest(userId: string, now: Date = new Date()):
 }
 
 /** Where a request stands; what both devices poll. */
-export async function readLinkRequest(linkId: string, now: Date = new Date()): Promise<IdentityLinkState> {
+export async function readLinkRequest(
+  linkId: string,
+  now: Date = new Date(),
+): Promise<IdentityLinkState> {
   const [row] = await getDb()
     .select({
       status: identityLinkRequests.status,
@@ -221,7 +265,11 @@ export async function submitLinkProof(
 ): Promise<void> {
   const db = getDb();
   const [row] = await db
-    .select({ id: identityLinkRequests.id, userId: identityLinkRequests.userId, challengeHash: identityLinkRequests.challengeHash })
+    .select({
+      id: identityLinkRequests.id,
+      userId: identityLinkRequests.userId,
+      challengeHash: identityLinkRequests.challengeHash,
+    })
     .from(identityLinkRequests)
     .where(liveRequest(linkId, ['pending'], now))
     .limit(1);
@@ -230,7 +278,8 @@ export async function submitLinkProof(
   const { publicKey, proof } = input;
   if (!SignatureService.isValidPublicKey(publicKey)) throw proofInvalid('Not a valid identity key');
   if (sha256Hex(proof.challenge) !== row.challengeHash) throw proofInvalid();
-  if (proof.expiresAt <= now.getTime()) throw proofInvalid('The identity proof expired — please try again');
+  if (proof.expiresAt <= now.getTime())
+    throw proofInvalid('The identity proof expired — please try again');
   let message: string;
   try {
     message = buildIdentityProofMessage({
@@ -247,21 +296,39 @@ export async function submitLinkProof(
   } catch {
     throw proofInvalid();
   }
-  if (!SignatureService.verifySignature(message, proof.signature, publicKey)) throw proofInvalid('Invalid identity signature');
+  if (!SignatureService.verifySignature(message, proof.signature, publicKey))
+    throw proofInvalid('Invalid identity signature');
 
-  const [taken] = await db.select({ id: users.id }).from(users).where(publicKeyMatches(publicKey)).limit(1);
+  const [taken] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(publicKeyMatches(publicKey))
+    .limit(1);
   if (taken) throw linkedElsewhere();
 
   const signed = await db
     .update(identityLinkRequests)
     .set({ status: 'signed', publicKey, proof })
-    .where(and(eq(identityLinkRequests.id, row.id), eq(identityLinkRequests.status, 'pending'), gt(identityLinkRequests.expiresAt, now)))
+    .where(
+      and(
+        eq(identityLinkRequests.id, row.id),
+        eq(identityLinkRequests.status, 'pending'),
+        gt(identityLinkRequests.expiresAt, now),
+      ),
+    )
     .returning({ id: identityLinkRequests.id });
-  if (signed.length === 0) throw new ApiError(409, 'This link request already has a key', 'CONFLICT');
+  if (signed.length === 0)
+    throw new ApiError(409, 'This link request already has a key', 'CONFLICT');
 }
 
 /** The owner's signed request, or a 404 — never someone else's. */
-async function ownedSignedRequest(db: DatabaseOrTransaction, linkId: string, userId: string, now: Date, lock = false) {
+async function ownedSignedRequest(
+  db: DatabaseOrTransaction,
+  linkId: string,
+  userId: string,
+  now: Date,
+  lock = false,
+) {
   const query = db
     .select({
       id: identityLinkRequests.id,
@@ -305,9 +372,15 @@ export async function completeLinkRequest(
       proof: row.proof,
       emailReauthVerified: true,
     });
-    await tx.update(identityLinkRequests).set({ status: 'completed' }).where(eq(identityLinkRequests.id, row.id));
+    await tx
+      .update(identityLinkRequests)
+      .set({ status: 'completed' })
+      .where(eq(identityLinkRequests.id, row.id));
   });
-  return { formerEmail: before?.email?.trim().toLowerCase() || null, username: before?.username ?? null };
+  return {
+    formerEmail: before?.email?.trim().toLowerCase() || null,
+    username: before?.username ?? null,
+  };
 }
 
 /** Withdraw an open request of the owner's. */

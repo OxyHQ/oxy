@@ -9,11 +9,7 @@ export function isUntrustedThirdPartyApp(application: {
   isOfficial: boolean;
   isInternal: boolean;
 }): boolean {
-  return (
-    application.type === 'third_party' &&
-    !application.isOfficial &&
-    !application.isInternal
-  );
+  return application.type === 'third_party' && !application.isOfficial && !application.isInternal;
 }
 
 /** Payment scopes currently granted on the application. */
@@ -24,10 +20,10 @@ export function availablePaymentsScopes(scopes: ReadonlyArray<string>): Array<Pa
 /** Build the next application scope list after toggling payments scopes. */
 export function mergePaymentsScopes(
   existingScopes: ReadonlyArray<string>,
-  payments: { read: boolean; write: boolean }
+  payments: { read: boolean; write: boolean },
 ): Array<string> {
   const withoutPayments = existingScopes.filter(
-    (scope) => !PAYMENTS_SCOPES.includes(scope as PaymentsScope)
+    (scope) => !PAYMENTS_SCOPES.includes(scope as PaymentsScope),
   );
   const next = [...withoutPayments];
   if (payments.read) {
@@ -47,8 +43,13 @@ export function hasAliaMachineScopes(scopes: ReadonlyArray<string>): boolean {
 }
 
 /** Null means untouched: saving other fields must preserve partial grants too. */
-export function mergeAliaMachineScopes(existing: ReadonlyArray<string>, enabled: boolean | null): Array<string> {
+export function mergeAliaMachineScopes(
+  existing: ReadonlyArray<string>,
+  enabled: boolean | null,
+): Array<string> {
   if (enabled === null) return [...existing];
-  const other = existing.filter((scope) => !ALIA_MACHINE_SCOPES.includes(scope as typeof ALIA_MACHINE_SCOPES[number]));
+  const other = existing.filter(
+    (scope) => !ALIA_MACHINE_SCOPES.includes(scope as (typeof ALIA_MACHINE_SCOPES)[number]),
+  );
   return enabled ? [...other, ...ALIA_MACHINE_SCOPES] : other;
 }

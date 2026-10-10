@@ -9,11 +9,7 @@ import {
 
 const b64url = (value: string | Uint8Array): string => Buffer.from(value).toString('base64url');
 
-function token(
-  privateKey: KeyObject,
-  keyId: string,
-  claims: Record<string, unknown> = {},
-): string {
+function token(privateKey: KeyObject, keyId: string, claims: Record<string, unknown> = {}): string {
   const now = Math.floor(Date.now() / 1_000);
   const header = { alg: 'EdDSA', typ: 'JWT', kid: keyId };
   const payload = {
@@ -74,7 +70,9 @@ async function authenticateThroughExpress(oxy: OxyServer, bearer: string, delega
     },
   };
   let settle!: () => void;
-  const settled = new Promise<void>((resolve) => { settle = resolve; });
+  const settled = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
   const response = responseHarness();
   const originalJson = response.json.bind(response);
   response.json = (body: unknown) => {
@@ -103,10 +101,12 @@ describe('Ed25519 Oxy service-token verification through JWKS', () => {
   });
 
   it('accepts a real service token without any shared signing secret', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
-      JSON.stringify({ keys: [primaryJwk] }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ));
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ keys: [primaryJwk] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
     const result = await authenticate(oxy, token(primary.privateKey, primaryJwk.kid));
 
@@ -126,10 +126,12 @@ describe('Ed25519 Oxy service-token verification through JWKS', () => {
   });
 
   it('admits a real delegated service token through createOxyAuthMiddleware', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
-      JSON.stringify({ keys: [primaryJwk] }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ));
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ keys: [primaryJwk] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
     jest.spyOn(oxy, 'verifyActingAs').mockResolvedValue({
       authorized: true,
@@ -154,10 +156,9 @@ describe('Ed25519 Oxy service-token verification through JWKS', () => {
   it.each([' user-exact', 'user-exact '])(
     'rejects delegated user id whitespace byte-for-byte: %j',
     async (delegatedUserId) => {
-      jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
-        JSON.stringify({ keys: [primaryJwk] }),
-        { status: 200 },
-      ));
+      jest
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response(JSON.stringify({ keys: [primaryJwk] }), { status: 200 }));
       const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
       const verifyGrant = jest.spyOn(oxy, 'verifyActingAs');
       const result = await authenticateThroughExpress(
@@ -173,12 +174,13 @@ describe('Ed25519 Oxy service-token verification through JWKS', () => {
   );
 
   it('caches a key set and rate-limits unknown-kid refresh attempts', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
-      JSON.stringify({ keys: [primaryJwk] }),
-      { status: 200 },
-    ));
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ keys: [primaryJwk] }), { status: 200 }));
     const oxy = new OxyServer({ baseURL: 'https://api.oxy.test' });
-    expect((await authenticate(oxy, token(primary.privateKey, primaryJwk.kid))).next).toHaveBeenCalled();
+    expect(
+      (await authenticate(oxy, token(primary.privateKey, primaryJwk.kid))).next,
+    ).toHaveBeenCalled();
     const unknown = token(secondary.privateKey, 'unknown-key');
     expect((await authenticate(oxy, unknown)).response.statusCode).toBe(401);
     expect((await authenticate(oxy, unknown)).response.statusCode).toBe(401);
@@ -199,10 +201,9 @@ describe('Ed25519 Oxy service-token verification through JWKS', () => {
     ['owner id leading whitespace', { ownerAccountId: ' account-exact' }],
     ['owner id trailing whitespace', { ownerAccountId: 'account-exact ' }],
   ])('fails closed on %s', async (_label, claims) => {
-    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
-      JSON.stringify({ keys: [primaryJwk] }),
-      { status: 200 },
-    ));
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ keys: [primaryJwk] }), { status: 200 }));
     const result = await authenticate(
       new OxyServer({ baseURL: 'https://api.oxy.test' }),
       token(primary.privateKey, primaryJwk.kid, claims),
@@ -233,7 +234,8 @@ describe('service-token key lifecycle against the published JWKS', () => {
   const advance = (ms: number) => {
     clock += ms;
   };
-  const accepted = async (bearer: string) => (await authenticate(oxy, bearer)).next.mock.calls.length === 1;
+  const accepted = async (bearer: string) =>
+    (await authenticate(oxy, bearer)).next.mock.calls.length === 1;
 
   beforeEach(() => {
     const start = Date.now();
@@ -350,11 +352,23 @@ describe('service-token key lifecycle against the published JWKS', () => {
     ['no keys member', { status: 200, body: JSON.stringify({}) }],
     ['a body that is not JSON', { status: 200, body: '<html>maintenance</html>' }],
     ['an HTTP error', { status: 500, body: '' }],
-    ['a private key member', { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, d: 'AAAA' }] }) }],
-    ['a non-Ed25519 key', { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, crv: 'X25519' }] }) }],
-    ['a key without alg EdDSA', { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, alg: 'HS256' }] }) }],
+    [
+      'a private key member',
+      { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, d: 'AAAA' }] }) },
+    ],
+    [
+      'a non-Ed25519 key',
+      { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, crv: 'X25519' }] }) },
+    ],
+    [
+      'a key without alg EdDSA',
+      { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, alg: 'HS256' }] }) },
+    ],
     ['a duplicate kid', { status: 200, body: JSON.stringify({ keys: [KEY_A.jwk, KEY_A.jwk] }) }],
-    ['a truncated public key', { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, x: 'AAAA' }] }) }],
+    [
+      'a truncated public key',
+      { status: 200, body: JSON.stringify({ keys: [{ ...KEY_A.jwk, x: 'AAAA' }] }) },
+    ],
   ])('refuses every token when the JWKS is %s', async (_label, answer) => {
     published = () => answer;
     const result = await authenticate(oxy, token(KEY_A.privateKey, KEY_A.kid));

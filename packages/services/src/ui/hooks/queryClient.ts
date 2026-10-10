@@ -26,7 +26,11 @@ import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { isDev } from '@oxy.so/core';
 import type { StorageInterface } from '../utils/storageHelpers';
 import { accountQueryOwnership, type AccountQueriesConfig } from './accountQueryPersistence';
-import { PERSISTED_QUERY_PREFIXES, hydrateSnapshot, subscribeSnapshots } from './persistedQueryCache';
+import {
+  PERSISTED_QUERY_PREFIXES,
+  hydrateSnapshot,
+  subscribeSnapshots,
+} from './persistedQueryCache';
 
 const QUERY_CACHE_KEY = 'oxy_query_cache_v3';
 const QUERY_CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -35,8 +39,9 @@ const MAX_QUERY_RETRIES = 2;
 
 function statusOf(error: unknown): number | null {
   if (!error || typeof error !== 'object') return null;
-  const value = (error as { status?: unknown; response?: { status?: unknown } }).status
-    ?? (error as { response?: { status?: unknown } }).response?.status;
+  const value =
+    (error as { status?: unknown; response?: { status?: unknown } }).status ??
+    (error as { response?: { status?: unknown } }).response?.status;
   return typeof value === 'number' ? value : null;
 }
 
@@ -156,8 +161,7 @@ export const attachQueryPersistence = (
       isSharedQuery(query) && !(account?.ownsQuery(query) ?? false),
     // Every other mutation, whatever its status: paused ones are exactly the
     // ones that must survive a restart to replay when online.
-    shouldDehydrateMutation: (mutation: Mutation) =>
-      !(account?.ownsMutation(mutation) ?? false),
+    shouldDehydrateMutation: (mutation: Mutation) => !(account?.ownsMutation(mutation) ?? false),
   };
 
   let stopped = false;

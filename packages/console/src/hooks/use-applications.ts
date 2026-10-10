@@ -123,7 +123,7 @@ export function useCreateApplication() {
       oxyServices.apps.create(accountId ? { ownerAccountId: accountId, ...data } : data),
     onSuccess: (newApp) => {
       queryClient.setQueryData<Array<Application>>(queryKeys.applications(accountId), (old) =>
-        old ? [newApp, ...old] : [newApp]
+        old ? [newApp, ...old] : [newApp],
       );
       queryClient.setQueryData(queryKeys.application(newApp._id, accountId), newApp);
     },
@@ -146,12 +146,11 @@ export function useUpdateApplication() {
       // Patch the app in every cached account-scoped list (prefix match).
       queryClient.setQueriesData<Array<Application>>(
         { queryKey: APPLICATIONS_LIST_PREFIX },
-        (old) =>
-          old ? old.map((app) => (app._id === updatedApp._id ? updatedApp : app)) : old
+        (old) => (old ? old.map((app) => (app._id === updatedApp._id ? updatedApp : app)) : old),
       );
       queryClient.setQueriesData<Application>(
         { queryKey: ['application', updatedApp._id] },
-        updatedApp
+        updatedApp,
       );
     },
   });
@@ -170,7 +169,7 @@ export function useDeleteApplication() {
       // Drop the app from every cached account-scoped list (prefix match).
       queryClient.setQueriesData<Array<Application>>(
         { queryKey: APPLICATIONS_LIST_PREFIX },
-        (old) => (old ? old.filter((app) => app._id !== appId) : old)
+        (old) => (old ? old.filter((app) => app._id !== appId) : old),
       );
       queryClient.removeQueries({ queryKey: ['application', appId] });
       queryClient.removeQueries({ queryKey: queryKeys.credentials(appId) });
@@ -217,7 +216,7 @@ export function useCreateCredential() {
     onSuccess: ({ credential }) => {
       queryClient.setQueryData<Array<ApplicationCredential>>(
         queryKeys.credentials(credential.applicationId),
-        (old) => (old ? [credential, ...old] : [credential])
+        (old) => (old ? [credential, ...old] : [credential]),
       );
     },
   });
@@ -238,7 +237,7 @@ export function useRotateCredential() {
     onSuccess: ({ credential }, { appId, credentialId }) => {
       queryClient.setQueryData<Array<ApplicationCredential>>(
         queryKeys.credentials(credential.applicationId),
-        (old) => (old ? old.map((c) => (c._id === credential._id ? credential : c)) : [credential])
+        (old) => (old ? old.map((c) => (c._id === credential._id ? credential : c)) : [credential]),
       );
       // A rotation writes the `rotated` row AND the replacement's `created` row,
       // so an open trail is stale the instant this lands. Invalidated for both
@@ -300,7 +299,7 @@ const CREDENTIAL_AUDIT_LIMIT = 50;
 export function useCredentialAudit(
   appId: string,
   credentialId: string | undefined,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -311,7 +310,7 @@ export function useCredentialAudit(
         'GET',
         `/applications/${appId}/credentials/${credentialId ?? ''}/audit`,
         { limit: CREDENTIAL_AUDIT_LIMIT },
-        { cache: false }
+        { cache: false },
       ),
     enabled: isReady && isAuthenticated && !!appId && !!credentialId && enabled,
     staleTime: 1000 * 30,
@@ -337,10 +336,8 @@ export function useRevokeCredential() {
     onSuccess: ({ appId, credentialId }) => {
       queryClient.setQueryData<Array<ApplicationCredential>>(queryKeys.credentials(appId), (old) =>
         old
-          ? old.map((c) =>
-              c._id === credentialId ? { ...c, status: 'revoked' as const } : c
-            )
-          : []
+          ? old.map((c) => (c._id === credentialId ? { ...c, status: 'revoked' as const } : c))
+          : [],
       );
       // The revoke writes a `revoked` row; an open trail must show it.
       queryClient.invalidateQueries({ queryKey: queryKeys.credentialAudit(appId, credentialId) });
@@ -428,7 +425,7 @@ export interface CallerAccess {
 
 function buildCallerAccess(
   membership: AccountMember | undefined,
-  isResolved: boolean
+  isResolved: boolean,
 ): CallerAccess {
   const permissions = new Set<string>(membership?.permissions ?? []);
   return {

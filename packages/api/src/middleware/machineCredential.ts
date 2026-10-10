@@ -174,7 +174,7 @@ function touchLastUsed(credentialId: string, lastUsedAt: Date | null): void {
       logger.error(
         'Failed to refresh machine credential last_used_at',
         error instanceof Error ? error : new Error(String(error)),
-        { component: 'machineCredential', credentialId }
+        { component: 'machineCredential', credentialId },
       );
     });
 }
@@ -188,7 +188,7 @@ function touchLastUsed(credentialId: string, lastUsedAt: Date | null): void {
  * inference edge adds cannot get the principal without the trail.
  */
 export async function resolveMachineCredential(
-  token: string
+  token: string,
 ): Promise<MachineCredentialResolution> {
   const tokenPrefix = machineCredentialTokenPrefix(token);
   if (!tokenPrefix) {
@@ -205,8 +205,8 @@ export async function resolveMachineCredential(
     .where(
       and(
         eq(applicationCredentials.tokenPrefix, tokenPrefix),
-        eq(applicationCredentials.type, 'machine')
-      )
+        eq(applicationCredentials.type, 'machine'),
+      ),
     )
     .limit(1);
 
@@ -218,7 +218,7 @@ export async function resolveMachineCredential(
 
   const failure = async (
     reason: CredentialValidationFailureReason,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<MachineCredentialResolution> => {
     await recordCredentialValidationFailure({
       applicationId: credential.applicationId,

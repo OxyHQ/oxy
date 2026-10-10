@@ -133,17 +133,21 @@ afterAll(async () => {
 describe('startup gate', () => {
   // MUST stay first — see the header: a published pool makes the unreachable
   // case unrepresentable.
-  it('rejects and does NOT listen while the database is unreachable', async () => {
-    expect(server.listening).toBe(false);
+  it(
+    'rejects and does NOT listen while the database is unreachable',
+    async () => {
+      expect(server.listening).toBe(false);
 
-    await expect(bootstrap(SHORT_STARTUP_DEADLINE_MS)).rejects.toThrow(
-      /PostgreSQL connection timeout/,
-    );
+      await expect(bootstrap(SHORT_STARTUP_DEADLINE_MS)).rejects.toThrow(
+        /PostgreSQL connection timeout/,
+      );
 
-    // The whole point: the gate rejected and nothing is accepting connections.
-    // A `server.listen` that escaped the await fails HERE.
-    expect(server.listening).toBe(false);
-  }, SLOW_STEP_TIMEOUT_MS);
+      // The whole point: the gate rejected and nothing is accepting connections.
+      // A `server.listen` that escaped the await fails HERE.
+      expect(server.listening).toBe(false);
+    },
+    SLOW_STEP_TIMEOUT_MS,
+  );
 
   it(
     'listens once the database answers, and the seeds chained behind it have run',

@@ -3,7 +3,9 @@ import type { OxyServices } from '@oxy.so/core';
 
 export function classifyApplicationSessionLane(metadata: unknown): 'device' | 'oauth' {
   const application = publicApplicationSchema.parse(metadata);
-  return application.type === 'third_party' && !application.isOfficial && !application.isInternal ? 'oauth' : 'device';
+  return application.type === 'third_party' && !application.isOfficial && !application.isInternal
+    ? 'oauth'
+    : 'device';
 }
 
 export const APPLICATION_CLASSIFICATION_DEADLINE_MS = 5000;
@@ -19,8 +21,15 @@ export async function resolveApplicationSessionLane(
   try {
     const metadata = await Promise.race([
       oxyServices.apps.getPublic(clientId, { cache: false }),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Application classification timed out')), APPLICATION_CLASSIFICATION_DEADLINE_MS); }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Application classification timed out')),
+          APPLICATION_CLASSIFICATION_DEADLINE_MS,
+        );
+      }),
     ]);
     return classifyApplicationSessionLane(metadata);
-  } finally { if (timer !== undefined) clearTimeout(timer); }
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }

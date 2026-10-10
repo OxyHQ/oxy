@@ -136,7 +136,13 @@ export default function ApproveSignInScreen() {
     content = (
       <View className="px-5 py-2">
         <EmptyState
-          illustration={<AppIcon name={approved ? 'checkCircle' : 'blocked'} size="3xl" fill={approved ? colors.success : colors.textSecondary} />}
+          illustration={
+            <AppIcon
+              name={approved ? 'checkCircle' : 'blocked'}
+              size="3xl"
+              fill={approved ? colors.success : colors.textSecondary}
+            />
+          }
           title={
             approved
               ? t('signInApproval.approve.approvedTitle')
@@ -209,20 +215,14 @@ export default function ApproveSignInScreen() {
     actions = [
       {
         label: t(
-          confirming
-            ? 'signInApproval.approve.confirming'
-            : 'signInApproval.approve.confirm',
+          confirming ? 'signInApproval.approve.confirming' : 'signInApproval.approve.confirm',
         ),
         onPress: confirm,
         shouldCloseOnPress: false,
         disabled: busy,
       },
       {
-        label: t(
-          rejecting
-            ? 'signInApproval.approve.rejecting'
-            : 'signInApproval.approve.reject',
-        ),
+        label: t(rejecting ? 'signInApproval.approve.rejecting' : 'signInApproval.approve.reject'),
         onPress: reject,
         shouldCloseOnPress: false,
         color: 'destructive',

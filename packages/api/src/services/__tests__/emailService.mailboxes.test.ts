@@ -22,8 +22,12 @@ jest.mock('../inboxRealtime', () => ({
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: { unlinkFile: jest.fn() } }));
@@ -149,10 +153,14 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
     const folder = await emailService.createMailbox(userId, `Flags-${unique()}`);
 
     const messageId = await store(userId, folder.id, { size: 50, seen: false });
-    expect((await emailService.listMailboxes(userId)).find((m) => m.id === folder.id)?.unseenMessages).toBe(1);
+    expect(
+      (await emailService.listMailboxes(userId)).find((m) => m.id === folder.id)?.unseenMessages,
+    ).toBe(1);
 
     await emailService.updateMessageFlags(userId, messageId, { seen: true });
-    expect((await emailService.listMailboxes(userId)).find((m) => m.id === folder.id)?.unseenMessages).toBe(0);
+    expect(
+      (await emailService.listMailboxes(userId)).find((m) => m.id === folder.id)?.unseenMessages,
+    ).toBe(0);
   });
 
   it('follows a move between folders on both sides at once', async () => {
@@ -200,7 +208,9 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
   it('refuses to delete a system folder', async () => {
     const userId = await owner();
     await emailService.provisionMailboxes(userId);
-    const inbox = (await emailService.listMailboxes(userId)).find((m) => m.specialUse === '\\Inbox');
+    const inbox = (await emailService.listMailboxes(userId)).find(
+      (m) => m.specialUse === '\\Inbox',
+    );
     if (!inbox) throw new Error('no inbox');
 
     await expect(emailService.deleteMailbox(userId, inbox.id)).rejects.toThrow(/system mailbox/);
@@ -219,7 +229,15 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
     const listed = await emailService.listMailboxes(userId);
 
     expect(listed.map((m) => m.specialUse)).toEqual(
-      expect.arrayContaining(['\\Inbox', '\\Sent', '\\Drafts', '\\Trash', '\\Junk', '\\Archive', '\\Snoozed']),
+      expect.arrayContaining([
+        '\\Inbox',
+        '\\Sent',
+        '\\Drafts',
+        '\\Trash',
+        '\\Junk',
+        '\\Archive',
+        '\\Snoozed',
+      ]),
     );
   });
 
@@ -229,7 +247,9 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
     // deleted". Exact counts on both sides, read back after the delete.
     const userId = await owner();
     await emailService.provisionMailboxes(userId);
-    const archive = (await emailService.listMailboxes(userId)).find((m) => m.specialUse === '\\Archive');
+    const archive = (await emailService.listMailboxes(userId)).find(
+      (m) => m.specialUse === '\\Archive',
+    );
     if (!archive) throw new Error('no archive');
     const created = await emailService.createMailbox(userId, `Temp-${unique()}`);
     const kept = [

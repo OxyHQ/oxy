@@ -10,7 +10,11 @@ const withOxyAppPreset = require('../plugin/withOxyAppPreset');
 function fakeApp() {
   const root = mkdtempSync(join(tmpdir(), 'oxy-preset-app-'));
   mkdirSync(join(root, 'node_modules', '@oxy.so'), { recursive: true });
-  symlinkSync(resolve(__dirname, '../../services'), join(root, 'node_modules', '@oxy.so', 'services'), 'dir');
+  symlinkSync(
+    resolve(__dirname, '../../services'),
+    join(root, 'node_modules', '@oxy.so', 'services'),
+    'dir',
+  );
   return root;
 }
 
@@ -21,7 +25,11 @@ async function runManifestMods(config, manifest) {
   const result = await mod({
     ...config,
     modResults: { manifest },
-    modRequest: { platform: 'android', modName: 'manifest', projectRoot: config._internal.projectRoot },
+    modRequest: {
+      platform: 'android',
+      modName: 'manifest',
+      projectRoot: config._internal.projectRoot,
+    },
   });
   return result.modResults.manifest;
 }
@@ -33,7 +41,10 @@ test('every Oxy app declares and requests both signature permissions, and never 
       { name: 'app', _internal: { projectRoot: root } },
       { ios: false, android: false },
     );
-    const manifest = await runManifestMods(config, { $: { 'xmlns:android': 'http://schemas.android.com/apk/res/android' }, application: [{}] });
+    const manifest = await runManifestMods(config, {
+      $: { 'xmlns:android': 'http://schemas.android.com/apk/res/android' },
+      application: [{}],
+    });
 
     assert.equal(manifest.$['android:sharedUserId'], undefined);
     assert.equal(manifest.$['android:sharedUserMaxSdkVersion'], undefined);
@@ -41,7 +52,9 @@ test('every Oxy app declares and requests both signature permissions, and never 
 
     for (const name of ['so.oxy.permission.IDENTITY', 'so.oxy.permission.DEVICE_SESSION']) {
       assert.deepEqual(
-        manifest.permission.filter((p) => p.$['android:name'] === name).map((p) => p.$['android:protectionLevel']),
+        manifest.permission
+          .filter((p) => p.$['android:name'] === name)
+          .map((p) => p.$['android:protectionLevel']),
         ['signature'],
         `${name} is declared once, at signature level`,
       );
@@ -69,9 +82,18 @@ test('every Oxy app declares and requests both signature permissions, and never 
 
 test('the removed sharedUserId and sharedIdentityReader options throw', () => {
   const config = { name: 'app', _internal: { projectRoot: join(tmpdir(), 'no-such-app') } };
-  assert.throws(() => withOxyAppPreset(config, { sharedUserId: 'so.oxy.shared' }), /`sharedUserId` option was removed/);
-  assert.throws(() => withOxyAppPreset(config, { sharedUserId: false }), /`sharedUserId` option was removed/);
-  assert.throws(() => withOxyAppPreset(config, { sharedIdentityReader: false }), /`sharedIdentityReader` option was removed/);
+  assert.throws(
+    () => withOxyAppPreset(config, { sharedUserId: 'so.oxy.shared' }),
+    /`sharedUserId` option was removed/,
+  );
+  assert.throws(
+    () => withOxyAppPreset(config, { sharedUserId: false }),
+    /`sharedUserId` option was removed/,
+  );
+  assert.throws(
+    () => withOxyAppPreset(config, { sharedIdentityReader: false }),
+    /`sharedIdentityReader` option was removed/,
+  );
 });
 
 test('the preset no longer ships a withSharedUserId plugin', () => {

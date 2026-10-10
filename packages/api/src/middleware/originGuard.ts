@@ -34,7 +34,10 @@ type GuardVerdict =
   | { allowed: true }
   | { allowed: false; reason: 'origin_not_allowlisted' | 'sec_fetch_site_cross_site' };
 
-function evaluateRequest(origin: string | undefined, secFetchSite: string | undefined): GuardVerdict {
+function evaluateRequest(
+  origin: string | undefined,
+  secFetchSite: string | undefined,
+): GuardVerdict {
   if (origin !== undefined) {
     return isAllowedOrigin(origin)
       ? { allowed: true }

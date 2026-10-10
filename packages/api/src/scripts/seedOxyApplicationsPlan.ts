@@ -100,7 +100,9 @@ function normalizeWebsiteUrl(value: string | null | undefined): string | null {
   return value ?? null;
 }
 
-export function readSeedApplicationState(application: ReadableSeedApplication): SeedApplicationState {
+export function readSeedApplicationState(
+  application: ReadableSeedApplication,
+): SeedApplicationState {
   return {
     description: application.description ?? '',
     websiteUrl: normalizeWebsiteUrl(application.websiteUrl),

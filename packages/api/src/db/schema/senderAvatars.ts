@@ -73,10 +73,10 @@ export const senderAvatars = pgTable(
     check(
       'sender_avatars_source_check',
       sql`${t.source} in (${sql.raw(
-        SENDER_AVATAR_SOURCES.map((value) => `'${value}'`).join(', ')
-      )})`
+        SENDER_AVATAR_SOURCES.map((value) => `'${value}'`).join(', '),
+      )})`,
     ),
-  ]
+  ],
 );
 
 /**

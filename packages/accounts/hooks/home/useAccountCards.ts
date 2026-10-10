@@ -22,21 +22,31 @@ export function useAccountCards({
   const colors = useColors();
   const { t } = useTranslation();
 
-  return useMemo<AccountInfoCard[]>(() => [
-    {
-      id: 'name',
-      icon: 'account-outline',
-      iconColor: colors.sidebarIconPersonalInfo,
-      title: t('home.accountInfo.fullName'),
-      value: displayName,
-      onPress: handleEditName,
-    },
-    {
-      id: 'created',
-      icon: 'calendar-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('home.accountInfo.accountCreated'),
-      value: accountCreatedDate || '—',
-    },
-  ], [colors.sidebarIconPersonalInfo, colors.sidebarIconData, displayName, accountCreatedDate, handleEditName, t]);
+  return useMemo<AccountInfoCard[]>(
+    () => [
+      {
+        id: 'name',
+        icon: 'account-outline',
+        iconColor: colors.sidebarIconPersonalInfo,
+        title: t('home.accountInfo.fullName'),
+        value: displayName,
+        onPress: handleEditName,
+      },
+      {
+        id: 'created',
+        icon: 'calendar-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('home.accountInfo.accountCreated'),
+        value: accountCreatedDate || '—',
+      },
+    ],
+    [
+      colors.sidebarIconPersonalInfo,
+      colors.sidebarIconData,
+      displayName,
+      accountCreatedDate,
+      handleEditName,
+      t,
+    ],
+  );
 }

@@ -1,12 +1,6 @@
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import {
-    View,
-    StyleSheet,
-    ActivityIndicator,
-    Linking,
-    Platform,
-} from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import { toast } from '@oxy.so/bloom/toast';
 import { surfaces } from '@oxy.so/bloom/surfaces';
@@ -14,12 +8,12 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import {
-    getAccountDisplayName,
-    getAccountFallbackHandle,
-    getNormalizedUserHandle,
-    logger as loggerUtil,
-    packageInfo,
-    type DeviceLinkedSession,
+  getAccountDisplayName,
+  getAccountFallbackHandle,
+  getNormalizedUserHandle,
+  logger as loggerUtil,
+  packageInfo,
+  type DeviceLinkedSession,
 } from '@oxy.so/core';
 import type { BaseScreenProps } from '../types/navigation';
 import ProfileSummaryCard from '../components/ProfileSummaryCard';
@@ -40,32 +34,32 @@ type DeviceSessionRow = DeviceLinkedSession;
 const AVATAR_SIZE = 88;
 
 const formatRelative = (dateString?: string): string => {
-    if (!dateString) {
-        return '—';
-    }
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = date.getTime() - now.getTime();
-    const absMin = Math.abs(diffMs) / 60000;
-    const isFuture = diffMs > 0;
-    if (absMin < 1) {
-        return isFuture ? 'in moments' : 'just now';
-    }
-    if (absMin < 60) {
-        const v = Math.floor(absMin);
-        return isFuture ? `in ${v}m` : `${v}m ago`;
-    }
-    const hrs = absMin / 60;
-    if (hrs < 24) {
-        const v = Math.floor(hrs);
-        return isFuture ? `in ${v}h` : `${v}h ago`;
-    }
-    const days = hrs / 24;
-    if (days < 7) {
-        const v = Math.floor(days);
-        return isFuture ? `in ${v}d` : `${v}d ago`;
-    }
-    return date.toLocaleDateString();
+  if (!dateString) {
+    return '—';
+  }
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const absMin = Math.abs(diffMs) / 60000;
+  const isFuture = diffMs > 0;
+  if (absMin < 1) {
+    return isFuture ? 'in moments' : 'just now';
+  }
+  if (absMin < 60) {
+    const v = Math.floor(absMin);
+    return isFuture ? `in ${v}m` : `${v}m ago`;
+  }
+  const hrs = absMin / 60;
+  if (hrs < 24) {
+    const v = Math.floor(hrs);
+    return isFuture ? `in ${v}h` : `${v}h ago`;
+  }
+  const days = hrs / 24;
+  if (days < 7) {
+    const v = Math.floor(days);
+    return isFuture ? `in ${v}d` : `${v}d ago`;
+  }
+  return date.toLocaleDateString();
 };
 
 /**
@@ -76,844 +70,628 @@ const formatRelative = (dateString?: string): string => {
  * device, and security/destructive actions for THIS account. Multi-account
  * surface lives in the unified `OxyAccountDialogScreen` — keep these concerns separate.
  */
-const ManageAccountScreen: React.FC<BaseScreenProps> = ({
-    onClose,
-    goBack,
-    navigate,
-}) => {
-    const bloomTheme = useTheme();
-    const { t, locale } = useI18n();
+const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navigate }) => {
+  const bloomTheme = useTheme();
+  const { t, locale } = useI18n();
 
-    useSurfaceHeader({ title: t('manageAccount.title') || 'Manage your Oxy Account' });
-    const {
-        user: contextUser,
-        isAuthenticated,
-        oxyServices,
-        activeSessionId,
-        logout,
-        openAvatarPicker,
-        accounts,
-        openAccountDialog,
-        hasIdentity,
-    } = useOxy();
+  useSurfaceHeader({ title: t('manageAccount.title') || 'Manage your Oxy Account' });
+  const {
+    user: contextUser,
+    isAuthenticated,
+    oxyServices,
+    activeSessionId,
+    logout,
+    openAvatarPicker,
+    accounts,
+    openAccountDialog,
+    hasIdentity,
+  } = useOxy();
 
-    const { data: userFromQuery, isLoading: userLoading } = useCurrentUser({
-        enabled: isAuthenticated,
+  const { data: userFromQuery, isLoading: userLoading } = useCurrentUser({
+    enabled: isAuthenticated,
+  });
+  // `user` IS the active account. In the real-session switch model, switching
+  // into an org/project/bot makes it the active session, so `useOxy().user`
+  // (and the freshest `useCurrentUser` copy) already reflects the switched
+  // account everywhere — identity-of-me surfaces and management/GDPR actions
+  // alike read this single `user`.
+  const user = userFromQuery ?? contextUser;
+
+  const { data: subscription } = useUserSubscription({ enabled: isAuthenticated });
+  const {
+    data: deviceSessions,
+    isLoading: deviceSessionsLoading,
+    refetch: refetchDeviceSessions,
+  } = useDeviceSessions({ enabled: isAuthenticated && !!activeSessionId });
+
+  const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
+  const [signingOutAllDevices, setSigningOutAllDevices] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const displayName = useMemo(
+    () =>
+      user?.name?.displayName ??
+      getNormalizedUserHandle(user) ??
+      getAccountDisplayName(null, locale),
+    [user, locale],
+  );
+  const handle = useMemo(() => getAccountFallbackHandle(user), [user]);
+  const avatarUri = useMemo(() => {
+    return user?.avatar ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined;
+  }, [user?.avatar, oxyServices]);
+
+  const handleSignOut = useCallback(async () => {
+    if (signingOut) {
+      return;
+    }
+    const confirmed = await surfaces.confirm({
+      title: t('common.actions.signOut') || 'Sign out',
+      description: t('common.confirms.signOut') || 'Are you sure you want to sign out?',
+      confirmLabel: t('common.actions.signOut') || 'Sign out',
+      cancelLabel: t('common.cancel') || 'Cancel',
+      destructive: true,
     });
-    // `user` IS the active account. In the real-session switch model, switching
-    // into an org/project/bot makes it the active session, so `useOxy().user`
-    // (and the freshest `useCurrentUser` copy) already reflects the switched
-    // account everywhere — identity-of-me surfaces and management/GDPR actions
-    // alike read this single `user`.
-    const user = userFromQuery ?? contextUser;
-
-    const { data: subscription } = useUserSubscription({ enabled: isAuthenticated });
-    const {
-        data: deviceSessions,
-        isLoading: deviceSessionsLoading,
-        refetch: refetchDeviceSessions,
-    } = useDeviceSessions({ enabled: isAuthenticated && !!activeSessionId });
-
-    const [removingDeviceId, setRemovingDeviceId] = useState<string | null>(null);
-    const [signingOutAllDevices, setSigningOutAllDevices] = useState(false);
-    const [signingOut, setSigningOut] = useState(false);
-
-    const displayName = useMemo(
-        () =>
-            user?.name?.displayName ??
-            getNormalizedUserHandle(user) ??
-            getAccountDisplayName(null, locale),
-        [user, locale],
-    );
-    const handle = useMemo(() => getAccountFallbackHandle(user), [user]);
-    const avatarUri = useMemo(() => {
-        return user?.avatar
-            ? oxyServices.assets.publicUrl(user.avatar, 'thumb')
-            : undefined;
-    }, [user?.avatar, oxyServices]);
-
-    const handleSignOut = useCallback(async () => {
-        if (signingOut) {
-            return;
-        }
-        const confirmed = await surfaces.confirm({
-            title: t('common.actions.signOut') || 'Sign out',
-            description: t('common.confirms.signOut') || 'Are you sure you want to sign out?',
-            confirmLabel: t('common.actions.signOut') || 'Sign out',
-            cancelLabel: t('common.cancel') || 'Cancel',
-            destructive: true,
-        });
-        if (!confirmed) {
-            return;
-        }
-        setSigningOut(true);
-        try {
-            await logout();
-            toast.success(t('common.actions.signedOut') || 'Signed out');
-            onClose?.();
-        } catch (error) {
-            loggerUtil.warn('Sign out failed', { component: 'ManageAccountScreen' }, error as unknown);
-            toast.error(t('common.errors.signOutFailed') || 'Failed to sign out');
-        } finally {
-            setSigningOut(false);
-        }
-    }, [signingOut, logout, t, onClose]);
-
-    const confirmRemoveDevice = useCallback(async (device: DeviceSessionRow) => {
-        if (!activeSessionId) {
-            return;
-        }
-        const confirmed = await surfaces.confirm({
-            title: t('manageAccount.confirms.removeDeviceTitle') || 'Remove device',
-            description:
-                t('manageAccount.confirms.removeDevice', { name: deviceSessionTitle(device, t) }),
-            confirmLabel: t('common.remove') || 'Remove',
-            cancelLabel: t('common.cancel') || 'Cancel',
-            destructive: true,
-        });
-        if (!confirmed) {
-            return;
-        }
-        setRemovingDeviceId(device.sessionId);
-        try {
-            await oxyServices.session.logout(activeSessionId, device.sessionId);
-            await refetchDeviceSessions();
-            toast.success(
-                t('manageAccount.toasts.deviceRemoved', { name: deviceSessionTitle(device, t) }),
-            );
-        } catch (error) {
-            loggerUtil.warn('Remove device failed', { component: 'ManageAccountScreen' }, error as unknown);
-            toast.error(t('manageAccount.toasts.deviceRemoveFailed') || 'Failed to remove device');
-        } finally {
-            setRemovingDeviceId(null);
-        }
-    }, [activeSessionId, oxyServices, refetchDeviceSessions, t]);
-
-    const handleSignOutAllDevices = useCallback(async () => {
-        if (!activeSessionId || signingOutAllDevices) {
-            return;
-        }
-        const otherDeviceCount = ((deviceSessions ?? []) as DeviceSessionRow[]).filter(
-            (device) => !device.isCurrent,
-        ).length;
-        const confirmed = await surfaces.confirm({
-            title: t('manageAccount.confirms.signOutAllDevicesTitle') || 'Sign out of all other devices',
-            description:
-                t('manageAccount.confirms.signOutAllDevices', { count: otherDeviceCount })
-                || `End ${otherDeviceCount} other device session(s)? This won't sign you out here.`,
-            confirmLabel: t('common.actions.signOut') || 'Sign out',
-            cancelLabel: t('common.cancel') || 'Cancel',
-            destructive: true,
-        });
-        if (!confirmed) {
-            return;
-        }
-        setSigningOutAllDevices(true);
-        try {
-            await oxyServices.devices.logoutAll(activeSessionId);
-            await refetchDeviceSessions();
-            toast.success(
-                t('manageAccount.toasts.allDevicesSignedOut')
-                || 'Signed out from all other devices',
-            );
-        } catch (error) {
-            loggerUtil.warn('Sign out all devices failed', { component: 'ManageAccountScreen' }, error as unknown);
-            toast.error(
-                t('manageAccount.toasts.allDevicesFailed')
-                || 'Failed to sign out from other devices',
-            );
-        } finally {
-            setSigningOutAllDevices(false);
-        }
-    }, [activeSessionId, signingOutAllDevices, deviceSessions, oxyServices, refetchDeviceSessions, t]);
-
-    // The signed, open-format export (`GET /users/me/export`): one JSON bundle
-    // carrying Oxy's provenance attestation — the "credible exit" snapshot.
-    const handleDownloadData = useCallback(
-        async () => {
-            if (!user) {
-                toast.error(
-                    t('accountOverview.items.downloadData.error') || 'Service not available',
-                );
-                return;
-            }
-            try {
-                toast.info(
-                    t('accountOverview.items.downloadData.downloading')
-                    || 'Preparing download...',
-                );
-                const bundle = await oxyServices.identity.export();
-                if (Platform.OS === 'web') {
-                    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `oxy-export-${Date.now()}.json`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                }
-                toast.success(
-                    t('accountOverview.items.downloadData.success')
-                    || 'Data downloaded successfully',
-                );
-            } catch (error) {
-                loggerUtil.warn(
-                    'Download account data failed',
-                    { component: 'ManageAccountScreen' },
-                    error as unknown,
-                );
-                toast.error(
-                    (error instanceof Error ? error.message : null)
-                    || t('accountOverview.items.downloadData.error')
-                    || 'Failed to download data',
-                );
-            }
-        },
-        [oxyServices, user, t],
-    );
-
-    // Runs the actual deletion from inside the delete-account surface; it throws
-    // on failure so the surface can surface the error and stay open. Sign-out +
-    // close happen in `handleDeleteAccount` once the surface resolves `true`.
-    const handleConfirmDelete = useCallback(
-        async (confirmText: string) => {
-            if (!user) {
-                throw new Error(
-                    t('accountOverview.items.deleteAccount.error')
-                    || 'Service not available',
-                );
-            }
-            // Native deletion is signed with the identity key held on this device.
-            await oxyServices.users.deleteMe(confirmText, { deviceKey: true });
-            toast.success(
-                t('accountOverview.items.deleteAccount.success')
-                || 'Account deleted successfully',
-            );
-        },
-        [oxyServices, user, t],
-    );
-
-    const handleDeleteAccount = useCallback(async () => {
-        if (!user) {
-            toast.error(
-                t('accountOverview.items.deleteAccount.error') || 'User not available',
-            );
-            return;
-        }
-        // An account without a key confirms its deletion with a code by email,
-        // right here; the panel also tells a keyed account on the web where its
-        // key is.
-        if (!user.publicKey || isWebBrowser()) {
-            navigate?.('DeleteAccount');
-            return;
-        }
-        // Native: the deletion is signed with the identity key. When this app
-        // does not hold it (Commons keeps it on this device, or it lives on
-        // another device), hand off to where it can be signed instead of
-        // failing inside the confirmation surface.
-        const route = await runAccountDeletionHandoff({
-            hasIdentity,
-            canOpenURL: (url) => Linking.canOpenURL(url),
-            openURL: (url) => Linking.openURL(url),
-            t,
-        });
-        if (route !== 'local') {
-            return;
-        }
-        const deleted = await presentDeleteAccount({
-            username: user.username || '',
-            onDelete: handleConfirmDelete,
-            t,
-        });
-        if (deleted) {
-            await logout();
-            onClose?.();
-        }
-    }, [user, t, handleConfirmDelete, hasIdentity, logout, onClose, navigate]);
-
-    if (!isAuthenticated) {
-        return (
-            <>
-                <View className="items-center py-space-40">
-                    <Text className="text-text font-medium text-base">
-                        {t('common.status.notSignedIn') || 'Not signed in'}
-                    </Text>
-                </View>
-            </>
-        );
+    if (!confirmed) {
+      return;
     }
-
-    if (userLoading && !user) {
-        return (
-            <>
-                <View className="items-center py-space-40">
-                    <ActivityIndicator color={bloomTheme.colors.primary} size="large" />
-                </View>
-            </>
-        );
+    setSigningOut(true);
+    try {
+      await logout();
+      toast.success(t('common.actions.signedOut') || 'Signed out');
+      onClose?.();
+    } catch (error) {
+      loggerUtil.warn('Sign out failed', { component: 'ManageAccountScreen' }, error as unknown);
+      toast.error(t('common.errors.signOutFailed') || 'Failed to sign out');
+    } finally {
+      setSigningOut(false);
     }
+  }, [signingOut, logout, t, onClose]);
 
-    const deviceRows: DeviceSessionRow[] = (deviceSessions ?? []) as DeviceSessionRow[];
-    const otherDevices = deviceRows.filter((d) => !d.isCurrent);
+  const confirmRemoveDevice = useCallback(
+    async (device: DeviceSessionRow) => {
+      if (!activeSessionId) {
+        return;
+      }
+      const confirmed = await surfaces.confirm({
+        title: t('manageAccount.confirms.removeDeviceTitle') || 'Remove device',
+        description: t('manageAccount.confirms.removeDevice', {
+          name: deviceSessionTitle(device, t),
+        }),
+        confirmLabel: t('common.remove') || 'Remove',
+        cancelLabel: t('common.cancel') || 'Cancel',
+        destructive: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+      setRemovingDeviceId(device.sessionId);
+      try {
+        await oxyServices.session.logout(activeSessionId, device.sessionId);
+        await refetchDeviceSessions();
+        toast.success(
+          t('manageAccount.toasts.deviceRemoved', { name: deviceSessionTitle(device, t) }),
+        );
+      } catch (error) {
+        loggerUtil.warn(
+          'Remove device failed',
+          { component: 'ManageAccountScreen' },
+          error as unknown,
+        );
+        toast.error(t('manageAccount.toasts.deviceRemoveFailed') || 'Failed to remove device');
+      } finally {
+        setRemovingDeviceId(null);
+      }
+    },
+    [activeSessionId, oxyServices, refetchDeviceSessions, t],
+  );
 
+  const handleSignOutAllDevices = useCallback(async () => {
+    if (!activeSessionId || signingOutAllDevices) {
+      return;
+    }
+    const otherDeviceCount = ((deviceSessions ?? []) as DeviceSessionRow[]).filter(
+      (device) => !device.isCurrent,
+    ).length;
+    const confirmed = await surfaces.confirm({
+      title: t('manageAccount.confirms.signOutAllDevicesTitle') || 'Sign out of all other devices',
+      description:
+        t('manageAccount.confirms.signOutAllDevices', { count: otherDeviceCount }) ||
+        `End ${otherDeviceCount} other device session(s)? This won't sign you out here.`,
+      confirmLabel: t('common.actions.signOut') || 'Sign out',
+      cancelLabel: t('common.cancel') || 'Cancel',
+      destructive: true,
+    });
+    if (!confirmed) {
+      return;
+    }
+    setSigningOutAllDevices(true);
+    try {
+      await oxyServices.devices.logoutAll(activeSessionId);
+      await refetchDeviceSessions();
+      toast.success(
+        t('manageAccount.toasts.allDevicesSignedOut') || 'Signed out from all other devices',
+      );
+    } catch (error) {
+      loggerUtil.warn(
+        'Sign out all devices failed',
+        { component: 'ManageAccountScreen' },
+        error as unknown,
+      );
+      toast.error(
+        t('manageAccount.toasts.allDevicesFailed') || 'Failed to sign out from other devices',
+      );
+    } finally {
+      setSigningOutAllDevices(false);
+    }
+  }, [
+    activeSessionId,
+    signingOutAllDevices,
+    deviceSessions,
+    oxyServices,
+    refetchDeviceSessions,
+    t,
+  ]);
+
+  // The signed, open-format export (`GET /users/me/export`): one JSON bundle
+  // carrying Oxy's provenance attestation — the "credible exit" snapshot.
+  const handleDownloadData = useCallback(async () => {
+    if (!user) {
+      toast.error(t('accountOverview.items.downloadData.error') || 'Service not available');
+      return;
+    }
+    try {
+      toast.info(t('accountOverview.items.downloadData.downloading') || 'Preparing download...');
+      const bundle = await oxyServices.identity.export();
+      if (Platform.OS === 'web') {
+        const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `oxy-export-${Date.now()}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+      toast.success(
+        t('accountOverview.items.downloadData.success') || 'Data downloaded successfully',
+      );
+    } catch (error) {
+      loggerUtil.warn(
+        'Download account data failed',
+        { component: 'ManageAccountScreen' },
+        error as unknown,
+      );
+      toast.error(
+        (error instanceof Error ? error.message : null) ||
+          t('accountOverview.items.downloadData.error') ||
+          'Failed to download data',
+      );
+    }
+  }, [oxyServices, user, t]);
+
+  // Runs the actual deletion from inside the delete-account surface; it throws
+  // on failure so the surface can surface the error and stay open. Sign-out +
+  // close happen in `handleDeleteAccount` once the surface resolves `true`.
+  const handleConfirmDelete = useCallback(
+    async (confirmText: string) => {
+      if (!user) {
+        throw new Error(t('accountOverview.items.deleteAccount.error') || 'Service not available');
+      }
+      // Native deletion is signed with the identity key held on this device.
+      await oxyServices.users.deleteMe(confirmText, { deviceKey: true });
+      toast.success(
+        t('accountOverview.items.deleteAccount.success') || 'Account deleted successfully',
+      );
+    },
+    [oxyServices, user, t],
+  );
+
+  const handleDeleteAccount = useCallback(async () => {
+    if (!user) {
+      toast.error(t('accountOverview.items.deleteAccount.error') || 'User not available');
+      return;
+    }
+    // An account without a key confirms its deletion with a code by email,
+    // right here; the panel also tells a keyed account on the web where its
+    // key is.
+    if (!user.publicKey || isWebBrowser()) {
+      navigate?.('DeleteAccount');
+      return;
+    }
+    // Native: the deletion is signed with the identity key. When this app
+    // does not hold it (Commons keeps it on this device, or it lives on
+    // another device), hand off to where it can be signed instead of
+    // failing inside the confirmation surface.
+    const route = await runAccountDeletionHandoff({
+      hasIdentity,
+      canOpenURL: (url) => Linking.canOpenURL(url),
+      openURL: (url) => Linking.openURL(url),
+      t,
+    });
+    if (route !== 'local') {
+      return;
+    }
+    const deleted = await presentDeleteAccount({
+      username: user.username || '',
+      onDelete: handleConfirmDelete,
+      t,
+    });
+    if (deleted) {
+      await logout();
+      onClose?.();
+    }
+  }, [user, t, handleConfirmDelete, hasIdentity, logout, onClose, navigate]);
+
+  if (!isAuthenticated) {
     return (
-        <>
-            <View className="px-screen-margin pb-space-24">
-                {/* Profile card */}
-                <ProfileSummaryCard
-                    displayName={displayName}
-                    avatarUri={avatarUri}
-                    avatarSize={AVATAR_SIZE}
-                    onAvatarPress={openAvatarPicker}
-                    showCameraBadge
-                    avatarAccessibilityLabel={t('editProfile.changeAvatar') || 'Change avatar'}
-                    lines={[
-                        handle ? (user?.username ? `@${handle}` : handle) : null,
-                        user?.email || null,
-                    ]}
-                />
-
-                {/* Profile section */}
-                <SettingsListGroup title={t('manageAccount.sections.profile') || 'Profile'}>
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="account-circle"
-                                color={bloomTheme.colors.primary}
-                            />
-                        }
-                        title={t('manageAccount.items.editProfile.title') || 'Edit profile'}
-                        description={
-                            t('manageAccount.items.editProfile.subtitle')
-                            || 'Name, username, bio, links'
-                        }
-                        onPress={() => navigate?.('EditProfile')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="palette"
-                                color={bloomTheme.colors.info}
-                            />
-                        }
-                        title={t('manageAccount.items.theme.title') || 'Theme color'}
-                        description={
-                            t('manageAccount.items.theme.subtitle')
-                            || 'Personalize your Bloom color'
-                        }
-                        onPress={() => navigate?.('Preferences')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="eye"
-                                color={bloomTheme.colors.success}
-                            />
-                        }
-                        title={t('editProfile.items.previewProfile.title') || 'Preview profile'}
-                        description={
-                            t('editProfile.items.previewProfile.subtitle')
-                            || 'See how your profile looks to others'
-                        }
-                        onPress={() =>
-                            user?.id ? navigate?.('Profile', { userId: user.id }) : undefined
-                        }
-                        disabled={!user?.id}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="check-circle"
-                                color={bloomTheme.colors.primary}
-                            />
-                        }
-                        title={
-                            t('editProfile.items.verifyAccount.title') || 'Verify account'
-                        }
-                        description={
-                            t('editProfile.items.verifyAccount.subtitle')
-                            || 'Get a verified badge'
-                        }
-                        onPress={() => navigate?.('AccountVerification')}
-                    />
-                </SettingsListGroup>
-
-                {/* Sessions section */}
-                <SettingsListGroup
-                    title={t('manageAccount.sections.sessions') || 'Sessions & devices'}
-                >
-                    {deviceSessionsLoading ? (
-                        <SettingsListItem
-                            icon={
-                                <SettingsIcon name="sync" color={bloomTheme.colors.primary} />
-                            }
-                            title={
-                                t('manageAccount.sessions.loading') || 'Loading sessions…'
-                            }
-                            rightElement={
-                                <ActivityIndicator
-                                    color={bloomTheme.colors.primary}
-                                    size="small"
-                                />
-                            }
-                            showChevron={false}
-                            disabled
-                        />
-                    ) : deviceRows.length === 0 ? (
-                        <SettingsListItem
-                            icon={
-                                <SettingsIcon
-                                    name="cellphone"
-                                    color={bloomTheme.colors.textTertiary}
-                                />
-                            }
-                            title={t('manageAccount.sessions.empty') || 'No active sessions'}
-                            showChevron={false}
-                            disabled
-                        />
-                    ) : (
-                        deviceRows.map((device) => (
-                            <SettingsListItem
-                                key={`device-${device.sessionId}`}
-                                icon={
-                                    <SettingsIcon
-                                        name={device.isCurrent ? 'cellphone' : 'cellphone-basic'}
-                                        color={
-                                            device.isCurrent
-                                                ? bloomTheme.colors.success
-                                                : bloomTheme.colors.primary
-                                        }
-                                    />
-                                }
-                                title={deviceSessionTitle(device, t)}
-                                description={
-                                    t('manageAccount.sessions.lastActive', {
-                                        relative: formatRelative(device.lastActive),
-                                    }) || `Last active ${formatRelative(device.lastActive)}`
-                                }
-                                onPress={
-                                    device.isCurrent
-                                        ? undefined
-                                        : () => confirmRemoveDevice(device)
-                                }
-                                disabled={
-                                    device.isCurrent
-                                    || removingDeviceId === device.sessionId
-                                }
-                                rightElement={
-                                    !device.isCurrent ? (
-                                        removingDeviceId === device.sessionId ? (
-                                            <ActivityIndicator
-                                                color={bloomTheme.colors.error}
-                                                size="small"
-                                            />
-                                        ) : (
-                                            <Ionicons
-                                                name="log-out-outline"
-                                                size={18}
-                                                color={bloomTheme.colors.error}
-                                            />
-                                        )
-                                    ) : undefined
-                                }
-                                showChevron={false}
-                            />
-                        ))
-                    )}
-                    {otherDevices.length > 0 ? (
-                        <SettingsListItem
-                            icon={
-                                <SettingsIcon
-                                    name="logout"
-                                    color={bloomTheme.colors.error}
-                                />
-                            }
-                            title={
-                                t('manageAccount.sessions.signOutAllOnThisDevice')
-                                || 'Sign out of all other devices'
-                            }
-                            description={
-                                t('manageAccount.sessions.signOutAllSubtitle', {
-                                    count: otherDevices.length,
-                                })
-                                || `End ${otherDevices.length} other device session(s)`
-                            }
-                            onPress={handleSignOutAllDevices}
-                            destructive
-                            showChevron={false}
-                            disabled={signingOutAllDevices}
-                            rightElement={
-                                signingOutAllDevices ? (
-                                    <ActivityIndicator
-                                        color={bloomTheme.colors.error}
-                                        size="small"
-                                    />
-                                ) : undefined
-                            }
-                        />
-                    ) : null}
-                </SettingsListGroup>
-
-                {/* Security section */}
-                <SettingsListGroup
-                    title={t('manageAccount.sections.security') || 'Security'}
-                >
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="shield-check"
-                                color={bloomTheme.colors.primary}
-                            />
-                        }
-                        title={
-                            t('manageAccount.items.security.title') || 'Security settings'
-                        }
-                        description={
-                            t('manageAccount.items.security.subtitle')
-                            || 'Password, 2FA, recovery'
-                        }
-                        onPress={() => navigate?.('PrivacySettings')}
-                    />
-                    {user && !user.publicKey ? (
-                        <>
-                            <SettingsListItem
-                                icon={<SettingsIcon name="key" color={bloomTheme.colors.primary} />}
-                                title={t('signInSecurity.password.title')}
-                                description={t('signInSecurity.password.row')}
-                                onPress={() => navigate?.('SignInPassword')}
-                            />
-                            <SettingsListItem
-                                icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
-                                title={t('signInSecurity.totp.title')}
-                                description={t('signInSecurity.totp.row')}
-                                onPress={() => navigate?.('SignInAuthenticator')}
-                            />
-                            <SettingsListItem
-                                icon={<SettingsIcon name="link" color={bloomTheme.colors.primary} />}
-                                title={t('linkCommons.title')}
-                                description={t('linkCommons.row')}
-                                onPress={() => navigate?.('LinkCommons')}
-                            />
-                        </>
-                    ) : null}
-                    {user?.isPremium || subscription?.status === 'active' ? (
-                        <SettingsListItem
-                            icon={
-                                <SettingsIcon
-                                    name="credit-card"
-                                    color={bloomTheme.colors.success}
-                                />
-                            }
-                            title={
-                                t('manageAccount.items.billing.title') || 'Billing'
-                            }
-                            description={
-                                t('manageAccount.items.billing.subtitle')
-                                || 'Manage subscription and payment methods'
-                            }
-                            onPress={() => navigate?.('PaymentGateway')}
-                        />
-                    ) : null}
-                </SettingsListGroup>
-
-                {/* Account & data */}
-                <SettingsListGroup
-                    title={t('accountOverview.sections.quickActions') || 'Account & data'}
-                >
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="clock" color={bloomTheme.colors.primary} />
-                        }
-                        title={t('accountOverview.items.history.title') || 'History'}
-                        description={
-                            t('accountOverview.items.history.subtitle')
-                            || 'View and manage your search history'
-                        }
-                        onPress={() => navigate?.('HistoryView')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="folder" color={bloomTheme.colors.info} />
-                        }
-                        title={
-                            t('accountCenter.items.fileManagement.title') || 'Files'
-                        }
-                        description={
-                            t('accountCenter.items.fileManagement.subtitle')
-                            || 'Upload, download, and manage your files'
-                        }
-                        onPress={() => navigate?.('FileManagement')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="download"
-                                color={bloomTheme.colors.primary}
-                            />
-                        }
-                        title={
-                            t('accountOverview.items.downloadData.title')
-                            || 'Download your data'
-                        }
-                        description={
-                            t('accountOverview.items.downloadData.subtitle')
-                            || 'Export a copy of your account data'
-                        }
-                        onPress={handleDownloadData}
-                    />
-                </SettingsListGroup>
-
-                {/* Accounts (unified account graph) */}
-                {accounts.length > 0 || isAuthenticated ? (
-                    <SettingsListGroup
-                        title={
-                            t('accountCenter.sections.accounts')
-                            || 'Accounts'
-                        }
-                    >
-                        <SettingsListItem
-                            icon={
-                                <SettingsIcon
-                                    name="account-switch"
-                                    color={bloomTheme.colors.info}
-                                />
-                            }
-                            title={
-                                t('accounts.manage.switch.title')
-                                || 'Switch account'
-                            }
-                            description={
-                                accounts.length > 0
-                                    ? (
-                                        // One account is "1 account", not "1 accounts".
-                                        t(
-                                            accounts.length === 1
-                                                ? 'accounts.manage.switch.countOne'
-                                                : 'accounts.manage.switch.count',
-                                            { count: accounts.length },
-                                        )
-                                    )
-                                    : (
-                                        t('accounts.manage.switch.empty')
-                                        || 'Accounts you own or share'
-                                    )
-                            }
-                            onPress={() => openAccountDialog('accounts')}
-                        />
-                        <SettingsListItem
-                            icon={
-                                <SettingsIcon
-                                    name="account-plus"
-                                    color={bloomTheme.colors.primary}
-                                />
-                            }
-                            title={
-                                t('accounts.create.title')
-                                || 'Create account'
-                            }
-                            description={
-                                t('accounts.manage.create.subtitle')
-                                || 'Add an organization, project, or bot'
-                            }
-                            onPress={() => navigate?.('CreateAccount')}
-                        />
-                    </SettingsListGroup>
-                ) : null}
-
-                {/* Preferences */}
-                <SettingsListGroup
-                    title={t('manageAccount.sections.preferences') || 'Preferences'}
-                >
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="cog" color={bloomTheme.colors.info} />
-                        }
-                        title={t('preferences.title') || 'Preferences'}
-                        description={
-                            t('preferences.subtitle')
-                            || 'Theme, motion, and regional settings'
-                        }
-                        onPress={() => navigate?.('Preferences')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="bell" color={bloomTheme.colors.primary} />
-                        }
-                        title={t('notifications.title') || 'Notifications'}
-                        description={
-                            t('notifications.subtitle')
-                            || 'Manage push, email, and security alerts'
-                        }
-                        onPress={() => navigate?.('Notifications')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="translate" color={bloomTheme.colors.primary} />
-                        }
-                        title={t('language.title') || 'Language'}
-                        description={
-                            t('language.subtitle') || 'Choose your preferred language'
-                        }
-                        onPress={() => navigate?.('LanguageSelector')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="apps" color={bloomTheme.colors.info} />
-                        }
-                        title={t('connectedApps.title') || 'Connected apps'}
-                        description={
-                            t('connectedApps.subtitle')
-                            || 'Manage third-party app access'
-                        }
-                        onPress={() => navigate?.('ConnectedApps')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="web" color={bloomTheme.colors.success} />
-                        }
-                        title={t('domains.title')}
-                        description={t('domains.subtitle')}
-                        onPress={() => navigate?.('Domains')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="magnify" color={bloomTheme.colors.primary} />
-                        }
-                        title={
-                            t('accountOverview.items.searchSettings.title') || 'Search settings'
-                        }
-                        description={
-                            t('accountOverview.items.searchSettings.subtitle')
-                            || 'SafeSearch and personalization'
-                        }
-                        onPress={() => navigate?.('SearchSettings')}
-                    />
-                </SettingsListGroup>
-
-                {/* Support */}
-                <SettingsListGroup
-                    title={t('accountOverview.sections.support') || 'Support'}
-                >
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="help-circle" color={bloomTheme.colors.primary} />
-                        }
-                        title={t('accountOverview.items.help.title') || 'Help & support'}
-                        description={
-                            t('accountOverview.items.help.subtitle')
-                            || 'Get help and contact support'
-                        }
-                        onPress={() => navigate?.('HelpSupport')}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="information" color={bloomTheme.colors.success} />
-                        }
-                        title={t('accountOverview.items.about.title') || 'About'}
-                        description={
-                            t('accountOverview.items.about.subtitle')
-                            || 'Version and system details'
-                        }
-                        onPress={() => navigate?.('AppInfo')}
-                    />
-                </SettingsListGroup>
-
-                {/* Legal */}
-                <SettingsListGroup
-                    title={t('manageAccount.sections.legal') || 'Legal'}
-                >
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="shield-check"
-                                color={bloomTheme.colors.primary}
-                            />
-                        }
-                        title={
-                            t('accountOverview.items.privacyPolicy.title') || 'Privacy policy'
-                        }
-                        description={
-                            t('accountOverview.items.privacyPolicy.subtitle')
-                            || 'How we handle your data'
-                        }
-                        onPress={() => navigate?.('LegalDocuments', { initialStep: 1 })}
-                    />
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon
-                                name="file-document"
-                                color={bloomTheme.colors.primary}
-                            />
-                        }
-                        title={
-                            t('accountOverview.items.termsOfService.title') || 'Terms of service'
-                        }
-                        description={
-                            t('accountOverview.items.termsOfService.subtitle')
-                            || 'Terms and conditions of use'
-                        }
-                        onPress={() => navigate?.('LegalDocuments', { initialStep: 2 })}
-                    />
-                </SettingsListGroup>
-
-                {/* Danger zone */}
-                <SettingsListGroup
-                    title={t('manageAccount.sections.dangerZone') || 'Danger zone'}
-                >
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="delete" color={bloomTheme.colors.error} />
-                        }
-                        title={
-                            t('accountOverview.items.deleteAccount.title') || 'Delete account'
-                        }
-                        description={
-                            t('accountOverview.items.deleteAccount.subtitle')
-                            || 'Permanently delete your account and all data'
-                        }
-                        onPress={handleDeleteAccount}
-                        destructive
-                    />
-                </SettingsListGroup>
-
-                {/* Sign out of this account */}
-                <SettingsListGroup>
-                    <SettingsListItem
-                        icon={
-                            <SettingsIcon name="logout" color={bloomTheme.colors.error} />
-                        }
-                        title={
-                            t('manageAccount.signOutOfThisAccount')
-                            || 'Sign out of this account'
-                        }
-                        onPress={handleSignOut}
-                        destructive
-                        showChevron={false}
-                        disabled={signingOut}
-                        rightElement={
-                            signingOut ? (
-                                <ActivityIndicator
-                                    color={bloomTheme.colors.error}
-                                    size="small"
-                                />
-                            ) : undefined
-                        }
-                    />
-                </SettingsListGroup>
-
-                <View className="items-center mt-space-12 mb-space-8">
-                    <Text className="text-text-tertiary text-xs">
-                        {t('accountCenter.version', { version: packageInfo.version })
-                            || `Version ${packageInfo.version}`}
-                    </Text>
-                </View>
-
-                <View style={styles.footerSpacer} />
-            </View>
-        </>
+      <>
+        <View className="items-center py-space-40">
+          <Text className="text-text font-medium text-base">
+            {t('common.status.notSignedIn') || 'Not signed in'}
+          </Text>
+        </View>
+      </>
     );
+  }
+
+  if (userLoading && !user) {
+    return (
+      <>
+        <View className="items-center py-space-40">
+          <ActivityIndicator color={bloomTheme.colors.primary} size="large" />
+        </View>
+      </>
+    );
+  }
+
+  const deviceRows: DeviceSessionRow[] = (deviceSessions ?? []) as DeviceSessionRow[];
+  const otherDevices = deviceRows.filter((d) => !d.isCurrent);
+
+  return (
+    <>
+      <View className="px-screen-margin pb-space-24">
+        {/* Profile card */}
+        <ProfileSummaryCard
+          displayName={displayName}
+          avatarUri={avatarUri}
+          avatarSize={AVATAR_SIZE}
+          onAvatarPress={openAvatarPicker}
+          showCameraBadge
+          avatarAccessibilityLabel={t('editProfile.changeAvatar') || 'Change avatar'}
+          lines={[handle ? (user?.username ? `@${handle}` : handle) : null, user?.email || null]}
+        />
+
+        {/* Profile section */}
+        <SettingsListGroup title={t('manageAccount.sections.profile') || 'Profile'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="account-circle" color={bloomTheme.colors.primary} />}
+            title={t('manageAccount.items.editProfile.title') || 'Edit profile'}
+            description={
+              t('manageAccount.items.editProfile.subtitle') || 'Name, username, bio, links'
+            }
+            onPress={() => navigate?.('EditProfile')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="palette" color={bloomTheme.colors.info} />}
+            title={t('manageAccount.items.theme.title') || 'Theme color'}
+            description={t('manageAccount.items.theme.subtitle') || 'Personalize your Bloom color'}
+            onPress={() => navigate?.('Preferences')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="eye" color={bloomTheme.colors.success} />}
+            title={t('editProfile.items.previewProfile.title') || 'Preview profile'}
+            description={
+              t('editProfile.items.previewProfile.subtitle') ||
+              'See how your profile looks to others'
+            }
+            onPress={() => (user?.id ? navigate?.('Profile', { userId: user.id }) : undefined)}
+            disabled={!user?.id}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="check-circle" color={bloomTheme.colors.primary} />}
+            title={t('editProfile.items.verifyAccount.title') || 'Verify account'}
+            description={t('editProfile.items.verifyAccount.subtitle') || 'Get a verified badge'}
+            onPress={() => navigate?.('AccountVerification')}
+          />
+        </SettingsListGroup>
+
+        {/* Sessions section */}
+        <SettingsListGroup title={t('manageAccount.sections.sessions') || 'Sessions & devices'}>
+          {deviceSessionsLoading ? (
+            <SettingsListItem
+              icon={<SettingsIcon name="sync" color={bloomTheme.colors.primary} />}
+              title={t('manageAccount.sessions.loading') || 'Loading sessions…'}
+              rightElement={<ActivityIndicator color={bloomTheme.colors.primary} size="small" />}
+              showChevron={false}
+              disabled
+            />
+          ) : deviceRows.length === 0 ? (
+            <SettingsListItem
+              icon={<SettingsIcon name="cellphone" color={bloomTheme.colors.textTertiary} />}
+              title={t('manageAccount.sessions.empty') || 'No active sessions'}
+              showChevron={false}
+              disabled
+            />
+          ) : (
+            deviceRows.map((device) => (
+              <SettingsListItem
+                key={`device-${device.sessionId}`}
+                icon={
+                  <SettingsIcon
+                    name={device.isCurrent ? 'cellphone' : 'cellphone-basic'}
+                    color={device.isCurrent ? bloomTheme.colors.success : bloomTheme.colors.primary}
+                  />
+                }
+                title={deviceSessionTitle(device, t)}
+                description={
+                  t('manageAccount.sessions.lastActive', {
+                    relative: formatRelative(device.lastActive),
+                  }) || `Last active ${formatRelative(device.lastActive)}`
+                }
+                onPress={device.isCurrent ? undefined : () => confirmRemoveDevice(device)}
+                disabled={device.isCurrent || removingDeviceId === device.sessionId}
+                rightElement={
+                  !device.isCurrent ? (
+                    removingDeviceId === device.sessionId ? (
+                      <ActivityIndicator color={bloomTheme.colors.error} size="small" />
+                    ) : (
+                      <Ionicons name="log-out-outline" size={18} color={bloomTheme.colors.error} />
+                    )
+                  ) : undefined
+                }
+                showChevron={false}
+              />
+            ))
+          )}
+          {otherDevices.length > 0 ? (
+            <SettingsListItem
+              icon={<SettingsIcon name="logout" color={bloomTheme.colors.error} />}
+              title={
+                t('manageAccount.sessions.signOutAllOnThisDevice') ||
+                'Sign out of all other devices'
+              }
+              description={
+                t('manageAccount.sessions.signOutAllSubtitle', {
+                  count: otherDevices.length,
+                }) || `End ${otherDevices.length} other device session(s)`
+              }
+              onPress={handleSignOutAllDevices}
+              destructive
+              showChevron={false}
+              disabled={signingOutAllDevices}
+              rightElement={
+                signingOutAllDevices ? (
+                  <ActivityIndicator color={bloomTheme.colors.error} size="small" />
+                ) : undefined
+              }
+            />
+          ) : null}
+        </SettingsListGroup>
+
+        {/* Security section */}
+        <SettingsListGroup title={t('manageAccount.sections.security') || 'Security'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
+            title={t('manageAccount.items.security.title') || 'Security settings'}
+            description={t('manageAccount.items.security.subtitle') || 'Password, 2FA, recovery'}
+            onPress={() => navigate?.('PrivacySettings')}
+          />
+          {user && !user.publicKey ? (
+            <>
+              <SettingsListItem
+                icon={<SettingsIcon name="key" color={bloomTheme.colors.primary} />}
+                title={t('signInSecurity.password.title')}
+                description={t('signInSecurity.password.row')}
+                onPress={() => navigate?.('SignInPassword')}
+              />
+              <SettingsListItem
+                icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
+                title={t('signInSecurity.totp.title')}
+                description={t('signInSecurity.totp.row')}
+                onPress={() => navigate?.('SignInAuthenticator')}
+              />
+              <SettingsListItem
+                icon={<SettingsIcon name="link" color={bloomTheme.colors.primary} />}
+                title={t('linkCommons.title')}
+                description={t('linkCommons.row')}
+                onPress={() => navigate?.('LinkCommons')}
+              />
+            </>
+          ) : null}
+          {user?.isPremium || subscription?.status === 'active' ? (
+            <SettingsListItem
+              icon={<SettingsIcon name="credit-card" color={bloomTheme.colors.success} />}
+              title={t('manageAccount.items.billing.title') || 'Billing'}
+              description={
+                t('manageAccount.items.billing.subtitle') ||
+                'Manage subscription and payment methods'
+              }
+              onPress={() => navigate?.('PaymentGateway')}
+            />
+          ) : null}
+        </SettingsListGroup>
+
+        {/* Account & data */}
+        <SettingsListGroup title={t('accountOverview.sections.quickActions') || 'Account & data'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="clock" color={bloomTheme.colors.primary} />}
+            title={t('accountOverview.items.history.title') || 'History'}
+            description={
+              t('accountOverview.items.history.subtitle') || 'View and manage your search history'
+            }
+            onPress={() => navigate?.('HistoryView')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="folder" color={bloomTheme.colors.info} />}
+            title={t('accountCenter.items.fileManagement.title') || 'Files'}
+            description={
+              t('accountCenter.items.fileManagement.subtitle') ||
+              'Upload, download, and manage your files'
+            }
+            onPress={() => navigate?.('FileManagement')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="download" color={bloomTheme.colors.primary} />}
+            title={t('accountOverview.items.downloadData.title') || 'Download your data'}
+            description={
+              t('accountOverview.items.downloadData.subtitle') ||
+              'Export a copy of your account data'
+            }
+            onPress={handleDownloadData}
+          />
+        </SettingsListGroup>
+
+        {/* Accounts (unified account graph) */}
+        {accounts.length > 0 || isAuthenticated ? (
+          <SettingsListGroup title={t('accountCenter.sections.accounts') || 'Accounts'}>
+            <SettingsListItem
+              icon={<SettingsIcon name="account-switch" color={bloomTheme.colors.info} />}
+              title={t('accounts.manage.switch.title') || 'Switch account'}
+              description={
+                accounts.length > 0
+                  ? // One account is "1 account", not "1 accounts".
+                    t(
+                      accounts.length === 1
+                        ? 'accounts.manage.switch.countOne'
+                        : 'accounts.manage.switch.count',
+                      { count: accounts.length },
+                    )
+                  : t('accounts.manage.switch.empty') || 'Accounts you own or share'
+              }
+              onPress={() => openAccountDialog('accounts')}
+            />
+            <SettingsListItem
+              icon={<SettingsIcon name="account-plus" color={bloomTheme.colors.primary} />}
+              title={t('accounts.create.title') || 'Create account'}
+              description={
+                t('accounts.manage.create.subtitle') || 'Add an organization, project, or bot'
+              }
+              onPress={() => navigate?.('CreateAccount')}
+            />
+          </SettingsListGroup>
+        ) : null}
+
+        {/* Preferences */}
+        <SettingsListGroup title={t('manageAccount.sections.preferences') || 'Preferences'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="cog" color={bloomTheme.colors.info} />}
+            title={t('preferences.title') || 'Preferences'}
+            description={t('preferences.subtitle') || 'Theme, motion, and regional settings'}
+            onPress={() => navigate?.('Preferences')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="bell" color={bloomTheme.colors.primary} />}
+            title={t('notifications.title') || 'Notifications'}
+            description={t('notifications.subtitle') || 'Manage push, email, and security alerts'}
+            onPress={() => navigate?.('Notifications')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="translate" color={bloomTheme.colors.primary} />}
+            title={t('language.title') || 'Language'}
+            description={t('language.subtitle') || 'Choose your preferred language'}
+            onPress={() => navigate?.('LanguageSelector')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="apps" color={bloomTheme.colors.info} />}
+            title={t('connectedApps.title') || 'Connected apps'}
+            description={t('connectedApps.subtitle') || 'Manage third-party app access'}
+            onPress={() => navigate?.('ConnectedApps')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="web" color={bloomTheme.colors.success} />}
+            title={t('domains.title')}
+            description={t('domains.subtitle')}
+            onPress={() => navigate?.('Domains')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="magnify" color={bloomTheme.colors.primary} />}
+            title={t('accountOverview.items.searchSettings.title') || 'Search settings'}
+            description={
+              t('accountOverview.items.searchSettings.subtitle') || 'SafeSearch and personalization'
+            }
+            onPress={() => navigate?.('SearchSettings')}
+          />
+        </SettingsListGroup>
+
+        {/* Support */}
+        <SettingsListGroup title={t('accountOverview.sections.support') || 'Support'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="help-circle" color={bloomTheme.colors.primary} />}
+            title={t('accountOverview.items.help.title') || 'Help & support'}
+            description={t('accountOverview.items.help.subtitle') || 'Get help and contact support'}
+            onPress={() => navigate?.('HelpSupport')}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="information" color={bloomTheme.colors.success} />}
+            title={t('accountOverview.items.about.title') || 'About'}
+            description={t('accountOverview.items.about.subtitle') || 'Version and system details'}
+            onPress={() => navigate?.('AppInfo')}
+          />
+        </SettingsListGroup>
+
+        {/* Legal */}
+        <SettingsListGroup title={t('manageAccount.sections.legal') || 'Legal'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="shield-check" color={bloomTheme.colors.primary} />}
+            title={t('accountOverview.items.privacyPolicy.title') || 'Privacy policy'}
+            description={
+              t('accountOverview.items.privacyPolicy.subtitle') || 'How we handle your data'
+            }
+            onPress={() => navigate?.('LegalDocuments', { initialStep: 1 })}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="file-document" color={bloomTheme.colors.primary} />}
+            title={t('accountOverview.items.termsOfService.title') || 'Terms of service'}
+            description={
+              t('accountOverview.items.termsOfService.subtitle') || 'Terms and conditions of use'
+            }
+            onPress={() => navigate?.('LegalDocuments', { initialStep: 2 })}
+          />
+        </SettingsListGroup>
+
+        {/* Danger zone */}
+        <SettingsListGroup title={t('manageAccount.sections.dangerZone') || 'Danger zone'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="delete" color={bloomTheme.colors.error} />}
+            title={t('accountOverview.items.deleteAccount.title') || 'Delete account'}
+            description={
+              t('accountOverview.items.deleteAccount.subtitle') ||
+              'Permanently delete your account and all data'
+            }
+            onPress={handleDeleteAccount}
+            destructive
+          />
+        </SettingsListGroup>
+
+        {/* Sign out of this account */}
+        <SettingsListGroup>
+          <SettingsListItem
+            icon={<SettingsIcon name="logout" color={bloomTheme.colors.error} />}
+            title={t('manageAccount.signOutOfThisAccount') || 'Sign out of this account'}
+            onPress={handleSignOut}
+            destructive
+            showChevron={false}
+            disabled={signingOut}
+            rightElement={
+              signingOut ? (
+                <ActivityIndicator color={bloomTheme.colors.error} size="small" />
+              ) : undefined
+            }
+          />
+        </SettingsListGroup>
+
+        <View className="items-center mt-space-12 mb-space-8">
+          <Text className="text-text-tertiary text-xs">
+            {t('accountCenter.version', { version: packageInfo.version }) ||
+              `Version ${packageInfo.version}`}
+          </Text>
+        </View>
+
+        <View style={styles.footerSpacer} />
+      </View>
+    </>
+  );
 };
 
 // Layout-only styles: flex centering, the absolutely-positioned avatar badge,
@@ -921,9 +699,9 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
 // spacing, radius, and typography roles live on Bloom components + NativeWind
 // token classes.
 const styles = StyleSheet.create({
-    footerSpacer: {
-        height: 24,
-    },
+  footerSpacer: {
+    height: 24,
+  },
 });
 
 export default ManageAccountScreen;

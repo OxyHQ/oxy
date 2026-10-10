@@ -69,9 +69,7 @@ const CENSOR = '[redacted]';
 const pinoLogger = pino({
   level: process.env.LOG_LEVEL || (isDev ? 'debug' : 'info'),
   redact: { paths: REDACTED_PATHS, censor: CENSOR },
-  ...(isDev
-    ? { transport: { target: 'pino-pretty', options: { colorize: true } } }
-    : {}),
+  ...(isDev ? { transport: { target: 'pino-pretty', options: { colorize: true } } } : {}),
 });
 
 export enum LogLevel {

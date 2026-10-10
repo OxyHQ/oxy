@@ -78,10 +78,10 @@ export const serviceActingAsRevocations = pgTable(
     // and the verify path's existence check cannot be defeated by a duplicate.
     unique('service_acting_as_revocations_user_id_application_id_key').on(
       t.userId,
-      t.applicationId
+      t.applicationId,
     ),
     // The reverse direction the unique above cannot serve, and the index
     // Postgres needs to cascade an application delete without a table scan.
     index('service_acting_as_revocations_application_id_idx').on(t.applicationId),
-  ]
+  ],
 );

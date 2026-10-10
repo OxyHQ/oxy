@@ -20,7 +20,12 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface ServiceLane {
   /** Whether a service token can be minted here (a key pair, or workload identity). */
   readonly available: boolean;
-  request<T>(method: HttpMethod, url: string, data?: unknown, options?: RequestOptions & { actAs?: string }): Promise<T>;
+  request<T>(
+    method: HttpMethod,
+    url: string,
+    data?: unknown,
+    options?: RequestOptions & { actAs?: string },
+  ): Promise<T>;
 }
 
 export interface OxyContext {

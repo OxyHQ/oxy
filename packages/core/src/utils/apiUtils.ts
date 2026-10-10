@@ -53,10 +53,10 @@ export function buildSearchParams<T extends object>(params: T): URLSearchParams 
  */
 export function buildUrl<T extends object>(baseUrl: string, params?: T): string {
   if (!params) return baseUrl;
-  
+
   const searchParams = buildSearchParams(params);
   const queryString = searchParams.toString();
-  
+
   return queryString ? `${baseUrl}?${queryString}` : baseUrl;
 }
 
@@ -134,4 +134,4 @@ export function safeJsonParse<T>(data: unknown, fallback: T): T {
     }
   }
   return data as T;
-} 
+}

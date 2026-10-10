@@ -9,7 +9,10 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
   const { translate } = jest.requireActual('@oxy.so/core');
   return {
     __esModule: true,
-    useI18n: () => ({ t: (key: string, vars?: Record<string, string | number>) => translate('en-US', key, vars), locale: 'en-US' }),
+    useI18n: () => ({
+      t: (key: string, vars?: Record<string, string | number>) => translate('en-US', key, vars),
+      locale: 'en-US',
+    }),
   };
 });
 
@@ -39,7 +42,14 @@ const principals = [
 ];
 
 const renderPicker = (props: Partial<React.ComponentProps<typeof OxyAccountPicker>> = {}) =>
-  render(<OxyAccountPicker principals={principals} onSelectContext={jest.fn()} onUseAnother={jest.fn()} {...props} />);
+  render(
+    <OxyAccountPicker
+      principals={principals}
+      onSelectContext={jest.fn()}
+      onUseAnother={jest.fn()}
+      {...props}
+    />,
+  );
 
 it('checks the current account in its avatar, and only that one', () => {
   renderPicker();
@@ -54,8 +64,12 @@ it('marks no account current where this origin is signed out', () => {
   expect(document.querySelector('[data-icon="check"]')).toBeNull();
 });
 
-it("spins on the row being activated, and nowhere else", () => {
+it('spins on the row being activated, and nowhere else', () => {
   renderPicker({ pendingContextId: 'c2', isLoading: true });
-  expect(screen.getByRole('button', { name: 'Grace' }).querySelector('[data-testid="spinner-icon"]')).not.toBeNull();
-  expect(screen.getByRole('button', { name: 'Ada' }).querySelector('[data-testid="spinner-icon"]')).toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'Grace' }).querySelector('[data-testid="spinner-icon"]'),
+  ).not.toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'Ada' }).querySelector('[data-testid="spinner-icon"]'),
+  ).toBeNull();
 });

@@ -195,45 +195,50 @@ export const authSessions = pgTable(
 
     check(
       'auth_sessions_status_check',
-      sql`${t.status} in (${sql.raw(AUTH_SESSION_STATUSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.status} in (${sql.raw(AUTH_SESSION_STATUSES.map((value) => `'${value}'`).join(', '))})`,
     ),
-    index('auth_sessions_approved_by_session_idx').on(t.approvedBySessionId).where(sql`${t.approvedBySessionId} is not null`),
-    check('auth_sessions_approved_by_purpose_check', sql`${t.approvedBySessionId} is null or ${t.purpose} = 'oauth_authorization'`),
+    index('auth_sessions_approved_by_session_idx')
+      .on(t.approvedBySessionId)
+      .where(sql`${t.approvedBySessionId} is not null`),
+    check(
+      'auth_sessions_approved_by_purpose_check',
+      sql`${t.approvedBySessionId} is null or ${t.purpose} = 'oauth_authorization'`,
+    ),
     check(
       'auth_sessions_purpose_check',
-      sql`${t.purpose} in (${sql.raw(AUTH_SESSION_PURPOSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.purpose} in (${sql.raw(AUTH_SESSION_PURPOSES.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'auth_sessions_denied_reason_check',
-      sql`${t.deniedReason} in (${sql.raw(COMMONS_DENY_REASONS.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.deniedReason} in (${sql.raw(COMMONS_DENY_REASONS.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'auth_sessions_oauth_code_challenge_method_check',
-      sql`${t.oauthCodeChallengeMethod} in (${sql.raw(AUTH_SESSION_CHALLENGE_METHODS.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.oauthCodeChallengeMethod} in (${sql.raw(AUTH_SESSION_CHALLENGE_METHODS.map((value) => `'${value}'`).join(', '))})`,
     ),
     // The binding is present as a WHOLE or absent as a whole — the schema-level
     // statement of what the Mongoose sub-schema achieved by staying `undefined`.
     check(
       'auth_sessions_oauth_binding_check',
       sql`(${t.oauthRedirectUri} is null and ${t.oauthCodeChallenge} is null and ${t.oauthCodeChallengeMethod} is null and ${t.oauthScopes} is null)
-        or (${t.oauthRedirectUri} is not null and ${t.oauthCodeChallenge} is not null and ${t.oauthCodeChallengeMethod} is not null and ${t.oauthScopes} is not null)`
+        or (${t.oauthRedirectUri} is not null and ${t.oauthCodeChallenge} is not null and ${t.oauthCodeChallengeMethod} is not null and ${t.oauthScopes} is not null)`,
     ),
     // …and it belongs to exactly one purpose. A device-sign-in row carrying an
     // OAuth binding, or an `oauth_authorization` row carrying none, is a request
     // no path can finalize — `resolveOAuthContext` refuses both.
     check(
       'auth_sessions_oauth_purpose_check',
-      sql`(${t.purpose} = 'oauth_authorization') = (${t.oauthRedirectUri} is not null)`
+      sql`(${t.purpose} = 'oauth_authorization') = (${t.oauthRedirectUri} is not null)`,
     ),
     // A delegated subject only means something inside a bound request.
     check(
       'auth_sessions_oauth_subject_requires_binding_check',
-      sql`${t.oauthSubjectAccountId} is null or ${t.oauthRedirectUri} is not null`
+      sql`${t.oauthSubjectAccountId} is null or ${t.oauthRedirectUri} is not null`,
     ),
     // The fail-closed length guard Mongoose declared as `maxlength: 64`.
     check(
       'auth_sessions_requester_label_length_check',
-      sql`${t.requesterLabel} is null or char_length(${t.requesterLabel}) <= ${sql.raw(String(AUTH_SESSION_REQUESTER_LABEL_MAX_LENGTH))}`
+      sql`${t.requesterLabel} is null or char_length(${t.requesterLabel}) <= ${sql.raw(String(AUTH_SESSION_REQUESTER_LABEL_MAX_LENGTH))}`,
     ),
-  ]
+  ],
 );

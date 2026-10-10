@@ -92,15 +92,25 @@ describe('findExistingDeviceId', () => {
     expect(await findExistingDeviceId(fp, user)).toBe(newer);
   });
 
-  it('scopes to the user when one is supplied — never another account\'s device', async () => {
+  it("scopes to the user when one is supplied — never another account's device", async () => {
     const fp = fingerprint();
     const mine = await account();
     const theirs = await account();
     const myDevice = deviceId();
     const theirDevice = deviceId();
     // Their session is MORE recent, so an unscoped query would return it.
-    await session({ userId: mine, deviceId: myDevice, deviceFingerprint: fp, lastActiveAt: new Date(Date.now() - HOUR_MS) });
-    await session({ userId: theirs, deviceId: theirDevice, deviceFingerprint: fp, lastActiveAt: new Date() });
+    await session({
+      userId: mine,
+      deviceId: myDevice,
+      deviceFingerprint: fp,
+      lastActiveAt: new Date(Date.now() - HOUR_MS),
+    });
+    await session({
+      userId: theirs,
+      deviceId: theirDevice,
+      deviceFingerprint: fp,
+      lastActiveAt: new Date(),
+    });
 
     expect(await findExistingDeviceId(fp, mine)).toBe(myDevice);
   });
@@ -109,7 +119,12 @@ describe('findExistingDeviceId', () => {
     const inactiveFp = fingerprint();
     const expiredFp = fingerprint();
     const user = await account();
-    await session({ userId: user, deviceId: deviceId(), deviceFingerprint: inactiveFp, isActive: false });
+    await session({
+      userId: user,
+      deviceId: deviceId(),
+      deviceFingerprint: inactiveFp,
+      isActive: false,
+    });
     await session({
       userId: user,
       deviceId: deviceId(),

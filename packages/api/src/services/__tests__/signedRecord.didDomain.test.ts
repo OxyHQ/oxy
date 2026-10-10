@@ -34,7 +34,6 @@ import { repoHeads } from '../../db/schema/repoHeads';
 import { signedRecords } from '../../db/schema/signedRecords';
 import { users } from '../../db/schema/users';
 
-
 /** A wall-clock base every envelope's `issuedAt` is offset from. */
 const T0 = 1_700_000_000_000;
 
@@ -94,7 +93,7 @@ describe('the signed-record adapter under DID_WEB_DOMAIN=api.oxy.so', () => {
   function envelopeFor(
     subject: Signer,
     did: string,
-    overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {}
+    overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {},
   ): SignedRecordEnvelope {
     return service.signRecordEnvelope(
       {
@@ -112,7 +111,7 @@ describe('the signed-record adapter under DID_WEB_DOMAIN=api.oxy.so', () => {
         alg: 'ES256K-DER-SHA256',
         ...overrides,
       },
-      subject.privateKey
+      subject.privateKey,
     );
   }
 
@@ -167,7 +166,11 @@ describe('the signed-record adapter under DID_WEB_DOMAIN=api.oxy.so', () => {
     if (!extensionOutcome.ok) return;
 
     const rows = await getDb()
-      .select({ seq: signedRecords.seq, prev: signedRecords.prev, subjectDid: signedRecords.subjectDid })
+      .select({
+        seq: signedRecords.seq,
+        prev: signedRecords.prev,
+        subjectDid: signedRecords.subjectDid,
+      })
       .from(signedRecords)
       .where(eq(signedRecords.userId, subject.userId))
       .orderBy(asc(signedRecords.seq));
@@ -179,7 +182,11 @@ describe('the signed-record adapter under DID_WEB_DOMAIN=api.oxy.so', () => {
     // ONE head, at the second record — two chains would have shown up as two
     // rows here, and the unique `user_id` would have refused the second write.
     const heads = await getDb()
-      .select({ seq: repoHeads.seq, headRecordId: repoHeads.headRecordId, recordCount: repoHeads.recordCount })
+      .select({
+        seq: repoHeads.seq,
+        headRecordId: repoHeads.headRecordId,
+        recordCount: repoHeads.recordCount,
+      })
       .from(repoHeads)
       .where(eq(repoHeads.userId, subject.userId));
     expect(heads).toEqual([
@@ -227,7 +234,7 @@ describe('the signed-record adapter under DID_WEB_DOMAIN=api.oxy.so', () => {
     // so the refusals above are about the domain and not about the fixture.
     const accepted = await service.verifyAndStoreRecord(
       envelopeFor(caller, sdkDid(caller.userId)),
-      caller.userId
+      caller.userId,
     );
     expect(accepted.ok).toBe(true);
     expect(await countRecords(caller.userId)).toBe(1);

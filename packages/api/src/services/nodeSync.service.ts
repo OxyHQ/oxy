@@ -171,9 +171,12 @@ async function witnessRecord(userId: string, recordId: string, ingestedAt: numbe
   if (!privateKey || !publicKey) {
     if (!warnedMissingOxyKey) {
       warnedMissingOxyKey = true;
-      logger.warn('Node ingest counter-signing skipped: OXY_PRIVATE_KEY/OXY_PUBLIC_KEY not configured', {
-        component: 'nodeSync',
-      });
+      logger.warn(
+        'Node ingest counter-signing skipped: OXY_PRIVATE_KEY/OXY_PUBLIC_KEY not configured',
+        {
+          component: 'nodeSync',
+        },
+      );
     }
     return;
   }
@@ -305,10 +308,7 @@ async function storeForkMirror(
  * (re-verify + atomic append + head advance); its rejection reason routes the
  * record to LWW-skip, fork-preserve, or hard-reject.
  */
-async function ingestEnvelope(
-  env: SignedRecordEnvelope,
-  userId: string,
-): Promise<IngestOutcome> {
+async function ingestEnvelope(env: SignedRecordEnvelope, userId: string): Promise<IngestOutcome> {
   const result = await verifyAndStoreRecord(env, userId);
 
   if (result.ok) {
@@ -461,7 +461,10 @@ export async function ingestFromNode(userId: string): Promise<void> {
         const parsed = signedRecordEnvelopeSchema.safeParse(raw);
         if (!parsed.success) {
           stopReason = 'rejected:invalid_envelope';
-          logger.warn('Node ingest rejected a malformed envelope', { component: 'nodeSync', userId });
+          logger.warn('Node ingest rejected a malformed envelope', {
+            component: 'nodeSync',
+            userId,
+          });
           break;
         }
         const env = parsed.data;

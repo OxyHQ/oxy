@@ -68,7 +68,12 @@ interface SecureStoreTestHandle {
   __getRaw__: (key: string, service?: string) => string | null;
   __setRaw__: (key: string, value: string, service?: string) => void;
   __simulateKeystoreDeath__: (service: string) => void;
-  __failPlan__: { failKey?: string; failOp?: 'set' | 'get'; failTimes?: number; failService?: string };
+  __failPlan__: {
+    failKey?: string;
+    failOp?: 'set' | 'get';
+    failTimes?: number;
+    failService?: string;
+  };
 }
 
 interface MigrationCapable {
@@ -179,7 +184,9 @@ describe('KeyManager identity slot migration (legacy → v2)', () => {
 
     const status = await KeyManager.getIdentityStatus();
     expect(status.state).toBe('unavailable');
-    await expect(KeyManager.hasIdentity()).rejects.toMatchObject({ name: 'IdentityUnavailableError' });
+    await expect(KeyManager.hasIdentity()).rejects.toMatchObject({
+      name: 'IdentityUnavailableError',
+    });
     // Nothing was written to v2.
     expect(ss.__getRaw__(V2_PRIV, PRIMARY_SVC)).toBeNull();
   });
@@ -204,7 +211,10 @@ describe('KeyManager identity slot migration (legacy → v2)', () => {
   it('concurrent callers share ONE migration run', async () => {
     const kp = await seedLegacyIdentity();
     const km = KeyManager as unknown as MigrationCapable;
-    const [a, b] = await Promise.all([km._ensureIdentitySlotsMigrated(), km._ensureIdentitySlotsMigrated()]);
+    const [a, b] = await Promise.all([
+      km._ensureIdentitySlotsMigrated(),
+      km._ensureIdentitySlotsMigrated(),
+    ]);
     // Same memoized result object → a single shared run.
     expect(a).toBe(b);
     expect(a.mode).toBe('v2');

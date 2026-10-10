@@ -90,7 +90,12 @@ describe('syncIdentityWithServer', () => {
     });
 
     await expect(
-      syncIdentityWithServer({ oxyServices: oxy, signIn, isAlreadySynced: false, username: 'alice' }),
+      syncIdentityWithServer({
+        oxyServices: oxy,
+        signIn,
+        isAlreadySynced: false,
+        username: 'alice',
+      }),
     ).rejects.toThrow('Username already taken');
     expect(signIn).not.toHaveBeenCalled();
   });
@@ -103,7 +108,12 @@ describe('syncIdentityWithServer', () => {
       }),
     });
 
-    await syncIdentityWithServer({ oxyServices: oxy, signIn, isAlreadySynced: false, username: 'alice' });
+    await syncIdentityWithServer({
+      oxyServices: oxy,
+      signIn,
+      isAlreadySynced: false,
+      username: 'alice',
+    });
 
     expect(signIn).toHaveBeenCalledWith('pub-1');
   });

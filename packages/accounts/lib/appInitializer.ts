@@ -18,9 +18,7 @@ export class AppInitializer {
   /**
    * Initializes the entire app
    */
-  static async initializeApp(
-    fontsLoaded: boolean
-  ): Promise<InitializationResult> {
+  static async initializeApp(fontsLoaded: boolean): Promise<InitializationResult> {
     if (!fontsLoaded) {
       return {
         success: false,
@@ -45,4 +43,3 @@ export class AppInitializer {
     }
   }
 }
-

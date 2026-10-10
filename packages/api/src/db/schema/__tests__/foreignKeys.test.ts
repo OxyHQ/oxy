@@ -23,10 +23,7 @@ import { PgTable, getTableConfig } from 'drizzle-orm/pg-core';
 import { findIdColumnViolations } from '@oxy.so/db/assert';
 import { sqlColumnName } from '@oxy.so/db';
 import * as schema from '../index';
-import {
-  DEFERRED_FOREIGN_KEYS,
-  ID_COLUMNS_WITHOUT_FOREIGN_KEY,
-} from '../deferredForeignKeys';
+import { DEFERRED_FOREIGN_KEYS, ID_COLUMNS_WITHOUT_FOREIGN_KEY } from '../deferredForeignKeys';
 
 /**
  * Vacuity floor. If the barrel traversal below ever breaks, it would find zero
@@ -54,9 +51,7 @@ const MINIMUM_TABLES = 27;
  */
 const MINIMUM_FOREIGN_KEYS = 200;
 
-const tables = Object.values(schema).filter((value): value is PgTable =>
-  is(value, PgTable)
-);
+const tables = Object.values(schema).filter((value): value is PgTable => is(value, PgTable));
 
 /**
  * `blocks.user_id` — the identity used in every failure message here.
@@ -91,7 +86,7 @@ describe('schema foreign keys', () => {
   it('inspects a non-trivial number of declared foreign keys', () => {
     const declared = tables.reduce(
       (total, table) => total + getTableConfig(table).foreignKeys.length,
-      0
+      0,
     );
 
     expect(declared).toBeGreaterThanOrEqual(MINIMUM_FOREIGN_KEYS);

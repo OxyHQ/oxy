@@ -195,23 +195,23 @@ export const applicationCredentialAuditEvents = pgTable(
     // an operator or a future Console surface wants.
     index('application_credential_audit_events_application_id_created_at_idx').on(
       t.applicationId,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // …narrowed to one credential, which is the shape an incident starts from.
     index('application_credential_audit_events_credential_id_created_at_idx').on(
       t.credentialId,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // Supports the expiry sweep in `db/expiry.ts`. Neither compound above LEADS
     // with this column, and the sweep is a bare range scan.
     index('application_credential_audit_events_created_at_idx').on(t.createdAt),
     check(
       'application_credential_audit_events_event_type_check',
-      sql`${t.eventType} in (${sql.raw(inList(CREDENTIAL_AUDIT_EVENT_TYPES))})`
+      sql`${t.eventType} in (${sql.raw(inList(CREDENTIAL_AUDIT_EVENT_TYPES))})`,
     ),
     check(
       'application_credential_audit_events_reason_check',
-      sql`${t.reason} is null or ${t.reason} in (${sql.raw(inList(CREDENTIAL_VALIDATION_FAILURE_REASONS))})`
+      sql`${t.reason} is null or ${t.reason} in (${sql.raw(inList(CREDENTIAL_VALIDATION_FAILURE_REASONS))})`,
     ),
     // One direction only. A `validation_failed` row MUST say why — a refusal
     // with no reason is the row that makes the whole table unactionable. The
@@ -220,14 +220,14 @@ export const applicationCredentialAuditEvents = pgTable(
     // administrative event, so the writer never sets one.
     check(
       'application_credential_audit_events_failure_reason_check',
-      sql`${t.eventType} <> 'validation_failed' or ${t.reason} is not null`
+      sql`${t.eventType} <> 'validation_failed' or ${t.reason} is not null`,
     ),
     // A refused bearer has no authenticated actor. Recording one would turn "we
     // do not know who presented this token" into "this member did", which is a
     // false accusation an audit table must not be able to make.
     check(
       'application_credential_audit_events_no_actor_on_failure_check',
-      sql`${t.eventType} <> 'validation_failed' or ${t.actorUserId} is null`
+      sql`${t.eventType} <> 'validation_failed' or ${t.actorUserId} is null`,
     ),
-  ]
+  ],
 );

@@ -6,9 +6,19 @@
  * parses MIME with `mailparser`, and stores messages through the email service.
  */
 
-import { SMTPServer, type SMTPServerSession, type SMTPServerAddress, type SMTPServerDataStream } from 'smtp-server';
+import {
+  SMTPServer,
+  type SMTPServerSession,
+  type SMTPServerAddress,
+  type SMTPServerDataStream,
+} from 'smtp-server';
 import { sql } from 'drizzle-orm';
-import { SMTP_INBOUND_CONFIG, EMAIL_DOMAIN, extractUsername, extractAliasTag } from '../config/email.config';
+import {
+  SMTP_INBOUND_CONFIG,
+  EMAIL_DOMAIN,
+  extractUsername,
+  extractAliasTag,
+} from '../config/email.config';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { emailService } from './email.service';
@@ -57,9 +67,15 @@ export async function findRecipientAccountId(emailAddress: string): Promise<stri
  * Create and start the SMTP inbound server.
  */
 export function startSmtpInbound(): SMTPServer {
-  let tlsOptions: {
-    key: Buffer; cert: Buffer; minVersion: 'TLSv1.2'; ciphers: string; sigalgs: string;
-  } | undefined;
+  let tlsOptions:
+    | {
+        key: Buffer;
+        cert: Buffer;
+        minVersion: 'TLSv1.2';
+        ciphers: string;
+        sigalgs: string;
+      }
+    | undefined;
 
   if (SMTP_INBOUND_CONFIG.tls.key && SMTP_INBOUND_CONFIG.tls.cert) {
     try {
@@ -97,7 +113,9 @@ export function startSmtpInbound(): SMTPServer {
   }
 
   if (!tlsOptions) {
-    throw new Error('SMTP inbound requires readable SMTP_TLS_KEY and SMTP_TLS_CERT to advertise STARTTLS');
+    throw new Error(
+      'SMTP inbound requires readable SMTP_TLS_KEY and SMTP_TLS_CERT to advertise STARTTLS',
+    );
   }
 
   smtpServer = new SMTPServer({
@@ -115,7 +133,7 @@ export function startSmtpInbound(): SMTPServer {
     async onRcptTo(
       address: SMTPServerAddress,
       _session: SMTPServerSession,
-      callback: (err?: Error | null) => void
+      callback: (err?: Error | null) => void,
     ) {
       try {
         const emailAddr = address.address.toLowerCase();
@@ -131,7 +149,10 @@ export function startSmtpInbound(): SMTPServer {
 
         callback();
       } catch (error) {
-        logger.error('SMTP RCPT TO error', error instanceof Error ? error : new Error(String(error)));
+        logger.error(
+          'SMTP RCPT TO error',
+          error instanceof Error ? error : new Error(String(error)),
+        );
         callback(new Error('451 Temporary error, try again later'));
       }
     },
@@ -142,7 +163,7 @@ export function startSmtpInbound(): SMTPServer {
     async onData(
       stream: SMTPServerDataStream,
       session: SMTPServerSession,
-      callback: (err?: Error | null) => void
+      callback: (err?: Error | null) => void,
     ) {
       try {
         // Collect the raw message into a buffer
@@ -203,11 +224,13 @@ export function startSmtpInbound(): SMTPServer {
 
         callback();
       } catch (error) {
-        logger.error('SMTP data processing error', error instanceof Error ? error : new Error(String(error)));
+        logger.error(
+          'SMTP data processing error',
+          error instanceof Error ? error : new Error(String(error)),
+        );
         callback(new Error('451 Message processing failed'));
       }
     },
-
   });
 
   smtpServer.on('error', (err: Error) => {

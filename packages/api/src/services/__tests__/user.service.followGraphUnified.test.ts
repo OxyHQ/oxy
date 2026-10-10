@@ -25,16 +25,27 @@ const uniqueId = () => randomUUID().replace(/-/g, '');
 
 async function makeUser(): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({ id, username: `u${id}` });
+  await getDb()
+    .insert(users)
+    .values({ id, username: `u${id}` });
   return id;
 }
 
 async function relationshipsOf(followerId: string, followedId: string) {
   return getDb()
-    .select({ id: followRelationships.id, source: followRelationships.source, uri: followTargets.canonicalUri })
+    .select({
+      id: followRelationships.id,
+      source: followRelationships.source,
+      uri: followTargets.canonicalUri,
+    })
     .from(followRelationships)
     .innerJoin(followTargets, eq(followTargets.id, followRelationships.followTargetId))
-    .where(and(eq(followRelationships.followerUserId, followerId), eq(followTargets.localUserId, followedId)));
+    .where(
+      and(
+        eq(followRelationships.followerUserId, followerId),
+        eq(followTargets.localUserId, followedId),
+      ),
+    );
 }
 
 async function eventsOf(relationshipId: string) {
@@ -71,7 +82,9 @@ describe('followUser / unfollowUser write the relationship, the event and the pr
     expect(await edgeExists(follower, followed)).toBe(true);
     const [relationship] = await relationshipsOf(follower, followed);
     expect(relationship).toMatchObject({ source: 'app', uri: accountTargetUri(followed) });
-    expect(await eventsOf(relationship.id)).toEqual([{ type: 'follow.created', cause: 'user_action' }]);
+    expect(await eventsOf(relationship.id)).toEqual([
+      { type: 'follow.created', cause: 'user_action' },
+    ]);
   });
 
   it('following twice is one relationship and one event', async () => {
@@ -118,7 +131,13 @@ describe('followUser / unfollowUser write the relationship, the event and the pr
       .values({ name: `App ${uniqueId()}`, status: 'active', ownerAccountId: follower })
       .returning({ id: applications.id });
     await followTarget({
-      capability: { userId: follower, applicationId: app.id, grantId: null as unknown as string, scopes: [], sessionId: 's' },
+      capability: {
+        userId: follower,
+        applicationId: app.id,
+        grantId: null as unknown as string,
+        scopes: [],
+        sessionId: 's',
+      },
       target,
     });
     expect(await edgeExists(follower, followed)).toBe(true);
@@ -133,11 +152,16 @@ describe('followUser / unfollowUser write the relationship, the event and the pr
     const follower = await makeUser();
     const followed = await makeUser();
 
-    await userService.followUser(follower, followed, { cause: 'federation_inbound', source: 'federation_inbound' });
+    await userService.followUser(follower, followed, {
+      cause: 'federation_inbound',
+      source: 'federation_inbound',
+    });
 
     const [relationship] = await relationshipsOf(follower, followed);
     expect(relationship.source).toBe('federation_inbound');
-    expect(await eventsOf(relationship.id)).toEqual([{ type: 'follow.created', cause: 'federation_inbound' }]);
+    expect(await eventsOf(relationship.id)).toEqual([
+      { type: 'follow.created', cause: 'federation_inbound' },
+    ]);
   });
 });
 
@@ -153,7 +177,9 @@ describe('bulkFollow / bulkUnfollow go through the same command', () => {
     expect(result.followedCount).toBe(1);
     expect(await relationshipsOf(viewer, a)).toHaveLength(1);
     const [relationshipB] = await relationshipsOf(viewer, b);
-    expect(await eventsOf(relationshipB.id)).toEqual([{ type: 'follow.created', cause: 'user_action' }]);
+    expect(await eventsOf(relationshipB.id)).toEqual([
+      { type: 'follow.created', cause: 'user_action' },
+    ]);
     expect(await edgeExists(viewer, b)).toBe(true);
   });
 

@@ -77,14 +77,16 @@ describe('buildWorkspaceTree', () => {
    */
   it('lists every switchable kind, and neither a channel nor a bot', () => {
     const accounts = ACCOUNT_KINDS.map((kind) =>
-      node(kind, kind, kind === 'personal' ? 'self' : 'owner')
+      node(kind, kind, kind === 'personal' ? 'self' : 'owner'),
     );
 
     const { yourAccounts } = buildWorkspaceTree(accounts);
 
-    expect(Object.fromEntries(
-      ACCOUNT_KINDS.map((kind) => [kind, yourAccounts.some((a) => a.kind === kind)])
-    )).toEqual({
+    expect(
+      Object.fromEntries(
+        ACCOUNT_KINDS.map((kind) => [kind, yourAccounts.some((a) => a.kind === kind)]),
+      ),
+    ).toEqual({
       personal: true,
       organization: true,
       project: true,

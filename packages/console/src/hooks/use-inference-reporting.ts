@@ -90,7 +90,7 @@ export function useLedgerBalance(accountId: string | undefined, enabled: boolean
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/balance`,
         undefined,
-        { cache: false }
+        { cache: false },
       ),
     select: (balance): LedgerBalanceResponse => ({
       schemaVersion: balance.schemaVersion,
@@ -123,7 +123,7 @@ export interface UsageReportOptions {
 export function useAccountUsageReport(
   accountId: string | undefined,
   options: UsageReportOptions,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -139,7 +139,7 @@ export function useAccountUsageReport(
           groupBy: groupByParam(options.groupBy),
           includeDescendants: options.includeDescendants,
         },
-        { cache: false }
+        { cache: false },
       ),
     select: selectUsageReport,
     enabled: isReady && isAuthenticated && !!accountId && enabled,
@@ -151,7 +151,7 @@ export function useAccountUsageReport(
 export function useApplicationUsageReport(
   applicationId: string | undefined,
   options: UsageReportOptions,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -166,7 +166,7 @@ export function useApplicationUsageReport(
           to: options.range.to,
           groupBy: groupByParam(options.groupBy),
         },
-        { cache: false }
+        { cache: false },
       ),
     select: selectUsageReport,
     enabled: isReady && isAuthenticated && !!applicationId && enabled,
@@ -201,7 +201,7 @@ export interface SpendReportOptions {
 export function useAccountSpendReport(
   accountId: string | undefined,
   options: SpendReportOptions,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -217,7 +217,7 @@ export function useAccountSpendReport(
           groupBy: groupByParam(options.groupBy),
           includeDescendants: options.includeDescendants,
         },
-        { cache: false }
+        { cache: false },
       ),
     select: selectSpendReport,
     enabled: isReady && isAuthenticated && !!accountId && enabled,
@@ -229,7 +229,7 @@ export function useAccountSpendReport(
 export function useApplicationSpendReport(
   applicationId: string | undefined,
   options: SpendReportOptions,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -244,7 +244,7 @@ export function useApplicationSpendReport(
           to: options.range.to,
           groupBy: groupByParam(options.groupBy),
         },
-        { cache: false }
+        { cache: false },
       ),
     select: selectSpendReport,
     enabled: isReady && isAuthenticated && !!applicationId && enabled,
@@ -281,7 +281,7 @@ function selectSpendReport(report: SpendReportResponse): SpendReportResponse {
 export function usePendingReservations(
   accountId: string | undefined,
   limit: number = 100,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -292,7 +292,7 @@ export function usePendingReservations(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/reservations`,
         { limit },
-        { cache: false }
+        { cache: false },
       ),
     select: (held): PendingReservationsResponse => ({
       schemaVersion: held.schemaVersion,
@@ -320,7 +320,7 @@ export function useSettledCharges(
   accountId: string | undefined,
   range: DayRange,
   limit: number = 100,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -331,7 +331,7 @@ export function useSettledCharges(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/charges`,
         { from: range.from, to: range.to, limit },
-        { cache: false }
+        { cache: false },
       ),
     select: (charges): SettledChargesResponse => ({
       schemaVersion: charges.schemaVersion,
@@ -368,7 +368,7 @@ export function useBudgets(accountId: string | undefined, enabled: boolean = tru
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/spending-limits`,
         undefined,
-        { cache: false }
+        { cache: false },
       ),
     select: (budgets): BudgetsResponse => ({
       schemaVersion: budgets.schemaVersion,
@@ -394,7 +394,7 @@ export function useBudgets(accountId: string | undefined, enabled: boolean = tru
 export function useBudgetAlerts(
   accountId: string | undefined,
   limit: number = 50,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -405,7 +405,7 @@ export function useBudgetAlerts(
         'GET',
         `/inference/reporting/accounts/${accountId ?? ''}/spending-limits/alerts`,
         { limit },
-        { cache: false }
+        { cache: false },
       ),
     select: (alerts): BudgetAlertsResponse => ({
       schemaVersion: alerts.schemaVersion,
@@ -459,7 +459,7 @@ export function useCreateBudget() {
           'POST',
           `/inference/reporting/accounts/${accountId}/spending-limits`,
           input,
-          { retry: false }
+          { retry: false },
         )
         .then(toBudget),
     onSuccess: (_budget, { accountId }) => {
@@ -496,12 +496,9 @@ export function useUpdateBudget() {
       input: UpdateBudgetInput;
     }): Promise<Budget> =>
       oxyServices
-        .request<Budget>(
-          'PATCH',
-          `/inference/reporting/spending-limits/${budgetId}`,
-          input,
-          { retry: false }
-        )
+        .request<Budget>('PATCH', `/inference/reporting/spending-limits/${budgetId}`, input, {
+          retry: false,
+        })
         .then(toBudget),
     onSuccess: (_budget, { accountId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.budgets(accountId) });

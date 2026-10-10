@@ -14,7 +14,9 @@ function pluginNames(variant?: string): string[] {
     jest.isolateModules(() => {
       const appConfig = require('../../app.config.js') as { expo: { plugins: PluginEntry[] } };
       names = appConfig.expo.plugins
-        .map((entry) => (typeof entry === 'string' ? entry : Array.isArray(entry) ? entry[0] : null))
+        .map((entry) =>
+          typeof entry === 'string' ? entry : Array.isArray(entry) ? entry[0] : null,
+        )
         .filter((name): name is string => typeof name === 'string');
     });
     return names;

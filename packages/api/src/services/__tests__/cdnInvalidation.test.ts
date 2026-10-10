@@ -106,7 +106,8 @@ describe('the S3 singleton is wired to the process-wide invalidation queue', () 
       const { getCdnInvalidationQueue } =
         // biome-ignore lint/style/noCommonJs: required inside jest.isolateModules to get a fresh module registry
         require('../cdnInvalidation') as typeof import('../cdnInvalidation');
-      const listener = (s3Service as unknown as { deletedObjectListener?: unknown }).deletedObjectListener;
+      const listener = (s3Service as unknown as { deletedObjectListener?: unknown })
+        .deletedObjectListener;
       expect(listener).toBeDefined();
       expect(listener).toBe(getCdnInvalidationQueue());
     });
@@ -131,7 +132,10 @@ describe('path planning', () => {
     ]);
 
     expect(plan.wildcards).toEqual([`/${VARIANT_DIR}/*`]);
-    expect(plan.exact).toEqual([`/content/2026/09/${SHA}.mp4`, '/variants/2026/09/cd/other/thumb.webp']);
+    expect(plan.exact).toEqual([
+      `/content/2026/09/${SHA}.mp4`,
+      '/variants/2026/09/cd/other/thumb.webp',
+    ]);
   });
 });
 
@@ -152,7 +156,9 @@ describe('CdnInvalidationQueue', () => {
   });
 
   it('treats a blank id as unset', () => {
-    expect(new CdnInvalidationQueue({ distributionId: '  ', sender: recordingSender().sender }).enabled).toBe(false);
+    expect(
+      new CdnInvalidationQueue({ distributionId: '  ', sender: recordingSender().sender }).enabled,
+    ).toBe(false);
   });
 
   it('turns a whole video delete — original, variants, playlists, segments — into ONE request', async () => {
@@ -170,7 +176,9 @@ describe('CdnInvalidationQueue', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].distributionId).toBe('EDIST');
-    expect(calls[0].paths.sort()).toEqual([`/${VARIANT_DIR}/*`, `/content/2026/09/${SHA}.mp4`].sort());
+    expect(calls[0].paths.sort()).toEqual(
+      [`/${VARIANT_DIR}/*`, `/content/2026/09/${SHA}.mp4`].sort(),
+    );
     expect(calls[0].callerReference).toMatch(/^oxy-api-/);
     expect(queue.pendingPaths()).toEqual([]);
   });
@@ -232,11 +240,17 @@ describe('CdnInvalidationQueue', () => {
     }
 
     expect(queue.pendingPaths()).toEqual(['/content/a.png']);
-    expect(logger.error).not.toHaveBeenCalledWith(expect.stringContaining('DROPPED'), expect.anything());
+    expect(logger.error).not.toHaveBeenCalledWith(
+      expect.stringContaining('DROPPED'),
+      expect.anything(),
+    );
   });
 
   it(`caps the queue at ${MAX_PENDING_PATHS} paths, dropping — and naming — the OLDEST`, () => {
-    const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender: recordingSender().sender });
+    const queue = new CdnInvalidationQueue({
+      distributionId: 'EDIST',
+      sender: recordingSender().sender,
+    });
     for (let i = 0; i < MAX_PENDING_PATHS + 3; i++) {
       queue.enqueueDeletedKey(`public/content/${String(i).padStart(6, '0')}.png`);
     }
@@ -252,7 +266,12 @@ describe('CdnInvalidationQueue', () => {
   });
 
   it('the shutdown flush gives up after its timeout, naming what is left', async () => {
-    const { sender } = recordingSender(() => new Promise<void>(() => { /* never settles */ }));
+    const { sender } = recordingSender(
+      () =>
+        new Promise<void>(() => {
+          /* never settles */
+        }),
+    );
     const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender });
     queue.enqueueDeletedKey('public/content/a.png');
 
@@ -276,7 +295,9 @@ describe('CdnInvalidationQueue', () => {
     expect(mockCloudFrontConfigs[0]).toMatchObject({
       requestHandler: { connectionTimeout: expect.any(Number), requestTimeout: expect.any(Number) },
     });
-    const [command] = mockCloudFrontSend.mock.calls[0] as [{ input: { DistributionId: string; InvalidationBatch: { Paths: { Items: string[] } } } }];
+    const [command] = mockCloudFrontSend.mock.calls[0] as [
+      { input: { DistributionId: string; InvalidationBatch: { Paths: { Items: string[] } } } },
+    ];
     expect(command.input.DistributionId).toBe('EDIST');
     expect(command.input.InvalidationBatch.Paths.Items).toEqual(['/content/a.png']);
   });
@@ -285,7 +306,11 @@ describe('CdnInvalidationQueue', () => {
     jest.useFakeTimers();
     try {
       const { sender, calls } = recordingSender();
-      const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender, flushDelayMs: 1000 });
+      const queue = new CdnInvalidationQueue({
+        distributionId: 'EDIST',
+        sender,
+        flushDelayMs: 1000,
+      });
       queue.enqueueDeletedKey('public/content/a.png');
       queue.enqueueDeletedKey('public/content/b.png');
       expect(sender.send).not.toHaveBeenCalled();
@@ -342,7 +367,10 @@ describe('CdnInvalidationQueue', () => {
   });
 
   it('never throws from enqueue, even for odd input', () => {
-    const queue = new CdnInvalidationQueue({ distributionId: 'EDIST', sender: recordingSender().sender });
+    const queue = new CdnInvalidationQueue({
+      distributionId: 'EDIST',
+      sender: recordingSender().sender,
+    });
     expect(() => queue.enqueueDeletedKey(undefined as unknown as string)).not.toThrow();
   });
 });

@@ -177,7 +177,9 @@ export const DEFAULT_REALTIME_LIMITS: RealtimeSessionLimits = {
 };
 
 /** The requested limits over the defaults; an idle default never outlasts a shorter session. */
-export function sessionLimits(requested: Partial<RealtimeSessionLimits> | undefined): RealtimeSessionLimits {
+export function sessionLimits(
+  requested: Partial<RealtimeSessionLimits> | undefined,
+): RealtimeSessionLimits {
   const maxDurationMs = requested?.maxDurationMs ?? DEFAULT_REALTIME_LIMITS.maxDurationMs;
   return {
     maxDurationMs,
@@ -224,15 +226,20 @@ export function realtimeTextItemBilled(command: RealtimeClientCommand): boolean 
   const { item } = command;
   if (item.type === 'function_call_output') return false;
   if (item.type !== 'message') return true;
-  const carriesAudio = item.content.some((part) => part.type === 'input_audio' && part.data !== undefined);
-  const carriesText = item.content.some((part) => part.type !== 'input_audio' && part.type !== 'output_audio');
+  const carriesAudio = item.content.some(
+    (part) => part.type === 'input_audio' && part.data !== undefined,
+  );
+  const carriesText = item.content.some(
+    (part) => part.type !== 'input_audio' && part.type !== 'output_audio',
+  );
   return !carriesAudio || carriesText;
 }
 
 /** How long a session's hold must stand: the session, its resume window, and the report. */
 export function realtimeReservationTtlSeconds(limits: RealtimeSessionLimits): number {
   return Math.ceil(
-    (limits.maxDurationMs + MAX_REALTIME_RESUME_WINDOW_MS + 4 * realtimeTimings.reportGraceMs) / 1000
+    (limits.maxDurationMs + MAX_REALTIME_RESUME_WINDOW_MS + 4 * realtimeTimings.reportGraceMs) /
+      1000,
   );
 }
 
@@ -279,7 +286,7 @@ export function refuseCustomer(customer: RealtimeCustomerLink, error: InferenceE
       sequence: 0,
       fatal: true,
       error,
-    })
+    }),
   );
   customer.close(closeCodeFor(error.code), error.code);
 }
@@ -326,7 +333,9 @@ export interface OpenRealtimeSessionInput {
  * Admit, hold, sign and open one session, then attach the customer to it.
  * Every refusal is answered on the customer's socket and leaves no hold standing.
  */
-export async function openRealtimeSession(input: OpenRealtimeSessionInput): Promise<RealtimeSession | undefined> {
+export async function openRealtimeSession(
+  input: OpenRealtimeSessionInput,
+): Promise<RealtimeSession | undefined> {
   const { requestId, customer } = input;
   const refuse = (code: InferenceErrorCode, message: string, param?: string): undefined => {
     logger.warn('inference.realtime.refused', {
@@ -337,33 +346,37 @@ export async function openRealtimeSession(input: OpenRealtimeSessionInput): Prom
     });
     refuseCustomer(
       customer,
-      buildInferenceError({ code, message, requestId, ...(param === undefined ? {} : { param }) })
+      buildInferenceError({ code, message, requestId, ...(param === undefined ? {} : { param }) }),
     );
     return undefined;
   };
 
   if (input.model === undefined) {
-    return refuse('invalid_request', 'Name the model: GET /v1/realtime?model=<publisher>/<model>.', 'model');
+    return refuse(
+      'invalid_request',
+      'Name the model: GET /v1/realtime?model=<publisher>/<model>.',
+      'model',
+    );
   }
   const { frame } = input;
   if (frame.kind !== 'conversation') {
     return refuse(
       'unsupported_modality',
       `Realtime ${frame.kind} sessions are not served yet: their audio is metered outside any response, and no signed limit bounds what it can cost.`,
-      'kind'
+      'kind',
     );
   }
   if (frame.config.inputAudioTranscription !== undefined) {
     return refuse(
       'unsupported_modality',
       'Input audio transcription is not served yet: it is metered per committed item, which no signed limit bounds.',
-      'config.inputAudioTranscription'
+      'config.inputAudioTranscription',
     );
   }
   if (sessionsOf(input.principal.credentialId) >= MAX_REALTIME_SESSIONS_PER_CREDENTIAL) {
     return refuse(
       'rate_limited',
-      `A credential may hold at most ${MAX_REALTIME_SESSIONS_PER_CREDENTIAL} concurrent realtime sessions.`
+      `A credential may hold at most ${MAX_REALTIME_SESSIONS_PER_CREDENTIAL} concurrent realtime sessions.`,
     );
   }
 
@@ -393,7 +406,9 @@ export async function openRealtimeSession(input: OpenRealtimeSessionInput): Prom
     // context window before a single turn has been spoken.
     input: { format: 'text', text: frame.config.instructions ?? '' },
     stream: true,
-    ...(frame.config.maxOutputTokens === undefined ? {} : { maxOutputTokens: frame.config.maxOutputTokens }),
+    ...(frame.config.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: frame.config.maxOutputTokens }),
     sampling: {},
     tools: frame.config.tools ?? [],
     ...(frame.labels === undefined ? {} : { labels: frame.labels }),
@@ -427,11 +442,12 @@ export async function openRealtimeSession(input: OpenRealtimeSessionInput): Prom
           regions: [],
         },
       ],
-    })
+    }),
   );
   if (!provisional.success) {
     const issue = provisional.error.issues.find(
-      (candidate) => candidate.path[0] !== 'authorizedRoutes' && candidate.path[0] !== 'routingPolicy'
+      (candidate) =>
+        candidate.path[0] !== 'authorizedRoutes' && candidate.path[0] !== 'routingPolicy',
     );
     if (issue !== undefined) {
       return refuse('invalid_request', issue.message, issue.path.join('.'));
@@ -439,7 +455,10 @@ export async function openRealtimeSession(input: OpenRealtimeSessionInput): Prom
   }
 
   if (input.kaana === undefined || input.kaanaClient === undefined) {
-    return refuse('service_unavailable', 'No inference data plane is configured for this deployment.');
+    return refuse(
+      'service_unavailable',
+      'No inference data plane is configured for this deployment.',
+    );
   }
 
   const admission = await admitRequest(context);
@@ -462,20 +481,28 @@ export async function openRealtimeSession(input: OpenRealtimeSessionInput): Prom
           ? {}
           : { customerProviderCredential: route.customerProviderCredential }),
       })),
-    })
+    }),
   );
   const session = new RealtimeSession(context, admitted, limits);
   if (!signed.success) {
     // Unreachable once the provisional parse passed, unless admission produced a
     // route the contract refuses — an Oxy fault. The hold is released.
     await session.releaseUnopened('failed');
-    logger.error('inference.realtime.unsignable_request', new Error('the session request failed its schema'), {
-      requestId,
-      path: signed.error.issues[0]?.path.join('.') ?? 'unknown',
-    });
+    logger.error(
+      'inference.realtime.unsignable_request',
+      new Error('the session request failed its schema'),
+      {
+        requestId,
+        path: signed.error.issues[0]?.path.join('.') ?? 'unknown',
+      },
+    );
     refuseCustomer(
       customer,
-      buildInferenceError({ code: 'internal_error', message: 'The session could not be signed.', requestId })
+      buildInferenceError({
+        code: 'internal_error',
+        message: 'The session could not be signed.',
+        requestId,
+      }),
     );
     return undefined;
   }
@@ -489,7 +516,7 @@ export async function openRealtimeSession(input: OpenRealtimeSessionInput): Prom
         message: `The signed session request is limited to ${MAX_KAANA_REALTIME_FIRST_FRAME_BYTES} bytes; shorten the instructions or tools.`,
         requestId,
         param: 'config',
-      })
+      }),
     );
     return undefined;
   }
@@ -512,7 +539,7 @@ function sessionRequest(
   transport: 'websocket',
   limits: RealtimeSessionLimits,
   receivedAt: string,
-  routing: Pick<SessionRequestInput, 'routingPolicy' | 'authorizedRoutes'>
+  routing: Pick<SessionRequestInput, 'routingPolicy' | 'authorizedRoutes'>,
 ): SessionRequestInput {
   return {
     schemaVersion: 1,
@@ -554,7 +581,7 @@ export async function resumeRealtimeSession(input: {
   const refuse = (message: string): undefined => {
     refuseCustomer(
       input.customer,
-      buildInferenceError({ code: 'invalid_request', message, requestId: input.requestId })
+      buildInferenceError({ code: 'invalid_request', message, requestId: input.requestId }),
     );
     return undefined;
   };
@@ -569,13 +596,14 @@ export async function resumeRealtimeSession(input: {
     // true tells a caller holding someone else's request id nothing it may know.
     return refuse('No resumable session with that request id is held here.');
   }
-  if (input.kaana === undefined) return refuse('No inference data plane is configured for this deployment.');
+  if (input.kaana === undefined)
+    return refuse('No inference data plane is configured for this deployment.');
   const attached = await session.attach(
     input.customer,
     input.kaana,
     Buffer.from(JSON.stringify(parsed.data), 'utf8'),
     parsed.data.afterSequence,
-    false
+    false,
   );
   return attached ? session : undefined;
 }
@@ -616,14 +644,17 @@ export class RealtimeSession {
   constructor(
     readonly context: EdgeExecutionContext,
     private readonly admitted: AdmittedRequest,
-    limits: RealtimeSessionLimits
+    limits: RealtimeSessionLimits,
   ) {
     // The backstop for a data plane that never ends the session it was signed
     // for: past its maximum duration, the resume window and the report grace,
     // the session is ended here and settled from the evidence held.
-    this.deadline = setTimeout(() => {
-      void this.finishFromEvidence(REALTIME_CLOSE.internal, 'session deadline');
-    }, limits.maxDurationMs + MAX_REALTIME_RESUME_WINDOW_MS + 2 * realtimeTimings.reportGraceMs);
+    this.deadline = setTimeout(
+      () => {
+        void this.finishFromEvidence(REALTIME_CLOSE.internal, 'session deadline');
+      },
+      limits.maxDurationMs + MAX_REALTIME_RESUME_WINDOW_MS + 2 * realtimeTimings.reportGraceMs,
+    );
     this.deadline.unref();
   }
 
@@ -641,7 +672,7 @@ export class RealtimeSession {
     kaana: KaanaRealtimeClient,
     firstFrame: Buffer,
     afterSequence: number,
-    initial: boolean
+    initial: boolean,
   ): Promise<boolean> {
     this.clearDetachTimer();
     const previousCustomer = this.customer;
@@ -668,7 +699,9 @@ export class RealtimeSession {
         },
         onProtocolError: (error) => {
           if (generation !== this.generation) return;
-          logger.error('inference.realtime.upstream_protocol_error', error, { requestId: this.requestId });
+          logger.error('inference.realtime.upstream_protocol_error', error, {
+            requestId: this.requestId,
+          });
           this.protocolRejected = true;
           void this.finishFromEvidence(REALTIME_CLOSE.internal, 'data plane protocol error');
         },
@@ -680,7 +713,7 @@ export class RealtimeSession {
       logger.error(
         'inference.realtime.upstream_open_failed',
         error instanceof Error ? error : new Error(String(error)),
-        { requestId: this.requestId }
+        { requestId: this.requestId },
       );
       refuseCustomer(
         customer,
@@ -688,7 +721,7 @@ export class RealtimeSession {
           code: 'service_unavailable',
           message: 'The inference data plane could not open the realtime session.',
           requestId: this.requestId,
-        })
+        }),
       );
       if (initial) {
         // Nothing was ever opened: release the hold now rather than wait.
@@ -721,7 +754,7 @@ export class RealtimeSession {
           (candidate) =>
             candidate.deploymentId === event.deploymentId &&
             candidate.modelReference === event.resolvedModelReference &&
-            candidate.provider === event.servingProvider
+            candidate.provider === event.servingProvider,
         );
         if (route === undefined) {
           this.violation('the session opened on a deployment no route authorized');
@@ -732,12 +765,18 @@ export class RealtimeSession {
         break;
       }
       case 'response.done':
-        if (this.servedRoute === undefined || event.deploymentId !== this.servedRoute.deploymentId) {
+        if (
+          this.servedRoute === undefined ||
+          event.deploymentId !== this.servedRoute.deploymentId
+        ) {
           this.violation('a response was metered on a deployment the session did not open on');
           return;
         }
         for (const quantity of event.units) {
-          this.responseUnits.set(quantity.unit, (this.responseUnits.get(quantity.unit) ?? 0) + quantity.quantity);
+          this.responseUnits.set(
+            quantity.unit,
+            (this.responseUnits.get(quantity.unit) ?? 0) + quantity.quantity,
+          );
         }
         this.responseUsageSource = event.usageSource;
         break;
@@ -764,7 +803,10 @@ export class RealtimeSession {
     if (this.finished) return;
     if (this.settled || this.closedEvent !== undefined) {
       // The report either arrived (settled) or was lost after the session ended.
-      await this.finishFromEvidence(this.closingWith?.code ?? REALTIME_CLOSE.normal, this.closingWith?.reason ?? 'session closed');
+      await this.finishFromEvidence(
+        this.closingWith?.code ?? REALTIME_CLOSE.normal,
+        this.closingWith?.reason ?? 'session closed',
+      );
       return;
     }
     if (this.servedRoute === undefined && this.connectionFloor === -1) {
@@ -773,7 +815,7 @@ export class RealtimeSession {
       // resume, and nothing was consumed: release the hold now.
       await this.finishFromEvidence(
         code === REALTIME_CLOSE.policy ? REALTIME_CLOSE.internal : REALTIME_CLOSE.tryAgainLater,
-        'the data plane did not open the session'
+        'the data plane did not open the session',
       );
       return;
     }
@@ -783,7 +825,9 @@ export class RealtimeSession {
     this.customer = undefined;
     customer?.close(
       code === REALTIME_CLOSE.policy ? REALTIME_CLOSE.policy : REALTIME_CLOSE.internal,
-      code === REALTIME_CLOSE.policy ? 'session refused by the data plane' : 'upstream connection lost; resumable'
+      code === REALTIME_CLOSE.policy
+        ? 'session refused by the data plane'
+        : 'upstream connection lost; resumable',
     );
     this.startDetachTimer();
   }
@@ -792,7 +836,8 @@ export class RealtimeSession {
 
   /** One frame from the attached customer. */
   fromCustomer(customer: RealtimeCustomerLink, data: string | undefined, isBinary: boolean): void {
-    if (customer !== this.customer || this.upstream === undefined || this.closingWith !== undefined) return;
+    if (customer !== this.customer || this.upstream === undefined || this.closingWith !== undefined)
+      return;
     if (isBinary || data === undefined) {
       this.closeFromEdge(REALTIME_CLOSE.unsupportedData, 'binary frames are refused');
       return;
@@ -880,13 +925,16 @@ export class RealtimeSession {
       logger.error(
         'inference.realtime.usage_report_rejected',
         new Error('the session usage report does not answer the session that was admitted'),
-        { requestId: this.requestId }
+        { requestId: this.requestId },
       );
       await this.settleOnce(this.recoveryEvidence());
     } else {
       await this.settleOnce({ kind: 'report', report: usable.report }, usable.route);
     }
-    await this.finishFromEvidence(this.closingWith?.code ?? REALTIME_CLOSE.normal, this.closingWith?.reason ?? 'session closed');
+    await this.finishFromEvidence(
+      this.closingWith?.code ?? REALTIME_CLOSE.normal,
+      this.closingWith?.reason ?? 'session closed',
+    );
   }
 
   /**
@@ -921,7 +969,10 @@ export class RealtimeSession {
     };
   }
 
-  private async settleOnce(evidence: KaanaUsageEvidence | undefined, reportedRoute?: EdgeRoute): Promise<void> {
+  private async settleOnce(
+    evidence: KaanaUsageEvidence | undefined,
+    reportedRoute?: EdgeRoute,
+  ): Promise<void> {
     if (this.settled) return;
     this.settled = true;
     this.clearDetachTimer();
@@ -931,7 +982,11 @@ export class RealtimeSession {
     let validated = evidence;
     let servedRoute = reportedRoute ?? this.servedRoute ?? primary;
     if (evidence !== undefined && evidence.kind === 'partial') {
-      const validation = validateUsageEvidence(evidence, this.requestId, this.admitted.authorizedRoutes);
+      const validation = validateUsageEvidence(
+        evidence,
+        this.requestId,
+        this.admitted.authorizedRoutes,
+      );
       if (validation.status === 'valid') {
         servedRoute = validation.route;
       } else {
@@ -941,11 +996,12 @@ export class RealtimeSession {
         validated = undefined;
       }
     }
-    const outcome: 'failed' | 'cancelled' | 'partial' = this.customerVanished && !this.customerClosedSession
-      ? 'cancelled'
-      : this.sawOutput
-        ? 'partial'
-        : 'failed';
+    const outcome: 'failed' | 'cancelled' | 'partial' =
+      this.customerVanished && !this.customerClosedSession
+        ? 'cancelled'
+        : this.sawOutput
+          ? 'partial'
+          : 'failed';
     const settlement = settlementFrom(validated, outcome, servedRoute.provider);
     await settleMeasured(this.context, this.admitted, settlement, servedRoute);
     await recordEdgeTelemetry(this.context, {
@@ -966,7 +1022,12 @@ export class RealtimeSession {
     if (this.settled) return;
     this.settled = true;
     clearTimeout(this.deadline);
-    await settleMeasured(this.context, this.admitted, settlementFrom(undefined, outcome, this.admitted.route.provider), this.admitted.route);
+    await settleMeasured(
+      this.context,
+      this.admitted,
+      settlementFrom(undefined, outcome, this.admitted.route.provider),
+      this.admitted.route,
+    );
     this.finished = true;
   }
 
@@ -988,7 +1049,9 @@ export class RealtimeSession {
   }
 
   private violation(message: string): void {
-    logger.error('inference.realtime.upstream_violation', new Error(message), { requestId: this.requestId });
+    logger.error('inference.realtime.upstream_violation', new Error(message), {
+      requestId: this.requestId,
+    });
     this.protocolRejected = true;
     void this.finishFromEvidence(REALTIME_CLOSE.internal, 'data plane protocol error');
   }

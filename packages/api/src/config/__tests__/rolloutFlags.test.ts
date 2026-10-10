@@ -260,11 +260,13 @@ describe('the edge audience makes each rollout state expressible', () => {
     process.env[EDGE_AUDIENCE_VARIABLE] = configured;
 
     expect(resolveEdgeAudience()).toEqual({ status: 'closed', reason: 'unreadable' });
-    expect(admitToInferenceEdge({
-      applicationId: ALIA_APPLICATION_ID,
-      applicationType: 'internal',
-      applicationIsInternal: true,
-    })).toMatchObject({ status: 'refused', reason: 'unreadable' });
+    expect(
+      admitToInferenceEdge({
+        applicationId: ALIA_APPLICATION_ID,
+        applicationType: 'internal',
+        applicationIsInternal: true,
+      }),
+    ).toMatchObject({ status: 'refused', reason: 'unreadable' });
   });
 
   it('is closed by an unreadable value, and says so once rather than on every request', () => {
@@ -411,7 +413,7 @@ describe('the privacy and security review attestation', () => {
         status: 'unreviewed',
         refusal: 'bare_boolean',
       });
-    }
+    },
   );
 
   it('accepts a reviewer and a date, and reports both', () => {
@@ -451,7 +453,7 @@ describe('the privacy and security review attestation', () => {
     (value) => {
       process.env[PRIVACY_REVIEW_VARIABLE] = value;
       expect(resolveInferencePrivacyReview().status).toBe('unreviewed');
-    }
+    },
   );
 });
 
@@ -498,7 +500,7 @@ describe('the charging authorization', () => {
     (value) => {
       process.env[CHARGING_AUTHORIZED_VARIABLE] = value;
       expect(resolveInferenceCharging()).toEqual({ status: 'shadow', refusal: 'bare_boolean' });
-    }
+    },
   );
 
   it('accepts a reason and a date, and reports both', () => {
@@ -532,7 +534,7 @@ describe('the charging authorization', () => {
     (value) => {
       process.env[CHARGING_AUTHORIZED_VARIABLE] = value;
       expect(resolveInferenceCharging().status).toBe('shadow');
-    }
+    },
   );
 });
 

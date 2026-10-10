@@ -7,7 +7,9 @@
  * ts-jest's CommonJS runtime cannot evaluate an ES module.
  */
 
-export type AtprotoOAuthModule = typeof import('@atproto/oauth-client-node', { with: { 'resolution-mode': 'import' } });
+export type AtprotoOAuthModule = typeof import('@atproto/oauth-client-node', { with: {
+  'resolution-mode': 'import',
+}});
 
 export function loadAtprotoOAuthModule(): Promise<AtprotoOAuthModule> {
   return import('@atproto/oauth-client-node');

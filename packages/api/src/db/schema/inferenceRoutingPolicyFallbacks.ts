@@ -129,7 +129,7 @@ export const inferenceRoutingPolicyFallbacks = pgTable(
     check('inference_routing_policy_fallbacks_not_disabled', sql`not ${t.fallbackDisabled}`),
     check(
       'inference_routing_policy_fallbacks_names_one',
-      sql`(${t.modelId} is null) <> (${t.modelRevisionId} is null)`
+      sql`(${t.modelId} is null) <> (${t.modelRevisionId} is null)`,
     ),
     check('inference_routing_policy_fallbacks_position_range', sql`${t.position} >= 0`),
 
@@ -147,8 +147,7 @@ export const inferenceRoutingPolicyFallbacks = pgTable(
     uniqueIndex('inference_routing_policy_fallbacks_revision_key')
       .on(t.versionId, t.modelRevisionId)
       .where(sql`${t.modelRevisionId} is not null`),
-  ]
+  ],
 );
 
-export type InferenceRoutingPolicyFallbackRow =
-  typeof inferenceRoutingPolicyFallbacks.$inferSelect;
+export type InferenceRoutingPolicyFallbackRow = typeof inferenceRoutingPolicyFallbacks.$inferSelect;

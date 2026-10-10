@@ -150,14 +150,20 @@ export default function NodeScreen() {
   if (provision.state === 'done') {
     return (
       <Screen gap={24}>
-        <StackHeader title={t('civic.nodes.title')} onBack={handleBack} backAccessibilityLabel={t('common.back')} />
+        <StackHeader
+          title={t('civic.nodes.title')}
+          onBack={handleBack}
+          backAccessibilityLabel={t('common.back')}
+        />
         <EmptyState
           illustration={<Icons.shieldCheck size="3xl" fill={colors.success} />}
           title={t('civic.nodes.provision.done.title')}
           description={t('civic.nodes.provision.done.body')}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleProvisionDone}>{t('common.done')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleProvisionDone}>
+                {t('common.done')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -169,14 +175,20 @@ export default function NodeScreen() {
   if (register.state === 'done') {
     return (
       <Screen gap={24}>
-        <StackHeader title={t('civic.nodes.title')} onBack={handleBack} backAccessibilityLabel={t('common.back')} />
+        <StackHeader
+          title={t('civic.nodes.title')}
+          onBack={handleBack}
+          backAccessibilityLabel={t('common.back')}
+        />
         <EmptyState
           illustration={<Icons.node size="3xl" fill={colors.success} />}
           title={t('civic.nodes.register.done.title')}
           description={t('civic.nodes.register.done.body')}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleRegisterDone}>{t('common.done')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleRegisterDone}>
+                {t('common.done')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -190,9 +202,7 @@ export default function NodeScreen() {
   const renderNoNode = () => (
     <>
       <Section title={t('civic.nodes.intro.title')}>
-        <Text style={[styles.intro, { color: colors.text }]}>
-          {t('civic.nodes.intro.body')}
-        </Text>
+        <Text style={[styles.intro, { color: colors.text }]}>{t('civic.nodes.intro.body')}</Text>
       </Section>
 
       <Section title={t('civic.nodes.how.title')}>
@@ -243,12 +253,20 @@ export default function NodeScreen() {
           </Card>
 
           {isWeb ? (
-            <Admonition type="info">
-              {t('civic.nodes.selfHost.webUnavailable')}
-            </Admonition>
+            <Admonition type="info">{t('civic.nodes.selfHost.webUnavailable')}</Admonition>
           ) : (
             <>
-              <Button appearance="outline" tone="accent" size="lg" icon={Icons.terminal} onPress={openForm} disabled={provisionBusy} style={fullWidthControl}>{t('civic.nodes.selfHost.cta')}</Button>
+              <Button
+                appearance="outline"
+                tone="accent"
+                size="lg"
+                icon={Icons.terminal}
+                onPress={openForm}
+                disabled={provisionBusy}
+                style={fullWidthControl}
+              >
+                {t('civic.nodes.selfHost.cta')}
+              </Button>
               <Text style={[styles.choiceHint, { color: colors.textSecondary }]}>
                 {t('civic.nodes.selfHost.ctaSubtitle')}
               </Text>
@@ -257,9 +275,7 @@ export default function NodeScreen() {
         </View>
       </Section>
 
-      <Admonition type="info">
-        {t('civic.nodes.managed.note')}
-      </Admonition>
+      <Admonition type="info">{t('civic.nodes.managed.note')}</Admonition>
 
       {provision.biometricFailed && (
         <Text style={[styles.inlineWarn, { color: colors.warning }]}>
@@ -343,7 +359,9 @@ export default function NodeScreen() {
                   selected && { backgroundColor: colors.primarySubtle },
                 ]}
               >
-                <Text style={[styles.modeChipText, { color: selected ? colors.tint : colors.text }]}>
+                <Text
+                  style={[styles.modeChipText, { color: selected ? colors.tint : colors.text }]}
+                >
                   {t(`civic.nodes.form.mode${option === 'pull' ? 'Pull' : 'Push'}`)}
                 </Text>
               </TouchableOpacity>
@@ -368,13 +386,33 @@ export default function NodeScreen() {
       )}
 
       <View className="gap-space-12">
-        <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleRegister} loading={registerBusy} disabled={!endpointValid || !publicKeyValid || registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cta')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          size="lg"
+          icon={Icons.personhood}
+          onPress={handleRegister}
+          loading={registerBusy}
+          disabled={!endpointValid || !publicKeyValid || registerBusy}
+          style={fullWidthControl}
+        >
+          {t('civic.nodes.form.cta')}
+        </Button>
         {registerBusy && (
           <Text style={[styles.centerMuted, { color: colors.textSecondary }]}>
             {t('civic.nodes.form.submitting')}
           </Text>
         )}
-        <Button appearance="outline" tone="accent" size="lg" onPress={closeForm} disabled={registerBusy} style={fullWidthControl}>{t('civic.nodes.form.cancel')}</Button>
+        <Button
+          appearance="outline"
+          tone="accent"
+          size="lg"
+          onPress={closeForm}
+          disabled={registerBusy}
+          style={fullWidthControl}
+        >
+          {t('civic.nodes.form.cancel')}
+        </Button>
       </View>
     </>
   );
@@ -413,9 +451,7 @@ export default function NodeScreen() {
         )}
 
         {current.status === 'revoked' && (
-          <Admonition type="error">
-            {t('civic.nodes.revokedNote')}
-          </Admonition>
+          <Admonition type="error">{t('civic.nodes.revokedNote')}</Admonition>
         )}
 
         {/* Endpoint — selectable, full address */}
@@ -483,12 +519,29 @@ export default function NodeScreen() {
         {/* Inline disconnect confirm */}
         {confirmingDisconnect && (
           <Section title={t('civic.nodes.disconnect.confirmTitle')}>
-            <Admonition type="error">
-              {t('civic.nodes.disconnect.confirmBody')}
-            </Admonition>
+            <Admonition type="error">{t('civic.nodes.disconnect.confirmBody')}</Admonition>
             <View className="flex-row gap-space-12 mt-space-4">
-              <Button appearance="outline" tone="accent" size="lg" onPress={() => setConfirmingDisconnect(false)} disabled={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.cancel')}</Button>
-              <Button appearance="solid" tone="danger" size="lg" icon={Icons.personhood} onPress={handleDisconnect} loading={removeBusy} style={[fullWidthControl, styles.confirmButton]}>{t('civic.nodes.disconnect.confirmCta')}</Button>
+              <Button
+                appearance="outline"
+                tone="accent"
+                size="lg"
+                onPress={() => setConfirmingDisconnect(false)}
+                disabled={removeBusy}
+                style={[fullWidthControl, styles.confirmButton]}
+              >
+                {t('civic.nodes.disconnect.cancel')}
+              </Button>
+              <Button
+                appearance="solid"
+                tone="danger"
+                size="lg"
+                icon={Icons.personhood}
+                onPress={handleDisconnect}
+                loading={removeBusy}
+                style={[fullWidthControl, styles.confirmButton]}
+              >
+                {t('civic.nodes.disconnect.confirmCta')}
+              </Button>
             </View>
           </Section>
         )}
@@ -522,7 +575,9 @@ export default function NodeScreen() {
           description={t('civic.nodes.error.body')}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={() => query.refetch()}>{t('common.retry')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={() => query.refetch()}>
+                {t('common.retry')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}

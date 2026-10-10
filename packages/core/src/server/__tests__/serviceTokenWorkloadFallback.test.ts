@@ -20,7 +20,7 @@ import { OxyServer } from '../OxyServer';
  *  3. The token is cached, so a service does not mint one per request.
  */
 
-const mockToken = `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ iat: Math.floor(Date.now()/1000), exp: Math.floor(Date.now()/1000)+300 })).toString('base64url')}.fixture`;
+const mockToken = `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 300 })).toString('base64url')}.fixture`;
 
 jest.mock('../workloadIdentity', () => ({
   canAttestWorkloadIdentity: () => Boolean(process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),

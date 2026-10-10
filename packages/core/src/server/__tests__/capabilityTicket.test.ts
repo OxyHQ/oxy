@@ -53,7 +53,7 @@ describe('capability tickets', () => {
     const verified = verifyCapabilityTicket(token, {
       audience: 'inbox-api',
       issuer: 'https://api.oxy.so',
-      resolvePublicKey: (keyId) => keyId === KEY_ID ? KEY_PAIR.publicKey : undefined,
+      resolvePublicKey: (keyId) => (keyId === KEY_ID ? KEY_PAIR.publicKey : undefined),
       now: new Date('2026-09-01T10:00:30.000Z'),
     });
 
@@ -65,33 +65,64 @@ describe('capability tickets', () => {
 
   it('rejects cross-app replay even when the signature is valid', () => {
     const token = issueCapabilityTicket(claims, {
-      issuer: 'https://api.oxy.so', privateKey: KEY_PAIR.privateKey, keyId: KEY_ID, now: NOW,
+      issuer: 'https://api.oxy.so',
+      privateKey: KEY_PAIR.privateKey,
+      keyId: KEY_ID,
+      now: NOW,
     });
 
-    expect(() => verifyCapabilityTicket(token, {
-      audience: 'mention-api', resolvePublicKey: () => KEY_PAIR.publicKey, now: NOW,
-    })).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'wrong_audience' }));
-    expect(() => verifyCapabilityTicket(token, {
-      audience: 'inbox-api', resolvePublicKey: () => undefined, now: NOW,
-    })).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'unknown_key' }));
+    expect(() =>
+      verifyCapabilityTicket(token, {
+        audience: 'mention-api',
+        resolvePublicKey: () => KEY_PAIR.publicKey,
+        now: NOW,
+      }),
+    ).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'wrong_audience' }));
+    expect(() =>
+      verifyCapabilityTicket(token, {
+        audience: 'inbox-api',
+        resolvePublicKey: () => undefined,
+        now: NOW,
+      }),
+    ).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'unknown_key' }));
   });
 
   it('rejects expired, tampered and overlong tickets', () => {
     const token = issueCapabilityTicket(claims, {
-      issuer: 'https://api.oxy.so', privateKey: KEY_PAIR.privateKey, keyId: KEY_ID, now: NOW, ttlSeconds: 60,
+      issuer: 'https://api.oxy.so',
+      privateKey: KEY_PAIR.privateKey,
+      keyId: KEY_ID,
+      now: NOW,
+      ttlSeconds: 60,
     });
-    expect(() => verifyCapabilityTicket(token, {
-      audience: 'inbox-api', resolvePublicKey: () => KEY_PAIR.publicKey, now: new Date('2026-09-01T10:01:00.000Z'),
-    })).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'expired' }));
+    expect(() =>
+      verifyCapabilityTicket(token, {
+        audience: 'inbox-api',
+        resolvePublicKey: () => KEY_PAIR.publicKey,
+        now: new Date('2026-09-01T10:01:00.000Z'),
+      }),
+    ).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'expired' }));
 
     const [header, payload, signature] = token.split('.');
-    expect(() => verifyCapabilityTicket(`${header}.${payload}x.${signature}`, {
-      audience: 'inbox-api', resolvePublicKey: () => KEY_PAIR.publicKey, now: NOW,
-    })).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'invalid_signature' }));
+    expect(() =>
+      verifyCapabilityTicket(`${header}.${payload}x.${signature}`, {
+        audience: 'inbox-api',
+        resolvePublicKey: () => KEY_PAIR.publicKey,
+        now: NOW,
+      }),
+    ).toThrow(
+      expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'invalid_signature' }),
+    );
 
-    expect(() => issueCapabilityTicket(claims, {
-      issuer: 'https://api.oxy.so', privateKey: KEY_PAIR.privateKey, keyId: KEY_ID, now: NOW, ttlSeconds: 301,
-    })).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'ttl_exceeded' }));
+    expect(() =>
+      issueCapabilityTicket(claims, {
+        issuer: 'https://api.oxy.so',
+        privateKey: KEY_PAIR.privateKey,
+        keyId: KEY_ID,
+        now: NOW,
+        ttlSeconds: 301,
+      }),
+    ).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'ttl_exceeded' }));
   });
 
   it('enforces numeric and boolean limits carried by a ticket', () => {
@@ -99,13 +130,27 @@ describe('capability tickets', () => {
       { tool: 'sendPayment', key: 'amount', value: 100 },
       { tool: 'sendPayment', key: 'confirmed', value: true },
     ];
-    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 75, confirmed: true }, limits)).toBe(true);
-    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 101, confirmed: true }, limits)).toBe(false);
-    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 75, confirmed: false }, limits)).toBe(false);
+    expect(
+      inputSatisfiesCapabilityLimits('sendPayment', { amount: 75, confirmed: true }, limits),
+    ).toBe(true);
+    expect(
+      inputSatisfiesCapabilityLimits('sendPayment', { amount: 101, confirmed: true }, limits),
+    ).toBe(false);
+    expect(
+      inputSatisfiesCapabilityLimits('sendPayment', { amount: 75, confirmed: false }, limits),
+    ).toBe(false);
     expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 75 }, limits)).toBe(false);
-    expect(inputSatisfiesCapabilityLimits('otherTool', { amount: 75, confirmed: true }, limits)).toBe(false);
-    expect(inputSatisfiesCapabilityLimits('updateFlags', {
-      flags: { seen: true },
-    }, [{ tool: 'updateFlags', key: 'flags.seen', value: true }])).toBe(true);
+    expect(
+      inputSatisfiesCapabilityLimits('otherTool', { amount: 75, confirmed: true }, limits),
+    ).toBe(false);
+    expect(
+      inputSatisfiesCapabilityLimits(
+        'updateFlags',
+        {
+          flags: { seen: true },
+        },
+        [{ tool: 'updateFlags', key: 'flags.seen', value: true }],
+      ),
+    ).toBe(true);
   });
 });

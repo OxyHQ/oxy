@@ -3,12 +3,15 @@ import type { Namespace, Socket } from 'socket.io';
 import { observeNodeHttp, withoutNodeHttpObservation } from '@oxy.so/core/server';
 import { observeTrafficSocket } from '@oxy.so/telemetry/socket';
 import { getRedisClient } from '../config/redis';
-import {
-  metadataFromHeaders,
-  presenceKeys,
-} from '@oxy.so/telemetry/server';
+import { metadataFromHeaders, presenceKeys } from '@oxy.so/telemetry/server';
 
-import { createTrafficCollector, instrumentTrafficFetch, resolveOxyServiceEndpoint, trafficMiddleware, type TrafficAggregate } from '@oxy.so/telemetry/collector';
+import {
+  createTrafficCollector,
+  instrumentTrafficFetch,
+  resolveOxyServiceEndpoint,
+  trafficMiddleware,
+  type TrafficAggregate,
+} from '@oxy.so/telemetry/collector';
 
 export const PLATFORM_ACTIVITY_EVENT = 'platform_activity';
 
@@ -48,7 +51,11 @@ function observeActiveClient(sourceRegion: string | undefined, clientId: string 
   const redis = getRedisClient();
   if (!redis) return;
   const [currentKey, previousKey] = presenceKeys(sourceRegion, now);
-  void redis.pipeline().pfadd(currentKey, clientId).expire(currentKey, 90).exec()
+  void redis
+    .pipeline()
+    .pfadd(currentKey, clientId)
+    .expire(currentKey, 90)
+    .exec()
     .then(() => redis.pfcount(currentKey, previousKey))
     .then((count) => activeClientCountByOrigin.set(sourceRegion, count))
     .catch(() => {
@@ -58,20 +65,25 @@ function observeActiveClient(sourceRegion: string | undefined, clientId: string 
 
 export function publishPlatformActivity(events: TrafficAggregate[]): void {
   for (const event of events) {
-    const origin = event.sourceRegion?.startsWith('edge-') ? event.sourceRegion : event.targetRegion;
+    const origin = event.sourceRegion?.startsWith('edge-')
+      ? event.sourceRegion
+      : event.targetRegion;
     activityNamespace?.emit(PLATFORM_ACTIVITY_EVENT, {
       ...event,
-      activeClients: origin ? activeClientCountByOrigin.get(origin) ?? 0 : 0,
+      activeClients: origin ? (activeClientCountByOrigin.get(origin) ?? 0) : 0,
     } satisfies PlatformActivityBucket);
   }
 }
 
-let collector = createTrafficCollector(async events => { publishPlatformActivity(events); });
+let collector = createTrafficCollector(async (events) => {
+  publishPlatformActivity(events);
+});
 
 function emitBucket(): void {
   const now = Date.now();
   for (const [origin, clients] of localClientsByOrigin) {
-    for (const [id, lastSeen] of clients) if (now - lastSeen >= ACTIVE_CLIENT_WINDOW_MS) clients.delete(id);
+    for (const [id, lastSeen] of clients)
+      if (now - lastSeen >= ACTIVE_CLIENT_WINDOW_MS) clients.delete(id);
     if (clients.size === 0) {
       localClientsByOrigin.delete(origin);
       activeClientCountByOrigin.delete(origin);
@@ -84,27 +96,39 @@ export function initializePlatformActivity(namespace: Namespace): void {
   activityNamespace = namespace;
   if (emitTimer) return;
   originalFetch = globalThis.fetch;
-  const wrapped = instrumentTrafficFetch(originalFetch, collector, 'oxy-api', processingRegion(), resolveOxyServiceEndpoint);
-  observedFetch = Object.assign((...args: Parameters<typeof fetch>) => withoutNodeHttpObservation(() => wrapped(...args)), originalFetch) as typeof fetch;
+  const wrapped = instrumentTrafficFetch(
+    originalFetch,
+    collector,
+    'oxy-api',
+    processingRegion(),
+    resolveOxyServiceEndpoint,
+  );
+  observedFetch = Object.assign(
+    (...args: Parameters<typeof fetch>) => withoutNodeHttpObservation(() => wrapped(...args)),
+    originalFetch,
+  ) as typeof fetch;
   stopHttp = observeNodeHttp(collector, 'oxy-api', processingRegion(), resolveOxyServiceEndpoint);
   globalThis.fetch = observedFetch;
   emitTimer = setInterval(emitBucket, EMIT_INTERVAL_MS);
   emitTimer.unref?.();
 }
 
-export function platformActivityMiddleware(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+export function platformActivityMiddleware(req: Request, res: Response, next: NextFunction): void {
   const metadata = metadataFromHeaders(req.headers);
-  observeActiveClient(metadata.edgePop ? `edge-${metadata.edgePop}` : undefined, metadata.activityId);
+  observeActiveClient(
+    metadata.edgePop ? `edge-${metadata.edgePop}` : undefined,
+    metadata.activityId,
+  );
   trafficMiddleware(collector, 'oxy-api', processingRegion())(req, res, next);
 }
 
 export function observePlatformSocket(socket: Socket): void {
   const unobserve = observeTrafficSocket(socket, collector, 'oxy-api', processingRegion());
-  const cleanup = () => { unobserve(); socket.off('disconnect', cleanup); socketCleanups.delete(cleanup); };
+  const cleanup = () => {
+    unobserve();
+    socket.off('disconnect', cleanup);
+    socketCleanups.delete(cleanup);
+  };
   socket.once('disconnect', cleanup);
   socketCleanups.add(cleanup);
 }
@@ -112,7 +136,7 @@ export function observePlatformSocket(socket: Socket): void {
 export function stopPlatformActivity(): void {
   stopHttp?.();
   stopHttp = null;
-  socketCleanups.forEach(cleanup => cleanup());
+  socketCleanups.forEach((cleanup) => cleanup());
   socketCleanups.clear();
   if (emitTimer) clearInterval(emitTimer);
   emitTimer = null;
@@ -120,7 +144,9 @@ export function stopPlatformActivity(): void {
   originalFetch = null;
   observedFetch = null;
   activityNamespace = null;
-  collector = createTrafficCollector(async events => { publishPlatformActivity(events); });
+  collector = createTrafficCollector(async (events) => {
+    publishPlatformActivity(events);
+  });
   localClientsByOrigin.clear();
   activeClientCountByOrigin.clear();
 }

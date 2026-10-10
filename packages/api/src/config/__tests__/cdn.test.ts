@@ -82,16 +82,19 @@ describe('asset CDN config', () => {
     });
 
     it('builds a clean URL from a CDN-relative key (no double slashes)', () => {
-      expect(buildCdnUrl('content/2026/06/ab/abc.jpg'))
-        .toBe('https://cloud.oxy.so/content/2026/06/ab/abc.jpg');
-      expect(buildCdnUrl('/content/2026/06/ab/abc.jpg'))
-        .toBe('https://cloud.oxy.so/content/2026/06/ab/abc.jpg');
+      expect(buildCdnUrl('content/2026/06/ab/abc.jpg')).toBe(
+        'https://cloud.oxy.so/content/2026/06/ab/abc.jpg',
+      );
+      expect(buildCdnUrl('/content/2026/06/ab/abc.jpg')).toBe(
+        'https://cloud.oxy.so/content/2026/06/ab/abc.jpg',
+      );
     });
 
     it('maps a stored public key to its CDN URL by stripping the prefix', () => {
       // CloudFront origin_path re-adds `/public`, so the URL path omits it.
-      expect(cdnUrlForStorageKey(`${PUBLIC_KEY_PREFIX}content/2026/06/ab/abc.jpg`))
-        .toBe('https://cloud.oxy.so/content/2026/06/ab/abc.jpg');
+      expect(cdnUrlForStorageKey(`${PUBLIC_KEY_PREFIX}content/2026/06/ab/abc.jpg`)).toBe(
+        'https://cloud.oxy.so/content/2026/06/ab/abc.jpg',
+      );
     });
 
     it('never emits an amazonaws URL', () => {

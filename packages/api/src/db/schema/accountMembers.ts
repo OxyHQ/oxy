@@ -120,7 +120,7 @@ export const accountMembers = pgTable(
     check('account_members_role_check', sql`${t.role} in (${sql.raw(inList(ACCOUNT_ROLES))})`),
     check(
       'account_members_status_check',
-      sql`${t.status} in (${sql.raw(inList(ACCOUNT_MEMBER_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(ACCOUNT_MEMBER_STATUSES))})`,
     ),
-  ]
+  ],
 );

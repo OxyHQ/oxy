@@ -125,8 +125,8 @@ try {
   mutate(
     weakenedSteadyState,
     '.github/workflows/kaana-signed-canary.yml',
-    "[ \"$(jq '.deployments | length' <<<\"$service_json\")\" != 1 ] || \\",
-    "[ \"$(jq '.deployments | length' <<<\"$service_json\")\" -lt 1 ] || \\",
+    '[ "$(jq \'.deployments | length\' <<<"$service_json")" != 1 ] || \\',
+    '[ "$(jq \'.deployments | length\' <<<"$service_json")" -lt 1 ] || \\',
   );
   verdict(weakenedSteadyState, 1);
 
@@ -394,7 +394,7 @@ try {
     freeFormFailureLogs,
     '.github/workflows/kaana-signed-canary.yml',
     "echo '::error::canary emitted an unsafe or invalid failure result envelope'",
-    "jq -r '.events[].message' <<<\"$log_json\"",
+    'jq -r \'.events[].message\' <<<"$log_json"',
   );
   verdict(freeFormFailureLogs, 1);
 

@@ -65,7 +65,7 @@ interface RawResponse {
 async function requestNoFollow(
   server: http.Server,
   path: string,
-  headers: http.OutgoingHttpHeaders = {}
+  headers: http.OutgoingHttpHeaders = {},
 ): Promise<RawResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
@@ -73,7 +73,9 @@ async function requestNoFollow(
       { method: 'GET', host: '127.0.0.1', port: address.port, path, headers },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           resolve({
             status: res.statusCode ?? 0,
@@ -83,7 +85,7 @@ async function requestNoFollow(
             body: raw,
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -234,10 +236,7 @@ describe('GET /cdn/:id — public CDN origin resolver', () => {
     });
     mockGetPublicCdnUrl.mockResolvedValue(THUMB_CDN_URL);
 
-    const res = await requestNoFollow(
-      server,
-      `/cdn/${PUBLIC_FILE_ID}?variant=thumb&variant=thumb`,
-    );
+    const res = await requestNoFollow(server, `/cdn/${PUBLIC_FILE_ID}?variant=thumb&variant=thumb`);
 
     expect(res.status).toBe(302);
     expect(mockGetPublicCdnUrl).toHaveBeenCalledWith(expect.any(Object), 'thumb');

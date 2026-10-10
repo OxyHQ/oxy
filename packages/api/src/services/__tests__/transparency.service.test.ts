@@ -42,11 +42,7 @@
 
 import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { asc, eq, sql } from 'drizzle-orm';
-import {
-  checkpointHash,
-  verifyCheckpointSignature,
-  verifyInclusionProof,
-} from '@oxy.so/protocol';
+import { checkpointHash, verifyCheckpointSignature, verifyInclusionProof } from '@oxy.so/protocol';
 
 const oxyKey = generateSecp256k1KeyPair();
 const OXY_PRIVATE_KEY = oxyKey.privateKey;

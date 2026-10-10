@@ -22,7 +22,7 @@ const uniqueId = () => randomUUID().replace(/-/g, '');
 
 async function makeUsers(
   count: number,
-  overrides: Partial<typeof users.$inferInsert> = {}
+  overrides: Partial<typeof users.$inferInsert> = {},
 ): Promise<string[]> {
   const ids = Array.from({ length: count }, () => uniqueId());
   await getDb()

@@ -40,17 +40,19 @@ let authSessionCounter = 0;
 
 async function authorize(sessionId: string, appId: string, subject = userId) {
   authSessionCounter += 1;
-  await getDb().insert(authSessions).values({
-    // `session_token` is the row's own handle and is NOT NULL; unique per row so
-    // repeated authorizations in one test cannot collide.
-    sessionToken: `auth-session-token-${authSessionCounter}`,
-    // NOT NULL. Far enough out that nothing under test reads it as expired.
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-    applicationId: appId,
-    authorizedSessionId: sessionId,
-    authorizedUserId: subject,
-    status: 'authorized',
-  });
+  await getDb()
+    .insert(authSessions)
+    .values({
+      // `session_token` is the row's own handle and is NOT NULL; unique per row so
+      // repeated authorizations in one test cannot collide.
+      sessionToken: `auth-session-token-${authSessionCounter}`,
+      // NOT NULL. Far enough out that nothing under test reads it as expired.
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      applicationId: appId,
+      authorizedSessionId: sessionId,
+      authorizedUserId: subject,
+      status: 'authorized',
+    });
 }
 
 async function grant(appId: string, scopes: string[], subject = userId) {

@@ -38,7 +38,9 @@ export function useContactSync(): UseContactSyncResult {
   const { oxyServices } = useOxy();
   const { t } = useTranslation();
 
-  const [contactsPermission, setContactsPermission] = useState<Contacts.PermissionStatus | null>(null);
+  const [contactsPermission, setContactsPermission] = useState<Contacts.PermissionStatus | null>(
+    null,
+  );
   const [isSyncingContacts, setIsSyncingContacts] = useState(false);
   const [deviceContactsCount, setDeviceContactsCount] = useState<number | null>(null);
   const [contactMatches, setContactMatches] = useState<ContactMatch[]>([]);
@@ -87,11 +89,7 @@ export function useContactSync(): UseContactSyncResult {
       setContactMatches([]);
 
       const { data: deviceContacts } = await Contacts.getContactsAsync({
-        fields: [
-          Contacts.Fields.Name,
-          Contacts.Fields.Emails,
-          Contacts.Fields.PhoneNumbers,
-        ],
+        fields: [Contacts.Fields.Name, Contacts.Fields.Emails, Contacts.Fields.PhoneNumbers],
       });
 
       if (deviceContacts.length === 0) {

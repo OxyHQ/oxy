@@ -57,14 +57,24 @@ export class NotificationsApi {
 
   /** One page of the inbox, newest first, with the unread count across all pages. */
   async list(params: { page?: number; limit?: number } = {}): Promise<NotificationPage> {
-    return this.ctx.request<NotificationPage>('GET', '/notifications', buildQueryParams({ page: params.page, limit: params.limit }), {
-      cache: false,
-    });
+    return this.ctx.request<NotificationPage>(
+      'GET',
+      '/notifications',
+      buildQueryParams({ page: params.page, limit: params.limit }),
+      {
+        cache: false,
+      },
+    );
   }
 
   /** How many notifications are unread. */
   async unreadCount(): Promise<number> {
-    const res = await this.ctx.request<{ unreadCount: number }>('GET', '/notifications/unread-count', undefined, { cache: false });
+    const res = await this.ctx.request<{ unreadCount: number }>(
+      'GET',
+      '/notifications/unread-count',
+      undefined,
+      { cache: false },
+    );
     return res.unreadCount;
   }
 
@@ -90,7 +100,12 @@ export class NotificationsApi {
 
   /** Delete one notification. */
   async delete(notificationId: string): Promise<void> {
-    await this.ctx.request('DELETE', `/notifications/${encodeURIComponent(notificationId)}`, undefined, { cache: false });
+    await this.ctx.request(
+      'DELETE',
+      `/notifications/${encodeURIComponent(notificationId)}`,
+      undefined,
+      { cache: false },
+    );
   }
 
   // ── Push tokens ──────────────────────────────────────────────────────────
@@ -130,6 +145,11 @@ export class NotificationsApi {
    * no longer holds.
    */
   async unregisterPushToken(expoPushToken: string): Promise<void> {
-    await this.ctx.request('DELETE', '/notifications/push-token', { token: expoPushToken }, { cache: false });
+    await this.ctx.request(
+      'DELETE',
+      '/notifications/push-token',
+      { token: expoPushToken },
+      { cache: false },
+    );
   }
 }

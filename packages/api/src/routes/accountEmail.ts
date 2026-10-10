@@ -49,7 +49,11 @@ router.post(
   startLimiter,
   validate({ body: emailVerificationStartRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
-    res.status(200).json(await startEmailVerification(req.body as EmailVerificationStartRequest, hashedIpKey(req)));
+    res
+      .status(200)
+      .json(
+        await startEmailVerification(req.body as EmailVerificationStartRequest, hashedIpKey(req)),
+      );
   }),
 );
 

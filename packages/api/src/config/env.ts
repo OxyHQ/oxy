@@ -1,9 +1,9 @@
 /**
  * Environment Configuration Validation
- * 
+ *
  * Validates required environment variables on startup to fail fast
  * with clear error messages rather than failing at runtime.
- * 
+ *
  * Big tech practice: Validate configuration early and provide actionable errors.
  */
 
@@ -254,7 +254,7 @@ export function isValidHostname(value: string): boolean {
 
 /**
  * Validate that required environment variables are set
- * 
+ *
  * @throws {ConfigurationError} If required variables are missing
  */
 export function validateRequiredEnvVars(): void {
@@ -277,7 +277,10 @@ export function validateRequiredEnvVars(): void {
     }
   }
 
-  if (process.env.DATABASE_URL && !POSTGRES_URL_SCHEMES.some(scheme => process.env.DATABASE_URL?.startsWith(scheme))) {
+  if (
+    process.env.DATABASE_URL &&
+    !POSTGRES_URL_SCHEMES.some((scheme) => process.env.DATABASE_URL?.startsWith(scheme))
+  ) {
     warnings.push('DATABASE_URL should start with "postgres://" or "postgresql://"');
   }
 
@@ -293,10 +296,14 @@ export function validateRequiredEnvVars(): void {
     try {
       const parsed = new URL(assetCdnUrl);
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-        missing.push('ASSET_CDN_URL (invalid: must be an absolute http(s) URL like "https://cloud.oxy.so")');
+        missing.push(
+          'ASSET_CDN_URL (invalid: must be an absolute http(s) URL like "https://cloud.oxy.so")',
+        );
       }
     } catch {
-      missing.push('ASSET_CDN_URL (invalid: must be an absolute http(s) URL like "https://cloud.oxy.so")');
+      missing.push(
+        'ASSET_CDN_URL (invalid: must be an absolute http(s) URL like "https://cloud.oxy.so")',
+      );
     }
   }
 
@@ -312,7 +319,9 @@ export function validateRequiredEnvVars(): void {
     for (const key of ['ACCESS_TOKEN_SECRET', 'REFRESH_TOKEN_SECRET'] as const) {
       const val = process.env[key];
       if (val && (WEAK_SECRETS.includes(val) || val.length < 32)) {
-        missing.push(`${key} (insecure: must be at least 32 characters and not a default placeholder)`);
+        missing.push(
+          `${key} (insecure: must be at least 32 characters and not a default placeholder)`,
+        );
       }
     }
   } else {
@@ -320,7 +329,9 @@ export function validateRequiredEnvVars(): void {
     for (const key of ['ACCESS_TOKEN_SECRET', 'REFRESH_TOKEN_SECRET'] as const) {
       const val = process.env[key];
       if (val && WEAK_SECRETS.includes(val)) {
-        warnings.push(`${key} is set to a default placeholder — generate a strong secret with: openssl rand -base64 64`);
+        warnings.push(
+          `${key} is set to a default placeholder — generate a strong secret with: openssl rand -base64 64`,
+        );
       }
     }
   }
@@ -341,8 +352,8 @@ export function validateRequiredEnvVars(): void {
     if (isProduction()) {
       missing.push(
         'DEVICE_ID_SALT (required: generate with `openssl rand -base64 48` — ' +
-        'scopes the derived deviceId hash; without it, two users behind the ' +
-        'same NAT on the same browser collide on the same deviceId)'
+          'scopes the derived deviceId hash; without it, two users behind the ' +
+          'same NAT on the same browser collide on the same deviceId)',
       );
     } else {
       // Dev-mode: install the placeholder so the derivation works in tests
@@ -350,9 +361,9 @@ export function validateRequiredEnvVars(): void {
       process.env.DEVICE_ID_SALT = DEV_DEVICE_ID_SALT_DEFAULT;
       logger.warn(
         'DEVICE_ID_SALT is unset — using a development-only placeholder. ' +
-        'Set DEVICE_ID_SALT to a strong random value (≥32 chars) before ' +
-        'deploying. Generate one with: openssl rand -base64 48',
-        { component: 'env', placeholder: DEV_DEVICE_ID_SALT_DEFAULT }
+          'Set DEVICE_ID_SALT to a strong random value (≥32 chars) before ' +
+          'deploying. Generate one with: openssl rand -base64 48',
+        { component: 'env', placeholder: DEV_DEVICE_ID_SALT_DEFAULT },
       );
     }
   } else if (isProduction() && deviceIdSalt === DEV_DEVICE_ID_SALT_DEFAULT) {
@@ -362,7 +373,7 @@ export function validateRequiredEnvVars(): void {
     missing.push('DEVICE_ID_SALT (the development placeholder is not allowed in production)');
   } else if (deviceIdSalt.length < MIN_DEVICE_ID_SALT_LENGTH) {
     missing.push(
-      `DEVICE_ID_SALT (insecure: must be at least ${MIN_DEVICE_ID_SALT_LENGTH} characters; got ${deviceIdSalt.length})`
+      `DEVICE_ID_SALT (insecure: must be at least ${MIN_DEVICE_ID_SALT_LENGTH} characters; got ${deviceIdSalt.length})`,
     );
   }
 
@@ -375,7 +386,7 @@ export function validateRequiredEnvVars(): void {
   if (missing.length > 0) {
     const errorMessage = [
       'Missing required environment variables:',
-      ...missing.map(key => `  - ${key}`),
+      ...missing.map((key) => `  - ${key}`),
       '',
       'Please set these variables in your .env file or environment.',
       'See .env.example for reference.',
@@ -387,7 +398,7 @@ export function validateRequiredEnvVars(): void {
 
 /**
  * Get environment variable with default fallback
- * 
+ *
  * @param key - Environment variable key
  * @param defaultValue - Default value if not set
  * @returns Environment variable value or default
@@ -398,7 +409,7 @@ export function getEnvVar(key: string, defaultValue?: string): string {
 
 /**
  * Get environment variable as number
- * 
+ *
  * @param key - Environment variable key
  * @param defaultValue - Default value if not set or invalid
  * @returns Parsed number or default
@@ -406,14 +417,14 @@ export function getEnvVar(key: string, defaultValue?: string): string {
 export function getEnvNumber(key: string, defaultValue: number): number {
   const value = process.env[key];
   if (!value) return defaultValue;
-  
+
   const parsed = Number.parseInt(value, 10);
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
 /**
  * Get environment variable as boolean
- * 
+ *
  * @param key - Environment variable key
  * @param defaultValue - Default value if not set
  * @returns Boolean value
@@ -421,7 +432,7 @@ export function getEnvNumber(key: string, defaultValue: number): number {
 export function getEnvBoolean(key: string, defaultValue: boolean): boolean {
   const value = process.env[key];
   if (!value) return defaultValue;
-  
+
   return ['true', '1', 'yes'].includes(value.toLowerCase());
 }
 
@@ -467,7 +478,7 @@ export function getSanitizedConfig(): Record<string, string> {
 
 /**
  * Mask sensitive parts of connection strings for logging
- * 
+ *
  * @param connectionString - Connection string to mask
  * @returns Masked connection string
  */

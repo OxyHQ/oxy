@@ -95,14 +95,18 @@ export function createInMemoryNodeStore(): RecordStore & BlobStore {
     },
     async resolveCursorSeq(_subject, recordId): Promise<number | null> {
       const found = records.find((r) => r.recordId === recordId);
-      return found ? found.env.seq ?? -1 : null;
+      return found ? (found.env.seq ?? -1) : null;
     },
     async materializeCurrent(_subject, collection, rkey): Promise<SignedRecordEnvelope | null> {
-      const matching = records.filter((r) => r.env.collection === collection && r.env.rkey === rkey);
+      const matching = records.filter(
+        (r) => r.env.collection === collection && r.env.rkey === rkey,
+      );
       return matching.length ? matching[matching.length - 1].env : null;
     },
     async latestIssuedAtForKey(_subject, env): Promise<number | null> {
-      const matching = records.filter((r) => r.env.collection === env.collection && r.env.rkey === env.rkey);
+      const matching = records.filter(
+        (r) => r.env.collection === env.collection && r.env.rkey === env.rkey,
+      );
       return matching.length ? matching[matching.length - 1].env.issuedAt : null;
     },
     async putBlob(hash, bytes): Promise<void> {

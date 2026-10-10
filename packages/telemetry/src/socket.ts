@@ -13,11 +13,26 @@ export interface TrafficSocket {
 }
 
 const CATEGORIES: Record<string, TrafficType> = {
-  auth: 'identity', session: 'identity', user: 'identity', profile: 'identity',
-  chat: 'ai', agent: 'ai', inference: 'ai', completion: 'ai',
-  message: 'communication', notification: 'communication', typing: 'communication',
-  media: 'media', audio: 'media', video: 'media', stream: 'media', player: 'media',
-  track: 'media', playback: 'media', playlist: 'media', room: 'media',
+  auth: 'identity',
+  session: 'identity',
+  user: 'identity',
+  profile: 'identity',
+  chat: 'ai',
+  agent: 'ai',
+  inference: 'ai',
+  completion: 'ai',
+  message: 'communication',
+  notification: 'communication',
+  typing: 'communication',
+  media: 'media',
+  audio: 'media',
+  video: 'media',
+  stream: 'media',
+  player: 'media',
+  track: 'media',
+  playback: 'media',
+  playlist: 'media',
+  room: 'media',
 };
 
 /** Event names are reduced locally to five categories; payloads are never read. */
@@ -43,11 +58,19 @@ export function observeTrafficSocket(
   const record = (event: string, direction: 'inbound' | 'outbound') => {
     if (stopped) return;
     const peer = options.getPeer?.();
-    const peerService = peer && /^[a-z][a-z0-9-]{0,39}$/.test(peer.service) ? peer.service : undefined;
+    const peerService =
+      peer && /^[a-z][a-z0-9-]{0,39}$/.test(peer.service) ? peer.service : undefined;
     const edgePop = metadataFromHeaders(socket.handshake.headers).edgePop;
-    const peerRegion = peerService ? normalizeInfrastructureRegion(peer?.region) : edgePop ? `edge-${edgePop}` : undefined;
+    const peerRegion = peerService
+      ? normalizeInfrastructureRegion(peer?.region)
+      : edgePop
+        ? `edge-${edgePop}`
+        : undefined;
     collector.record({
-      region, service, scope: peerService ? 'internal' : 'external', direction,
+      region,
+      service,
+      scope: peerService ? 'internal' : 'external',
+      direction,
       activityType: socketTrafficType(event),
       sourceRegion: direction === 'inbound' ? peerRegion : region,
       targetRegion: direction === 'inbound' ? region : peerRegion,
@@ -97,11 +120,19 @@ export function observeTrafficWebSocket(
   const record = (direction: 'inbound' | 'outbound') => {
     if (stopped) return;
     const peer = options.getPeer?.();
-    const peerService = peer && /^[a-z][a-z0-9-]{0,39}$/.test(peer.service) ? peer.service : undefined;
+    const peerService =
+      peer && /^[a-z][a-z0-9-]{0,39}$/.test(peer.service) ? peer.service : undefined;
     const edgePop = metadataFromHeaders(options.headers ?? {}).edgePop;
-    const peerRegion = peerService ? normalizeInfrastructureRegion(peer?.region) : edgePop ? `edge-${edgePop}` : undefined;
+    const peerRegion = peerService
+      ? normalizeInfrastructureRegion(peer?.region)
+      : edgePop
+        ? `edge-${edgePop}`
+        : undefined;
     collector.record({
-      service, region, scope: peerService ? 'internal' : 'external', direction,
+      service,
+      region,
+      scope: peerService ? 'internal' : 'external',
+      direction,
       activityType: options.activityType ?? 'communication',
       sourceRegion: direction === 'inbound' ? peerRegion : region,
       targetRegion: direction === 'inbound' ? region : peerRegion,

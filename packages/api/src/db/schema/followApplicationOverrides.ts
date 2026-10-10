@@ -67,10 +67,10 @@ export const followApplicationOverrides = pgTable(
     check('follow_application_overrides_mode_check', sql`${t.mode} in ('enabled', 'disabled')`),
     unique('follow_application_overrides_relationship_application_key').on(
       t.relationshipId,
-      t.applicationId
+      t.applicationId,
     ),
     // The read every feed does: "which of this user's follows are off in me".
     // Leading on the application because that is the constant in that query.
     index('follow_application_overrides_application_idx').on(t.applicationId, t.mode),
-  ]
+  ],
 );

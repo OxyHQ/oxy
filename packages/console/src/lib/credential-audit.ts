@@ -37,7 +37,7 @@ import type { CredentialAuditEvent } from '@/hooks/use-applications';
 
 /** Badge tone: a refused validation is the only event that reads as a problem. */
 export function credentialAuditVariant(
-  event: Pick<CredentialAuditEvent, 'eventType'>
+  event: Pick<CredentialAuditEvent, 'eventType'>,
 ): 'outline' | 'destructive' {
   return event.eventType === 'validation_failed' ? 'destructive' : 'outline';
 }
@@ -48,9 +48,7 @@ export function credentialAuditVariant(
  * Derived from `eventType`, per the header. A transition is performed by a
  * member; a `validation_failed` row is a request that was turned away.
  */
-export function credentialAuditAttribution(
-  event: Pick<CredentialAuditEvent, 'eventType'>
-): string {
+export function credentialAuditAttribution(event: Pick<CredentialAuditEvent, 'eventType'>): string {
   return event.eventType === 'validation_failed' ? 'a refused request' : 'by a member';
 }
 

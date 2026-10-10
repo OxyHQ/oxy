@@ -71,7 +71,9 @@ jest.mock('../../services/assetServiceSingleton', () => ({
   s3Service: {},
 }));
 jest.mock('../../controllers/users.controller', () => ({
-  UsersController: class { searchUsers = jest.fn(); },
+  UsersController: class {
+    searchUsers = jest.fn();
+  },
 }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -117,11 +119,15 @@ interface RawResponse {
 function getRaw(path: string): Promise<RawResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    http.get({ host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, raw }));
-    }).on('error', reject);
+    http
+      .get({ host: '127.0.0.1', port: address.port, path }, (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, raw }));
+      })
+      .on('error', reject);
   });
 }
 
@@ -136,7 +142,11 @@ async function signInAsFreshAccount(): Promise<string> {
 }
 
 /** A v1 signed-record envelope for `userId`. */
-function envelopeFor(userId: string, type: 'identity' | 'profile', publicKey: string): SignedRecordEnvelope {
+function envelopeFor(
+  userId: string,
+  type: 'identity' | 'profile',
+  publicKey: string,
+): SignedRecordEnvelope {
   return {
     version: 1,
     type,
@@ -155,7 +165,12 @@ function envelopeFor(userId: string, type: 'identity' | 'profile', publicKey: st
  * verified domains, two app-data entries, a follow in each
  * direction, and one signed record per type.
  */
-async function seedFullAccount(): Promise<{ userId: string; publicKey: string; followedId: string; followerId: string }> {
+async function seedFullAccount(): Promise<{
+  userId: string;
+  publicKey: string;
+  followedId: string;
+  followerId: string;
+}> {
   const db = getDb();
   const publicKey = generateSecp256k1KeyPair().publicKey;
   const username = `nate${randomUUID().replace(/-/g, '').slice(0, 8)}`;
@@ -191,8 +206,20 @@ async function seedFullAccount(): Promise<{ userId: string; publicKey: string; f
   ]);
 
   await db.insert(userVerifiedDomains).values([
-    { userId, domain: 'first.example', verifiedAt: new Date('2026-06-01T00:00:00.000Z'), method: 'dns-txt', createdAt: new Date('2026-06-01T00:00:00.000Z') },
-    { userId, domain: 'second.example', verifiedAt: new Date('2026-06-02T00:00:00.000Z'), method: 'well-known', createdAt: new Date('2026-06-02T00:00:00.000Z') },
+    {
+      userId,
+      domain: 'first.example',
+      verifiedAt: new Date('2026-06-01T00:00:00.000Z'),
+      method: 'dns-txt',
+      createdAt: new Date('2026-06-01T00:00:00.000Z'),
+    },
+    {
+      userId,
+      domain: 'second.example',
+      verifiedAt: new Date('2026-06-02T00:00:00.000Z'),
+      method: 'well-known',
+      createdAt: new Date('2026-06-02T00:00:00.000Z'),
+    },
   ]);
 
   await db.insert(userAppData).values([
@@ -200,8 +227,14 @@ async function seedFullAccount(): Promise<{ userId: string; publicKey: string; f
     { userId, namespace: 'academy', key: 'bookmarks', value: [] },
   ]);
 
-  const [followed] = await db.insert(users).values({ username: `f${randomUUID().replace(/-/g, '')}` }).returning({ id: users.id });
-  const [follower] = await db.insert(users).values({ username: `g${randomUUID().replace(/-/g, '')}` }).returning({ id: users.id });
+  const [followed] = await db
+    .insert(users)
+    .values({ username: `f${randomUUID().replace(/-/g, '')}` })
+    .returning({ id: users.id });
+  const [follower] = await db
+    .insert(users)
+    .values({ username: `g${randomUUID().replace(/-/g, '')}` })
+    .returning({ id: users.id });
   await db.insert(userFollows).values({ followerId: userId, followedId: followed.id });
   await db.insert(userFollows).values({ followerId: follower.id, followedId: userId });
 
@@ -279,14 +312,28 @@ describe('the export bundle must not leak a secret', () => {
 
     const bundle = JSON.parse(res.raw);
     const profile = bundle.profile as Record<string, unknown>;
-    for (const field of ['phone', 'hashedEmail', 'hashedPhone', 'refreshToken', 'emailSignature', 'autoForwardTo', 'autoForwardKeepCopy', 'password', 'twoFactorAuth']) {
+    for (const field of [
+      'phone',
+      'hashedEmail',
+      'hashedPhone',
+      'refreshToken',
+      'emailSignature',
+      'autoForwardTo',
+      'autoForwardKeepCopy',
+      'password',
+      'twoFactorAuth',
+    ]) {
       expect(profile[field]).toBeUndefined();
     }
 
     // The account really does hold those secrets — otherwise the assertions
     // above pass against an empty row and prove nothing.
     const [stored] = await getDb()
-      .select({ phone: users.phone, hashedEmail: users.hashedEmail, refreshToken: users.refreshToken })
+      .select({
+        phone: users.phone,
+        hashedEmail: users.hashedEmail,
+        refreshToken: users.refreshToken,
+      })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
@@ -316,12 +363,16 @@ describe('GET /users/me/export (JSON)', () => {
     expect(bundle.didDocument.id).toBe(did);
     expect(bundle.didDocument.controller).toEqual([did]);
     expect(bundle.didDocument.verificationMethod).toEqual([
-      { id: `${did}#key-1`, type: 'EcdsaSecp256k1VerificationKey2019', controller: did, publicKeyHex: publicKey },
+      {
+        id: `${did}#key-1`,
+        type: 'EcdsaSecp256k1VerificationKey2019',
+        controller: did,
+        publicKeyHex: publicKey,
+      },
     ]);
-    expect(bundle.didDocument.alsoKnownAs).toEqual(expect.arrayContaining([
-      'https://first.example',
-      'https://second.example',
-    ]));
+    expect(bundle.didDocument.alsoKnownAs).toEqual(
+      expect.arrayContaining(['https://first.example', 'https://second.example']),
+    );
 
     expect(bundle.verifiedDomains).toEqual([
       { domain: 'first.example', verifiedAt: '2026-06-01T00:00:00.000Z', method: 'dns-txt' },
@@ -346,16 +397,27 @@ describe('GET /users/me/export (JSON)', () => {
     });
 
     expect(bundle.signedRecords).toHaveLength(2);
-    expect(bundle.signedRecords.map((record: SignedRecordEnvelope) => record.type)).toEqual(['identity', 'profile']);
+    expect(bundle.signedRecords.map((record: SignedRecordEnvelope) => record.type)).toEqual([
+      'identity',
+      'profile',
+    ]);
 
     expect(bundle.profile.id).toBe(userId);
     expect(bundle.profile.publicKey).toBe(publicKey);
-    expect(bundle.profile.name).toEqual({ displayName: 'Nate Isern', first: 'Nate', last: 'Isern', full: 'Nate Isern' });
+    expect(bundle.profile.name).toEqual({
+      displayName: 'Nate Isern',
+      first: 'Nate',
+      last: 'Isern',
+      full: 'Nate Isern',
+    });
     expect(bundle.profile.verified).toBe(true);
     expect(bundle.profile.themePreference).toEqual({ mode: 'dark', colorPreset: 'purple' });
     // The privacy settings ride the profile section; every key is present
     // because the columns are NOT NULL with defaults.
-    expect(bundle.profile.privacySettings).toMatchObject({ isPrivateAccount: false, fediverseSharing: true });
+    expect(bundle.profile.privacySettings).toMatchObject({
+      isPrivateAccount: false,
+      fediverseSharing: true,
+    });
 
     expect(exportBundleSchema.safeParse(bundle).success).toBe(true);
   });
@@ -477,7 +539,10 @@ describe('GET /users/me/export?format=ndjson', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/x-ndjson');
 
-    const lines = res.raw.trim().split('\n').map((line) => JSON.parse(line));
+    const lines = res.raw
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
     expect(lines[0].kind).toBe('meta');
     expect(lines[0].did).toBe(`did:web:oxy.so:u:${userId}`);
     expect(lines[0].verifiedDomains).toHaveLength(2);

@@ -81,14 +81,16 @@ async function insertUser(): Promise<string> {
 
 async function insertNode(
   userId: string,
-  status: (typeof USER_NODE_STATUSES)[number]
+  status: (typeof USER_NODE_STATUSES)[number],
 ): Promise<void> {
-  await getDb().insert(userNodes).values({
-    userId,
-    endpoint: 'https://node.example',
-    nodePublicKey: '04'.repeat(33),
-    status,
-  });
+  await getDb()
+    .insert(userNodes)
+    .values({
+      userId,
+      endpoint: 'https://node.example',
+      nodePublicKey: '04'.repeat(33),
+      status,
+    });
 }
 
 beforeAll(async () => {

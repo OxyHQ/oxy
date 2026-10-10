@@ -22,7 +22,9 @@ export interface CredentialTrackingAuthStateStore extends AuthStateStore {
   heldDeviceCredential(): HeldDeviceCredential | null | undefined;
 }
 
-function credentialOf(state: { deviceId?: string; deviceSecret?: string } | null): HeldDeviceCredential | null {
+function credentialOf(
+  state: { deviceId?: string; deviceSecret?: string } | null,
+): HeldDeviceCredential | null {
   return state?.deviceId && state.deviceSecret
     ? { deviceId: state.deviceId, deviceSecret: state.deviceSecret }
     : null;
@@ -41,11 +43,15 @@ export function trackDeviceCredential(store: AuthStateStore): CredentialTracking
       held = credentialOf(state);
       return store.save(state);
     },
-    ...(store.saveIfCurrent ? {saveIfCurrent: async (state: PersistedAuthState, guard: AuthStateWriteGuard) => {
-      const committed = await store.saveIfCurrent?.(state, guard);
-      if (committed) held = credentialOf(state);
-      return committed === true;
-    }} : {}),
+    ...(store.saveIfCurrent
+      ? {
+          saveIfCurrent: async (state: PersistedAuthState, guard: AuthStateWriteGuard) => {
+            const committed = await store.saveIfCurrent?.(state, guard);
+            if (committed) held = credentialOf(state);
+            return committed === true;
+          },
+        }
+      : {}),
     clear: async () => {
       held = null;
       await store.clear();

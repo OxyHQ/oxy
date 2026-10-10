@@ -15,11 +15,7 @@ import { z } from 'zod';
 import { userNameSchema } from './userResponse';
 
 /** User-type filters a caller may exclude from the recommendation surface. */
-export const recommendationExcludeTypeSchema = z.enum([
-    'federated',
-    'agent',
-    'automated',
-]);
+export const recommendationExcludeTypeSchema = z.enum(['federated', 'agent', 'automated']);
 
 export type RecommendationExcludeType = z.infer<typeof recommendationExcludeTypeSchema>;
 
@@ -30,9 +26,9 @@ export type RecommendationExcludeType = z.infer<typeof recommendationExcludeType
  * gate — a boost cannot resurrect a private/restricted/ineligible account.
  */
 export const recommendationBoostSchema = z.object({
-    userIds: z.array(z.string().trim().min(1)).min(1).max(200),
-    weight: z.number().min(-5).max(5),
-    reason: z.string().trim().max(120).optional(),
+  userIds: z.array(z.string().trim().min(1)).min(1).max(200),
+  weight: z.number().min(-5).max(5),
+  reason: z.string().trim().max(120).optional(),
 });
 
 export type RecommendationBoost = z.infer<typeof recommendationBoostSchema>;
@@ -43,17 +39,17 @@ export type RecommendationBoost = z.infer<typeof recommendationBoostSchema>;
  * caller can re-weight signals but never escape the profile's bounds.
  */
 export const recommendationSignalWeightsSchema = z
-    .object({
-        graph: z.number().min(0).max(10).optional(),
-        completeness: z.number().min(0).max(10).optional(),
-        verified: z.number().min(0).max(10).optional(),
-        curation: z.number().min(0).max(10).optional(),
-        interest: z.number().min(0).max(10).optional(),
-        appBoost: z.number().min(0).max(10).optional(),
-        repCandidate: z.number().min(0).max(10).optional(),
-        affinity: z.number().min(0).max(10).optional(),
-    })
-    .partial();
+  .object({
+    graph: z.number().min(0).max(10).optional(),
+    completeness: z.number().min(0).max(10).optional(),
+    verified: z.number().min(0).max(10).optional(),
+    curation: z.number().min(0).max(10).optional(),
+    interest: z.number().min(0).max(10).optional(),
+    appBoost: z.number().min(0).max(10).optional(),
+    repCandidate: z.number().min(0).max(10).optional(),
+    affinity: z.number().min(0).max(10).optional(),
+  })
+  .partial();
 
 export type RecommendationSignalWeights = z.infer<typeof recommendationSignalWeightsSchema>;
 
@@ -66,21 +62,21 @@ export type RecommendationSignalWeights = z.infer<typeof recommendationSignalWei
  * ranking within server-enforced bounds.
  */
 export const recommendationRequestSchema = z.object({
-    clientId: z.string().trim().min(1).optional(),
-    limit: z.number().int().min(1).max(100).optional(),
-    offset: z.number().int().min(0).optional(),
-    excludeTypes: z.array(recommendationExcludeTypeSchema).optional(),
-    excludeIds: z.array(z.string().trim().min(1)).max(500).optional(),
-    boosts: z.array(recommendationBoostSchema).max(50).optional(),
-    signalWeights: recommendationSignalWeightsSchema.optional(),
+  clientId: z.string().trim().min(1).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
+  excludeTypes: z.array(recommendationExcludeTypeSchema).optional(),
+  excludeIds: z.array(z.string().trim().min(1)).max(500).optional(),
+  boosts: z.array(recommendationBoostSchema).max(50).optional(),
+  signalWeights: recommendationSignalWeightsSchema.optional(),
 });
 
 export type RecommendationRequest = z.infer<typeof recommendationRequestSchema>;
 
 /** Follower/following counts attached to a recommendation item. */
 export const recommendationCountSchema = z.object({
-    followers: z.number().int().nonnegative(),
-    following: z.number().int().nonnegative(),
+  followers: z.number().int().nonnegative(),
+  following: z.number().int().nonnegative(),
 });
 
 export type RecommendationCount = z.infer<typeof recommendationCountSchema>;
@@ -93,26 +89,26 @@ export type RecommendationCount = z.infer<typeof recommendationCountSchema>;
  * only on the scored (v2) path; `mutualCount` and `_count` are always present.
  */
 export const recommendationItemSchema = z
-    .object({
-        id: z.string(),
-        username: z.string().optional(),
-        name: userNameSchema,
-        avatar: z.string().nullable().optional(),
-        /** The account's accent colour, as on every profile; absent when unset. */
-        color: z.string().optional(),
-        description: z.string().nullable().optional(),
-        verified: z.boolean().optional(),
-        trustTier: z.string().optional(),
-        mutualCount: z.number().int().nonnegative(),
-        score: z.number().optional(),
-        matchedSignals: z.array(z.string()).optional(),
-        isFederated: z.boolean().optional(),
-        isAgent: z.boolean().optional(),
-        isAutomated: z.boolean().optional(),
-        instance: z.string().optional(),
-        _count: recommendationCountSchema,
-    })
-    .passthrough();
+  .object({
+    id: z.string(),
+    username: z.string().optional(),
+    name: userNameSchema,
+    avatar: z.string().nullable().optional(),
+    /** The account's accent colour, as on every profile; absent when unset. */
+    color: z.string().optional(),
+    description: z.string().nullable().optional(),
+    verified: z.boolean().optional(),
+    trustTier: z.string().optional(),
+    mutualCount: z.number().int().nonnegative(),
+    score: z.number().optional(),
+    matchedSignals: z.array(z.string()).optional(),
+    isFederated: z.boolean().optional(),
+    isAgent: z.boolean().optional(),
+    isAutomated: z.boolean().optional(),
+    instance: z.string().optional(),
+    _count: recommendationCountSchema,
+  })
+  .passthrough();
 
 export type RecommendationItem = z.infer<typeof recommendationItemSchema>;
 
@@ -123,18 +119,18 @@ export type RecommendationResponse = z.infer<typeof recommendationResponseSchema
 
 /** One endorsement edge an app reports: `ownerId` endorses `memberId`. */
 export const appEndorsementInputSchema = z.object({
-    ownerId: z.string().trim().min(1),
-    memberId: z.string().trim().min(1),
-    op: z.enum(['add', 'remove']).default('add'),
-    sourceId: z.string().trim().min(1).optional(),
+  ownerId: z.string().trim().min(1),
+  memberId: z.string().trim().min(1),
+  op: z.enum(['add', 'remove']).default('add'),
+  sourceId: z.string().trim().min(1).optional(),
 });
 
 export type AppEndorsementInput = z.infer<typeof appEndorsementInputSchema>;
 
 /** One interest signal an app reports: how interested `userId` is in a topic. */
 export const appInterestInputSchema = z.object({
-    userId: z.string().trim().min(1),
-    interestScore: z.number().min(0).max(1),
+  userId: z.string().trim().min(1),
+  interestScore: z.number().min(0).max(1),
 });
 
 export type AppInterestInput = z.infer<typeof appInterestInputSchema>;
@@ -147,15 +143,13 @@ export type AppInterestInput = z.infer<typeof appInterestInputSchema>;
  * rather than silently succeeding.
  */
 export const appUserSignalIngestSchema = z
-    .object({
-        endorsements: z.array(appEndorsementInputSchema).max(500).optional(),
-        interests: z.array(appInterestInputSchema).max(500).optional(),
-    })
-    .refine(
-        (value) =>
-            (value.endorsements?.length ?? 0) > 0 || (value.interests?.length ?? 0) > 0,
-        { message: 'At least one of endorsements or interests must be non-empty' },
-    );
+  .object({
+    endorsements: z.array(appEndorsementInputSchema).max(500).optional(),
+    interests: z.array(appInterestInputSchema).max(500).optional(),
+  })
+  .refine((value) => (value.endorsements?.length ?? 0) > 0 || (value.interests?.length ?? 0) > 0, {
+    message: 'At least one of endorsements or interests must be non-empty',
+  });
 
 export type AppUserSignalIngest = z.infer<typeof appUserSignalIngestSchema>;
 
@@ -165,14 +159,14 @@ export type AppUserSignalIngest = z.infer<typeof appUserSignalIngestSchema>;
  * `AFFINITY_EVENT_WEIGHTS`); a caller may override the applied weight per event.
  */
 export const appAffinityEventTypeSchema = z.enum([
-    'like',
-    'reply',
-    'boost',
-    'follow',
-    'mention',
-    'profile_view',
-    'quote',
-    'repost',
+  'like',
+  'reply',
+  'boost',
+  'follow',
+  'mention',
+  'profile_view',
+  'quote',
+  'repost',
 ]);
 
 export type AppAffinityEventType = z.infer<typeof appAffinityEventTypeSchema>;
@@ -188,12 +182,12 @@ export type AppAffinityEventType = z.infer<typeof appAffinityEventTypeSchema>;
  *   same application is folded at most once (bounded dedup window).
  */
 export const appAffinityEventSchema = z.object({
-    fromUserId: z.string().trim().min(1),
-    toUserId: z.string().trim().min(1),
-    type: appAffinityEventTypeSchema,
-    weight: z.number().min(0).max(100).optional(),
-    occurredAt: z.string().datetime().optional(),
-    eventId: z.string().trim().min(1).max(200).optional(),
+  fromUserId: z.string().trim().min(1),
+  toUserId: z.string().trim().min(1),
+  type: appAffinityEventTypeSchema,
+  weight: z.number().min(0).max(100).optional(),
+  occurredAt: z.string().datetime().optional(),
+  eventId: z.string().trim().min(1).max(200).optional(),
 });
 
 export type AppAffinityEvent = z.infer<typeof appAffinityEventSchema>;
@@ -205,7 +199,7 @@ export type AppAffinityEvent = z.infer<typeof appAffinityEventSchema>;
  * application. Self-edges (`fromUserId === toUserId`) are dropped server-side.
  */
 export const appAffinityEventsIngestSchema = z.object({
-    events: z.array(appAffinityEventSchema).min(1).max(1000),
+  events: z.array(appAffinityEventSchema).min(1).max(1000),
 });
 
 export type AppAffinityEventsIngest = z.infer<typeof appAffinityEventsIngestSchema>;

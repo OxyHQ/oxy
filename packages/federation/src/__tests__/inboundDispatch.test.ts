@@ -21,21 +21,32 @@ import {
 const LOCAL_ACTOR = 'https://mention.earth/ap/users/alice';
 const REMOTE_ACTOR = 'https://remote.example/users/bob';
 
-function makeRig(overrides: {
-  localUser?: { _id?: string | null; id?: string | null } | null;
-  sharingEnabled?: boolean;
-  followerOxyUserId?: string | null;
-  inboundFollow?: { _id: unknown; localUserId: string } | null;
-  actorOxyUserIdForUndo?: string | null;
-  validate?: (activity: Record<string, unknown>) => InboundActivityValidation;
-  blockedHosts?: string[];
-  withMoveHandler?: boolean;
-} = {}) {
+function makeRig(
+  overrides: {
+    localUser?: { _id?: string | null; id?: string | null } | null;
+    sharingEnabled?: boolean;
+    followerOxyUserId?: string | null;
+    inboundFollow?: { _id: unknown; localUserId: string } | null;
+    actorOxyUserIdForUndo?: string | null;
+    validate?: (activity: Record<string, unknown>) => InboundActivityValidation;
+    blockedHosts?: string[];
+    withMoveHandler?: boolean;
+  } = {},
+) {
   const moves: Array<{ activityId: string; oldActorUri: string; targetActorUri: string }> = [];
   const bridgeFollowCalls: Array<[string, string]> = [];
   const bridgeUnfollowCalls: Array<[string, string]> = [];
-  const acceptsSent: Array<{ localOxyUserId: string; localUsername: string; followActivityId: string; remoteActorUri: string }> = [];
-  const inboundAcceptedUpserts: Array<{ localUserId: string; remoteActorUri: string; activityId: string }> = [];
+  const acceptsSent: Array<{
+    localOxyUserId: string;
+    localUsername: string;
+    followActivityId: string;
+    remoteActorUri: string;
+  }> = [];
+  const inboundAcceptedUpserts: Array<{
+    localUserId: string;
+    remoteActorUri: string;
+    activityId: string;
+  }> = [];
   const deletedFollowIds: unknown[] = [];
   const contentActivities: Array<{ type: unknown; verifiedActorUri: string }> = [];
   const outboundAcceptedByActivityId: Array<[string, string]> = [];
@@ -111,7 +122,11 @@ function makeRig(overrides: {
     ...(overrides.withMoveHandler === false
       ? {}
       : {
-          onMove: async (move: { activityId: string; oldActorUri: string; targetActorUri: string }) => {
+          onMove: async (move: {
+            activityId: string;
+            oldActorUri: string;
+            targetActorUri: string;
+          }) => {
             moves.push(move);
           },
         }),
@@ -145,9 +160,16 @@ describe('inbound Follow', () => {
     );
 
     expect(rig.bridgeFollowCalls).toEqual([['u-bob', 'u-alice']]);
-    expect(rig.inboundAcceptedUpserts).toEqual([{ localUserId: 'u-alice', remoteActorUri: REMOTE_ACTOR, activityId: 'f1' }]);
+    expect(rig.inboundAcceptedUpserts).toEqual([
+      { localUserId: 'u-alice', remoteActorUri: REMOTE_ACTOR, activityId: 'f1' },
+    ]);
     expect(rig.acceptsSent).toEqual([
-      { localOxyUserId: 'u-alice', localUsername: 'alice', followActivityId: 'f1', remoteActorUri: REMOTE_ACTOR },
+      {
+        localOxyUserId: 'u-alice',
+        localUsername: 'alice',
+        followActivityId: 'f1',
+        remoteActorUri: REMOTE_ACTOR,
+      },
     ]);
     expect(rig.onInboundFollowAcceptedCalls).toEqual([['u-alice', 'u-bob', REMOTE_ACTOR]]);
   });
@@ -233,20 +255,32 @@ describe('inbound Accept / Reject', () => {
   it('marks the outbound follow accepted by activity id + triggers the outbox backfill', async () => {
     const rig = makeRig();
     await rig.dispatcher.processInboxActivity(
-      { type: 'Accept', actor: REMOTE_ACTOR, object: { type: 'Follow', id: 'https://mention.earth/ap/users/alice/follows/1' } },
+      {
+        type: 'Accept',
+        actor: REMOTE_ACTOR,
+        object: { type: 'Follow', id: 'https://mention.earth/ap/users/alice/follows/1' },
+      },
       REMOTE_ACTOR,
     );
-    expect(rig.outboundAcceptedByActivityId).toEqual([[REMOTE_ACTOR, 'https://mention.earth/ap/users/alice/follows/1']]);
+    expect(rig.outboundAcceptedByActivityId).toEqual([
+      [REMOTE_ACTOR, 'https://mention.earth/ap/users/alice/follows/1'],
+    ]);
     expect(rig.onOutboundFollowAcceptedCalls).toEqual([REMOTE_ACTOR]);
   });
 
   it('marks accepted (string ref, then any-pending fallback)', async () => {
     const rig = makeRig();
     await rig.dispatcher.processInboxActivity(
-      { type: 'Accept', actor: REMOTE_ACTOR, object: 'https://mention.earth/ap/users/alice/follows/1' },
+      {
+        type: 'Accept',
+        actor: REMOTE_ACTOR,
+        object: 'https://mention.earth/ap/users/alice/follows/1',
+      },
       REMOTE_ACTOR,
     );
-    expect(rig.outboundAcceptedByActivityId).toEqual([[REMOTE_ACTOR, 'https://mention.earth/ap/users/alice/follows/1']]);
+    expect(rig.outboundAcceptedByActivityId).toEqual([
+      [REMOTE_ACTOR, 'https://mention.earth/ap/users/alice/follows/1'],
+    ]);
   });
 
   it('marks the outbound follow rejected on Reject(Follow)', async () => {
@@ -273,13 +307,18 @@ describe('Move → onMove', () => {
   it('hands a well-formed self-Move to the app', async () => {
     const rig = makeRig();
     await rig.dispatcher.processInboxActivity(move(), REMOTE_ACTOR);
-    expect(rig.moves).toEqual([{ activityId: `${REMOTE_ACTOR}#moves/1`, oldActorUri: REMOTE_ACTOR, targetActorUri: TARGET }]);
+    expect(rig.moves).toEqual([
+      { activityId: `${REMOTE_ACTOR}#moves/1`, oldActorUri: REMOTE_ACTOR, targetActorUri: TARGET },
+    ]);
     expect(rig.contentActivities).toHaveLength(0);
   });
 
   it('accepts embedded object/target references', async () => {
     const rig = makeRig();
-    await rig.dispatcher.processInboxActivity(move({ object: { id: REMOTE_ACTOR }, target: { id: TARGET } }), REMOTE_ACTOR);
+    await rig.dispatcher.processInboxActivity(
+      move({ object: { id: REMOTE_ACTOR }, target: { id: TARGET } }),
+      REMOTE_ACTOR,
+    );
     expect(rig.moves).toHaveLength(1);
   });
 
@@ -304,18 +343,23 @@ describe('Move → onMove', () => {
 
   it('drops a Move when the app registered no handler', async () => {
     const rig = makeRig({ withMoveHandler: false });
-    await expect(rig.dispatcher.processInboxActivity(move(), REMOTE_ACTOR)).resolves.toBeUndefined();
+    await expect(
+      rig.dispatcher.processInboxActivity(move(), REMOTE_ACTOR),
+    ).resolves.toBeUndefined();
     expect(rig.contentActivities).toHaveLength(0);
   });
 });
 
 describe('content verbs → onContentActivity', () => {
-  it.each(['Create', 'Announce', 'Like', 'Delete', 'Update'])('routes %s to the app', async (type) => {
-    const rig = makeRig();
-    await rig.dispatcher.processInboxActivity({ type, actor: REMOTE_ACTOR }, REMOTE_ACTOR);
-    expect(rig.contentActivities).toEqual([{ type, verifiedActorUri: REMOTE_ACTOR }]);
-    expect(rig.bridgeFollowCalls).toHaveLength(0);
-  });
+  it.each(['Create', 'Announce', 'Like', 'Delete', 'Update'])(
+    'routes %s to the app',
+    async (type) => {
+      const rig = makeRig();
+      await rig.dispatcher.processInboxActivity({ type, actor: REMOTE_ACTOR }, REMOTE_ACTOR);
+      expect(rig.contentActivities).toEqual([{ type, verifiedActorUri: REMOTE_ACTOR }]);
+      expect(rig.bridgeFollowCalls).toHaveLength(0);
+    },
+  );
 
   it('drops a malformed activity without dispatching', async () => {
     const rig = makeRig({ validate: () => ({ ok: false, summary: 'bad shape' }) });
@@ -402,7 +446,10 @@ describe('blocked-origin domain policy', () => {
 
   it('refuses the origin BEFORE the payload is parsed', async () => {
     const rig = makeRig({ blockedHosts: ['spam.example'] });
-    await rig.dispatcher.processInboxActivity({ type: 'Create', actor: BLOCKED_ACTOR }, BLOCKED_ACTOR);
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Create', actor: BLOCKED_ACTOR },
+      BLOCKED_ACTOR,
+    );
     expect(rig.validatedActivities).toHaveLength(0);
   });
 
@@ -424,7 +471,10 @@ describe('blocked-origin domain policy', () => {
 
   it('still dispatches an allowed origin while another host is blocked', async () => {
     const rig = makeRig({ blockedHosts: ['spam.example'] });
-    await rig.dispatcher.processInboxActivity({ type: 'Create', actor: REMOTE_ACTOR }, REMOTE_ACTOR);
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Create', actor: REMOTE_ACTOR },
+      REMOTE_ACTOR,
+    );
     expect(rig.contentActivities).toEqual([{ type: 'Create', verifiedActorUri: REMOTE_ACTOR }]);
   });
 

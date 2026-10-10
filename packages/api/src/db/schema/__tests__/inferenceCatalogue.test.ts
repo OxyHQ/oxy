@@ -26,7 +26,11 @@ import {
 } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { inferenceDeployments } from '../inferenceDeployments';
-import { inferenceModelRevisions, INFERENCE_REVISION_IMMUTABLE_COLUMNS, INFERENCE_REVISION_IMMUTABILITY_TRIGGER_NAME } from '../inferenceModelRevisions';
+import {
+  inferenceModelRevisions,
+  INFERENCE_REVISION_IMMUTABLE_COLUMNS,
+  INFERENCE_REVISION_IMMUTABILITY_TRIGGER_NAME,
+} from '../inferenceModelRevisions';
 import {
   INFERENCE_API_FORMATS,
   inferenceModels,
@@ -192,9 +196,9 @@ describe('the identifier grammars agree with the wire contract, in both directio
         await rejection(
           getDb()
             .insert(inferenceModelRevisions)
-            .values({ modelId, revision: 'has space', releasedAt: new Date() })
-        )
-      )
+            .values({ modelId, revision: 'has space', releasedAt: new Date() }),
+        ),
+      ),
     ).toBe(CHECK_VIOLATION);
   });
 });
@@ -214,7 +218,7 @@ describe('the canonical model id is composed by the database', () => {
     // A serializer composing this string would be bypassable; a GENERATED
     // column is not. `428C9` is Postgres refusing the write outright.
     const forced = getDb().execute(
-      sql`update inference_models set model_id = 'someone/else' where id = ${modelId}`
+      sql`update inference_models set model_id = 'someone/else' where id = ${modelId}`,
     );
     expect(pgErrorCode(await rejection(forced))).toBe(GENERATED_ALWAYS);
   });
@@ -243,7 +247,7 @@ describe('the alia/* namespace is reserved for first-party releases', () => {
           releaseKind,
         });
       expect(pgErrorCode(await rejection(rejected))).toBe(CHECK_VIOLATION);
-    }
+    },
   );
 
   it.each(['first_party_original', 'first_party_derived'] as const)(
@@ -257,9 +261,9 @@ describe('the alia/* namespace is reserved for first-party releases', () => {
             slug: `real${suffix()}`,
             ...modelDefaults(),
             releaseKind,
-          })
+          }),
       ).resolves.toBeDefined();
-    }
+    },
   );
 
   it('leaves the same release kinds legal under another publisher', async () => {
@@ -275,7 +279,7 @@ describe('the alia/* namespace is reserved for first-party releases', () => {
           slug: `derived${suffix()}`,
           ...modelDefaults(),
           releaseKind: 'first_party_derived',
-        })
+        }),
     ).resolves.toBeDefined();
   });
 });
@@ -283,7 +287,7 @@ describe('the alia/* namespace is reserved for first-party releases', () => {
 describe('a published revision is immutable', () => {
   it('has its trigger installed', async () => {
     const rows = await getDb().execute<{ tgname: string }>(
-      sql`select tgname from pg_trigger where tgname = ${INFERENCE_REVISION_IMMUTABILITY_TRIGGER_NAME}`
+      sql`select tgname from pg_trigger where tgname = ${INFERENCE_REVISION_IMMUTABILITY_TRIGGER_NAME}`,
     );
     // Vacuity floor: a trigger absent and a query that read nothing both return
     // an empty set, so the count is asserted rather than the emptiness.
@@ -309,7 +313,7 @@ describe('a published revision is immutable', () => {
             : sql`'sha256:' || repeat('a', 64)`;
 
     const update = getDb().execute(
-      sql`update inference_model_revisions set ${sql.raw(`"${column}"`)} = ${value} where id = ${revisionId}`
+      sql`update inference_model_revisions set ${sql.raw(`"${column}"`)} = ${value} where id = ${revisionId}`,
     );
     expect(pgErrorCode(await rejection(update))).toBe(CHECK_VIOLATION);
   });
@@ -332,10 +336,10 @@ describe('a published revision is immutable', () => {
 
       await expect(
         getDb().execute(
-          sql`update inference_model_revisions set ${sql.raw(`"${column}"`)} = ${value} where id = ${revisionId}`
-        )
+          sql`update inference_model_revisions set ${sql.raw(`"${column}"`)} = ${value} where id = ${revisionId}`,
+        ),
       ).resolves.toBeDefined();
-    }
+    },
   );
 });
 
@@ -434,7 +438,7 @@ describe('a route is unselectable until somebody approves it', () => {
           legalReviewEvidenceRef: 'contract-register/2026-000123',
           permissionState: 'approved',
           status: 'active',
-        })
+        }),
     ).resolves.toBeDefined();
   });
 
@@ -460,7 +464,7 @@ describe('a route is unselectable until somebody approves it', () => {
           ...(await deploymentDefaults()),
           availabilityScope: 'platform_internal',
           commercialPermission: 'standard_application_use',
-        })
+        }),
     ).resolves.toBeDefined();
   });
 
@@ -610,14 +614,12 @@ describe('a routing-profile candidate names a model or a revision, never both or
   it('refuses a profile slug shaped like a model id', async () => {
     // The structural half of "a request for a concrete model is never silently
     // replaced": the two identifier spaces cannot overlap.
-    const rejected = getDb()
-      .insert(inferenceRoutingProfiles)
-      .values({
-        slug: 'alia/fast',
-        displayName: 'Looks like a model',
-        optimiseFor: 'latency',
-        isProductPreset: true,
-      });
+    const rejected = getDb().insert(inferenceRoutingProfiles).values({
+      slug: 'alia/fast',
+      displayName: 'Looks like a model',
+      optimiseFor: 'latency',
+      isProductPreset: true,
+    });
     expect(pgErrorCode(await rejection(rejected))).toBe(CHECK_VIOLATION);
   });
 });
@@ -648,7 +650,7 @@ describe('every deployment column is classified as customer-safe or internal', (
     const internal = new Set(Object.keys(INTERNAL_DEPLOYMENT_COLUMNS));
     expect(INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS.length).toBeGreaterThan(0);
     expect(
-      INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS.filter((column) => !internal.has(column))
+      INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS.filter((column) => !internal.has(column)),
     ).toEqual([]);
   });
 });
@@ -671,7 +673,7 @@ describe('the indexes the catalogue reads depend on exist', () => {
 
   it('has every one of them, by name', async () => {
     const rows = await getDb().execute<{ indexname: string }>(
-      sql`select indexname from pg_indexes where schemaname = 'public' and indexname like 'inference_%'`
+      sql`select indexname from pg_indexes where schemaname = 'public' and indexname like 'inference_%'`,
     );
     const present = new Set(rows.map((row) => row.indexname));
 
@@ -684,12 +686,15 @@ describe('the indexes the catalogue reads depend on exist', () => {
 
 describe('a non-text model must declare its content-provenance marking', () => {
   /** The two required members of the safety object, as a marked revision states them. */
-  const MARKED = { contentFilteringDefault: 'provider_default', provenanceMarking: 'c2pa' } as const;
+  const MARKED = {
+    contentFilteringDefault: 'provider_default',
+    provenanceMarking: 'c2pa',
+  } as const;
 
   /** A model with the given OUTPUT modalities; inputs stay text. */
   async function insertModelWithOutputs(
     publisherSlug: string,
-    outputModalities: string[]
+    outputModalities: string[],
   ): Promise<string> {
     const [row] = await getDb()
       .insert(inferenceModels)
@@ -703,7 +708,7 @@ describe('a non-text model must declare its content-provenance marking', () => {
       sql`select tgname from pg_trigger where tgname in (
         ${INFERENCE_REVISION_PROVENANCE_TRIGGER_NAME},
         ${INFERENCE_MODEL_PROVENANCE_TRIGGER_NAME}
-      )`
+      )`,
     );
     // Vacuity floor: a trigger absent and a query that read nothing both return
     // an empty set, so the COUNT is what is asserted.
@@ -720,19 +725,43 @@ describe('a non-text model must declare its content-provenance marking', () => {
         .insert(inferenceModelRevisions)
         .values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true });
       expect(pgErrorCode(await rejection(insert))).toBe(CHECK_VIOLATION);
-    }
+    },
   );
 
   it('admits decisions revision and text-to-decisions transition without invented safety metadata', async () => {
     const publisher = await insertPublisher();
     const modelId = await insertModelWithOutputs(publisher, ['decisions']);
-    await getDb().insert(inferenceModelRevisions).values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true });
+    await getDb()
+      .insert(inferenceModelRevisions)
+      .values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true });
     const textModelId = await insertModelWithOutputs(publisher, ['text']);
-    await getDb().insert(inferenceModelRevisions).values({ modelId: textModelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true });
-    await getDb().update(inferenceModels).set({ outputModalities: ['text', 'decisions'] }).where(eq(inferenceModels.id, textModelId));
-    expect((await getDb().select().from(inferenceModels).where(eq(inferenceModels.id, textModelId)))[0].outputModalities).toEqual(['text', 'decisions']);
+    await getDb()
+      .insert(inferenceModelRevisions)
+      .values({
+        modelId: textModelId,
+        revision: `rev${suffix()}`,
+        releasedAt: new Date(),
+        isCurrent: true,
+      });
+    await getDb()
+      .update(inferenceModels)
+      .set({ outputModalities: ['text', 'decisions'] })
+      .where(eq(inferenceModels.id, textModelId));
+    expect(
+      (await getDb().select().from(inferenceModels).where(eq(inferenceModels.id, textModelId)))[0]
+        .outputModalities,
+    ).toEqual(['text', 'decisions']);
     for (const modality of ['image', 'audio', 'video', 'embedding']) {
-      expect(pgErrorCode(await rejection(getDb().update(inferenceModels).set({ outputModalities: ['decisions', modality] }).where(eq(inferenceModels.id, textModelId))))).toBe(CHECK_VIOLATION);
+      expect(
+        pgErrorCode(
+          await rejection(
+            getDb()
+              .update(inferenceModels)
+              .set({ outputModalities: ['decisions', modality] })
+              .where(eq(inferenceModels.id, textModelId)),
+          ),
+        ),
+      ).toBe(CHECK_VIOLATION);
     }
   });
 
@@ -749,7 +778,7 @@ describe('a non-text model must declare its content-provenance marking', () => {
     await expect(
       getDb()
         .insert(inferenceModelRevisions)
-        .values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true })
+        .values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true }),
     ).resolves.toBeDefined();
   });
 
@@ -766,7 +795,7 @@ describe('a non-text model must declare its content-provenance marking', () => {
           releasedAt: new Date(),
           isCurrent: true,
           ...MARKED,
-        })
+        }),
     ).resolves.toBeDefined();
   });
 
@@ -792,7 +821,7 @@ describe('a non-text model must declare its content-provenance marking', () => {
     const update = getDb().execute(
       sql`update inference_model_revisions
           set provenance_marking = null, content_filtering_default = null
-          where id = ${revision.id}`
+          where id = ${revision.id}`,
     );
     expect(pgErrorCode(await rejection(update))).toBe(CHECK_VIOLATION);
   });
@@ -811,7 +840,7 @@ describe('a non-text model must declare its content-provenance marking', () => {
     const widen = getDb().execute(
       sql`update inference_models
           set output_modalities = array['text','image']::text[]
-          where id = ${modelId}`
+          where id = ${modelId}`,
     );
     expect(pgErrorCode(await rejection(widen))).toBe(CHECK_VIOLATION);
   });
@@ -835,8 +864,8 @@ describe('a non-text model must declare its content-provenance marking', () => {
       getDb().execute(
         sql`update inference_models
             set output_modalities = array['text','image']::text[]
-            where id = ${modelId}`
-      )
+            where id = ${modelId}`,
+      ),
     ).resolves.toBeDefined();
 
     // And an edit that does not touch the modalities is never re-validated, so a
@@ -846,7 +875,7 @@ describe('a non-text model must declare its content-provenance marking', () => {
       getDb()
         .update(inferenceModels)
         .set({ deprecationStatus: 'deprecated' })
-        .where(eq(inferenceModels.id, modelId))
+        .where(eq(inferenceModels.id, modelId)),
     ).resolves.toBeDefined();
   });
 });
@@ -860,7 +889,7 @@ describe('the provenance migration and the schema agree on the DDL', () => {
    */
   const migration = readFileSync(
     join(__dirname, '..', '..', '..', '..', 'drizzle', PROVENANCE_MIGRATION),
-    'utf8'
+    'utf8',
   );
 
   it('carries both function texts the schema declares authoritative', () => {
@@ -868,7 +897,10 @@ describe('the provenance migration and the schema agree on the DDL', () => {
     expect(migration).toContain(INFERENCE_MODEL_PROVENANCE_DDL);
   });
 
-  const triggerMigration = readFileSync(join(__dirname, '..', '..', '..', '..', 'drizzle', PROVENANCE_TRIGGER_MIGRATION), 'utf8');
+  const triggerMigration = readFileSync(
+    join(__dirname, '..', '..', '..', '..', 'drizzle', PROVENANCE_TRIGGER_MIGRATION),
+    'utf8',
+  );
   it('carries both trigger texts the schema declares authoritative', () => {
     expect(triggerMigration).toContain(INFERENCE_REVISION_PROVENANCE_TRIGGER_DDL);
     expect(triggerMigration).toContain(INFERENCE_MODEL_PROVENANCE_TRIGGER_DDL);
@@ -895,9 +927,11 @@ describe('capability declarations (contract set 3.2.0) are declared, never empty
     // by the catalogue and fail its own schema; the reverse would make a real
     // declaration unstorable. Equality of the two lists closes both.
     expect([...INFERENCE_API_FORMATS].sort()).toEqual([...inferenceApiFormatSchema.options].sort());
-    expect([...REALTIME_SESSION_KINDS].sort()).toEqual([...realtimeSessionKindSchema.options].sort());
+    expect([...REALTIME_SESSION_KINDS].sort()).toEqual(
+      [...realtimeSessionKindSchema.options].sort(),
+    );
     expect([...REALTIME_SESSION_TRANSPORTS].sort()).toEqual(
-      [...realtimeSessionTransportSchema.options].sort()
+      [...realtimeSessionTransportSchema.options].sort(),
     );
   });
 
@@ -914,7 +948,9 @@ describe('capability declarations (contract set 3.2.0) are declared, never empty
         publisherSlug: publisher,
         slug: `mdl${suffix()}`,
         ...modelDefaults(),
-        ...(values.inputModalities === undefined ? {} : { inputModalities: values.inputModalities }),
+        ...(values.inputModalities === undefined
+          ? {}
+          : { inputModalities: values.inputModalities }),
         ...(values.apiFormats === undefined ? {} : { apiFormats: values.apiFormats }),
         ...(values.realtimeTransports === undefined
           ? {}
@@ -964,7 +1000,11 @@ describe('capability declarations (contract set 3.2.0) are declared, never empty
     ],
     [
       'an unknown transport',
-      { inputModalities: ['audio'], realtimeTransports: ['webrtc'], realtimeSessionKinds: ['conversation'] },
+      {
+        inputModalities: ['audio'],
+        realtimeTransports: ['webrtc'],
+        realtimeSessionKinds: ['conversation'],
+      },
     ],
     [
       'sessions on a model that consumes no audio',
@@ -975,12 +1015,14 @@ describe('capability declarations (contract set 3.2.0) are declared, never empty
       insertDeclared({
         ...values,
         ...('apiFormats' in values ? { apiFormats: [...values.apiFormats] } : {}),
-        ...('realtimeTransports' in values ? { realtimeTransports: [...values.realtimeTransports] } : {}),
+        ...('realtimeTransports' in values
+          ? { realtimeTransports: [...values.realtimeTransports] }
+          : {}),
         ...('realtimeSessionKinds' in values
           ? { realtimeSessionKinds: [...values.realtimeSessionKinds] }
           : {}),
         ...('inputModalities' in values ? { inputModalities: [...values.inputModalities] } : {}),
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });

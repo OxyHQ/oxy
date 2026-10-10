@@ -151,7 +151,12 @@ const PUBLIC_EMAIL_OPERATIONS = new Set(['POST /email/inbound', 'GET /email/prox
 const EXPECTED_PAYLOAD_OPERATIONS = [
   { method: 'post', path: '/capabilities/foreground-execution-authorizations', requestBody: true },
   // Ranking accepts an empty filter object; signed identity comes from the ticket.
-  { method: 'post', path: '/_oxy/capabilities/profiles/recommendations', requestBody: true, allowsEmptyObject: true },
+  {
+    method: 'post',
+    path: '/_oxy/capabilities/profiles/recommendations',
+    requestBody: true,
+    allowsEmptyObject: true,
+  },
   { method: 'get', path: '/_oxy/capabilities/users/me/graph', requestBody: false },
   { method: 'get', path: '/billing/product-subscriptions', requestBody: false },
   { method: 'get', path: '/billing/credit-grants', requestBody: false },
@@ -184,8 +189,10 @@ const EXPECTED_PAYLOAD_OPERATIONS = [
  */
 const FORBIDDEN_30_KEYWORDS = {
   nullable: 'spell it as a type union, e.g. `type: [string, "null"]`',
-  exclusiveMinimum: 'in 3.1 this keyword carries the BOUND, so write `exclusiveMinimum: 0` and drop `minimum`',
-  exclusiveMaximum: 'in 3.1 this keyword carries the BOUND, so write `exclusiveMaximum: 10` and drop `maximum`',
+  exclusiveMinimum:
+    'in 3.1 this keyword carries the BOUND, so write `exclusiveMinimum: 0` and drop `minimum`',
+  exclusiveMaximum:
+    'in 3.1 this keyword carries the BOUND, so write `exclusiveMaximum: 10` and drop `maximum`',
 };
 
 /** Vacuity floors. A layer that examines nothing must fail, not pass. */
@@ -256,8 +263,11 @@ function isPublicByDesign(path) {
 function credentialledPaths(paths) {
   return Object.keys(paths).filter(
     (path) =>
-      !isPublicByDesign(path) && (path.startsWith('/v1/') || path.startsWith('/inference/')
-        || path.startsWith('/_oxy/capabilities/') || path === '/capabilities/foreground-execution-authorizations'),
+      !isPublicByDesign(path) &&
+      (path.startsWith('/v1/') ||
+        path.startsWith('/inference/') ||
+        path.startsWith('/_oxy/capabilities/') ||
+        path === '/capabilities/foreground-execution-authorizations'),
   );
 }
 
@@ -331,7 +341,9 @@ function anonymousInferenceOperations(paths) {
 
 /** Layer 2b: every email operation after the two named public entries is credentialled. */
 function anonymousEmailOperations(paths) {
-  const examined = Object.keys(paths).filter((path) => path === '/email' || path.startsWith('/email/'));
+  const examined = Object.keys(paths).filter(
+    (path) => path === '/email' || path.startsWith('/email/'),
+  );
   if (examined.length === 0) {
     return ['the email credential rule examined no paths, so its verdict carries no information.'];
   }
@@ -454,7 +466,10 @@ function undescribedPayloads(paths) {
           `${label} publishes no constrained \`application/json\` request body, so a generated ` +
             'client sends an EMPTY body.',
         );
-      } else if (!expected.allowsEmptyObject && (!Array.isArray(schema.required) || schema.required.length === 0)) {
+      } else if (
+        !expected.allowsEmptyObject &&
+        (!Array.isArray(schema.required) || schema.required.length === 0)
+      ) {
         // Every one of the four POSTs has required fields — `model` and `messages`
         // on the compatibility surface, `input` on `/v1/responses`. A body schema
         // with none is the shape a client can satisfy by sending `{}`, which is
@@ -659,7 +674,7 @@ if (undescribed.length > 0) {
       '  - request body: use `validate({ body })`, or add an `@requestBody <schemaIdentifier>`\n' +
       '    line to the JSDoc above the route when it validates inside the handler.\n' +
       '  - success body: add `@response <code> <schemaIdentifier>` to the same JSDoc, and\n' +
-      '    annotate the object the handler passes to `res.json` with the schema\'s own\n' +
+      "    annotate the object the handler passes to `res.json` with the schema's own\n" +
       '    `z.infer<typeof …>` so `tsc` holds the two together.\n' +
       'Both identifiers must be IMPORTED by the route file, from ../schemas/* or\n' +
       '@oxy.so/contracts. Then regenerate with `bun run openapi:generate`.',

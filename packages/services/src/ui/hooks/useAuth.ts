@@ -114,9 +114,7 @@ export interface UseAuthReturn extends AuthState, AuthActions {
   openAvatarPicker: ReturnType<typeof useOxyAuthActions>['openAvatarPicker'];
 }
 
-export type SignInOutcome =
-  | { status: 'authenticated'; user: User }
-  | { status: 'dialog-opened' };
+export type SignInOutcome = { status: 'authenticated'; user: User } | { status: 'dialog-opened' };
 
 const selectAuthState = (snapshot: OxyRuntimeSnapshot): AuthState => ({
   user: snapshot.account,
@@ -124,26 +122,28 @@ const selectAuthState = (snapshot: OxyRuntimeSnapshot): AuthState => ({
   isLoading: snapshot.isLoading,
   isReady: snapshot.tokenReady,
   hasAccessToken: snapshot.hasAccessToken,
-  canUsePrivateApi: snapshot.authResolved
-    && snapshot.account !== null
-    && snapshot.tokenReady
-    && snapshot.hasAccessToken,
-  isPrivateApiPending: !snapshot.authResolved
-    || (snapshot.account !== null && (!snapshot.tokenReady || !snapshot.hasAccessToken)),
+  canUsePrivateApi:
+    snapshot.authResolved &&
+    snapshot.account !== null &&
+    snapshot.tokenReady &&
+    snapshot.hasAccessToken,
+  isPrivateApiPending:
+    !snapshot.authResolved ||
+    (snapshot.account !== null && (!snapshot.tokenReady || !snapshot.hasAccessToken)),
   isAuthResolved: snapshot.authResolved,
   error: snapshot.error?.message ?? null,
 });
 
 const authStatesEqual = (left: AuthState, right: AuthState): boolean =>
-  left.user === right.user
-  && left.isAuthenticated === right.isAuthenticated
-  && left.isLoading === right.isLoading
-  && left.isReady === right.isReady
-  && left.hasAccessToken === right.hasAccessToken
-  && left.canUsePrivateApi === right.canUsePrivateApi
-  && left.isPrivateApiPending === right.isPrivateApiPending
-  && left.isAuthResolved === right.isAuthResolved
-  && left.error === right.error;
+  left.user === right.user &&
+  left.isAuthenticated === right.isAuthenticated &&
+  left.isLoading === right.isLoading &&
+  left.isReady === right.isReady &&
+  left.hasAccessToken === right.hasAccessToken &&
+  left.canUsePrivateApi === right.canUsePrivateApi &&
+  left.isPrivateApiPending === right.isPrivateApiPending &&
+  left.isAuthResolved === right.isAuthResolved &&
+  left.error === right.error;
 
 /**
  * Unified auth hook for all Oxy apps
@@ -183,32 +183,35 @@ export function useAuth(): UseAuthReturn {
     ensureDeviceSessionLane,
   } = useOxyAuthActions();
 
-  const signIn = useCallback(async (publicKey?: string): Promise<SignInOutcome> => {
-    const classification = ensureDeviceSessionLane();
-    if (classification) await classification;
-    // Native: sign in directly with the cryptographic identity when a public key
-    // is provided, or an existing keychain identity is found.
-    if (publicKey) {
-      return { status: 'authenticated', user: await oxySignIn(publicKey) };
-    }
-    if (!isWebBrowser()) {
-      const hasExisting = await hasIdentity();
-      if (hasExisting) {
-        const existingKey = await getPublicKey();
-        if (existingKey) {
-          return { status: 'authenticated', user: await oxySignIn(existingKey) };
+  const signIn = useCallback(
+    async (publicKey?: string): Promise<SignInOutcome> => {
+      const classification = ensureDeviceSessionLane();
+      if (classification) await classification;
+      // Native: sign in directly with the cryptographic identity when a public key
+      // is provided, or an existing keychain identity is found.
+      if (publicKey) {
+        return { status: 'authenticated', user: await oxySignIn(publicKey) };
+      }
+      if (!isWebBrowser()) {
+        const hasExisting = await hasIdentity();
+        if (hasExisting) {
+          const existingKey = await getPublicKey();
+          if (existingKey) {
+            return { status: 'authenticated', user: await oxySignIn(existingKey) };
+          }
         }
       }
-    }
 
-    // Web, or native without a keychain identity: open the unified account dialog
-    // on its sign-in view (device flow / QR / password hand-off). There is NO
-    // automatic navigation to a login page — the device-first cold boot already
-    // restored a session if one existed. The caller reacts to `isAuthenticated`;
-    // report the initiated UI action instead of leaking a promise that never settles.
-    openAccountDialog('signin');
-    return { status: 'dialog-opened' };
-  }, [oxySignIn, hasIdentity, getPublicKey, openAccountDialog, ensureDeviceSessionLane]);
+      // Web, or native without a keychain identity: open the unified account dialog
+      // on its sign-in view (device flow / QR / password hand-off). There is NO
+      // automatic navigation to a login page — the device-first cold boot already
+      // restored a session if one existed. The caller reacts to `isAuthenticated`;
+      // report the initiated UI action instead of leaking a promise that never settles.
+      openAccountDialog('signin');
+      return { status: 'dialog-opened' };
+    },
+    [oxySignIn, hasIdentity, getPublicKey, openAccountDialog, ensureDeviceSessionLane],
+  );
 
   const signOut = useCallback(async (): Promise<void> => {
     const result = await logout();

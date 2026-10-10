@@ -21,11 +21,34 @@ export interface TrafficAggregate extends TrafficFlow {
 }
 
 const TYPES: Record<string, TrafficType> = {
-  auth: 'identity', session: 'identity', users: 'identity', profiles: 'identity', accounts: 'identity',
-  ai: 'ai', inference: 'ai', models: 'ai', chat: 'ai', completions: 'ai',
-  stream: 'media', tracks: 'media', episodes: 'media', recordings: 'media', rooms: 'media',
-  messages: 'communication', notifications: 'communication', mail: 'communication',
-  media: 'media', files: 'media', assets: 'media', upload: 'media', uploads: 'media', cdn: 'media', storage: 'media', images: 'media', audio: 'media', videos: 'media',
+  auth: 'identity',
+  session: 'identity',
+  users: 'identity',
+  profiles: 'identity',
+  accounts: 'identity',
+  ai: 'ai',
+  inference: 'ai',
+  models: 'ai',
+  chat: 'ai',
+  completions: 'ai',
+  stream: 'media',
+  tracks: 'media',
+  episodes: 'media',
+  recordings: 'media',
+  rooms: 'media',
+  messages: 'communication',
+  notifications: 'communication',
+  mail: 'communication',
+  media: 'media',
+  files: 'media',
+  assets: 'media',
+  upload: 'media',
+  uploads: 'media',
+  cdn: 'media',
+  storage: 'media',
+  images: 'media',
+  audio: 'media',
+  videos: 'media',
 };
 export function trafficType(path: string): TrafficType {
   const parts = path.split('?')[0].split('/').filter(Boolean);
@@ -35,7 +58,10 @@ export function trafficType(path: string): TrafficType {
   return TYPES[parts[0] ?? ''] ?? 'platform';
 }
 
-export function createTrafficCollector(publish: (events: TrafficAggregate[]) => Promise<unknown>, now = Date.now) {
+export function createTrafficCollector(
+  publish: (events: TrafficAggregate[]) => Promise<unknown>,
+  now = Date.now,
+) {
   const pending = new Map<string, { flow: TrafficFlow; requests: number; startedAt: number }>();
   let flushing: Promise<void> | null = null;
   return {
@@ -49,12 +75,22 @@ export function createTrafficCollector(publish: (events: TrafficAggregate[]) => 
       while (flushing) await flushing;
       if (pending.size === 0) return;
       const emittedAt = new Date(now()).toISOString();
-      const events = [...pending.values()].map(({ flow, requests, startedAt }) => ({ ...flow, requests, windowStartedAt: new Date(startedAt).toISOString(), emittedAt }));
+      const events = [...pending.values()].map(({ flow, requests, startedAt }) => ({
+        ...flow,
+        requests,
+        windowStartedAt: new Date(startedAt).toISOString(),
+        emittedAt,
+      }));
       pending.clear();
       flushing = (async () => {
-        for (let offset = 0; offset < events.length; offset += 256) await publish(events.slice(offset, offset + 256));
+        for (let offset = 0; offset < events.length; offset += 256)
+          await publish(events.slice(offset, offset + 256));
       })();
-      try { await flushing; } finally { flushing = null; }
+      try {
+        await flushing;
+      } finally {
+        flushing = null;
+      }
     },
   };
 }
@@ -65,7 +101,10 @@ interface HttpRequest {
   url?: string;
   serviceApp?: { appName?: string };
 }
-interface HttpResponse { once(event: string, listener: () => void): unknown; setHeader?(name: string, value: string): unknown }
+interface HttpResponse {
+  once(event: string, listener: () => void): unknown;
+  setHeader?(name: string, value: string): unknown;
+}
 
 export function trafficMiddleware(
   collector: Pick<ReturnType<typeof createTrafficCollector>, 'record'>,
@@ -76,24 +115,58 @@ export function trafficMiddleware(
     response.setHeader?.('X-Oxy-Region', region);
     const path = request.path ?? request.url ?? '/';
     // Never report collection itself, probes or the dashboard transport.
-    if (/^\/(?:api\/)?(?:health|ready|live|platform-stats|platform-activity|platform-infrastructure|infra-status)(?:\/|$)/.test(path) || path.startsWith('/internal/activity') || path.startsWith('/auth/service-token') || path.startsWith('/cdn-cgi/')) { next(); return; }
+    if (
+      /^\/(?:api\/)?(?:health|ready|live|platform-stats|platform-activity|platform-infrastructure|infra-status)(?:\/|$)/.test(
+        path,
+      ) ||
+      path.startsWith('/internal/activity') ||
+      path.startsWith('/auth/service-token') ||
+      path.startsWith('/cdn-cgi/')
+    ) {
+      next();
+      return;
+    }
     const { edgePop } = metadataFromHeaders(request.headers);
     const activityType = trafficType(path);
     let finished = false;
     const inboundFlow = (): TrafficFlow => {
       // Read service identity AFTER the route's shared auth middleware resolved it.
-      const name = request.serviceApp?.appName?.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 40);
+      const name = request.serviceApp?.appName
+        ?.toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .slice(0, 40);
       const internal = Boolean(name);
       const forwardedRegion = request.headers['x-oxy-source-region'];
-      const peerRegion = internal ? normalizeInfrastructureRegion(forwardedRegion) : edgePop ? `edge-${edgePop}` : undefined;
-      return { region, service, activityType, scope: internal ? 'internal' : 'external', direction: 'inbound', sourceRegion: peerRegion, targetRegion: region, sourceService: name, targetService: service };
+      const peerRegion = internal
+        ? normalizeInfrastructureRegion(forwardedRegion)
+        : edgePop
+          ? `edge-${edgePop}`
+          : undefined;
+      return {
+        region,
+        service,
+        activityType,
+        scope: internal ? 'internal' : 'external',
+        direction: 'inbound',
+        sourceRegion: peerRegion,
+        targetRegion: region,
+        sourceService: name,
+        targetService: service,
+      };
     };
     const finish = () => {
       if (finished) return;
       finished = true;
       const flow = inboundFlow();
       collector.record(flow);
-      collector.record({ ...flow, direction: 'outbound', sourceRegion: region, targetRegion: flow.sourceRegion, sourceService: service, targetService: flow.sourceService });
+      collector.record({
+        ...flow,
+        direction: 'outbound',
+        sourceRegion: region,
+        targetRegion: flow.sourceRegion,
+        sourceService: service,
+        targetService: flow.sourceService,
+      });
     };
     response.once('finish', finish);
     // Failed/aborted requests are still real inbound activity. Do not invent a
@@ -107,7 +180,10 @@ export function trafficMiddleware(
   };
 }
 
-export interface ServiceEndpoint { service: string; region: string }
+export interface ServiceEndpoint {
+  service: string;
+  region: string;
+}
 export function instrumentTrafficFetch(
   fetcher: typeof fetch,
   collector: Pick<ReturnType<typeof createTrafficCollector>, 'record'>,
@@ -116,23 +192,51 @@ export function instrumentTrafficFetch(
   resolveEndpoint: (url: URL) => ServiceEndpoint | undefined,
 ): typeof fetch {
   return Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+    const url = new URL(
+      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+    );
     // Collection/auth control traffic cannot generate a feedback loop.
-    if (url.pathname.startsWith('/internal/activity') || url.pathname.startsWith('/auth/service-token') || url.pathname === '/platform-infrastructure') return fetcher(input, init);
+    if (
+      url.pathname.startsWith('/internal/activity') ||
+      url.pathname.startsWith('/auth/service-token') ||
+      url.pathname === '/platform-infrastructure'
+    )
+      return fetcher(input, init);
     const peer = resolveEndpoint(url);
     const flow: TrafficFlow = {
-      service, region, scope: peer ? 'internal' : 'external', direction: 'outbound',
-      activityType: trafficType(url.pathname), sourceRegion: region, targetRegion: peer?.region,
-      sourceService: service, targetService: peer?.service,
+      service,
+      region,
+      scope: peer ? 'internal' : 'external',
+      direction: 'outbound',
+      activityType: trafficType(url.pathname),
+      sourceRegion: region,
+      targetRegion: peer?.region,
+      sourceService: service,
+      targetService: peer?.service,
     };
-    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+    const headers = new Headers(
+      init?.headers ?? (input instanceof Request ? input.headers : undefined),
+    );
     if (peer) headers.set('X-Oxy-Source-Region', region);
     let response: Response;
-    try { response = await fetcher(input, { ...init, headers }); }
-    catch (error) { collector.record({ ...flow, targetRegion: undefined }); throw error; }
-    const targetRegion = peer ? normalizeInfrastructureRegion(response.headers.get('X-Oxy-Region') ?? undefined) : undefined;
+    try {
+      response = await fetcher(input, { ...init, headers });
+    } catch (error) {
+      collector.record({ ...flow, targetRegion: undefined });
+      throw error;
+    }
+    const targetRegion = peer
+      ? normalizeInfrastructureRegion(response.headers.get('X-Oxy-Region') ?? undefined)
+      : undefined;
     collector.record({ ...flow, targetRegion });
-    collector.record({ ...flow, direction: 'inbound', sourceRegion: targetRegion, targetRegion: region, sourceService: peer?.service, targetService: service });
+    collector.record({
+      ...flow,
+      direction: 'inbound',
+      sourceRegion: targetRegion,
+      targetRegion: region,
+      sourceService: peer?.service,
+      targetService: service,
+    });
     return response;
   }, fetcher) as typeof fetch;
 }
@@ -140,14 +244,25 @@ export function instrumentTrafficFetch(
 // Exact deployed API hosts; an arbitrary caller-supplied hostname cannot claim
 // to be an internal service. Region is infrastructure metadata, never IP geo.
 const OXY_API_SERVICES: Record<string, string> = {
-  'api.oxy.so': 'oxy-api', 'api.website.oxy.so': 'website',
-  'website-api.oxy.so': 'website', 'api.mention.earth': 'mention',
-  'api.mercaria.co': 'mercaria', 'api.alia.onl': 'alia', 'kaana.ai': 'kaana',
-  'api.homiio.com': 'homiio', 'api.syra.fm': 'syra',
-  'mention.earth': 'mention', 'mcp.mention.earth': 'mention-mcp',
-  'api.clarity.surf': 'clarity', 'api.peable.to': 'peable',
-  'api.crowdsource.oxy.so': 'crowdsource', 'api.moovo.now': 'moovo',
-  'api.allo.you': 'allo', 'api.noted.oxy.so': 'noted', 'api.schedio.app': 'schedio', 'api.tnp.network': 'tnp-api',
+  'api.oxy.so': 'oxy-api',
+  'api.website.oxy.so': 'website',
+  'website-api.oxy.so': 'website',
+  'api.mention.earth': 'mention',
+  'api.mercaria.co': 'mercaria',
+  'api.alia.onl': 'alia',
+  'kaana.ai': 'kaana',
+  'api.homiio.com': 'homiio',
+  'api.syra.fm': 'syra',
+  'mention.earth': 'mention',
+  'mcp.mention.earth': 'mention-mcp',
+  'api.clarity.surf': 'clarity',
+  'api.peable.to': 'peable',
+  'api.crowdsource.oxy.so': 'crowdsource',
+  'api.moovo.now': 'moovo',
+  'api.allo.you': 'allo',
+  'api.noted.oxy.so': 'noted',
+  'api.schedio.app': 'schedio',
+  'api.tnp.network': 'tnp-api',
 };
 export function resolveOxyServiceEndpoint(url: URL): ServiceEndpoint | undefined {
   const service = OXY_API_SERVICES[url.hostname];
@@ -185,7 +300,9 @@ const REGION_LOCATIONS: Record<string, { label: string; coordinates: [number, nu
   'me-central-1': { label: 'UAE', coordinates: [54.37, 24.45] },
   'il-central-1': { label: 'Tel Aviv', coordinates: [34.78, 32.09] },
 };
-export function infrastructureLocation(region: string) { return REGION_LOCATIONS[region]; }
+export function infrastructureLocation(region: string) {
+  return REGION_LOCATIONS[region];
+}
 
 export function normalizeInfrastructureRegion(value: unknown): string | undefined {
   return typeof value === 'string' && /^[a-z]{2}(?:-[a-z]+)+-\d$/.test(value) ? value : undefined;

@@ -63,7 +63,9 @@ export interface TokenLossRecovery {
  * near the post-failure refresh cooldowns and settles at one attempt a minute,
  * which also respects the mint's own 60s rate-limit cooldown.
  */
-export const TOKEN_RECOVERY_BACKOFF_MS: readonly number[] = [2_000, 5_000, 10_000, 20_000, 30_000, 60_000];
+export const TOKEN_RECOVERY_BACKOFF_MS: readonly number[] = [
+  2_000, 5_000, 10_000, 20_000, 30_000, 60_000,
+];
 
 /** Attempts through a key-based lane once the device credential is gone. */
 export const MAX_KEYED_RECOVERY_ATTEMPTS = 3;
@@ -85,19 +87,26 @@ export function createTokenLossRecovery(deps: TokenLossRecoveryDeps): TokenLossR
   const run = async (): Promise<void> => {
     let attempt = 0;
     let keyedAttempts = 0;
-    logger.warn('Access token lost while signed in — recovering the session instead of signing out', LOG_CONTEXT);
+    logger.warn(
+      'Access token lost while signed in — recovering the session instead of signing out',
+      LOG_CONTEXT,
+    );
     while (!settled()) {
       if (!(await deps.hasDeviceCredential())) {
-        const keyed = keyedAttempts < MAX_KEYED_RECOVERY_ATTEMPTS && (await deps.hasKeyedRecovery());
+        const keyed =
+          keyedAttempts < MAX_KEYED_RECOVERY_ATTEMPTS && (await deps.hasKeyedRecovery());
         if (!keyed) {
           if (settled()) {
             return;
           }
-          logger.warn('Session recovery ended: no device credential and no key-based lane left — signing out', {
-            ...LOG_CONTEXT,
-            attempts: attempt,
-            keyedAttempts,
-          });
+          logger.warn(
+            'Session recovery ended: no device credential and no key-based lane left — signing out',
+            {
+              ...LOG_CONTEXT,
+              attempts: attempt,
+              keyedAttempts,
+            },
+          );
           await deps.signOutLocally();
           return;
         }
@@ -110,11 +119,16 @@ export function createTokenLossRecovery(deps: TokenLossRecoveryDeps): TokenLossR
       attempt += 1;
       if (token || settled()) {
         if (token) {
-          logger.warn('Session recovered after a lost access token', { ...LOG_CONTEXT, attempts: attempt });
+          logger.warn('Session recovered after a lost access token', {
+            ...LOG_CONTEXT,
+            attempts: attempt,
+          });
         }
         return;
       }
-      await sleep(TOKEN_RECOVERY_BACKOFF_MS[Math.min(attempt - 1, TOKEN_RECOVERY_BACKOFF_MS.length - 1)]);
+      await sleep(
+        TOKEN_RECOVERY_BACKOFF_MS[Math.min(attempt - 1, TOKEN_RECOVERY_BACKOFF_MS.length - 1)],
+      );
     }
   };
 

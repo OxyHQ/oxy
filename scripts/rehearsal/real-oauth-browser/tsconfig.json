@@ -1,8 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
-    "jsx": "react-jsx", "strict": true, "noEmit": true,
-    "esModuleInterop": true, "skipLibCheck": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
     "baseUrl": "../../..",
     "paths": {
       "react": ["packages/auth/node_modules/@types/react/index.d.ts"],

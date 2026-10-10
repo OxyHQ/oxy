@@ -68,7 +68,11 @@ interface PopupOpenerHost {
 
 function messageEventHost(): MessageEventHost | null {
   const win = (globalThis as { window?: Partial<MessageEventHost> }).window;
-  if (!win || typeof win.addEventListener !== 'function' || typeof win.removeEventListener !== 'function') {
+  if (
+    !win ||
+    typeof win.addEventListener !== 'function' ||
+    typeof win.removeEventListener !== 'function'
+  ) {
     return null;
   }
   return win as MessageEventHost;
@@ -188,9 +192,7 @@ export interface AwaitOAuthPopupOptions {
  * Never rejects: closing the window and running out of time are expected
  * outcomes, not exceptions.
  */
-export function awaitOAuthPopupResult(
-  options: AwaitOAuthPopupOptions,
-): Promise<OAuthPopupOutcome> {
+export function awaitOAuthPopupResult(options: AwaitOAuthPopupOptions): Promise<OAuthPopupOutcome> {
   const {
     popup,
     expectedOrigin,

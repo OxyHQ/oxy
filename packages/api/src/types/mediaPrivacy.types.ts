@@ -17,4 +17,3 @@ export interface EntityAccessResult {
   cacheable?: boolean;
   ttl?: number; // seconds
 }
-

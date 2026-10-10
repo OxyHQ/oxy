@@ -23,8 +23,10 @@ import {
 
 /** A media resolver that returns fixed absolute CDN URLs (avatar png, banner jpg). */
 const media: ActorMediaResolver = {
-  resolveAvatar: (ref) => (ref === 'avatar-file-id' ? 'https://cloud.oxy.so/media/nate-avatar.png' : undefined),
-  resolveBanner: (ref) => (ref === 'banner-file-id' ? 'https://cloud.oxy.so/media/nate-banner.jpg' : undefined),
+  resolveAvatar: (ref) =>
+    ref === 'avatar-file-id' ? 'https://cloud.oxy.so/media/nate-avatar.png' : undefined,
+  resolveBanner: (ref) =>
+    ref === 'banner-file-id' ? 'https://cloud.oxy.so/media/nate-banner.jpg' : undefined,
 };
 
 const buildActor = createLocalActorBuilder({
@@ -68,8 +70,16 @@ const EXPECTED_ACTOR: Record<string, unknown> = {
   endpoints: { sharedInbox: 'https://mention.earth/ap/inbox' },
   discoverable: true,
   manuallyApprovesFollowers: false,
-  icon: { type: 'Image', url: 'https://cloud.oxy.so/media/nate-avatar.png', mediaType: 'image/png' },
-  image: { type: 'Image', url: 'https://cloud.oxy.so/media/nate-banner.jpg', mediaType: 'image/jpeg' },
+  icon: {
+    type: 'Image',
+    url: 'https://cloud.oxy.so/media/nate-avatar.png',
+    mediaType: 'image/png',
+  },
+  image: {
+    type: 'Image',
+    url: 'https://cloud.oxy.so/media/nate-banner.jpg',
+    mediaType: 'image/jpeg',
+  },
   publicKey: {
     id: 'https://mention.earth/ap/users/nate#main-key',
     owner: 'https://mention.earth/ap/users/nate',
@@ -88,7 +98,9 @@ describe('createLocalActorBuilder (golden actor vector)', () => {
 
   it('serves the byte-identical document once wrapped in the route @context', () => {
     const served = { '@context': AP_CONTEXT, ...buildActor(PARAMS) };
-    expect(JSON.stringify(served)).toBe(JSON.stringify({ '@context': AP_CONTEXT, ...EXPECTED_ACTOR }));
+    expect(JSON.stringify(served)).toBe(
+      JSON.stringify({ '@context': AP_CONTEXT, ...EXPECTED_ACTOR }),
+    );
     // publicKey.id host MUST equal the actor id host (Mastodon rejects a cross-domain key).
     const key = served.publicKey as { id: string };
     expect(new URL(key.id).host).toBe(new URL(served.id as string).host);
@@ -263,7 +275,13 @@ describe('createLocalActorBuilder — alsoKnownAs', () => {
   it('emits the aliases after publicKey, de-duplicated and https-only', () => {
     const actor = buildActor({
       ...PARAMS,
-      alsoKnownAs: [alias, 'http://insecure.example/users/nate', 'not a url', alias, 'https://pleroma.example/users/n'],
+      alsoKnownAs: [
+        alias,
+        'http://insecure.example/users/nate',
+        'not a url',
+        alias,
+        'https://pleroma.example/users/n',
+      ],
     });
     expect(actor.alsoKnownAs).toEqual([alias, 'https://pleroma.example/users/n']);
     const keys = Object.keys(actor);
@@ -271,7 +289,9 @@ describe('createLocalActorBuilder — alsoKnownAs', () => {
   });
 
   it('emits nothing when every alias is unpublishable', () => {
-    expect(buildActor({ ...PARAMS, alsoKnownAs: ['http://x.example/u'] })).not.toHaveProperty('alsoKnownAs');
+    expect(buildActor({ ...PARAMS, alsoKnownAs: ['http://x.example/u'] })).not.toHaveProperty(
+      'alsoKnownAs',
+    );
   });
 });
 

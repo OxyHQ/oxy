@@ -55,7 +55,12 @@ interface SecureStoreTestHandle {
   __resetStore__: () => void;
   __getRaw__: (key: string, service?: string) => string | null;
   __simulateKeystoreDeath__: (service: string) => void;
-  __failPlan__: { failKey?: string; failOp?: 'set' | 'get'; failTimes?: number; failService?: string };
+  __failPlan__: {
+    failKey?: string;
+    failOp?: 'set' | 'get';
+    failTimes?: number;
+    failService?: string;
+  };
 }
 
 describe('KeyManager cache-poisoning safety', () => {
@@ -98,7 +103,9 @@ describe('KeyManager cache-poisoning safety', () => {
     ss.__failPlan__.failOp = 'get';
     ss.__failPlan__.failKey = V2_PUB;
     ss.__failPlan__.failService = PRIMARY_SVC;
-    await expect(KeyManager.getPublicKey()).rejects.toMatchObject({ name: 'IdentityUnavailableError' });
+    await expect(KeyManager.getPublicKey()).rejects.toMatchObject({
+      name: 'IdentityUnavailableError',
+    });
 
     // Cache must NOT hold a null verdict — clearing the fault returns the key.
     ss.__failPlan__.failKey = undefined;
@@ -130,7 +137,9 @@ describe('KeyManager cache-poisoning safety', () => {
     ss.__failPlan__.failKey = V2_PRIV;
     ss.__failPlan__.failService = PRIMARY_SVC;
 
-    await expect(KeyManager.createIdentity()).rejects.toMatchObject({ name: 'IdentityUnavailableError' });
+    await expect(KeyManager.createIdentity()).rejects.toMatchObject({
+      name: 'IdentityUnavailableError',
+    });
 
     // The identity was untouched (no blind overwrite).
     ss.__failPlan__.failKey = undefined;
@@ -158,7 +167,9 @@ describe('KeyManager cache-poisoning safety', () => {
 
     // A different key over a lost identity → refuse.
     const otherPriv = (await KeyManager.generateKeyPair()).privateKey;
-    await expect(KeyManager.importKeyPair(otherPriv)).rejects.toBeInstanceOf(IdentityAlreadyExistsError);
+    await expect(KeyManager.importKeyPair(otherPriv)).rejects.toBeInstanceOf(
+      IdentityAlreadyExistsError,
+    );
 
     // The SAME key (recovery-by-phrase into the lost state) → allowed.
     resetCaches();

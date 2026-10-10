@@ -1,6 +1,6 @@
 /**
  * Centralized cache utility with TTL support
- * 
+ *
  * This is a production-ready cache implementation used across the codebase
  * for consistent caching behavior and performance optimization.
  */
@@ -26,26 +26,26 @@ export interface CacheStats {
 
 /**
  * TTL-based cache implementation
- * 
+ *
  * Features:
  * - Automatic expiration based on TTL
  * - Manual cleanup of expired entries
  * - Statistics tracking (hits, misses, hit rate)
  * - Type-safe generic interface
- * 
+ *
  * @example
  * ```typescript
  * const cache = new TTLCache<string>(5 * 60 * 1000); // 5 minutes
- * 
+ *
  * // Set with default TTL
  * cache.set('key', 'value');
- * 
+ *
  * // Set with custom TTL
  * cache.set('key', 'value', 10 * 60 * 1000); // 10 minutes
- * 
+ *
  * // Get value
  * const value = cache.get('key');
- * 
+ *
  * // Get statistics
  * const stats = cache.getStats();
  * ```
@@ -244,7 +244,7 @@ export class TTLCache<T> {
 
 /**
  * Create a TTL cache instance (convenience function)
- * 
+ *
  * @example
  * ```typescript
  * const cache = createCache<string>(5 * 60 * 1000);
@@ -272,7 +272,7 @@ export function registerCacheForCleanup(cache: TTLCache<unknown>): void {
 
 /** Empty registered caches need no timer; importing a client must stay inert. */
 function updateCleanupInterval(): void {
-  const hasEntries = [...activeCaches].some(cache => cache.size() > 0);
+  const hasEntries = [...activeCaches].some((cache) => cache.size() > 0);
   if (!hasEntries) {
     if (cleanupInterval) clearInterval(cleanupInterval);
     cleanupInterval = null;
@@ -303,4 +303,3 @@ export function stopAllCleanupIntervals(): void {
   }
   activeCaches.clear();
 }
-

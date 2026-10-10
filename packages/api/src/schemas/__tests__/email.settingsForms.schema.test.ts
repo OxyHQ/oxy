@@ -5,12 +5,20 @@
  * reminder from Inbox answered 200 and changed nothing.
  */
 
-import { createReminderSchema, updateEmailSettingsSchema, updateReminderSchema } from '../email.schemas';
+import {
+  createReminderSchema,
+  updateEmailSettingsSchema,
+  updateReminderSchema,
+} from '../email.schemas';
 
 describe('updateReminderSchema', () => {
   it('keeps completed, pinned and snoozedUntil', () => {
     expect(
-      updateReminderSchema.parse({ completed: true, pinned: false, snoozedUntil: '2026-10-11T09:00:00.000Z' }),
+      updateReminderSchema.parse({
+        completed: true,
+        pinned: false,
+        snoozedUntil: '2026-10-11T09:00:00.000Z',
+      }),
     ).toEqual({ completed: true, pinned: false, snoozedUntil: '2026-10-11T09:00:00.000Z' });
   });
 
@@ -34,7 +42,9 @@ describe('updateEmailSettingsSchema', () => {
   });
 
   it('refuses a forwarding address that is not one, and lets it be cleared', () => {
-    expect(updateEmailSettingsSchema.safeParse({ autoForwardTo: 'not an address' }).success).toBe(false);
+    expect(updateEmailSettingsSchema.safeParse({ autoForwardTo: 'not an address' }).success).toBe(
+      false,
+    );
     expect(updateEmailSettingsSchema.parse({ autoForwardTo: '' })).toEqual({ autoForwardTo: '' });
   });
 });

@@ -114,26 +114,32 @@ describe('fetchRemoteActor — remote collection counts', () => {
     expect(upserts[0]).toMatchObject({ followersCount: 1234, followingCount: 0, postsCount: 56 });
   });
 
-  it.each([401, 403, 404, 410])('records a collection that answers %i as unknown (null), not 0', async (status) => {
-    const { upserts } = await resolveWith({
-      followers: new Response(null, { status }),
-      following: collection(3),
-    });
+  it.each([401, 403, 404, 410])(
+    'records a collection that answers %i as unknown (null), not 0',
+    async (status) => {
+      const { upserts } = await resolveWith({
+        followers: new Response(null, { status }),
+        following: collection(3),
+      });
 
-    expect(upserts[0]?.followersCount).toBeNull();
-    expect(upserts[0]?.followingCount).toBe(3);
-  });
+      expect(upserts[0]?.followersCount).toBeNull();
+      expect(upserts[0]?.followingCount).toBe(3);
+    },
+  );
 
   it.each([
     ['missing', undefined],
     ['a string', '1234'],
     ['negative', -1],
     ['fractional', 1.5],
-  ])('records a collection whose totalItems is %s as unknown (null)', async (_label, totalItems) => {
-    const { upserts } = await resolveWith({ followers: collection(totalItems) });
+  ])(
+    'records a collection whose totalItems is %s as unknown (null)',
+    async (_label, totalItems) => {
+      const { upserts } = await resolveWith({ followers: collection(totalItems) });
 
-    expect(upserts[0]?.followersCount).toBeNull();
-  });
+      expect(upserts[0]?.followersCount).toBeNull();
+    },
+  );
 
   it('records an actor that advertises no collection as unknown (null)', async () => {
     const { upserts } = await resolveWith({
@@ -150,12 +156,15 @@ describe('fetchRemoteActor — remote collection counts', () => {
     ['a 429', () => Promise.resolve(new Response(null, { status: 429 }))],
     ['malformed JSON', () => Promise.resolve(new Response('{"totalItems": 12'))],
     ['an empty body', () => Promise.resolve(new Response(''))],
-  ] as const)('OMITS a count whose fetch failed with %s, so a known value is kept', async (_label, followers) => {
-    const { upserts } = await resolveWith({ followers, following: collection(9) });
+  ] as const)(
+    'OMITS a count whose fetch failed with %s, so a known value is kept',
+    async (_label, followers) => {
+      const { upserts } = await resolveWith({ followers, following: collection(9) });
 
-    expect(upserts[0]).not.toHaveProperty('followersCount');
-    expect(upserts[0]?.followingCount).toBe(9);
-  });
+      expect(upserts[0]).not.toHaveProperty('followersCount');
+      expect(upserts[0]?.followingCount).toBe(9);
+    },
+  );
 
   it('never hands the identity bridge a zero it did not read', async () => {
     const { bridged } = await resolveWith({

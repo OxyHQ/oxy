@@ -11,7 +11,10 @@ describe('the Commons link QR', () => {
   it('round-trips the link id and the challenge', () => {
     const payload = buildIdentityLinkQrPayload(LINK_ID, CHALLENGE);
     expect(payload).toBe(`oxycommons://link?id=${LINK_ID}&c=${CHALLENGE}`);
-    expect(parseIdentityLinkQrPayload(`  ${payload} `)).toEqual({ linkId: LINK_ID, challenge: CHALLENGE });
+    expect(parseIdentityLinkQrPayload(`  ${payload} `)).toEqual({
+      linkId: LINK_ID,
+      challenge: CHALLENGE,
+    });
   });
 
   it.each([
@@ -26,8 +29,18 @@ describe('the Commons link QR', () => {
 
   it('takes a canonical uncompressed key with its proof, and nothing else', () => {
     const proof = { v: 2, challenge: CHALLENGE, expiresAt: 1_900_000_000_000, signature: 'sig' };
-    expect(identityLinkProofRequestSchema.parse({ publicKey: `04${'A'.repeat(128)}`, proof }).publicKey).toBe(`04${'a'.repeat(128)}`);
-    expect(identityLinkProofRequestSchema.safeParse({ publicKey: `02${'a'.repeat(64)}`, proof }).success).toBe(false);
-    expect(identityLinkProofRequestSchema.safeParse({ publicKey: `04${'a'.repeat(128)}`, proof, userId: 'x' }).success).toBe(false);
+    expect(
+      identityLinkProofRequestSchema.parse({ publicKey: `04${'A'.repeat(128)}`, proof }).publicKey,
+    ).toBe(`04${'a'.repeat(128)}`);
+    expect(
+      identityLinkProofRequestSchema.safeParse({ publicKey: `02${'a'.repeat(64)}`, proof }).success,
+    ).toBe(false);
+    expect(
+      identityLinkProofRequestSchema.safeParse({
+        publicKey: `04${'a'.repeat(128)}`,
+        proof,
+        userId: 'x',
+      }).success,
+    ).toBe(false);
   });
 });

@@ -110,7 +110,9 @@ const backupWriteLimiter = rateLimit({
   message: 'Too many backup uploads. Please try again later.',
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
-    return userId ? `identity:backup:write:${userId}` : `identity:backup:write:ip:${hashedIpKey(req)}`;
+    return userId
+      ? `identity:backup:write:${userId}`
+      : `identity:backup:write:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -122,7 +124,9 @@ const backupDeleteLimiter = rateLimit({
   message: 'Too many backup delete requests. Please try again later.',
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
-    return userId ? `identity:backup:delete:${userId}` : `identity:backup:delete:ip:${hashedIpKey(req)}`;
+    return userId
+      ? `identity:backup:delete:${userId}`
+      : `identity:backup:delete:ip:${hashedIpKey(req)}`;
   },
 });
 

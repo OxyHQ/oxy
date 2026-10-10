@@ -21,15 +21,15 @@ export const PHOTO_GRID_GUTTER = 2;
 export const PHOTO_GRID_WIDE_BREAKPOINT = 600;
 
 export interface PhotoGridLayout {
-    /** Number of columns for the current container width. */
-    columns: number;
-    /**
-     * Square tile edge in px. Floored so a full row (columns tiles + gutters)
-     * never exceeds the container width.
-     */
-    cellSize: number;
-    /** Inter-tile gutter used to derive `cellSize`. */
-    gutter: number;
+  /** Number of columns for the current container width. */
+  columns: number;
+  /**
+   * Square tile edge in px. Floored so a full row (columns tiles + gutters)
+   * never exceeds the container width.
+   */
+  cellSize: number;
+  /** Inter-tile gutter used to derive `cellSize`. */
+  gutter: number;
 }
 
 /**
@@ -38,8 +38,8 @@ export interface PhotoGridLayout {
  * can gate rendering until a real measurement arrives.
  */
 export function computePhotoGridLayout(containerWidth: number): PhotoGridLayout {
-    const columns = containerWidth >= PHOTO_GRID_WIDE_BREAKPOINT ? 4 : 3;
-    const usable = containerWidth - PHOTO_GRID_GUTTER * (columns - 1);
-    const cellSize = usable > 0 ? Math.floor(usable / columns) : 0;
-    return { columns, cellSize, gutter: PHOTO_GRID_GUTTER };
+  const columns = containerWidth >= PHOTO_GRID_WIDE_BREAKPOINT ? 4 : 3;
+  const usable = containerWidth - PHOTO_GRID_GUTTER * (columns - 1);
+  const cellSize = usable > 0 ? Math.floor(usable / columns) : 0;
+  return { columns, cellSize, gutter: PHOTO_GRID_GUTTER };
 }

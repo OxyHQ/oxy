@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getBaseLanguage, normalizeLocale } from '@oxy.so/core';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from './types';
 import type { ReactNode } from 'react';
@@ -105,17 +98,13 @@ export function LocaleProvider({ children }: LocaleProviderProps) {
     [locale, setLocale],
   );
 
-  return (
-    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
-  );
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
 export function useLocale(): LocaleContextValue {
   const ctx = useContext(LocaleContext);
   if (!ctx) {
-    throw new Error(
-      'useLocale must be used inside <LocaleProvider>. Check src/routes/__root.tsx.',
-    );
+    throw new Error('useLocale must be used inside <LocaleProvider>. Check src/routes/__root.tsx.');
   }
   return ctx;
 }

@@ -45,7 +45,7 @@ it('follows a language change', () => {
   expect(getByTestId('locale').textContent).toBe('fr-FR');
 });
 
-it("keeps a locale the app set above OxyProvider", () => {
+it('keeps a locale the app set above OxyProvider', () => {
   const { getByTestId } = render(
     <LocaleProvider locale="de-DE">
       <BloomLocaleBridge>

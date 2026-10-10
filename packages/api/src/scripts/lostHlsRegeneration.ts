@@ -53,10 +53,16 @@ export async function regenerateLostHls(
   const batchSize = opts.batchSize ?? 200;
   const dryRun = opts.dryRun ?? false;
   const s3 = opts.s3 ?? s3Service;
-  const regenerate = opts.regenerate ?? ((fileId: string) =>
-    new VariantService(s3).generateVariants(fileId, { reencode: true }));
+  const regenerate =
+    opts.regenerate ??
+    ((fileId: string) => new VariantService(s3).generateVariants(fileId, { reencode: true }));
   const result: RegenerateLostHlsResult = {
-    playlists: 0, lost: 0, files: 0, regenerated: 0, unrecoverable: 0, failed: 0,
+    playlists: 0,
+    lost: 0,
+    files: 0,
+    regenerated: 0,
+    unrecoverable: 0,
+    failed: 0,
   };
 
   const playlists = and(
@@ -96,7 +102,11 @@ export async function regenerateLostHls(
       if (!groups.has(group)) groups.set(group, row);
     }
 
-    logger.info('[regenerate-lost-hls] scan progress', { dryRun, ...result, files: lostFiles.size });
+    logger.info('[regenerate-lost-hls] scan progress', {
+      dryRun,
+      ...result,
+      files: lostFiles.size,
+    });
     if (rows.length < batchSize) break;
   }
   result.files = lostFiles.size;
@@ -104,7 +114,10 @@ export async function regenerateLostHls(
   for (const file of groups.values()) {
     if (!(await s3.fileExists(file.storageKey))) {
       result.unrecoverable += 1;
-      logger.warn('[regenerate-lost-hls] original is gone too', { fileId: file.fileId, key: file.storageKey });
+      logger.warn('[regenerate-lost-hls] original is gone too', {
+        fileId: file.fileId,
+        key: file.storageKey,
+      });
       continue;
     }
     if (dryRun) {

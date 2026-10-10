@@ -84,7 +84,7 @@ export const accountEvents = pgTable(
     check('account_events_type_check', sql`${t.type} in (${sql.raw(inList(ACCOUNT_EVENT_TYPES))})`),
     // The expiry sweep's range predicate (`db/expiry.ts`).
     index('account_events_created_at_idx').on(t.createdAt),
-  ]
+  ],
 );
 
 export const accountEventDeliveries = pgTable(
@@ -102,9 +102,7 @@ export const accountEventDeliveries = pgTable(
     /** Push attempts made so far. */
     attempts: integer().notNull().default(0),
     /** Earliest time the next push may be tried; the backoff lives here. */
-    nextAttemptAt: timestamptz()
-      .notNull()
-      .default(sql`now()`),
+    nextAttemptAt: timestamptz().notNull().default(sql`now()`),
     claimedAt: timestamptz(),
     claimedBy: text(),
     /** The receiver acknowledged with a 2xx. */
@@ -128,7 +126,7 @@ export const accountEventDeliveries = pgTable(
       .where(sql`${t.deliveredAt} is null and ${t.failedAt} is null`),
     // The pull feed: one application's events after a cursor.
     index('account_event_deliveries_application_id_event_id_idx').on(t.applicationId, t.eventId),
-  ]
+  ],
 );
 
 export type AccountEventRow = typeof accountEvents.$inferSelect;

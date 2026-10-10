@@ -99,9 +99,9 @@ module.exports = function withOxyUpdates(config, options = {}) {
 
   if (typeof clientId !== 'string' || clientId.trim().length === 0) {
     throw new Error(
-      `[${PLUGIN_NAME}] a non-empty \`clientId\` is required. Pass this app's registered `
-        + 'ApplicationCredential publicKey (oxy_dk_...), normally from an '
-        + 'EXPO_PUBLIC_OXY_CLIENT_ID-backed constant.',
+      `[${PLUGIN_NAME}] a non-empty \`clientId\` is required. Pass this app's registered ` +
+        'ApplicationCredential publicKey (oxy_dk_...), normally from an ' +
+        'EXPO_PUBLIC_OXY_CLIENT_ID-backed constant.',
     );
   }
 
@@ -122,9 +122,9 @@ module.exports = function withOxyUpdates(config, options = {}) {
       const projectRoot = config._internal?.projectRoot;
       if (typeof projectRoot !== 'string') {
         throw new Error(
-          `[${PLUGIN_NAME}] could not resolve the project root from the Expo config, so the `
-            + 'code-signing certificate path cannot be made project-relative (expo-updates joins it '
-            + 'onto the project root). Upgrade @expo/config, or pass `{ codeSigning: false }`.',
+          `[${PLUGIN_NAME}] could not resolve the project root from the Expo config, so the ` +
+            'code-signing certificate path cannot be made project-relative (expo-updates joins it ' +
+            'onto the project root). Upgrade @expo/config, or pass `{ codeSigning: false }`.',
         );
       }
       // expo-updates reads this as `path.join(projectRoot, value)`, so it must be
@@ -133,17 +133,17 @@ module.exports = function withOxyUpdates(config, options = {}) {
       updates.codeSigningMetadata = { keyid: CODE_SIGNING_KEY_ID, alg: CODE_SIGNING_ALG };
     } else if (codeSigning === 'require') {
       throw new Error(
-        `[${PLUGIN_NAME}] code signing is required but the Oxy Updates certificate is missing at `
-          + `${certificatePath}. Generate the ecosystem keypair with oxy-api's `
-          + '`bun scripts/generate-updates-code-signing.ts`, commit the certificate into '
-          + '@oxy.so/app-preset, and set the private key as UPDATES_CODE_SIGNING_PRIVATE_KEY on oxy-api.',
+        `[${PLUGIN_NAME}] code signing is required but the Oxy Updates certificate is missing at ` +
+          `${certificatePath}. Generate the ecosystem keypair with oxy-api's ` +
+          '`bun scripts/generate-updates-code-signing.ts`, commit the certificate into ' +
+          '@oxy.so/app-preset, and set the private key as UPDATES_CODE_SIGNING_PRIVATE_KEY on oxy-api.',
       );
     } else {
       const warning =
-        'The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build '
-        + 'will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in '
-        + 'at build time). Do not ship this binary to a store. See the app-preset README, section '
-        + '"Oxy Updates (OTA)".';
+        'The Oxy Updates code-signing certificate is not present in @oxy.so/app-preset, so this build ' +
+        'will accept UNSIGNED update manifests for its entire lifetime (the certificate is baked in ' +
+        'at build time). Do not ship this binary to a store. See the app-preset README, section ' +
+        '"Oxy Updates (OTA)".';
       WarningAggregator.addWarningForPlatform('android', PLUGIN_NAME, warning);
       WarningAggregator.addWarningForPlatform('ios', PLUGIN_NAME, warning);
     }

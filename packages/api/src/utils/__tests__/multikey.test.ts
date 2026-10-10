@@ -8,12 +8,8 @@
  * compressed key forms is checked for stability.
  */
 
-import {
-  generateSecp256k1KeyPair,
-  normalizeSecp256k1PublicKey,
-} from '@oxy.so/protocol/secp256k1';
+import { generateSecp256k1KeyPair, normalizeSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 import { secp256k1PublicKeyToMultikey } from '../multikey';
-
 
 /** Standard base58btc decode (Bitcoin alphabet) — inverse of the encoder. */
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';

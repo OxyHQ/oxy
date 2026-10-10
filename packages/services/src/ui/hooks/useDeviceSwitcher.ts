@@ -1,39 +1,44 @@
 import { useCallback, useMemo } from 'react';
-import { buildSwitcherRows, projectDevicePrincipals, type DeviceContext, type SwitcherPrincipalRow } from '@oxy.so/core/session';
+import {
+  buildSwitcherRows,
+  projectDevicePrincipals,
+  type DeviceContext,
+  type SwitcherPrincipalRow,
+} from '@oxy.so/core/session';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from './useI18n';
 import { useAccountDialogSnapshot } from './accountDialogSnapshot';
 
 export interface UseDeviceSwitcherResult {
-    /**
-     * Everyone signed in on this device, each with the accounts they may act as,
-     * with names, handles and avatar URLs already resolved.
-     *
-     * Grouped by PERSON, which is the whole point: the same organization
-     * reachable through two people is two rows under two humans. The flat list
-     * this replaced was keyed by account id and could show only one of them.
-     */
-    principals: SwitcherPrincipalRow[];
-    /** The active `principal acting as account` pair, or `null`. */
-    activeContext: DeviceContext | null;
-    /** True until the first directory read settles with nothing to show. */
-    isLoading: boolean;
-    /** The `contextId` of an activation in flight, or `null`. */
-    activatingContextId: string | null;
-    /** The `contextId` of a context removal in flight, or `null`. */
-    removingContextId: string | null;
-    /** The `principalId` of a principal removal in flight, or `null`. */
-    removingPrincipalId: string | null;
-    /**
-     * Make one pair active. Resolves `false` when it was refused — the reason is
-     * on the dialog controller's `error`, and the row is simply not offered
-     * again after the refresh that follows.
-     */
-    activateContext: (contextId: string) => Promise<boolean>;
-    /** Drop ONE `principal → account` pair, leaving anyone else's route intact. */
-    signOutContext: (contextId: string) => Promise<boolean>;
-    /** Drop ONE PERSON and every context they reach, and nobody else's. */
-    signOutPrincipal: (principalId: string) => Promise<boolean>;
+  /**
+   * Everyone signed in on this device, each with the accounts they may act as,
+   * with names, handles and avatar URLs already resolved.
+   *
+   * Grouped by PERSON, which is the whole point: the same organization
+   * reachable through two people is two rows under two humans. The flat list
+   * this replaced was keyed by account id and could show only one of them.
+   */
+  principals: SwitcherPrincipalRow[];
+  /** The active `principal acting as account` pair, or `null`. */
+  activeContext: DeviceContext | null;
+  /** True until the first directory read settles with nothing to show. */
+  isLoading: boolean;
+  /** The `contextId` of an activation in flight, or `null`. */
+  activatingContextId: string | null;
+  /** The `contextId` of a context removal in flight, or `null`. */
+  removingContextId: string | null;
+  /** The `principalId` of a principal removal in flight, or `null`. */
+  removingPrincipalId: string | null;
+  /**
+   * Make one pair active. Resolves `false` when it was refused — the reason is
+   * on the dialog controller's `error`, and the row is simply not offered
+   * again after the refresh that follows.
+   */
+  activateContext: (contextId: string) => Promise<boolean>;
+  /** Drop ONE `principal → account` pair, leaving anyone else's route intact. */
+  signOutContext: (contextId: string) => Promise<boolean>;
+  /** Drop ONE PERSON and every context they reach, and nobody else's. */
+  signOutPrincipal: (principalId: string) => Promise<boolean>;
 }
 
 /**
@@ -52,46 +57,46 @@ export interface UseDeviceSwitcherResult {
  * a `contextId`, never an `accountId`.
  */
 export function useDeviceSwitcher(): UseDeviceSwitcherResult {
-    const { accountDialogController: controller, oxyServices } = useOxy();
-    const { locale } = useI18n();
+  const { accountDialogController: controller, oxyServices } = useOxy();
+  const { locale } = useI18n();
 
-    const snapshot = useAccountDialogSnapshot(controller);
+  const snapshot = useAccountDialogSnapshot(controller);
 
-    // `directory` is a stable reference between reads (`SessionClient` holds the
-    // one it applied), so this recomputes only when the device actually moved.
-    const principals = useMemo(
-        () =>
-            buildSwitcherRows(
-                projectDevicePrincipals(snapshot.directory),
-                snapshot.activeContext?.contextId ?? null,
-                (avatar) => (avatar ? oxyServices.assets.publicUrl(avatar, 'thumb') : undefined),
-                locale,
-            ),
-        [snapshot.directory, snapshot.activeContext, oxyServices, locale],
-    );
+  // `directory` is a stable reference between reads (`SessionClient` holds the
+  // one it applied), so this recomputes only when the device actually moved.
+  const principals = useMemo(
+    () =>
+      buildSwitcherRows(
+        projectDevicePrincipals(snapshot.directory),
+        snapshot.activeContext?.contextId ?? null,
+        (avatar) => (avatar ? oxyServices.assets.publicUrl(avatar, 'thumb') : undefined),
+        locale,
+      ),
+    [snapshot.directory, snapshot.activeContext, oxyServices, locale],
+  );
 
-    const activateContext = useCallback(
-        async (contextId: string) => (controller ? controller.activateContext(contextId) : false),
-        [controller],
-    );
-    const signOutContext = useCallback(
-        async (contextId: string) => (controller ? controller.signOutContext(contextId) : false),
-        [controller],
-    );
-    const signOutPrincipal = useCallback(
-        async (principalId: string) => (controller ? controller.signOutPrincipal(principalId) : false),
-        [controller],
-    );
+  const activateContext = useCallback(
+    async (contextId: string) => (controller ? controller.activateContext(contextId) : false),
+    [controller],
+  );
+  const signOutContext = useCallback(
+    async (contextId: string) => (controller ? controller.signOutContext(contextId) : false),
+    [controller],
+  );
+  const signOutPrincipal = useCallback(
+    async (principalId: string) => (controller ? controller.signOutPrincipal(principalId) : false),
+    [controller],
+  );
 
-    return {
-        principals,
-        activeContext: snapshot.activeContext,
-        isLoading: snapshot.loading,
-        activatingContextId: snapshot.activatingContextId,
-        removingContextId: snapshot.removingContextId,
-        removingPrincipalId: snapshot.removingPrincipalId,
-        activateContext,
-        signOutContext,
-        signOutPrincipal,
-    };
+  return {
+    principals,
+    activeContext: snapshot.activeContext,
+    isLoading: snapshot.loading,
+    activatingContextId: snapshot.activatingContextId,
+    removingContextId: snapshot.removingContextId,
+    removingPrincipalId: snapshot.removingPrincipalId,
+    activateContext,
+    signOutContext,
+    signOutPrincipal,
+  };
 }

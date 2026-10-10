@@ -31,28 +31,34 @@ import type { Request } from 'express';
 const ACCESS_TOKEN_SECRET = 'test_access_token_secret_minimum_32_characters';
 process.env.ACCESS_TOKEN_SECRET = ACCESS_TOKEN_SECRET;
 
-import { authRateLimiter, rateLimiter, serviceCredentialLimiter, userRateLimiter, isFirstPartyServiceRequest } from '../security';
+import {
+  authRateLimiter,
+  rateLimiter,
+  serviceCredentialLimiter,
+  userRateLimiter,
+  isFirstPartyServiceRequest,
+} from '../security';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
 function serviceToken(overrides: Record<string, unknown> = {}): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
-      type: 'service',
-      appId: 'app-1',
-      appName: 'Mention',
-      credentialId: 'cred-1',
-      // The full attribution tuple the real mint emits (ADR 0007). A fixture
-      // short of it is not a service token as far as `verifyServiceToken` is
-      // concerned, so leaving these out would silently test the reject path.
-      ownerAccountId: 'owner-account-1',
-      environment: 'production',
-      scopes: ['federation:write'],
-      ...overrides,
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: issuedAt,
-      exp: issuedAt + 300,
-    });
+    type: 'service',
+    appId: 'app-1',
+    appName: 'Mention',
+    credentialId: 'cred-1',
+    // The full attribution tuple the real mint emits (ADR 0007). A fixture
+    // short of it is not a service token as far as `verifyServiceToken` is
+    // concerned, so leaving these out would silently test the reject path.
+    ownerAccountId: 'owner-account-1',
+    environment: 'production',
+    scopes: ['federation:write'],
+    ...overrides,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: issuedAt,
+    exp: issuedAt + 300,
+  });
 }
 
 function userSessionToken(userId = 'u-1'): string {
@@ -79,7 +85,7 @@ interface Probe {
 
 function request(
   server: http.Server,
-  opts: { method: string; path: string; authorization?: string }
+  opts: { method: string; path: string; authorization?: string },
 ): Promise<Probe> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
@@ -90,7 +96,7 @@ function request(
       (res) => {
         res.on('data', () => undefined);
         res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers }));
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -112,7 +118,9 @@ describe('isFirstPartyServiceRequest', () => {
 
   it('recognises nothing else — anonymous, user session, or garbage', () => {
     expect(isFirstPartyServiceRequest(makeReq('/users/resolve'))).toBe(false);
-    expect(isFirstPartyServiceRequest(makeReq('/users/resolve', `Bearer ${userSessionToken()}`))).toBe(false);
+    expect(
+      isFirstPartyServiceRequest(makeReq('/users/resolve', `Bearer ${userSessionToken()}`)),
+    ).toBe(false);
     expect(isFirstPartyServiceRequest(makeReq('/users/resolve', 'Bearer not-a-jwt'))).toBe(false);
     expect(isFirstPartyServiceRequest(makeReq('/users/me', 'Basic anything'))).toBe(false);
   });
@@ -209,8 +217,9 @@ describe('the two global budgets, mounted as server.ts mounts them', () => {
       authorization: `Bearer ${serviceToken({ appId, credentialId: 'cred-new' })}`,
     });
 
-    expect(Number(second.headers['ratelimit-remaining']))
-      .toBe(Number(first.headers['ratelimit-remaining']) - 1);
+    expect(Number(second.headers['ratelimit-remaining'])).toBe(
+      Number(first.headers['ratelimit-remaining']) - 1,
+    );
   });
 });
 
@@ -253,10 +262,15 @@ describe('an authenticated request is charged to its subject, not to its IP', ()
   it('charges the same user twice to one budget', async () => {
     const token = `Bearer ${userSessionToken('u-subject-repeat')}`;
     const first = await request(server, { method: 'GET', path: '/users/me', authorization: token });
-    const second = await request(server, { method: 'GET', path: '/users/me', authorization: token });
+    const second = await request(server, {
+      method: 'GET',
+      path: '/users/me',
+      authorization: token,
+    });
 
-    expect(Number(second.headers['ratelimit-remaining']))
-      .toBe(Number(first.headers['ratelimit-remaining']) - 1);
+    expect(Number(second.headers['ratelimit-remaining'])).toBe(
+      Number(first.headers['ratelimit-remaining']) - 1,
+    );
   });
 
   it('does not let a token without a session claim mint its own bucket', async () => {
@@ -269,8 +283,9 @@ describe('an authenticated request is charged to its subject, not to its IP', ()
       authorization: `Bearer ${sessionlessToken()}`,
     });
 
-    expect(Number(forged.headers['ratelimit-remaining']))
-      .toBe(Number(anonymous.headers['ratelimit-remaining']) - 1);
+    expect(Number(forged.headers['ratelimit-remaining'])).toBe(
+      Number(anonymous.headers['ratelimit-remaining']) - 1,
+    );
   });
 
   it('keeps the per-user ceiling above what a reader plus the app reading for them needs', async () => {
@@ -302,7 +317,11 @@ describe('rl:auth leaves service credentials to their own budget', () => {
   beforeAll(async () => {
     const app = express();
     // Mounted the way server.ts mounts it for the MCP OAuth routes.
-    app.use('/auth/mcp/oauth', authRateLimiter, express.Router().post('/introspect', (_req, res) => res.json({ active: true })));
+    app.use(
+      '/auth/mcp/oauth',
+      authRateLimiter,
+      express.Router().post('/introspect', (_req, res) => res.json({ active: true })),
+    );
     server = await new Promise<http.Server>((resolve) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
@@ -316,13 +335,31 @@ describe('rl:auth leaves service credentials to their own budget', () => {
     Object.keys(headers).some((name) => name.toLowerCase().startsWith('ratelimit'));
 
   it('does not charge a service introspecting a token to the shared per-IP pool', async () => {
-    const probe = await request(server, { method: 'POST', path: '/auth/mcp/oauth/introspect', authorization: `Bearer ${serviceToken()}` });
+    const probe = await request(server, {
+      method: 'POST',
+      path: '/auth/mcp/oauth/introspect',
+      authorization: `Bearer ${serviceToken()}`,
+    });
     expect(probe.status).toBe(200);
     expect(charged(probe.headers)).toBe(false);
   });
 
   it('still charges anonymous and user traffic', async () => {
-    expect(charged((await request(server, { method: 'POST', path: '/auth/mcp/oauth/introspect' })).headers)).toBe(true);
-    expect(charged((await request(server, { method: 'POST', path: '/auth/mcp/oauth/introspect', authorization: `Bearer ${userSessionToken()}` })).headers)).toBe(true);
+    expect(
+      charged(
+        (await request(server, { method: 'POST', path: '/auth/mcp/oauth/introspect' })).headers,
+      ),
+    ).toBe(true);
+    expect(
+      charged(
+        (
+          await request(server, {
+            method: 'POST',
+            path: '/auth/mcp/oauth/introspect',
+            authorization: `Bearer ${userSessionToken()}`,
+          })
+        ).headers,
+      ),
+    ).toBe(true);
   });
 });

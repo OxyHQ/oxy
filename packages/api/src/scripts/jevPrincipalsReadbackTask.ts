@@ -3,7 +3,7 @@ import {
   type IsolatedReadbackTaskDefinition,
   type IsolatedReadbackTaskProfile,
   buildIsolatedReadbackTaskDefinition,
-} from "./inboxPrincipalReadbackTask";
+} from './inboxPrincipalReadbackTask';
 
 /**
  * The isolated one-off task for `readback-jev-principals.ts`: the same
@@ -12,11 +12,9 @@ import {
  * immutable image digest; a fixed bun entry point), with ONE secret.
  */
 export const JEV_PRINCIPALS_READBACK_TASK_PROFILE: IsolatedReadbackTaskProfile = {
-  family: "oxy-oxy-api-jev-principals-readback",
-  command: ["run", "packages/api/scripts/readback-jev-principals.ts"],
-  secrets: INBOX_PRINCIPAL_READBACK_SECRETS.filter(
-    (secret) => secret.name === "DATABASE_URL",
-  ),
+  family: 'oxy-oxy-api-jev-principals-readback',
+  command: ['run', 'packages/api/scripts/readback-jev-principals.ts'],
+  secrets: INBOX_PRINCIPAL_READBACK_SECRETS.filter((secret) => secret.name === 'DATABASE_URL'),
 };
 
 export function buildJevPrincipalsReadbackTaskDefinition(input: {

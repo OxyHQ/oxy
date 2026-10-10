@@ -1,6 +1,6 @@
 /**
  * Shared Authentication Utilities
- * 
+ *
  * Common functions used by both authMiddleware and optionalAuthMiddleware
  * to avoid code duplication and ensure consistency
  */
@@ -52,7 +52,7 @@ export interface AuthenticatedRequest extends Request {
  */
 export function extractTokenFromRequest(req: Pick<Request, 'headers'>): string | undefined {
   const authHeader = req.headers.authorization;
-  
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return authHeader.substring(7);
   }
@@ -89,15 +89,11 @@ export function decodeToken(token: string): TokenDecoded | null {
       logger.error('ACCESS_TOKEN_SECRET is not configured');
       return null;
     }
-    return jwt.verify(
-      token,
-      process.env.ACCESS_TOKEN_SECRET
-    ) as TokenDecoded;
+    return jwt.verify(token, process.env.ACCESS_TOKEN_SECRET) as TokenDecoded;
   } catch (error) {
     return null;
   }
 }
-
 
 /**
  * Project an account document onto the optional-auth request identity.
@@ -120,16 +116,14 @@ export function normalizeUser(user: AccountDocument | null | undefined): Normali
   const publicKey = typeof user.publicKey === 'string' ? user.publicKey : undefined;
   const fromRowId = typeof user._id === 'string' && user._id.length > 0 ? user._id : undefined;
   const fallbackId = typeof user.id === 'string' && user.id.length > 0 ? user.id : undefined;
-  const userId =
-    fromRowId ||
-    (fallbackId && fallbackId !== publicKey ? fallbackId : undefined);
+  const userId = fromRowId || (fallbackId && fallbackId !== publicKey ? fallbackId : undefined);
   if (!userId) return null;
 
   const { _id, id, ...restUser } = user;
 
   return {
     ...restUser,
-    _id: userId
+    _id: userId,
   };
 }
 
@@ -139,11 +133,11 @@ export function normalizeUser(user: AccountDocument | null | undefined): Normali
 export async function validateSessionToken(token: string): Promise<NormalizedUser | null> {
   try {
     const validationResult = await sessionService.validateSession(token);
-    
+
     if (!validationResult?.user) {
       return null;
     }
-    
+
     return normalizeUser(validationResult.user);
   } catch (error) {
     logger.debug('Session validation error', { error });
@@ -151,32 +145,31 @@ export async function validateSessionToken(token: string): Promise<NormalizedUse
   }
 }
 
-
 /**
  * Authenticate request and return normalized user (non-blocking)
  * Returns null if authentication fails (doesn't throw)
  */
 export async function authenticateRequestNonBlocking(
   req: Request,
-  requireAuth = false
+  requireAuth = false,
 ): Promise<{ user: NormalizedUser | null; source: 'header' | null; sessionId?: string }> {
   const token = extractTokenFromRequest(req);
   const source = req.headers.authorization ? 'header' : null;
-  
+
   if (!token) {
     return { user: null, source };
   }
-  
+
   const decoded = decodeToken(token);
   if (!decoded) {
     return { user: null, source };
   }
-  
+
   // Only session-based tokens are supported
   if (!decoded.sessionId) {
     return { user: null, source };
   }
-  
+
   const user = await validateSessionToken(token);
   return { user, source, ...(user ? { sessionId: decoded.sessionId } : {}) };
 }

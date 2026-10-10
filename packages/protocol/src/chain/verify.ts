@@ -67,7 +67,12 @@ export async function verifyEnvelope(
   }
 
   // Enforce that v2 envelopes strictly contain required chain fields.
-  if (env.version === 2 && (typeof env.seq !== 'number' || typeof env.collection !== 'string' || typeof env.rkey !== 'string')) {
+  if (
+    env.version === 2 &&
+    (typeof env.seq !== 'number' ||
+      typeof env.collection !== 'string' ||
+      typeof env.rkey !== 'string')
+  ) {
     return { ok: false, reason: 'invalid_envelope' };
   }
 

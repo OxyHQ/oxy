@@ -51,36 +51,42 @@ import type { MeteredGeneration } from '@oxy.so/contracts';
  * request.
  */
 
-import { decisionRequestSchema, decisionSuccessSchema, decisionAnswersMatch, type DecisionRequest, type DecisionSuccess } from '@oxy.so/contracts';
+import {
+  decisionRequestSchema,
+  decisionSuccessSchema,
+  decisionAnswersMatch,
+  type DecisionRequest,
+  type DecisionSuccess,
+} from '@oxy.so/contracts';
 
 import type {
-    CurrencyCode,
-    ExactDecimal,
-    InferenceEnvironment,
-    InferenceErrorCode,
-    InferenceFinishReason,
-    InferenceMessage,
-    InferenceReasoning,
-    InferenceRequestOutcome,
-    InferenceAudioMediaType,
-    InferenceStreamEvent,
-    InferenceSpeechParameters,
-    ModelCatalogueEntry,
-    ResponseFormat,
-    RoutingPolicyReference,
-    RoutingProfile,
-    ToolChoice,
-    ToolDefinition,
-    UnitPrice,
-    UsageQuantity,
-    UsageSource,
+  CurrencyCode,
+  ExactDecimal,
+  InferenceEnvironment,
+  InferenceErrorCode,
+  InferenceFinishReason,
+  InferenceMessage,
+  InferenceReasoning,
+  InferenceRequestOutcome,
+  InferenceAudioMediaType,
+  InferenceStreamEvent,
+  InferenceSpeechParameters,
+  ModelCatalogueEntry,
+  ResponseFormat,
+  RoutingPolicyReference,
+  RoutingProfile,
+  ToolChoice,
+  ToolDefinition,
+  UnitPrice,
+  UsageQuantity,
+  UsageSource,
 } from '@oxy.so/contracts';
 import {
-    INFERENCE_ERROR_CODES,
-    MAX_INFERENCE_AUDIO_BYTES,
-    inferenceAudioMediaTypeSchema,
-    inferenceStreamEventSchema,
-    modelIdSchema,
+  INFERENCE_ERROR_CODES,
+  MAX_INFERENCE_AUDIO_BYTES,
+  inferenceAudioMediaTypeSchema,
+  inferenceStreamEventSchema,
+  modelIdSchema,
 } from '@oxy.so/contracts';
 
 /** The base URL of the Oxy API, when a caller names none. */
@@ -94,9 +100,7 @@ export const OXY_INFERENCE_BASE_URL = 'https://api.oxy.so';
  * lane and is called on EVERY request, because a session bearer and a service
  * token both rotate and a captured one goes stale inside the hour.
  */
-export type OxyInferenceCredential =
-    | string
-    | (() => string | null | Promise<string | null>);
+export type OxyInferenceCredential = string | (() => string | null | Promise<string | null>);
 
 /**
  * The `fetch` this client calls.
@@ -108,11 +112,11 @@ export type OxyInferenceCredential =
 export type OxyInferenceFetch = typeof fetch;
 
 export interface OxyInferenceClientOptions {
-    readonly credential: OxyInferenceCredential;
-    /** Defaults to {@link OXY_INFERENCE_BASE_URL}. A trailing slash is trimmed. */
-    readonly baseURL?: string;
-    /** Defaults to the global `fetch`. */
-    readonly fetch?: OxyInferenceFetch;
+  readonly credential: OxyInferenceCredential;
+  /** Defaults to {@link OXY_INFERENCE_BASE_URL}. A trailing slash is trimmed. */
+  readonly baseURL?: string;
+  /** Defaults to the global `fetch`. */
+  readonly fetch?: OxyInferenceFetch;
 }
 
 /**
@@ -125,109 +129,109 @@ export interface OxyInferenceClientOptions {
  * both is refused by the edge with `invalid_request`.
  */
 export interface OxyResponsesRequest {
-    /** `<publisher>/<model>` or `<publisher>/<model>@<revision>`. */
-    readonly model?: string;
-    /** A routing profile slug. Never contains a slash, so it is never a model id. */
-    readonly routingProfile?: string;
-    /** An exact opaque routing-profile database ID; serialized byte-for-byte. */
-    readonly routingProfileId?: string;
-    /** A prompt, or the message list it is shorthand for. */
-    readonly input: string | readonly InferenceMessage[];
-    readonly maxOutputTokens?: number;
-    readonly temperature?: number;
-    readonly topP?: number;
-    readonly topK?: number;
-    readonly frequencyPenalty?: number;
-    readonly presencePenalty?: number;
-    readonly seed?: number;
-    readonly stopSequences?: readonly string[];
-    readonly tools?: readonly ToolDefinition[];
-    readonly toolChoice?: ToolChoice;
-    readonly responseFormat?: ResponseFormat;
-    /**
-     * `{ effort: 'low' | 'medium' | 'high' }`. Name only an effort the model
-     * lists in its catalogue entry's `capabilities.reasoningEfforts`; any other
-     * is refused with `invalid_request` (HTTP 400) before anything is charged.
-     */
-    readonly reasoning?: InferenceReasoning;
-    /** Cost-attribution tags, echoed back on the receipt. At most 16. */
-    readonly labels?: Readonly<Record<string, string>>;
-    /** Your own correlation id, echoed on the response. */
-    readonly clientRequestId?: string;
+  /** `<publisher>/<model>` or `<publisher>/<model>@<revision>`. */
+  readonly model?: string;
+  /** A routing profile slug. Never contains a slash, so it is never a model id. */
+  readonly routingProfile?: string;
+  /** An exact opaque routing-profile database ID; serialized byte-for-byte. */
+  readonly routingProfileId?: string;
+  /** A prompt, or the message list it is shorthand for. */
+  readonly input: string | readonly InferenceMessage[];
+  readonly maxOutputTokens?: number;
+  readonly temperature?: number;
+  readonly topP?: number;
+  readonly topK?: number;
+  readonly frequencyPenalty?: number;
+  readonly presencePenalty?: number;
+  readonly seed?: number;
+  readonly stopSequences?: readonly string[];
+  readonly tools?: readonly ToolDefinition[];
+  readonly toolChoice?: ToolChoice;
+  readonly responseFormat?: ResponseFormat;
+  /**
+   * `{ effort: 'low' | 'medium' | 'high' }`. Name only an effort the model
+   * lists in its catalogue entry's `capabilities.reasoningEfforts`; any other
+   * is refused with `invalid_request` (HTTP 400) before anything is charged.
+   */
+  readonly reasoning?: InferenceReasoning;
+  /** Cost-attribution tags, echoed back on the receipt. At most 16. */
+  readonly labels?: Readonly<Record<string, string>>;
+  /** Your own correlation id, echoed on the response. */
+  readonly clientRequestId?: string;
 }
 
 /** Speech uses the same credential and delegation lane as responses. */
 export type OxySpeechRequest = (
-    | { readonly model: string; readonly routingProfileId?: never }
-    | { readonly routingProfileId: string; readonly model?: never }
+  | { readonly model: string; readonly routingProfileId?: never }
+  | { readonly routingProfileId: string; readonly model?: never }
 ) & {
-    readonly input: string;
-    readonly voice: string;
-    readonly response_format?: InferenceSpeechParameters['responseFormat'];
-    readonly speed?: number;
+  readonly input: string;
+  readonly voice: string;
+  readonly response_format?: InferenceSpeechParameters['responseFormat'];
+  readonly speed?: number;
 };
 
 export interface OxySpeechResponse {
-    readonly audio: Uint8Array;
-    readonly mediaType: InferenceAudioMediaType;
-    readonly requestId: string;
+  readonly audio: Uint8Array;
+  readonly mediaType: InferenceAudioMediaType;
+  readonly requestId: string;
 }
 
 export interface OxyInferenceRequestOptions {
-    /**
-     * Abort the request. The edge treats a client disconnect as a cancellation:
-     * it settles what was produced and refunds the rest, so a cancelled request
-     * is a normal terminal state rather than an error to clean up after.
-     */
-    readonly signal?: AbortSignal;
-    /**
-     * `Idempotency-Key`. A key already bound to a reservation is REFUSED with
-     * `idempotency_conflict` rather than replayed — responses are not retained,
-     * so there is nothing to replay, and refusing is what makes "a retry never
-     * produces a second charge" structural. At most 128 characters.
-     */
-    readonly idempotencyKey?: string;
-    /**
-     * `X-Oxy-User-Id` — the end user this request is made on behalf of.
-     * ATTRIBUTION ONLY: it never changes which account is charged.
-     */
-    readonly delegatedUserId?: string;
+  /**
+   * Abort the request. The edge treats a client disconnect as a cancellation:
+   * it settles what was produced and refunds the rest, so a cancelled request
+   * is a normal terminal state rather than an error to clean up after.
+   */
+  readonly signal?: AbortSignal;
+  /**
+   * `Idempotency-Key`. A key already bound to a reservation is REFUSED with
+   * `idempotency_conflict` rather than replayed — responses are not retained,
+   * so there is nothing to replay, and refusing is what makes "a retry never
+   * produces a second charge" structural. At most 128 characters.
+   */
+  readonly idempotencyKey?: string;
+  /**
+   * `X-Oxy-User-Id` — the end user this request is made on behalf of.
+   * ATTRIBUTION ONLY: it never changes which account is charged.
+   */
+  readonly delegatedUserId?: string;
 }
 
 /** The body of a successful `POST /v1/responses`. */
 export interface OxyInferenceResponse {
-    readonly schemaVersion: 1;
-    /** Also on `X-Oxy-Request-Id`, on success and on every refusal. */
-    readonly requestId: string;
-    readonly generationId?: string;
-    /** Always revision-pinned, even when you named only the model line. */
-    readonly model: string;
-    readonly servingProvider: string;
-    readonly finishReason: InferenceFinishReason;
-    readonly output: readonly InferenceMessage[];
-    /** Metered quantities. Never money — the charge is on the receipt. */
-    readonly usage: readonly UsageQuantity[];
-    /** The exact policy version this request was admitted under. */
-    readonly routingPolicy: RoutingPolicyReference;
-    /**
-     * How long Oxy took over this request, in whole milliseconds — also on
-     * `X-Oxy-Latency-Ms`.
-     *
-     * Measured from the moment the edge received the request through
-     * authentication, admission, routing, the reservation, the call to the
-     * inference data plane and the settlement of the hold. Most of it is the
-     * upstream generating tokens; it does not separate the two.
-     *
-     * It is NOT the round trip you can measure yourself, which additionally
-     * covers DNS, TLS, both network legs and your own parse. Report them side by
-     * side rather than picking one — this figure has no network in it and yours
-     * cannot be attributed to the model.
-     *
-     * Optional because it is additive: an Oxy deployment older than the field
-     * omits it, and a streamed request never carries it (the head is written
-     * before the first frame arrives, so the number does not exist yet).
-     */
-    readonly latencyMs?: number;
+  readonly schemaVersion: 1;
+  /** Also on `X-Oxy-Request-Id`, on success and on every refusal. */
+  readonly requestId: string;
+  readonly generationId?: string;
+  /** Always revision-pinned, even when you named only the model line. */
+  readonly model: string;
+  readonly servingProvider: string;
+  readonly finishReason: InferenceFinishReason;
+  readonly output: readonly InferenceMessage[];
+  /** Metered quantities. Never money — the charge is on the receipt. */
+  readonly usage: readonly UsageQuantity[];
+  /** The exact policy version this request was admitted under. */
+  readonly routingPolicy: RoutingPolicyReference;
+  /**
+   * How long Oxy took over this request, in whole milliseconds — also on
+   * `X-Oxy-Latency-Ms`.
+   *
+   * Measured from the moment the edge received the request through
+   * authentication, admission, routing, the reservation, the call to the
+   * inference data plane and the settlement of the hold. Most of it is the
+   * upstream generating tokens; it does not separate the two.
+   *
+   * It is NOT the round trip you can measure yourself, which additionally
+   * covers DNS, TLS, both network legs and your own parse. Report them side by
+   * side rather than picking one — this figure has no network in it and yours
+   * cannot be attributed to the model.
+   *
+   * Optional because it is additive: an Oxy deployment older than the field
+   * omits it, and a streamed request never carries it (the head is written
+   * before the first frame arrives, so the number does not exist yet).
+   */
+  readonly latencyMs?: number;
 }
 
 /**
@@ -237,31 +241,31 @@ export interface OxyInferenceResponse {
  * arithmetic stays checkable after that version has been superseded.
  */
 export interface OxyGenerationReceipt {
-    readonly schemaVersion: 1;
-    readonly receiptId: string;
-    readonly requestId: string;
-    readonly generationId?: string;
-    readonly applicationId: string;
-    readonly credentialId: string;
-    /** Attribution only. Never the billing identity. */
-    readonly delegatedUserId?: string;
-    readonly environment: InferenceEnvironment;
-    readonly outcome: InferenceRequestOutcome;
-    readonly usageSource: UsageSource;
-    /** EVERY unit, including the zeros — see `usageSource` for what a zero means. */
-    readonly units: readonly UsageQuantity[];
-    readonly resolvedModelReference: string;
-    readonly servingProvider: string;
-    readonly priceSnapshot: {
-        readonly priceVersionId: string;
-        readonly currency: CurrencyCode;
-        readonly unitPrices: readonly UnitPrice[];
-    };
-    readonly billedAmount: ExactDecimal;
+  readonly schemaVersion: 1;
+  readonly receiptId: string;
+  readonly requestId: string;
+  readonly generationId?: string;
+  readonly applicationId: string;
+  readonly credentialId: string;
+  /** Attribution only. Never the billing identity. */
+  readonly delegatedUserId?: string;
+  readonly environment: InferenceEnvironment;
+  readonly outcome: InferenceRequestOutcome;
+  readonly usageSource: UsageSource;
+  /** EVERY unit, including the zeros — see `usageSource` for what a zero means. */
+  readonly units: readonly UsageQuantity[];
+  readonly resolvedModelReference: string;
+  readonly servingProvider: string;
+  readonly priceSnapshot: {
+    readonly priceVersionId: string;
     readonly currency: CurrencyCode;
-    /** A BYOK route: `billedAmount` is Oxy's fee, not the cost of the tokens. */
-    readonly platformFeeOnly: boolean;
-    readonly settledAt: string;
+    readonly unitPrices: readonly UnitPrice[];
+  };
+  readonly billedAmount: ExactDecimal;
+  readonly currency: CurrencyCode;
+  /** A BYOK route: `billedAmount` is Oxy's fee, not the cost of the tokens. */
+  readonly platformFeeOnly: boolean;
+  readonly settledAt: string;
 }
 
 /** The endpoint returns either a customer receipt or internal technical usage. */
@@ -277,33 +281,33 @@ export type OxyGenerationRecord = OxyGenerationReceipt | MeteredGeneration;
  * compute one.
  */
 export class OxyInferenceError extends Error {
-    readonly code: InferenceErrorCode;
-    readonly retryable: boolean;
-    readonly requestId: string;
-    readonly status: number;
-    /** How long to wait. Only ever present when `retryable`. */
-    readonly retryAfterMs?: number;
-    /** The request field at fault, for `invalid_request`. */
-    readonly param?: string;
+  readonly code: InferenceErrorCode;
+  readonly retryable: boolean;
+  readonly requestId: string;
+  readonly status: number;
+  /** How long to wait. Only ever present when `retryable`. */
+  readonly retryAfterMs?: number;
+  /** The request field at fault, for `invalid_request`. */
+  readonly param?: string;
 
-    constructor(input: {
-        code: InferenceErrorCode;
-        message: string;
-        retryable: boolean;
-        requestId: string;
-        status: number;
-        retryAfterMs?: number;
-        param?: string;
-    }) {
-        super(input.message);
-        this.name = 'OxyInferenceError';
-        this.code = input.code;
-        this.retryable = input.retryable;
-        this.requestId = input.requestId;
-        this.status = input.status;
-        if (input.retryAfterMs !== undefined) this.retryAfterMs = input.retryAfterMs;
-        if (input.param !== undefined) this.param = input.param;
-    }
+  constructor(input: {
+    code: InferenceErrorCode;
+    message: string;
+    retryable: boolean;
+    requestId: string;
+    status: number;
+    retryAfterMs?: number;
+    param?: string;
+  }) {
+    super(input.message);
+    this.name = 'OxyInferenceError';
+    this.code = input.code;
+    this.retryable = input.retryable;
+    this.requestId = input.requestId;
+    this.status = input.status;
+    if (input.retryAfterMs !== undefined) this.retryAfterMs = input.retryAfterMs;
+    if (input.param !== undefined) this.param = input.param;
+  }
 }
 
 /**
@@ -315,31 +319,31 @@ export class OxyInferenceError extends Error {
  * safely interpret a nominally successful stream.
  */
 export class OxyInferenceProtocolError extends Error {
-    /** The request id from the response header, when the edge supplied one. */
-    readonly requestId?: string;
+  /** The request id from the response header, when the edge supplied one. */
+  readonly requestId?: string;
 
-    constructor(message: string, requestId?: string) {
-        super(message);
-        this.name = 'OxyInferenceProtocolError';
-        if (requestId !== undefined) this.requestId = requestId;
-    }
+  constructor(message: string, requestId?: string) {
+    super(message);
+    this.name = 'OxyInferenceProtocolError';
+    if (requestId !== undefined) this.requestId = requestId;
+  }
 }
 
 /** `{ data, count }` — the catalogue's collection envelope. */
 interface CatalogueCollection<T> {
-    data: T[];
-    count: number;
+  data: T[];
+  count: number;
 }
 
 /** The shape `/v1/responses` and `/v1/generations/:id` return on a refusal. */
 interface WireInferenceError {
-    schemaVersion?: number;
-    code?: string;
-    message?: string;
-    retryable?: boolean;
-    requestId?: string;
-    retryAfterMs?: number;
-    param?: string;
+  schemaVersion?: number;
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+  requestId?: string;
+  retryAfterMs?: number;
+  param?: string;
 }
 
 /**
@@ -358,469 +362,469 @@ interface WireInferenceError {
  * and an unreadable failure must still reach the caller as one.
  */
 export class OxyInferenceClient {
-    readonly #baseURL: string;
-    readonly #credential: OxyInferenceCredential;
-    readonly #fetch: OxyInferenceFetch;
+  readonly #baseURL: string;
+  readonly #credential: OxyInferenceCredential;
+  readonly #fetch: OxyInferenceFetch;
 
-    constructor(options: OxyInferenceClientOptions) {
-        const baseURL = options.baseURL ?? OXY_INFERENCE_BASE_URL;
-        this.#baseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
-        this.#credential = options.credential;
+  constructor(options: OxyInferenceClientOptions) {
+    const baseURL = options.baseURL ?? OXY_INFERENCE_BASE_URL;
+    this.#baseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+    this.#credential = options.credential;
 
-        const fetchImpl = options.fetch ?? globalThis.fetch;
-        if (fetchImpl === undefined) {
-            throw new Error(
-                'OxyInferenceClient needs a fetch implementation: this runtime has no global fetch, so pass one as `fetch`.',
-            );
-        }
-        this.#fetch = fetchImpl;
+    const fetchImpl = options.fetch ?? globalThis.fetch;
+    if (fetchImpl === undefined) {
+      throw new Error(
+        'OxyInferenceClient needs a fetch implementation: this runtime has no global fetch, so pass one as `fetch`.',
+      );
+    }
+    this.#fetch = fetchImpl;
+  }
+
+  /**
+   * The models this caller may use — `GET /v1/models`.
+   *
+   * Audience-scoped server-side. A machine credential and an anonymous caller
+   * both see the PUBLIC catalogue; only an internal/system application's
+   * service token sees internal-only routes.
+   *
+   * **`[]` is a normal answer**: a route is not publicly exposed until
+   * somebody has reviewed the right to resell it. An official application's
+   * credential also sees the internal catalogue Oxy keeps in step with
+   * Kaana automatically.
+   *
+   * Each entry's `capabilities.reasoningEfforts` lists the efforts a request
+   * may name in `reasoning.effort` (empty: none), and `releasedAt`, when
+   * present, is the date the upstream provider published the model.
+   */
+  async listModels(options: { signal?: AbortSignal } = {}): Promise<ModelCatalogueEntry[]> {
+    const body = await this.#request<CatalogueCollection<ModelCatalogueEntry>>(
+      'GET',
+      '/v1/models',
+      { ...(options.signal === undefined ? {} : { signal: options.signal }) },
+    );
+    return body.data;
+  }
+
+  /**
+   * One catalogue entry by its canonical id — `GET /v1/models/:publisher/:model`.
+   *
+   * The id is TWO path segments, because a canonical model id contains a slash
+   * and a single encoded segment would never match the route.
+   *
+   * A model you may not see answers 404 identically to one that does not
+   * exist, deliberately: the catalogue is never an existence oracle for what
+   * Oxy runs internally.
+   *
+   * @param modelId - `<publisher>/<model>`. A revision pin
+   *   (`<publisher>/<model>@<revision>`) names a model REFERENCE rather than a
+   *   model and is rejected here rather than sent, because the catalogue is
+   *   keyed on models and a pinned reference would 404 indistinguishably from
+   *   "no such model".
+   */
+  async getModel(
+    modelId: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<ModelCatalogueEntry> {
+    const parsed = modelIdSchema.safeParse(modelId);
+    if (!parsed.success) {
+      throw new Error(
+        `Not a canonical model id: ${modelId}. Expected <publisher>/<model>, e.g. acme/some-model.`,
+      );
     }
 
-    /**
-     * The models this caller may use — `GET /v1/models`.
-     *
-     * Audience-scoped server-side. A machine credential and an anonymous caller
-     * both see the PUBLIC catalogue; only an internal/system application's
-     * service token sees internal-only routes.
-     *
-     * **`[]` is a normal answer**: a route is not publicly exposed until
-     * somebody has reviewed the right to resell it. An official application's
-     * credential also sees the internal catalogue Oxy keeps in step with
-     * Kaana automatically.
-     *
-     * Each entry's `capabilities.reasoningEfforts` lists the efforts a request
-     * may name in `reasoning.effort` (empty: none), and `releasedAt`, when
-     * present, is the date the upstream provider published the model.
-     */
-    async listModels(options: { signal?: AbortSignal } = {}): Promise<ModelCatalogueEntry[]> {
-        const body = await this.#request<CatalogueCollection<ModelCatalogueEntry>>(
-            'GET',
-            '/v1/models',
-            { ...(options.signal === undefined ? {} : { signal: options.signal }) },
+    const [publisher, model] = parsed.data.split('/');
+    const body = await this.#request<{ data: ModelCatalogueEntry }>(
+      'GET',
+      `/v1/models/${encodeURIComponent(publisher)}/${encodeURIComponent(model)}`,
+      { ...(options.signal === undefined ? {} : { signal: options.signal }) },
+    );
+    return body.data;
+  }
+
+  /**
+   * The routing profiles this caller may select — `GET /v1/models/routing-profiles`.
+   *
+   * A profile is a named strategy for CHOOSING among routes, not a model: no
+   * publisher, no revision, no licence, no weights. Like the model list, `[]`
+   * is a normal answer.
+   */
+  async listRoutingProfiles(options: { signal?: AbortSignal } = {}): Promise<RoutingProfile[]> {
+    const body = await this.#request<CatalogueCollection<RoutingProfile>>(
+      'GET',
+      '/v1/models/routing-profiles',
+      { ...(options.signal === undefined ? {} : { signal: options.signal }) },
+    );
+    return body.data;
+  }
+
+  /**
+   * Send one non-streaming inference request — `POST /v1/responses`.
+   *
+   * @throws {OxyInferenceError} for every refusal, carrying the server's own
+   *   `code`, `retryable` and `requestId`.
+   */
+  async respond(
+    request: OxyResponsesRequest,
+    options: OxyInferenceRequestOptions = {},
+  ): Promise<OxyInferenceResponse> {
+    return this.#request<OxyInferenceResponse>('POST', '/v1/responses', {
+      body: request,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
+      ...(options.delegatedUserId === undefined
+        ? {}
+        : { delegatedUserId: options.delegatedUserId }),
+    });
+  }
+
+  /** Typed nonstreaming decisions. Idempotency conflicts are never replayed or retried. */
+  async decide(
+    request: DecisionRequest,
+    options: OxyInferenceRequestOptions = {},
+  ): Promise<DecisionSuccess> {
+    const input = decisionRequestSchema.parse(request);
+    const payload = await this.#request<unknown>('POST', '/v1/decisions', {
+      body: input,
+      bindRequestId: true,
+      signal: options.signal,
+      idempotencyKey: options.idempotencyKey,
+      delegatedUserId: options.delegatedUserId,
+    });
+    const parsed = decisionSuccessSchema.safeParse(payload);
+    if (
+      !parsed.success ||
+      parsed.data.model !== input.model ||
+      !decisionAnswersMatch(input, parsed.data.data)
+    ) {
+      throw new OxyInferenceProtocolError('Invalid or mismatched decisions response.');
+    }
+    return parsed.data;
+  }
+
+  /** Generate audio bytes through Oxy's authenticated inference edge. */
+  async speech(
+    request: OxySpeechRequest,
+    options: OxyInferenceRequestOptions = {},
+  ): Promise<OxySpeechResponse> {
+    const response = await this.#fetch(`${this.#baseURL}/v1/audio/speech`, {
+      method: 'POST',
+      headers: await this.#headers('audio/*', {
+        hasBody: true,
+        ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
+        ...(options.delegatedUserId === undefined
+          ? {}
+          : { delegatedUserId: options.delegatedUserId }),
+      }),
+      body: JSON.stringify(request),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    });
+    const requestId = response.headers.get('X-Oxy-Request-Id') ?? '';
+    if (!response.ok) {
+      throw toInferenceError(
+        await response.json().catch(() => undefined),
+        response.status,
+        requestId,
+      );
+    }
+    const mediaType = inferenceAudioMediaTypeSchema.safeParse(mediaTypeOf(response));
+    if (!mediaType.success || !response.body) {
+      await cancelUnreadResponse(response);
+      throw protocolError('The inference API returned no supported audio body.', requestId);
+    }
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    let completed = false;
+    try {
+      while (true) {
+        const next = await reader.read();
+        if (next.done) {
+          completed = true;
+          break;
+        }
+        size += next.value.byteLength;
+        if (size > MAX_INFERENCE_AUDIO_BYTES)
+          throw protocolError('The inference audio exceeds the response limit.', requestId);
+        chunks.push(next.value);
+      }
+    } finally {
+      if (!completed) await reader.cancel().catch(() => undefined);
+      reader.releaseLock();
+    }
+    if (size === 0) throw protocolError('The inference API returned empty audio.', requestId);
+    const audio = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      audio.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { audio, mediaType: mediaType.data, requestId };
+  }
+
+  /**
+   * Stream one inference request from `POST /v1/responses`.
+   *
+   * The transport choice is method-level: this method adds `stream: true` and
+   * requests SSE, while {@link respond} never does. Every yielded value has
+   * already passed `inferenceStreamEventSchema`, belongs to the request id in
+   * the response header and advances the stream sequence. A terminal `error`
+   * event is yielded as part of the published union; an HTTP refusal before
+   * the stream opens throws {@link OxyInferenceError}.
+   *
+   * Breaking out of the iterator cancels the response body. Passing an abort
+   * signal additionally lets the caller cancel while waiting for the first or
+   * any later event.
+   *
+   * @throws {OxyInferenceError} when the edge refuses before opening SSE.
+   * @throws {OxyInferenceProtocolError} when a successful SSE response cannot
+   *   be interpreted under the published stream contract.
+   */
+  async *stream(
+    request: OxyResponsesRequest,
+    options: OxyInferenceRequestOptions = {},
+  ): AsyncGenerator<InferenceStreamEvent> {
+    const response = await this.#fetch(`${this.#baseURL}/v1/responses`, {
+      method: 'POST',
+      headers: await this.#headers('text/event-stream', {
+        hasBody: true,
+        ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
+        ...(options.delegatedUserId === undefined
+          ? {}
+          : { delegatedUserId: options.delegatedUserId }),
+      }),
+      body: JSON.stringify({ ...request, stream: true }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    });
+
+    if (!response.ok) {
+      const payload: unknown = await response.json().catch(() => undefined);
+      throw toInferenceError(payload, response.status, response.headers.get('X-Oxy-Request-Id'));
+    }
+
+    const requestId = response.headers.get('X-Oxy-Request-Id') ?? undefined;
+    const mediaType = mediaTypeOf(response);
+    if (mediaType !== 'text/event-stream') {
+      await cancelUnreadResponse(response);
+      throw protocolError(
+        `The inference API answered a streaming request with ${mediaType ?? 'no Content-Type'} instead of text/event-stream.`,
+        requestId,
+      );
+    }
+    if (requestId === undefined || requestId.length === 0) {
+      await cancelUnreadResponse(response);
+      throw protocolError('The inference API opened a stream without X-Oxy-Request-Id.', requestId);
+    }
+    if (response.body === null) {
+      throw protocolError('The inference API opened a stream with no response body.', requestId);
+    }
+
+    let lastSequence = -1;
+    let terminal = false;
+    for await (const frame of decodeEventStream(response.body, requestId)) {
+      if (terminal) {
+        throw protocolError('The inference API sent an event after a terminal event.', requestId);
+      }
+
+      let payload: unknown;
+      try {
+        payload = JSON.parse(frame.data);
+      } catch (_error) {
+        throw protocolError(
+          `The inference API sent a ${frame.name || 'unnamed'} SSE event that is not JSON.`,
+          requestId,
         );
-        return body.data;
-    }
+      }
 
-    /**
-     * One catalogue entry by its canonical id — `GET /v1/models/:publisher/:model`.
-     *
-     * The id is TWO path segments, because a canonical model id contains a slash
-     * and a single encoded segment would never match the route.
-     *
-     * A model you may not see answers 404 identically to one that does not
-     * exist, deliberately: the catalogue is never an existence oracle for what
-     * Oxy runs internally.
-     *
-     * @param modelId - `<publisher>/<model>`. A revision pin
-     *   (`<publisher>/<model>@<revision>`) names a model REFERENCE rather than a
-     *   model and is rejected here rather than sent, because the catalogue is
-     *   keyed on models and a pinned reference would 404 indistinguishably from
-     *   "no such model".
-     */
-    async getModel(
-        modelId: string,
-        options: { signal?: AbortSignal } = {},
-    ): Promise<ModelCatalogueEntry> {
-        const parsed = modelIdSchema.safeParse(modelId);
-        if (!parsed.success) {
-            throw new Error(
-                `Not a canonical model id: ${modelId}. Expected <publisher>/<model>, e.g. acme/some-model.`,
-            );
-        }
-
-        const [publisher, model] = parsed.data.split('/');
-        const body = await this.#request<{ data: ModelCatalogueEntry }>(
-            'GET',
-            `/v1/models/${encodeURIComponent(publisher)}/${encodeURIComponent(model)}`,
-            { ...(options.signal === undefined ? {} : { signal: options.signal }) },
+      const parsed = inferenceStreamEventSchema.safeParse(payload);
+      if (!parsed.success) {
+        const path = parsed.error.issues[0]?.path;
+        throw protocolError(
+          `The inference API sent an event outside the published stream contract at ${path === undefined || path.length === 0 ? 'an unknown field' : path.join('.')}.`,
+          requestId,
         );
-        return body.data;
-    }
+      }
 
-    /**
-     * The routing profiles this caller may select — `GET /v1/models/routing-profiles`.
-     *
-     * A profile is a named strategy for CHOOSING among routes, not a model: no
-     * publisher, no revision, no licence, no weights. Like the model list, `[]`
-     * is a normal answer.
-     */
-    async listRoutingProfiles(
-        options: { signal?: AbortSignal } = {},
-    ): Promise<RoutingProfile[]> {
-        const body = await this.#request<CatalogueCollection<RoutingProfile>>(
-            'GET',
-            '/v1/models/routing-profiles',
-            { ...(options.signal === undefined ? {} : { signal: options.signal }) },
+      const event = parsed.data;
+      if (frame.name !== event.type) {
+        throw protocolError(
+          `The inference API framed a ${event.type} event as ${frame.name || 'unnamed'}.`,
+          requestId,
         );
-        return body.data;
-    }
-
-    /**
-     * Send one non-streaming inference request — `POST /v1/responses`.
-     *
-     * @throws {OxyInferenceError} for every refusal, carrying the server's own
-     *   `code`, `retryable` and `requestId`.
-     */
-    async respond(
-        request: OxyResponsesRequest,
-        options: OxyInferenceRequestOptions = {},
-    ): Promise<OxyInferenceResponse> {
-        return this.#request<OxyInferenceResponse>('POST', '/v1/responses', {
-            body: request,
-            ...(options.signal === undefined ? {} : { signal: options.signal }),
-            ...(options.idempotencyKey === undefined
-                ? {}
-                : { idempotencyKey: options.idempotencyKey }),
-            ...(options.delegatedUserId === undefined
-                ? {}
-                : { delegatedUserId: options.delegatedUserId }),
-        });
-    }
-
-    /** Typed nonstreaming decisions. Idempotency conflicts are never replayed or retried. */
-    async decide(
-        request: DecisionRequest,
-        options: OxyInferenceRequestOptions = {},
-    ): Promise<DecisionSuccess> {
-        const input = decisionRequestSchema.parse(request);
-        const payload = await this.#request<unknown>('POST', '/v1/decisions', {
-            body: input,
-            bindRequestId: true,
-            signal: options.signal,
-            idempotencyKey: options.idempotencyKey,
-            delegatedUserId: options.delegatedUserId,
-        });
-        const parsed = decisionSuccessSchema.safeParse(payload);
-        if (!parsed.success || parsed.data.model !== input.model ||
-            !decisionAnswersMatch(input, parsed.data.data)) {
-            throw new OxyInferenceProtocolError('Invalid or mismatched decisions response.');
-        }
-        return parsed.data;
-    }
-
-    /** Generate audio bytes through Oxy's authenticated inference edge. */
-    async speech(
-        request: OxySpeechRequest,
-        options: OxyInferenceRequestOptions = {},
-    ): Promise<OxySpeechResponse> {
-        const response = await this.#fetch(`${this.#baseURL}/v1/audio/speech`, {
-            method: 'POST',
-            headers: await this.#headers('audio/*', {
-                hasBody: true,
-                ...(options.idempotencyKey === undefined
-                    ? {}
-                    : { idempotencyKey: options.idempotencyKey }),
-                ...(options.delegatedUserId === undefined
-                    ? {}
-                    : { delegatedUserId: options.delegatedUserId }),
-            }),
-            body: JSON.stringify(request),
-            ...(options.signal === undefined ? {} : { signal: options.signal }),
-        });
-        const requestId = response.headers.get('X-Oxy-Request-Id') ?? '';
-        if (!response.ok) {
-            throw toInferenceError(await response.json().catch(() => undefined), response.status, requestId);
-        }
-        const mediaType = inferenceAudioMediaTypeSchema.safeParse(mediaTypeOf(response));
-        if (!mediaType.success || !response.body) {
-            await cancelUnreadResponse(response);
-            throw protocolError('The inference API returned no supported audio body.', requestId);
-        }
-        const reader = response.body.getReader();
-        const chunks: Uint8Array[] = [];
-        let size = 0;
-        let completed = false;
-        try {
-            while (true) {
-                const next = await reader.read();
-                if (next.done) { completed = true; break; }
-                size += next.value.byteLength;
-                if (size > MAX_INFERENCE_AUDIO_BYTES) throw protocolError('The inference audio exceeds the response limit.', requestId);
-                chunks.push(next.value);
-            }
-        } finally {
-            if (!completed) await reader.cancel().catch(() => undefined);
-            reader.releaseLock();
-        }
-        if (size === 0) throw protocolError('The inference API returned empty audio.', requestId);
-        const audio = new Uint8Array(size);
-        let offset = 0;
-        for (const chunk of chunks) { audio.set(chunk, offset); offset += chunk.byteLength; }
-        return { audio, mediaType: mediaType.data, requestId };
-    }
-
-    /**
-     * Stream one inference request from `POST /v1/responses`.
-     *
-     * The transport choice is method-level: this method adds `stream: true` and
-     * requests SSE, while {@link respond} never does. Every yielded value has
-     * already passed `inferenceStreamEventSchema`, belongs to the request id in
-     * the response header and advances the stream sequence. A terminal `error`
-     * event is yielded as part of the published union; an HTTP refusal before
-     * the stream opens throws {@link OxyInferenceError}.
-     *
-     * Breaking out of the iterator cancels the response body. Passing an abort
-     * signal additionally lets the caller cancel while waiting for the first or
-     * any later event.
-     *
-     * @throws {OxyInferenceError} when the edge refuses before opening SSE.
-     * @throws {OxyInferenceProtocolError} when a successful SSE response cannot
-     *   be interpreted under the published stream contract.
-     */
-    async *stream(
-        request: OxyResponsesRequest,
-        options: OxyInferenceRequestOptions = {},
-    ): AsyncGenerator<InferenceStreamEvent> {
-        const response = await this.#fetch(`${this.#baseURL}/v1/responses`, {
-            method: 'POST',
-            headers: await this.#headers('text/event-stream', {
-                hasBody: true,
-                ...(options.idempotencyKey === undefined
-                    ? {}
-                    : { idempotencyKey: options.idempotencyKey }),
-                ...(options.delegatedUserId === undefined
-                    ? {}
-                    : { delegatedUserId: options.delegatedUserId }),
-            }),
-            body: JSON.stringify({ ...request, stream: true }),
-            ...(options.signal === undefined ? {} : { signal: options.signal }),
-        });
-
-        if (!response.ok) {
-            const payload: unknown = await response.json().catch(() => undefined);
-            throw toInferenceError(
-                payload,
-                response.status,
-                response.headers.get('X-Oxy-Request-Id'),
-            );
-        }
-
-        const requestId = response.headers.get('X-Oxy-Request-Id') ?? undefined;
-        const mediaType = mediaTypeOf(response);
-        if (mediaType !== 'text/event-stream') {
-            await cancelUnreadResponse(response);
-            throw protocolError(
-                `The inference API answered a streaming request with ${mediaType ?? 'no Content-Type'} instead of text/event-stream.`,
-                requestId,
-            );
-        }
-        if (requestId === undefined || requestId.length === 0) {
-            await cancelUnreadResponse(response);
-            throw protocolError(
-                'The inference API opened a stream without X-Oxy-Request-Id.',
-                requestId,
-            );
-        }
-        if (response.body === null) {
-            throw protocolError(
-                'The inference API opened a stream with no response body.',
-                requestId,
-            );
-        }
-
-        let lastSequence = -1;
-        let terminal = false;
-        for await (const frame of decodeEventStream(response.body, requestId)) {
-            if (terminal) {
-                throw protocolError(
-                    'The inference API sent an event after a terminal event.',
-                    requestId,
-                );
-            }
-
-            let payload: unknown;
-            try {
-                payload = JSON.parse(frame.data);
-            } catch (_error) {
-                throw protocolError(
-                    `The inference API sent a ${frame.name || 'unnamed'} SSE event that is not JSON.`,
-                    requestId,
-                );
-            }
-
-            const parsed = inferenceStreamEventSchema.safeParse(payload);
-            if (!parsed.success) {
-                const path = parsed.error.issues[0]?.path;
-                throw protocolError(
-                    `The inference API sent an event outside the published stream contract at ${path === undefined || path.length === 0 ? 'an unknown field' : path.join('.')}.`,
-                    requestId,
-                );
-            }
-
-            const event = parsed.data;
-            if (frame.name !== event.type) {
-                throw protocolError(
-                    `The inference API framed a ${event.type} event as ${frame.name || 'unnamed'}.`,
-                    requestId,
-                );
-            }
-            if (event.requestId !== requestId) {
-                throw protocolError(
-                    'The inference API sent an event for a different request id.',
-                    requestId,
-                );
-            }
-            if (event.sequence <= lastSequence) {
-                throw protocolError(
-                    'The inference API sent a stream sequence that did not advance.',
-                    requestId,
-                );
-            }
-
-            lastSequence = event.sequence;
-            terminal = event.type === 'done' || event.type === 'error';
-            yield event;
-        }
-
-        if (!terminal) {
-            throw protocolError(
-                'The inference API closed the stream before a terminal done or error event.',
-                requestId,
-            );
-        }
-    }
-
-    /**
-     * Read back the settled receipt for one request —
-     * `GET /v1/generations/:id`.
-     *
-     * `id` is the `requestId` you already hold (it is on every response and
-     * every error) or the `generationId`. Requires the `inference:usage:read`
-     * scope; a caller without it, or one whose application did not make the
-     * request, is told the receipt does not exist rather than that it belongs to
-     * somebody else.
-     */
-    async getGeneration(
-        id: string,
-        options: { signal?: AbortSignal; delegatedUserId?: string } = {},
-    ): Promise<OxyGenerationReceipt> {
-        const record = await this.getGenerationRecord(id, options);
-        if (record.schemaVersion !== 1) {
-            throw new OxyInferenceProtocolError('Internal usage has no financial receipt. Use getGenerationRecord().', record.requestId);
-        }
-        return record;
-    }
-
-    /** Read a financial receipt (v1) or an internal technical record (v2). */
-    async getGenerationRecord(
-        id: string,
-        options: { signal?: AbortSignal; delegatedUserId?: string } = {},
-    ): Promise<OxyGenerationRecord> {
-        const body = await this.#request<{ data: OxyGenerationRecord }>(
-            'GET', `/v1/generations/${encodeURIComponent(id)}`, options,
+      }
+      if (event.requestId !== requestId) {
+        throw protocolError(
+          'The inference API sent an event for a different request id.',
+          requestId,
         );
-        return body.data;
-    }
-
-    /**
-     * Recover the existing record using the original credential and key. This
-     * performs only GET; 404 is unknown/pending, never proof of zero cost and
-     * never an instruction to repeat decide(). Lost answers are not retained.
-     */
-    async getGenerationRecordByIdempotencyKey(
-        key: string,
-        options: { signal?: AbortSignal; delegatedUserId?: string } = {},
-    ): Promise<OxyGenerationRecord> {
-        if (key.length === 0 || key.length > 128) throw new Error('Invalid original idempotency key.');
-        const body = await this.#request<{ data: OxyGenerationRecord }>(
-            'GET', '/v1/generations/by-idempotency-key', { ...options, idempotencyKey: key },
+      }
+      if (event.sequence <= lastSequence) {
+        throw protocolError(
+          'The inference API sent a stream sequence that did not advance.',
+          requestId,
         );
-        return body.data;
+      }
+
+      lastSequence = event.sequence;
+      terminal = event.type === 'done' || event.type === 'error';
+      yield event;
     }
 
-    /** The bearer for this request, from whichever lane was configured. */
-    async #bearer(): Promise<string> {
-        const value =
-            typeof this.#credential === 'string'
-                ? this.#credential
-                : await this.#credential();
-        if (value === null || value === undefined || value.length === 0) {
-            throw new Error(
-                'OxyInferenceClient has no bearer: the configured credential resolved to nothing. On the Oxy auth lane this usually means the session is not restored yet.',
-            );
-        }
-        return value;
+    if (!terminal) {
+      throw protocolError(
+        'The inference API closed the stream before a terminal done or error event.',
+        requestId,
+      );
+    }
+  }
+
+  /**
+   * Read back the settled receipt for one request —
+   * `GET /v1/generations/:id`.
+   *
+   * `id` is the `requestId` you already hold (it is on every response and
+   * every error) or the `generationId`. Requires the `inference:usage:read`
+   * scope; a caller without it, or one whose application did not make the
+   * request, is told the receipt does not exist rather than that it belongs to
+   * somebody else.
+   */
+  async getGeneration(
+    id: string,
+    options: { signal?: AbortSignal; delegatedUserId?: string } = {},
+  ): Promise<OxyGenerationReceipt> {
+    const record = await this.getGenerationRecord(id, options);
+    if (record.schemaVersion !== 1) {
+      throw new OxyInferenceProtocolError(
+        'Internal usage has no financial receipt. Use getGenerationRecord().',
+        record.requestId,
+      );
+    }
+    return record;
+  }
+
+  /** Read a financial receipt (v1) or an internal technical record (v2). */
+  async getGenerationRecord(
+    id: string,
+    options: { signal?: AbortSignal; delegatedUserId?: string } = {},
+  ): Promise<OxyGenerationRecord> {
+    const body = await this.#request<{ data: OxyGenerationRecord }>(
+      'GET',
+      `/v1/generations/${encodeURIComponent(id)}`,
+      options,
+    );
+    return body.data;
+  }
+
+  /**
+   * Recover the existing record using the original credential and key. This
+   * performs only GET; 404 is unknown/pending, never proof of zero cost and
+   * never an instruction to repeat decide(). Lost answers are not retained.
+   */
+  async getGenerationRecordByIdempotencyKey(
+    key: string,
+    options: { signal?: AbortSignal; delegatedUserId?: string } = {},
+  ): Promise<OxyGenerationRecord> {
+    if (key.length === 0 || key.length > 128) throw new Error('Invalid original idempotency key.');
+    const body = await this.#request<{ data: OxyGenerationRecord }>(
+      'GET',
+      '/v1/generations/by-idempotency-key',
+      { ...options, idempotencyKey: key },
+    );
+    return body.data;
+  }
+
+  /** The bearer for this request, from whichever lane was configured. */
+  async #bearer(): Promise<string> {
+    const value =
+      typeof this.#credential === 'string' ? this.#credential : await this.#credential();
+    if (value === null || value === undefined || value.length === 0) {
+      throw new Error(
+        'OxyInferenceClient has no bearer: the configured credential resolved to nothing. On the Oxy auth lane this usually means the session is not restored yet.',
+      );
+    }
+    return value;
+  }
+
+  /** Build the authenticated headers for one request, re-reading its bearer. */
+  async #headers(
+    accept: 'application/json' | 'text/event-stream' | 'audio/*',
+    options: {
+      hasBody: boolean;
+      idempotencyKey?: string;
+      delegatedUserId?: string;
+    },
+  ): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${await this.#bearer()}`,
+      Accept: accept,
+    };
+    if (options.hasBody) headers['Content-Type'] = 'application/json';
+    if (options.idempotencyKey !== undefined) {
+      headers['Idempotency-Key'] = options.idempotencyKey;
+    }
+    if (options.delegatedUserId !== undefined) {
+      headers['X-Oxy-User-Id'] = options.delegatedUserId;
+    }
+    return headers;
+  }
+
+  /**
+   * One request, and the one place a refusal becomes an
+   * {@link OxyInferenceError}.
+   *
+   * Two error shapes arrive here, because two routers serve `/v1`. The edge
+   * returns the contract error at the top level; the catalogue returns the
+   * platform's `{ error, message }` envelope. Both are read, and a body that
+   * is neither still produces an `OxyInferenceError` — with the code the
+   * status maps to — rather than a bare `Error`, so a caller's `catch` never
+   * has to branch on which router answered.
+   */
+  async #request<T>(
+    method: 'GET' | 'POST',
+    path: string,
+    options: {
+      body?: unknown;
+      bindRequestId?: boolean;
+      signal?: AbortSignal;
+      idempotencyKey?: string;
+      delegatedUserId?: string;
+    },
+  ): Promise<T> {
+    const response = await this.#fetch(`${this.#baseURL}${path}`, {
+      method,
+      headers: await this.#headers('application/json', {
+        hasBody: options.body !== undefined,
+        ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
+        ...(options.delegatedUserId === undefined
+          ? {}
+          : { delegatedUserId: options.delegatedUserId }),
+      }),
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    });
+
+    const payload: unknown = await response.json().catch(() => undefined);
+
+    if (!response.ok) {
+      throw toInferenceError(payload, response.status, response.headers.get('X-Oxy-Request-Id'));
     }
 
-    /** Build the authenticated headers for one request, re-reading its bearer. */
-    async #headers(
-        accept: 'application/json' | 'text/event-stream' | 'audio/*',
-        options: {
-            hasBody: boolean;
-            idempotencyKey?: string;
-            delegatedUserId?: string;
-        },
-    ): Promise<Record<string, string>> {
-        const headers: Record<string, string> = {
-            Authorization: `Bearer ${await this.#bearer()}`,
-            Accept: accept,
-        };
-        if (options.hasBody) headers['Content-Type'] = 'application/json';
-        if (options.idempotencyKey !== undefined) {
-            headers['Idempotency-Key'] = options.idempotencyKey;
-        }
-        if (options.delegatedUserId !== undefined) {
-            headers['X-Oxy-User-Id'] = options.delegatedUserId;
-        }
-        return headers;
+    if (options.bindRequestId) {
+      const requestId = response.headers.get('X-Oxy-Request-Id');
+      if (
+        !requestId ||
+        typeof payload !== 'object' ||
+        payload === null ||
+        !('requestId' in payload) ||
+        payload.requestId !== requestId
+      ) {
+        throw new OxyInferenceProtocolError(
+          'Decisions response request ID does not match its header.',
+          requestId ?? undefined,
+        );
+      }
     }
-
-    /**
-     * One request, and the one place a refusal becomes an
-     * {@link OxyInferenceError}.
-     *
-     * Two error shapes arrive here, because two routers serve `/v1`. The edge
-     * returns the contract error at the top level; the catalogue returns the
-     * platform's `{ error, message }` envelope. Both are read, and a body that
-     * is neither still produces an `OxyInferenceError` — with the code the
-     * status maps to — rather than a bare `Error`, so a caller's `catch` never
-     * has to branch on which router answered.
-     */
-    async #request<T>(
-        method: 'GET' | 'POST',
-        path: string,
-        options: {
-            body?: unknown;
-            bindRequestId?: boolean;
-            signal?: AbortSignal;
-            idempotencyKey?: string;
-            delegatedUserId?: string;
-        },
-    ): Promise<T> {
-        const response = await this.#fetch(`${this.#baseURL}${path}`, {
-            method,
-            headers: await this.#headers('application/json', {
-                hasBody: options.body !== undefined,
-                ...(options.idempotencyKey === undefined
-                    ? {}
-                    : { idempotencyKey: options.idempotencyKey }),
-                ...(options.delegatedUserId === undefined
-                    ? {}
-                    : { delegatedUserId: options.delegatedUserId }),
-            }),
-            ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-            ...(options.signal === undefined ? {} : { signal: options.signal }),
-        });
-
-        const payload: unknown = await response.json().catch(() => undefined);
-
-        if (!response.ok) {
-            throw toInferenceError(
-                payload,
-                response.status,
-                response.headers.get('X-Oxy-Request-Id'),
-            );
-        }
-
-        if (options.bindRequestId) {
-            const requestId = response.headers.get('X-Oxy-Request-Id');
-            if (!requestId || typeof payload !== 'object' || payload === null ||
-                !('requestId' in payload) || payload.requestId !== requestId) {
-                throw new OxyInferenceProtocolError('Decisions response request ID does not match its header.', requestId ?? undefined);
-            }
-        }
-        return payload as T;
-    }
+    return payload as T;
+  }
 }
 
 /** Bound one public SSE event before parsing it as JSON. */
@@ -831,22 +835,22 @@ const MAX_INFERENCE_STREAM_EVENT_DATA_LINES = 4096;
 
 /** One SSE frame after transport decoding and before contract validation. */
 interface RawInferenceStreamFrame {
-    readonly name: string;
-    readonly data: string;
+  readonly name: string;
+  readonly data: string;
 }
 
 function protocolError(message: string, requestId?: string): OxyInferenceProtocolError {
-    return new OxyInferenceProtocolError(message, requestId);
+  return new OxyInferenceProtocolError(message, requestId);
 }
 
 /** The bare, lowercased media type of a response's `Content-Type`, if any. */
 function mediaTypeOf(response: Response): string | undefined {
-    return response.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase();
+  return response.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase();
 }
 
 /** Cancel a nominally successful response whose stream contract is unreadable. */
 async function cancelUnreadResponse(response: Response): Promise<void> {
-    await response.body?.cancel().catch(() => undefined);
+  await response.body?.cancel().catch(() => undefined);
 }
 
 /**
@@ -859,111 +863,111 @@ async function cancelUnreadResponse(response: Response): Promise<void> {
  * instead of leaving generation running upstream.
  */
 async function* decodeEventStream(
-    body: ReadableStream<Uint8Array>,
-    requestId: string,
+  body: ReadableStream<Uint8Array>,
+  requestId: string,
 ): AsyncGenerator<RawInferenceStreamFrame> {
-    const reader = body.getReader();
-    const decoder = new TextDecoder('utf-8', { fatal: true });
-    let pending = '';
-    let name = '';
-    let data: string[] = [];
-    let accumulated = 0;
-    let dataLines = 0;
-    let reachedEnd = false;
+  const reader = body.getReader();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let pending = '';
+  let name = '';
+  let data: string[] = [];
+  let accumulated = 0;
+  let dataLines = 0;
+  let reachedEnd = false;
 
-    const decode = (chunk?: Uint8Array, options?: TextDecodeOptions): string => {
-        try {
-            return decoder.decode(chunk, options);
-        } catch (_error) {
-            throw protocolError(
-                'The inference API sent an SSE stream that is not valid UTF-8.',
-                requestId,
-            );
-        }
-    };
-
-    const dispatch = (): RawInferenceStreamFrame | undefined => {
-        if (data.length === 0 && name.length === 0) return undefined;
-        const frame = { name, data: data.join('\n') };
-        name = '';
-        data = [];
-        accumulated = 0;
-        dataLines = 0;
-        return frame;
-    };
-
-    const consume = (raw: string): RawInferenceStreamFrame | undefined => {
-        const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
-        if (line.length === 0) return dispatch();
-        if (line.startsWith(':')) return undefined;
-
-        const separator = line.indexOf(':');
-        const field = separator === -1 ? line : line.slice(0, separator);
-        const rawValue = separator === -1 ? '' : line.slice(separator + 1);
-        const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue;
-
-        if (field === 'data') {
-            dataLines += 1;
-            if (dataLines > MAX_INFERENCE_STREAM_EVENT_DATA_LINES) {
-                throw protocolError(
-                    `The inference API sent an SSE event with over ${MAX_INFERENCE_STREAM_EVENT_DATA_LINES} data lines.`,
-                    requestId,
-                );
-            }
-            accumulated += value.length;
-            if (accumulated > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
-                throw protocolError(
-                    `The inference API sent an SSE event over ${MAX_INFERENCE_STREAM_EVENT_CHARACTERS} characters.`,
-                    requestId,
-                );
-            }
-            data.push(value);
-        } else if (field === 'event') {
-            name = value.trim();
-        }
-        return undefined;
-    };
-
+  const decode = (chunk?: Uint8Array, options?: TextDecodeOptions): string => {
     try {
-        for (;;) {
-            const chunk = await reader.read();
-            if (chunk.done) {
-                reachedEnd = true;
-                break;
-            }
-
-            pending += decode(chunk.value, { stream: true });
-            if (pending.length > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
-                throw protocolError(
-                    `The inference API sent an SSE line over ${MAX_INFERENCE_STREAM_EVENT_CHARACTERS} characters with no boundary.`,
-                    requestId,
-                );
-            }
-
-            let newline = pending.indexOf('\n');
-            while (newline !== -1) {
-                const frame = consume(pending.slice(0, newline));
-                pending = pending.slice(newline + 1);
-                if (frame !== undefined) yield frame;
-                newline = pending.indexOf('\n');
-            }
-        }
-
-        pending += decode();
-        if (pending.length > 0) {
-            const frame = consume(pending);
-            if (frame !== undefined) yield frame;
-        }
-        const trailing = dispatch();
-        if (trailing !== undefined) yield trailing;
-    } finally {
-        if (!reachedEnd) {
-            // Preserve the original parse/abort error if transport cancellation
-            // itself also refuses: cancellation is cleanup, never the diagnosis.
-            await reader.cancel().catch(() => undefined);
-        }
-        reader.releaseLock();
+      return decoder.decode(chunk, options);
+    } catch (_error) {
+      throw protocolError(
+        'The inference API sent an SSE stream that is not valid UTF-8.',
+        requestId,
+      );
     }
+  };
+
+  const dispatch = (): RawInferenceStreamFrame | undefined => {
+    if (data.length === 0 && name.length === 0) return undefined;
+    const frame = { name, data: data.join('\n') };
+    name = '';
+    data = [];
+    accumulated = 0;
+    dataLines = 0;
+    return frame;
+  };
+
+  const consume = (raw: string): RawInferenceStreamFrame | undefined => {
+    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    if (line.length === 0) return dispatch();
+    if (line.startsWith(':')) return undefined;
+
+    const separator = line.indexOf(':');
+    const field = separator === -1 ? line : line.slice(0, separator);
+    const rawValue = separator === -1 ? '' : line.slice(separator + 1);
+    const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue;
+
+    if (field === 'data') {
+      dataLines += 1;
+      if (dataLines > MAX_INFERENCE_STREAM_EVENT_DATA_LINES) {
+        throw protocolError(
+          `The inference API sent an SSE event with over ${MAX_INFERENCE_STREAM_EVENT_DATA_LINES} data lines.`,
+          requestId,
+        );
+      }
+      accumulated += value.length;
+      if (accumulated > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
+        throw protocolError(
+          `The inference API sent an SSE event over ${MAX_INFERENCE_STREAM_EVENT_CHARACTERS} characters.`,
+          requestId,
+        );
+      }
+      data.push(value);
+    } else if (field === 'event') {
+      name = value.trim();
+    }
+    return undefined;
+  };
+
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        reachedEnd = true;
+        break;
+      }
+
+      pending += decode(chunk.value, { stream: true });
+      if (pending.length > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
+        throw protocolError(
+          `The inference API sent an SSE line over ${MAX_INFERENCE_STREAM_EVENT_CHARACTERS} characters with no boundary.`,
+          requestId,
+        );
+      }
+
+      let newline = pending.indexOf('\n');
+      while (newline !== -1) {
+        const frame = consume(pending.slice(0, newline));
+        pending = pending.slice(newline + 1);
+        if (frame !== undefined) yield frame;
+        newline = pending.indexOf('\n');
+      }
+    }
+
+    pending += decode();
+    if (pending.length > 0) {
+      const frame = consume(pending);
+      if (frame !== undefined) yield frame;
+    }
+    const trailing = dispatch();
+    if (trailing !== undefined) yield trailing;
+  } finally {
+    if (!reachedEnd) {
+      // Preserve the original parse/abort error if transport cancellation
+      // itself also refuses: cancellation is cleanup, never the diagnosis.
+      await reader.cancel().catch(() => undefined);
+    }
+    reader.releaseLock();
+  }
 }
 
 /**
@@ -975,16 +979,16 @@ async function* decodeEventStream(
  * how one outage becomes a retry storm.
  */
 const STATUS_FALLBACK_CODE: Readonly<Record<number, InferenceErrorCode>> = {
-    400: 'invalid_request',
-    401: 'authentication_failed',
-    403: 'permission_denied',
-    404: 'model_not_found',
-    409: 'idempotency_conflict',
-    413: 'request_too_large',
-    429: 'rate_limited',
-    502: 'provider_error',
-    503: 'service_unavailable',
-    504: 'provider_timeout',
+  400: 'invalid_request',
+  401: 'authentication_failed',
+  403: 'permission_denied',
+  404: 'model_not_found',
+  409: 'idempotency_conflict',
+  413: 'request_too_large',
+  429: 'rate_limited',
+  502: 'provider_error',
+  503: 'service_unavailable',
+  504: 'provider_timeout',
 };
 
 /**
@@ -999,40 +1003,40 @@ const INFERENCE_ERROR_CODE_SET: ReadonlySet<string> = new Set<string>(INFERENCE_
 
 /** Read whichever error shape arrived into the one this client throws. */
 function toInferenceError(
-    payload: unknown,
-    status: number,
-    requestIdHeader: string | null,
+  payload: unknown,
+  status: number,
+  requestIdHeader: string | null,
 ): OxyInferenceError {
-    const body = (payload ?? {}) as WireInferenceError & { error?: unknown };
+  const body = (payload ?? {}) as WireInferenceError & { error?: unknown };
 
-    // The edge's own shape is the contract error at the top level; the
-    // catalogue's is the platform envelope, whose `error` is a string.
-    const code =
-        typeof body.code === 'string' && INFERENCE_ERROR_CODE_SET.has(body.code)
-            ? (body.code as InferenceErrorCode)
-            : (STATUS_FALLBACK_CODE[status] ?? 'internal_error');
+  // The edge's own shape is the contract error at the top level; the
+  // catalogue's is the platform envelope, whose `error` is a string.
+  const code =
+    typeof body.code === 'string' && INFERENCE_ERROR_CODE_SET.has(body.code)
+      ? (body.code as InferenceErrorCode)
+      : (STATUS_FALLBACK_CODE[status] ?? 'internal_error');
 
-    const message =
-        typeof body.message === 'string' && body.message.length > 0
-            ? body.message
-            : typeof body.error === 'string' && body.error.length > 0
-              ? body.error
-              : `The inference API answered ${status}.`;
+  const message =
+    typeof body.message === 'string' && body.message.length > 0
+      ? body.message
+      : typeof body.error === 'string' && body.error.length > 0
+        ? body.error
+        : `The inference API answered ${status}.`;
 
-    return new OxyInferenceError({
-        code,
-        message,
-        // A body that did not assert retryability is not retryable: the server
-        // is the only thing that may say a retry could succeed.
-        retryable: body.retryable === true,
-        requestId:
-            typeof body.requestId === 'string' && body.requestId.length > 0
-                ? body.requestId
-                : (requestIdHeader ?? ''),
-        status,
-        ...(body.retryable === true && typeof body.retryAfterMs === 'number'
-            ? { retryAfterMs: body.retryAfterMs }
-            : {}),
-        ...(typeof body.param === 'string' ? { param: body.param } : {}),
-    });
+  return new OxyInferenceError({
+    code,
+    message,
+    // A body that did not assert retryability is not retryable: the server
+    // is the only thing that may say a retry could succeed.
+    retryable: body.retryable === true,
+    requestId:
+      typeof body.requestId === 'string' && body.requestId.length > 0
+        ? body.requestId
+        : (requestIdHeader ?? ''),
+    status,
+    ...(body.retryable === true && typeof body.retryAfterMs === 'number'
+      ? { retryAfterMs: body.retryAfterMs }
+      : {}),
+    ...(typeof body.param === 'string' ? { param: body.param } : {}),
+  });
 }

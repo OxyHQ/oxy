@@ -228,7 +228,8 @@ const RULES = [
     // two SHORT placeholder blocks (docs/EMAIL.md holds exactly that, 71 lines
     // apart) lets the body length floor be met by the prose BETWEEN them, and
     // the rule reports a leak that is not there.
-    pattern: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----((?:(?!-----)[\s\S]){100,8000})-----END/g,
+    pattern:
+      /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----((?:(?!-----)[\s\S]){100,8000})-----END/g,
     sample: `-----BEGIN PRIVATE KEY-----\n${synthetic(200, BASE64URL)}\n-----END PRIVATE KEY-----`,
   },
 ];
@@ -290,18 +291,18 @@ const ALLOWED_FINDINGS = [
     rule: 'private-key-body',
     occurrences: 1,
     reason:
-      'An RSA key pair generated for the HTTP-signature suite. Signing is the thing under '
-      + 'test, so the test needs a real key to sign with; no Oxy or federated system trusts '
-      + 'this one, and the public half is fed to the verifier in the same file.',
+      'An RSA key pair generated for the HTTP-signature suite. Signing is the thing under ' +
+      'test, so the test needs a real key to sign with; no Oxy or federated system trusts ' +
+      'this one, and the public half is fed to the verifier in the same file.',
   },
   {
     file: 'packages/federation/src/__tests__/httpSignature.test.ts',
     rule: 'private-key-body',
     occurrences: 1,
     reason:
-      'The same test-only key pair, for the same suite one package down — `@oxy.so/federation` '
-      + 'owns the signature primitives and `packages/api` owns the fetch that uses them, and '
-      + 'each side signs and verifies independently.',
+      'The same test-only key pair, for the same suite one package down — `@oxy.so/federation` ' +
+      'owns the signature primitives and `packages/api` owns the fetch that uses them, and ' +
+      'each side signs and verifies independently.',
   },
 ];
 
@@ -384,16 +385,16 @@ for (const rule of RULES) {
   rule.pattern.lastIndex = 0;
   if (matched === null) {
     problems.push(
-      `Rule \`${rule.name}\` no longer matches its own sample, so it can never report `
-      + `${rule.what}. The pattern is broken; a broken pattern prints a clean zero.`,
+      `Rule \`${rule.name}\` no longer matches its own sample, so it can never report ` +
+        `${rule.what}. The pattern is broken; a broken pattern prints a clean zero.`,
     );
     continue;
   }
   if (rule.excusePlaceholders === true && PLACEHOLDER.test(matched[0])) {
     problems.push(
-      `Rule \`${rule.name}\` matches its sample, but the placeholder predicate then excuses `
-      + 'it — so the rule is inert. Either the sample accidentally spells a placeholder '
-      + 'marker, or PLACEHOLDER has been widened until it excuses real material.',
+      `Rule \`${rule.name}\` matches its sample, but the placeholder predicate then excuses ` +
+        'it — so the rule is inert. Either the sample accidentally spells a placeholder ' +
+        'marker, or PLACEHOLDER has been widened until it excuses real material.',
     );
   }
   if (rule.excusePlaceholders === true && PLACEHOLDER.test(rule.pattern.source)) {
@@ -402,9 +403,9 @@ for (const rule of RULES) {
     // moment it opts into the predicate, and a control over ONE sample cannot see
     // it — the surviving half still matches. This sees it at the rule level.
     problems.push(
-      `Rule \`${rule.name}\` opts into PLACEHOLDER and has a placeholder word in its own `
-      + 'pattern, so that part of the grammar can never report anything. Either narrow the '
-      + 'pattern or drop `excusePlaceholders` from this rule.',
+      `Rule \`${rule.name}\` opts into PLACEHOLDER and has a placeholder word in its own ` +
+        'pattern, so that part of the grammar can never report anything. Either narrow the ' +
+        'pattern or drop `excusePlaceholders` from this rule.',
     );
   }
 }
@@ -429,8 +430,8 @@ for (const relativePath of tracked) {
       rule: 'tracked-dotenv-file',
       length: 0,
       detail:
-        'A dotenv file is tracked by git. Its purpose is to hold values that must not be '
-        + 'committed; the `.example` form is where the KEYS belong.',
+        'A dotenv file is tracked by git. Its purpose is to hold values that must not be ' +
+        'committed; the `.example` form is where the KEYS belong.',
     });
     continue;
   }
@@ -454,8 +455,8 @@ for (const relativePath of tracked) {
     buffer = readFileSync(fullPath);
   } catch (error) {
     problems.push(
-      `${relativePath} is tracked but could not be read (${error.code ?? error.message}), `
-      + 'so this scan was incomplete.',
+      `${relativePath} is tracked but could not be read (${error.code ?? error.message}), ` +
+        'so this scan was incomplete.',
     );
     continue;
   }
@@ -506,17 +507,17 @@ for (const entry of ALLOWED_FINDINGS) {
   const count = observed.get(key) ?? 0;
   if (count === 0) {
     problems.push(
-      `ALLOWED_FINDINGS still excuses ${entry.rule} in ${entry.file}, which no longer matches `
-      + 'anything. The material is gone or the file moved — delete the entry so the list keeps '
-      + 'describing the tree.',
+      `ALLOWED_FINDINGS still excuses ${entry.rule} in ${entry.file}, which no longer matches ` +
+        'anything. The material is gone or the file moved — delete the entry so the list keeps ' +
+        'describing the tree.',
     );
     continue;
   }
   if (count !== entry.occurrences) {
     problems.push(
-      `ALLOWED_FINDINGS excuses exactly ${entry.occurrences} ${entry.rule} finding(s) in `
-      + `${entry.file}, and there are now ${count}. A count that has grown means new material `
-      + 'arrived beside the excused material, which the entry says nothing about.',
+      `ALLOWED_FINDINGS excuses exactly ${entry.occurrences} ${entry.rule} finding(s) in ` +
+        `${entry.file}, and there are now ${count}. A count that has grown means new material ` +
+        'arrived beside the excused material, which the entry says nothing about.',
     );
     continue;
   }
@@ -530,14 +531,14 @@ const unexcused = findings.filter(
 // ── Vacuity floors ────────────────────────────────────────────────────────
 if (filesScanned < MINIMUM_FILES) {
   problems.push(
-    `${filesScanned} file(s) scanned is below the ${MINIMUM_FILES} floor. The file listing is `
-    + 'probably broken, and a broken listing reports a clean tree.',
+    `${filesScanned} file(s) scanned is below the ${MINIMUM_FILES} floor. The file listing is ` +
+      'probably broken, and a broken listing reports a clean tree.',
   );
 }
 if (bytesScanned < MINIMUM_BYTES) {
   problems.push(
-    `${bytesScanned} byte(s) read is below the ${MINIMUM_BYTES} floor. Files were listed but `
-    + 'their contents were not reaching the patterns.',
+    `${bytesScanned} byte(s) read is below the ${MINIMUM_BYTES} floor. Files were listed but ` +
+      'their contents were not reaching the patterns.',
   );
 }
 
@@ -545,7 +546,8 @@ if (bytesScanned < MINIMUM_BYTES) {
 if (unexcused.length > 0 || problems.length > 0) {
   console.error('Secret scan FAILED:\n');
   for (const finding of unexcused) {
-    const where = finding.line === 0 ? finding.file : `${finding.file}:${finding.line}:${finding.column}`;
+    const where =
+      finding.line === 0 ? finding.file : `${finding.file}:${finding.line}:${finding.column}`;
     const size = finding.length === 0 ? '' : ` [${finding.length} chars, redacted]`;
     console.error(`  ${where}  ${finding.rule}${size}`);
     console.error(`    ${finding.detail}\n`);
@@ -553,25 +555,25 @@ if (unexcused.length > 0 || problems.length > 0) {
   for (const problem of problems) console.error(`  ${problem}\n`);
   if (unexcused.length > 0) {
     console.error(
-      '  The match itself is deliberately not printed: a scanner that echoes what it found\n'
-      + '  has published it into a CI log that outlives the commit you are about to rewrite.\n'
-      + '  Open the file locally at the line above.\n\n'
-      + '  ROTATE FIRST, then remove. A secret that reached a remote is compromised even after\n'
-      + '  a force-push, because the object survives in forks, caches and clones — removing it\n'
-      + '  from history is cleanup, not containment. docs/runbooks/ has the rotation procedure\n'
-      + '  for every credential class Oxy issues, and its break-glass path for the ones it does\n'
-      + '  not.\n\n'
-      + '  If the material is genuinely inert, add an ALLOWED_FINDINGS entry in\n'
-      + '  scripts/check-secret-scan.mjs saying WHY, with its exact occurrence count, in the\n'
-      + '  same commit as the line it excuses.\n',
+      '  The match itself is deliberately not printed: a scanner that echoes what it found\n' +
+        '  has published it into a CI log that outlives the commit you are about to rewrite.\n' +
+        '  Open the file locally at the line above.\n\n' +
+        '  ROTATE FIRST, then remove. A secret that reached a remote is compromised even after\n' +
+        '  a force-push, because the object survives in forks, caches and clones — removing it\n' +
+        '  from history is cleanup, not containment. docs/runbooks/ has the rotation procedure\n' +
+        '  for every credential class Oxy issues, and its break-glass path for the ones it does\n' +
+        '  not.\n\n' +
+        '  If the material is genuinely inert, add an ALLOWED_FINDINGS entry in\n' +
+        '  scripts/check-secret-scan.mjs saying WHY, with its exact occurrence count, in the\n' +
+        '  same commit as the line it excuses.\n',
     );
   }
   process.exit(1);
 }
 
 console.log(
-  `Secret scan passed — ${filesScanned} file(s) / ${(bytesScanned / 1048576).toFixed(1)} MiB read `
-  + `(${binaryFiles} binary, scanned as bytes); ${RULES.length} rules each verified against their `
-  + `own sample; ${ALLOWED_FINDINGS.length} allow-list entr${ALLOWED_FINDINGS.length === 1 ? 'y' : 'ies'} `
-  + 'matched their exact declared counts.',
+  `Secret scan passed — ${filesScanned} file(s) / ${(bytesScanned / 1048576).toFixed(1)} MiB read ` +
+    `(${binaryFiles} binary, scanned as bytes); ${RULES.length} rules each verified against their ` +
+    `own sample; ${ALLOWED_FINDINGS.length} allow-list entr${ALLOWED_FINDINGS.length === 1 ? 'y' : 'ies'} ` +
+    'matched their exact declared counts.',
 );

@@ -29,11 +29,8 @@ export default function RecoveryPhraseScreen() {
   const router = useRouter();
   const colors = useColors();
   const { t } = useTranslation();
-  const {
-    recoveryPhraseRef,
-    acknowledgeRecoveryPhrase,
-    recoveryPhraseAcknowledged,
-  } = useAuthFlowContext();
+  const { recoveryPhraseRef, acknowledgeRecoveryPhrase, recoveryPhraseAcknowledged } =
+    useAuthFlowContext();
   const setRecoveryPhraseAcknowledgedPersisted = useIdentityStore(
     (state) => state.setRecoveryPhraseAcknowledged,
   );

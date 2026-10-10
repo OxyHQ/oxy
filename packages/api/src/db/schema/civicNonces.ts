@@ -51,5 +51,5 @@ export const civicNonces = pgTable(
     unique('civic_nonces_nonce_hash_key').on(t.nonceHash),
     // Supports the expiry sweep in `db/expiry.ts`.
     index('civic_nonces_expires_at_idx').on(t.expiresAt),
-  ]
+  ],
 );

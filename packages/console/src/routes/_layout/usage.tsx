@@ -5,10 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowRight01Icon } from '@hugeicons/core-free-icons';
 import type { ReportRangeDays, UsageDimension, UsageRow } from '@/lib/reporting';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  ProvenanceBanner,
-  ProvenanceCrossReference,
-} from '@/components/billing/provenance-banner';
+import { ProvenanceBanner, ProvenanceCrossReference } from '@/components/billing/provenance-banner';
 import { ReportControls } from '@/components/billing/report-controls';
 import { accountLabel, useAccount } from '@/hooks/use-account';
 import { useApplications } from '@/hooks/use-applications';
@@ -56,7 +53,7 @@ function UsagePage() {
   const usageQuery = useAccountUsageReport(
     accountId,
     { range, groupBy, includeDescendants },
-    canRead
+    canRead,
   );
   const report = usageQuery.data;
 
@@ -268,7 +265,7 @@ function summariseUsage(rows: ReadonlyArray<UsageRow>): UsageTotals {
       outputTokens: totals.outputTokens + row.units.output_tokens,
       reasoningTokens: totals.reasoningTokens + row.units.reasoning_tokens,
     }),
-    { requestCount: 0, errorCount: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0 }
+    { requestCount: 0, errorCount: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
   );
 }
 

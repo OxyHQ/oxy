@@ -105,12 +105,12 @@ describe('extractErrorMessage', () => {
   });
 
   it('falls back to response.data.message then response.data.error', () => {
-    expect(
-      extractErrorMessage({ response: { data: { message: 'server says no' } } }),
-    ).toBe('server says no');
-    expect(
-      extractErrorMessage({ response: { data: { error: 'fallback error' } } }),
-    ).toBe('fallback error');
+    expect(extractErrorMessage({ response: { data: { message: 'server says no' } } })).toBe(
+      'server says no',
+    );
+    expect(extractErrorMessage({ response: { data: { error: 'fallback error' } } })).toBe(
+      'fallback error',
+    );
   });
 
   it('returns the fallback when no message can be located', () => {
@@ -151,11 +151,14 @@ describe('handleAuthError', () => {
     // and NO `response` wrapper, so a status read that only looked at
     // `response.status` reported every real SDK failure as 500.
     const onError = jest.fn();
-    handleAuthError({ message: 'Service unavailable', code: 'SERVICE_UNAVAILABLE', status: 503 }, {
-      defaultMessage: 'fail',
-      code: 'X',
-      onError,
-    });
+    handleAuthError(
+      { message: 'Service unavailable', code: 'SERVICE_UNAVAILABLE', status: 503 },
+      {
+        defaultMessage: 'fail',
+        code: 'X',
+        onError,
+      },
+    );
     expect(onError).toHaveBeenCalledWith({
       message: 'Service unavailable',
       code: 'X',
@@ -180,12 +183,15 @@ describe('handleAuthError', () => {
 
   it('honors a caller-supplied status over inference', () => {
     const onError = jest.fn();
-    handleAuthError({ message: 'rate limited' }, {
-      defaultMessage: 'fail',
-      code: 'X',
-      status: 429,
-      onError,
-    });
+    handleAuthError(
+      { message: 'rate limited' },
+      {
+        defaultMessage: 'fail',
+        code: 'X',
+        status: 429,
+        onError,
+      },
+    );
     expect(onError).toHaveBeenCalledWith({
       message: 'rate limited',
       code: 'X',

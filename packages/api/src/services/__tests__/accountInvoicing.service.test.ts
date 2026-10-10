@@ -174,8 +174,8 @@ describe('closing a period', () => {
       .where(
         and(
           eq(billingLedgerEntries.invoiceId, result.invoice.id),
-          eq(billingLedgerEntries.kind, 'invoice_rounding')
-        )
+          eq(billingLedgerEntries.kind, 'invoice_rounding'),
+        ),
       );
     expect(rounding).toHaveLength(1);
 
@@ -230,7 +230,7 @@ describe('closing a period', () => {
         periodStart: new Date(Date.now() - 60 * 60 * 1000),
         periodEnd: new Date(Date.now() + 60 * 60 * 1000),
         actor: { kind: 'staff', userId: fixture.staffUserId },
-      })
+      }),
     ).resolves.toMatchObject({ status: 'not-invoiced' });
   });
 
@@ -243,7 +243,7 @@ describe('closing a period', () => {
         periodStart: new Date(Date.now() - 120 * 60 * 1000),
         periodEnd: new Date(Date.now() - 60 * 60 * 1000),
         actor: { kind: 'staff', userId: fixture.staffUserId },
-      })
+      }),
     ).resolves.toMatchObject({ status: 'nothing-to-invoice' });
   });
 });
@@ -292,7 +292,7 @@ describe('recording a payment', () => {
         amount: '1.000000000000',
         externalRef: `in_${randomUUID()}`,
         actor: { kind: 'machine' },
-      })
+      }),
     ).resolves.toMatchObject({ status: 'unknown-invoice' });
   });
 });

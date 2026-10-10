@@ -85,7 +85,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a vacuity violation when the traversal finds too few tables', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ tables: [{ table_name: 'only_one' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([
       { check: 'vacuity', subject: 'tables', detail: 'found 1, expected at least 27' },
@@ -95,7 +95,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a vacuity violation when the traversal finds too few columns', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ allColumns: [{ table_name: 't_0', column_name: 'c_0' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([
       { check: 'vacuity', subject: 'columns', detail: 'found 1, expected at least 356' },
@@ -105,7 +105,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a table name that is not snake_case', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ tables: [...HEALTHY_TABLES, { table_name: 'CamelCase' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([{ check: 'snake_case_table', subject: 'CamelCase' }]);
   });
@@ -115,7 +115,7 @@ describe('findSchemaInvariantViolations', () => {
       catalogue({
         allColumns: [...HEALTHY_COLUMNS, { table_name: 't_0', column_name: 'camelCase' }],
       }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([{ check: 'snake_case_column', subject: 't_0.camelCase' }]);
   });
@@ -123,7 +123,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a timestamp column stored without a time zone', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ timestamp: [{ table_name: 'posts', column_name: 'created_at' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([
       { check: 'timestamp_without_time_zone', subject: 'posts.created_at' },
@@ -135,7 +135,7 @@ describe('findSchemaInvariantViolations', () => {
       catalogue({
         emptyDefault: [{ table_name: 'posts', column_name: 'slug', column_default: "''::text" }],
       }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([
       { check: 'empty_string_default', subject: 'posts.slug', detail: "''::text" },
@@ -145,7 +145,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a table with no primary key', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ missingPrimaryKey: [{ table_name: 'posts' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([{ check: 'missing_primary_key', subject: 'posts' }]);
   });
@@ -153,10 +153,10 @@ describe('findSchemaInvariantViolations', () => {
   it('names the offending table and column, not just the rule', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ mongooseArtifact: [{ table_name: 'posts', column_name: '_id' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'mongoose_artifact', subject: 'posts._id' })
+      expect.objectContaining({ check: 'mongoose_artifact', subject: 'posts._id' }),
     );
   });
 
@@ -173,14 +173,14 @@ describe('findSchemaInvariantViolations', () => {
         missingPrimaryKey: [{ table_name: 'posts' }],
         mongooseArtifact: [{ table_name: 'posts', column_name: '__v' }],
       }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual(
       expect.arrayContaining([
         { check: 'snake_case_table', subject: 'BadTable' },
         { check: 'missing_primary_key', subject: 'posts' },
         { check: 'mongoose_artifact', subject: 'posts.__v' },
-      ])
+      ]),
     );
     expect(violations).toHaveLength(3);
   });

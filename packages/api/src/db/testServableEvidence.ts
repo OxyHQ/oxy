@@ -31,7 +31,11 @@ export interface ServableEvidenceOptions {
   readonly internalRouteId: string;
   /** Higher is preferred under `optimiseFor: 'price'`. */
   readonly priceScore?: number;
-  readonly fundingClass?: 'free_entitlement' | 'discounted_payg' | 'promotional_credit' | 'standard_payg';
+  readonly fundingClass?:
+    | 'free_entitlement'
+    | 'discounted_payg'
+    | 'promotional_credit'
+    | 'standard_payg';
   readonly fundingState?: 'available' | 'exhausted' | 'rate_limited' | 'unknown';
   readonly inputPerMillion?: string;
   readonly outputPerMillion?: string;
@@ -138,7 +142,9 @@ export interface CatalogueRouteFixture {
 export async function insertCatalogueRoute(
   options: {
     readonly tag?: string;
-    readonly evidence?: false | Omit<ServableEvidenceOptions, 'modelReference' | 'providerSlug' | 'internalRouteId'>;
+    readonly evidence?:
+      | false
+      | Omit<ServableEvidenceOptions, 'modelReference' | 'providerSlug' | 'internalRouteId'>;
     readonly supportsTools?: boolean;
     readonly reasoningEfforts?: ('low' | 'medium' | 'high')[];
     readonly inputModalities?: ('text' | 'image' | 'audio')[];
@@ -147,7 +153,7 @@ export async function insertCatalogueRoute(
     readonly sameModelAs?: CatalogueRouteFixture;
     /** `platform_internal` (default) or the public pay-as-you-go audience. */
     readonly availabilityScope?: 'platform_internal' | 'public_payg';
-  } = {}
+  } = {},
 ): Promise<CatalogueRouteFixture> {
   const db = getDb();
   const tag = `${options.tag ?? 'fx'}${randomUUID().replace(/-/g, '').slice(0, 10)}`;
@@ -247,7 +253,7 @@ export async function insertCatalogueRoute(
 /** Give a fixture model line a reviewed power class (test evidence). */
 export async function setPowerClass(
   modelId: string,
-  powerClass: 'instant' | 'medium' | 'high' | 'pro' | 'ultra'
+  powerClass: 'instant' | 'medium' | 'high' | 'pro' | 'ultra',
 ): Promise<void> {
   await getDb()
     .insert(inferenceModelPowerClasses)

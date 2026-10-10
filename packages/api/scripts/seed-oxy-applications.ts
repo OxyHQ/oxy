@@ -187,7 +187,6 @@ async function resolveDedicatedOwnerAccount(
   return account.id;
 }
 
-
 async function retireLegacyApplication(
   application: ApplicationRow,
   dryRun: boolean,
@@ -453,7 +452,9 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       // report and five, and the mapping is where an operator can see which it
       // got without a second query.
       ownerAccountId,
-      clientId: requiresPublicSeedCredential(spec) ? credential?.publicKey ?? (dryRun ? '(dry-run-not-minted)' : 'ERROR') : null,
+      clientId: requiresPublicSeedCredential(spec)
+        ? (credential?.publicKey ?? (dryRun ? '(dry-run-not-minted)' : 'ERROR'))
+        : null,
       redirectUris: spec.redirectUris,
       websiteUrl: spec.websiteUrl,
       createdApplication,
@@ -519,10 +520,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  logger.error(
-    'Seed failed',
-    error instanceof Error ? error : new Error(String(error)),
-    { component: 'seed-oxy-applications', method: 'main' },
-  );
+  logger.error('Seed failed', error instanceof Error ? error : new Error(String(error)), {
+    component: 'seed-oxy-applications',
+    method: 'main',
+  });
   process.exit(1);
 });

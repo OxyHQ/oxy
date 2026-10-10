@@ -144,7 +144,9 @@ describe('KeyManager safety invariants', () => {
       expect(await KeyManager.hasIdentity()).toBe(true);
       expect(await KeyManager.verifyIdentityIntegrity()).toBe(true);
       // Backup was written to the isolated v2 backup slot as part of the atomic persist
-      const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
+      const store = (await import(
+        'expo-secure-store' as string
+      )) as unknown as SecureStoreTestHandle;
       expect(store.__getRaw__(V2_BPRIV, BACKUP_SVC)).toBeTruthy();
       expect(store.__getRaw__(V2_BPUB, BACKUP_SVC)).toBeTruthy();
       expect(store.__getRaw__(V2_BTS, BACKUP_SVC)).toBeTruthy();
@@ -195,7 +197,9 @@ describe('KeyManager safety invariants', () => {
     });
 
     it('returns false when only the private key was written (partial state)', async () => {
-      const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
+      const store = (await import(
+        'expo-secure-store' as string
+      )) as unknown as SecureStoreTestHandle;
       // Simulate a half-written identity: private without public
       store.__setRaw__(V2_PRIV, 'a'.repeat(64), PRIMARY_SVC);
       // Invalidate cache so the next call re-reads
@@ -205,7 +209,9 @@ describe('KeyManager safety invariants', () => {
 
     it('returns false when the stored public key does not derive from the private key', async () => {
       await KeyManager.createIdentity();
-      const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
+      const store = (await import(
+        'expo-secure-store' as string
+      )) as unknown as SecureStoreTestHandle;
       // Tamper with the stored public key
       store.__setRaw__(V2_PUB, `04${'b'.repeat(128)}`, PRIMARY_SVC);
       resetCaches();
@@ -221,7 +227,9 @@ describe('KeyManager safety invariants', () => {
 
     it('returns false when the stored keys do not match', async () => {
       await KeyManager.createIdentity();
-      const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
+      const store = (await import(
+        'expo-secure-store' as string
+      )) as unknown as SecureStoreTestHandle;
       store.__setRaw__(V2_PUB, `04${'c'.repeat(128)}`, PRIMARY_SVC);
       resetCaches();
       expect(await KeyManager.verifyIdentityIntegrity()).toBe(false);
@@ -239,7 +247,9 @@ describe('KeyManager safety invariants', () => {
 
     it('refuses to restore if the backup public key does not match a still-present (broken) primary', async () => {
       await KeyManager.createIdentity();
-      const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
+      const store = (await import(
+        'expo-secure-store' as string
+      )) as unknown as SecureStoreTestHandle;
       // Corrupt the primary public key (so integrity fails), but leave the
       // broken primary in place. The backup will not match.
       store.__setRaw__(V2_PUB, `04${'d'.repeat(128)}`, PRIMARY_SVC);
@@ -259,7 +269,9 @@ describe('KeyManager safety invariants', () => {
 
     it('restores a missing primary from a valid backup', async () => {
       const original = await KeyManager.createIdentity();
-      const store = (await import('expo-secure-store' as string)) as unknown as SecureStoreTestHandle;
+      const store = (await import(
+        'expo-secure-store' as string
+      )) as unknown as SecureStoreTestHandle;
       // Wipe primary only
       store.__deleteRaw__(V2_PRIV, PRIMARY_SVC);
       store.__deleteRaw__(V2_PUB, PRIMARY_SVC);
@@ -283,8 +295,12 @@ describe('KeyManager safety invariants', () => {
         __resetStore__: () => void;
       };
       store.__resetStore__();
-      (KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }).cachedPublicKey = null;
-      (KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }).cachedHasIdentity = null;
+      (
+        KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }
+      ).cachedPublicKey = null;
+      (
+        KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }
+      ).cachedHasIdentity = null;
 
       const restoredPublicKey = await RecoveryPhraseService.restoreFromPhrase(phrase);
       expect(restoredPublicKey).toBe(firstPublicKey);
@@ -299,8 +315,12 @@ describe('KeyManager safety invariants', () => {
     it('refuses to overwrite an existing different identity during restore', async () => {
       const a = await RecoveryPhraseService.generateIdentityWithRecovery();
       // Reset cache but keep the on-device identity
-      (KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }).cachedPublicKey = null;
-      (KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }).cachedHasIdentity = null;
+      (
+        KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }
+      ).cachedPublicKey = null;
+      (
+        KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }
+      ).cachedHasIdentity = null;
 
       // Manually generate a different phrase
       const { generateMnemonic } = await import('@scure/bip39');

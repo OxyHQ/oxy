@@ -185,7 +185,7 @@ const NOTE_CHARS = 200;
  */
 export function dailyBriefSystemPrompt(language: string): string {
   return [
-    'You write the owner\'s daily email brief. Its job is to bring them up to date in under a minute:',
+    "You write the owner's daily email brief. Its job is to bring them up to date in under a minute:",
     'what needs them, what happened, and what can wait.',
     '',
     'Answer with JSON only, exactly this shape:',
@@ -202,7 +202,7 @@ export function dailyBriefSystemPrompt(language: string): string {
     `  - "note": at most ${NOTE_CHARS / 2} characters, in ${language}: why it matters or what is asked, with any date,`,
     '    time or amount the message states. Do not repeat the sender or the subject; they are shown beside it.',
     '  Several similar messages (receipts, confirmations, newsletters from one sender) are one item: name the most',
-    '  relevant one and say in its note how many there are. Leave out what is not worth the owner\'s minute.',
+    "  relevant one and say in its note how many there are. Leave out what is not worth the owner's minute.",
     '',
     'Rules: use only facts present in the messages; never invent a request, deadline, amount or name.',
     'A message marked answered has already been replied to.',
@@ -218,22 +218,29 @@ export function dailyBriefUserPrompt(digest: InboxDailyBriefDigest, now: Date): 
   if (digest.messages.length < today.received) {
     lines.push(`The ${digest.messages.length} newest are listed.`);
   }
-  lines.push('', ...digest.messages.map((message, index) => describeMessage(`m${index + 1}`, message, now)));
+  lines.push(
+    '',
+    ...digest.messages.map((message, index) => describeMessage(`m${index + 1}`, message, now)),
+  );
   if (earlierUnread.total > 0) {
     lines.push(
       '',
-      `Unread from before today: ${earlierUnread.total}.`
-        + (earlierUnread.messages.length < earlierUnread.total
+      `Unread from before today: ${earlierUnread.total}.` +
+        (earlierUnread.messages.length < earlierUnread.total
           ? ` The ${earlierUnread.messages.length} newest are listed.`
           : ''),
-      ...earlierUnread.messages.map((message, index) => describeMessage(`e${index + 1}`, message, now)),
+      ...earlierUnread.messages.map((message, index) =>
+        describeMessage(`e${index + 1}`, message, now),
+      ),
     );
   }
   return lines.join('\n');
 }
 
 function describeMessage(ref: string, message: InboxDailyBriefMessage, now: Date): string {
-  const sender = message.fromName ? `${message.fromName} <${message.fromAddress}>` : message.fromAddress;
+  const sender = message.fromName
+    ? `${message.fromName} <${message.fromAddress}>`
+    : message.fromAddress;
   const facts = [
     ago(message.receivedAt, now),
     message.unread ? 'unread' : 'read',
@@ -273,14 +280,22 @@ function ago(then: Date, now: Date): string {
 // ─── Answer ───────────────────────────────────────────────────────────
 
 /** What the model may answer. Lenient on length; the brief is cut to size below. */
-const modelBriefSchema = z.object({
-  summary: z.string(),
-  items: z.array(z.object({
-    ref: z.string(),
-    section: z.string(),
-    note: z.string().optional(),
-  }).passthrough()).optional(),
-}).passthrough();
+const modelBriefSchema = z
+  .object({
+    summary: z.string(),
+    items: z
+      .array(
+        z
+          .object({
+            ref: z.string(),
+            section: z.string(),
+            note: z.string().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
+  })
+  .passthrough();
 
 export type InboxDailyBriefContent = Pick<InboxDailyBriefResponse, 'summary' | 'counts' | 'items'>;
 
@@ -292,7 +307,10 @@ export type InboxDailyBriefContent = Pick<InboxDailyBriefResponse, 'summary' | '
  * never), within each section's limit. Sender, subject, time and unread state
  * come from the digest, never from the model.
  */
-export function briefFromModel(raw: string, digest: InboxDailyBriefDigest): InboxDailyBriefContent | null {
+export function briefFromModel(
+  raw: string,
+  digest: InboxDailyBriefDigest,
+): InboxDailyBriefContent | null {
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) return null;
   let answer: z.infer<typeof modelBriefSchema>;
@@ -320,7 +338,9 @@ export function briefFromModel(raw: string, digest: InboxDailyBriefDigest): Inbo
     if (!message || taken.has(ref)) continue;
     const section: InboxDailyBriefSection = ref.startsWith('e')
       ? 'earlier'
-      : item.section === 'needs_you' ? 'needs_you' : 'today';
+      : item.section === 'needs_you'
+        ? 'needs_you'
+        : 'today';
     if (perSection[section] >= SECTION_LIMITS[section]) continue;
     taken.add(ref);
     perSection[section] += 1;

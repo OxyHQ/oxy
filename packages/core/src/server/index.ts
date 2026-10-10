@@ -17,7 +17,11 @@
 
 // The backend client: OxyServices plus the service-token lane, middleware,
 // account events and the service-only namespace methods.
-export { OxyServer, ServiceCredentialMismatchError, ANONYMOUS_SERVICE_TOKEN_RETRY_MS } from './OxyServer';
+export {
+  OxyServer,
+  ServiceCredentialMismatchError,
+  ANONYMOUS_SERVICE_TOKEN_RETRY_MS,
+} from './OxyServer';
 export type { OxyServerConfig, ServiceTokenResponse } from './OxyServer';
 export {
   ServerAppsApi,
@@ -200,7 +204,11 @@ export type {
 // The identity-key enumeration itself is platform-neutral (`src/utils/`) so the
 // client namespaces and this Node-only subscriber sweep the SAME list — a second
 // copy is what let `updateAccount` and `updateProfile` drift apart.
-export { evictOxyIdentityCache, oxyUserByIdCacheKey, OXY_IDENTITY_CACHE_PREFIXES } from '../utils/identityCacheSweep';
+export {
+  evictOxyIdentityCache,
+  oxyUserByIdCacheKey,
+  OXY_IDENTITY_CACHE_PREFIXES,
+} from '../utils/identityCacheSweep';
 export type { OxyIdentityCacheEvictor } from '../utils/identityCacheSweep';
 
 // Registrable-apex (eTLD+1) derivation via the Public Suffix List — the SINGLE
@@ -208,7 +216,11 @@ export type { OxyIdentityCacheEvictor } from '../utils/identityCacheSweep';
 // Pure host handling (no browser deps), so it is safe on the server subpath and
 // lets `@oxy.so/api` derive `auth.<apex>` without duplicating PSL logic.
 export { registrableApex } from '../utils/registrableApex';
-export { isLoopbackOrigin, isOfficialWebOrigin, isAllowedDeviceJoinOrigin } from '../utils/officialOrigins';
+export {
+  isLoopbackOrigin,
+  isOfficialWebOrigin,
+  isAllowedDeviceJoinOrigin,
+} from '../utils/officialOrigins';
 
 export { createEcosystemTraffic } from './traffic';
 export type { EcosystemTrafficOptions } from './traffic';
@@ -224,6 +236,9 @@ export { observeNodeHttp, withoutNodeHttpObservation } from './trafficNodeHttp';
 export { canAttestWorkloadIdentity, requestWorkloadServiceToken } from './workloadIdentity';
 export type { WorkloadServiceToken, WorkloadServiceTokenOptions } from './workloadIdentity';
 
-export { OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS, hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
+export {
+  OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS,
+  hasBoundedServiceTokenLifetime,
+} from './serviceTokenLifetime';
 export { signInAgentAccount } from './agentAccount';
 export type { AgentAccountSigner } from './agentAccount';

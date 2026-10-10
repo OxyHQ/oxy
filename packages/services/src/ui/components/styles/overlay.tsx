@@ -9,10 +9,12 @@ const hexToRgb = (hex: string): [number, number, number] => {
 };
 
 const rgbToHex = (r: number, g: number, b: number): string => {
-  return `#${[r, g, b].map(x => {
-    const hex = Math.round(x).toString(16);
-    return hex.length === 1 ? `0${hex}` : hex;
-  }).join('')}`;
+  return `#${[r, g, b]
+    .map((x) => {
+      const hex = Math.round(x).toString(16);
+      return hex.length === 1 ? `0${hex}` : hex;
+    })
+    .join('')}`;
 };
 
 const mixColors = (color1: string, color2: string, ratio: number): string => {
@@ -25,23 +27,20 @@ const mixColors = (color1: string, color2: string, ratio: number): string => {
 };
 
 export const isAnimatedValue = (
-  it: number | string | Animated.AnimatedInterpolation<number | string>
+  it: number | string | Animated.AnimatedInterpolation<number | string>,
 ): it is Animated.Value => it instanceof Animated.Value;
 
 // Overloaded signatures so each call site gets the right return type
 // without the conditional-type narrowing that TS cannot infer inside the
 // implementation body.
-function overlay(
-  elevation: number,
-  surfaceColor?: string
-): string;
+function overlay(elevation: number, surfaceColor?: string): string;
 function overlay(
   elevation: Animated.Value,
-  surfaceColor?: string
+  surfaceColor?: string,
 ): Animated.AnimatedInterpolation<number | string>;
 function overlay(
   elevation: Animated.Value | number,
-  surfaceColor = '#121212'
+  surfaceColor = '#121212',
 ): string | Animated.AnimatedInterpolation<number | string> {
   if (isAnimatedValue(elevation)) {
     const inputRange = [0, 1, 2, 3, 8, 24];

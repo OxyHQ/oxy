@@ -48,7 +48,9 @@ export function useManagedAccountItems({
         icon: 'account-group',
         iconColor: colors.sidebarIconSharing,
         title: t('home.identities.managedCount', { count: manageable.length }),
-        subtitle: usingManagedAccount ? t('home.identities.managedActingAs') : t('home.identities.managedSubtitle'),
+        subtitle: usingManagedAccount
+          ? t('home.identities.managedActingAs')
+          : t('home.identities.managedSubtitle'),
         onPress: handleManagedAccounts,
         showChevron: true,
       });
@@ -80,5 +82,14 @@ export function useManagedAccountItems({
       });
     }
     return items;
-  }, [accounts, currentAccountId, colors.sidebarIconSharing, colors.sidebarIconPersonalInfo, colors.sidebarIconData, handleManagedAccounts, handleCreateManagedAccount, t]);
+  }, [
+    accounts,
+    currentAccountId,
+    colors.sidebarIconSharing,
+    colors.sidebarIconPersonalInfo,
+    colors.sidebarIconData,
+    handleManagedAccounts,
+    handleCreateManagedAccount,
+    t,
+  ]);
 }

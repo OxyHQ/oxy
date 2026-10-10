@@ -125,7 +125,7 @@ export const TOKEN_ANOMALY_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
  * into each), which is what lets one expression serve both.
  */
 const TOKEN_UNIT_SUM = sql.raw(
-  'coalesce(sum(input_tokens + cached_input_tokens + output_tokens + reasoning_tokens), 0)'
+  'coalesce(sum(input_tokens + cached_input_tokens + output_tokens + reasoning_tokens), 0)',
 );
 
 /**
@@ -157,9 +157,9 @@ function reportUnreadableMultiple(value: string): void {
   logger.error(
     'inference.tokens.anomaly_multiple_unreadable',
     new Error(
-      `${TOKEN_ANOMALY_MULTIPLE_VARIABLE} is not a number above 1; the default multiple applies`
+      `${TOKEN_ANOMALY_MULTIPLE_VARIABLE} is not a number above 1; the default multiple applies`,
     ),
-    { component: 'tokenAnomaly', expected: 'a number greater than 1, e.g. 3' }
+    { component: 'tokenAnomaly', expected: 'a number greater than 1, e.g. 3' },
   );
 }
 
@@ -242,7 +242,7 @@ function toDate(value: string | Date): Date {
  * discrete things belongs.
  */
 export async function detectTokenAnomalies(
-  thresholdMultiple: number = resolveTokenAnomalyMultiple()
+  thresholdMultiple: number = resolveTokenAnomalyMultiple(),
 ): Promise<readonly TokenAnomaly[]> {
   const rows = await executeRows<TokenAnomalyRow>(
     getDb(),
@@ -291,7 +291,7 @@ export async function detectTokenAnomalies(
         and recent.hour_tokens
               > baseline.baseline_median_tokens * ${String(thresholdMultiple)}::numeric
       order by recent.account_id
-    `
+    `,
   );
 
   return rows.map((row) => ({

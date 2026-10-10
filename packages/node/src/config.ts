@@ -160,7 +160,11 @@ function parseMaxBlobBytes(raw: string | undefined, prefix: string): number {
 }
 
 /** Parse + validate the collection allowlist against the app namespace. */
-function parseCollections(raw: string | undefined, appNamespace: string, prefix: string): readonly string[] {
+function parseCollections(
+  raw: string | undefined,
+  appNamespace: string,
+  prefix: string,
+): readonly string[] {
   if (raw === undefined || raw.trim() === '') {
     return [];
   }
@@ -195,7 +199,9 @@ export function loadConfig(
     throw new ConfigError(`${prefix}OWNER_PUBLIC_KEY is required`);
   }
   if (!isValidPublicKey(ownerRaw)) {
-    throw new ConfigError(`${prefix}OWNER_PUBLIC_KEY must be a hex secp256k1 public key (compressed or uncompressed)`);
+    throw new ConfigError(
+      `${prefix}OWNER_PUBLIC_KEY must be a hex secp256k1 public key (compressed or uncompressed)`,
+    );
   }
   // Normalize to uncompressed hex so a compressed configured key still matches
   // the (always-uncompressed) key embedded in a signed envelope's owner check.
@@ -203,7 +209,9 @@ export function loadConfig(
 
   const nodePublicRaw = env[`${prefix}PUBLIC_KEY`]?.trim();
   if (nodePublicRaw && !isValidPublicKey(nodePublicRaw)) {
-    throw new ConfigError(`${prefix}PUBLIC_KEY must be a hex secp256k1 public key (compressed or uncompressed)`);
+    throw new ConfigError(
+      `${prefix}PUBLIC_KEY must be a hex secp256k1 public key (compressed or uncompressed)`,
+    );
   }
   const nodePublicKey = nodePublicRaw
     ? normalizePublicKey(nodePublicRaw, `${prefix}PUBLIC_KEY`)
@@ -221,7 +229,9 @@ export function loadConfig(
 
   const wellKnownRaw = env[`${prefix}WELL_KNOWN_PATH`]?.trim();
   if (wellKnownRaw && !wellKnownRaw.startsWith('/')) {
-    throw new ConfigError(`${prefix}WELL_KNOWN_PATH must be an absolute path beginning with "/", got "${wellKnownRaw}"`);
+    throw new ConfigError(
+      `${prefix}WELL_KNOWN_PATH must be an absolute path beginning with "/", got "${wellKnownRaw}"`,
+    );
   }
   const wellKnownPath = wellKnownRaw || DEFAULT_WELL_KNOWN_PATH;
 

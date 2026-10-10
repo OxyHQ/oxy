@@ -3,12 +3,21 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { compareVersions, DEFAULT_GRACE_DAYS, inspectRepository, isFirstPartyPackage, lockfileVersions, rangeIncludesVersion } from '../src/checks.mjs';
+import {
+  compareVersions,
+  DEFAULT_GRACE_DAYS,
+  inspectRepository,
+  isFirstPartyPackage,
+  lockfileVersions,
+  rangeIncludesVersion,
+} from '../src/checks.mjs';
 
 async function repoWith(dependencies) {
   const root = await mkdtemp(join(tmpdir(), 'oxy-doctor-'));
   await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'app', dependencies }));
-  const lines = Object.entries(dependencies).map(([name, range]) => `"${name}": ["${name}@${range.replace(/^[\^~]/, '')}", ""],`);
+  const lines = Object.entries(dependencies).map(
+    ([name, range]) => `"${name}": ["${name}@${range.replace(/^[\^~]/, '')}", ""],`,
+  );
   await writeFile(join(root, 'bun.lock'), `{\n"packages": {\n${lines.join('\n')}\n}\n}\n`);
   return root;
 }
@@ -42,9 +51,15 @@ describe('Oxy Doctor checks', () => {
   test('a release newer than the range is a warning inside the grace window', async () => {
     const root = await repoWith({ '@oxy.so/services': '^10.0.0' });
     try {
-      const report = await inspectRepository(root, release('11.0.0', '2026-09-30T14:07:51.959Z'), { now: new Date('2026-10-05T00:00:00Z') });
+      const report = await inspectRepository(root, release('11.0.0', '2026-09-30T14:07:51.959Z'), {
+        now: new Date('2026-10-05T00:00:00Z'),
+      });
       expect(report.findings).toHaveLength(1);
-      expect(report.findings[0]).toMatchObject({ severity: 'warning', code: 'outdated', latest: '11.0.0' });
+      expect(report.findings[0]).toMatchObject({
+        severity: 'warning',
+        code: 'outdated',
+        latest: '11.0.0',
+      });
       expect(report.findings[0].message).toContain('upgrade by 2026-10-14');
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -53,10 +68,16 @@ describe('Oxy Doctor checks', () => {
   test('the same release is an error once the grace window has closed', async () => {
     const root = await repoWith({ '@oxy.so/services': '^10.0.0' });
     try {
-      const at = (iso) => inspectRepository(root, release('11.0.0', '2026-09-30T14:07:51.959Z'), { now: new Date(iso) });
+      const at = (iso) =>
+        inspectRepository(root, release('11.0.0', '2026-09-30T14:07:51.959Z'), {
+          now: new Date(iso),
+        });
       expect((await at('2026-10-14T14:07:51.958Z')).findings[0].severity).toBe('warning');
       expect((await at('2026-10-14T14:07:51.959Z')).findings[0].severity).toBe('error');
-      const custom = await inspectRepository(root, release('11.0.0', '2026-09-30T14:07:51.959Z'), { graceDays: 0, now: new Date('2026-09-30T14:07:51.959Z') });
+      const custom = await inspectRepository(root, release('11.0.0', '2026-09-30T14:07:51.959Z'), {
+        graceDays: 0,
+        now: new Date('2026-09-30T14:07:51.959Z'),
+      });
       expect(custom.findings[0].severity).toBe('error');
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -74,7 +95,9 @@ describe('Oxy Doctor checks', () => {
   test('a release without a publish time fails instead of passing silently', async () => {
     const root = await repoWith({ '@oxy.so/services': '^10.0.0' });
     try {
-      await expect(inspectRepository(root, release('11.0.0', undefined))).rejects.toThrow('no publish time');
+      await expect(inspectRepository(root, release('11.0.0', undefined))).rejects.toThrow(
+        'no publish time',
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -55,7 +55,11 @@ jest.mock('../../src/ui/session', () => {
         addCurrentAccount: jest.fn(async () => undefined),
         start: jest.fn(async () => undefined),
       },
-      host: { setCurrentAccountId: jest.fn(), setDeviceCredential: jest.fn(), getDeviceCredential: () => null },
+      host: {
+        setCurrentAccountId: jest.fn(),
+        setDeviceCredential: jest.fn(),
+        getDeviceCredential: () => null,
+      },
     })),
   };
 });
@@ -99,7 +103,16 @@ const renderProvider = (sink: { current: OxyContextState | null }): RenderResult
 };
 
 describe('OxyRuntimeProvider after its access token is cleared', () => {
-  beforeEach(() => { jest.spyOn(AppsApi.prototype, 'getPublic').mockResolvedValue({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] } as never); });
+  beforeEach(() => {
+    jest.spyOn(AppsApi.prototype, 'getPublic').mockResolvedValue({
+      id: 'registered-fixture',
+      name: 'Registered Fixture',
+      type: 'first_party',
+      isOfficial: false,
+      isInternal: false,
+      scopes: [],
+    } as never);
+  });
   afterEach(() => {
     useAuthStore.getState().logout();
     mockHasDeviceCredential = true;
@@ -138,7 +151,9 @@ describe('OxyRuntimeProvider after its access token is cleared', () => {
     await waitFor(() => expect(requireContext(sink).isPrivateApiPending).toBe(true));
     expect(requireContext(sink).canUsePrivateApi).toBe(false);
 
-    await waitFor(() => expect(providerInstance.session.accessToken).toBe('access-reminted'), { timeout: 5_000 });
+    await waitFor(() => expect(providerInstance.session.accessToken).toBe('access-reminted'), {
+      timeout: 5_000,
+    });
     await waitFor(() => expect(requireContext(sink).canUsePrivateApi).toBe(true));
     expect(requireContext(sink).isAuthenticated).toBe(true);
     expect(requireContext(sink).user?.id).toBe('user_transient');

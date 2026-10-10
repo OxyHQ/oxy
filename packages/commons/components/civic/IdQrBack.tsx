@@ -14,7 +14,16 @@ interface IdQrBackProps {
 }
 
 // Full-spectrum iridescence, matching the guilloché hologram on the card body.
-const IRIDESCENT = ['#ff4d6d', '#ff9e2c', '#ffe14d', '#43e97b', '#22d3ee', '#4f8dff', '#a06bff', '#ff6bd6'];
+const IRIDESCENT = [
+  '#ff4d6d',
+  '#ff9e2c',
+  '#ffe14d',
+  '#43e97b',
+  '#22d3ee',
+  '#4f8dff',
+  '#a06bff',
+  '#ff6bd6',
+];
 
 const QR_SIZE = 150;
 const QR_FRAME_PAD = 12;
@@ -68,7 +77,8 @@ export function IdQrBack({ payload, caption }: IdQrBackProps) {
                 height={QR_FRAME - 2}
                 r={QR_RADIUS}
                 style="stroke"
-                strokeWidth={2}>
+                strokeWidth={2}
+              >
                 <LinearGradient start={borderStart} end={borderEnd} colors={IRIDESCENT} />
               </RoundedRect>
             </Group>

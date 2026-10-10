@@ -99,7 +99,9 @@ async function connectionRow(
   db: DatabaseOrTransaction,
   originGrantId: string,
 ): Promise<McpOauthConnectionRow | null> {
-  const [row] = await db.select().from(mcpOauthConnections)
+  const [row] = await db
+    .select()
+    .from(mcpOauthConnections)
     .where(eq(mcpOauthConnections.originGrantId, originGrantId))
     .limit(1);
   return row ?? null;
@@ -119,18 +121,28 @@ export async function ensureMcpConnection(grant: McpOauthGrantRow): Promise<McpO
   return getDb().transaction(async (tx) => {
     await lockKey(tx, `mcp-connection:${grant.id}`);
     const current = await connectionRow(tx, grant.id);
-    const connection = current ?? (await tx.insert(mcpOauthConnections).values({
-      originGrantId: grant.id,
-      activeAccountId: null,
-    }).returning())[0];
+    const connection =
+      current ??
+      (
+        await tx
+          .insert(mcpOauthConnections)
+          .values({
+            originGrantId: grant.id,
+            activeAccountId: null,
+          })
+          .returning()
+      )[0];
     if (!connection) throw new Error('MCP connection was not persisted');
-    const [member] = await tx.select({ id: mcpOauthConnectionAccounts.id })
+    const [member] = await tx
+      .select({ id: mcpOauthConnectionAccounts.id })
       .from(mcpOauthConnectionAccounts)
-      .where(and(
-        eq(mcpOauthConnectionAccounts.connectionId, connection.id),
-        eq(mcpOauthConnectionAccounts.accountId, grant.effectiveAccountId),
-        isNull(mcpOauthConnectionAccounts.revokedAt),
-      ))
+      .where(
+        and(
+          eq(mcpOauthConnectionAccounts.connectionId, connection.id),
+          eq(mcpOauthConnectionAccounts.accountId, grant.effectiveAccountId),
+          isNull(mcpOauthConnectionAccounts.revokedAt),
+        ),
+      )
       .limit(1);
     if (!member) {
       await tx.insert(mcpOauthConnectionAccounts).values({
@@ -149,25 +161,30 @@ export async function ensureMcpConnection(grant: McpOauthGrantRow): Promise<McpO
 async function liveMembers(
   db: DatabaseOrTransaction,
   connectionId: string,
-): Promise<Array<{
-  accountId: string;
-  isOrigin: boolean;
-  createdAt: Date;
-  grant: McpOauthGrantRow;
-}>> {
-  const rows = await db.select({
-    accountId: mcpOauthConnectionAccounts.accountId,
-    isOrigin: mcpOauthConnectionAccounts.isOrigin,
-    createdAt: mcpOauthConnectionAccounts.createdAt,
-    grant: mcpOauthGrants,
-  })
+): Promise<
+  Array<{
+    accountId: string;
+    isOrigin: boolean;
+    createdAt: Date;
+    grant: McpOauthGrantRow;
+  }>
+> {
+  const rows = await db
+    .select({
+      accountId: mcpOauthConnectionAccounts.accountId,
+      isOrigin: mcpOauthConnectionAccounts.isOrigin,
+      createdAt: mcpOauthConnectionAccounts.createdAt,
+      grant: mcpOauthGrants,
+    })
     .from(mcpOauthConnectionAccounts)
     .innerJoin(mcpOauthGrants, eq(mcpOauthGrants.id, mcpOauthConnectionAccounts.grantId))
-    .where(and(
-      eq(mcpOauthConnectionAccounts.connectionId, connectionId),
-      isNull(mcpOauthConnectionAccounts.revokedAt),
-      isNull(mcpOauthGrants.revokedAt),
-    ))
+    .where(
+      and(
+        eq(mcpOauthConnectionAccounts.connectionId, connectionId),
+        isNull(mcpOauthConnectionAccounts.revokedAt),
+        isNull(mcpOauthGrants.revokedAt),
+      ),
+    )
     .orderBy(asc(mcpOauthConnectionAccounts.createdAt));
   return rows;
 }
@@ -180,7 +197,9 @@ async function liveMembers(
  * back to the origin account rather than letting the connector keep acting as an
  * account that no longer authorizes it.
  */
-export async function resolveMcpConnectionState(grant: McpOauthGrantRow): Promise<McpConnectionState> {
+export async function resolveMcpConnectionState(
+  grant: McpOauthGrantRow,
+): Promise<McpConnectionState> {
   const connection = await ensureMcpConnection(grant);
   const members = await liveMembers(getDb(), connection.id);
   const accounts: McpConnectionAccountState[] = members.map((member) => ({
@@ -200,9 +219,10 @@ export async function resolveMcpConnectionState(grant: McpOauthGrantRow): Promis
   }
 
   const member = members.find((row) => row.accountId === selected);
-  const usable = member !== undefined && await grantAccountAuthorityHolds(member.grant);
+  const usable = member !== undefined && (await grantAccountAuthorityHolds(member.grant));
   if (!usable) {
-    await getDb().update(mcpOauthConnections)
+    await getDb()
+      .update(mcpOauthConnections)
       .set({ activeAccountId: null, updatedAt: new Date() })
       .where(eq(mcpOauthConnections.id, connection.id));
   }
@@ -228,14 +248,24 @@ export async function setMcpConnectionActiveAccount(input: {
   const members = await liveMembers(getDb(), connection.id);
   const member = members.find((row) => row.accountId === input.accountId);
   if (!member) {
-    throw new McpOAuthError('invalid_request', 'That account is not connected to this MCP connection', 404);
+    throw new McpOAuthError(
+      'invalid_request',
+      'That account is not connected to this MCP connection',
+      404,
+    );
   }
-  if (!await grantAccountAuthorityHolds(member.grant)) {
-    throw new McpOAuthError('access_denied', 'The account that approved this link can no longer operate it', 403);
+  if (!(await grantAccountAuthorityHolds(member.grant))) {
+    throw new McpOAuthError(
+      'access_denied',
+      'The account that approved this link can no longer operate it',
+      403,
+    );
   }
-  await getDb().update(mcpOauthConnections)
+  await getDb()
+    .update(mcpOauthConnections)
     .set({
-      activeAccountId: member.accountId === input.grant.effectiveAccountId ? null : member.accountId,
+      activeAccountId:
+        member.accountId === input.grant.effectiveAccountId ? null : member.accountId,
       updatedAt: new Date(),
     })
     .where(eq(mcpOauthConnections.id, connection.id));
@@ -259,15 +289,17 @@ export async function createMcpAccountLinkIntent(input: {
   const now = input.now ?? new Date();
   const expiresAt = new Date(now.getTime() + MCP_ACCOUNT_LINK_INTENT_TTL_SECONDS * 1_000);
 
-  await getDb().insert(mcpOauthAccountLinkIntents).values({
-    connectionId: connection.id,
-    requestedByGrantId: input.grant.id,
-    codeHash: sha256(secret),
-    scopes: normalizeMcpScopes(input.scopes),
-    approvedGrantId: null,
-    usedAt: null,
-    expiresAt,
-  });
+  await getDb()
+    .insert(mcpOauthAccountLinkIntents)
+    .values({
+      connectionId: connection.id,
+      requestedByGrantId: input.grant.id,
+      codeHash: sha256(secret),
+      scopes: normalizeMcpScopes(input.scopes),
+      approvedGrantId: null,
+      usedAt: null,
+      expiresAt,
+    });
 
   const url = new URL('/mcp/link', authOrigin());
   url.searchParams.set('intent', secret);
@@ -283,11 +315,16 @@ async function liveIntent(
   secret: string,
   now: Date,
 ): Promise<McpOauthAccountLinkIntentRow> {
-  const [intent] = await db.select().from(mcpOauthAccountLinkIntents)
+  const [intent] = await db
+    .select()
+    .from(mcpOauthAccountLinkIntents)
     .where(eq(mcpOauthAccountLinkIntents.codeHash, sha256(secret)))
     .limit(1);
   if (!intent || intent.usedAt || intent.expiresAt <= now) {
-    throw new McpOAuthError('invalid_grant', 'This account link is invalid, expired, or already used');
+    throw new McpOAuthError(
+      'invalid_grant',
+      'This account link is invalid, expired, or already used',
+    );
   }
   return intent;
 }
@@ -295,17 +332,29 @@ async function liveIntent(
 async function intentContext(
   db: DatabaseOrTransaction,
   intent: McpOauthAccountLinkIntentRow,
-): Promise<{ connection: McpOauthConnectionRow; originGrant: McpOauthGrantRow; client: McpOauthClientRow }> {
-  const [connection] = await db.select().from(mcpOauthConnections)
+): Promise<{
+  connection: McpOauthConnectionRow;
+  originGrant: McpOauthGrantRow;
+  client: McpOauthClientRow;
+}> {
+  const [connection] = await db
+    .select()
+    .from(mcpOauthConnections)
     .where(eq(mcpOauthConnections.id, intent.connectionId))
     .limit(1);
   if (!connection) throw new McpOAuthError('invalid_grant', 'The MCP connection no longer exists');
-  const [originGrant] = await db.select().from(mcpOauthGrants)
+  const [originGrant] = await db
+    .select()
+    .from(mcpOauthGrants)
     .where(and(eq(mcpOauthGrants.id, connection.originGrantId), isNull(mcpOauthGrants.revokedAt)))
     .limit(1);
   if (!originGrant) throw new McpOAuthError('invalid_grant', 'The MCP connection has been revoked');
-  const [client] = await db.select().from(mcpOauthClients)
-    .where(and(eq(mcpOauthClients.id, originGrant.clientRecordId), eq(mcpOauthClients.status, 'active')))
+  const [client] = await db
+    .select()
+    .from(mcpOauthClients)
+    .where(
+      and(eq(mcpOauthClients.id, originGrant.clientRecordId), eq(mcpOauthClients.status, 'active')),
+    )
     .limit(1);
   if (!client) throw new McpOAuthError('invalid_client', 'The MCP client is inactive', 401);
   return { connection, originGrant, client };
@@ -362,25 +411,38 @@ export async function approveMcpAccountLink(input: {
   if (descriptor.appSlug !== originGrant.appSlug || descriptor.audience !== originGrant.audience) {
     throw new McpOAuthError('invalid_grant', 'The MCP resource registration has changed');
   }
-  if (!await grantAccountAuthorityHolds({
-    principalUserId: input.principalUserId,
-    effectiveAccountId: input.effectiveAccountId,
-    authMethodId: input.authMethod?.authMethodId,
-  })) {
+  if (
+    !(await grantAccountAuthorityHolds({
+      principalUserId: input.principalUserId,
+      effectiveAccountId: input.effectiveAccountId,
+      authMethodId: input.authMethod?.authMethodId,
+    }))
+  ) {
     throw new McpOAuthError('access_denied', 'You cannot operate the selected account', 403);
   }
 
   return getDb().transaction(async (tx) => {
-    const existingGrant = await reusableMcpGrant(tx, { principalUserId: input.principalUserId,
-      effectiveAccountId: input.effectiveAccountId, clientRecordId: originGrant.clientRecordId,
-      resource: originGrant.resource, authMethod: input.authMethod }, now);
+    const existingGrant = await reusableMcpGrant(
+      tx,
+      {
+        principalUserId: input.principalUserId,
+        effectiveAccountId: input.effectiveAccountId,
+        clientRecordId: originGrant.clientRecordId,
+        resource: originGrant.resource,
+        authMethod: input.authMethod,
+      },
+      now,
+    );
     await lockKey(tx, `mcp-link:${connection.id}:${input.effectiveAccountId}`);
-    const [claimed] = await tx.update(mcpOauthAccountLinkIntents)
+    const [claimed] = await tx
+      .update(mcpOauthAccountLinkIntents)
       .set({ usedAt: now, updatedAt: now })
-      .where(and(
-        eq(mcpOauthAccountLinkIntents.id, intent.id),
-        isNull(mcpOauthAccountLinkIntents.usedAt),
-      ))
+      .where(
+        and(
+          eq(mcpOauthAccountLinkIntents.id, intent.id),
+          isNull(mcpOauthAccountLinkIntents.usedAt),
+        ),
+      )
       .returning({ id: mcpOauthAccountLinkIntents.id });
     if (!claimed) {
       throw new McpOAuthError('invalid_grant', 'This account link was already used');
@@ -388,34 +450,48 @@ export async function approveMcpAccountLink(input: {
 
     const scopes = normalizeMcpScopes([...(existingGrant?.scopes ?? []), ...intent.scopes]);
     const grant = existingGrant
-      ? (await tx.update(mcpOauthGrants).set({
-          scopes,
-          audience: descriptor.audience,
-          appSlug: descriptor.appSlug,
-          lastUsedAt: now,
-          updatedAt: now,
-        }).where(eq(mcpOauthGrants.id, existingGrant.id)).returning())[0]
-      : (await tx.insert(mcpOauthGrants).values({
-          principalUserId: input.principalUserId,
-          authMethodId: input.authMethod?.authMethodId ?? null,
-          effectiveAccountId: input.effectiveAccountId,
-          clientRecordId: originGrant.clientRecordId,
-          appSlug: descriptor.appSlug,
-          resource: originGrant.resource,
-          audience: descriptor.audience,
-          scopes,
-          lastUsedAt: now,
-          revokedAt: null,
-        }).returning())[0];
+      ? (
+          await tx
+            .update(mcpOauthGrants)
+            .set({
+              scopes,
+              audience: descriptor.audience,
+              appSlug: descriptor.appSlug,
+              lastUsedAt: now,
+              updatedAt: now,
+            })
+            .where(eq(mcpOauthGrants.id, existingGrant.id))
+            .returning()
+        )[0]
+      : (
+          await tx
+            .insert(mcpOauthGrants)
+            .values({
+              principalUserId: input.principalUserId,
+              authMethodId: input.authMethod?.authMethodId ?? null,
+              effectiveAccountId: input.effectiveAccountId,
+              clientRecordId: originGrant.clientRecordId,
+              appSlug: descriptor.appSlug,
+              resource: originGrant.resource,
+              audience: descriptor.audience,
+              scopes,
+              lastUsedAt: now,
+              revokedAt: null,
+            })
+            .returning()
+        )[0];
     if (!grant) throw new Error('MCP link grant was not persisted');
 
-    const [member] = await tx.select({ id: mcpOauthConnectionAccounts.id })
+    const [member] = await tx
+      .select({ id: mcpOauthConnectionAccounts.id })
       .from(mcpOauthConnectionAccounts)
-      .where(and(
-        eq(mcpOauthConnectionAccounts.connectionId, connection.id),
-        eq(mcpOauthConnectionAccounts.accountId, input.effectiveAccountId),
-        isNull(mcpOauthConnectionAccounts.revokedAt),
-      ))
+      .where(
+        and(
+          eq(mcpOauthConnectionAccounts.connectionId, connection.id),
+          eq(mcpOauthConnectionAccounts.accountId, input.effectiveAccountId),
+          isNull(mcpOauthConnectionAccounts.revokedAt),
+        ),
+      )
       .limit(1);
     if (!member) {
       await tx.insert(mcpOauthConnectionAccounts).values({
@@ -426,7 +502,8 @@ export async function approveMcpAccountLink(input: {
         revokedAt: null,
       });
     }
-    await tx.update(mcpOauthAccountLinkIntents)
+    await tx
+      .update(mcpOauthAccountLinkIntents)
       .set({ approvedGrantId: grant.id, updatedAt: now })
       .where(eq(mcpOauthAccountLinkIntents.id, intent.id));
 
@@ -449,10 +526,13 @@ export async function revokeMcpConnectionMemberships(
   grantId: string,
   when = new Date(),
 ): Promise<void> {
-  await db.update(mcpOauthConnectionAccounts)
+  await db
+    .update(mcpOauthConnectionAccounts)
     .set({ revokedAt: when, updatedAt: when })
-    .where(and(
-      eq(mcpOauthConnectionAccounts.grantId, grantId),
-      isNull(mcpOauthConnectionAccounts.revokedAt),
-    ));
+    .where(
+      and(
+        eq(mcpOauthConnectionAccounts.grantId, grantId),
+        isNull(mcpOauthConnectionAccounts.revokedAt),
+      ),
+    );
 }

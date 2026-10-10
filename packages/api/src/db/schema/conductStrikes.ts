@@ -131,7 +131,7 @@ export const conductStrikes = pgTable(
       t.incidentId,
       t.userId,
       t.effectType,
-      t.decisionRevision
+      t.decisionRevision,
     ),
     // Summing a user's active risk. Mongo also declared a standalone `{userId}`;
     // dropped as redundant, since a btree serves any leading prefix.
@@ -140,13 +140,10 @@ export const conductStrikes = pgTable(
     index('conduct_strikes_user_id_family_created_at_idx').on(
       t.userId,
       t.family,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // Reversal resolves every strike a decision revision produced.
-    index('conduct_strikes_decision_id_decision_revision_idx').on(
-      t.decisionId,
-      t.decisionRevision
-    ),
+    index('conduct_strikes_decision_id_decision_revision_idx').on(t.decisionId, t.decisionRevision),
     // The resolution job: due active strikes, oldest first. Mongo's
     // `partialFilterExpression: { status: 'active', expiresAt: { $exists: true } }`
     // — partial here for the same reason, so the index holds only rows the job
@@ -157,15 +154,15 @@ export const conductStrikes = pgTable(
 
     check(
       'conduct_strikes_effect_type_check',
-      sql`${t.effectType} in (${sql.raw(inList(MODERATION_EFFECT_TYPES))})`
+      sql`${t.effectType} in (${sql.raw(inList(MODERATION_EFFECT_TYPES))})`,
     ),
     check(
       'conduct_strikes_severity_check',
-      sql`${t.severity} in (${sql.raw(inList(MODERATION_SEVERITIES))})`
+      sql`${t.severity} in (${sql.raw(inList(MODERATION_SEVERITIES))})`,
     ),
     check(
       'conduct_strikes_status_check',
-      sql`${t.status} in (${sql.raw(inList(CONDUCT_STRIKE_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(CONDUCT_STRIKE_STATUSES))})`,
     ),
     // A revision is an ordinal, starting at the decision's first publication.
     check('conduct_strikes_decision_revision_check', sql`${t.decisionRevision} >= 0`),
@@ -176,7 +173,7 @@ export const conductStrikes = pgTable(
     // every reader had to guard for) becomes unrepresentable.
     check(
       'conduct_strikes_resolution_complete_check',
-      sql`(${t.status} = 'active') = (${t.resolvedAt} is null)`
+      sql`(${t.status} = 'active') = (${t.resolvedAt} is null)`,
     ),
-  ]
+  ],
 );

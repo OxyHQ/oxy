@@ -38,65 +38,68 @@ export const emailAddressSchema = z.string().trim().toLowerCase().min(3).max(254
 
 /** An opaque one-use ticket (32 random bytes, base64url). */
 export const emailTicketSchema = z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z0-9_-]{43}$/, 'ticket must be 32 bytes of base64url');
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{43}$/, 'ticket must be 32 bytes of base64url');
 
 /** `POST /auth/email/verify/start` */
 export const emailVerificationStartRequestSchema = z
-    .object({ purpose: z.literal('signup'), email: emailAddressSchema })
-    .strict();
+  .object({ purpose: z.literal('signup'), email: emailAddressSchema })
+  .strict();
 export type EmailVerificationStartRequest = z.infer<typeof emailVerificationStartRequestSchema>;
 
 export interface EmailVerificationStartResponse {
-    /** Names this verification in `confirm`. Returned whether or not a code was sent. */
-    verificationId: string;
-    /** Unix milliseconds after which the code is refused. */
-    expiresAt: number;
+  /** Names this verification in `confirm`. Returned whether or not a code was sent. */
+  verificationId: string;
+  /** Unix milliseconds after which the code is refused. */
+  expiresAt: number;
 }
 
-export const emailVerificationStartResponseSchema: z.ZodType<EmailVerificationStartResponse> = z.object({
+export const emailVerificationStartResponseSchema: z.ZodType<EmailVerificationStartResponse> =
+  z.object({
     verificationId: z.string().min(1).max(64),
     expiresAt: z.number().int().positive(),
-});
+  });
 
 /** `POST /auth/email/verify/confirm` */
 export const emailVerificationConfirmRequestSchema = z
-    .object({
-        verificationId: z.string().trim().min(1).max(64),
-        code: z
-            .string()
-            .trim()
-            .regex(new RegExp(`^\\d{${EMAIL_CODE_LENGTH}}$`), `code must be ${EMAIL_CODE_LENGTH} digits`),
-    })
-    .strict();
+  .object({
+    verificationId: z.string().trim().min(1).max(64),
+    code: z
+      .string()
+      .trim()
+      .regex(new RegExp(`^\\d{${EMAIL_CODE_LENGTH}}$`), `code must be ${EMAIL_CODE_LENGTH} digits`),
+  })
+  .strict();
 export type EmailVerificationConfirmRequest = z.infer<typeof emailVerificationConfirmRequestSchema>;
 
 export interface EmailVerificationConfirmResponse {
-    ticket: string;
-    /** Unix milliseconds after which the ticket is refused. */
-    expiresAt: number;
+  ticket: string;
+  /** Unix milliseconds after which the ticket is refused. */
+  expiresAt: number;
 }
 
-export const emailVerificationConfirmResponseSchema: z.ZodType<EmailVerificationConfirmResponse> = z.object({
+export const emailVerificationConfirmResponseSchema: z.ZodType<EmailVerificationConfirmResponse> =
+  z.object({
     ticket: emailTicketSchema,
     expiresAt: z.number().int().positive(),
-});
+  });
 
 /**
  * Stable error codes (`error.code` in the API error body). Clients map these
  * through their localization, never the English message.
  */
 export const EMAIL_VERIFICATION_ERROR_CODES = {
-    /** The code is wrong, or its verification expired or was spent. */
-    codeInvalid: 'EMAIL_CODE_INVALID',
-    /** Too many wrong codes: request a new one. */
-    tooManyAttempts: 'EMAIL_CODE_TOO_MANY_ATTEMPTS',
-    /** The ticket is unknown, expired, spent, or for another email or purpose. */
-    ticketInvalid: 'EMAIL_TICKET_INVALID',
-    /** A sign-up without a confirmed email. */
-    ticketRequired: 'EMAIL_TICKET_REQUIRED',
-    /** This server cannot send mail. */
-    unavailable: 'EMAIL_UNAVAILABLE',
+  /** The code is wrong, or its verification expired or was spent. */
+  codeInvalid: 'EMAIL_CODE_INVALID',
+  /** Too many wrong codes: request a new one. */
+  tooManyAttempts: 'EMAIL_CODE_TOO_MANY_ATTEMPTS',
+  /** The ticket is unknown, expired, spent, or for another email or purpose. */
+  ticketInvalid: 'EMAIL_TICKET_INVALID',
+  /** A sign-up without a confirmed email. */
+  ticketRequired: 'EMAIL_TICKET_REQUIRED',
+  /** This server cannot send mail. */
+  unavailable: 'EMAIL_UNAVAILABLE',
 } as const;
-export type EmailVerificationErrorCode = (typeof EMAIL_VERIFICATION_ERROR_CODES)[keyof typeof EMAIL_VERIFICATION_ERROR_CODES];
+export type EmailVerificationErrorCode =
+  (typeof EMAIL_VERIFICATION_ERROR_CODES)[keyof typeof EMAIL_VERIFICATION_ERROR_CODES];

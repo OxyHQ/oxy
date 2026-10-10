@@ -64,10 +64,14 @@ beforeEach(() => {
 
 describe('S3Service — Cache-Control on the stored object', () => {
   it('puts the caller Cache-Control on an uploadBuffer PUT', async () => {
-    await makeService().uploadBuffer('public/variants/2026/09/aa/deadbeef/w320.webp', Buffer.from('x'), {
-      contentType: 'image/webp',
-      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
-    });
+    await makeService().uploadBuffer(
+      'public/variants/2026/09/aa/deadbeef/w320.webp',
+      Buffer.from('x'),
+      {
+        contentType: 'image/webp',
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+      },
+    );
 
     expect(sentPutInput()).toMatchObject({
       Key: 'public/variants/2026/09/aa/deadbeef/w320.webp',

@@ -193,18 +193,18 @@ function serviceToken(input: { appId: string; ownerAccountId: string; scopes: st
   if (!credential) throw new Error('serviceToken requires an application fixture credential');
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
-      type: 'service',
-      appId: input.appId,
-      appName: 'Fixture App',
-      credentialId: credential.id,
-      ownerAccountId: input.ownerAccountId,
-      environment: credential.environment,
-      scopes: input.scopes,
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: issuedAt,
-      exp: issuedAt + 300,
-    });
+    type: 'service',
+    appId: input.appId,
+    appName: 'Fixture App',
+    credentialId: credential.id,
+    ownerAccountId: input.ownerAccountId,
+    environment: credential.environment,
+    scopes: input.scopes,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: issuedAt,
+    exp: issuedAt + 300,
+  });
 }
 
 async function insertAccount(): Promise<string> {
@@ -335,9 +335,10 @@ async function validationBody(connectionId: string, state: 'valid' | 'invalid' =
 
 describe('service rate-limit partitioning', () => {
   it('uses exact app+credential buckets and service-sized budgets', () => {
-    const requestFor = (appId: string, credentialId: string) => ({
-      serviceApp: { appId, credentialId },
-    }) as unknown as Parameters<typeof providerServiceRateLimitKey>[0];
+    const requestFor = (appId: string, credentialId: string) =>
+      ({
+        serviceApp: { appId, credentialId },
+      }) as unknown as Parameters<typeof providerServiceRateLimitKey>[0];
 
     expect(providerServiceRateLimitKey(requestFor('app-a', 'cred-a'))).toBe('app-a:cred-a');
     expect(providerServiceRateLimitKey(requestFor('app-a', 'cred-b'))).not.toBe(
@@ -867,19 +868,19 @@ describe('Kaana credential validation principal', () => {
   }): string {
     const issuedAt = Math.floor(Date.now() / 1_000);
     return signServiceTokenEd25519({
-        type: 'service',
-        appId: input.appId,
-        appName: 'Kaana',
-        credentialId: input.handle,
-        ownerAccountId: input.ownerAccountId,
-        // What this deployment's mint writes; the live re-read compares it.
-        environment: workloadTokenEnvironment(),
-        scopes: input.scopes,
-        iss: 'oxy-auth',
-        aud: 'oxy-api',
-        iat: issuedAt,
-        exp: issuedAt + 300,
-      });
+      type: 'service',
+      appId: input.appId,
+      appName: 'Kaana',
+      credentialId: input.handle,
+      ownerAccountId: input.ownerAccountId,
+      // What this deployment's mint writes; the live re-read compares it.
+      environment: workloadTokenEnvironment(),
+      scopes: input.scopes,
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      iat: issuedAt,
+      exp: issuedAt + 300,
+    });
   }
 
   it('accepts the verdict from an ATTESTED Kaana with no credential at all', async () => {
@@ -1167,19 +1168,14 @@ describe('cross-account isolation', () => {
         await getDb()
           .update(applicationCredentials)
           .set({ status: 'revoked' })
-          .where(eq(applicationCredentials.id, serviceCredentialByApplication.get(application)!.id));
+          .where(
+            eq(applicationCredentials.id, serviceCredentialByApplication.get(application)!.id),
+          );
       } else {
-        await getDb()
-          .update(users)
-          .set({ accountStatus: 'archived' })
-          .where(eq(users.id, owner));
+        await getDb().update(users).set({ accountStatus: 'archived' }).where(eq(users.id, owner));
       }
 
-      const response = await request(
-        'GET',
-        `/inference/provider-connections/${connection}`,
-        token,
-      );
+      const response = await request('GET', `/inference/provider-connections/${connection}`, token);
       expect(response.status).toBe(404);
     },
   );
@@ -1218,11 +1214,7 @@ describe('cross-account isolation', () => {
       (await request('GET', `/inference/provider-connections/${accountDevelopment}`, token)).status,
     ).toBe(404);
 
-    const listed = await request(
-      'GET',
-      `/inference/provider-connections/accounts/${owner}`,
-      token,
-    );
+    const listed = await request('GET', `/inference/provider-connections/accounts/${owner}`, token);
     expect(listed.status).toBe(200);
     const ids = (listed.body.data as Array<{ connectionId: string }>).map(
       (connection) => connection.connectionId,

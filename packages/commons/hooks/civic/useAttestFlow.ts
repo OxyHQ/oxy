@@ -47,7 +47,9 @@ export function useAttestFlow(subjectUserIdOverride?: string | null): AttestFlow
   const confirmInStore = useAttestStore((s) => s.confirm);
   const reset = useAttestStore((s) => s.reset);
 
-  const card = useCivicCard(subjectUserIdOverride === undefined ? subjectUserId : subjectUserIdOverride);
+  const card = useCivicCard(
+    subjectUserIdOverride === undefined ? subjectUserId : subjectUserIdOverride,
+  );
 
   const submit = useCallback(
     (params: AttestSubmitParams) => {

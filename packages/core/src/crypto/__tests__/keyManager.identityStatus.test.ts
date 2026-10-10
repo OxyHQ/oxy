@@ -56,7 +56,12 @@ interface SecureStoreTestHandle {
   __getRaw__: (key: string, service?: string) => string | null;
   __setRaw__: (key: string, value: string, service?: string) => void;
   __simulateKeystoreDeath__: (service: string) => void;
-  __failPlan__: { failKey?: string; failOp?: 'set' | 'get'; failTimes?: number; failService?: string };
+  __failPlan__: {
+    failKey?: string;
+    failOp?: 'set' | 'get';
+    failTimes?: number;
+    failService?: string;
+  };
 }
 
 describe('KeyManager.getIdentityStatus + marker lifecycle', () => {
@@ -160,7 +165,9 @@ describe('KeyManager.getIdentityStatus + marker lifecycle', () => {
     ss.__failPlan__.failOp = 'get';
     ss.__failPlan__.failKey = V2_PRIV;
     ss.__failPlan__.failService = PRIMARY_SVC;
-    await expect(KeyManager.hasIdentity()).rejects.toMatchObject({ name: 'IdentityUnavailableError' });
+    await expect(KeyManager.hasIdentity()).rejects.toMatchObject({
+      name: 'IdentityUnavailableError',
+    });
   });
 
   describe('marker lifecycle', () => {

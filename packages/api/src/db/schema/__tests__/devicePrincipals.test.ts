@@ -68,7 +68,7 @@ async function device(): Promise<string> {
 async function principal(
   deviceSessionId: string,
   userId: string,
-  authuser: number
+  authuser: number,
 ): Promise<string> {
   const [row] = await getDb()
     .insert(devicePrincipals)
@@ -81,7 +81,7 @@ async function context(
   deviceSessionId: string,
   principalId: string,
   accountId: string,
-  sessionId: string | null = null
+  sessionId: string | null = null,
 ): Promise<string> {
   const [row] = await getDb()
     .insert(deviceAccountContexts)
@@ -141,7 +141,7 @@ describe('the device-context cycle', () => {
       await getDb()
         .select({ id: deviceAccountContexts.id })
         .from(deviceAccountContexts)
-        .where(eq(deviceAccountContexts.deviceSessionId, deviceSessionId))
+        .where(eq(deviceAccountContexts.deviceSessionId, deviceSessionId)),
     ).toEqual([]);
   });
 
@@ -180,7 +180,7 @@ describe('the device-context cycle', () => {
       await getDb()
         .select({ id: deviceAccountContexts.id })
         .from(deviceAccountContexts)
-        .where(eq(deviceAccountContexts.deviceSessionId, deviceSessionId))
+        .where(eq(deviceAccountContexts.deviceSessionId, deviceSessionId)),
     ).toEqual([]);
   });
 });
@@ -203,13 +203,13 @@ describe('what the new shape can hold', () => {
       .where(
         and(
           eq(deviceAccountContexts.deviceSessionId, deviceSessionId),
-          eq(deviceAccountContexts.accountId, org)
-        )
+          eq(deviceAccountContexts.accountId, org),
+        ),
       );
     // `device_session_accounts_device_session_id_account_id_key` made this a
     // duplicate key. Two different people, two sessions, two audit actors.
     expect(rows.map((row) => row.principalId).sort()).toEqual(
-      [natePrincipal, alicePrincipal].sort()
+      [natePrincipal, alicePrincipal].sort(),
     );
   });
 
@@ -261,7 +261,7 @@ describe('what the new shape refuses', () => {
 
 /** `[name, {ref, onDelete}]` pairs, for a lookup that names what is missing. */
 function foreignKeysByName(
-  rows: readonly ForeignKeyRow[]
+  rows: readonly ForeignKeyRow[],
 ): Array<[string, { ref: string; onDelete: string }]> {
   return rows.map((row) => [row.conname, { ref: row.ref, onDelete: row.confdeltype }]);
 }

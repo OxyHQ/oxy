@@ -38,7 +38,10 @@ import {
   type RetainedRecordCount,
 } from './accountFinancialHolds.service';
 import { recordAccountDeletedEvent, type RecordedAccountEvent } from './accountEvents.service';
-import { recordAccountStorageDeletion, type RecordedAccountStorageDeletion } from './accountStorageDeletion.service';
+import {
+  recordAccountStorageDeletion,
+  type RecordedAccountStorageDeletion,
+} from './accountStorageDeletion.service';
 import fileCache from '../utils/fileCache';
 import { emailService } from './email.service';
 import sessionService from './session.service';
@@ -65,14 +68,20 @@ export type AccountDeletionResult =
  */
 export function assertAccountDeletable(holds: AccountFinancialHolds): void {
   if (holds.hasLiveSubscription) {
-    throw new ConflictError('This account has a live subscription. Cancel it first, then delete the account.', {
-      subscriptions: holds.liveSubscriptionIds,
-    });
+    throw new ConflictError(
+      'This account has a live subscription. Cancel it first, then delete the account.',
+      {
+        subscriptions: holds.liveSubscriptionIds,
+      },
+    );
   }
   if (holds.heldReservations > 0) {
-    throw new ConflictError('This account has inference reservations still in flight. Try again once they settle.', {
-      heldReservations: holds.heldReservations,
-    });
+    throw new ConflictError(
+      'This account has inference reservations still in flight. Try again once they settle.',
+      {
+        heldReservations: holds.heldReservations,
+      },
+    );
   }
   if (holds.hasLiveProviderConnection) {
     throw new ConflictError(
@@ -87,7 +96,10 @@ export function assertAccountDeletable(holds: AccountFinancialHolds): void {
  * Delete (or, with retained financial records, archive) `userId`. The caller
  * has already established that the deletion is wanted and allowed.
  */
-export async function deleteAccount(userId: string, username: string | null): Promise<AccountDeletionResult> {
+export async function deleteAccount(
+  userId: string,
+  username: string | null,
+): Promise<AccountDeletionResult> {
   const holds = await describeAccountFinancialHolds(userId);
   assertAccountDeletable(holds);
 
@@ -137,7 +149,11 @@ export async function deleteAccount(userId: string, username: string | null): Pr
       storageDeletionFiles: archivedStorage?.fileIds.length ?? 0,
       storageDeletionTargets: archivedStorage?.targets ?? 0,
     });
-    return { retained: true, retainedRecords: holds.retainedRecords, accountEventId: archivedEvent?.eventId };
+    return {
+      retained: true,
+      retainedRecords: holds.retainedRecords,
+      accountEventId: archivedEvent?.eventId,
+    };
   }
 
   // The event is recorded in the SAME transaction and before the row goes: its
@@ -148,7 +164,9 @@ export async function deleteAccount(userId: string, username: string | null): Pr
   // deletes the objects.
   const { deletedEvent, storage } = await getDb().transaction(async (tx) => {
     const recorded = await recordAccountDeletedEvent(tx, { userId, username, retained: false });
-    const recordedStorage = await recordAccountStorageDeletion(tx, userId, { removeAssetRows: false });
+    const recordedStorage = await recordAccountStorageDeletion(tx, userId, {
+      removeAssetRows: false,
+    });
     // An empty, never-used wallet is not a hold; it goes with the account.
     await deleteDisposableWallets(tx, userId, holds.disposableWalletIds);
     await tx.delete(users).where(eq(users.id, userId));

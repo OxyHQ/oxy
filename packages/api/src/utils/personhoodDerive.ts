@@ -111,6 +111,13 @@ export function personhoodScore(inputs: PersonhoodInputs): PersonhoodScore {
   return {
     score,
     isRealPerson: score >= PERSONHOOD_THRESHOLD,
-    breakdown: { vouchSignal, realLifeSignal, biometricSignal, evidence, sybilPenalty, seed: false },
+    breakdown: {
+      vouchSignal,
+      realLifeSignal,
+      biometricSignal,
+      evidence,
+      sybilPenalty,
+      seed: false,
+    },
   };
 }

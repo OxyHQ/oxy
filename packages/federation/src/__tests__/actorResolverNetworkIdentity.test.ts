@@ -9,7 +9,11 @@
  * little and the account renders under a hostname that tells the reader nothing.
  */
 
-import { createActorResolver, type ActorResolverConfig, type FederatedActorRecordBase } from '../node/actorResolver';
+import {
+  createActorResolver,
+  type ActorResolverConfig,
+  type FederatedActorRecordBase,
+} from '../node/actorResolver';
 import {
   FEDERATION_NETWORKS,
   createBridgeRelabeller,
@@ -22,21 +26,26 @@ import {
  * supplies one — which is the arrangement in production too, only there the
  * entries are an app's reviewed policy.
  */
-const relabeller = createBridgeRelabeller([{
-  host: 'bird.makeup',
-  network: FEDERATION_NETWORKS.x,
-  operator: 'test',
-  software: 'BirdsiteLive',
-  derive: upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com', 'x.com'] }),
-  caseRule: 'lowercase',
-  relabel: 'enabled',
-  upstreamIdStability: 'recyclable',
-  boilerplate: [/\s*This account is a replica from Twitter\..*Patreon\.\s*$/s],
-  consent: 'unconsented',
-  evidence: 'test',
-  assumption: '',
-  since: '2026-08-02',
-}]);
+const relabeller = createBridgeRelabeller([
+  {
+    host: 'bird.makeup',
+    network: FEDERATION_NETWORKS.x,
+    operator: 'test',
+    software: 'BirdsiteLive',
+    derive: upstreamHandleFromProfileField({
+      fieldName: 'Official',
+      hosts: ['twitter.com', 'x.com'],
+    }),
+    caseRule: 'lowercase',
+    relabel: 'enabled',
+    upstreamIdStability: 'recyclable',
+    boilerplate: [/\s*This account is a replica from Twitter\..*Patreon\.\s*$/s],
+    consent: 'unconsented',
+    evidence: 'test',
+    assumption: '',
+    since: '2026-08-02',
+  },
+]);
 const deriveBridgedNetworkIdentity = relabeller.deriveNetworkIdentity;
 import type { NormalizedExternalActor } from '../index';
 
@@ -51,13 +60,14 @@ const BRIDGED_ACTOR = {
   name: 'WIRED',
   inbox: 'https://bird.makeup/users/wired/inbox',
   summary:
-    "The latest in tech.\nThis account is a replica from Twitter. Its author can't see your replies. "
-    + 'If you find this service useful, please consider supporting us via our Patreon.',
+    "The latest in tech.\nThis account is a replica from Twitter. Its author can't see your replies. " +
+    'If you find this service useful, please consider supporting us via our Patreon.',
   attachment: [
     {
       type: 'PropertyValue',
       name: 'Official',
-      value: '<a href="https://twitter.com/wired" rel="me nofollow noopener noreferrer">twitter.com/wired</a>',
+      value:
+        '<a href="https://twitter.com/wired" rel="me nofollow noopener noreferrer">twitter.com/wired</a>',
     },
   ],
 };
@@ -75,8 +85,8 @@ const BRIDGED_ACTOR = {
 const ALL_BOILERPLATE_ACTOR = {
   ...BRIDGED_ACTOR,
   summary:
-    "This account is a replica from Twitter. Its author can't see your replies. "
-    + 'If you find this service useful, please consider supporting us via our Patreon.',
+    "This account is a replica from Twitter. Its author can't see your replies. " +
+    'If you find this service useful, please consider supporting us via our Patreon.',
 };
 
 function makeResolver(
@@ -129,7 +139,12 @@ function makeResolver(
 
       ...textOverrides,
     },
-    logger: { info: () => {}, warn: (message) => { warnings.push(message); } },
+    logger: {
+      info: () => {},
+      warn: (message) => {
+        warnings.push(message);
+      },
+    },
   };
 
   return { resolver: createActorResolver(config), upserts, resolved, warnings };
@@ -220,12 +235,21 @@ describe('deriveNetworkIdentity — results the engine refuses', () => {
    * swallowed.
    */
   it.each([
-    ['username under a different domain', { federatedUsername: 'wired@example.com', instanceDomain: 'x.com', bio: '' }],
-    ['username with no domain at all', { federatedUsername: 'wired', instanceDomain: 'x.com', bio: '' }],
+    [
+      'username under a different domain',
+      { federatedUsername: 'wired@example.com', instanceDomain: 'x.com', bio: '' },
+    ],
+    [
+      'username with no domain at all',
+      { federatedUsername: 'wired', instanceDomain: 'x.com', bio: '' },
+    ],
     ['empty local part', { federatedUsername: '@x.com', instanceDomain: 'x.com', bio: '' }],
     ['empty domain', { federatedUsername: 'wired@', instanceDomain: '', bio: '' }],
     ['two at-signs', { federatedUsername: 'a@b@x.com', instanceDomain: 'x.com', bio: '' }],
-    ['a separator that is not an at-sign', { federatedUsername: 'wired.x.com', instanceDomain: 'x.com', bio: '' }],
+    [
+      'a separator that is not an at-sign',
+      { federatedUsername: 'wired.x.com', instanceDomain: 'x.com', bio: '' },
+    ],
   ])('refuses %s and falls back to the protocol acct', async (_label, identity) => {
     const rig = makeResolver(() => identity);
     await rig.resolver.fetchRemoteActor(BRIDGED_ACTOR.id);
@@ -236,7 +260,11 @@ describe('deriveNetworkIdentity — results the engine refuses', () => {
   });
 
   it('accepts a bindable result that differs only in case', async () => {
-    const rig = makeResolver(() => ({ federatedUsername: 'WIRED@X.com', instanceDomain: 'X.com', bio: 'x' }));
+    const rig = makeResolver(() => ({
+      federatedUsername: 'WIRED@X.com',
+      instanceDomain: 'X.com',
+      bio: 'x',
+    }));
     await rig.resolver.fetchRemoteActor(BRIDGED_ACTOR.id);
 
     expect(rig.resolved[0].federatedUsername).toBe('wired@x.com');
@@ -260,12 +288,17 @@ describe('bio handle qualification', () => {
     text.replace(/@([A-Za-z0-9_]+)(?!@)/g, `@$1@${domain}`);
 
   it('qualifies against the NETWORK domain for a relabelled actor', async () => {
-    const rig = makeResolver(deriveBridgedNetworkIdentity, {
-      ...BRIDGED_ACTOR,
-      summary: 'Now building @thinkymachines'
-        + "\nThis account is a replica from Twitter. Its author can't see your replies. "
-        + 'If you find this service useful, please consider supporting us via our Patreon.',
-    }, { qualifyHandles });
+    const rig = makeResolver(
+      deriveBridgedNetworkIdentity,
+      {
+        ...BRIDGED_ACTOR,
+        summary:
+          'Now building @thinkymachines' +
+          "\nThis account is a replica from Twitter. Its author can't see your replies. " +
+          'If you find this service useful, please consider supporting us via our Patreon.',
+      },
+      { qualifyHandles },
+    );
     await rig.resolver.fetchRemoteActor(BRIDGED_ACTOR.id);
 
     // x.com, NOT bird.makeup: the handle belongs to the network the account is
@@ -274,10 +307,14 @@ describe('bio handle qualification', () => {
   });
 
   it('writes the SAME qualified text to the stored row and to Oxy', async () => {
-    const rig = makeResolver(deriveBridgedNetworkIdentity, {
-      ...BRIDGED_ACTOR,
-      summary: 'CTO @openai',
-    }, { qualifyHandles });
+    const rig = makeResolver(
+      deriveBridgedNetworkIdentity,
+      {
+        ...BRIDGED_ACTOR,
+        summary: 'CTO @openai',
+      },
+      { qualifyHandles },
+    );
     await rig.resolver.fetchRemoteActor(BRIDGED_ACTOR.id);
 
     // The point of applying it once: two writes that could disagree, cannot.

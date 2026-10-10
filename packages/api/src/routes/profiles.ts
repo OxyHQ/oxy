@@ -1,6 +1,6 @@
 /**
  * Profile Routes
- * 
+ *
  * RESTful API routes for profile operations.
  * Uses service layer for business logic and standardized error handling.
  */
@@ -21,14 +21,18 @@ import {
 } from '../middleware/optionalAuth';
 import { logger } from '../utils/logger';
 import { asyncHandler, sendSuccess, sendPaginated } from '../utils/asyncHandler';
-import {
-  NotFoundError,
-  BadRequestError,
-  UnauthorizedError,
-} from '../utils/error';
+import { NotFoundError, BadRequestError, UnauthorizedError } from '../utils/error';
 import { userService } from '../services/user.service';
 import { aliasesForUser } from '../services/linkedAccounts/linkedAccounts.service';
-import { canonicalExternalUserIdsQuery, canonicalExternalUserMapQuery, expandEquivalentUserIds, getEquivalentUserGroups, lookupExternalIdentity, resolveCanonicalUserId, resolveExternalIdentityUsers } from '../services/externalIdentityRegistry.service';
+import {
+  canonicalExternalUserIdsQuery,
+  canonicalExternalUserMapQuery,
+  expandEquivalentUserIds,
+  getEquivalentUserGroups,
+  lookupExternalIdentity,
+  resolveCanonicalUserId,
+  resolveExternalIdentityUsers,
+} from '../services/externalIdentityRegistry.service';
 import { federationService, isFediverseHandle } from '../services/federation.service';
 import { validate } from '../middleware/validate';
 import { usernameParams, profileSearchQuerySchema } from '../schemas/profiles.schemas';
@@ -216,7 +220,7 @@ export function formatProfileResult(u: RecommendationRow) {
  * read zero. A join on a real foreign key cannot express that mistake.
  */
 async function loadProfileByPredicate(
-  predicate: SQL
+  predicate: SQL,
 ): Promise<{ view: PublicUserView; stats: { followers: number; following: number } } | null> {
   const [row] = await getDb()
     .select({ ...publicUserColumns, ...publicUserFollowCounts })
@@ -238,7 +242,9 @@ async function loadProfileByPredicate(
  * account id, and this route re-reads the row from Postgres by it rather than
  * trusting the returned document's shape for anything else.
  */
-function resolvedActorId(actor: { _id?: unknown; id?: unknown } | null | undefined): string | undefined {
+function resolvedActorId(
+  actor: { _id?: unknown; id?: unknown } | null | undefined,
+): string | undefined {
   if (!actor) return undefined;
   const raw = actor._id ?? actor.id;
   if (raw == null) return undefined;
@@ -368,9 +374,7 @@ router.get(
     const username = isFedHandle ? raw.replace(/^@/, '').toLowerCase() : raw;
 
     if (!username || username.length < MIN_USERNAME_LENGTH) {
-      throw new BadRequestError(
-        `Username must be at least ${MIN_USERNAME_LENGTH} characters`
-      );
+      throw new BadRequestError(`Username must be at least ${MIN_USERNAME_LENGTH} characters`);
     }
 
     if (!isFedHandle && username.length > MAX_USERNAME_LENGTH) {
@@ -382,16 +386,26 @@ router.get(
     // `username` case-SENSITIVELY while this lookup ran an anchored `/i` regex,
     // so every profile fetch was a collection scan; the index serves it here.
     const aliasId = isFedHandle ? await lookupExternalIdentity(username) : null;
-    let profile = await loadProfileByPredicate(aliasId ? eq(users.id, aliasId)
-      : sql`lower(btrim(${users.username})) = lower(btrim(${username}))`);
+    let profile = await loadProfileByPredicate(
+      aliasId
+        ? eq(users.id, aliasId)
+        : sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
+    );
     if (profile) {
       const canonicalId = await resolveCanonicalUserId(profile.view._id);
-      if (canonicalId !== profile.view._id) profile = await loadProfileByPredicate(eq(users.id, canonicalId));
+      if (canonicalId !== profile.view._id)
+        profile = await loadProfileByPredicate(eq(users.id, canonicalId));
     }
     const legacyActor = profile?.view.federation?.actorUri;
-    if (legacyActor && profile?.view.accountStatus !== 'archived' && await federationService.needsBridgeCanonicalization(legacyActor)) {
+    if (
+      legacyActor &&
+      profile?.view.accountStatus !== 'archived' &&
+      (await federationService.needsBridgeCanonicalization(legacyActor))
+    ) {
       const verified = await federationService.resolveExternalActorIdentity(legacyActor);
-      profile = verified ? await loadProfileByPredicate(eq(users.id, verified.externalIdentity.userId)) : null;
+      profile = verified
+        ? await loadProfileByPredicate(eq(users.id, verified.externalIdentity.userId))
+        : null;
     }
 
     // If not found and it's a fediverse handle, resolve via WebFinger
@@ -435,14 +449,14 @@ router.get(
     // empty; it is already public on the actor document.
     const withIdentities = await userService.withExternalIdentities(response);
     sendSuccess(res, { ...withIdentities, alsoKnownAs: await aliasesForUser(targetId) });
-  })
+  }),
 );
 
 /**
  * GET /profiles/search
- * 
+ *
  * Search for user profiles by username or name
- * 
+ *
  * @query {string} query - Search query (required)
  * @query {number} limit - Number of results (max 100, default 10)
  * @query {number} offset - Pagination offset (default 0)
@@ -497,9 +511,17 @@ router.get(
           total: sql<number>`count(*) over ()::int`,
         })
         .from(users)
-        .where(and(peopleSearchPredicate(), inArray(users.id, canonicalExternalUserIdsQuery(
-          sql`select ${users.id} from ${users} where ${and(peopleSearchPredicate(), peopleSearchMatch(sanitizedQuery))}`
-        ))))
+        .where(
+          and(
+            peopleSearchPredicate(),
+            inArray(
+              users.id,
+              canonicalExternalUserIdsQuery(
+                sql`select ${users.id} from ${users} where ${and(peopleSearchPredicate(), peopleSearchMatch(sanitizedQuery))}`,
+              ),
+            ),
+          ),
+        )
         .orderBy(...peopleSearchOrder())
         .offset(parsedOffset)
         .limit(parsedLimit),
@@ -531,7 +553,7 @@ router.get(
       // `resolveAndUpsert` hands back the cached row for a known actor, which
       // can be archived, `restricted`, or private.
       const resolvedProfile = await loadProfileByPredicate(
-        and(eq(users.id, fedId), peopleSearchPredicate()) ?? sql`false`
+        and(eq(users.id, fedId), peopleSearchPredicate()) ?? sql`false`,
       );
       if (resolvedProfile) {
         profiles.unshift(resolvedProfile);
@@ -545,7 +567,7 @@ router.get(
     }
 
     const enrichedProfiles = profiles.map((profile) =>
-      userService.formatUserResponse(profile.view, profile.stats)
+      userService.formatUserResponse(profile.view, profile.stats),
     );
 
     logger.debug('GET /profiles/search', {
@@ -556,7 +578,7 @@ router.get(
     });
 
     sendPaginated(res, enrichedProfiles, total, parsedLimit, parsedOffset);
-  })
+  }),
 );
 
 /**
@@ -585,13 +607,15 @@ router.get(
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
     // Normalize handle input: trim, strip optional `acct:` prefix, and remove a
     // single leading `@` so `@user@host` matches the stored `user@host` username.
-    const rawHandle = (req.query.handle as string || '')
+    const rawHandle = ((req.query.handle as string) || '')
       .trim()
       .replace(/^acct:/i, '')
       .replace(/^@/, '');
 
     if (!rawHandle) {
-      throw new BadRequestError('Invalid fediverse handle. Expected format: @user@domain or user@domain');
+      throw new BadRequestError(
+        'Invalid fediverse handle. Expected format: @user@domain or user@domain',
+      );
     }
 
     // Federated handles are stored lowercased; normalize before the local lookup
@@ -600,14 +624,22 @@ router.get(
 
     // Local-first: resolve an already-known user by exact username.
     const aliasId = await lookupExternalIdentity(handle);
-    let localProfile = await loadProfileByPredicate(aliasId ? eq(users.id, aliasId) : sql`lower(btrim(${users.username})) = lower(btrim(${handle}))`);
+    let localProfile = await loadProfileByPredicate(
+      aliasId
+        ? eq(users.id, aliasId)
+        : sql`lower(btrim(${users.username})) = lower(btrim(${handle}))`,
+    );
     if (localProfile) {
       const canonicalId = await resolveCanonicalUserId(localProfile.view._id);
-      if (canonicalId !== localProfile.view._id) localProfile = await loadProfileByPredicate(eq(users.id, canonicalId));
+      if (canonicalId !== localProfile.view._id)
+        localProfile = await loadProfileByPredicate(eq(users.id, canonicalId));
     }
     const legacyActorUri = localProfile?.view.federation?.actorUri;
-    if (legacyActorUri && localProfile?.view.accountStatus !== 'archived'
-      && await federationService.needsBridgeCanonicalization(legacyActorUri)) {
+    if (
+      legacyActorUri &&
+      localProfile?.view.accountStatus !== 'archived' &&
+      (await federationService.needsBridgeCanonicalization(legacyActorUri))
+    ) {
       const verified = await federationService.resolveExternalActorIdentity(legacyActorUri);
       // A transport identity may be shown after the source declined upstream
       // proof (e.g. bridge admin), but never before an unverified migration row
@@ -648,7 +680,9 @@ router.get(
     // No local user → genuine discovery of an unknown handle. Enforce the strict
     // fediverse-handle format only now, then WebFinger/ActivityPub resolve+upsert.
     if (!isFediverseHandle(handle)) {
-      throw new BadRequestError('Invalid fediverse handle. Expected format: @user@domain or user@domain');
+      throw new BadRequestError(
+        'Invalid fediverse handle. Expected format: @user@domain or user@domain',
+      );
     }
 
     const resolvedId = resolvedActorId(await federationService.resolveAndUpsert(handle));
@@ -679,7 +713,7 @@ router.get(
 
     logger.debug('GET /profiles/resolve', { handle });
     sendSuccess(res, await userService.withExternalIdentities(response));
-  })
+  }),
 );
 
 /**
@@ -734,7 +768,9 @@ router.get(
         .where(inArray(userFollows.followerId, groups[currentUserId] ?? [currentUserId])),
     ]);
 
-    const targetFollowerIds = await expandEquivalentUserIds(targetFollowers.map((edge) => edge.followerId));
+    const targetFollowerIds = await expandEquivalentUserIds(
+      targetFollowers.map((edge) => edge.followerId),
+    );
     const excludeIds = await expandEquivalentUserIds([
       currentUserId,
       targetUserId,
@@ -773,8 +809,8 @@ router.get(
             and(
               inArray(users.id, overlapIds),
               eq(users.privacyIsPrivateAccount, false),
-              eligibleUserPredicate(minFederatedResolvedAt)
-            )
+              eligibleUserPredicate(minFederatedResolvedAt),
+            ),
           );
 
         const eligibleById = new Map(rows.map((row) => [row._id, row]));
@@ -795,7 +831,7 @@ router.get(
     });
 
     sendSuccess(res, formattedSimilar);
-  })
+  }),
 );
 
 /**
@@ -879,7 +915,7 @@ async function resolveAuthorizedRecommendationClientId(
     const access = await accountService.resolveEffectiveAccess(
       operatorId,
       application.ownerAccountId,
-    req.sessionId
+      req.sessionId,
     );
     if (access) {
       return requestedAppId;
@@ -938,7 +974,9 @@ async function buildPopularFallback(
     .limit(PUBLIC_POPULAR_FOLLOW_WINDOW)
     .as('recent_window');
 
-  const candidateMap = canonicalExternalUserMapQuery(sql`select distinct ${recentWindow.followedId} from ${recentWindow}`);
+  const candidateMap = canonicalExternalUserMapQuery(
+    sql`select distinct ${recentWindow.followedId} from ${recentWindow}`,
+  );
   const ranked = await db.execute<{ id: string; followersCount: number }>(sql`
     select canonical.user_id as id, count(distinct ${recentWindow.followerId})::int as "followersCount"
     from ${recentWindow} join (${candidateMap}) canonical on canonical.source_user_id = ${recentWindow.followedId}
@@ -979,8 +1017,18 @@ async function buildPopularFallback(
     const randomUsers = await db
       .select({ ...recommendationColumns, ...publicUserFollowCounts })
       .from(users)
-      .where(and(notInArray(users.id, [...excludeIds, ...alreadyIncluded]), eligibility(), inArray(users.id,
-        canonicalExternalUserIdsQuery(sql`select ${users.id} from ${users} where ${eligibility()}`))))
+      .where(
+        and(
+          notInArray(users.id, [...excludeIds, ...alreadyIncluded]),
+          eligibility(),
+          inArray(
+            users.id,
+            canonicalExternalUserIdsQuery(
+              sql`select ${users.id} from ${users} where ${eligibility()}`,
+            ),
+          ),
+        ),
+      )
       .orderBy(sql`random()`)
       .limit(fillLimit);
 
@@ -1002,7 +1050,7 @@ async function buildPopularFallback(
  */
 async function buildRecommendationsScored(
   viewerId: string | undefined,
-  opts: RecommendationOptions
+  opts: RecommendationOptions,
 ): Promise<ReturnType<typeof formatProfileResult>[]> {
   const { limit: parsedLimit, offset: parsedOffset, excludeTypes } = opts;
   const minFederatedResolvedAt = new Date(Date.now() - FEDERATED_RECOMMENDATION_MAX_AGE_MS);
@@ -1080,8 +1128,8 @@ async function buildRecommendationsScored(
       .where(
         and(
           eq(appAffinityEdges.applicationId, opts.clientId),
-          eq(appAffinityEdges.fromUserId, viewerId)
-        )
+          eq(appAffinityEdges.fromUserId, viewerId),
+        ),
       )
       .orderBy(sql`${appAffinityEdges.affinity} desc`)
       .limit(MAX_AFFINITY_CANDIDATES);
@@ -1106,7 +1154,9 @@ async function buildRecommendationsScored(
   // ---- Candidate union minus excludeIds ∪ following ∪ self ----------------
   // No id normalization: a `text` id has ONE spelling, so the set membership
   // that `new ObjectId(...).toHexString()` used to guarantee is now structural.
-  const excluded = new Set<string>(opts.excludeIds.filter((id) => typeof id === 'string' && id.length > 0));
+  const excluded = new Set<string>(
+    opts.excludeIds.filter((id) => typeof id === 'string' && id.length > 0),
+  );
   if (viewerId) {
     excluded.add(viewerId);
   }
@@ -1140,8 +1190,13 @@ async function buildRecommendationsScored(
   foldSignals(mutualMap, Math.max);
   foldSignals(affinityMap, Math.max);
   foldSignals(boostMap, Math.max);
-  foldSignals(appSignalMap, (left, right) => ({ endorsementScore: Math.max(left.endorsementScore, right.endorsementScore), interestScore: Math.max(left.interestScore, right.interestScore) }));
-  const candidateIds = [...new Set([...candidateKeys].map(canonicalId))].filter(id => !canonicalExcluded.has(id));
+  foldSignals(appSignalMap, (left, right) => ({
+    endorsementScore: Math.max(left.endorsementScore, right.endorsementScore),
+    interestScore: Math.max(left.interestScore, right.interestScore),
+  }));
+  const candidateIds = [...new Set([...candidateKeys].map(canonicalId))].filter(
+    (id) => !canonicalExcluded.has(id),
+  );
 
   // When the personalized candidate union is empty (anonymous caller, or a
   // cold-start viewer with no mutual overlap / app signals / boosts), fall back
@@ -1211,10 +1266,7 @@ async function buildRecommendationsScored(
     const affinityScore = normalizeAffinity(affinityMap.get(key) ?? 0);
 
     const graphScore = Math.min(mutual / MUTUAL_COUNT_SATURATION, 1);
-    const curationScore = Math.max(
-      0,
-      Math.min(endorsement / ENDORSEMENT_SCORE_SATURATION, 1)
-    );
+    const curationScore = Math.max(0, Math.min(endorsement / ENDORSEMENT_SCORE_SATURATION, 1));
     const completeness = row.completenessScore;
     const verifiedScore = row.verifiedScore;
     const repCand = row.repCandScore;
@@ -1258,9 +1310,7 @@ async function buildRecommendationsScored(
     return a.row._id.localeCompare(b.row._id);
   });
 
-  const pageRows = scored
-    .slice(parsedOffset, parsedOffset + parsedLimit)
-    .map((s) => s.row);
+  const pageRows = scored.slice(parsedOffset, parsedOffset + parsedLimit).map((s) => s.row);
 
   // Follower/following counts are looked up for the PAGE ONLY — a single
   // aggregation over the (≤ limit) returned ids — so the scoring pass never pays
@@ -1300,7 +1350,7 @@ async function buildRecommendationsScored(
  */
 export async function buildRecommendations(
   viewerId: string | undefined,
-  opts: RecommendationOptions
+  opts: RecommendationOptions,
 ): Promise<ReturnType<typeof formatProfileResult>[]> {
   const redis = getRedisClient();
   const cacheKey = redis
@@ -1322,7 +1372,7 @@ export async function buildRecommendations(
         const profiles = JSON.parse(cached) as ReturnType<typeof formatProfileResult>[];
         // External groups are revocable; cached person mappings cannot outlive
         // source evidence or a moderation change. Local-only pages stay cached.
-        if (profiles.every(profile => !profile.isFederated)) return profiles;
+        if (profiles.every((profile) => !profile.isFederated)) return profiles;
       }
     } catch (error) {
       logger.warn('recommendations: cache read failed', {
@@ -1333,7 +1383,7 @@ export async function buildRecommendations(
 
   const result = await buildRecommendationsScored(viewerId, opts);
 
-  if (redis && cacheKey && result.every(profile => !profile.isFederated)) {
+  if (redis && cacheKey && result.every((profile) => !profile.isFederated)) {
     try {
       await redis.set(cacheKey, JSON.stringify(result), 'EX', REC_CACHE_TTL_SECONDS);
     } catch (error) {
@@ -1367,7 +1417,11 @@ router.get(
   optionalUserOrServiceAuth,
   validatePagination,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
-    const { limit, offset, excludeTypes: excludeTypesRaw } = req.query as PaginationQuery & { excludeTypes?: string };
+    const {
+      limit,
+      offset,
+      excludeTypes: excludeTypesRaw,
+    } = req.query as PaginationQuery & { excludeTypes?: string };
     const currentUserId = resolveViewerId(req);
 
     const excludeTypes = parseExcludeTypesQuery(excludeTypesRaw);
@@ -1392,7 +1446,7 @@ router.get(
     });
 
     sendSuccess(res, recommendations);
-  })
+  }),
 );
 
 /**
@@ -1439,7 +1493,7 @@ router.post(
     });
 
     sendSuccess(res, recommendations);
-  })
+  }),
 );
 
 export default router;

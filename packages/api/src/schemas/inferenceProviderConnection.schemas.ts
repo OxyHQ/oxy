@@ -37,9 +37,7 @@ const idParam = z.string().min(1).max(128);
 
 export const providerConnectionAccountParams = z.object({ accountId: idParam }).strict();
 
-export const providerConnectionApplicationParams = z
-  .object({ applicationId: idParam })
-  .strict();
+export const providerConnectionApplicationParams = z.object({ applicationId: idParam }).strict();
 
 export const providerConnectionParams = z.object({ connectionId: idParam }).strict();
 
@@ -88,9 +86,7 @@ export const providerConnectionAccountBody = providerCredentialBody
   .strict();
 
 /** The rotation body: a new credential and nothing else. */
-export const providerConnectionRotateBody = z
-  .object({ secret: providerCredentialSecret })
-  .strict();
+export const providerConnectionRotateBody = z.object({ secret: providerCredentialSecret }).strict();
 
 /**
  * A validation verdict, as the component that HOLDS the credential reports it.
@@ -140,8 +136,8 @@ export const providerCredentialValidationApplicationQuery = z
   .strict();
 
 /** Kaana's terminal, exact-selector callback. Pending is not an outcome. */
-export const providerCredentialValidationOutcomeBody = kaanaCredentialValidationOutcomeSchema
-  .refine((outcome) => outcome.state !== 'pending', {
+export const providerCredentialValidationOutcomeBody =
+  kaanaCredentialValidationOutcomeSchema.refine((outcome) => outcome.state !== 'pending', {
     path: ['state'],
     message: 'a callback must carry a terminal validation outcome',
   });

@@ -58,12 +58,14 @@ export function createSecureStoreMock() {
     __esModule: true,
     WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY',
     WHEN_UNLOCKED: 'WHEN_UNLOCKED',
-    setItemAsync: jest.fn(async (key: string, value: string, opts?: { keychainService?: string }) => {
-      maybeFail('set', key, opts?.keychainService);
-      const ck = compositeKey(opts?.keychainService, key);
-      poisoned.delete(ck); // a fresh write mints a new (readable) keystore entry
-      store.set(ck, value);
-    }),
+    setItemAsync: jest.fn(
+      async (key: string, value: string, opts?: { keychainService?: string }) => {
+        maybeFail('set', key, opts?.keychainService);
+        const ck = compositeKey(opts?.keychainService, key);
+        poisoned.delete(ck); // a fresh write mints a new (readable) keystore entry
+        store.set(ck, value);
+      },
+    ),
     getItemAsync: jest.fn(async (key: string, opts?: { keychainService?: string }) => {
       maybeFail('get', key, opts?.keychainService);
       const ck = compositeKey(opts?.keychainService, key);
@@ -89,7 +91,8 @@ export function createSecureStoreMock() {
       failPlan.failService = undefined;
     },
     __getStore__: () => store,
-    __getRaw__: (key: string, service?: string): string | null => store.get(compositeKey(service, key)) ?? null,
+    __getRaw__: (key: string, service?: string): string | null =>
+      store.get(compositeKey(service, key)) ?? null,
     __setRaw__: (key: string, value: string, service?: string): void => {
       store.set(compositeKey(service, key), value);
     },

@@ -70,18 +70,20 @@ beforeEach(() => {
 });
 
 it('rejects string-shaped grant limits with 400 and no database access', async () => {
-  const response = await request(app).post('/capabilities/grants').send({
-    ownerAccountId: 'owner-account',
-    actorAccountId: 'agent-account',
-    resource,
-    capabilityPackages: ['read'],
-    capabilities: ['email.read'],
-    toolOverrides: [],
-    limits: [{ tool: 'searchEmails', key: 'q', value: 'private prompt marker' }],
-    maximumAutonomy: 'read_only',
-    canRedelegate: false,
-    expiresAt: null,
-  });
+  const response = await request(app)
+    .post('/capabilities/grants')
+    .send({
+      ownerAccountId: 'owner-account',
+      actorAccountId: 'agent-account',
+      resource,
+      capabilityPackages: ['read'],
+      capabilities: ['email.read'],
+      toolOverrides: [],
+      limits: [{ tool: 'searchEmails', key: 'q', value: 'private prompt marker' }],
+      maximumAutonomy: 'read_only',
+      canRedelegate: false,
+      expiresAt: null,
+    });
 
   expect(response.status).toBe(400);
   expect(response.body.error).toBe('invalid_grant');
@@ -89,19 +91,21 @@ it('rejects string-shaped grant limits with 400 and no database access', async (
 });
 
 it('rejects list-shaped execution limits with 400 and no database access', async () => {
-  const response = await request(app).post('/capabilities/execution-authorizations').send({
-    kind: 'direct_request',
-    ownerAccountId: 'owner-account',
-    coordinatorApplicationId: 'alia-app',
-    coordinatorCredentialId: 'alia-credential',
-    actor: { type: 'alia', ownerAccountId: 'owner-account' },
-    resource,
-    tool: 'searchEmails',
-    runId: 'run-1',
-    maximumAutonomy: 'read_only',
-    limits: [{ tool: 'searchEmails', key: 'q', value: ['private prompt marker'] }],
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  });
+  const response = await request(app)
+    .post('/capabilities/execution-authorizations')
+    .send({
+      kind: 'direct_request',
+      ownerAccountId: 'owner-account',
+      coordinatorApplicationId: 'alia-app',
+      coordinatorCredentialId: 'alia-credential',
+      actor: { type: 'alia', ownerAccountId: 'owner-account' },
+      resource,
+      tool: 'searchEmails',
+      runId: 'run-1',
+      maximumAutonomy: 'read_only',
+      limits: [{ tool: 'searchEmails', key: 'q', value: ['private prompt marker'] }],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
 
   expect(response.status).toBe(400);
   expect(response.body.error).toBe('invalid_execution_authorization');
@@ -109,18 +113,20 @@ it('rejects list-shaped execution limits with 400 and no database access', async
 });
 
 it('rejects a direct execution authorization without its exact run', async () => {
-  const response = await request(app).post('/capabilities/execution-authorizations').send({
-    kind: 'direct_request',
-    ownerAccountId: 'owner-account',
-    coordinatorApplicationId: 'alia-app',
-    coordinatorCredentialId: 'alia-credential',
-    actor: { type: 'alia', ownerAccountId: 'owner-account' },
-    resource,
-    tool: 'searchEmails',
-    maximumAutonomy: 'read_only',
-    limits: [],
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  });
+  const response = await request(app)
+    .post('/capabilities/execution-authorizations')
+    .send({
+      kind: 'direct_request',
+      ownerAccountId: 'owner-account',
+      coordinatorApplicationId: 'alia-app',
+      coordinatorCredentialId: 'alia-credential',
+      actor: { type: 'alia', ownerAccountId: 'owner-account' },
+      resource,
+      tool: 'searchEmails',
+      maximumAutonomy: 'read_only',
+      limits: [],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
 
   expect(response.status).toBe(400);
   expect(response.body.error).toBe('invalid_execution_authorization');
@@ -128,20 +134,22 @@ it('rejects a direct execution authorization without its exact run', async () =>
 });
 
 it('rejects a durable automation authorization pre-bound to a future run', async () => {
-  const response = await request(app).post('/capabilities/execution-authorizations').send({
-    kind: 'automation',
-    ownerAccountId: 'owner-account',
-    coordinatorApplicationId: 'alia-app',
-    coordinatorCredentialId: 'alia-credential',
-    actor: { type: 'agent', accountId: 'agent-account' },
-    resource,
-    tool: 'searchEmails',
-    runId: 'future-run',
-    automationId: 'automation-1',
-    maximumAutonomy: 'autonomous',
-    limits: [],
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  });
+  const response = await request(app)
+    .post('/capabilities/execution-authorizations')
+    .send({
+      kind: 'automation',
+      ownerAccountId: 'owner-account',
+      coordinatorApplicationId: 'alia-app',
+      coordinatorCredentialId: 'alia-credential',
+      actor: { type: 'agent', accountId: 'agent-account' },
+      resource,
+      tool: 'searchEmails',
+      runId: 'future-run',
+      automationId: 'automation-1',
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
 
   expect(response.status).toBe(400);
   expect(response.body.error).toBe('invalid_execution_authorization');
@@ -149,15 +157,17 @@ it('rejects a durable automation authorization pre-bound to a future run', async
 });
 
 it('rejects free-form audit messages with 400 and no persistence edge', async () => {
-  const response = await request(app).post('/capabilities/audit').send({
-    ticket: 'capability-ticket',
-    result: {
-      status: 'denied',
-      code: 'policy_denied',
-      message: 'private prompt marker',
-    },
-    rollback: { supported: false, attempted: false },
-  });
+  const response = await request(app)
+    .post('/capabilities/audit')
+    .send({
+      ticket: 'capability-ticket',
+      result: {
+        status: 'denied',
+        code: 'policy_denied',
+        message: 'private prompt marker',
+      },
+      rollback: { supported: false, attempted: false },
+    });
 
   expect(response.status).toBe(400);
   expect(response.body.error).toBe('invalid_audit_event');
@@ -166,13 +176,15 @@ it('rejects free-form audit messages with 400 and no persistence edge', async ()
 });
 
 it('rejects ambiguous raw and pre-hashed idempotency audit fields', async () => {
-  const response = await request(app).post('/capabilities/audit').send({
-    ticket: 'capability-ticket',
-    result: { status: 'succeeded' },
-    rollback: { supported: false, attempted: false },
-    idempotencyKey: 'raw-key',
-    idempotencyKeyHash: 'a'.repeat(64),
-  });
+  const response = await request(app)
+    .post('/capabilities/audit')
+    .send({
+      ticket: 'capability-ticket',
+      result: { status: 'succeeded' },
+      rollback: { supported: false, attempted: false },
+      idempotencyKey: 'raw-key',
+      idempotencyKeyHash: 'a'.repeat(64),
+    });
 
   expect(response.status).toBe(400);
   expect(response.body.error).toBe('invalid_audit_event');

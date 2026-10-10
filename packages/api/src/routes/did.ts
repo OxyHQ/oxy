@@ -133,12 +133,13 @@ router.get('/u/:userId/did.json', async (req: Request, res: Response) => {
     setDidHeaders(res);
     return res.json(document);
   } catch (err) {
-    logger.error(
-      'DID document build failed',
-      err instanceof Error ? err : new Error(String(err)),
-      { component: 'did', method: 'GET /u/:userId/did.json' },
-    );
-    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to build DID document' });
+    logger.error('DID document build failed', err instanceof Error ? err : new Error(String(err)), {
+      component: 'did',
+      method: 'GET /u/:userId/did.json',
+    });
+    return res
+      .status(500)
+      .json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to build DID document' });
   }
 });
 

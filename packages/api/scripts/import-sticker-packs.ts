@@ -34,7 +34,12 @@ import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { PUBLIC_KEY_PREFIX } from '../src/config/cdn';
 import { stickerPacks, stickers } from '../src/db/schema/stickers';
 import { s3Service } from '../src/services/s3ServiceSingleton';
-import { addSticker, createPack, deleteDraftPack, publishPack } from '../src/services/stickers.service';
+import {
+  addSticker,
+  createPack,
+  deleteDraftPack,
+  publishPack,
+} from '../src/services/stickers.service';
 import type { StickerManifest } from './sticker-packs/names';
 
 function flag(name: string): boolean {
@@ -43,7 +48,9 @@ function flag(name: string): boolean {
 }
 
 async function stickerCount(packId: string): Promise<number> {
-  return (await getDb().select({ id: stickers.id }).from(stickers).where(eq(stickers.packId, packId))).length;
+  return (
+    await getDb().select({ id: stickers.id }).from(stickers).where(eq(stickers.packId, packId))
+  ).length;
 }
 
 async function main(): Promise<void> {
@@ -52,20 +59,30 @@ async function main(): Promise<void> {
     throw new Error('STICKER_IMPORT_PREFIX must be a relative key prefix ending in "/"');
   }
   if (prefix.startsWith(PUBLIC_KEY_PREFIX)) {
-    throw new Error(`STICKER_IMPORT_PREFIX must not be under "${PUBLIC_KEY_PREFIX}": staged art must not be CDN-reachable`);
+    throw new Error(
+      `STICKER_IMPORT_PREFIX must not be under "${PUBLIC_KEY_PREFIX}": staged art must not be CDN-reachable`,
+    );
   }
   const publish = flag('PUBLISH');
   const dryRun = flag('DRY_RUN');
 
-  const manifest = JSON.parse((await s3Service.downloadBuffer(`${prefix}manifest.json`)).toString('utf8')) as StickerManifest;
+  const manifest = JSON.parse(
+    (await s3Service.downloadBuffer(`${prefix}manifest.json`)).toString('utf8'),
+  ) as StickerManifest;
   const total = manifest.packs.reduce((sum, pack) => sum + pack.stickers.length, 0);
-  console.log(`manifest: ${manifest.packs.length} packs, ${total} stickers${dryRun ? ' (DRY_RUN)' : ''}`);
+  console.log(
+    `manifest: ${manifest.packs.length} packs, ${total} stickers${dryRun ? ' (DRY_RUN)' : ''}`,
+  );
 
   await connectPostgres();
   let failed = 0;
   try {
     for (const pack of manifest.packs) {
-      const [current] = await getDb().select().from(stickerPacks).where(eq(stickerPacks.slug, pack.slug)).limit(1);
+      const [current] = await getDb()
+        .select()
+        .from(stickerPacks)
+        .where(eq(stickerPacks.slug, pack.slug))
+        .limit(1);
       if (current) {
         const count = await stickerCount(current.id);
         if (count === pack.stickers.length) {
@@ -77,7 +94,9 @@ async function main(): Promise<void> {
           continue;
         }
         if (current.status !== 'draft') {
-          console.log(`! ${pack.slug}: ${current.status} with ${count} stickers but ${pack.stickers.length} in the manifest — left alone`);
+          console.log(
+            `! ${pack.slug}: ${current.status} with ${count} stickers but ${pack.stickers.length} in the manifest — left alone`,
+          );
           continue;
         }
         if (dryRun) {
@@ -106,7 +125,9 @@ async function main(): Promise<void> {
           console.log(`  ${sticker.emoji} ${sticker.file} → ${added.id}`);
         } catch (error) {
           failed += 1;
-          console.log(`  ✗ ${sticker.file}: ${error instanceof Error ? error.message : String(error)}`);
+          console.log(
+            `  ✗ ${sticker.file}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
       const imported = await stickerCount(created.id);
@@ -114,7 +135,7 @@ async function main(): Promise<void> {
         await publishPack(created.id);
       }
       console.log(
-        `+ ${pack.slug}: ${imported}/${pack.stickers.length} stickers${publish && imported === pack.stickers.length ? ', published' : ' (draft)'}`
+        `+ ${pack.slug}: ${imported}/${pack.stickers.length} stickers${publish && imported === pack.stickers.length ? ', published' : ' (draft)'}`,
       );
     }
   } finally {
@@ -128,6 +149,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : error);
+  console.error(error instanceof Error ? (error.stack ?? error.message) : error);
   process.exit(1);
 });

@@ -5,4 +5,3 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
  * Ensures type safety when using icon names throughout the application
  */
 export type MaterialCommunityIconName = keyof typeof MaterialCommunityIcons.glyphMap;
-

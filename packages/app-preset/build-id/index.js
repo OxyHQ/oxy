@@ -16,7 +16,10 @@ function resolveOxyBuildId(projectRoot = process.cwd()) {
   const ciCommit = process.env.GITHUB_SHA || process.env.EAS_BUILD_GIT_COMMIT_HASH;
   if (ciCommit) return ciCommit;
   try {
-    return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: projectRoot, stdio: ['ignore', 'pipe', 'ignore'] })
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: projectRoot,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
       .toString()
       .trim();
   } catch {

@@ -20,8 +20,19 @@ export interface RenderContext {
 }
 
 const BINARY_EXTENSIONS = new Set([
-  '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.bmp',
-  '.ttf', '.otf', '.woff', '.woff2', '.pdf', '.zip',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.ico',
+  '.webp',
+  '.bmp',
+  '.ttf',
+  '.otf',
+  '.woff',
+  '.woff2',
+  '.pdf',
+  '.zip',
 ]);
 
 const SECTION_RE = /\{\{([#^])([A-Za-z0-9_]+)\}\}([\s\S]*?)\{\{\/\2\}\}/;
@@ -52,7 +63,11 @@ function applyTokens(content: string, tokens: Record<string, string>, sourceLabe
 }
 
 /** Renders a single template string: sections first, then token substitution. */
-export function renderString(content: string, ctx: RenderContext, sourceLabel = '<string>'): string {
+export function renderString(
+  content: string,
+  ctx: RenderContext,
+  sourceLabel = '<string>',
+): string {
   return applyTokens(applySections(content, ctx.flags), ctx.tokens, sourceLabel);
 }
 
@@ -76,7 +91,11 @@ function isBinary(fileName: string): boolean {
  * Renders one template directory tree into `destDir`, applying the conventions
  * above. Returns the list of written output file paths (absolute).
  */
-export async function renderTree(srcDir: string, destDir: string, ctx: RenderContext): Promise<string[]> {
+export async function renderTree(
+  srcDir: string,
+  destDir: string,
+  ctx: RenderContext,
+): Promise<string[]> {
   const written: string[] = [];
   const entries = await fs.readdir(srcDir, { withFileTypes: true });
 

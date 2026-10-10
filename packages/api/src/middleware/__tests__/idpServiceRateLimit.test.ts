@@ -21,11 +21,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 
-import {
-  rateLimiter,
-  idpServiceLimiter,
-  isIdpServiceToServicePath,
-} from '../security';
+import { rateLimiter, idpServiceLimiter, isIdpServiceToServicePath } from '../security';
 
 interface Probe {
   status: number;
@@ -40,7 +36,7 @@ function get(server: http.Server, path: string): Promise<Probe> {
       (res) => {
         res.on('data', () => undefined);
         res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers }));
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -91,9 +87,7 @@ describe('general limiter (rl:general) exempts IdP service paths', () => {
   });
 
   it('does not consume / emit the general budget on exempt paths', async () => {
-    for (const path of [
-      '/session/validate/sess-abc',
-    ]) {
+    for (const path of ['/session/validate/sess-abc']) {
       const res = await get(server, path);
       expect(res.status).toBe(200);
       // A skipped request never touches the store and emits NO RateLimit

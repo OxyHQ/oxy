@@ -5,9 +5,7 @@ import { Icons } from '@/constants/icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  ImportantBanner,
-} from '@/components/ui';
+import { ImportantBanner } from '@/components/ui';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useTranslation } from '@/lib/i18n';
 
@@ -103,7 +101,7 @@ export function RecoveryPhraseStep({
           showsVerticalScrollIndicator={false}
         >
           <View className="items-center mb-space-20 px-space-8">
-            <Icons.key size='2xl' fill={colors.error} />
+            <Icons.key size="2xl" fill={colors.error} />
             <Text style={[styles.title, { color: textColor }]}>
               {t('auth.recoveryPhrase.missingTitle')}
             </Text>
@@ -124,10 +122,8 @@ export function RecoveryPhraseStep({
         keyboardShouldPersistTaps="handled"
       >
         <View className="items-center mb-space-20 px-space-8">
-          <Icons.shield size='2xl' fill={colors.tint} />
-          <Text style={[styles.title, { color: textColor }]}>
-            {t('auth.recoveryPhrase.title')}
-          </Text>
+          <Icons.shield size="2xl" fill={colors.tint} />
+          <Text style={[styles.title, { color: textColor }]}>{t('auth.recoveryPhrase.title')}</Text>
           <Text style={[styles.subtitle, { color: textColor, opacity: 0.7 }]}>
             {t('auth.recoveryPhrase.subtitle')}
           </Text>
@@ -146,7 +142,9 @@ export function RecoveryPhraseStep({
             },
           ]}
           accessibilityRole="text"
-          accessibilityLabel={revealed ? t('auth.recoveryPhrase.title') : t('auth.recoveryPhrase.showButton')}
+          accessibilityLabel={
+            revealed ? t('auth.recoveryPhrase.title') : t('auth.recoveryPhrase.showButton')
+          }
         >
           {!revealed ? (
             <TouchableOpacity
@@ -156,7 +154,7 @@ export function RecoveryPhraseStep({
               accessibilityRole="button"
               accessibilityLabel={t('auth.recoveryPhrase.showButton')}
             >
-              <Icons.hidden size='xl' fill={textColor} />
+              <Icons.hidden size="xl" fill={textColor} />
               <Text style={[styles.revealLabel, { color: textColor }]}>
                 {t('auth.recoveryPhrase.showButton')}
               </Text>
@@ -174,7 +172,7 @@ export function RecoveryPhraseStep({
               accessibilityRole="button"
               accessibilityLabel={t('auth.recoveryPhrase.hideButton')}
             >
-              <Icons.hidden size='sm' fill={colors.tint} />
+              <Icons.hidden size="sm" fill={colors.tint} />
               <Text style={[styles.hideLinkText, { color: colors.tint }]}>
                 {t('auth.recoveryPhrase.hideButton')}
               </Text>
@@ -207,7 +205,16 @@ export function RecoveryPhraseStep({
           </Text>
         </TouchableOpacity>
 
-        <Button appearance="solid" tone="accent" onPress={onContinue} disabled={!revealed || !acknowledged || isContinuing} loading={isContinuing} className="mt-space-4">{t('auth.recoveryPhrase.continueButton')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          onPress={onContinue}
+          disabled={!revealed || !acknowledged || isContinuing}
+          loading={isContinuing}
+          className="mt-space-4"
+        >
+          {t('auth.recoveryPhrase.continueButton')}
+        </Button>
       </ScrollView>
     </View>
   );

@@ -21,8 +21,12 @@ jest.mock('../inboxRealtime', () => ({
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
@@ -72,7 +76,10 @@ async function store(userId: string, mailboxId: string, labels: string[]): Promi
 }
 
 async function labelsOf(messageId: string): Promise<string[]> {
-  const [row] = await getDb().select({ labels: messages.labels }).from(messages).where(eq(messages.id, messageId));
+  const [row] = await getDb()
+    .select({ labels: messages.labels })
+    .from(messages)
+    .where(eq(messages.id, messageId));
   return row.labels;
 }
 
@@ -188,7 +195,9 @@ describe('updateLabel — a rename follows the label everywhere it is named', ()
     const label = await emailService.createLabel(userId, 'holidays', '#000000');
     const message = await store(userId, box, ['holidays']);
 
-    await expect(emailService.updateLabel(userId, label.id, { name: 'Holidays' })).resolves.toMatchObject({
+    await expect(
+      emailService.updateLabel(userId, label.id, { name: 'Holidays' }),
+    ).resolves.toMatchObject({
       name: 'Holidays',
     });
     expect(await labelsOf(message)).toEqual(['Holidays']);
@@ -215,7 +224,9 @@ describe('updateLabel — a rename follows the label everywhere it is named', ()
     const label = await emailService.createLabel(userId, 'Calm', '#000000');
     await store(userId, box, ['Calm']);
 
-    await expect(emailService.updateLabel(userId, label.id, { name: 'Calm', color: '#ffffff' })).resolves.toMatchObject({
+    await expect(
+      emailService.updateLabel(userId, label.id, { name: 'Calm', color: '#ffffff' }),
+    ).resolves.toMatchObject({
       name: 'Calm',
       color: '#ffffff',
     });
@@ -228,7 +239,9 @@ describe('createLabel — a duplicate is a conflict, not a server error', () => 
     const userId = await owner();
     await emailService.createLabel(userId, 'Taxes', '#000000');
 
-    await expect(emailService.createLabel(userId, 'TAXES', '#000000')).rejects.toBeInstanceOf(ConflictError);
+    await expect(emailService.createLabel(userId, 'TAXES', '#000000')).rejects.toBeInstanceOf(
+      ConflictError,
+    );
   });
 
   it('turns the unique-index refusal of a racing create into 409 too', async () => {

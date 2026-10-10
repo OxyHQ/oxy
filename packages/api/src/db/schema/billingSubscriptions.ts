@@ -135,7 +135,7 @@ export const billingSubscriptions = pgTable(
 
     check(
       'billing_subscriptions_status_check',
-      sql`${t.status} in (${sql.raw(BILLING_SUBSCRIPTION_STATUSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.status} in (${sql.raw(BILLING_SUBSCRIPTION_STATUSES.map((value) => `'${value}'`).join(', '))})`,
     ),
-  ]
+  ],
 );

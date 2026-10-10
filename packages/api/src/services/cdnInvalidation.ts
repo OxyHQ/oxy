@@ -107,7 +107,10 @@ export interface InvalidationPlan {
  * {@link MAX_EXACT_PATHS_PER_REQUEST} exact paths go per request; the rest stay
  * queued for the next one.
  */
-export function planInvalidationPaths(paths: Iterable<string>, wildcardBudget = MAX_WILDCARDS_PER_REQUEST): InvalidationPlan {
+export function planInvalidationPaths(
+  paths: Iterable<string>,
+  wildcardBudget = MAX_WILDCARDS_PER_REQUEST,
+): InvalidationPlan {
   const byVariantDir = new Map<string, string[]>();
   const singles: string[] = [];
   for (const path of new Set(paths)) {
@@ -158,7 +161,9 @@ class CloudFrontSender implements InvalidationSender {
       const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
       this.client = new CloudFrontClient({
         region: process.env.AWS_REGION || 'us-east-1',
-        ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
+        ...(accessKeyId && secretAccessKey
+          ? { credentials: { accessKeyId, secretAccessKey } }
+          : {}),
         requestHandler: {
           connectionTimeout: CLOUDFRONT_CONNECTION_TIMEOUT_MS,
           requestTimeout: CLOUDFRONT_REQUEST_TIMEOUT_MS,
@@ -262,11 +267,14 @@ export class CdnInvalidationQueue {
       this.failures.delete(path);
       dropped.push(path);
     }
-    logger.error('CDN invalidation queue full: DROPPED the oldest paths; these deleted objects remain cached at the CDN edge', {
-      distributionId: this.distributionId,
-      cap: MAX_PENDING_PATHS,
-      paths: dropped,
-    });
+    logger.error(
+      'CDN invalidation queue full: DROPPED the oldest paths; these deleted objects remain cached at the CDN edge',
+      {
+        distributionId: this.distributionId,
+        cap: MAX_PENDING_PATHS,
+        paths: dropped,
+      },
+    );
   }
 
   private schedule(delayMs: number): void {
@@ -287,7 +295,10 @@ export class CdnInvalidationQueue {
   }
 
   private retryDelayMs(): number {
-    return Math.min(this.flushDelayMs * 2 ** Math.max(this.consecutiveFailures, 1), MAX_RETRY_DELAY_MS);
+    return Math.min(
+      this.flushDelayMs * 2 ** Math.max(this.consecutiveFailures, 1),
+      MAX_RETRY_DELAY_MS,
+    );
   }
 
   /** One CreateInvalidation. Returns false when it failed. */
@@ -337,7 +348,9 @@ export class CdnInvalidationQueue {
 
       const dropped: string[] = [];
       for (const path of plan.covered) {
-        const failures = throttled ? this.failures.get(path) ?? 0 : (this.failures.get(path) ?? 0) + 1;
+        const failures = throttled
+          ? (this.failures.get(path) ?? 0)
+          : (this.failures.get(path) ?? 0) + 1;
         if (failures >= MAX_ATTEMPTS) {
           this.failures.delete(path);
           dropped.push(path);
@@ -348,22 +361,28 @@ export class CdnInvalidationQueue {
       }
       this.enforceCap();
 
-      logger.error('CDN invalidation FAILED; deleted objects are still served from the CDN edge — will retry', {
-        distributionId,
-        errorName: name,
-        error: message,
-        throttled,
-        consecutiveFailures: this.consecutiveFailures,
-        paths: batch.length,
-        samplePaths: batch.slice(0, 5),
-      });
-      if (dropped.length > 0) {
-        logger.error('CDN invalidation DROPPED after repeated failures; these deleted objects remain cached at the CDN edge', {
+      logger.error(
+        'CDN invalidation FAILED; deleted objects are still served from the CDN edge — will retry',
+        {
           distributionId,
           errorName: name,
-          attempts: MAX_ATTEMPTS,
-          paths: dropped,
-        });
+          error: message,
+          throttled,
+          consecutiveFailures: this.consecutiveFailures,
+          paths: batch.length,
+          samplePaths: batch.slice(0, 5),
+        },
+      );
+      if (dropped.length > 0) {
+        logger.error(
+          'CDN invalidation DROPPED after repeated failures; these deleted objects remain cached at the CDN edge',
+          {
+            distributionId,
+            errorName: name,
+            attempts: MAX_ATTEMPTS,
+            paths: dropped,
+          },
+        );
       }
       return false;
     }
@@ -375,7 +394,9 @@ let singleton: CdnInvalidationQueue | null = null;
 /** The process-wide queue, configured from `CDN_CLOUDFRONT_DISTRIBUTION_ID`. */
 export function getCdnInvalidationQueue(): CdnInvalidationQueue {
   if (!singleton) {
-    singleton = new CdnInvalidationQueue({ distributionId: process.env.CDN_CLOUDFRONT_DISTRIBUTION_ID });
+    singleton = new CdnInvalidationQueue({
+      distributionId: process.env.CDN_CLOUDFRONT_DISTRIBUTION_ID,
+    });
   }
   return singleton;
 }
@@ -394,10 +415,13 @@ export async function flushCdnInvalidations(
   try {
     const result = await Promise.race([queue.flush().then(() => 'done' as const), timedOut]);
     if (result === 'timeout') {
-      logger.error('CDN invalidation flush on shutdown timed out; these deleted objects remain cached at the CDN edge', {
-        timeoutMs,
-        paths: queue.pendingPaths(),
-      });
+      logger.error(
+        'CDN invalidation flush on shutdown timed out; these deleted objects remain cached at the CDN edge',
+        {
+          timeoutMs,
+          paths: queue.pendingPaths(),
+        },
+      );
     }
   } catch (error) {
     logger.error('CDN invalidation flush on shutdown failed', {

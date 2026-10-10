@@ -55,7 +55,7 @@ export const emailFilters = pgTable(
     // "This user's enabled filters, in order" — the only read there is.
     // Mongo's standalone `{userId}` is dropped: this leads with `user_id`.
     index('email_filters_user_id_enabled_order_idx').on(t.userId, t.enabled, t.order),
-  ]
+  ],
 );
 
 /**

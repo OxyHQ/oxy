@@ -1,9 +1,6 @@
 import type { Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
-import {
-  isPremiumSubscriptionPlan,
-  resolveUserSubscriptionPlan,
-} from '../utils/subscriptionPlan';
+import { isPremiumSubscriptionPlan, resolveUserSubscriptionPlan } from '../utils/subscriptionPlan';
 import type { AuthRequest } from './auth';
 
 export const checkPremiumAccess = async (req: AuthRequest, res: Response, next: NextFunction) => {

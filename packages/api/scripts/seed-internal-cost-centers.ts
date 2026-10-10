@@ -123,7 +123,7 @@ async function observe(spec: InternalCostCenterSpec): Promise<CostCenterObservat
  */
 async function createCostCenterAccount(
   spec: InternalCostCenterSpec,
-  platformOwnerId: string
+  platformOwnerId: string,
 ): Promise<string> {
   const { account } = await accountService.createChildAccount(platformOwnerId, platformOwnerId, {
     kind: 'project',
@@ -153,7 +153,7 @@ async function seed(specs: readonly InternalCostCenterSpec[]): Promise<void> {
   if (!owner) {
     throw new Error(
       `Platform owner "${ownerUsername}" not found — refusing to seed. ` +
-        'Set OXY_USERNAME to the correct platform owner username.'
+        'Set OXY_USERNAME to the correct platform owner username.',
     );
   }
   logger.info('Resolved platform owner', { username: ownerUsername, ownerId: owner.id });
@@ -184,8 +184,7 @@ async function seed(specs: readonly InternalCostCenterSpec[]): Promise<void> {
       unchanged += 1;
     }
 
-    let accountId =
-      plan.action.kind === 'create' ? DRY_RUN_PLACEHOLDER_ID : plan.action.accountId;
+    let accountId = plan.action.kind === 'create' ? DRY_RUN_PLACEHOLDER_ID : plan.action.accountId;
     let createdAccount = false;
     let registeredCostCenter = false;
 
@@ -214,12 +213,12 @@ async function seed(specs: readonly InternalCostCenterSpec[]): Promise<void> {
           case 'unknown-account':
             throw new Error(
               `Cost centre "${spec.name}" names account ${result.accountId}, which does not ` +
-                'exist. Nothing was labelled.'
+                'exist. Nothing was labelled.',
             );
           case 'slug-taken':
             throw new Error(
               `The slug "${result.slug}" already names a different account. A slug is how ` +
-                'historical reports address a cost centre and must never move.'
+                'historical reports address a cost centre and must never move.',
             );
         }
       }
@@ -279,7 +278,7 @@ main().catch((error) => {
   logger.error(
     'Cost centre seed failed',
     error instanceof Error ? error : new Error(String(error)),
-    { component: 'seed-internal-cost-centers', method: 'main' }
+    { component: 'seed-internal-cost-centers', method: 'main' },
   );
   process.exit(1);
 });

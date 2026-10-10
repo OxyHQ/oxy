@@ -49,8 +49,7 @@ function oxySplashScreenPlugin(options) {
     );
   }
 
-  const imageWidth =
-    typeof options.imageWidth === 'number' ? options.imageWidth : 176;
+  const imageWidth = typeof options.imageWidth === 'number' ? options.imageWidth : 176;
   const backgroundColor = options.backgroundColor || '#0B0B0F';
   const resizeMode = options.resizeMode || 'contain';
   const darkImage = options.darkImage || options.image;

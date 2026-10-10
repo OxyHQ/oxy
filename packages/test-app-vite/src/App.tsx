@@ -1,27 +1,23 @@
-import { useState } from "react"
-import { useAuth } from "@oxy.so/services"
-import { AppSidebar, type Page } from "@/components/app-sidebar"
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
-import { AuthDemo } from "@/pages/AuthDemo"
-import { ProfileDemo } from "@/pages/ProfileDemo"
-import { SessionsDemo } from "@/pages/SessionsDemo"
-import { FilesDemo } from "@/pages/FilesDemo"
-import { SocialDemo } from "@/pages/SocialDemo"
-import { SecurityDemo } from "@/pages/SecurityDemo"
+import { useState } from 'react';
+import { useAuth } from '@oxy.so/services';
+import { AppSidebar, type Page } from '@/components/app-sidebar';
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { Separator } from '@/components/ui/separator';
+import { AuthDemo } from '@/pages/AuthDemo';
+import { ProfileDemo } from '@/pages/ProfileDemo';
+import { SessionsDemo } from '@/pages/SessionsDemo';
+import { FilesDemo } from '@/pages/FilesDemo';
+import { SocialDemo } from '@/pages/SocialDemo';
+import { SecurityDemo } from '@/pages/SecurityDemo';
 
 const pageLabels: Record<Page, string> = {
-  auth: "Authentication",
-  profile: "Profile",
-  sessions: "Sessions & Devices",
-  files: "Files & Assets",
-  social: "Social",
-  security: "Security",
-}
+  auth: 'Authentication',
+  profile: 'Profile',
+  sessions: 'Sessions & Devices',
+  files: 'Files & Assets',
+  social: 'Social',
+  security: 'Security',
+};
 
 const pages: Record<Page, React.ComponentType> = {
   auth: AuthDemo,
@@ -30,12 +26,12 @@ const pages: Record<Page, React.ComponentType> = {
   files: FilesDemo,
   social: SocialDemo,
   security: SecurityDemo,
-}
+};
 
 export default function App() {
-  const [activePage, setActivePage] = useState<Page>("auth")
-  const { isAuthenticated, user } = useAuth()
-  const ActivePage = pages[activePage]
+  const [activePage, setActivePage] = useState<Page>('auth');
+  const { isAuthenticated, user } = useAuth();
+  const ActivePage = pages[activePage];
 
   return (
     <SidebarProvider>
@@ -47,7 +43,10 @@ export default function App() {
           <h1 className="text-sm font-medium">{pageLabels[activePage]}</h1>
           <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
             {isAuthenticated ? (
-              <span>Signed in as <strong className="text-foreground">{user?.username || user?.email}</strong></span>
+              <span>
+                Signed in as{' '}
+                <strong className="text-foreground">{user?.username || user?.email}</strong>
+              </span>
             ) : (
               <span>Not signed in</span>
             )}
@@ -58,5 +57,5 @@ export default function App() {
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

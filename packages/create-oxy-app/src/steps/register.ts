@@ -6,12 +6,12 @@ const CONSOLE_URL = 'https://console.oxy.so';
 
 function manualInstructions(config: ResolvedConfig): void {
   p.log.warn(
-    `${pc.yellow('Register your Oxy client to finish setup.')}\n`
-      + `Register ${config.name} at ${pc.cyan(CONSOLE_URL)}:\n`
-      + `  1. Create an Application, then a public credential (client_id `
-      + `${pc.dim('oxy_dk_…')}).\n`
-      + `  2. Put it in ${pc.cyan('packages/frontend/.env')} as `
-      + `${pc.bold('EXPO_PUBLIC_OXY_CLIENT_ID')}.`,
+    `${pc.yellow('Register your Oxy client to finish setup.')}\n` +
+      `Register ${config.name} at ${pc.cyan(CONSOLE_URL)}:\n` +
+      `  1. Create an Application, then a public credential (client_id ` +
+      `${pc.dim('oxy_dk_…')}).\n` +
+      `  2. Put it in ${pc.cyan('packages/frontend/.env')} as ` +
+      `${pc.bold('EXPO_PUBLIC_OXY_CLIENT_ID')}.`,
   );
 }
 

@@ -83,8 +83,8 @@ function renderGeoExpression(): string {
   if (!generated) {
     throw new Error(
       'user_locations.geo is not a generated column. The whole point of the ' +
-      'column is that no write path can produce a point disagreeing with its ' +
-      'latitude/longitude — a plain column reopens that divergence.'
+        'column is that no write path can produce a point disagreeing with its ' +
+        'latitude/longitude — a plain column reopens that divergence.',
     );
   }
   const { as } = generated;
@@ -95,7 +95,7 @@ function renderGeoExpression(): string {
   if (query.params.length > 0) {
     throw new Error(
       'The geo expression carries bound parameters, which a generated column ' +
-      'cannot take. It must be literal SQL over the table\'s own columns.'
+        "cannot take. It must be literal SQL over the table's own columns.",
     );
   }
   return query.sql;
@@ -111,10 +111,12 @@ beforeAll(async () => {
          latitude double precision,
          longitude double precision,
          geo geography generated always as (${renderGeoExpression()}) stored
-       )`
-    )
+       )`,
+    ),
   );
-  await db.execute(sql.raw(`create index ${PROBE_TABLE}_geo_idx on ${PROBE_TABLE} using gist (geo)`));
+  await db.execute(
+    sql.raw(`create index ${PROBE_TABLE}_geo_idx on ${PROBE_TABLE} using gist (geo)`),
+  );
   await db.execute(sql`
     insert into ${sql.identifier(PROBE_TABLE)} (id, latitude, longitude)
     values
@@ -123,11 +125,13 @@ beforeAll(async () => {
       ('no-coordinates', null, null)
   `);
   // Spread over Europe so the planner has a realistic distribution to index.
-  await db.execute(sql.raw(
-    `insert into ${PROBE_TABLE} (id, latitude, longitude)
+  await db.execute(
+    sql.raw(
+      `insert into ${PROBE_TABLE} (id, latitude, longitude)
      select g::text, 36 + (g % 340) * 0.1, -10 + (g % 400) * 0.1
-     from generate_series(1, ${PROBE_ROW_COUNT}) g`
-  ));
+     from generate_series(1, ${PROBE_ROW_COUNT}) g`,
+    ),
+  );
   await db.execute(sql.raw(`analyze ${PROBE_TABLE}`));
 });
 
@@ -196,8 +200,8 @@ describe('user_locations.geo', () => {
     // own property name, never against a literal, so a rename moves both.
     const geoIndexes = getTableConfig(userLocations).indexes.filter((index) =>
       index.config.columns.some(
-        (column) => is(column, IndexedColumn) && column.name === userLocations.geo.name
-      )
+        (column) => is(column, IndexedColumn) && column.name === userLocations.geo.name,
+      ),
     );
 
     expect(geoIndexes).toHaveLength(1);
@@ -220,14 +224,16 @@ describe('user_locations.geo', () => {
       st_y: number;
       longitude: number;
       latitude: number;
-    }>(sql.raw(
-      `select id,
+    }>(
+      sql.raw(
+        `select id,
               ST_X(geo::geometry) as st_x, longitude,
               ST_Y(geo::geometry) as st_y, latitude
        from ${PROBE_TABLE}
        where id in ('barcelona', 'madrid')
-       order by id`
-    ));
+       order by id`,
+      ),
+    );
 
     expect(rows).toHaveLength(2);
     for (const row of rows) {
@@ -237,11 +243,13 @@ describe('user_locations.geo', () => {
   });
 
   it('measures a real-world distance that matches an independent computation', async () => {
-    const [row] = await getDb().execute<{ metres: number }>(sql.raw(
-      `select ST_Distance(b.geo, m.geo) as metres
+    const [row] = await getDb().execute<{ metres: number }>(
+      sql.raw(
+        `select ST_Distance(b.geo, m.geo) as metres
        from ${PROBE_TABLE} b, ${PROBE_TABLE} m
-       where b.id = 'barcelona' and m.id = 'madrid'`
-    ));
+       where b.id = 'barcelona' and m.id = 'madrid'`,
+      ),
+    );
 
     const drift = Math.abs(Number(row.metres) - BARCELONA_MADRID_METRES) / BARCELONA_MADRID_METRES;
     expect(drift).toBeLessThan(DISTANCE_TOLERANCE);
@@ -249,50 +257,58 @@ describe('user_locations.geo', () => {
 
   it('lands the points inside Spain rather than in the Indian Ocean', async () => {
     // A transposition is a valid point, so the hemisphere is the tell.
-    const rows = await getDb().execute<{ id: string; inside: boolean }>(sql.raw(
-      `select id,
+    const rows = await getDb().execute<{ id: string; inside: boolean }>(
+      sql.raw(
+        `select id,
               ST_Within(geo::geometry, ST_MakeEnvelope(-9.5, 35.9, 3.4, 43.8, 4326)) as inside
        from ${PROBE_TABLE}
        where id in ('barcelona', 'madrid')
-       order by id`
-    ));
+       order by id`,
+      ),
+    );
 
     expect(rows.map((row) => row.inside)).toEqual([true, true]);
   });
 
-  it('stores a Point at SRID 4326 — the cast promotes ST_MakePoint\'s SRID 0', async () => {
-    const rows = await getDb().execute<{ geom_type: string; srid: number }>(sql.raw(
-      `select ST_GeometryType(geo::geometry) as geom_type, ST_SRID(geo) as srid
-       from ${PROBE_TABLE} where id = 'barcelona'`
-    ));
+  it("stores a Point at SRID 4326 — the cast promotes ST_MakePoint's SRID 0", async () => {
+    const rows = await getDb().execute<{ geom_type: string; srid: number }>(
+      sql.raw(
+        `select ST_GeometryType(geo::geometry) as geom_type, ST_SRID(geo) as srid
+       from ${PROBE_TABLE} where id = 'barcelona'`,
+      ),
+    );
 
     expect(rows[0].geom_type).toBe('ST_Point');
     expect(Number(rows[0].srid)).toBe(4326);
   });
 
   it('is NULL when the coordinate pair is absent, never a point at (0, 0)', async () => {
-    const rows = await getDb().execute<{ geo_is_null: boolean }>(sql.raw(
-      `select geo is null as geo_is_null from ${PROBE_TABLE} where id = 'no-coordinates'`
-    ));
+    const rows = await getDb().execute<{ geo_is_null: boolean }>(
+      sql.raw(`select geo is null as geo_is_null from ${PROBE_TABLE} where id = 'no-coordinates'`),
+    );
 
     expect(rows[0].geo_is_null).toBe(true);
   });
 
   it('refuses a write, so it can never disagree with its coordinates', async () => {
     await expect(
-      getDb().execute(sql.raw(
-        `update ${PROBE_TABLE} set geo = ST_MakePoint(0, 0)::geography where id = 'barcelona'`
-      ))
+      getDb().execute(
+        sql.raw(
+          `update ${PROBE_TABLE} set geo = ST_MakePoint(0, 0)::geography where id = 'barcelona'`,
+        ),
+      ),
       // Drizzle wraps the driver error, so the SQLSTATE is on `cause`.
     ).rejects.toMatchObject({ cause: { code: '428C9' } });
   });
 
   it('is searched through the GiST index by a real ST_DWithin query', async () => {
-    const plan = await getDb().execute<{ 'QUERY PLAN': string }>(sql.raw(
-      `explain (costs off)
+    const plan = await getDb().execute<{ 'QUERY PLAN': string }>(
+      sql.raw(
+        `explain (costs off)
        select id from ${PROBE_TABLE}
-       where ST_DWithin(geo, ST_MakePoint(${BARCELONA.longitude}, ${BARCELONA.latitude})::geography, 50000)`
-    ));
+       where ST_DWithin(geo, ST_MakePoint(${BARCELONA.longitude}, ${BARCELONA.latitude})::geography, 50000)`,
+      ),
+    );
     const text = plan.map((row) => row['QUERY PLAN']).join('\n');
 
     expect(text).toContain(`${PROBE_TABLE}_geo_idx`);

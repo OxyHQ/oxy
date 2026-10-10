@@ -78,7 +78,18 @@ function makeHarness(overrides: Partial<RunProviderColdBootOptions> = {}): Harne
   const sessionClientStart = jest.fn(async () => undefined);
 
   const options: RunProviderColdBootOptions = {
-    oxyServices: { apps: { getPublic: jest.fn(async () => ({ id: 'registered-app', name: 'Registered App', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) } } as unknown as RunProviderColdBootOptions['oxyServices'],
+    oxyServices: {
+      apps: {
+        getPublic: jest.fn(async () => ({
+          id: 'registered-app',
+          name: 'Registered App',
+          type: 'first_party',
+          isOfficial: false,
+          isInternal: false,
+          scopes: [],
+        })),
+      },
+    } as unknown as RunProviderColdBootOptions['oxyServices'],
     authStore: makeEmptyAuthStore(),
     clientId: CLIENT_ID,
     sessionClient: { start: sessionClientStart } as unknown as SessionClient,
@@ -215,10 +226,21 @@ describe('runProviderColdBoot — no SDK-initiated IdP navigation (#691 phase 7b
 });
 
 describe('registered cold-boot classification', () => {
-  beforeEach(() => { mockRunSessionColdBoot.mockReset(); mockTryCompleteOAuthReturn.mockReset(); mockTryCompleteOAuthReturn.mockResolvedValue(false); });
+  beforeEach(() => {
+    mockRunSessionColdBoot.mockReset();
+    mockTryCompleteOAuthReturn.mockReset();
+    mockTryCompleteOAuthReturn.mockResolvedValue(false);
+  });
   it('external classification bypasses prior secrets, shared device and identity pin work', async () => {
     const { options } = makeHarness();
-    (options.oxyServices.apps.getPublic as jest.Mock).mockResolvedValue({ id: 'external', name: 'External', type: 'third_party', isOfficial: false, isInternal: false, scopes: [] });
+    (options.oxyServices.apps.getPublic as jest.Mock).mockResolvedValue({
+      id: 'external',
+      name: 'External',
+      type: 'third_party',
+      isOfficial: false,
+      isInternal: false,
+      scopes: [],
+    });
     const beforeDeviceBoot = jest.fn();
     await runProviderColdBoot({ ...options, beforeDeviceBoot });
     expect(options.oxyServices.apps.getPublic).toHaveBeenCalledWith(CLIENT_ID, { cache: false });
@@ -228,27 +250,46 @@ describe('registered cold-boot classification', () => {
     expect(beforeDeviceBoot).not.toHaveBeenCalled();
     expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
   });
-  it.each(['missing', 'inactive', 'offline', 'invalid'])('fails closed for %s before secrets and callback work', async (mode) => {
-    const { options } = makeHarness();
-    if (mode === 'missing') options.clientId = undefined;
-    else if (mode === 'invalid') (options.oxyServices.apps.getPublic as jest.Mock).mockResolvedValue({ type: 'unknown' });
-    else (options.oxyServices.apps.getPublic as jest.Mock).mockRejectedValue(new Error(mode));
-    await runProviderColdBoot(options);
-    expect(options.markAuthResolved).toHaveBeenCalled();
-    expect(options.authStore.load).not.toHaveBeenCalled();
-    expect(options.authStore.clear).not.toHaveBeenCalled();
-    expect(options.syncDeviceCredentialToHost).not.toHaveBeenCalled();
-    expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
-    expect(mockTryCompleteOAuthReturn).not.toHaveBeenCalled();
-  });
+  it.each(['missing', 'inactive', 'offline', 'invalid'])(
+    'fails closed for %s before secrets and callback work',
+    async (mode) => {
+      const { options } = makeHarness();
+      if (mode === 'missing') options.clientId = undefined;
+      else if (mode === 'invalid')
+        (options.oxyServices.apps.getPublic as jest.Mock).mockResolvedValue({ type: 'unknown' });
+      else (options.oxyServices.apps.getPublic as jest.Mock).mockRejectedValue(new Error(mode));
+      await runProviderColdBoot(options);
+      expect(options.markAuthResolved).toHaveBeenCalled();
+      expect(options.authStore.load).not.toHaveBeenCalled();
+      expect(options.authStore.clear).not.toHaveBeenCalled();
+      expect(options.syncDeviceCredentialToHost).not.toHaveBeenCalled();
+      expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
+      expect(mockTryCompleteOAuthReturn).not.toHaveBeenCalled();
+    },
+  );
   it('a cold external OAuth callback never probes a previous device secret', async () => {
     const { options } = makeHarness();
-    (options.oxyServices.apps.getPublic as jest.Mock).mockResolvedValue({ id: 'external', name: 'External', type: 'third_party', isOfficial: false, isInternal: false, scopes: [] });
+    (options.oxyServices.apps.getPublic as jest.Mock).mockResolvedValue({
+      id: 'external',
+      name: 'External',
+      type: 'third_party',
+      isOfficial: false,
+      isInternal: false,
+      scopes: [],
+    });
     mockTryCompleteOAuthReturn.mockImplementation(async ({ commitSession }) => {
-      await commitSession({ sessionId: 'isolated', userId: 'external-user', accessToken: 'isolated-bearer' }); return true;
+      await commitSession({
+        sessionId: 'isolated',
+        userId: 'external-user',
+        accessToken: 'isolated-bearer',
+      });
+      return true;
     });
     await runProviderColdBoot(options);
-    expect(options.commitSession).toHaveBeenCalledWith({ sessionId: 'isolated', userId: 'external-user', accessToken: 'isolated-bearer' }, { activate: true, oauth: true });
+    expect(options.commitSession).toHaveBeenCalledWith(
+      { sessionId: 'isolated', userId: 'external-user', accessToken: 'isolated-bearer' },
+      { activate: true, oauth: true },
+    );
     expect(options.authStore.load).not.toHaveBeenCalled();
     expect(options.syncDeviceCredentialToHost).not.toHaveBeenCalled();
     expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
@@ -256,14 +297,35 @@ describe('registered cold-boot classification', () => {
 });
 
 it('an unresponsive registry resolves signed-out without a late privileged continuation', async () => {
- jest.useFakeTimers();
- try {
-  const {options}=makeHarness(); let release!: (app:unknown)=>void;
-  (options.oxyServices.apps.getPublic as jest.Mock).mockImplementation(()=>new Promise(resolve=>{release=resolve;}));
-  mockRunSessionColdBoot.mockReset(); mockTryCompleteOAuthReturn.mockReset();
-  const boot=runProviderColdBoot(options); await jest.advanceTimersByTimeAsync(5000); await boot;
-  expect(options.markAuthResolved).toHaveBeenCalled(); expect(options.authStore.load).not.toHaveBeenCalled();
-  release({id:'app',name:'Late',type:'first_party',isOfficial:true,isInternal:false,scopes:[]}); await Promise.resolve();
-  expect(mockRunSessionColdBoot).not.toHaveBeenCalled(); expect(mockTryCompleteOAuthReturn).not.toHaveBeenCalled();
- } finally {jest.useRealTimers();}
+  jest.useFakeTimers();
+  try {
+    const { options } = makeHarness();
+    let release!: (app: unknown) => void;
+    (options.oxyServices.apps.getPublic as jest.Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    mockRunSessionColdBoot.mockReset();
+    mockTryCompleteOAuthReturn.mockReset();
+    const boot = runProviderColdBoot(options);
+    await jest.advanceTimersByTimeAsync(5000);
+    await boot;
+    expect(options.markAuthResolved).toHaveBeenCalled();
+    expect(options.authStore.load).not.toHaveBeenCalled();
+    release({
+      id: 'app',
+      name: 'Late',
+      type: 'first_party',
+      isOfficial: true,
+      isInternal: false,
+      scopes: [],
+    });
+    await Promise.resolve();
+    expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
+    expect(mockTryCompleteOAuthReturn).not.toHaveBeenCalled();
+  } finally {
+    jest.useRealTimers();
+  }
 });

@@ -41,17 +41,11 @@ jest.mock('../../middleware/validate', () => ({
   validate: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-
-
 jest.mock('../../services/authSession.service', () => ({
   claimAuthSession: jest.fn(),
   authorizeSessionWithSignedChallenge: jest.fn(),
   authorizeSessionWithBearer: jest.fn(),
 }));
-
-
-
-
 
 jest.mock('../../utils/userTransform', () => ({
   formatUserResponse: jest.fn(),
@@ -106,7 +100,6 @@ jest.mock('../../controllers/session.controller', () => ({
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
-
 
 import authRouter from '../auth';
 import { errorHandler } from '../../middleware/errorHandler';

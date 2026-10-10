@@ -132,7 +132,7 @@ function human(): Promise<string> {
 async function member(
   accountId: string,
   memberUserId: string,
-  role: 'admin' | 'viewer'
+  role: 'admin' | 'viewer',
 ): Promise<void> {
   await getDb().insert(accountMembers).values({ accountId, memberUserId, role, status: 'active' });
 }
@@ -149,11 +149,15 @@ async function seedApp(
     type?: 'internal' | 'third_party';
     status?: 'active' | 'suspended';
     scopes?: string[];
-  } = {}
+  } = {},
 ): Promise<SeededApp> {
   const type = options.type ?? 'internal';
   const status = options.status ?? 'active';
-  const scopes = options.scopes ?? ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE, SERVICE_ACTING_AS_SCOPE];
+  const scopes = options.scopes ?? [
+    'user:read',
+    SERVICE_ACCOUNT_SWITCH_SCOPE,
+    SERVICE_ACTING_AS_SCOPE,
+  ];
   const ownerAccountId = await human();
   const [app] = await getDb()
     .insert(applications)
@@ -172,27 +176,30 @@ async function seedApp(
   return { appId: app.id, credentialId: credential.id, ownerAccountId, scopes };
 }
 
-function serviceToken(app: SeededApp, environment: 'production' | 'development' = 'production'): string {
+function serviceToken(
+  app: SeededApp,
+  environment: 'production' | 'development' = 'production',
+): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
-      type: 'service',
-      appId: app.appId,
-      appName: 'Alia',
-      credentialId: app.credentialId,
-      ownerAccountId: app.ownerAccountId,
-      environment,
-      scopes: app.scopes,
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: issuedAt,
-      exp: issuedAt + 300,
-    });
+    type: 'service',
+    appId: app.appId,
+    appName: 'Alia',
+    credentialId: app.credentialId,
+    ownerAccountId: app.ownerAccountId,
+    environment,
+    scopes: app.scopes,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: issuedAt,
+    exp: issuedAt + 300,
+  });
 }
 
 function serviceSwitch(
   accountId: string,
   token: string | null,
-  operatorId: string | null
+  operatorId: string | null,
 ): Promise<SwitchResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
@@ -215,9 +222,9 @@ function serviceSwitch(
           raw += chunk;
         });
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} })
+          resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} }),
         );
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -230,17 +237,19 @@ function serviceSwitch(
  * accidentally regress to an implicit first-party bypass.
  */
 async function grantOffline(app: SeededApp, operatorId: string): Promise<void> {
-  await getDb().insert(appGrants).values({
-    userId: operatorId,
-    applicationId: app.appId,
-    scopes: [SERVICE_ACTING_AS_SCOPE],
-  });
+  await getDb()
+    .insert(appGrants)
+    .values({
+      userId: operatorId,
+      applicationId: app.appId,
+      scopes: [SERVICE_ACTING_AS_SCOPE],
+    });
 }
 
 async function grantedServiceSwitch(
   accountId: string,
   app: SeededApp,
-  operatorId: string
+  operatorId: string,
 ): Promise<SwitchResponse> {
   await grantOffline(app, operatorId);
   return serviceSwitch(accountId, serviceToken(app), operatorId);
@@ -258,7 +267,11 @@ function claims(accessToken: string): { sub?: string; act?: { sub?: string }; si
 /** Every session row the mint could have written for this account. */
 function sessionRowsFor(userId: string) {
   return getDb()
-    .select({ id: sessions.id, deviceId: sessions.deviceId, operatedByUserId: sessions.operatedByUserId })
+    .select({
+      id: sessions.id,
+      deviceId: sessions.deviceId,
+      operatedByUserId: sessions.operatedByUserId,
+    })
     .from(sessions)
     .where(eq(sessions.userId, userId));
 }
@@ -296,7 +309,9 @@ describe('live credential context before delegated session mint', () => {
     const { app, bot, operator, token } = await eligibleSwitch();
     expect((await serviceSwitch(bot, token, operator)).status).toBe(200);
     const before = await sessionRowsFor(bot);
-    await getDb().update(applicationCredentials).set({ status: 'revoked' })
+    await getDb()
+      .update(applicationCredentials)
+      .set({ status: 'revoked' })
       .where(eq(applicationCredentials.id, app.credentialId));
 
     const denied = await serviceSwitch(bot, token, operator);
@@ -309,7 +324,8 @@ describe('live credential context before delegated session mint', () => {
     const { app, bot, operator, token } = await eligibleSwitch();
     expect((await serviceSwitch(bot, token, operator)).status).toBe(200);
     const before = await sessionRowsFor(bot);
-    await getDb().update(applicationCredentials)
+    await getDb()
+      .update(applicationCredentials)
       .set({ scopes: ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE] })
       .where(eq(applicationCredentials.id, app.credentialId));
 
@@ -369,7 +385,7 @@ describe('router gates', () => {
     const userJwt = jwt.sign(
       { type: 'access', userId: operator, sessionId: 'session-1' },
       ACCESS_TOKEN_SECRET,
-      { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' }
+      { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' },
     );
 
     const res = await serviceSwitch(bot, userJwt, operator);
@@ -725,9 +741,7 @@ describe('device attribution', () => {
 
     const res = await grantedServiceSwitch(bot, app, operator);
 
-    expect(res.body.data?.deviceId).toBe(
-      deriveServiceDeviceId(bot, `service:${app.appId}:${bot}`)
-    );
+    expect(res.body.data?.deviceId).toBe(deriveServiceDeviceId(bot, `service:${app.appId}:${bot}`));
   });
 
   it('gives two APPLICATIONS acting as one account two different devices', async () => {

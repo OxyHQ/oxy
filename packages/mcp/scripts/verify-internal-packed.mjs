@@ -12,14 +12,28 @@ const dependencies = {};
 const hashes = {};
 for (const name of ['contracts', 'core', 'mcp', 'protocol', 'telemetry']) {
   const pkg = JSON.parse(readFileSync(join(repository, 'packages', name, 'package.json'), 'utf8'));
-  const path = join(repository, 'packages', name, `${pkg.name.replace('@', '').replace('/', '-')}-${pkg.version}.tgz`);
+  const path = join(
+    repository,
+    'packages',
+    name,
+    `${pkg.name.replace('@', '').replace('/', '-')}-${pkg.version}.tgz`,
+  );
   const bytes = readFileSync(path);
   dependencies[pkg.name] = `file:${path}`;
-  hashes[pkg.name] = { version: pkg.version, sha256: createHash('sha256').update(bytes).digest('hex') };
+  hashes[pkg.name] = {
+    version: pkg.version,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+  };
 }
-writeFileSync(join(fixture, 'package.json'), JSON.stringify({ private: true, dependencies,
-  overrides: dependencies }, null, 2));
-execFileSync('bun', ['install', '--minimum-release-age=0', '--ignore-scripts', '--omit=optional', '--omit=peer'], { cwd: fixture, stdio: 'inherit' });
+writeFileSync(
+  join(fixture, 'package.json'),
+  JSON.stringify({ private: true, dependencies, overrides: dependencies }, null, 2),
+);
+execFileSync(
+  'bun',
+  ['install', '--minimum-release-age=0', '--ignore-scripts', '--omit=optional', '--omit=peer'],
+  { cwd: fixture, stdio: 'inherit' },
+);
 
 const body = `
 async function main() {
@@ -63,7 +77,9 @@ async function main() {
 main().catch(error => { console.error(error); process.exitCode = 1; });
 `;
 for (const mode of ['cjs', 'esm']) {
-  const preamble = mode === 'cjs' ? `
+  const preamble =
+    mode === 'cjs'
+      ? `
 const assert = require('node:assert/strict');
 const { createHash, generateKeyPairSync } = require('node:crypto');
 const { createServer } = require('node:http');
@@ -72,7 +88,8 @@ const contracts = require('@oxy.so/contracts');
 const core = require('@oxy.so/core/server');
 const mcp = require('@oxy.so/mcp');
 const resolvePackage = require.resolve;
-` : `
+`
+      : `
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -84,9 +101,25 @@ import * as mcp from '@oxy.so/mcp';
 const resolvePackage = id => fileURLToPath(import.meta.resolve(id));
 `;
   const runner = join(fixture, `verify.${mode === 'cjs' ? 'cjs' : 'mjs'}`);
-  writeFileSync(runner, `${preamble}\nconst fixture = ${JSON.stringify(fixture)};\nconst mode = ${JSON.stringify(mode)};\n${body}`);
+  writeFileSync(
+    runner,
+    `${preamble}\nconst fixture = ${JSON.stringify(fixture)};\nconst mode = ${JSON.stringify(mode)};\n${body}`,
+  );
   execFileSync(process.execPath, [runner], { cwd: fixture, stdio: 'inherit', timeout: 30000 });
 }
-writeFileSync(join(fixture, 'evidence.json'), JSON.stringify({ hashes, fixture, checkedAtUTC: new Date().toISOString(), modes: ['cjs', 'esm'], published: false }, null, 2));
+writeFileSync(
+  join(fixture, 'evidence.json'),
+  JSON.stringify(
+    {
+      hashes,
+      fixture,
+      checkedAtUTC: new Date().toISOString(),
+      modes: ['cjs', 'esm'],
+      published: false,
+    },
+    null,
+    2,
+  ),
+);
 assert.ok(Object.keys(hashes).length === 5);
 console.log(JSON.stringify({ fixture, hashes, published: false }));

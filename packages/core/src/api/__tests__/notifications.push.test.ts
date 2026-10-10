@@ -68,7 +68,10 @@ describe('oxy.notifications push tokens', () => {
     it('accepts the ExpoPushToken spelling as well', async () => {
       request.mockResolvedValue({ registered: true });
 
-      await oxy.notifications.registerPushToken({ expoPushToken: 'ExpoPushToken[abc123]', platform: 'web' });
+      await oxy.notifications.registerPushToken({
+        expoPushToken: 'ExpoPushToken[abc123]',
+        platform: 'web',
+      });
 
       expect(request).toHaveBeenCalled();
     });

@@ -193,7 +193,12 @@ describe('useIdentity — auto-create interlock', () => {
 
   it('refuses with IdentityMayExistError when a marker appears concurrently after an absent read', async () => {
     getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
-    readIdentityMarkerMock.mockResolvedValue({ v: 1, publicKey: 'pub-race', createdAt: 1, origin: 'create' });
+    readIdentityMarkerMock.mockResolvedValue({
+      v: 1,
+      publicKey: 'pub-race',
+      createdAt: 1,
+      origin: 'create',
+    });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
     const { error } = await callCreate(result.current.createIdentity);
@@ -207,7 +212,10 @@ describe('useIdentity — auto-create interlock', () => {
     generateMock.mockResolvedValue({ words: ['a', 'b', 'c'], publicKey: 'pub-new' });
     const registerKey = jest.fn();
     const isKeyRegistered = jest.fn();
-    __setOxyState({ oxyServices: { auth: { registerKey, isKeyRegistered } }, isAuthenticated: false });
+    __setOxyState({
+      oxyServices: { auth: { registerKey, isKeyRegistered } },
+      isAuthenticated: false,
+    });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
     const { result: created, error } = await callCreate(result.current.createIdentity);
@@ -239,7 +247,12 @@ describe('useIdentity — importIdentity interlock', () => {
 
   it('refuses with IdentityMayExistError when a marker appears concurrently after an absent read', async () => {
     getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
-    readIdentityMarkerMock.mockResolvedValue({ v: 1, publicKey: 'other-pub', createdAt: 1, origin: 'create' });
+    readIdentityMarkerMock.mockResolvedValue({
+      v: 1,
+      publicKey: 'other-pub',
+      createdAt: 1,
+      origin: 'create',
+    });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
     const { error } = await callImportPhrase(result.current.importIdentity, VALID_PHRASE);
@@ -251,10 +264,16 @@ describe('useIdentity — importIdentity interlock', () => {
     getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
     const registerKey = jest.fn();
     const isKeyRegistered = jest.fn(async () => ({ registered: false }));
-    __setOxyState({ oxyServices: { auth: { registerKey, isKeyRegistered } }, isAuthenticated: false });
+    __setOxyState({
+      oxyServices: { auth: { registerKey, isKeyRegistered } },
+      isAuthenticated: false,
+    });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    const { result: imported, error } = await callImportPhrase(result.current.importIdentity, VALID_PHRASE);
+    const { result: imported, error } = await callImportPhrase(
+      result.current.importIdentity,
+      VALID_PHRASE,
+    );
     expect(error).toBeUndefined();
     expect(imported).toEqual({ synced: false, needsUsername: true });
     expect(isKeyRegistered).toHaveBeenCalledWith(VALID_PUBLIC_KEY);
@@ -267,10 +286,16 @@ describe('useIdentity — importIdentity interlock', () => {
     const registerKey = jest.fn();
     const isKeyRegistered = jest.fn(async () => ({ registered: true }));
     signInMock.mockResolvedValue({ id: 'u1', username: 'alice' });
-    __setOxyState({ oxyServices: { auth: { registerKey, isKeyRegistered } }, isAuthenticated: false });
+    __setOxyState({
+      oxyServices: { auth: { registerKey, isKeyRegistered } },
+      isAuthenticated: false,
+    });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    const { result: imported, error } = await callImportPhrase(result.current.importIdentity, VALID_PHRASE);
+    const { result: imported, error } = await callImportPhrase(
+      result.current.importIdentity,
+      VALID_PHRASE,
+    );
     expect(error).toBeUndefined();
     expect(imported).toEqual({ synced: true, needsUsername: false });
     expect(signInMock).toHaveBeenCalledWith(VALID_PUBLIC_KEY);
@@ -280,10 +305,17 @@ describe('useIdentity — importIdentity interlock', () => {
   it('offline (skipSync) stores the key and makes no round-trip', async () => {
     getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
     const isKeyRegistered = jest.fn();
-    __setOxyState({ oxyServices: { auth: { registerKey: jest.fn(), isKeyRegistered } }, isAuthenticated: false });
+    __setOxyState({
+      oxyServices: { auth: { registerKey: jest.fn(), isKeyRegistered } },
+      isAuthenticated: false,
+    });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    const { result: imported } = await callImportPhrase(result.current.importIdentity, VALID_PHRASE, { skipSync: true });
+    const { result: imported } = await callImportPhrase(
+      result.current.importIdentity,
+      VALID_PHRASE,
+      { skipSync: true },
+    );
     expect(imported).toEqual({ synced: false, needsUsername: false });
     expect(restoreFromPhraseMock).toHaveBeenCalledTimes(1);
     expect(isKeyRegistered).not.toHaveBeenCalled();
@@ -307,7 +339,10 @@ describe('useIdentity — importIdentityFromPrivateKey interlock', () => {
     getIdentityStatusMock.mockResolvedValue({ state: 'present', publicKey: 'other-pub' });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    const { error } = await callImportPrivateKey(result.current.importIdentityFromPrivateKey, VALID_PRIVATE_KEY);
+    const { error } = await callImportPrivateKey(
+      result.current.importIdentityFromPrivateKey,
+      VALID_PRIVATE_KEY,
+    );
     expect(error).toBeInstanceOf(IdentityAlreadyExistsError);
     expect(importKeyPairMock).not.toHaveBeenCalled();
   });
@@ -319,17 +354,28 @@ describe('useIdentity — importIdentityFromPrivateKey interlock', () => {
     });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    const { error } = await callImportPrivateKey(result.current.importIdentityFromPrivateKey, VALID_PRIVATE_KEY);
+    const { error } = await callImportPrivateKey(
+      result.current.importIdentityFromPrivateKey,
+      VALID_PRIVATE_KEY,
+    );
     expect(error).toBeInstanceOf(IdentityMayExistError);
     expect(importKeyPairMock).not.toHaveBeenCalled();
   });
 
   it('refuses with IdentityMayExistError when a marker appears concurrently after an absent read', async () => {
     getIdentityStatusMock.mockResolvedValue({ state: 'absent' });
-    readIdentityMarkerMock.mockResolvedValue({ v: 1, publicKey: 'other-pub', createdAt: 1, origin: 'create' });
+    readIdentityMarkerMock.mockResolvedValue({
+      v: 1,
+      publicKey: 'other-pub',
+      createdAt: 1,
+      origin: 'create',
+    });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    const { error } = await callImportPrivateKey(result.current.importIdentityFromPrivateKey, VALID_PRIVATE_KEY);
+    const { error } = await callImportPrivateKey(
+      result.current.importIdentityFromPrivateKey,
+      VALID_PRIVATE_KEY,
+    );
     expect(error).toBeInstanceOf(IdentityMayExistError);
     expect(importKeyPairMock).not.toHaveBeenCalled();
   });
@@ -353,7 +399,10 @@ describe('useIdentity — importIdentityFromPrivateKey interlock', () => {
     isValidPrivateKeyMock.mockReturnValue(false);
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    const { error } = await callImportPrivateKey(result.current.importIdentityFromPrivateKey, 'not-a-key');
+    const { error } = await callImportPrivateKey(
+      result.current.importIdentityFromPrivateKey,
+      'not-a-key',
+    );
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toMatch(/invalid private key/i);
     expect(getIdentityStatusMock).not.toHaveBeenCalled();
@@ -377,7 +426,10 @@ describe('useIdentity — importIdentityFromPrivateKey interlock', () => {
     getIdentityStatusMock.mockResolvedValue({ state: 'unavailable', cause: new Error('locked') });
     const { result } = renderHook(() => useIdentity(), { wrapper: createWrapper() });
 
-    const { error } = await callImportPrivateKey(result.current.importIdentityFromPrivateKey, VALID_PRIVATE_KEY);
+    const { error } = await callImportPrivateKey(
+      result.current.importIdentityFromPrivateKey,
+      VALID_PRIVATE_KEY,
+    );
     expect(error).toBeInstanceOf(IdentityUnavailableError);
     expect(importKeyPairMock).not.toHaveBeenCalled();
   });

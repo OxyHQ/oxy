@@ -141,11 +141,12 @@ export function toProductPlan(row: BillingSubscriptionRow): ProductPlan {
 async function resolveLivePlan(
   db: DatabaseOrTransaction,
   accountId: string,
-  payerAccountId: string | undefined
+  payerAccountId: string | undefined,
 ): Promise<BillingSubscriptionRow | undefined> {
-  const candidates = payerAccountId === undefined || payerAccountId === accountId
-    ? [accountId]
-    : [accountId, payerAccountId];
+  const candidates =
+    payerAccountId === undefined || payerAccountId === accountId
+      ? [accountId]
+      : [accountId, payerAccountId];
 
   for (const candidate of candidates) {
     const [row] = await db
@@ -154,8 +155,8 @@ async function resolveLivePlan(
       .where(
         and(
           eq(billingSubscriptions.userId, candidate),
-          inArray(billingSubscriptions.status, LIVE_PRODUCT_PLAN_STATUSES)
-        )
+          inArray(billingSubscriptions.status, LIVE_PRODUCT_PLAN_STATUSES),
+        ),
       )
       .limit(1);
     if (row) return row;
@@ -177,7 +178,7 @@ async function resolveLivePlan(
  * "nearest" would be three different trees.
  */
 export async function resolveCostCenterForAccount(
-  accountId: string
+  accountId: string,
 ): Promise<CostCenter | undefined> {
   if (!accountId) return undefined;
 
@@ -204,7 +205,7 @@ export async function resolveCostCenterForAccount(
       ) candidate
       order by is_self desc, depth desc
       limit 1
-    `
+    `,
   );
 
   const row = rows[0];
@@ -229,7 +230,7 @@ export async function resolveCostCenterForAccount(
  * exactly the chain `attribution.service.ts` exists to stop multiplying.
  */
 export async function resolveCostCenterForApplication(
-  applicationId: string
+  applicationId: string,
 ): Promise<CostCenter | undefined> {
   const resolved = await resolveApplicationOwnerAccount(applicationId);
   if (resolved.status === 'unknown-application') return undefined;
@@ -265,7 +266,7 @@ export type RegisterCostCenterResult =
  * names it.
  */
 export async function registerCostCenter(
-  input: RegisterCostCenterInput
+  input: RegisterCostCenterInput,
 ): Promise<RegisterCostCenterResult> {
   const db = getDb();
 
@@ -418,7 +419,7 @@ export async function costCenterSpend(query: CostCenterSpendQuery): Promise<Cost
         and r.settled_at < ${query.periodEnd.toISOString()}::timestamptz
       group by cc.account_id, cc.slug, cc.label, cc.status, cc.created_at, cc.updated_at
       order by cc.slug
-    `
+    `,
   );
 
   return rows.map((row) =>
@@ -441,7 +442,7 @@ export async function costCenterSpend(query: CostCenterSpendQuery): Promise<Cost
       // drizzle would type it `number`. Cast to text in SQL and parse here, so
       // the conversion is visible rather than a silent string in a number field.
       requestCount: Number(row.request_count),
-    })
+    }),
   );
 }
 
@@ -464,7 +465,7 @@ export type ProductEntitlementResolution =
  * serve one who can never be charged.
  */
 export async function resolveProductEntitlement(
-  accountId: string
+  accountId: string,
 ): Promise<ProductEntitlementResolution> {
   const db = getDb();
 
@@ -547,8 +548,7 @@ export async function resolveProductEntitlement(
           promotionalBalance: bucket.promotional,
           availableToSpend: bucket.availableToSpend,
           canSpend:
-            billingState.state.profile.status === 'active' &&
-            Number(bucket.availableToSpend) > 0,
+            billingState.state.profile.status === 'active' && Number(bucket.availableToSpend) > 0,
         })
       : null;
 
@@ -568,7 +568,7 @@ export async function resolveProductEntitlement(
 
 async function loadAccountCredits(
   db: DatabaseOrTransaction,
-  accountId: string
+  accountId: string,
 ): Promise<
   | {
       creditsFree: number;

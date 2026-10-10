@@ -51,9 +51,9 @@ export { useAuthStore } from './stores/authStore';
 
 // Error handlers (pure functions)
 export {
-    handleAuthError,
-    isInvalidSessionError,
-    isTimeoutOrNetworkError,
-    extractErrorMessage,
+  handleAuthError,
+  isInvalidSessionError,
+  isTimeoutOrNetworkError,
+  extractErrorMessage,
 } from './utils/errorHandlers';
 export type { HandleAuthErrorOptions } from './utils/errorHandlers';

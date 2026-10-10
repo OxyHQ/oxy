@@ -166,7 +166,9 @@ describe('ApproveSignInScreen', () => {
 
     const confirming = await findByRole('button', { name: 'Confirming identity…' });
     expect((confirming as HTMLButtonElement).disabled).toBe(true);
-    expect((getByRole('button', { name: "This wasn't me" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((getByRole('button', { name: "This wasn't me" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
     expect((getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true);
   });
 

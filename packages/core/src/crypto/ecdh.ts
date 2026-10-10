@@ -29,9 +29,6 @@ import { deriveSecp256k1SharedSecret } from '@oxy.so/protocol/secp256k1';
  *                          bytes) or uncompressed (`04` + 64 bytes).
  * @returns                 The 32-byte big-endian shared secret.
  */
-export function deriveSharedSecret(
-  privateKeyHex: string,
-  otherPublicKeyHex: string,
-): Uint8Array {
+export function deriveSharedSecret(privateKeyHex: string, otherPublicKeyHex: string): Uint8Array {
   return deriveSecp256k1SharedSecret(privateKeyHex, otherPublicKeyHex);
 }

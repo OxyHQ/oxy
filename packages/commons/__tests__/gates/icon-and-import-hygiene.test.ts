@@ -50,9 +50,9 @@ describe('import hygiene', () => {
   it('imports Bloom by subpath, never through the root barrel', () => {
     // Metro does not tree-shake, so `from '@oxy.so/bloom'` pulls the library in
     // to reach one function. Eight files did this for `alert` and `toast`.
-    const offenders = FILES.filter(([, source]) =>
-      importsOf(source).includes('@oxy.so/bloom'),
-    ).map(([path]) => path);
+    const offenders = FILES.filter(([, source]) => importsOf(source).includes('@oxy.so/bloom')).map(
+      ([path]) => path,
+    );
     expect(offenders).toEqual([]);
   });
 

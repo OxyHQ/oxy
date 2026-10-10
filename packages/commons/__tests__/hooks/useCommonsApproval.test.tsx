@@ -80,7 +80,11 @@ describe('useCommonsApproval', () => {
       getCommonsApprovalInfo: jest.fn(async () => ({
         ...SAMPLE_INFO,
         purpose: 'oauth_authorization',
-        subjectAccount: { id: 'acct-9', username: 'oxycollective', displayName: 'The Oxy Collective' },
+        subjectAccount: {
+          id: 'acct-9',
+          username: 'oxycollective',
+          displayName: 'The Oxy Collective',
+        },
       })),
     });
     const { result } = renderHook(() => useCommonsApproval('code-1', 'reason'));

@@ -1,8 +1,8 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 export interface NativeProductBootstrapPlan {
   manifestVersion: number;
-  direction: "bootstrap" | "rollback";
+  direction: 'bootstrap' | 'rollback';
   /** Full reviewed target, including trust, owners, redirects and scopes. */
   desired: unknown;
   /** Exact non-secret database facts observed under the advisory lock. */
@@ -15,10 +15,10 @@ export interface NativeProductBootstrapPlan {
 }
 
 export const NATIVE_PRODUCT_AGENT_ROLLBACK_OPERATION_KINDS = [
-  "archive-private-bot",
-  "suspend-created-clarity-app",
-  "revoke-created-clarity-credential",
-  "deactivate-alia-agent",
+  'archive-private-bot',
+  'suspend-created-clarity-app',
+  'revoke-created-clarity-credential',
+  'deactivate-alia-agent',
 ] as const;
 
 export function nativeProductAgentRollbackOperations(input: {
@@ -47,7 +47,7 @@ export function nativeProductAgentRollbackOperations(input: {
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
-  if (value !== null && typeof value === "object") {
+  if (value !== null && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
         .sort(([left], [right]) => left.localeCompare(right))
@@ -57,12 +57,10 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
-export function nativeProductBootstrapPlanSha256(
-  plan: NativeProductBootstrapPlan,
-): string {
-  return createHash("sha256")
+export function nativeProductBootstrapPlanSha256(plan: NativeProductBootstrapPlan): string {
+  return createHash('sha256')
     .update(JSON.stringify(canonicalize(plan)))
-    .digest("hex");
+    .digest('hex');
 }
 
 export function requireNativeProductBootstrapApproval(
@@ -82,14 +80,10 @@ export function requireNativeProductBootstrapApproval(
     actor.length > 200 ||
     reason.length > 500
   ) {
-    throw new Error(
-      "APPLY=1 requires exact non-empty BOOTSTRAP_ACTOR and BOOTSTRAP_REASON",
-    );
+    throw new Error('APPLY=1 requires exact non-empty BOOTSTRAP_ACTOR and BOOTSTRAP_REASON');
   }
   if (expected !== planSha256) {
-    throw new Error(
-      `EXPECTED_PLAN_SHA256 must exactly equal the observed plan hash ${planSha256}`,
-    );
+    throw new Error(`EXPECTED_PLAN_SHA256 must exactly equal the observed plan hash ${planSha256}`);
   }
   return { actor, reason };
 }
@@ -107,14 +101,9 @@ export function requireExistingServiceCredentialSecretHash(input: {
 }): void {
   const existingSecretHash = input.existingSecretHash;
   if (input.suppliedSecretHash === undefined) {
-    throw new Error(
-      `${input.label} reuse requires its protected service-secret file`,
-    );
+    throw new Error(`${input.label} reuse requires its protected service-secret file`);
   }
-  if (
-    typeof existingSecretHash !== "string" ||
-    !/^[a-f0-9]{64}$/.test(existingSecretHash)
-  ) {
+  if (typeof existingSecretHash !== 'string' || !/^[a-f0-9]{64}$/.test(existingSecretHash)) {
     throw new Error(`${input.label} stored service-secret hash is malformed`);
   }
   if (!/^[a-f0-9]{64}$/.test(input.suppliedSecretHash)) {
@@ -122,12 +111,10 @@ export function requireExistingServiceCredentialSecretHash(input: {
   }
   if (
     !timingSafeEqual(
-      Buffer.from(existingSecretHash, "hex"),
-      Buffer.from(input.suppliedSecretHash, "hex"),
+      Buffer.from(existingSecretHash, 'hex'),
+      Buffer.from(input.suppliedSecretHash, 'hex'),
     )
   ) {
-    throw new Error(
-      `${input.label} protected service secret does not match PostgreSQL`,
-    );
+    throw new Error(`${input.label} protected service secret does not match PostgreSQL`);
   }
 }

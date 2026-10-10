@@ -1,5 +1,18 @@
 /** Canonical profile/theme preset identities accepted by Oxy writes. */
-export const USER_PROFILE_COLOR_PRESETS = ['teal','blue','green','amber','red','purple','pink','sky','orange','mint','mono','oxy'] as const;
+export const USER_PROFILE_COLOR_PRESETS = [
+  'teal',
+  'blue',
+  'green',
+  'amber',
+  'red',
+  'purple',
+  'pink',
+  'sky',
+  'orange',
+  'mint',
+  'mono',
+  'oxy',
+] as const;
 
 /**
  * Canonical API user-response contracts.
@@ -60,22 +73,22 @@ import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
  * (additive name fields are tolerated without a coordinated contract bump).
  */
 export interface UserNameResponse {
-    first?: string;
-    last?: string;
-    full?: string;
-    /** Canonical display string when present — render this directly. */
-    displayName?: string;
-    [key: string]: unknown;
+  first?: string;
+  last?: string;
+  full?: string;
+  /** Canonical display string when present — render this directly. */
+  displayName?: string;
+  [key: string]: unknown;
 }
 
 export const userNameSchema: z.ZodType<UserNameResponse> = z
-    .object({
-        first: z.string().optional(),
-        last: z.string().optional(),
-        full: z.string().optional(),
-        displayName: z.string().optional(),
-    })
-    .passthrough();
+  .object({
+    first: z.string().optional(),
+    last: z.string().optional(),
+    full: z.string().optional(),
+    displayName: z.string().optional(),
+  })
+  .passthrough();
 
 /**
  * The authenticated viewer's relationship to a fetched profile.
@@ -87,15 +100,15 @@ export const userNameSchema: z.ZodType<UserNameResponse> = z
  * from "known, not following" (`isFollowing: false`).
  */
 export interface UserRelationship {
-    /** The viewer follows this profile (viewer → target). */
-    isFollowing: boolean;
-    /** This profile follows the viewer (target → viewer). */
-    followsYou: boolean;
+  /** The viewer follows this profile (viewer → target). */
+  isFollowing: boolean;
+  /** This profile follows the viewer (target → viewer). */
+  followsYou: boolean;
 }
 
 export const userRelationshipSchema: z.ZodType<UserRelationship> = z.object({
-    isFollowing: z.boolean(),
-    followsYou: z.boolean(),
+  isFollowing: z.boolean(),
+  followsYou: z.boolean(),
 });
 
 /**
@@ -107,13 +120,13 @@ export const userRelationshipSchema: z.ZodType<UserRelationship> = z.object({
  * (e.g. `"blue"`) — never raw colors.
  */
 export interface ThemePreference {
-    mode: 'light' | 'dark' | 'system';
-    colorPreset: string;
+  mode: 'light' | 'dark' | 'system';
+  colorPreset: string;
 }
 
 export const themePreferenceSchema: z.ZodType<ThemePreference> = z.object({
-    mode: z.enum(['light', 'dark', 'system']),
-    colorPreset: z.string(),
+  mode: z.enum(['light', 'dark', 'system']),
+  colorPreset: z.string(),
 });
 
 /**
@@ -132,9 +145,9 @@ const MIN_BIRTH_YEAR = 1900;
  * since the regex only constrains digit COUNT and would pass `2024-02-30`.
  */
 function isRealCalendarDate(year: number, month: number, day: number): boolean {
-    const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-    const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1];
+  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1];
 }
 
 /**
@@ -160,21 +173,21 @@ function isRealCalendarDate(year: number, month: number, day: number): boolean {
  *     particular caller's local zone.
  */
 export const dateOfBirthSchema = z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'dateOfBirth must be an ISO 8601 calendar date (YYYY-MM-DD)')
-    .refine(
-        (value) => {
-            const [year, month, day] = value.split('-').map(Number);
-            return isRealCalendarDate(year, month, day);
-        },
-        { message: 'dateOfBirth is not a real calendar date' },
-    )
-    .refine((value) => Number(value.slice(0, 4)) >= MIN_BIRTH_YEAR, {
-        message: `dateOfBirth must not be before ${MIN_BIRTH_YEAR}`,
-    })
-    .refine((value) => value <= new Date().toISOString().slice(0, 10), {
-        message: 'dateOfBirth must not be in the future',
-    });
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'dateOfBirth must be an ISO 8601 calendar date (YYYY-MM-DD)')
+  .refine(
+    (value) => {
+      const [year, month, day] = value.split('-').map(Number);
+      return isRealCalendarDate(year, month, day);
+    },
+    { message: 'dateOfBirth is not a real calendar date' },
+  )
+  .refine((value) => Number(value.slice(0, 4)) >= MIN_BIRTH_YEAR, {
+    message: `dateOfBirth must not be before ${MIN_BIRTH_YEAR}`,
+  })
+  .refine((value) => value <= new Date().toISOString().slice(0, 10), {
+    message: 'dateOfBirth must not be in the future',
+  });
 
 /**
  * The canonical user object emitted by `formatUserResponse`.
@@ -194,173 +207,180 @@ export const dateOfBirthSchema = z
  * identity/display fields are the ones we pin precisely.
  */
 export const userResponseSchema = z
-    .object({
-        /** MongoDB ObjectId as a string. Present on `formatUserResponse` output. */
-        id: z.string().optional(),
-        /** Raw-document id (e.g. `GET /users/me`). Present when `id` is not. */
-        _id: z.string().optional(),
-        publicKey: z.string().optional(),
-        username: z.string().optional(),
-        email: z.string().optional(),
-        phone: z.string().optional(),
-        address: z.string().optional(),
-        birthday: z.string().optional(),
-        /**
-         * Structured date of birth, `YYYY-MM-DD`. Present only on the
-         * account's OWN profile response (`GET /users/me`, `PUT /users/me`
-         * with `includePrivateFields`) — never on another account's profile,
-         * the same visibility `phone`/`address`/`birthday` already have. See
-         * {@link dateOfBirthSchema}.
-         */
-        dateOfBirth: dateOfBirthSchema.optional(),
-        /**
-         * Derived, non-PII signal: whether the account holder is at least 18
-         * (see `computeIsAdult` in `user.service.ts` for the exact threshold
-         * and the UTC-"today" choice). Computed fresh on every read — age
-         * changes daily, so this is never stored. `undefined` when
-         * `dateOfBirth` is unset ("unknown"), distinct from `false` ("known,
-         * not yet 18"). Rides the same owner-only visibility as
-         * `dateOfBirth`; a future pass may widen this specific field to
-         * other viewers without exposing the birthdate itself, but that is
-         * not decided here.
-         */
-        isAdult: z.boolean().optional(),
-        /** Avatar file id (string) or null. */
-        avatar: z.string().nullable().optional(),
-        /** Named Bloom color preset (e.g. `"blue"`) or null. */
-        color: z.string().nullable().optional(),
-        name: userNameSchema,
-        verified: z.boolean().optional(),
-        /**
-         * The account's languages as full BCP-47 locales (`language-REGION`,
-         * e.g. `es-ES`, `en-US`, `pt-BR`), ordered with the PRIMARY (UI) locale
-         * first. `languages[0]` is the primary locale — there is no singular
-         * `language` field.
-         */
-        languages: z.array(z.string()).optional(),
-        /**
-         * The account's self-sovereign identifier
-         * (`did:web:<FEDERATION_DOMAIN>:u:<userId>`). Surfaced as a `User`
-         * virtual; present on formatted DTOs once the identity layer is live.
-         */
-        did: z.string().optional(),
-        /**
-         * Proven domain-ownership badges. Each is a {@link verifiedDomainSchema}
-         * entry; present only when the account has verified at least one domain.
-         */
-        verifiedDomains: z.array(verifiedDomainSchema).optional(),
-        /**
-         * Account-graph classification — what KIND of account this is.
-         *
-         * ORTHOGONAL to `type` (`local` / `federated` / `agent` / `automated`),
-         * which says where the account lives and how it is driven; the two
-         * coexist and neither substitutes for the other. A `channel` is a
-         * publishing identity nobody can act as, so a consumer that renders
-         * authored content reads THIS to tell a channel's post from a person's.
-         *
-         * Optional because a DTO produced from a source that never carried the
-         * column omits it; absent should be read as `personal`, the column's
-         * default, not as unknown.
-         */
-        kind: accountKindSchema.optional(),
-        /**
-         * What this account is about — the field a profile screen RENDERS.
-         *
-         * **Ordered, primary first.** `accountCategories[0]` is the primary
-         * category; there is deliberately no sibling `primaryCategory` field,
-         * because two representations of one fact can disagree (see rule 2 in
-         * `accountGraph.ts`). Nothing downstream may sort, de-duplicate or
-         * otherwise reorder this array.
-         *
-         * **Ids, never labels.** Each element is a stable slug; the visible text
-         * comes from the reader's own translation catalogue, keyed
-         * `accounts.accountCategory.<id>`. A label on the wire would paint every
-         * profile in the language of whoever picked it.
-         *
-         * Absent when the account has none — which is every `personal` account,
-         * and any non-personal one that has not chosen. A renderer reads
-         * `user.accountCategories ?? []`.
-         */
-        accountCategories: accountCategoriesSchema.optional(),
-        /**
-         * The authenticated viewer's relationship to this profile. Present ONLY
-         * on single-profile fetches (`GET /profiles/username/:username`,
-         * `GET /users/:userId`) when the request is authenticated; OMITTED for
-         * anonymous requests and for the bulk `POST /users/by-ids` fan-out.
-         */
-        relationship: userRelationshipSchema.optional(),
-        /**
-         * Portable theme preference. Rides the self/session payload (cold boot),
-         * so it is present on the current-user DTO (`GET /users/me`,
-         * `GET /session/user/:sessionId`) and absent until the user sets it.
-         */
-        themePreference: themePreferenceSchema.optional(),
-        personalization: z.object({mentionMono:z.object({allowed:z.boolean(),expiresAt:z.string().datetime().nullable()}).strict()}).strict().optional(),
-    })
-    .passthrough();
+  .object({
+    /** MongoDB ObjectId as a string. Present on `formatUserResponse` output. */
+    id: z.string().optional(),
+    /** Raw-document id (e.g. `GET /users/me`). Present when `id` is not. */
+    _id: z.string().optional(),
+    publicKey: z.string().optional(),
+    username: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    birthday: z.string().optional(),
+    /**
+     * Structured date of birth, `YYYY-MM-DD`. Present only on the
+     * account's OWN profile response (`GET /users/me`, `PUT /users/me`
+     * with `includePrivateFields`) — never on another account's profile,
+     * the same visibility `phone`/`address`/`birthday` already have. See
+     * {@link dateOfBirthSchema}.
+     */
+    dateOfBirth: dateOfBirthSchema.optional(),
+    /**
+     * Derived, non-PII signal: whether the account holder is at least 18
+     * (see `computeIsAdult` in `user.service.ts` for the exact threshold
+     * and the UTC-"today" choice). Computed fresh on every read — age
+     * changes daily, so this is never stored. `undefined` when
+     * `dateOfBirth` is unset ("unknown"), distinct from `false` ("known,
+     * not yet 18"). Rides the same owner-only visibility as
+     * `dateOfBirth`; a future pass may widen this specific field to
+     * other viewers without exposing the birthdate itself, but that is
+     * not decided here.
+     */
+    isAdult: z.boolean().optional(),
+    /** Avatar file id (string) or null. */
+    avatar: z.string().nullable().optional(),
+    /** Named Bloom color preset (e.g. `"blue"`) or null. */
+    color: z.string().nullable().optional(),
+    name: userNameSchema,
+    verified: z.boolean().optional(),
+    /**
+     * The account's languages as full BCP-47 locales (`language-REGION`,
+     * e.g. `es-ES`, `en-US`, `pt-BR`), ordered with the PRIMARY (UI) locale
+     * first. `languages[0]` is the primary locale — there is no singular
+     * `language` field.
+     */
+    languages: z.array(z.string()).optional(),
+    /**
+     * The account's self-sovereign identifier
+     * (`did:web:<FEDERATION_DOMAIN>:u:<userId>`). Surfaced as a `User`
+     * virtual; present on formatted DTOs once the identity layer is live.
+     */
+    did: z.string().optional(),
+    /**
+     * Proven domain-ownership badges. Each is a {@link verifiedDomainSchema}
+     * entry; present only when the account has verified at least one domain.
+     */
+    verifiedDomains: z.array(verifiedDomainSchema).optional(),
+    /**
+     * Account-graph classification — what KIND of account this is.
+     *
+     * ORTHOGONAL to `type` (`local` / `federated` / `agent` / `automated`),
+     * which says where the account lives and how it is driven; the two
+     * coexist and neither substitutes for the other. A `channel` is a
+     * publishing identity nobody can act as, so a consumer that renders
+     * authored content reads THIS to tell a channel's post from a person's.
+     *
+     * Optional because a DTO produced from a source that never carried the
+     * column omits it; absent should be read as `personal`, the column's
+     * default, not as unknown.
+     */
+    kind: accountKindSchema.optional(),
+    /**
+     * What this account is about — the field a profile screen RENDERS.
+     *
+     * **Ordered, primary first.** `accountCategories[0]` is the primary
+     * category; there is deliberately no sibling `primaryCategory` field,
+     * because two representations of one fact can disagree (see rule 2 in
+     * `accountGraph.ts`). Nothing downstream may sort, de-duplicate or
+     * otherwise reorder this array.
+     *
+     * **Ids, never labels.** Each element is a stable slug; the visible text
+     * comes from the reader's own translation catalogue, keyed
+     * `accounts.accountCategory.<id>`. A label on the wire would paint every
+     * profile in the language of whoever picked it.
+     *
+     * Absent when the account has none — which is every `personal` account,
+     * and any non-personal one that has not chosen. A renderer reads
+     * `user.accountCategories ?? []`.
+     */
+    accountCategories: accountCategoriesSchema.optional(),
+    /**
+     * The authenticated viewer's relationship to this profile. Present ONLY
+     * on single-profile fetches (`GET /profiles/username/:username`,
+     * `GET /users/:userId`) when the request is authenticated; OMITTED for
+     * anonymous requests and for the bulk `POST /users/by-ids` fan-out.
+     */
+    relationship: userRelationshipSchema.optional(),
+    /**
+     * Portable theme preference. Rides the self/session payload (cold boot),
+     * so it is present on the current-user DTO (`GET /users/me`,
+     * `GET /session/user/:sessionId`) and absent until the user sets it.
+     */
+    themePreference: themePreferenceSchema.optional(),
+    personalization: z
+      .object({
+        mentionMono: z
+          .object({ allowed: z.boolean(), expiresAt: z.string().datetime().nullable() })
+          .strict(),
+      })
+      .strict()
+      .optional(),
+  })
+  .passthrough();
 
 export type UserResponse = z.infer<typeof userResponseSchema>;
 
 export const userProfileUpdateSchema = z
-    .object({
-        name: z
-            .object({
-                first: z.string().optional(),
-                last: z.string().optional(),
-                /**
-                 * Explicit display name, stored rather than composed. Wins over
-                 * `first`/`last` when set; send `''` to clear it and fall back
-                 * to the composed pair.
-                 */
-                displayName: z.string().optional(),
-            })
-            .optional(),
-        username: z.string().optional(),
-        email: z.string().optional(),
-        avatar: z.string().optional(),
-        color: z.string().nullable().optional(),
-        bio: z.string().optional(),
-        description: z.string().optional(),
-        phone: z.string().optional(),
-        address: z.string().optional(),
-        birthday: z.string().optional(),
+  .object({
+    name: z
+      .object({
+        first: z.string().optional(),
+        last: z.string().optional(),
         /**
-         * Structured date of birth. `null` (or `''`, at the service layer)
-         * clears it. Independently settable from `birthday` — see
-         * `user.service.ts`'s `updateUserProfile` for why the two legacy and
-         * structured fields are not kept in sync with each other.
+         * Explicit display name, stored rather than composed. Wins over
+         * `first`/`last` when set; send `''` to clear it and fall back
+         * to the composed pair.
          */
-        dateOfBirth: dateOfBirthSchema.nullable().optional(),
-        locations: z.array(z.unknown()).optional(),
-        links: z.array(z.string()).optional(),
-        linksMetadata: z
-            .array(
-                z.object({
-                    url: z.string(),
-                    title: z.string().optional(),
-                    description: z.string().optional(),
-                    image: z.string().optional(),
-                    id: z.string().optional(),
-                }),
-            )
-            .optional(),
-        /**
-         * Ordered account locales (`language-REGION`), primary first. Replaces
-         * the eliminated singular `language`; `languages[0]` is the primary UI
-         * locale.
-         */
-        languages: z.array(z.string()).optional(),
-        accountExpiresAfterInactivityDays: z.number().nullable().optional(),
-        notificationPreferences: z.record(z.unknown()).optional(),
-        userPreferences: z.record(z.unknown()).optional(),
-        privacySettings: z.record(z.unknown()).optional(),
-        /**
-         * Portable theme preference. Written through the same `PUT /users/me`
-         * settings-update path as `languages`/`userPreferences`.
-         */
-        themePreference: themePreferenceSchema.optional(),
-    })
-    .passthrough();
+        displayName: z.string().optional(),
+      })
+      .optional(),
+    username: z.string().optional(),
+    email: z.string().optional(),
+    avatar: z.string().optional(),
+    color: z.string().nullable().optional(),
+    bio: z.string().optional(),
+    description: z.string().optional(),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    birthday: z.string().optional(),
+    /**
+     * Structured date of birth. `null` (or `''`, at the service layer)
+     * clears it. Independently settable from `birthday` — see
+     * `user.service.ts`'s `updateUserProfile` for why the two legacy and
+     * structured fields are not kept in sync with each other.
+     */
+    dateOfBirth: dateOfBirthSchema.nullable().optional(),
+    locations: z.array(z.unknown()).optional(),
+    links: z.array(z.string()).optional(),
+    linksMetadata: z
+      .array(
+        z.object({
+          url: z.string(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          image: z.string().optional(),
+          id: z.string().optional(),
+        }),
+      )
+      .optional(),
+    /**
+     * Ordered account locales (`language-REGION`), primary first. Replaces
+     * the eliminated singular `language`; `languages[0]` is the primary UI
+     * locale.
+     */
+    languages: z.array(z.string()).optional(),
+    accountExpiresAfterInactivityDays: z.number().nullable().optional(),
+    notificationPreferences: z.record(z.unknown()).optional(),
+    userPreferences: z.record(z.unknown()).optional(),
+    privacySettings: z.record(z.unknown()).optional(),
+    /**
+     * Portable theme preference. Written through the same `PUT /users/me`
+     * settings-update path as `languages`/`userPreferences`.
+     */
+    themePreference: themePreferenceSchema.optional(),
+  })
+  .passthrough();
 
 export type UserProfileUpdate = z.infer<typeof userProfileUpdateSchema>;
 
@@ -369,7 +389,7 @@ export type UserProfileUpdate = z.infer<typeof userProfileUpdateSchema>;
  * the `formatUserResponse` `id` field or the raw-document `_id` field.
  */
 export function resolveUserId(user: UserResponse): string | undefined {
-    return user.id ?? user._id;
+  return user.id ?? user._id;
 }
 
 /**
@@ -379,7 +399,7 @@ export function resolveUserId(user: UserResponse): string | undefined {
  * `name.displayName`.
  */
 export const currentUserResponseSchema = z.object({
-    data: userResponseSchema,
+  data: userResponseSchema,
 });
 
 export type CurrentUserResponseContract = z.infer<typeof currentUserResponseSchema>;
@@ -391,9 +411,9 @@ export type CurrentUserResponseContract = z.infer<typeof currentUserResponseSche
  * `formatUserResponse`; it is nullable on slots that lost their user document.
  */
 export const deviceLinkedSessionSchema = z.object({
-    sessionId: z.string(),
-    isCurrent: z.boolean().optional(),
-    user: userResponseSchema.nullable().optional(),
+  sessionId: z.string(),
+  isCurrent: z.boolean().optional(),
+  user: userResponseSchema.nullable().optional(),
 });
 
 export type DeviceLinkedSessionResponse = z.infer<typeof deviceLinkedSessionSchema>;
@@ -401,7 +421,9 @@ export type DeviceLinkedSessionResponse = z.infer<typeof deviceLinkedSessionSche
 /** Wire shape of `GET /session/device/sessions/:sessionId` (an array). */
 export const deviceLinkedSessionsResponseSchema = z.array(deviceLinkedSessionSchema);
 
-export type DeviceLinkedSessionsResponseContract = z.infer<typeof deviceLinkedSessionsResponseSchema>;
+export type DeviceLinkedSessionsResponseContract = z.infer<
+  typeof deviceLinkedSessionsResponseSchema
+>;
 
 /**
  * Safely parse a value against a contract schema. Returns the parsed (typed)
@@ -410,6 +432,6 @@ export type DeviceLinkedSessionsResponseContract = z.infer<typeof deviceLinkedSe
  * parse helper and the schemas live together.
  */
 export function safeParseContract<T>(schema: z.ZodType<T>, data: unknown): T | null {
-    const result = schema.safeParse(data);
-    return result.success ? result.data : null;
+  const result = schema.safeParse(data);
+  return result.success ? result.data : null;
 }

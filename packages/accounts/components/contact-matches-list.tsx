@@ -12,7 +12,11 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'rea
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { useFollow } from '@oxy.so/services';
 import type { User } from '@oxy.so/core';
-import { getAccountDisplayName, getAccountFallbackHandle, getNormalizedUserHandle } from '@oxy.so/core';
+import {
+  getAccountDisplayName,
+  getAccountFallbackHandle,
+  getNormalizedUserHandle,
+} from '@oxy.so/core';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';
@@ -59,16 +63,14 @@ function ContactMatchRowComponent({ match }: { match: ContactMatch }) {
 
   const fallbackHandle = getAccountFallbackHandle(match.user);
   const handle = fallbackHandle
-    ? (match.user.username ? `@${fallbackHandle}` : fallbackHandle)
+    ? match.user.username
+      ? `@${fallbackHandle}`
+      : fallbackHandle
     : '';
 
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
-      <Avatar
-        name={displayName}
-        source={avatarUrl}
-        size={40}
-      />
+      <Avatar name={displayName} source={avatarUrl} size={40} />
       <View style={styles.identity}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
           {displayName}
@@ -83,7 +85,11 @@ function ContactMatchRowComponent({ match }: { match: ContactMatch }) {
         onPress={handleToggleFollow}
         disabled={single.isLoading}
         accessibilityRole="button"
-        accessibilityLabel={single.isFollowing ? t('sharing.contacts.syncFollowing') : t('sharing.contacts.syncFollow')}
+        accessibilityLabel={
+          single.isFollowing
+            ? t('sharing.contacts.syncFollowing')
+            : t('sharing.contacts.syncFollow')
+        }
         style={[
           styles.followButton,
           {
@@ -93,7 +99,10 @@ function ContactMatchRowComponent({ match }: { match: ContactMatch }) {
         ]}
       >
         {single.isLoading ? (
-          <ActivityIndicator size="small" color={single.isFollowing ? colors.text : colors.background} />
+          <ActivityIndicator
+            size="small"
+            color={single.isFollowing ? colors.text : colors.background}
+          />
         ) : (
           <Text
             style={[
@@ -101,7 +110,9 @@ function ContactMatchRowComponent({ match }: { match: ContactMatch }) {
               { color: single.isFollowing ? colors.text : colors.background },
             ]}
           >
-            {single.isFollowing ? t('sharing.contacts.syncFollowing') : t('sharing.contacts.syncFollow')}
+            {single.isFollowing
+              ? t('sharing.contacts.syncFollowing')
+              : t('sharing.contacts.syncFollow')}
           </Text>
         )}
       </TouchableOpacity>

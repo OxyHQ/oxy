@@ -48,11 +48,7 @@ let counter = 0;
 
 const unique = (prefix: string) => `${prefix}${(counter += 1)}`;
 
-async function request(
-  method: string,
-  path: string,
-  payload?: unknown
-): Promise<JsonResponse> {
+async function request(method: string, path: string, payload?: unknown): Promise<JsonResponse> {
   const { port } = server.address() as AddressInfo;
   const hasBody = method !== 'GET';
   const body = hasBody ? JSON.stringify(payload ?? {}) : '';
@@ -84,7 +80,7 @@ async function request(
         res.on('end', () => {
           resolve({ status: res.statusCode ?? 0, body: raw ? JSON.parse(raw) : {} });
         });
-      }
+      },
     );
     req.on('error', reject);
     if (hasBody) req.write(body);
@@ -95,7 +91,7 @@ async function request(
 /** Mint a user, an application, an authorization and a grant with these scopes. */
 async function signIn(
   scopes: string[],
-  options: { ownedByUser?: boolean } = {}
+  options: { ownedByUser?: boolean } = {},
 ): Promise<{ userId: string; applicationId: string }> {
   const db = getDb();
   const [user] = await db.insert(users).values({}).returning({ id: users.id });
@@ -121,16 +117,14 @@ async function signIn(
     // satisfy it rather than route around it.
     expiresAt: new Date(Date.now() + 60 * 60 * 1000),
   });
-  await db
-    .insert(appGrants)
-    .values({ userId: user.id, applicationId: app.id, scopes });
+  await db.insert(appGrants).values({ userId: user.id, applicationId: app.id, scopes });
 
   mockAuthMiddleware.mockImplementation(
     (req: { user?: unknown; sessionId?: string }, _res: unknown, next: () => void) => {
       req.user = { id: user.id };
       req.sessionId = sessionId;
       next();
-    }
+    },
   );
 
   return { userId: user.id, applicationId: app.id };
@@ -186,7 +180,7 @@ describe('a session with nothing behind it', () => {
         req.user = { id: user.id };
         req.sessionId = 'session-that-authorized-nothing';
         next();
-      }
+      },
     );
 
     const res = await request('GET', '/v2/me/follows');
@@ -295,9 +289,9 @@ describe('following, over the wire', () => {
     // The whole resulting status comes back, so a client stores the answer
     // instead of reconstructing one — and the "for 72 hours" a toast promises
     // is a value the server confirmed rather than one the client assumed.
-    expect(
-      typeof (timed.body.data as { status: { expiresAt?: string } }).status.expiresAt
-    ).toBe('string');
+    expect(typeof (timed.body.data as { status: { expiresAt?: string } }).status.expiresAt).toBe(
+      'string',
+    );
 
     const { targetId: other } = await registerTarget();
     // Ten years is indistinguishable from permanent to a user who was told it
@@ -311,7 +305,7 @@ describe('following, over the wire', () => {
     // Following must never mint targets: a typo would become a permanent row
     // that one user follows and nobody else can reach.
     expect((await request('PUT', '/v2/follows/00000000-0000-4000-8000-000000000000')).status).toBe(
-      404
+      404,
     );
   });
 
@@ -384,7 +378,7 @@ describe('the registry, over the wire', () => {
     await signIn(ALL_SCOPES);
     const ns = unique('rt');
     expect((await request('POST', '/v2/follow-targets/namespaces', { namespace: ns })).status).toBe(
-      200
+      200,
     );
 
     await signIn(ALL_SCOPES);

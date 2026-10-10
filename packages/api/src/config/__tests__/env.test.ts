@@ -95,7 +95,7 @@ describe('validateRequiredEnvVars — DATABASE_URL', () => {
       expect(() => validateRequiredEnvVars()).not.toThrow();
       const warnCalls = JSON.stringify((logger.warn as jest.Mock).mock.calls);
       expect(warnCalls).not.toMatch(/DATABASE_URL/);
-    }
+    },
   );
 
   it('warns (but does not throw) when DATABASE_URL is not a Postgres URI', () => {
@@ -175,8 +175,8 @@ describe('validateRequiredEnvVars — DEVICE_ID_SALT (security review H1)', () =
     it('logs an explicit WARN when falling back to the dev placeholder', () => {
       validateRequiredEnvVars();
       const warnCalls = (logger.warn as jest.Mock).mock.calls;
-      const matched = warnCalls.some(([msg]) =>
-        typeof msg === 'string' && /development-only placeholder/.test(msg)
+      const matched = warnCalls.some(
+        ([msg]) => typeof msg === 'string' && /development-only placeholder/.test(msg),
       );
       expect(matched).toBe(true);
     });

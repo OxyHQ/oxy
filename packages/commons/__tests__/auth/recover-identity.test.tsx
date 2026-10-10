@@ -31,7 +31,6 @@ jest.mock('@/components/ui', () => ({
     React.createElement('button', { onClick: onPress }, children),
 }));
 
-
 jest.mock('@/hooks/useOnboardingStatus', () => {
   const actual = jest.requireActual('@/hooks/useOnboardingStatus');
   return {

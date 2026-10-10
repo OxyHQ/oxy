@@ -62,7 +62,7 @@ async function listedApp(): Promise<{ applicationId: string; ownerId: string }> 
 /** An uploaded asset belonging to `ownerUserId`. */
 async function uploadFile(
   ownerUserId: string | null,
-  overrides: Partial<typeof files.$inferInsert> = {}
+  overrides: Partial<typeof files.$inferInsert> = {},
 ): Promise<string> {
   const suffix = randomUUID();
   const [row] = await getDb()
@@ -111,7 +111,7 @@ describe('attaching a picture', () => {
     const fileId = await uploadFile(ownerId, { mime: 'application/pdf', ext: 'pdf' });
 
     await expect(addScreenshot({ applicationId, callerUserId: ownerId, fileId })).rejects.toThrow(
-      BadRequestError
+      BadRequestError,
     );
   });
 
@@ -120,7 +120,7 @@ describe('attaching a picture', () => {
     const fileId = await uploadFile(ownerId, { status: 'trash' });
 
     await expect(addScreenshot({ applicationId, callerUserId: ownerId, fileId })).rejects.toThrow(
-      NotFoundError
+      NotFoundError,
     );
   });
 
@@ -130,7 +130,7 @@ describe('attaching a picture', () => {
     const fileId = await uploadFile(someoneElse);
 
     await expect(addScreenshot({ applicationId, callerUserId: ownerId, fileId })).rejects.toThrow(
-      ForbiddenError
+      ForbiddenError,
     );
   });
 
@@ -146,7 +146,7 @@ describe('attaching a picture', () => {
         applicationId: application.id,
         callerUserId: ownerId,
         fileId: await uploadFile(ownerId),
-      })
+      }),
     ).rejects.toThrow(NotFoundError);
   });
 });
@@ -167,7 +167,7 @@ describe('a write names the listing, not just the id', () => {
         applicationId: mine.applicationId,
         screenshotId: theirShot.id,
         caption: 'Mine now',
-      })
+      }),
     ).rejects.toThrow(NotFoundError);
 
     const [untouched] = await getDb()
@@ -187,7 +187,7 @@ describe('a write names the listing, not just the id', () => {
     });
 
     await expect(
-      deleteScreenshot({ applicationId: mine.applicationId, screenshotId: theirShot.id })
+      deleteScreenshot({ applicationId: mine.applicationId, screenshotId: theirShot.id }),
     ).rejects.toThrow(NotFoundError);
 
     expect(await listScreenshots(theirs.applicationId)).toHaveLength(1);
@@ -225,11 +225,13 @@ describe('editing a picture', () => {
       caption: 'Something',
     });
 
-    expect((await updateScreenshot({ applicationId, screenshotId: shot.id, caption: null })).caption).toBeNull();
+    expect(
+      (await updateScreenshot({ applicationId, screenshotId: shot.id, caption: null })).caption,
+    ).toBeNull();
 
     await updateScreenshot({ applicationId, screenshotId: shot.id, caption: 'Again' });
     expect(
-      (await updateScreenshot({ applicationId, screenshotId: shot.id, caption: '  ' })).caption
+      (await updateScreenshot({ applicationId, screenshotId: shot.id, caption: '  ' })).caption,
     ).toBeNull();
   });
 });
@@ -251,7 +253,7 @@ describe('removing a picture', () => {
     const { applicationId } = await listedApp();
 
     await expect(
-      deleteScreenshot({ applicationId, screenshotId: `missing-${randomUUID()}` })
+      deleteScreenshot({ applicationId, screenshotId: `missing-${randomUUID()}` }),
     ).rejects.toThrow(NotFoundError);
   });
 });
@@ -294,7 +296,7 @@ describe('reordering', () => {
     const { applicationId, ids } = await threeShots();
 
     await expect(
-      reorderScreenshots({ applicationId, screenshotIds: [ids[1], ids[0]] })
+      reorderScreenshots({ applicationId, screenshotIds: [ids[1], ids[0]] }),
     ).rejects.toThrow(BadRequestError);
     expect((await listScreenshots(applicationId)).map((shot) => shot.id)).toEqual(ids);
   });
@@ -304,10 +306,10 @@ describe('reordering', () => {
     const elsewhere = await threeShots();
 
     await expect(
-      reorderScreenshots({ applicationId, screenshotIds: [ids[0], ids[0], ids[1]] })
+      reorderScreenshots({ applicationId, screenshotIds: [ids[0], ids[0], ids[1]] }),
     ).rejects.toThrow(BadRequestError);
     await expect(
-      reorderScreenshots({ applicationId, screenshotIds: [ids[0], ids[1], elsewhere.ids[0]] })
+      reorderScreenshots({ applicationId, screenshotIds: [ids[0], ids[1], elsewhere.ids[0]] }),
     ).rejects.toThrow(BadRequestError);
   });
 });

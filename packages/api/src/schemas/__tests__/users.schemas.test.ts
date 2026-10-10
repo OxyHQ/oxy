@@ -5,7 +5,7 @@ describe('updatePrivacyBodySchema', () => {
     expect(
       updatePrivacyBodySchema.parse({
         privacySettings: { fediverseSharing: false, isPrivateAccount: true },
-      })
+      }),
     ).toEqual({
       privacySettings: { fediverseSharing: false, isPrivateAccount: true },
     });
@@ -15,7 +15,7 @@ describe('updatePrivacyBodySchema', () => {
     expect(() =>
       updatePrivacyBodySchema.parse({
         privacySettings: { fediverseSharing: 'not-a-boolean' },
-      })
+      }),
     ).toThrow();
   });
 
@@ -23,7 +23,7 @@ describe('updatePrivacyBodySchema', () => {
     expect(
       updatePrivacyBodySchema.parse({
         privacySettings: { injectedField: true, isPrivateAccount: true },
-      })
+      }),
     ).toEqual({
       privacySettings: { isPrivateAccount: true },
     });

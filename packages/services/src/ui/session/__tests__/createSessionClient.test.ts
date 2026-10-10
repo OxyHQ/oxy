@@ -5,13 +5,20 @@ class FakeSocket {
   connected = false;
   on(_event: string, _cb: Handler) {}
   off(_event: string, _cb?: Handler) {}
-  connect() { this.connected = true; }
-  disconnect() { this.connected = false; }
+  connect() {
+    this.connected = true;
+  }
+  disconnect() {
+    this.connected = false;
+  }
 }
 const ioMock = jest.fn((_uri: string, _opts?: Record<string, unknown>) => new FakeSocket());
 // Core loads socket.io-client only when `start()` needs realtime transport. This
 // mock proves the services factory keeps that boundary lazy.
-jest.mock('socket.io-client', () => ({ __esModule: true, io: (...args: unknown[]) => ioMock(...(args as [string, Record<string, unknown>?])) }));
+jest.mock('socket.io-client', () => ({
+  __esModule: true,
+  io: (...args: unknown[]) => ioMock(...(args as [string, Record<string, unknown>?])),
+}));
 
 import { createSessionClient } from '../createSessionClient';
 
@@ -22,10 +29,14 @@ function fakeOxy() {
   return {
     request: jest.fn().mockResolvedValue(undefined),
     baseURL: 'https://api.oxy.so',
-    session: { accessToken: 'bearer.jwt.token', setAccessToken: jest.fn(), onChange: jest.fn((l: (t: string | null) => void) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    }) },
+    session: {
+      accessToken: 'bearer.jwt.token',
+      setAccessToken: jest.fn(),
+      onChange: jest.fn((l: (t: string | null) => void) => {
+        listeners.add(l);
+        return () => listeners.delete(l);
+      }),
+    },
   };
 }
 
@@ -60,7 +71,10 @@ describe('createSessionClient', () => {
 
     // The lazily-loaded `io` opens the session socket at the base URL.
     expect(ioMock).toHaveBeenCalledTimes(1);
-    expect(ioMock).toHaveBeenCalledWith('https://api.oxy.so', expect.objectContaining({ transports: ['websocket'] }));
+    expect(ioMock).toHaveBeenCalledWith(
+      'https://api.oxy.so',
+      expect.objectContaining({ transports: ['websocket'] }),
+    );
     client.stop();
   });
 

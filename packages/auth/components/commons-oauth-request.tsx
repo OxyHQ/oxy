@@ -34,26 +34,26 @@
  * of the surface.
  */
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { OxyAuthScreen, OxyAuthScreenHeader, OxySignInRequestSurface } from "@oxy.so/services"
-import type { OxySignInSurfaceAction } from "@oxy.so/services"
-import { useTranslation } from "@/lib/i18n/use-translation"
-import { CommonsOAuthRequest } from "@/lib/commons-oauth-request"
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { OxyAuthScreen, OxyAuthScreenHeader, OxySignInRequestSurface } from '@oxy.so/services';
+import type { OxySignInSurfaceAction } from '@oxy.so/services';
+import { useTranslation } from '@/lib/i18n/use-translation';
+import { CommonsOAuthRequest } from '@/lib/commons-oauth-request';
 import type {
-    CommonsOAuthBinding,
-    CommonsOAuthClient,
-    CommonsOAuthFailure,
-    CommonsOAuthOutcome,
-} from "@/lib/commons-oauth-request"
+  CommonsOAuthBinding,
+  CommonsOAuthClient,
+  CommonsOAuthFailure,
+  CommonsOAuthOutcome,
+} from '@/lib/commons-oauth-request';
 
 /** Failure copy, one key per terminal reason the lane can report. */
 const FAILURE_KEYS: Record<CommonsOAuthFailure, string> = {
-    start_failed: "authorize.commons.errors.startFailed",
-    request_expired: "authorize.commons.errors.requestExpired",
-    unreachable: "authorize.commons.errors.unreachable",
-    finalize_failed: "authorize.commons.errors.finalizeFailed",
-    redirect_mismatch: "authorize.commons.errors.redirectMismatch",
-}
+  start_failed: 'authorize.commons.errors.startFailed',
+  request_expired: 'authorize.commons.errors.requestExpired',
+  unreachable: 'authorize.commons.errors.unreachable',
+  finalize_failed: 'authorize.commons.errors.finalizeFailed',
+  redirect_mismatch: 'authorize.commons.errors.redirectMismatch',
+};
 
 /**
  * Failures a fresh request cannot fix. A mismatched redirect binding would come
@@ -61,24 +61,24 @@ const FAILURE_KEYS: Record<CommonsOAuthFailure, string> = {
  * user through the same dead end — the lane withholds `onRetry` there, leaving
  * the alternatives as the only way forward.
  */
-const UNRECOVERABLE_FAILURES: readonly CommonsOAuthFailure[] = ["redirect_mismatch"]
+const UNRECOVERABLE_FAILURES: readonly CommonsOAuthFailure[] = ['redirect_mismatch'];
 
 type CommonsOAuthLaneProps = {
-    /** The OAuth binding built from the authorize URL's validated parameters. */
-    binding: CommonsOAuthBinding
-    /** The SDK client. `useOxy().oxyServices` satisfies this structurally. */
-    client: CommonsOAuthClient
-    /** Server-resolved application name, or null when the page has none to show. */
-    appName?: string | null
-    /**
-     * The lane's ONE terminal outcome. The page delivers it through the SAME
-     * `deliverOAuthResult` funnel the session-bearing path uses, so the popup
-     * relay and the redirect fallback stay one decision.
-     */
-    onOutcome: (outcome: CommonsOAuthOutcome) => void
-    /** Fall back to signing in on this origin (email, password). */
-    onSignInHere: () => void
-}
+  /** The OAuth binding built from the authorize URL's validated parameters. */
+  binding: CommonsOAuthBinding;
+  /** The SDK client. `useOxy().oxyServices` satisfies this structurally. */
+  client: CommonsOAuthClient;
+  /** Server-resolved application name, or null when the page has none to show. */
+  appName?: string | null;
+  /**
+   * The lane's ONE terminal outcome. The page delivers it through the SAME
+   * `deliverOAuthResult` funnel the session-bearing path uses, so the popup
+   * relay and the redirect fallback stay one decision.
+   */
+  onOutcome: (outcome: CommonsOAuthOutcome) => void;
+  /** Fall back to signing in on this origin (email, password). */
+  onSignInHere: () => void;
+};
 
 /**
  * Owns the lane's lifecycle: exactly ONE {@link CommonsOAuthRequest} for the
@@ -90,109 +90,109 @@ type CommonsOAuthLaneProps = {
  * change without a navigation.
  */
 export function CommonsOAuthLane({
-    binding,
-    client,
-    appName,
-    onOutcome,
-    onSignInHere,
+  binding,
+  client,
+  appName,
+  onOutcome,
+  onSignInHere,
 }: CommonsOAuthLaneProps) {
-    const { t } = useTranslation()
+  const { t } = useTranslation();
 
-    // The outcome handler is invoked at most once, asynchronously, long after
-    // construction — so the controller dispatches through a ref rather than
-    // capturing whichever closure existed on the first render.
-    const outcomeRef = useRef(onOutcome)
-    useEffect(() => {
-        outcomeRef.current = onOutcome
-    }, [onOutcome])
+  // The outcome handler is invoked at most once, asynchronously, long after
+  // construction — so the controller dispatches through a ref rather than
+  // capturing whichever closure existed on the first render.
+  const outcomeRef = useRef(onOutcome);
+  useEffect(() => {
+    outcomeRef.current = onOutcome;
+  }, [onOutcome]);
 
-    const [request] = useState(
-        () =>
-            new CommonsOAuthRequest({
-                client,
-                clientId: binding.clientId,
-                oauth: binding.oauth,
-                onOutcome: (outcome) => outcomeRef.current(outcome),
-            }),
-    )
+  const [request] = useState(
+    () =>
+      new CommonsOAuthRequest({
+        client,
+        clientId: binding.clientId,
+        oauth: binding.oauth,
+        onOutcome: (outcome) => outcomeRef.current(outcome),
+      }),
+  );
 
-    useEffect(() => {
-        request.start()
-        return () => request.dispose()
-    }, [request])
+  useEffect(() => {
+    request.start();
+    return () => request.dispose();
+  }, [request]);
 
-    const snapshot = useSyncExternalStore(request.subscribe, request.getSnapshot, request.getSnapshot)
+  const snapshot = useSyncExternalStore(
+    request.subscribe,
+    request.getSnapshot,
+    request.getSnapshot,
+  );
 
-    const failed = snapshot.phase === "failed"
-    const failure = snapshot.failure
-    const qrPayload = snapshot.qrPayload
+  const failed = snapshot.phase === 'failed';
+  const failure = snapshot.failure;
+  const qrPayload = snapshot.qrPayload;
 
-    const alternatives: OxySignInSurfaceAction[] = []
-    if (qrPayload && !failed) {
-        alternatives.push({
-            key: "commons-open-on-this-device",
-            label: t("authorize.commons.openOnThisDevice"),
-            // The PUBLIC deep link only — it carries the `authorizeCode`, never
-            // the secret finalize credential. An explicit user choice from the
-            // disclosure, never an automatic route (a browser cannot verify that
-            // a Commons app link resolves on this device). Withheld once the
-            // request has failed: its handle is spent, so the link is a dead end.
-            onPress: () => {
-                window.location.href = qrPayload
-            },
-        })
-    }
+  const alternatives: OxySignInSurfaceAction[] = [];
+  if (qrPayload && !failed) {
     alternatives.push({
-        key: "commons-sign-in-here",
-        label: t("authorize.commons.signInHere"),
-        onPress: onSignInHere,
-    })
+      key: 'commons-open-on-this-device',
+      label: t('authorize.commons.openOnThisDevice'),
+      // The PUBLIC deep link only — it carries the `authorizeCode`, never
+      // the secret finalize credential. An explicit user choice from the
+      // disclosure, never an automatic route (a browser cannot verify that
+      // a Commons app link resolves on this device). Withheld once the
+      // request has failed: its handle is spent, so the link is a dead end.
+      onPress: () => {
+        window.location.href = qrPayload;
+      },
+    });
+  }
+  alternatives.push({
+    key: 'commons-sign-in-here',
+    label: t('authorize.commons.signInHere'),
+    onPress: onSignInHere,
+  });
 
-    return (
-        <OxyAuthScreen>
-            <OxyAuthScreenHeader
-                title={
-                    appName
-                        ? t("authorize.title", { app: appName })
-                        : t("authorize.requestTitle")
-                }
-                description={t("authorize.commons.description")}
-            />
+  return (
+    <OxyAuthScreen>
+      <OxyAuthScreenHeader
+        title={appName ? t('authorize.title', { app: appName }) : t('authorize.requestTitle')}
+        description={t('authorize.commons.description')}
+      />
 
-            {failed && failure !== null && (
-                <p
-                    className="rounded-radius-12 border border-destructive/50 bg-destructive/10 p-space-12 font-bodySmall text-bodySmall text-destructive"
-                    data-testid="commons-failure"
-                >
-                    {t(FAILURE_KEYS[failure])}
-                </p>
-            )}
+      {failed && failure !== null && (
+        <p
+          className="rounded-radius-12 border border-destructive/50 bg-destructive/10 p-space-12 font-bodySmall text-bodySmall text-destructive"
+          data-testid="commons-failure"
+        >
+          {t(FAILURE_KEYS[failure])}
+        </p>
+      )}
 
-            <OxySignInRequestSurface
-                route={snapshot.route}
-                // `CommonsOAuthProgress` is a strict subset of the SDK's
-                // `SignInProgress`; "nothing honest to report" is `'idle'`, which
-                // renders no status line.
-                progress={snapshot.progress ?? "idle"}
-                qrPayload={qrPayload}
-                failed={failed}
-                // "Try again" means a BRAND-NEW request (`start` is a no-op on a
-                // live one, and never re-finalizes a spent one), and is offered
-                // only where a fresh attempt could actually land differently.
-                onRetry={
-                    failed && failure !== null && !UNRECOVERABLE_FAILURES.includes(failure)
-                        ? request.start
-                        : undefined
-                }
-                subordinate={[
-                    {
-                        key: "commons-cancel",
-                        label: t("authorize.cancel"),
-                        onPress: request.cancel,
-                    },
-                ]}
-                alternatives={alternatives}
-            />
-        </OxyAuthScreen>
-    )
+      <OxySignInRequestSurface
+        route={snapshot.route}
+        // `CommonsOAuthProgress` is a strict subset of the SDK's
+        // `SignInProgress`; "nothing honest to report" is `'idle'`, which
+        // renders no status line.
+        progress={snapshot.progress ?? 'idle'}
+        qrPayload={qrPayload}
+        failed={failed}
+        // "Try again" means a BRAND-NEW request (`start` is a no-op on a
+        // live one, and never re-finalizes a spent one), and is offered
+        // only where a fresh attempt could actually land differently.
+        onRetry={
+          failed && failure !== null && !UNRECOVERABLE_FAILURES.includes(failure)
+            ? request.start
+            : undefined
+        }
+        subordinate={[
+          {
+            key: 'commons-cancel',
+            label: t('authorize.cancel'),
+            onPress: request.cancel,
+          },
+        ]}
+        alternatives={alternatives}
+      />
+    </OxyAuthScreen>
+  );
 }

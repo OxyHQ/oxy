@@ -36,7 +36,7 @@ function writeMigrationsFolder(files: { tag: string; when: number; sql: string }
         tag: file.tag,
         breakpoints: true,
       })),
-    })
+    }),
   );
   for (const file of files) writeFileSync(join(folder, `${file.tag}.sql`), file.sql);
   return folder;
@@ -110,7 +110,7 @@ describe('readJournalWithHashes', () => {
     mkdirSync(join(partial, 'meta'));
     writeFileSync(
       join(partial, 'meta', '_journal.json'),
-      JSON.stringify({ entries: [{ idx: 0, when: 1, tag: '0000_absent' }] })
+      JSON.stringify({ entries: [{ idx: 0, when: 1, tag: '0000_absent' }] }),
     );
     try {
       expect(() => readJournalWithHashes(partial)).toThrow(/0000_absent/);
@@ -204,21 +204,23 @@ describe('assertAppliedMigrations', () => {
 
   it('refuses a required tag absent from the candidate journal', () => {
     expect(() => assertAppliedMigrations(entries, rows, ['0002_absent'])).toThrow(
-      /not present in this image's journal/
+      /not present in this image's journal/,
     );
   });
 
   it('refuses a required tag absent from the ledger', () => {
     expect(() => assertAppliedMigrations(entries, rows.slice(0, 1), ['0001_second'])).toThrow(
-      /not recorded in the database ledger/
+      /not recorded in the database ledger/,
     );
   });
 
   it('refuses a required tag whose recorded SQL hash differs', () => {
     expect(() =>
-      assertAppliedMigrations(entries, [rows[0], { whenMillis: 200, hash: 'changed' }], [
-        '0001_second',
-      ])
+      assertAppliedMigrations(
+        entries,
+        [rows[0], { whenMillis: 200, hash: 'changed' }],
+        ['0001_second'],
+      ),
     ).toThrow(/different SQL hash/);
   });
 });
@@ -236,7 +238,7 @@ describe('formatLedgerComparison', () => {
 
   it('names the unapplied migrations', () => {
     const text = formatLedgerComparison(
-      compareLedger([{ tag: '0007_late', when: 7, hash: 'h' }], [])
+      compareLedger([{ tag: '0007_late', when: 7, hash: 'h' }], []),
     );
     expect(text).toContain('UNAPPLIED (in journal, not in ledger): 1');
     expect(text).toContain('0007_late');

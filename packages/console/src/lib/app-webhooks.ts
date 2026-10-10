@@ -87,7 +87,7 @@ export function storedWebhookEndpoints(application: {
 export function webhookPatch(
   stored: WebhookEndpointDraft,
   draft: WebhookEndpointDraft,
-  canEdit: boolean
+  canEdit: boolean,
 ): WebhookPatch {
   if (!canEdit) {
     return {};

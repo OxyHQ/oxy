@@ -65,14 +65,12 @@ function normalizeSql(value: string): string {
  * substring test would report a column the SQL never mentions.
  */
 const USERS_COLUMNS: readonly string[] = Object.values(getTableConfig(users).columns).map(
-  (column) => sqlColumnName(column)
+  (column) => sqlColumnName(column),
 );
 
 function peopleSearchColumnsIn(sqlText: string): Set<string> {
   const text = sqlText.toLowerCase();
-  return new Set(
-    USERS_COLUMNS.filter((column) => new RegExp(`\\b${column}\\b`).test(text))
-  );
+  return new Set(USERS_COLUMNS.filter((column) => new RegExp(`\\b${column}\\b`).test(text)));
 }
 
 async function explain(predicate: ReturnType<typeof peopleSearchMatch>): Promise<string> {
@@ -81,7 +79,7 @@ async function explain(predicate: ReturnType<typeof peopleSearchMatch>): Promise
   const rows = await getDb().transaction(async (tx) => {
     await tx.execute(sql`set local enable_seqscan = off`);
     return tx.execute<{ 'QUERY PLAN': string }>(
-      sql`explain (costs off) select ${sql.raw('id')} from users where ${predicate}`
+      sql`explain (costs off) select ${sql.raw('id')} from users where ${predicate}`,
     );
   });
   return rows.map((row) => row['QUERY PLAN']).join('\n');
@@ -104,7 +102,7 @@ describe('pg_trgm is a declared prerequisite', () => {
 
   it('is installed in the database the migrations ran against', async () => {
     const rows = await getDb().execute<{ extname: string }>(
-      sql`select extname from pg_extension where extname = 'pg_trgm'`
+      sql`select extname from pg_extension where extname = 'pg_trgm'`,
     );
     expect(rows).toHaveLength(1);
   });
@@ -113,7 +111,7 @@ describe('pg_trgm is a declared prerequisite', () => {
 describe('the people-search indexes exist as declared', () => {
   it('builds the trigram index as a GIN over gin_trgm_ops', async () => {
     const rows = await getDb().execute<{ indexdef: string }>(
-      sql`select indexdef from pg_indexes where tablename = 'users' and indexname = ${TRGM_INDEX}`
+      sql`select indexdef from pg_indexes where tablename = 'users' and indexname = ${TRGM_INDEX}`,
     );
     expect(rows).toHaveLength(1);
     const definition = normalizeSql(rows[0].indexdef);
@@ -123,7 +121,7 @@ describe('the people-search indexes exist as declared', () => {
 
   it('covers every column the predicate filters on', async () => {
     const rows = await getDb().execute<{ indexdef: string }>(
-      sql`select indexdef from pg_indexes where tablename = 'users' and indexname = ${TRGM_INDEX}`
+      sql`select indexdef from pg_indexes where tablename = 'users' and indexname = ${TRGM_INDEX}`,
     );
 
     // Compared as SETS OF COLUMNS, not as text. Postgres rewrites an index
@@ -135,7 +133,7 @@ describe('the people-search indexes exist as declared', () => {
     // filters on is a column the index covers.
     const indexed = peopleSearchColumnsIn(rows[0].indexdef);
     const filtered = peopleSearchColumnsIn(
-      getDb().dialect.sqlToQuery(peopleSearchMatch('needle')).sql
+      getDb().dialect.sqlToQuery(peopleSearchMatch('needle')).sql,
     );
 
     expect(filtered.size).toBeGreaterThan(0);
@@ -154,7 +152,7 @@ describe('the people-search indexes exist as declared', () => {
     // the expression matter: the single-space separators are what make the
     // coarse filter a strict superset of the four ILIKEs.
     const rows = await getDb().execute<{ indexdef: string }>(
-      sql`select indexdef from pg_indexes where tablename = 'users' and indexname = ${TRGM_INDEX}`
+      sql`select indexdef from pg_indexes where tablename = 'users' and indexname = ${TRGM_INDEX}`,
     );
     const declared = normalizeSql(getDb().dialect.sqlToQuery(PEOPLE_SEARCH_TRGM_EXPRESSION).sql);
     const stored = normalizeSql(rows[0].indexdef);
@@ -162,14 +160,18 @@ describe('the people-search indexes exist as declared', () => {
     // Strip what Postgres adds when it stores an expression: explicit `::text`
     // casts, and the parentheses it inserts around every binary operator.
     const shape = (value: string): string =>
-      value.replace(/::text/g, '').replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+      value
+        .replace(/::text/g, '')
+        .replace(/[()]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 
     expect(shape(stored)).toContain(shape(declared));
   });
 
   it('builds the short-term prefix indexes with text_pattern_ops', async () => {
     const rows = await getDb().execute<{ indexname: string; indexdef: string }>(
-      sql`select indexname, indexdef from pg_indexes where tablename = 'users'`
+      sql`select indexname, indexdef from pg_indexes where tablename = 'users'`,
     );
     const byName = new Map(rows.map((row) => [row.indexname, row.indexdef]));
     for (const name of PREFIX_INDEXES) {
@@ -201,7 +203,7 @@ describe('the people-search predicate is index-servable', () => {
     // The routes never apply the match alone; a plan that only works without
     // the gate would not be the plan production runs.
     const plan = await explain(
-      sql`${peopleSearchPredicate()} and ${peopleSearchMatch('alice')}` as never
+      sql`${peopleSearchPredicate()} and ${peopleSearchMatch('alice')}` as never,
     );
     expect(plan).toContain(TRGM_INDEX);
   });
@@ -226,13 +228,13 @@ describe('the coarse prefilter does not become the predicate', () => {
 
     try {
       const rows = await getDb().execute<{ id: string }>(
-        sql`select id from users where ${peopleSearchMatch('alice bob')}`
+        sql`select id from users where ${peopleSearchMatch('alice bob')}`,
       );
       expect(rows.map((row) => row.id)).not.toContain(seeded.id);
 
       // ...and the same row IS found by a term that genuinely occurs in a column.
       const found = await getDb().execute<{ id: string }>(
-        sql`select id from users where ${peopleSearchMatch('aliceb')}`
+        sql`select id from users where ${peopleSearchMatch('aliceb')}`,
       );
       expect(found.map((row) => row.id)).toContain(seeded.id);
     } finally {

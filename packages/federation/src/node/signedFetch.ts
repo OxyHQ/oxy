@@ -156,7 +156,9 @@ export function createSignedFetch(config: CreateSignedFetchConfig): SignedFetch 
     // resources. Retry from the post-redirect URL so we don't restart a chain that
     // already landed on the failing hop.
     if (res.status >= 500) {
-      config.logger?.info(`[FedSync] signedFetch got ${res.status} for ${finalUrl}, retrying unsigned`);
+      config.logger?.info(
+        `[FedSync] signedFetch got ${res.status} for ${finalUrl}, retrying unsigned`,
+      );
       return fetchFollowingRedirects(finalUrl, false).then(({ res: unsignedRes }) => unsignedRes);
     }
 

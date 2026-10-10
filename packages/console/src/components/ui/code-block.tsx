@@ -1,10 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import {  codeToHtml } from 'shiki';
+import { codeToHtml } from 'shiki';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
-import type {BundledLanguage} from 'shiki';
+import type { BundledLanguage } from 'shiki';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,7 +68,7 @@ function CodeBlockContainer({
       className={cn(
         'rounded-lg border bg-muted/50 overflow-hidden',
         '[content-visibility:auto]',
-        className
+        className,
       )}
       {...props}
     >
@@ -78,17 +78,10 @@ function CodeBlockContainer({
 }
 
 // Header
-function CodeBlockHeader({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+function CodeBlockHeader({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn(
-        'flex items-center justify-between px-4 py-2 border-b bg-muted/30',
-        className
-      )}
+      className={cn('flex items-center justify-between px-4 py-2 border-b bg-muted/30', className)}
       {...props}
     >
       {children}
@@ -97,11 +90,7 @@ function CodeBlockHeader({
 }
 
 // Title (left side of header)
-function CodeBlockTitle({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+function CodeBlockTitle({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn('flex items-center gap-2 text-sm', className)} {...props}>
       {children}
@@ -123,11 +112,7 @@ function CodeBlockFilename({
 }
 
 // Actions (right side of header)
-function CodeBlockActions({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+function CodeBlockActions({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn('flex items-center gap-2', className)} {...props}>
       {children}
@@ -136,7 +121,8 @@ function CodeBlockActions({
 }
 
 // Copy button
-interface CodeBlockCopyButtonProps extends Omit<React.ComponentProps<typeof Button>, 'onClick' | 'onError'> {
+interface CodeBlockCopyButtonProps
+  extends Omit<React.ComponentProps<typeof Button>, 'onClick' | 'onError'> {
   onCopy?: () => void;
   onError?: (error: Error) => void;
   timeout?: number;
@@ -303,7 +289,8 @@ function CodeBlockContent({ code, language, showLineNumbers = false }: CodeBlock
         'overflow-x-auto p-4 text-sm',
         '[&_pre]:!bg-transparent [&_pre]:!p-0 [&_pre]:!m-0',
         '[&_code]:!bg-transparent [&_.shiki]:!bg-transparent',
-        showLineNumbers && '[&_.line]::before:content-[counter(line)] [&_.line]::before:mr-4 [&_.line]::before:text-muted-foreground/50 [&_.line]::before:text-right [&_.line]::before:w-4 [&_.line]::before:inline-block [&_pre]:counter-reset-[line] [&_.line]:counter-increment-[line]'
+        showLineNumbers &&
+          '[&_.line]::before:content-[counter(line)] [&_.line]::before:mr-4 [&_.line]::before:text-muted-foreground/50 [&_.line]::before:text-right [&_.line]::before:w-4 [&_.line]::before:inline-block [&_pre]:counter-reset-[line] [&_.line]:counter-increment-[line]',
       )}
       // Safe: Shiki's codeToHtml escapes the input `code` string before
       // wrapping it in highlight spans; the fallback path runs the code

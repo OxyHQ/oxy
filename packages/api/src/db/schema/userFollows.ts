@@ -107,11 +107,7 @@ export const userFollows = pgTable(
     // target) and earning its keep identically here: `getUserFollowers` pages
     // this exact shape, and `id` mirrors the `(createdAt, _id)` tiebreak the
     // sort uses so pagination stays deterministic.
-    index('user_follows_followed_id_created_at_id_idx').on(
-      t.followedId,
-      t.createdAt.desc(),
-      t.id
-    ),
+    index('user_follows_followed_id_created_at_id_idx').on(t.followedId, t.createdAt.desc(), t.id),
 
     // Mongo's `{followType, createdAt:-1, _id:1}`, again minus the constant
     // leading column. It serves the bounded recent-edge window
@@ -132,5 +128,5 @@ export const userFollows = pgTable(
     // the same move `users_parent_account_id_not_self_check` makes for the
     // account tree.
     check('user_follows_not_self_check', sql`${t.followerId} <> ${t.followedId}`),
-  ]
+  ],
 );

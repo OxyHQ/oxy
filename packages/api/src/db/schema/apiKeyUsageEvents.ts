@@ -141,7 +141,7 @@ export const apiKeyUsageEvents = pgTable(
     // `getUsageStats({appId, timestamp: {$gte}})` (`routes/applications.ts:961`).
     index('api_key_usage_events_application_id_created_at_idx').on(
       t.applicationId,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // `{userId, timestamp: {$gte}}` (`routes/credits.ts:59`).
     index('api_key_usage_events_user_id_created_at_idx').on(t.userId, t.createdAt.desc()),
@@ -154,25 +154,25 @@ export const apiKeyUsageEvents = pgTable(
     // time bound only.
     check(
       'api_key_usage_events_method_check',
-      sql`${t.method} in (${sql.raw(inList(API_KEY_USAGE_METHODS))})`
+      sql`${t.method} in (${sql.raw(inList(API_KEY_USAGE_METHODS))})`,
     ),
     check(
       'api_key_usage_events_auth_type_check',
-      sql`${t.authType} in (${sql.raw(inList(API_KEY_USAGE_AUTH_TYPES))})`
+      sql`${t.authType} in (${sql.raw(inList(API_KEY_USAGE_AUTH_TYPES))})`,
     ),
     // An HTTP status code. A row outside this range is a recording bug, and it
     // would silently distort the success/error split the usage report computes
     // from `status_code < 400`.
     check(
       'api_key_usage_events_status_code_check',
-      sql`${t.statusCode} >= 100 and ${t.statusCode} < 600`
+      sql`${t.statusCode} >= 100 and ${t.statusCode} < 600`,
     ),
     // Consumption is never negative: a negative would subtract from a `$sum`
     // that bills a user.
     check(
       'api_key_usage_events_consumption_check',
       sql`${t.tokensUsed} >= 0 and ${t.creditsUsed} >= 0
-        and (${t.responseTime} is null or ${t.responseTime} >= 0)`
+        and (${t.responseTime} is null or ${t.responseTime} >= 0)`,
     ),
-  ]
+  ],
 );

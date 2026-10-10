@@ -1,4 +1,4 @@
-import { INBOX_REVIEWED_ROUTING_PROFILE } from "../config/inboxInference";
+import { INBOX_REVIEWED_ROUTING_PROFILE } from '../config/inboxInference';
 
 export interface InboxRoutingProfileReadbackRow {
   readonly id: string;
@@ -24,9 +24,9 @@ export interface InboxRoutingProfileReadbackInput {
 
 export interface InboxRoutingProfileReadbackResult {
   readonly schemaVersion: 1;
-  readonly status: "passed";
+  readonly status: 'passed';
   readonly database: {
-    readonly engine: "postgresql";
+    readonly engine: 'postgresql';
     readonly transactionReadOnly: true;
     readonly writes: 0;
   };
@@ -47,7 +47,7 @@ export interface InboxRoutingProfileReadbackResult {
 export class InboxRoutingProfileReadbackError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "InboxRoutingProfileReadbackError";
+    this.name = 'InboxRoutingProfileReadbackError';
   }
 }
 
@@ -67,33 +67,25 @@ export function validateInboxRoutingProfileReadback(
     input.requestedRoutingProfileId.length === 0 ||
     input.requestedRoutingProfileId.trim() !== input.requestedRoutingProfileId
   ) {
-    fail(
-      "The requested routing-profile ID must be exact and contain no edge whitespace",
-    );
+    fail('The requested routing-profile ID must be exact and contain no edge whitespace');
   }
   if (input.requestedRoutingProfileId !== expected.id) {
-    fail(
-      "The requested routing-profile ID is not the reviewed Inbox primary key",
-    );
+    fail('The requested routing-profile ID is not the reviewed Inbox primary key');
   }
   if (input.transactionReadOnly !== true) {
-    fail("PostgreSQL did not confirm a read-only transaction");
+    fail('PostgreSQL did not confirm a read-only transaction');
   }
   if (input.profiles.length !== 1) {
-    fail(
-      "Expected exactly one Inbox routing-profile row for the reviewed primary key",
-    );
+    fail('Expected exactly one Inbox routing-profile row for the reviewed primary key');
   }
   if (input.candidates.length !== 1) {
-    fail(
-      "Expected exactly one candidate row for the reviewed Inbox primary key",
-    );
+    fail('Expected exactly one candidate row for the reviewed Inbox primary key');
   }
 
   const profile = input.profiles[0];
   const candidate = input.candidates[0];
   if (profile === undefined || candidate === undefined) {
-    fail("The exact Inbox routing-profile readback is incomplete");
+    fail('The exact Inbox routing-profile readback is incomplete');
   }
   if (
     profile.id !== expected.id ||
@@ -103,25 +95,21 @@ export function validateInboxRoutingProfileReadback(
     profile.optimiseFor !== expected.optimiseFor ||
     profile.isProductPreset !== expected.isProductPreset
   ) {
-    fail(
-      "The Inbox routing-profile row does not match its reviewed source metadata",
-    );
+    fail('The Inbox routing-profile row does not match its reviewed source metadata');
   }
   if (
     candidate.routingProfileId !== expected.id ||
     candidate.modelReference !== expected.candidate.modelReference ||
     candidate.priority !== expected.candidate.priority
   ) {
-    fail(
-      "The Inbox routing-profile candidate does not match its reviewed model and priority",
-    );
+    fail('The Inbox routing-profile candidate does not match its reviewed model and priority');
   }
 
   return {
     schemaVersion: 1,
-    status: "passed",
+    status: 'passed',
     database: {
-      engine: "postgresql",
+      engine: 'postgresql',
       transactionReadOnly: true,
       writes: 0,
     },

@@ -105,7 +105,8 @@ export class DeviceJoinService {
 
     const app = await resolveOfficialApplication(input.clientId);
     if (!app) return { ok: false, reason: 'invalid_client' };
-    if (!isAllowedRedirectUri(app, input.redirectUri)) return { ok: false, reason: 'invalid_redirect_uri' };
+    if (!isAllowedRedirectUri(app, input.redirectUri))
+      return { ok: false, reason: 'invalid_redirect_uri' };
 
     const db = getDb();
     const [device] = await db
@@ -163,7 +164,10 @@ export class DeviceJoinService {
     const app = await resolveOfficialApplication(input.clientId);
     if (!app || app.id !== claimed.applicationId) return { ok: false, reason: 'invalid_client' };
     if (
-      !timingSafeStringEqual(claimed.redirectUri, canonicalizeOAuthRedirectUri(input.redirectUri)) ||
+      !timingSafeStringEqual(
+        claimed.redirectUri,
+        canonicalizeOAuthRedirectUri(input.redirectUri),
+      ) ||
       !timingSafeStringEqual(claimed.codeChallenge, pkceS256(input.codeVerifier))
     ) {
       return { ok: false, reason: 'invalid_grant' };
@@ -188,7 +192,9 @@ export class DeviceJoinService {
  * exactly as it was without one (its own device), because a person must never
  * fail to sign in over the browser-sharing optimisation.
  */
-export async function resolveProvenDeviceId(proof: DeviceProof | undefined | null): Promise<string | null> {
+export async function resolveProvenDeviceId(
+  proof: DeviceProof | undefined | null,
+): Promise<string | null> {
   return (await resolveProvenDevice(proof))?.deviceId ?? null;
 }
 
@@ -202,7 +208,9 @@ export async function resolveProvenDevice(
   if (!proof) return null;
   try {
     const state = await deviceSessionService.getStateBySecret(proof.deviceId, proof.deviceSecret);
-    return state ? { deviceId: state.deviceId, accountIds: state.accounts.map((account) => account.accountId) } : null;
+    return state
+      ? { deviceId: state.deviceId, accountIds: state.accounts.map((account) => account.accountId) }
+      : null;
   } catch (error) {
     logger.warn('deviceJoin.resolveProvenDeviceId: proof check failed', { error });
     return null;

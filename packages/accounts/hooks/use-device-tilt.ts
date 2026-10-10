@@ -6,7 +6,7 @@ export const useDeviceTilt = () => {
   // Shared values for rotation angles (in degrees)
   const rotateX = useSharedValue(0); // Pitch (forward/backward)
   const rotateY = useSharedValue(0); // Roll (left/right)
-  
+
   // Track last update time for integration
   const lastUpdateTime = useRef<number | null>(null);
 
@@ -33,7 +33,7 @@ export const useDeviceTilt = () => {
         // Subscribe to gyroscope updates - integrate rotation rates
         subscription = Gyroscope.addListener((data: GyroscopeMeasurement) => {
           const now = data.timestamp;
-          
+
           if (lastUpdateTime.current === null) {
             lastUpdateTime.current = now;
             return;
@@ -45,18 +45,18 @@ export const useDeviceTilt = () => {
 
           // Convert rotation rates (rad/s) to degrees and integrate
           // X axis rotation (pitch) - forward/backward tilt
-          const deltaX = (data.x * 180) / Math.PI * deltaTime;
-          // Y axis rotation (roll) - left/right tilt  
-          const deltaY = (data.y * 180) / Math.PI * deltaTime;
+          const deltaX = ((data.x * 180) / Math.PI) * deltaTime;
+          // Y axis rotation (roll) - left/right tilt
+          const deltaY = ((data.y * 180) / Math.PI) * deltaTime;
 
           // Apply rotation with limits (Airbnb-style: ±15 degrees) and damping
           const maxRotation = 15;
           const damping = 0.95; // Slight damping to prevent infinite accumulation
-          
+
           // Apply rotation with damping (returns to center when device stops)
           const newRotateX = rotateX.value * damping + deltaX * 0.5;
           const newRotateY = rotateY.value * damping + deltaY * 0.5;
-          
+
           rotateX.value = Math.max(-maxRotation, Math.min(maxRotation, newRotateX));
           rotateY.value = Math.max(-maxRotation, Math.min(maxRotation, newRotateY));
         });

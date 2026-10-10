@@ -24,7 +24,6 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 
-
 const mockResolveAndUpsert = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({

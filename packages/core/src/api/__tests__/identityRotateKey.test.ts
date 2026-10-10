@@ -32,11 +32,13 @@ function cacheSpies(client: OxyServices): { keys: jest.Mock; prefixes: jest.Mock
   let spies = cacheSpyMap.get(client);
   if (!spies) {
     const created = { keys: jest.fn(), prefixes: jest.fn() };
-    jest.spyOn(client.http, 'invalidateCache').mockImplementation(({ keys = [], prefixes = [] }) => {
-      for (const key of keys) created.keys(key);
-      for (const prefix of prefixes) created.prefixes(prefix);
-      return 0;
-    });
+    jest
+      .spyOn(client.http, 'invalidateCache')
+      .mockImplementation(({ keys = [], prefixes = [] }) => {
+        for (const key of keys) created.keys(key);
+        for (const prefix of prefixes) created.prefixes(prefix);
+        return 0;
+      });
     cacheSpyMap.set(client, created);
     spies = created;
   }
@@ -51,7 +53,20 @@ const NEW_PRIVATE = newKeyPair.privateKey;
 
 const pendingFixture = {
   phrase: 'alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima',
-  words: ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima'],
+  words: [
+    'alpha',
+    'bravo',
+    'charlie',
+    'delta',
+    'echo',
+    'foxtrot',
+    'golf',
+    'hotel',
+    'india',
+    'juliet',
+    'kilo',
+    'lima',
+  ],
   privateKey: NEW_PRIVATE,
   publicKey: NEW_PUBLIC,
 };
@@ -101,7 +116,9 @@ describe('OxyServices.rotateKey', () => {
       jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
       const signSpy = jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
       // The new-key proof is signed with the pending private key via protocol.signMessage.
-      const newKeySignSpy = jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
+      const newKeySignSpy = jest
+        .spyOn(protocol, 'signMessage')
+        .mockResolvedValue('newkeyproof-hex');
       const importSpy = jest.spyOn(KeyManager, 'importKeyPair').mockResolvedValue(NEW_PUBLIC);
       makeRequestSpy
         .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
@@ -109,7 +126,11 @@ describe('OxyServices.rotateKey', () => {
 
       const result = await oxy.identity.rotateKey({ proof: 'device' });
 
-      expect(result).toEqual({ newPublicKey: NEW_PUBLIC, newPhrase: pendingFixture.phrase, words: pendingFixture.words });
+      expect(result).toEqual({
+        newPublicKey: NEW_PUBLIC,
+        newPhrase: pendingFixture.phrase,
+        words: pendingFixture.words,
+      });
 
       // The OLD-key signed message MUST match the server's reconstruction byte-for-byte.
       const expectedMessage = JSON.stringify({
@@ -131,12 +152,24 @@ describe('OxyServices.rotateKey', () => {
       });
       expect(newKeySignSpy).toHaveBeenCalledWith(expectedNewKeyMessage, NEW_PRIVATE);
 
-      expect(makeRequestSpy).toHaveBeenNthCalledWith(1, 'POST', '/auth/rotate/challenge', undefined, expect.objectContaining({ cache: false }));
+      expect(makeRequestSpy).toHaveBeenNthCalledWith(
+        1,
+        'POST',
+        '/auth/rotate/challenge',
+        undefined,
+        expect.objectContaining({ cache: false }),
+      );
       expect(makeRequestSpy).toHaveBeenNthCalledWith(
         2,
         'POST',
         '/auth/rotate/complete',
-        { newPublicKey: NEW_PUBLIC, challenge: 'chal-1', signature: 'sig-hex', newKeyProof: 'newkeyproof-hex', timestamp: 1700000000000 },
+        {
+          newPublicKey: NEW_PUBLIC,
+          challenge: 'chal-1',
+          signature: 'sig-hex',
+          newKeyProof: 'newkeyproof-hex',
+          timestamp: 1700000000000,
+        },
         expect.objectContaining({ cache: false }),
       );
 
@@ -174,7 +207,9 @@ describe('OxyServices.rotateKey', () => {
       jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
       jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
       // The server rotated successfully, but the on-device persist fails.
-      jest.spyOn(KeyManager, 'importKeyPair').mockRejectedValue(new Error('secure store write failed'));
+      jest
+        .spyOn(KeyManager, 'importKeyPair')
+        .mockRejectedValue(new Error('secure store write failed'));
       makeRequestSpy
         .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
         .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
@@ -207,10 +242,14 @@ describe('OxyServices.rotateKey', () => {
       jest.spyOn(KeyManager, 'hasSharedIdentity').mockResolvedValue(true);
       const sharedSpy = jest
         .spyOn(KeyManager, 'importSharedIdentity')
-        .mockImplementation(async () => { order.push('shared'); return NEW_PUBLIC; });
-      const importSpy = jest
-        .spyOn(KeyManager, 'importKeyPair')
-        .mockImplementation(async () => { order.push('primary'); return NEW_PUBLIC; });
+        .mockImplementation(async () => {
+          order.push('shared');
+          return NEW_PUBLIC;
+        });
+      const importSpy = jest.spyOn(KeyManager, 'importKeyPair').mockImplementation(async () => {
+        order.push('primary');
+        return NEW_PUBLIC;
+      });
       makeRequestSpy
         .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
         .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
@@ -250,7 +289,9 @@ describe('OxyServices.rotateKey', () => {
       setPlatformOS('android');
       try {
         const order: string[] = [];
-        jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
+        jest
+          .spyOn(RecoveryPhraseService, 'derivePendingIdentity')
+          .mockResolvedValue(pendingFixture);
         jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(OLD_PUBLIC);
         jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
         jest.spyOn(protocol, 'signMessage').mockResolvedValue('newkeyproof-hex');
@@ -259,14 +300,18 @@ describe('OxyServices.rotateKey', () => {
           expect(key).toBe(NEW_PUBLIC);
           order.push('begin');
         });
-        jest.spyOn(KeyManager, 'completeKeyRotation').mockImplementation(async () => { order.push('complete'); });
+        jest.spyOn(KeyManager, 'completeKeyRotation').mockImplementation(async () => {
+          order.push('complete');
+        });
         const probe = jest.spyOn(KeyManager, 'hasSharedIdentity');
-        jest
-          .spyOn(KeyManager, 'importSharedIdentity')
-          .mockImplementation(async () => { order.push('shared'); return NEW_PUBLIC; });
-        jest
-          .spyOn(KeyManager, 'importKeyPair')
-          .mockImplementation(async () => { order.push('primary'); return NEW_PUBLIC; });
+        jest.spyOn(KeyManager, 'importSharedIdentity').mockImplementation(async () => {
+          order.push('shared');
+          return NEW_PUBLIC;
+        });
+        jest.spyOn(KeyManager, 'importKeyPair').mockImplementation(async () => {
+          order.push('primary');
+          return NEW_PUBLIC;
+        });
         makeRequestSpy
           .mockResolvedValueOnce({ challenge: 'chal-1', expiresAt: '2999-01-01T00:00:00.000Z' })
           .mockResolvedValueOnce({ success: true, publicKey: NEW_PUBLIC, message: 'ok' });
@@ -284,7 +329,9 @@ describe('OxyServices.rotateKey', () => {
       jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
       jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(null);
 
-      await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow(/No on-device identity/);
+      await expect(oxy.identity.rotateKey({ proof: 'device' })).rejects.toThrow(
+        /No on-device identity/,
+      );
       expect(makeRequestSpy).not.toHaveBeenCalled();
     });
   });
@@ -299,7 +346,8 @@ describe('OxyServices.rotateKey', () => {
 
       let completeBody: Record<string, unknown> | undefined;
       makeRequestSpy.mockImplementation((_m: string, path: string, body?: unknown) => {
-        if (path === '/auth/rotate/challenge') return Promise.resolve({ challenge: 'chal-x', expiresAt: '2999-01-01T00:00:00.000Z' });
+        if (path === '/auth/rotate/challenge')
+          return Promise.resolve({ challenge: 'chal-x', expiresAt: '2999-01-01T00:00:00.000Z' });
         if (path === '/auth/rotate/complete') {
           completeBody = body as Record<string, unknown>;
           return Promise.resolve({ success: true, publicKey: next.publicKey, message: 'ok' });
@@ -319,9 +367,17 @@ describe('OxyServices.rotateKey', () => {
         challenge: 'chal-x',
         timestamp: completeBody?.timestamp,
       });
-      expect(await protocol.verifySignature(message, completeBody?.signature as string, current.publicKey)).toBe(true);
+      expect(
+        await protocol.verifySignature(
+          message,
+          completeBody?.signature as string,
+          current.publicKey,
+        ),
+      ).toBe(true);
       // …and must NOT verify against the new key (proves it was signed by the current key).
-      expect(await protocol.verifySignature(message, completeBody?.signature as string, next.publicKey)).toBe(false);
+      expect(
+        await protocol.verifySignature(message, completeBody?.signature as string, next.publicKey),
+      ).toBe(false);
 
       // The NEW-key proof-of-possession MUST verify against the NEW key.
       const newKeyMessage = JSON.stringify({
@@ -331,14 +387,28 @@ describe('OxyServices.rotateKey', () => {
         challenge: 'chal-x',
         timestamp: completeBody?.timestamp,
       });
-      expect(await protocol.verifySignature(newKeyMessage, completeBody?.newKeyProof as string, next.publicKey)).toBe(true);
+      expect(
+        await protocol.verifySignature(
+          newKeyMessage,
+          completeBody?.newKeyProof as string,
+          next.publicKey,
+        ),
+      ).toBe(true);
       // …and must NOT verify against the old key (proves possession of the new key).
-      expect(await protocol.verifySignature(newKeyMessage, completeBody?.newKeyProof as string, current.publicKey)).toBe(false);
+      expect(
+        await protocol.verifySignature(
+          newKeyMessage,
+          completeBody?.newKeyProof as string,
+          current.publicKey,
+        ),
+      ).toBe(false);
     });
 
     it('throws when proof is phrase but no phrase is supplied', async () => {
       jest.spyOn(RecoveryPhraseService, 'derivePendingIdentity').mockResolvedValue(pendingFixture);
-      await expect(oxy.identity.rotateKey({ proof: 'phrase' })).rejects.toThrow(/recovery phrase is required/);
+      await expect(oxy.identity.rotateKey({ proof: 'phrase' })).rejects.toThrow(
+        /recovery phrase is required/,
+      );
       expect(makeRequestSpy).not.toHaveBeenCalled();
     });
   });
@@ -358,7 +428,13 @@ describe('OxyServices.rotateKey', () => {
       const result = await oxy.identity.rotateKey({ proof: 'device' });
 
       expect(result.newPublicKey).toBe(NEW_PUBLIC);
-      expect(makeRequestSpy).toHaveBeenNthCalledWith(3, 'GET', '/u/user-123/did.json', undefined, expect.objectContaining({ cache: false }));
+      expect(makeRequestSpy).toHaveBeenNthCalledWith(
+        3,
+        'GET',
+        '/u/user-123/did.json',
+        undefined,
+        expect.objectContaining({ cache: false }),
+      );
       // The swap landed server-side, so the new key is persisted locally.
       expect(importSpy).toHaveBeenCalledWith(NEW_PRIVATE, { overwrite: true });
     });

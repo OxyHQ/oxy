@@ -98,7 +98,11 @@ describe('readIdentityVerdictWithSilentRestore', () => {
     recover.mockRestore();
   });
 
-  const recovered: IdentityRecoveryResult = { recovered: true, source: 'device-backup', publicKey: 'pub' };
+  const recovered: IdentityRecoveryResult = {
+    recovered: true,
+    source: 'device-backup',
+    publicKey: 'pub',
+  };
 
   it('leaves a present identity alone', async () => {
     status.mockResolvedValueOnce(PRESENT);
@@ -158,7 +162,10 @@ describe('root layout wiring', () => {
   });
 
   it('the boot probe restores silently', () => {
-    const hook = readFileSync(join(__dirname, '..', '..', 'hooks', 'useOnboardingStatus.ts'), 'utf8');
+    const hook = readFileSync(
+      join(__dirname, '..', '..', 'hooks', 'useOnboardingStatus.ts'),
+      'utf8',
+    );
     expect(hook).toContain('await readIdentityVerdictWithSilentRestore()');
   });
 });

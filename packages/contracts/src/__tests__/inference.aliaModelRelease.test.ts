@@ -88,9 +88,9 @@ describe('aliaModelReleaseManifestSchema', () => {
     ).toBe(false);
 
     // And a verification RESULT, which is Oxy's finding, never the signer's claim.
-    expect(
-      aliaModelReleaseManifestSchema.safeParse({ ...manifest, verified: true }).success,
-    ).toBe(false);
+    expect(aliaModelReleaseManifestSchema.safeParse({ ...manifest, verified: true }).success).toBe(
+      false,
+    );
   });
 
   it('releases only into the reserved alia/* namespace', () => {
@@ -171,12 +171,12 @@ describe('aliaModelReleaseManifestSchema', () => {
   });
 
   it('refuses a release with no artifacts and no signatures', () => {
-    expect(
-      aliaModelReleaseManifestSchema.safeParse({ ...manifest, artifacts: [] }).success,
-    ).toBe(false);
-    expect(
-      aliaModelReleaseManifestSchema.safeParse({ ...manifest, signatures: [] }).success,
-    ).toBe(false);
+    expect(aliaModelReleaseManifestSchema.safeParse({ ...manifest, artifacts: [] }).success).toBe(
+      false,
+    );
+    expect(aliaModelReleaseManifestSchema.safeParse({ ...manifest, signatures: [] }).success).toBe(
+      false,
+    );
   });
 
   it('refuses a duplicate artifact path and a duplicate signing key', () => {
@@ -213,9 +213,9 @@ describe('aliaReleaseSignatureSchema', () => {
     expect(aliaReleaseSignatureSchema.safeParse({ ...signature, algorithm: 'none' }).success).toBe(
       false,
     );
-    expect(
-      aliaReleaseSignatureSchema.safeParse({ ...signature, algorithm: 'hs256' }).success,
-    ).toBe(false);
+    expect(aliaReleaseSignatureSchema.safeParse({ ...signature, algorithm: 'hs256' }).success).toBe(
+      false,
+    );
 
     // A digest over "the manifest" is not verifiable by two implementations that
     // serialize JSON differently, so the scheme is named and closed too.

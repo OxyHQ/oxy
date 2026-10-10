@@ -21,7 +21,8 @@ jest.mock('@/components/ui', () => {
     Screen: ({ children }: { children: React.ReactNode }) => R.createElement('div', null, children),
     StackHeader: ({ title, subtitle }: { title: string; subtitle?: string }) =>
       R.createElement('div', null, title, subtitle),
-    Section: ({ children }: { children: React.ReactNode }) => R.createElement('div', null, children),
+    Section: ({ children }: { children: React.ReactNode }) =>
+      R.createElement('div', null, children),
     Button: ({
       children,
       onPress,
@@ -31,7 +32,8 @@ jest.mock('@/components/ui', () => {
       onPress?: () => void;
       disabled?: boolean;
     }) => R.createElement('button', { onClick: onPress, disabled }, children),
-    Callout: ({ children }: { children: React.ReactNode }) => R.createElement('div', null, children),
+    Callout: ({ children }: { children: React.ReactNode }) =>
+      R.createElement('div', null, children),
     CenteredState: ({
       title,
       body,

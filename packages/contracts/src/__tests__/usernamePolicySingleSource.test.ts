@@ -266,7 +266,7 @@ describe('the username policy is declared once', () => {
   it('the scan reaches the repository', () => {
     expect(occurrences.length).toBeGreaterThan(0);
     expect(occurrences.map((found) => found.file)).toContain(
-      'packages/api/src/services/federation.service.ts'
+      'packages/api/src/services/federation.service.ts',
     );
   });
 
@@ -292,7 +292,10 @@ describe('every documented username pattern quotes the enforced one', () => {
   /** Same reasoning as above: an empty list would satisfy the assertion below. */
   it('finds the OpenAPI docblocks that publish the rule', () => {
     expect(documented.map((found) => found.file)).toEqual(
-      expect.arrayContaining(['packages/api/src/routes/auth.ts', 'packages/api/src/routes/users.ts'])
+      expect.arrayContaining([
+        'packages/api/src/routes/auth.ts',
+        'packages/api/src/routes/users.ts',
+      ]),
     );
   });
 

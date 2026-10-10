@@ -47,7 +47,12 @@ let mockWindowWidth = 375;
 export const setMockWindowWidth = (width: number): void => {
   mockWindowWidth = width;
 };
-export const useWindowDimensions = () => ({ width: mockWindowWidth, height: 667, scale: 1, fontScale: 1 });
+export const useWindowDimensions = () => ({
+  width: mockWindowWidth,
+  height: 667,
+  scale: 1,
+  fontScale: 1,
+});
 
 export const StyleSheet = {
   create: <T extends Record<string, unknown>>(styles: T): T => styles,
@@ -70,10 +75,7 @@ export const Appearance = {
  */
 export const AppState: {
   currentState: string;
-  addEventListener: (
-    type: string,
-    handler: (state: string) => void,
-  ) => { remove: () => void };
+  addEventListener: (type: string, handler: (state: string) => void) => { remove: () => void };
 } = {
   currentState: 'active',
   addEventListener: () => ({ remove: () => undefined }),

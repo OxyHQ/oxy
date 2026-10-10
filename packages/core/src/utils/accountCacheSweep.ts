@@ -78,12 +78,11 @@ export function oxyAccountDetailCacheKey(accountId: string): string {
  *                    account in it (create, archive, ownership transfer) has no
  *                    detail row to name, and clears only the lists.
  */
-export function evictOxyAccountForestCache(
-  http: OxyAccountCacheEvictor,
-  accountId?: string,
-): void {
+export function evictOxyAccountForestCache(http: OxyAccountCacheEvictor, accountId?: string): void {
   http.invalidateCache({
-    keys: accountId ? [OXY_ACCOUNT_LIST_CACHE_KEY, oxyAccountDetailCacheKey(accountId)] : [OXY_ACCOUNT_LIST_CACHE_KEY],
+    keys: accountId
+      ? [OXY_ACCOUNT_LIST_CACHE_KEY, oxyAccountDetailCacheKey(accountId)]
+      : [OXY_ACCOUNT_LIST_CACHE_KEY],
     prefixes: [OXY_ACCOUNT_LIST_CACHE_QUERY_PREFIX],
   });
 }

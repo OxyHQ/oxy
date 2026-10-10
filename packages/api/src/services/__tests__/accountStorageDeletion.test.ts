@@ -64,7 +64,10 @@ class FakeBucket implements StorageDeletionStore {
   }
 
   async listKeys(prefix: string, maxKeys: number): Promise<string[]> {
-    return [...this.objects].filter((key) => key.startsWith(prefix)).sort().slice(0, maxKeys);
+    return [...this.objects]
+      .filter((key) => key.startsWith(prefix))
+      .sort()
+      .slice(0, maxKeys);
   }
 }
 
@@ -107,13 +110,18 @@ async function createAsset(
     })
     .returning({ id: files.id });
   for (const key of options.variants ?? []) {
-    await getDb().insert(fileVariants).values({ fileId: file!.id, type: key.split('/').pop()!, key, readyAt: new Date() });
+    await getDb()
+      .insert(fileVariants)
+      .values({ fileId: file!.id, type: key.split('/').pop()!, key, readyAt: new Date() });
   }
   return { id: file!.id, sha256, storageKey };
 }
 
 async function rowsFor(accountId: string) {
-  return getDb().select().from(storageObjectDeletions).where(eq(storageObjectDeletions.accountId, accountId));
+  return getDb()
+    .select()
+    .from(storageObjectDeletions)
+    .where(eq(storageObjectDeletions.accountId, accountId));
 }
 
 /** Only this account's rows are claimable, so parallel suites never interfere. */
@@ -166,44 +174,66 @@ describe('recordAccountStorageDeletion', () => {
     const bystander = await createUser('staying');
     const photo = await createAsset({ ownerUserId: person });
     const video = await createAsset({ ownerUserId: person }, { variants: [] });
-    await getDb().insert(fileVariants).values({
-      fileId: video.id,
-      type: 'hls_master',
-      key: `variants/2026/09/${video.sha256.slice(0, 2)}/${video.sha256}/hls_master.m3u8`,
-    });
+    await getDb()
+      .insert(fileVariants)
+      .values({
+        fileId: video.id,
+        type: 'hls_master',
+        key: `variants/2026/09/${video.sha256.slice(0, 2)}/${video.sha256}/hls_master.m3u8`,
+      });
     const trashed = await createAsset({ ownerUserId: person }, { status: 'trash' });
     const theirs = await createAsset({ ownerUserId: bystander });
     const cached = await createAsset({ systemOwner: '__federation_media_cache__' });
 
     const recorded = await getDb().transaction((tx) =>
-      recordAccountStorageDeletion(tx, person, { removeAssetRows: false }));
+      recordAccountStorageDeletion(tx, person, { removeAssetRows: false }),
+    );
 
     expect(recorded.fileIds.sort()).toEqual([photo.id, video.id, trashed.id].sort());
     const rows = await rowsFor(person);
-    expect(rows.map((row) => `${row.kind}:${row.target}`).sort()).toEqual([
-      `object:${photo.storageKey}`,
-      `object:${trashed.storageKey}`,
-      `object:${video.storageKey}`,
-      `prefix:variants/2026/09/${video.sha256.slice(0, 2)}/${video.sha256}/`,
-    ].sort());
-    expect(rows.every((row) => row.reason === 'account.deleted' && row.completedAt === null)).toBe(true);
-    expect(rows.some((row) => row.sha256 === theirs.sha256 || row.sha256 === cached.sha256)).toBe(false);
+    expect(rows.map((row) => `${row.kind}:${row.target}`).sort()).toEqual(
+      [
+        `object:${photo.storageKey}`,
+        `object:${trashed.storageKey}`,
+        `object:${video.storageKey}`,
+        `prefix:variants/2026/09/${video.sha256.slice(0, 2)}/${video.sha256}/`,
+      ].sort(),
+    );
+    expect(rows.every((row) => row.reason === 'account.deleted' && row.completedAt === null)).toBe(
+      true,
+    );
+    expect(rows.some((row) => row.sha256 === theirs.sha256 || row.sha256 === cached.sha256)).toBe(
+      false,
+    );
 
     // A retried deletion records nothing twice.
-    await getDb().transaction((tx) => recordAccountStorageDeletion(tx, person, { removeAssetRows: false }));
+    await getDb().transaction((tx) =>
+      recordAccountStorageDeletion(tx, person, { removeAssetRows: false }),
+    );
     expect(await rowsFor(person)).toHaveLength(4);
 
     // Without removeAssetRows the rows are the caller's cascade to remove.
-    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.ownerUserId, person))).toHaveLength(3);
+    expect(
+      await getDb().select({ id: files.id }).from(files).where(eq(files.ownerUserId, person)),
+    ).toHaveLength(3);
   });
 
   it('removes the asset rows itself on the archive path, sparing one another mailbox still uses', async () => {
     const person = await createUser('archived');
     const recipient = await createUser('recipient');
-    const photo = await createAsset({ ownerUserId: person }, {
-      variants: [],
-    });
-    await getDb().insert(fileVariants).values({ fileId: photo.id, type: 'thumb', key: `variants/2026/09/${photo.sha256.slice(0, 2)}/${photo.sha256}/thumb.webp` });
+    const photo = await createAsset(
+      { ownerUserId: person },
+      {
+        variants: [],
+      },
+    );
+    await getDb()
+      .insert(fileVariants)
+      .values({
+        fileId: photo.id,
+        type: 'thumb',
+        key: `variants/2026/09/${photo.sha256.slice(0, 2)}/${photo.sha256}/thumb.webp`,
+      });
     const attached = await createAsset({ ownerUserId: person });
     const [mailbox] = await getDb()
       .insert(mailboxes)
@@ -231,27 +261,36 @@ describe('recordAccountStorageDeletion', () => {
     });
 
     const recorded = await getDb().transaction((tx) =>
-      recordAccountStorageDeletion(tx, person, { removeAssetRows: true }));
+      recordAccountStorageDeletion(tx, person, { removeAssetRows: true }),
+    );
 
     expect(recorded.fileIds).toEqual([photo.id]);
-    const remaining = await getDb().select({ id: files.id }).from(files).where(eq(files.ownerUserId, person));
+    const remaining = await getDb()
+      .select({ id: files.id })
+      .from(files)
+      .where(eq(files.ownerUserId, person));
     expect(remaining.map((row) => row.id)).toEqual([attached.id]);
-    expect(await getDb().select().from(fileVariants).where(eq(fileVariants.fileId, photo.id))).toHaveLength(0);
-    expect((await rowsFor(person)).map((row) => row.target).sort()).toEqual([
-      photo.storageKey,
-      `variants/2026/09/${photo.sha256.slice(0, 2)}/${photo.sha256}/`,
-    ].sort());
+    expect(
+      await getDb().select().from(fileVariants).where(eq(fileVariants.fileId, photo.id)),
+    ).toHaveLength(0);
+    expect((await rowsFor(person)).map((row) => row.target).sort()).toEqual(
+      [photo.storageKey, `variants/2026/09/${photo.sha256.slice(0, 2)}/${photo.sha256}/`].sort(),
+    );
   });
 
   it('records nothing when the transaction rolls back', async () => {
     const person = await createUser('rolled-back');
     await createAsset({ ownerUserId: person });
-    await expect(getDb().transaction(async (tx) => {
-      await recordAccountStorageDeletion(tx, person, { removeAssetRows: true });
-      throw new Error('deletion refused');
-    })).rejects.toThrow('deletion refused');
+    await expect(
+      getDb().transaction(async (tx) => {
+        await recordAccountStorageDeletion(tx, person, { removeAssetRows: true });
+        throw new Error('deletion refused');
+      }),
+    ).rejects.toThrow('deletion refused');
     expect(await rowsFor(person)).toHaveLength(0);
-    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.ownerUserId, person))).toHaveLength(1);
+    expect(
+      await getDb().select({ id: files.id }).from(files).where(eq(files.ownerUserId, person)),
+    ).toHaveLength(1);
   });
 });
 
@@ -274,8 +313,12 @@ describe('archiving a managed account (DELETE /accounts/:id)', () => {
     const archived = await accountService.archiveAccount(channelId);
 
     expect(archived.accountStatus).toBe('archived');
-    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.id, asset.id))).toHaveLength(0);
-    expect((await rowsFor(channelId)).map((row) => `${row.kind}:${row.target}`)).toEqual([`object:${asset.storageKey}`]);
+    expect(
+      await getDb().select({ id: files.id }).from(files).where(eq(files.id, asset.id)),
+    ).toHaveLength(0);
+    expect((await rowsFor(channelId)).map((row) => `${row.kind}:${row.target}`)).toEqual([
+      `object:${asset.storageKey}`,
+    ]);
   });
 
   it('does not archive, and keeps the uploads, when the storage cannot be recorded', async () => {
@@ -286,9 +329,14 @@ describe('archiving a managed account (DELETE /accounts/:id)', () => {
 
     await expect(accountService.archiveAccount(channelId)).rejects.toThrow('storage record failed');
 
-    const [row] = await getDb().select({ accountStatus: users.accountStatus }).from(users).where(eq(users.id, channelId));
+    const [row] = await getDb()
+      .select({ accountStatus: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, channelId));
     expect(row!.accountStatus).toBe('active');
-    expect(await getDb().select({ id: files.id }).from(files).where(eq(files.id, asset.id))).toHaveLength(1);
+    expect(
+      await getDb().select({ id: files.id }).from(files).where(eq(files.id, asset.id)),
+    ).toHaveLength(1);
     expect(await rowsFor(channelId)).toHaveLength(0);
   });
 });
@@ -299,7 +347,13 @@ describe('runStorageDeletionBatch', () => {
     const asset = await createAsset({ ownerUserId: person });
     const directory = `variants/2026/09/${asset.sha256.slice(0, 2)}/${asset.sha256}/`;
     if (options.variants) {
-      await getDb().insert(fileVariants).values({ fileId: asset.id, type: 'hls_master', key: `public/${directory}hls_master.m3u8` });
+      await getDb()
+        .insert(fileVariants)
+        .values({
+          fileId: asset.id,
+          type: 'hls_master',
+          key: `public/${directory}hls_master.m3u8`,
+        });
     }
     await getDb().transaction(async (tx) => {
       await recordAccountStorageDeletion(tx, person, { removeAssetRows: false });
@@ -312,16 +366,29 @@ describe('runStorageDeletionBatch', () => {
   it('deletes the original in both spellings and every object under the variant directory', async () => {
     const { person, asset, directory } = await deletedAccountWith({ variants: true });
     const bucket = new FakeBucket();
-    const segments = Array.from({ length: 5 }, (_, i) => `public/${directory}hls_360p_segment_${i}.ts`);
+    const segments = Array.from(
+      { length: 5 },
+      (_, i) => `public/${directory}hls_360p_segment_${i}.ts`,
+    );
     const unrelated = `public/variants/2026/09/${asset.sha256.slice(0, 2)}/${sha()}/thumb.webp`;
-    bucket.put(asset.storageKey, `public/${asset.storageKey}`, `public/${directory}hls_master.m3u8`, ...segments, unrelated);
+    bucket.put(
+      asset.storageKey,
+      `public/${asset.storageKey}`,
+      `public/${directory}hls_master.m3u8`,
+      ...segments,
+      unrelated,
+    );
 
     const result = await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
 
     expect(result).toMatchObject({ claimed: 2, deleted: 2, failed: 0 });
     expect([...bucket.objects]).toEqual([unrelated]);
     const rows = await rowsFor(person);
-    expect(rows.every((row) => row.outcome === 'deleted' && row.completedAt !== null && row.attempts === 1)).toBe(true);
+    expect(
+      rows.every(
+        (row) => row.outcome === 'deleted' && row.completedAt !== null && row.attempts === 1,
+      ),
+    ).toBe(true);
     expect(await countPendingStorageDeletions(person)).toBe(0);
 
     // Converged: nothing is claimable again, and a second run deletes nothing.
@@ -329,7 +396,7 @@ describe('runStorageDeletionBatch', () => {
     expect(again.claimed).toBe(0);
   });
 
-  it('claims rows named by id even when they were recorded within the claim\'s own millisecond', async () => {
+  it("claims rows named by id even when they were recorded within the claim's own millisecond", async () => {
     // `next_attempt_at` defaults to the database's now(): microseconds. The claim
     // clock is a JavaScript Date: milliseconds. Pin both inside ONE millisecond,
     // the database value later than the truncated claim instant — exactly what a
@@ -373,7 +440,10 @@ describe('runStorageDeletionBatch', () => {
 
     await runStorageDeletionBatch({ ownerId: 'test-worker', store: new FakeBucket() });
 
-    const [after] = await getDb().select().from(storageObjectDeletions).where(eq(storageObjectDeletions.id, row.id));
+    const [after] = await getDb()
+      .select()
+      .from(storageObjectDeletions)
+      .where(eq(storageObjectDeletions.id, row.id));
     expect(after.claimedAt).toBeNull();
     expect(after.completedAt).toBeNull();
   });
@@ -391,7 +461,10 @@ describe('runStorageDeletionBatch', () => {
     // Another owner holds the same bytes on the same key (rows are per owner,
     // storage is shared).
     const other = await createUser('sharer');
-    await createAsset({ ownerUserId: other }, { sha256: asset.sha256, storageKey: asset.storageKey });
+    await createAsset(
+      { ownerUserId: other },
+      { sha256: asset.sha256, storageKey: asset.storageKey },
+    );
     const bucket = new FakeBucket();
     bucket.put(asset.storageKey);
 
@@ -420,10 +493,13 @@ describe('runStorageDeletionBatch', () => {
       expect([...bucket.objects]).toEqual([`public/${asset.storageKey}`]);
     });
 
-    it('does not let a PRIVATE row on the bare key keep a deleted owner\'s PUBLIC copy on the CDN', async () => {
+    it("does not let a PRIVATE row on the bare key keep a deleted owner's PUBLIC copy on the CDN", async () => {
       const { person, asset } = await deletedAccountWith();
       const other = await createUser('private-sharer');
-      await createAsset({ ownerUserId: other }, { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'private' });
+      await createAsset(
+        { ownerUserId: other },
+        { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'private' },
+      );
       const bucket = new FakeBucket();
       bucket.put(asset.storageKey, `public/${asset.storageKey}`);
 
@@ -437,7 +513,10 @@ describe('runStorageDeletionBatch', () => {
     it('keeps the backfilled `public/` copy of a legacy PUBLIC row kept at the bare key', async () => {
       const { asset } = await deletedAccountWith();
       const other = await createUser('legacy-public');
-      await createAsset({ ownerUserId: other }, { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'public' });
+      await createAsset(
+        { ownerUserId: other },
+        { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'public' },
+      );
       const bucket = new FakeBucket();
       bucket.put(asset.storageKey, `public/${asset.storageKey}`);
 
@@ -446,12 +525,19 @@ describe('runStorageDeletionBatch', () => {
       expect(bucket.deleted).toEqual([]);
     });
 
-    it('keeps a variant directory only in the spelling a live row\'s visibility writes to', async () => {
+    it("keeps a variant directory only in the spelling a live row's visibility writes to", async () => {
       const { asset, directory } = await deletedAccountWith({ variants: true });
       const other = await createUser('private-variants');
-      await createAsset({ ownerUserId: other }, { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'private' });
+      await createAsset(
+        { ownerUserId: other },
+        { sha256: asset.sha256, storageKey: asset.storageKey, visibility: 'private' },
+      );
       const bucket = new FakeBucket();
-      bucket.put(`${directory}thumb.webp`, `public/${directory}hls_master.m3u8`, `public/${directory}seg_0.ts`);
+      bucket.put(
+        `${directory}thumb.webp`,
+        `public/${directory}hls_master.m3u8`,
+        `public/${directory}seg_0.ts`,
+      );
 
       await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket });
 
@@ -462,13 +548,18 @@ describe('runStorageDeletionBatch', () => {
       expect(bucket.objects.has(`public/${directory}seg_0.ts`)).toBe(false);
     });
 
-    it('keeps a variant directory spelling a live row\'s recorded rendition sits under, whatever its visibility', async () => {
+    it("keeps a variant directory spelling a live row's recorded rendition sits under, whatever its visibility", async () => {
       const { asset, directory } = await deletedAccountWith({ variants: true });
       const other = await createUser('legacy-variants');
       // A public row whose renditions predate the `public/` spelling.
       await createAsset(
         { ownerUserId: other },
-        { sha256: asset.sha256, storageKey: `public/${asset.storageKey}`, visibility: 'public', variants: [`${directory}thumb.webp`] },
+        {
+          sha256: asset.sha256,
+          storageKey: `public/${asset.storageKey}`,
+          visibility: 'public',
+          variants: [`${directory}thumb.webp`],
+        },
       );
       const bucket = new FakeBucket();
       bucket.put(`${directory}thumb.webp`, `public/${directory}hls_master.m3u8`);
@@ -487,7 +578,11 @@ describe('runStorageDeletionBatch', () => {
     bucket.failNext = 1;
     const start = new Date();
 
-    const failed = await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket, now: () => start });
+    const failed = await runStorageDeletionBatch({
+      ownerId: 'test-worker',
+      store: bucket,
+      now: () => start,
+    });
     expect(failed).toMatchObject({ claimed: 1, failed: 1, deleted: 0 });
     const [row] = await rowsFor(person);
     expect(row).toMatchObject({ attempts: 1, completedAt: null, claimedBy: null });
@@ -495,13 +590,24 @@ describe('runStorageDeletionBatch', () => {
     expect(row!.nextAttemptAt.getTime()).toBe(start.getTime() + storageDeletionBackoffMs(1));
 
     // Not due yet.
-    expect((await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket, now: () => start })).claimed).toBe(0);
+    expect(
+      (await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket, now: () => start }))
+        .claimed,
+    ).toBe(0);
 
     const later = new Date(start.getTime() + storageDeletionBackoffMs(1) + 1);
-    const retried = await runStorageDeletionBatch({ ownerId: 'test-worker', store: bucket, now: () => later });
+    const retried = await runStorageDeletionBatch({
+      ownerId: 'test-worker',
+      store: bucket,
+      now: () => later,
+    });
     expect(retried).toMatchObject({ claimed: 1, deleted: 1 });
     expect(bucket.objects.size).toBe(0);
-    expect((await rowsFor(person))[0]).toMatchObject({ attempts: 2, outcome: 'deleted', lastError: null });
+    expect((await rowsFor(person))[0]).toMatchObject({
+      attempts: 2,
+      outcome: 'deleted',
+      lastError: null,
+    });
   });
 
   it('never hands a leased row to a second worker until the lease lapses', async () => {
@@ -513,10 +619,17 @@ describe('runStorageDeletionBatch', () => {
       .where(eq(storageObjectDeletions.accountId, person));
     const bucket = new FakeBucket();
 
-    expect((await runStorageDeletionBatch({ ownerId: 'other', store: bucket, now: () => start })).claimed).toBe(0);
+    expect(
+      (await runStorageDeletionBatch({ ownerId: 'other', store: bucket, now: () => start }))
+        .claimed,
+    ).toBe(0);
 
     const lapsed = new Date(start.getTime() + STORAGE_DELETION_LEASE_MS + 1);
-    const taken = await runStorageDeletionBatch({ ownerId: 'other', store: bucket, now: () => lapsed });
+    const taken = await runStorageDeletionBatch({
+      ownerId: 'other',
+      store: bucket,
+      now: () => lapsed,
+    });
     expect(taken).toMatchObject({ claimed: 1, deleted: 1 });
   });
 

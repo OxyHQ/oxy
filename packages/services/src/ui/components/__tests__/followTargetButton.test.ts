@@ -46,19 +46,19 @@ const keys = (items: ReturnType<typeof buildFollowMenuItems>) => items.map((i) =
 describe('resolveFollowPrimaryAction', () => {
   it('follows when not following globally', () => {
     expect(resolveFollowPrimaryAction({ isFollowing: false, applicationMode: 'inherit' })).toBe(
-      'follow'
+      'follow',
     );
   });
 
   it('unfollows when following and active here', () => {
     expect(resolveFollowPrimaryAction({ isFollowing: true, applicationMode: 'inherit' })).toBe(
-      'unfollow'
+      'unfollow',
     );
   });
 
   it('re-enables here instead of unfollowing everywhere when switched off in this app', () => {
     expect(resolveFollowPrimaryAction({ isFollowing: true, applicationMode: 'disabled' })).toBe(
-      'enable-here'
+      'enable-here',
     );
   });
 });
@@ -74,7 +74,7 @@ describe('buildFollowMenuItems', () => {
 
     it('phrases the option with the application’s own verb', () => {
       expect(buildFollowMenuItems({ ...base, idleVerb: 'Subscribe' })[0].label).toBe(
-        'Subscribe for 24 hours'
+        'Subscribe for 24 hours',
       );
     });
 
@@ -152,7 +152,7 @@ describe('withApplicationMode', () => {
 
   it('stays not-following when there is no global relationship to act on', () => {
     expect(withApplicationMode(UNKNOWN_FOLLOW_STATUS, 'enabled').effectiveState).toBe(
-      'not_following'
+      'not_following',
     );
     expect(isFollowedGlobally(UNKNOWN_FOLLOW_STATUS)).toBe(false);
   });
@@ -163,7 +163,7 @@ describe('withApplicationMode', () => {
         globalState: 'active',
         applicationMode: 'inherit',
         effectiveState: 'following',
-      })
+      }),
     ).toBe(false);
     expect(isCompleteFollowStatus(UNKNOWN_FOLLOW_STATUS)).toBe(true);
   });
@@ -185,17 +185,19 @@ describe('withApplicationMode', () => {
       effectiveState: 'following',
     });
     expect(isCompleteFollowStatus(status)).toBe(true);
-    expect(followRecordsToStatusMap([
-      {
-        relationshipId: 'rel-1',
-        target: { id: 'tgt-1', uri: 'https://example.test/t/1', kind: 'oxy.topic' },
-        globalState: 'active',
-        applicationMode: 'disabled',
-        effectiveState: 'not_following',
-        originApplicationId: null,
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])).toEqual({
+    expect(
+      followRecordsToStatusMap([
+        {
+          relationshipId: 'rel-1',
+          target: { id: 'tgt-1', uri: 'https://example.test/t/1', kind: 'oxy.topic' },
+          globalState: 'active',
+          applicationMode: 'disabled',
+          effectiveState: 'not_following',
+          originApplicationId: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ]),
+    ).toEqual({
       'tgt-1': {
         relationshipId: 'rel-1',
         globalState: 'active',
@@ -246,12 +248,13 @@ describe('what onChange reports', () => {
           hasRelationship: true,
           applicationMode: 'disabled',
         }),
-      ].map((item) => item.action.type)
+      ].map((item) => item.action.type),
     );
     // Plus the two the primary button can produce that the menu cannot.
     for (const action of [...fromMenu, 'follow', 'unfollow']) {
-      expect(typeof FOLLOW_ACTION_LEAVES_ACTIVE[action as keyof typeof FOLLOW_ACTION_LEAVES_ACTIVE])
-        .toBe('boolean');
+      expect(
+        typeof FOLLOW_ACTION_LEAVES_ACTIVE[action as keyof typeof FOLLOW_ACTION_LEAVES_ACTIVE],
+      ).toBe('boolean');
     }
     expect(fromMenu.size).toBeGreaterThanOrEqual(3);
   });

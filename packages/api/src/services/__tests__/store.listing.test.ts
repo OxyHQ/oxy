@@ -101,7 +101,7 @@ describe('writing the page', () => {
     const applicationId = await unlistedApp();
 
     await expect(
-      upsertListing({ applicationId, slug: freshSlug(), categorySlug: `nope-${randomUUID()}` })
+      upsertListing({ applicationId, slug: freshSlug(), categorySlug: `nope-${randomUUID()}` }),
     ).rejects.toThrow(BadRequestError);
   });
 
@@ -124,9 +124,9 @@ describe('writing the page', () => {
     const taken = freshSlug();
     await upsertListing({ applicationId: await unlistedApp(), slug: taken });
 
-    await expect(upsertListing({ applicationId: await unlistedApp(), slug: taken })).rejects.toThrow(
-      ConflictError
-    );
+    await expect(
+      upsertListing({ applicationId: await unlistedApp(), slug: taken }),
+    ).rejects.toThrow(ConflictError);
   });
 
   it('does NOT unpublish a live page when its words are corrected', async () => {
@@ -292,7 +292,7 @@ describe('curating the shelves', () => {
 
   it('says so when there is no such shelf', async () => {
     await expect(updateCategory(`missing-${randomUUID()}`, { label: 'x' })).rejects.toThrow(
-      NotFoundError
+      NotFoundError,
     );
     await expect(deleteCategory(`missing-${randomUUID()}`)).rejects.toThrow(NotFoundError);
   });

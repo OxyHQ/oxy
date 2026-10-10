@@ -55,11 +55,9 @@ describe('OxyServer.assets.linkedDownloadUrls', () => {
     await oxy.assets.linkedDownloadUrls(['asset-1', 'asset-1', '  ']);
 
     expect(serviceRequestSpy).toHaveBeenCalledTimes(1);
-    expect(serviceRequestSpy).toHaveBeenCalledWith(
-      'POST',
-      '/assets/service/linked-url',
-      { ids: ['asset-1'] },
-    );
+    expect(serviceRequestSpy).toHaveBeenCalledWith('POST', '/assets/service/linked-url', {
+      ids: ['asset-1'],
+    });
   });
 
   it('returns entries untouched, so expiresIn and url reach the caller as sent', async () => {
@@ -70,7 +68,7 @@ describe('OxyServer.assets.linkedDownloadUrls', () => {
     expect(entry).toEqual(sampleEntry);
   });
 
-  it('chunks at 25, a QUARTER of the metadata route\'s 100', async () => {
+  it("chunks at 25, a QUARTER of the metadata route's 100", async () => {
     // The cap is the route's, and the two routes deliberately differ: this one
     // mints a credential per id. A client chunking at 100 would 400 every call.
     const ids = Array.from({ length: 26 }, (_, index) => `asset-${index}`);
@@ -107,8 +105,8 @@ describe('OxyServer.assets.linkedDownloadUrls', () => {
     );
 
     serviceRequestSpy.mockRejectedValueOnce(failure);
-    const error = await oxy
-      .assets.linkedDownloadUrls(['asset-1'])
+    const error = await oxy.assets
+      .linkedDownloadUrls(['asset-1'])
       .catch((caught: unknown) => caught as ServiceLinkedDownloadUrlError);
 
     expect(error.unresolvedIds).toEqual(['asset-1']);
@@ -121,13 +119,9 @@ describe('OxyServer.assets.linkedDownloadUrls', () => {
     // worked and dropping the one that did not is exactly how a buyer is told a
     // file they own is missing, so there is no option to ask for it.
     const ids = Array.from({ length: 26 }, (_, index) => `asset-${index}`);
-    serviceRequestSpy
-      .mockResolvedValueOnce([sampleEntry])
-      .mockRejectedValueOnce(new Error('boom'));
+    serviceRequestSpy.mockResolvedValueOnce([sampleEntry]).mockRejectedValueOnce(new Error('boom'));
 
-    await expect(oxy.assets.linkedDownloadUrls(ids)).rejects.toThrow(
-      ServiceLinkedDownloadUrlError,
-    );
+    await expect(oxy.assets.linkedDownloadUrls(ids)).rejects.toThrow(ServiceLinkedDownloadUrlError);
   });
 
   it('has no partial option at all', async () => {

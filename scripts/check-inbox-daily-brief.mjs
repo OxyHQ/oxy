@@ -52,7 +52,7 @@ forbid(
 requireMatch(
   service,
   /\.where\(and\(eq\(mailboxes\.userId, userId\), eq\(mailboxes\.specialUse, '\\\\Inbox'\)\)\)/,
-  'the digest must resolve the owner\'s own Inbox folder',
+  "the digest must resolve the owner's own Inbox folder",
 );
 requireMatch(
   service,
@@ -128,7 +128,7 @@ requireMatch(
 requireMatch(
   dailyBriefRoute,
   /const brief = briefFromModel\(inboxCompletionText\(completion\), digest\);/,
-  'the model\'s answer must be resolved against the digest, never passed through',
+  "the model's answer must be resolved against the digest, never passed through",
 );
 requireMatch(
   service,
@@ -164,6 +164,6 @@ if (failures.length > 0) {
 }
 
 process.stdout.write(
-  'Inbox Daily Brief stays account-scoped, Inbox-only, day-bounded, row- and excerpt-bounded, '
-    + 'and never reads an encrypted body or an account secret.\n',
+  'Inbox Daily Brief stays account-scoped, Inbox-only, day-bounded, row- and excerpt-bounded, ' +
+    'and never reads an encrypted body or an account secret.\n',
 );

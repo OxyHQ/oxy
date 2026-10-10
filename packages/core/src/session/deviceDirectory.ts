@@ -179,9 +179,7 @@ export interface DevicePrincipalGroup {
  * and rendering them with nothing under them is how "sign out of this person"
  * stays reachable. Silently omitting them would strand the row.
  */
-export function projectDevicePrincipals(
-  directory: DeviceDirectory | null,
-): DevicePrincipalGroup[] {
+export function projectDevicePrincipals(directory: DeviceDirectory | null): DevicePrincipalGroup[] {
   if (directory === null) {
     return [];
   }

@@ -28,6 +28,12 @@ export function useAttestedEvent(onAttested: (payload: AttestedEventPayload) => 
     ) {
       return;
     }
-    onAttested({ subjectUserId: p.subjectUserId, byUserId: p.byUserId, recordId: p.recordId, points: p.points, at: p.at });
+    onAttested({
+      subjectUserId: p.subjectUserId,
+      byUserId: p.byUserId,
+      recordId: p.recordId,
+      points: p.points,
+      at: p.at,
+    });
   });
 }

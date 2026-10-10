@@ -97,7 +97,7 @@ export async function listRestrictingReferences(): Promise<RestrictingReference[
         and parent.relname = 'users'
         and c.confdeltype in ('r', 'a')
       order by child.relname, att.attname
-    `
+    `,
   );
 
   cachedReferences = rows.map((row) => ({ table: row.table_name, column: row.column_name }));
@@ -192,7 +192,7 @@ export interface AccountFinancialHolds {
  * what to do with the answer.
  */
 export async function describeAccountFinancialHolds(
-  accountId: string
+  accountId: string,
 ): Promise<AccountFinancialHolds> {
   const db = getDb();
   const references = await listRestrictingReferences();
@@ -209,7 +209,7 @@ export async function describeAccountFinancialHolds(
         select count(*)::text as total
         from ${sql.raw(quoteIdentifier(reference.table))}
         where ${sql.raw(quoteIdentifier(reference.column))} = ${accountId}
-      `
+      `,
     );
     const total = Number(rows[0]?.total ?? '0');
     if (total > 0) {
@@ -219,7 +219,9 @@ export async function describeAccountFinancialHolds(
 
   const disposableWalletIds = await findDisposableWallets(accountId);
   if (disposableWalletIds.length > 0) {
-    const index = retainedRecords.findIndex((record) => record.table === 'wallets' && record.column === 'user_id');
+    const index = retainedRecords.findIndex(
+      (record) => record.table === 'wallets' && record.column === 'user_id',
+    );
     const walletRecord = retainedRecords[index];
     if (walletRecord) {
       const kept = walletRecord.rows - disposableWalletIds.length;
@@ -239,7 +241,7 @@ export async function describeAccountFinancialHolds(
       select id from access_subscription_sources
       where (payer_account_id = ${accountId} or beneficiary_account_id = ${accountId})
         and status = any(${sql.param([...LIVE_PRODUCT_PLAN_STATUSES])}::text[])
-    `
+    `,
   );
 
   const held = await executeRows<{ total: string }>(
@@ -248,7 +250,7 @@ export async function describeAccountFinancialHolds(
       select count(*)::text as total
       from usage_reservations
       where account_id = ${accountId} and status = 'held'
-    `
+    `,
   );
 
   // The local serving status is fenced to `revoked` BEFORE the signed Kaana
@@ -262,7 +264,7 @@ export async function describeAccountFinancialHolds(
       from inference_provider_connections
       where owner_account_id = ${accountId} and custody_state <> 'revoked'
       order by id
-    `
+    `,
   );
 
   return {
@@ -294,7 +296,7 @@ async function listWalletReferences(): Promise<RestrictingReference[]> {
       join pg_attribute att on att.attrelid = c.conrelid and att.attnum = k.attnum
       where c.contype = 'f' and parent.relname = 'wallets'
       order by child.relname, att.attname
-    `
+    `,
   );
   cachedWalletReferences = rows.map((row) => ({ table: row.table_name, column: row.column_name }));
   return cachedWalletReferences;
@@ -307,7 +309,7 @@ async function listWalletReferences(): Promise<RestrictingReference[]> {
  */
 function untouchedWallet(alias: string) {
   return sql.raw(
-    `${alias}.balance = 0 and ${alias}.address is null and ${alias}.updated_at = ${alias}.created_at`
+    `${alias}.balance = 0 and ${alias}.address is null and ${alias}.updated_at = ${alias}.created_at`,
   );
 }
 
@@ -320,13 +322,13 @@ async function findDisposableWallets(accountId: string): Promise<string[]> {
   const db = getDb();
   const ledger = await executeRows<{ total: string }>(
     db,
-    sql`select count(*)::text as total from transactions where user_id = ${accountId} or recipient_id = ${accountId}`
+    sql`select count(*)::text as total from transactions where user_id = ${accountId} or recipient_id = ${accountId}`,
   );
   if (Number(ledger[0]?.total ?? '0') > 0) return [];
 
   const candidates = await executeRows<{ id: string }>(
     db,
-    sql`select w.id from wallets w where w.user_id = ${accountId} and ${untouchedWallet('w')}`
+    sql`select w.id from wallets w where w.user_id = ${accountId} and ${untouchedWallet('w')}`,
   );
   const references = await listWalletReferences();
   const disposable: string[] = [];
@@ -339,7 +341,7 @@ async function findDisposableWallets(accountId: string): Promise<string[]> {
           select count(*)::text as total
           from ${sql.raw(quoteIdentifier(reference.table))}
           where ${sql.raw(quoteIdentifier(reference.column))} = ${candidate.id}
-        `
+        `,
       );
       if (Number(rows[0]?.total ?? '0') > 0) {
         used = true;
@@ -375,7 +377,7 @@ export async function deleteDisposableWallets(
           select 1 from transactions t where t.user_id = ${accountId} or t.recipient_id = ${accountId}
         )
       returning w.id
-    `
+    `,
   );
   if (deleted.length !== walletIds.length) {
     throw new ConflictError('A wallet of this account changed during its deletion. Try again.');
@@ -433,24 +435,29 @@ async function establishAccountClosureFence(
 
     // Product source creation/update takes the same account row lock. Re-read
     // after acquiring it so a concurrent award cannot race the closure fence.
-    const liveSources = await tx.select({ id: accessSubscriptionSources.id }).from(accessSubscriptionSources)
+    const liveSources = await tx
+      .select({ id: accessSubscriptionSources.id })
+      .from(accessSubscriptionSources)
       .where(sql`(${accessSubscriptionSources.payerAccountId} = ${account.id} or ${accessSubscriptionSources.beneficiaryAccountId} = ${account.id})
         and ${accessSubscriptionSources.status} = any(${sql.param([...LIVE_PRODUCT_PLAN_STATUSES])}::text[])`);
-    if (liveSources.length) throw new ConflictError('This account has a live product subscription source. Cancel it before closing the account.',
-      { subscriptions: liveSources.map(row => row.id) });
+    if (liveSources.length)
+      throw new ConflictError(
+        'This account has a live product subscription source. Cancel it before closing the account.',
+        { subscriptions: liveSources.map((row) => row.id) },
+      );
 
     const outstandingCustody = await tx
       .select({ id: inferenceProviderConnections.id })
       .from(inferenceProviderConnections)
       .where(
         sql`${inferenceProviderConnections.ownerAccountId} = ${account.id}
-          and ${inferenceProviderConnections.custodyState} <> 'revoked'`
+          and ${inferenceProviderConnections.custodyState} <> 'revoked'`,
       )
       .orderBy(inferenceProviderConnections.id);
     if (outstandingCustody.length > 0) {
       throw new ConflictError(
         'This account still holds provider credentials. Revoke every connection and wait for Kaana custody acknowledgement before closing it.',
-        { providerConnections: outstandingCustody.map((row) => row.id) }
+        { providerConnections: outstandingCustody.map((row) => row.id) },
       );
     }
 
@@ -460,10 +467,7 @@ async function establishAccountClosureFence(
       .onConflictDoNothing({ target: accountClosureFences.accountId });
 
     if (archive) {
-      await tx
-        .update(users)
-        .set({ accountStatus: 'archived' })
-        .where(eq(users.id, account.id));
+      await tx.update(users).set({ accountStatus: 'archived' }).where(eq(users.id, account.id));
     }
 
     if (withinTransaction) await withinTransaction(tx);

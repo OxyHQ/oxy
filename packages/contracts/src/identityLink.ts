@@ -36,78 +36,83 @@ export const IDENTITY_LINK_QR_PREFIX = 'oxycommons://link';
 const LINK_ID = /^[0-9a-f]{32}$/;
 const CHALLENGE = /^[0-9a-f]{64}$/;
 
-export const identityLinkIdSchema = z.string().trim().regex(LINK_ID, 'linkId must be 32 lowercase hex characters');
+export const identityLinkIdSchema = z
+  .string()
+  .trim()
+  .regex(LINK_ID, 'linkId must be 32 lowercase hex characters');
 
 /** The QR auth.oxy.so shows: the request's id and the challenge Commons signs. */
 export function buildIdentityLinkQrPayload(linkId: string, challenge: string): string {
-    return `${IDENTITY_LINK_QR_PREFIX}?id=${linkId}&c=${challenge}`;
+  return `${IDENTITY_LINK_QR_PREFIX}?id=${linkId}&c=${challenge}`;
 }
 
 /** The request a scanned code names, or `null` for anything that is not a link QR. */
-export function parseIdentityLinkQrPayload(raw: string): { linkId: string; challenge: string } | null {
-    const value = raw.trim();
-    if (!value.startsWith(`${IDENTITY_LINK_QR_PREFIX}?`)) return null;
-    // Parsed by hand: React Native's `URLSearchParams` does not implement `get`.
-    const params = new Map<string, string>();
-    for (const pair of value.slice(IDENTITY_LINK_QR_PREFIX.length + 1).split('&')) {
-        const separator = pair.indexOf('=');
-        if (separator > 0) params.set(pair.slice(0, separator), pair.slice(separator + 1));
-    }
-    const linkId = params.get('id') ?? '';
-    const challenge = params.get('c') ?? '';
-    if (!LINK_ID.test(linkId) || !CHALLENGE.test(challenge)) return null;
-    return { linkId, challenge };
+export function parseIdentityLinkQrPayload(
+  raw: string,
+): { linkId: string; challenge: string } | null {
+  const value = raw.trim();
+  if (!value.startsWith(`${IDENTITY_LINK_QR_PREFIX}?`)) return null;
+  // Parsed by hand: React Native's `URLSearchParams` does not implement `get`.
+  const params = new Map<string, string>();
+  for (const pair of value.slice(IDENTITY_LINK_QR_PREFIX.length + 1).split('&')) {
+    const separator = pair.indexOf('=');
+    if (separator > 0) params.set(pair.slice(0, separator), pair.slice(separator + 1));
+  }
+  const linkId = params.get('id') ?? '';
+  const challenge = params.get('c') ?? '';
+  if (!LINK_ID.test(linkId) || !CHALLENGE.test(challenge)) return null;
+  return { linkId, challenge };
 }
 
 /** `POST /identity/link` */
 export interface IdentityLinkCreateResponse {
-    linkId: string;
-    /** The one-use `link_identity` proof challenge, hex. */
-    challenge: string;
-    /** Unix milliseconds. */
-    expiresAt: number;
-    qrPayload: string;
+  linkId: string;
+  /** The one-use `link_identity` proof challenge, hex. */
+  challenge: string;
+  /** Unix milliseconds. */
+  expiresAt: number;
+  qrPayload: string;
 }
 
 export const identityLinkCreateResponseSchema: z.ZodType<IdentityLinkCreateResponse> = z.object({
-    linkId: identityLinkIdSchema,
-    challenge: z.string().regex(CHALLENGE),
-    expiresAt: z.number().int().positive(),
-    qrPayload: z.string().startsWith(IDENTITY_LINK_QR_PREFIX),
+  linkId: identityLinkIdSchema,
+  challenge: z.string().regex(CHALLENGE),
+  expiresAt: z.number().int().positive(),
+  qrPayload: z.string().startsWith(IDENTITY_LINK_QR_PREFIX),
 });
 
 /** `GET /identity/link/:linkId` — what both devices poll. */
 export interface IdentityLinkState {
-    status: IdentityLinkStatus;
-    /** The account being linked: the proof's subject and actor. */
-    userId: string;
-    username: string | null;
-    /** The key Commons signed with, once it has. */
-    publicKey: string | null;
-    audience: string;
-    expiresAt: number;
+  status: IdentityLinkStatus;
+  /** The account being linked: the proof's subject and actor. */
+  userId: string;
+  username: string | null;
+  /** The key Commons signed with, once it has. */
+  publicKey: string | null;
+  audience: string;
+  expiresAt: number;
 }
 
 export const identityLinkStateSchema: z.ZodType<IdentityLinkState> = z.object({
-    status: z.enum(IDENTITY_LINK_STATUSES),
-    userId: z.string().min(1),
-    username: z.string().nullable(),
-    publicKey: z.string().nullable(),
-    audience: z.string().min(1),
-    expiresAt: z.number().int().positive(),
+  status: z.enum(IDENTITY_LINK_STATUSES),
+  userId: z.string().min(1),
+  username: z.string().nullable(),
+  publicKey: z.string().nullable(),
+  audience: z.string().min(1),
+  expiresAt: z.number().int().positive(),
 });
 
 /** `POST /identity/link/:linkId/proof` — from Commons, no bearer. */
 export const identityLinkProofRequestSchema = z
-    .object({
-        publicKey: z
-            .string()
-            .trim()
-            .toLowerCase()
-            .regex(/^04[0-9a-f]{128}$/, 'publicKey must be an uncompressed secp256k1 key'),
-        proof: identityProofSchema,
-    })
-    .strict();
+  .object({
+    publicKey: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^04[0-9a-f]{128}$/, 'publicKey must be an uncompressed secp256k1 key'),
+    proof: identityProofSchema,
+  })
+  .strict();
 export type IdentityLinkProofRequest = z.infer<typeof identityLinkProofRequestSchema>;
 
 /**
@@ -115,5 +120,7 @@ export type IdentityLinkProofRequest = z.infer<typeof identityLinkProofRequestSc
  * code just sent to its email for this link (`reauth`, plus its authenticator
  * code when it has one).
  */
-export const identityLinkCompleteRequestSchema = z.object({ reauth: emailReauthProofSchema }).strict();
+export const identityLinkCompleteRequestSchema = z
+  .object({ reauth: emailReauthProofSchema })
+  .strict();
 export type IdentityLinkCompleteRequest = z.infer<typeof identityLinkCompleteRequestSchema>;

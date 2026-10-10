@@ -16,9 +16,10 @@ import type { ApplicationCredentialStatus } from '../db/schema/applicationCreden
  * Pure — it reads two fields and a clock, so it is trivially unit-testable and
  * callable with any row shape carrying them.
  */
-export function isCredentialUsable(
-  credential: { status: ApplicationCredentialStatus; expiresAt?: Date | null }
-): boolean {
+export function isCredentialUsable(credential: {
+  status: ApplicationCredentialStatus;
+  expiresAt?: Date | null;
+}): boolean {
   if (credential.status === 'revoked') {
     return false;
   }

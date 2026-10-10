@@ -150,19 +150,19 @@ export const spendingLimits = pgTable(
 
     check(
       'spending_limits_scope_check',
-      sql`${t.scope} in (${sql.raw(inList(SPENDING_LIMIT_SCOPES))})`
+      sql`${t.scope} in (${sql.raw(inList(SPENDING_LIMIT_SCOPES))})`,
     ),
     check(
       'spending_limits_period_check',
-      sql`${t.period} in (${sql.raw(inList(SPENDING_LIMIT_PERIODS))})`
+      sql`${t.period} in (${sql.raw(inList(SPENDING_LIMIT_PERIODS))})`,
     ),
     check(
       'spending_limits_enforcement_check',
-      sql`${t.enforcement} in (${sql.raw(inList(SPENDING_LIMIT_ENFORCEMENTS))})`
+      sql`${t.enforcement} in (${sql.raw(inList(SPENDING_LIMIT_ENFORCEMENTS))})`,
     ),
     check(
       'spending_limits_status_check',
-      sql`${t.status} in (${sql.raw(inList(SPENDING_LIMIT_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(SPENDING_LIMIT_STATUSES))})`,
     ),
     check('spending_limits_currency_check', currencyCodeCheck(t.currency)),
     // A ceiling of zero would refuse every request while reading like "no
@@ -182,7 +182,7 @@ export const spendingLimits = pgTable(
         or (${t.scope} = 'credential'
              and ${t.scopeApplicationCredentialId} is not null
              and ${t.scopeAccountId} is null
-             and ${t.scopeApplicationId} is null)`
+             and ${t.scopeApplicationId} is null)`,
     ),
     // `cardinality`, not `array_length` — see the header. Both constants go
     // through `sql.raw`: a JS value interpolated into a `check()` is emitted as
@@ -190,9 +190,9 @@ export const spendingLimits = pgTable(
     check(
       'spending_limits_alert_thresholds_check',
       sql`${t.alertThresholdBps} <@ array[${sql.raw(numericInList(SPENDING_ALERT_THRESHOLDS_BPS))}]::smallint[]
-        and cardinality(${t.alertThresholdBps}) <= ${sql.raw(String(MAX_SPENDING_ALERT_THRESHOLDS))}`
+        and cardinality(${t.alertThresholdBps}) <= ${sql.raw(String(MAX_SPENDING_ALERT_THRESHOLDS))}`,
     ),
-  ]
+  ],
 );
 
 export const spendingLimitNotifications = pgTable(
@@ -216,13 +216,13 @@ export const spendingLimitNotifications = pgTable(
     unique('spending_limit_notifications_threshold_key').on(
       t.spendingLimitId,
       t.periodStart,
-      t.thresholdBps
+      t.thresholdBps,
     ),
 
     check(
       'spending_limit_notifications_threshold_bps_check',
-      sql`${t.thresholdBps} in (${sql.raw(numericInList(SPENDING_ALERT_THRESHOLDS_BPS))})`
+      sql`${t.thresholdBps} in (${sql.raw(numericInList(SPENDING_ALERT_THRESHOLDS_BPS))})`,
     ),
     check('spending_limit_notifications_spend_amount_check', sql`${t.spendAmount} >= 0`),
-  ]
+  ],
 );

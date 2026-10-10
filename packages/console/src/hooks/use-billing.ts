@@ -102,7 +102,7 @@ export function useCreditPackages() {
     queryFn: async (): Promise<Array<CreditPackage>> => {
       const result = await oxyServices.request<{ packages: Array<CreditPackage> }>(
         'GET',
-        '/billing/packages'
+        '/billing/packages',
       );
       return result.packages;
     },
@@ -125,7 +125,7 @@ export function useSubscriptionPlans() {
     queryFn: async (): Promise<Array<SubscriptionPlan>> => {
       const result = await oxyServices.request<{ plans: Array<SubscriptionPlan> }>(
         'GET',
-        '/billing/plans'
+        '/billing/plans',
       );
       return result.plans;
     },
@@ -148,7 +148,9 @@ export function useSubscription() {
     queryFn: async (): Promise<Subscription | null> => {
       const result = await oxyServices.request<{ subscription: Subscription | null }>(
         'GET',
-        '/billing/subscription', undefined, { cache: false }
+        '/billing/subscription',
+        undefined,
+        { cache: false },
       );
       return result.subscription;
     },
@@ -172,7 +174,8 @@ export function useTransactions(limit = 20, offset = 0) {
       oxyServices.request<{ transactions: Array<Transaction>; total: number }>(
         'GET',
         '/billing/transactions',
-        { limit, offset }, { cache: false }
+        { limit, offset },
+        { cache: false },
       ),
     staleTime: 1000 * 60, // 1 minute
     retry: 1,
@@ -252,32 +255,71 @@ export function useCreatePortalSession() {
 export function useProductSubscriptions() {
   const { oxyServices, isAuthenticated, isReady, user } = useAuth();
   const subject = user?.id;
-  return useQuery({ queryKey: ['product-subscriptions', subject], queryFn: () => oxyServices.billing.productSubscriptions(),
-    enabled: !!subject && isReady && isAuthenticated, staleTime: 0 });
+  return useQuery({
+    queryKey: ['product-subscriptions', subject],
+    queryFn: () => oxyServices.billing.productSubscriptions(),
+    enabled: !!subject && isReady && isAuthenticated,
+    staleTime: 0,
+  });
 }
 export function useCreditGrants() {
   const { oxyServices, isAuthenticated, isReady, user } = useAuth();
   const subject = user?.id;
-  return useQuery({ queryKey: ['credit-grants', subject], queryFn: () => oxyServices.billing.creditGrants(),
-    enabled: !!subject && isReady && isAuthenticated, staleTime: 0 });
+  return useQuery({
+    queryKey: ['credit-grants', subject],
+    queryFn: () => oxyServices.billing.creditGrants(),
+    enabled: !!subject && isReady && isAuthenticated,
+    staleTime: 0,
+  });
 }
 export function useCreditSubscriptions() {
   const { oxyServices, isAuthenticated, isReady, user } = useAuth();
   const subject = user?.id;
-  return useQuery({ queryKey: ['credit-subscriptions', subject], queryFn: async () =>
-    (await oxyServices.request<{ subscriptions: Subscription[] }>('GET', '/billing/subscriptions', undefined, { cache: false })).subscriptions,
-    enabled: !!subject && isReady && isAuthenticated, staleTime: 0 });
+  return useQuery({
+    queryKey: ['credit-subscriptions', subject],
+    queryFn: async () =>
+      (
+        await oxyServices.request<{ subscriptions: Subscription[] }>(
+          'GET',
+          '/billing/subscriptions',
+          undefined,
+          { cache: false },
+        )
+      ).subscriptions,
+    enabled: !!subject && isReady && isAuthenticated,
+    staleTime: 0,
+  });
 }
 export function useCancelNamedSubscription() {
-  const { oxyServices, user } = useAuth(); const queries = useQueryClient();
-  const currentSubject = useRef(user?.id); currentSubject.current = user?.id;
-  return useMutation({ mutationFn: async ({ id, kind, subject }: { id: string; kind: 'product' | 'credit'; subject: string }) => {
-    if (currentSubject.current !== subject) throw new Error('The signed-in account changed; reload this subscription');
-    if (kind === 'product') return oxyServices.billing.cancelProductSubscriptionWithStatus(id, subject);
-    await oxyServices.request('POST', '/billing/subscriptions/cancel', { subscriptionId: id, expectedSubjectAccountId: subject });
-  }, onSuccess: async (_, variables) => { await Promise.all([
-    queries.invalidateQueries({ queryKey: ['product-subscriptions', variables.subject] }),
-    queries.invalidateQueries({ queryKey: ['credit-subscriptions', variables.subject] }),
-    queries.invalidateQueries({ queryKey: ['subscription', variables.subject] }),
-  ]); } });
+  const { oxyServices, user } = useAuth();
+  const queries = useQueryClient();
+  const currentSubject = useRef(user?.id);
+  currentSubject.current = user?.id;
+  return useMutation({
+    mutationFn: async ({
+      id,
+      kind,
+      subject,
+    }: {
+      id: string;
+      kind: 'product' | 'credit';
+      subject: string;
+    }) => {
+      if (currentSubject.current !== subject)
+        throw new Error('The signed-in account changed; reload this subscription');
+      if (kind === 'product')
+        return oxyServices.billing.cancelProductSubscriptionWithStatus(id, subject);
+      await oxyServices.request('POST', '/billing/subscriptions/cancel', {
+        subscriptionId: id,
+        expectedSubjectAccountId: subject,
+      });
+    },
+    onSuccess: async (_, variables) => {
+      await Promise.all([
+        queries.invalidateQueries({ queryKey: ['product-subscriptions', variables.subject] }),
+        queries.invalidateQueries({ queryKey: ['credit-subscriptions', variables.subject] }),
+        queries.invalidateQueries({ queryKey: ['subscription', variables.subject] }),
+      ]);
+    },
+  });
 }

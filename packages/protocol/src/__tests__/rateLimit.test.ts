@@ -209,7 +209,8 @@ describe('createRateLimiter', () => {
       await jest.isolateModulesAsync(async () => {
         const reloaded = await import('../node/rateLimit');
         afterRestart = reloaded.clientRateLimitKey({ ip: ADDRESS } as Request);
-        stableAfterRestart = reloaded.clientRateLimitKey({ ip: ADDRESS } as Request) === afterRestart;
+        stableAfterRestart =
+          reloaded.clientRateLimitKey({ ip: ADDRESS } as Request) === afterRestart;
       });
 
       expect(afterRestart).not.toBe(before);

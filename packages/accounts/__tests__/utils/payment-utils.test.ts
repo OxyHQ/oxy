@@ -1,8 +1,4 @@
-import {
-  FAIRCOIN_SYMBOL,
-  formatFairCoinBalance,
-  isCreditTransaction,
-} from '@/utils/payment-utils';
+import { FAIRCOIN_SYMBOL, formatFairCoinBalance, isCreditTransaction } from '@/utils/payment-utils';
 
 describe('formatFairCoinBalance', () => {
   it('prefixes the FairCoin glyph and formats to two decimals', () => {
@@ -33,12 +29,9 @@ describe('isCreditTransaction', () => {
     expect(isCreditTransaction('Refund')).toBe(true);
   });
 
-  it.each(['withdrawal', 'transfer', 'purchase', 'debit'])(
-    'treats %s as a debit',
-    (type) => {
-      expect(isCreditTransaction(type)).toBe(false);
-    },
-  );
+  it.each(['withdrawal', 'transfer', 'purchase', 'debit'])('treats %s as a debit', (type) => {
+    expect(isCreditTransaction(type)).toBe(false);
+  });
 
   it('returns false for an undefined type', () => {
     expect(isCreditTransaction(undefined)).toBe(false);

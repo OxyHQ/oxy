@@ -7,11 +7,15 @@
 import { OxyServices } from '../../OxyServices';
 
 function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify({ data }), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify({ data }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 function makeJwt(payload: Record<string, unknown>): string {
-  const b64url = (obj: Record<string, unknown>): string => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const b64url = (obj: Record<string, unknown>): string =>
+    Buffer.from(JSON.stringify(obj)).toString('base64url');
   return `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url({ exp: Math.floor(Date.now() / 1000) + 3600, ...payload })}.sig`;
 }
 
@@ -33,7 +37,9 @@ describe('oxy.assets lifecycle', () => {
   });
 
   it('delete sends force as a query parameter', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ summary: {}, message: 'File deleted successfully', force: true }));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ summary: {}, message: 'File deleted successfully', force: true }),
+    );
     await oxy.assets.delete('f1', { force: true });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.oxy.so/assets/f1?force=true');
@@ -60,7 +66,9 @@ describe('oxy.assets lifecycle', () => {
   it('setVisibility evicts the cached URL', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ url: 'https://api.oxy.so/assets/f1/stream?mt=A' }))
-      .mockResolvedValueOnce(jsonResponse({ file: { id: 'f1', visibility: 'public', updatedAt: 'now' } }))
+      .mockResolvedValueOnce(
+        jsonResponse({ file: { id: 'f1', visibility: 'public', updatedAt: 'now' } }),
+      )
       .mockResolvedValueOnce(jsonResponse({ url: 'https://cloud.oxy.so/f1' }));
 
     await oxy.assets.url('f1');
@@ -74,7 +82,10 @@ describe('oxy.assets lifecycle', () => {
       .mockResolvedValueOnce({ file: { id: 'av1' } } as never)
       .mockResolvedValueOnce({ assetId: 'av1', file: { id: 'av1' } } as never);
 
-    const res = await oxy.assets.uploadAvatar(new Blob([new Uint8Array([1])], { type: 'image/png' }), 'u1');
+    const res = await oxy.assets.uploadAvatar(
+      new Blob([new Uint8Array([1])], { type: 'image/png' }),
+      'u1',
+    );
 
     expect(res.file.id).toBe('av1');
     expect(requestSpy.mock.calls[1][0]).toMatchObject({

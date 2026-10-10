@@ -167,7 +167,11 @@ async function storedAccounts(device: string) {
  * Built through the real service, so the row under test is the one production
  * writes — the raw secret is returned exactly once, exactly as a client gets it.
  */
-async function deviceWithSecret(): Promise<{ deviceId: string; accountId: string; secret: string }> {
+async function deviceWithSecret(): Promise<{
+  deviceId: string;
+  accountId: string;
+  secret: string;
+}> {
   const deviceId = newDeviceId();
   const accountId = await account();
   await deviceSessionService.addAccount(deviceId, { accountId, sessionId: `s-${randomUUID()}` });
@@ -224,11 +228,16 @@ let callerDeviceId = 'd1';
 
 beforeAll(async () => {
   await connectPostgres();
-  mockAuthMiddleware.mockImplementation((req: { user?: unknown }, _res: unknown, next: () => void) => {
-    req.user = { _id: { toString: () => callerAccountId }, id: callerAccountId };
-    next();
-  });
-  mockDecodeToken.mockImplementation(() => ({ sessionId: callerSessionId, deviceId: callerDeviceId }));
+  mockAuthMiddleware.mockImplementation(
+    (req: { user?: unknown }, _res: unknown, next: () => void) => {
+      req.user = { _id: { toString: () => callerAccountId }, id: callerAccountId };
+      next();
+    },
+  );
+  mockDecodeToken.mockImplementation(() => ({
+    sessionId: callerSessionId,
+    deviceId: callerDeviceId,
+  }));
   const app = express();
   app.use(express.json());
   app.use('/session/device', sessionDeviceRouter);
@@ -266,7 +275,10 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     const { deviceId, accountId, secret } = await deviceWithSecret();
     const hashesBefore = await storedHashes(deviceId);
 
-    const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
+    const res = await requestJson('POST', '/session/device/token', {
+      deviceId,
+      deviceSecret: secret,
+    });
 
     expect(res.status).toBe(200);
     const data = res.body.data;
@@ -302,8 +314,15 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     expect(res.body.error).toBe('invalid_device_secret');
     // The stored secret is untouched: a guess must not consume the real one.
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
-    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token', identifier: expect.stringContaining(`${deviceId}|`) }));
-    expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token' }));
+    expect(mockReserveAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'device-token',
+        identifier: expect.stringContaining(`${deviceId}|`),
+      }),
+    );
+    expect(mockClearFailures).not.toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'device-token' }),
+    );
     expect(mockClearFailures).not.toHaveBeenCalled();
   });
 
@@ -324,10 +343,16 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
   it('the same credential mints again and again (several tabs of one holder)', async () => {
     const { deviceId, secret } = await deviceWithSecret();
 
-    const first = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
+    const first = await requestJson('POST', '/session/device/token', {
+      deviceId,
+      deviceSecret: secret,
+    });
     expect(first.status).toBe(200);
 
-    const second = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
+    const second = await requestJson('POST', '/session/device/token', {
+      deviceId,
+      deviceSecret: secret,
+    });
     expect(second.status).toBe(200);
     expect((second.body.data as { accessToken: string }).accessToken).toBe('jwt-active');
   });
@@ -340,7 +365,10 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     const appSecret = await deviceSessionService.issueDeviceSecret(deviceId);
     await getDb()
       .update(deviceCredentials)
-      .set({ createdAt: new Date(Date.now() - 3_600_000), lastUsedAt: new Date(Date.now() - 3_600_000) })
+      .set({
+        createdAt: new Date(Date.now() - 3_600_000),
+        lastUsedAt: new Date(Date.now() - 3_600_000),
+      })
       .where(eq(deviceCredentials.secretHash, sha256(authSecret)));
 
     for (const deviceSecret of [authSecret, appSecret as string]) {
@@ -357,13 +385,19 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     // `resolveTokenForSession` consults.
     mockGetAccessToken.mockResolvedValue(null);
 
-    const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
+    const res = await requestJson('POST', '/session/device/token', {
+      deviceId,
+      deviceSecret: secret,
+    });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('no_active_session');
     // The client keeps a still-valid secret and re-authenticates.
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
-    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: expect.stringContaining(`${deviceId}|`) });
+    expect(mockClearFailures).toHaveBeenCalledWith({
+      scope: 'device-token',
+      identifier: expect.stringContaining(`${deviceId}|`),
+    });
     expect(mockRecordFailure).not.toHaveBeenCalled();
   });
 
@@ -385,7 +419,10 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     const { deviceId, secret } = await deviceWithSecret();
     mockReserveAttempt.mockResolvedValueOnce({ locked: true, retryAfterSeconds: 42, attempts: 21 });
 
-    const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
+    const res = await requestJson('POST', '/session/device/token', {
+      deviceId,
+      deviceSecret: secret,
+    });
 
     expect(res.status).toBe(429);
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
@@ -414,7 +451,10 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     await deviceSessionService.signout(deviceId, { all: true });
     expect(await storedHashes(deviceId)).toEqual([]);
 
-    const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
+    const res = await requestJson('POST', '/session/device/token', {
+      deviceId,
+      deviceSecret: secret,
+    });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('invalid_device_secret');
   });
@@ -426,8 +466,14 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
     const deviceId = newDeviceId();
     const pinned = await account();
     const active = await account();
-    await deviceSessionService.addAccount(deviceId, { accountId: pinned, sessionId: `s-${randomUUID()}` });
-    await deviceSessionService.addAccount(deviceId, { accountId: active, sessionId: `s-${randomUUID()}` });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: pinned,
+      sessionId: `s-${randomUUID()}`,
+    });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: active,
+      sessionId: `s-${randomUUID()}`,
+    });
     const secret = await deviceSessionService.issueDeviceSecret(deviceId);
     if (!secret) throw new Error('failed to issue a device secret for the fixture');
     return { deviceId, pinned, active, secret };
@@ -454,7 +500,9 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
 
     expect(res.status).toBe(200);
     // The token belongs to the PINNED account's session, not the active one.
-    const pinnedSessionId = (await storedAccounts(deviceId)).find((a) => a.accountId === pinned)?.sessionId;
+    const pinnedSessionId = (await storedAccounts(deviceId)).find(
+      (a) => a.accountId === pinned,
+    )?.sessionId;
     expect((res.body.data as { accessToken: string }).accessToken).toBe(`jwt-${pinnedSessionId}`);
 
     // Read-only with respect to everything the other apps on this device see.
@@ -464,7 +512,9 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
     expect(mockBroadcast).not.toHaveBeenCalled();
     expect(mockBroadcastAccounts).not.toHaveBeenCalled();
     // The response reports the device's TRUE active account, not the pin.
-    expect((res.body.data as { state: { activeAccountId: string } }).state.activeAccountId).toBe(active);
+    expect((res.body.data as { state: { activeAccountId: string } }).state.activeAccountId).toBe(
+      active,
+    );
     expect(logger.info).toHaveBeenCalledWith('device.token.mint', {
       mint_source: 'secret',
       deviceId,
@@ -487,7 +537,10 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
     // The secret was proven — a bad pin must never count as secret guessing.
     expect(mockRecordFailure).not.toHaveBeenCalled();
-    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: expect.stringContaining(`${deviceId}|`) });
+    expect(mockClearFailures).toHaveBeenCalledWith({
+      scope: 'device-token',
+      identifier: expect.stringContaining(`${deviceId}|`),
+    });
   });
 
   it('answers the SAME error when the pinned member exists but its session is dead (no existence oracle)', async () => {
@@ -518,8 +571,15 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('invalid_device_secret');
-    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token', identifier: expect.stringContaining(`${deviceId}|`) }));
-    expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'device-token' }));
+    expect(mockReserveAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'device-token',
+        identifier: expect.stringContaining(`${deviceId}|`),
+      }),
+    );
+    expect(mockClearFailures).not.toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'device-token' }),
+    );
   });
 });
 
@@ -622,8 +682,14 @@ describe('POST /session/device/switch', () => {
     const deviceId = newDeviceId();
     const first = await account();
     const second = await account();
-    await deviceSessionService.addAccount(deviceId, { accountId: first, sessionId: `s-${randomUUID()}` });
-    await deviceSessionService.addAccount(deviceId, { accountId: second, sessionId: `s-${randomUUID()}` });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: first,
+      sessionId: `s-${randomUUID()}`,
+    });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: second,
+      sessionId: `s-${randomUUID()}`,
+    });
     callerDeviceId = deviceId;
     const before = await storedDevice(deviceId);
 
@@ -657,7 +723,10 @@ describe('POST /session/device/switch', () => {
     const deviceId = newDeviceId();
     const operator = await account();
     const org = await account();
-    await deviceSessionService.addAccount(deviceId, { accountId: operator, sessionId: `s-${randomUUID()}` });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: operator,
+      sessionId: `s-${randomUUID()}`,
+    });
     await deviceSessionService.addAccount(deviceId, {
       accountId: org,
       sessionId: `s-${randomUUID()}`,
@@ -691,8 +760,14 @@ describe('POST /session/device/signout', () => {
     const deviceId = newDeviceId();
     const first = await account();
     const second = await account();
-    await deviceSessionService.addAccount(deviceId, { accountId: first, sessionId: `s-${randomUUID()}` });
-    await deviceSessionService.addAccount(deviceId, { accountId: second, sessionId: `s-${randomUUID()}` });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: first,
+      sessionId: `s-${randomUUID()}`,
+    });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: second,
+      sessionId: `s-${randomUUID()}`,
+    });
     callerDeviceId = deviceId;
 
     const res = await requestJson('POST', '/session/device/signout', { accountId: second });
@@ -708,7 +783,10 @@ describe('POST /session/device/signout', () => {
     const deviceId = newDeviceId();
     const operator = await account();
     const org = await account();
-    await deviceSessionService.addAccount(deviceId, { accountId: operator, sessionId: `s-${randomUUID()}` });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: operator,
+      sessionId: `s-${randomUUID()}`,
+    });
     await deviceSessionService.addAccount(deviceId, {
       accountId: org,
       sessionId: `s-${randomUUID()}`,
@@ -729,8 +807,14 @@ describe('POST /session/device/signout', () => {
     const deviceId = newDeviceId();
     const alice = await account();
     const bob = await account();
-    await deviceSessionService.addAccount(deviceId, { accountId: alice, sessionId: `s-${randomUUID()}` });
-    await deviceSessionService.addAccount(deviceId, { accountId: bob, sessionId: `s-${randomUUID()}` });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: alice,
+      sessionId: `s-${randomUUID()}`,
+    });
+    await deviceSessionService.addAccount(deviceId, {
+      accountId: bob,
+      sessionId: `s-${randomUUID()}`,
+    });
     const authSecret = await deviceSessionService.issueDeviceSecret(deviceId);
     const mentionSecret = await deviceSessionService.issueDeviceSecret(deviceId);
     const aliaSecret = await deviceSessionService.issueDeviceSecret(deviceId);
@@ -740,13 +824,17 @@ describe('POST /session/device/signout', () => {
     const res = await requestJson('POST', '/session/device/signout', { accountId: alice });
     expect(res.status).toBe(200);
     // …announced to the device room every holder's socket sits in…
-    expect(mockBroadcast).toHaveBeenCalledWith(expect.objectContaining({ deviceId, activeAccountId: bob }));
+    expect(mockBroadcast).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId, activeAccountId: bob }),
+    );
 
     // …and every holder, the signing-out one included, now mints Bob.
     for (const deviceSecret of [authSecret, mentionSecret, aliaSecret] as string[]) {
       const mint = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret });
       expect(mint.status).toBe(200);
-      const state = (mint.body.data as { state: { accounts: { accountId: string }[]; activeAccountId: string } }).state;
+      const state = (
+        mint.body.data as { state: { accounts: { accountId: string }[]; activeAccountId: string } }
+      ).state;
       expect(state.accounts.map((a) => a.accountId)).toEqual([bob]);
       expect(state.activeAccountId).toBe(bob);
     }
@@ -895,8 +983,15 @@ describe('POST /session/device/background-token', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('background_credential_invalid');
-    expect(mockReserveAttempt).toHaveBeenCalledWith(expect.objectContaining({ scope: 'background-token', identifier: expect.stringContaining(`${deviceId}|`) }));
-    expect(mockClearFailures).not.toHaveBeenCalledWith(expect.objectContaining({ scope: 'background-token' }));
+    expect(mockReserveAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'background-token',
+        identifier: expect.stringContaining(`${deviceId}|`),
+      }),
+    );
+    expect(mockClearFailures).not.toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'background-token' }),
+    );
   });
 
   it('401 background_credential_invalid once the credential has expired', async () => {
@@ -941,7 +1036,10 @@ describe('POST /session/device/background-token', () => {
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('account_not_on_device');
     expect(mockRecordFailure).not.toHaveBeenCalled();
-    expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'background-token', identifier: expect.stringContaining(`${deviceId}|`) });
+    expect(mockClearFailures).toHaveBeenCalledWith({
+      scope: 'background-token',
+      identifier: expect.stringContaining(`${deviceId}|`),
+    });
   });
 
   it('signing out the bound account CLEARS the background credential', async () => {

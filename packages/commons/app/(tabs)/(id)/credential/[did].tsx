@@ -8,13 +8,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-import {
-  Screen,
-  StackHeader,
-  Section,
-  LoadingState,
-  STATE_MIN_HEIGHT,
-} from '@/components/ui';
+import { Screen, StackHeader, Section, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useIssueCredential } from '@/hooks/useIssueCredential';
 import { userIdFromDid } from '@/lib/civic/did';
@@ -115,10 +109,15 @@ export default function IssueCredentialScreen() {
         <EmptyState
           illustration={<Icons.credential size="3xl" fill={colors.success} />}
           title={t('civic.credentials.issue.done.title')}
-          description={t('civic.credentials.issue.done.body', { type: issuedTypeLabel, name: displayName })}
+          description={t('civic.credentials.issue.done.body', {
+            type: issuedTypeLabel,
+            name: displayName,
+          })}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>
+                {t('common.done')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -134,7 +133,9 @@ export default function IssueCredentialScreen() {
           description={t(`civic.credentials.issue.error.${errorCode ?? 'generic'}`)}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>
+                {t('common.close')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -153,7 +154,9 @@ export default function IssueCredentialScreen() {
           {card?.avatarUrl ? (
             <Image source={{ uri: card.avatarUrl }} style={styles.avatar} resizeMode="cover" />
           ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
+            <View
+              style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: colors.border }]}
+            >
               <Text style={[styles.avatarInitial, { color: colors.textSecondary }]}>
                 {displayName.charAt(0)?.toUpperCase() || '?'}
               </Text>
@@ -164,7 +167,10 @@ export default function IssueCredentialScreen() {
               {displayName}
             </BloomText>
             {card?.username && (
-              <BloomText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
+              <BloomText
+                style={[styles.username, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
                 @{card.username}
               </BloomText>
             )}
@@ -176,7 +182,10 @@ export default function IssueCredentialScreen() {
         </BloomText>
 
         {/* Credential type */}
-        <Section title={t('civic.credentials.issue.typeTitle')} subtitle={t('civic.credentials.issue.typeHint')}>
+        <Section
+          title={t('civic.credentials.issue.typeTitle')}
+          subtitle={t('civic.credentials.issue.typeHint')}
+        >
           <View className="flex-row flex-wrap gap-space-8">
             {CREDENTIAL_PRESETS.map((preset) => {
               const selected = preset.id === presetId;
@@ -192,7 +201,9 @@ export default function IssueCredentialScreen() {
                     selected && { backgroundColor: colors.primarySubtle },
                   ]}
                 >
-                  <Text style={[styles.presetText, { color: selected ? colors.tint : colors.text }]}>
+                  <Text
+                    style={[styles.presetText, { color: selected ? colors.tint : colors.text }]}
+                  >
                     {t(`civic.credentials.issue.preset.${preset.id}`)}
                   </Text>
                 </TouchableOpacity>
@@ -218,7 +229,10 @@ export default function IssueCredentialScreen() {
         </Section>
 
         {/* Claim statement */}
-        <Section title={t('civic.credentials.issue.statementTitle')} subtitle={t('civic.credentials.issue.statementHint')}>
+        <Section
+          title={t('civic.credentials.issue.statementTitle')}
+          subtitle={t('civic.credentials.issue.statementHint')}
+        >
           <TextInput
             value={statement}
             onChangeText={setStatement}
@@ -228,12 +242,19 @@ export default function IssueCredentialScreen() {
             placeholder={t('civic.credentials.issue.statementPlaceholder')}
             placeholderTextColor={colors.textSecondary}
             accessibilityLabel={t('civic.credentials.issue.statementTitle')}
-            style={[styles.input, styles.multiline, { color: colors.text, borderColor: colors.border }]}
+            style={[
+              styles.input,
+              styles.multiline,
+              { color: colors.text, borderColor: colors.border },
+            ]}
           />
         </Section>
 
         {/* Optional expiry */}
-        <Section title={t('civic.credentials.issue.expiryTitle')} subtitle={t('civic.credentials.issue.expiryHint')}>
+        <Section
+          title={t('civic.credentials.issue.expiryTitle')}
+          subtitle={t('civic.credentials.issue.expiryHint')}
+        >
           <TextInput
             value={expiryText}
             onChangeText={setExpiryText}
@@ -264,7 +285,18 @@ export default function IssueCredentialScreen() {
           </BloomText>
         )}
 
-        <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleIssue} loading={busy} disabled={!canSubmit} style={fullWidthControl}>{t('civic.credentials.issue.cta')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          size="lg"
+          icon={Icons.personhood}
+          onPress={handleIssue}
+          loading={busy}
+          disabled={!canSubmit}
+          style={fullWidthControl}
+        >
+          {t('civic.credentials.issue.cta')}
+        </Button>
 
         {busy && (
           <BloomText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>

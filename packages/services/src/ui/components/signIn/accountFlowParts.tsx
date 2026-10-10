@@ -57,7 +57,8 @@ export function isRateLimited(error: unknown): boolean {
 
 /** How long to wait after a 429, from the API's `retryAfterSeconds` when it sent one. */
 export function retryAfterSeconds(error: unknown): number {
-  const seconds = (error as { details?: { retryAfterSeconds?: unknown } } | undefined)?.details?.retryAfterSeconds;
+  const seconds = (error as { details?: { retryAfterSeconds?: unknown } } | undefined)?.details
+    ?.retryAfterSeconds;
   return typeof seconds === 'number' && seconds > 0 ? Math.ceil(seconds) : RATE_LIMIT_SECONDS;
 }
 
@@ -94,7 +95,8 @@ export function describeSignInError(error: unknown, t: Translate): string {
     case EMAIL_VERIFICATION_ERROR_CODES.unavailable:
       return t('emailCode.errors.unavailable');
     default:
-      if (isRateLimited(error)) return t('signin.errors.rateLimited', { seconds: retryAfterSeconds(error) });
+      if (isRateLimited(error))
+        return t('signin.errors.rateLimited', { seconds: retryAfterSeconds(error) });
       return t('signin.errors.generic');
   }
 }
@@ -102,11 +104,16 @@ export function describeSignInError(error: unknown, t: Translate): string {
 /** Whether the confirmation this flow holds is gone and it must start again. */
 export function isTicketExpired(error: unknown): boolean {
   const code = errorCode(error);
-  return code === EMAIL_VERIFICATION_ERROR_CODES.ticketInvalid || code === EMAIL_VERIFICATION_ERROR_CODES.ticketRequired;
+  return (
+    code === EMAIL_VERIFICATION_ERROR_CODES.ticketInvalid ||
+    code === EMAIL_VERIFICATION_ERROR_CODES.ticketRequired
+  );
 }
 
 const SIX_DIGITS = new RegExp(`^\\d{${EMAIL_CODE_LENGTH}}$`);
-const LONG_CODE = new RegExp(`^[${EMAIL_SIGNIN_LONG_CODE_ALPHABET}]{${EMAIL_SIGNIN_LONG_CODE_LENGTH}}$`);
+const LONG_CODE = new RegExp(
+  `^[${EMAIL_SIGNIN_LONG_CODE_ALPHABET}]{${EMAIL_SIGNIN_LONG_CODE_LENGTH}}$`,
+);
 
 /**
  * Whether a typed sign-in code is complete: 6 digits, or the 10-character long
@@ -176,7 +183,11 @@ export const AccountFlowField: React.FC<{
         aria-required
       />
     </TextField>
-    {error ? <TextFieldHint invalid>{error}</TextFieldHint> : hint ? <TextFieldHint>{hint}</TextFieldHint> : null}
+    {error ? (
+      <TextFieldHint invalid>{error}</TextFieldHint>
+    ) : hint ? (
+      <TextFieldHint>{hint}</TextFieldHint>
+    ) : null}
   </View>
 );
 
@@ -255,7 +266,10 @@ export const AccountFlowAction: React.FC<{
 );
 
 /** A line of body copy under the header. */
-export const AccountFlowNote: React.FC<{ children: React.ReactNode; testID?: string }> = ({ children, testID }) => {
+export const AccountFlowNote: React.FC<{ children: React.ReactNode; testID?: string }> = ({
+  children,
+  testID,
+}) => {
   const theme = useTheme();
   return (
     <Text style={[styles.note, { color: theme.colors.textSecondary }]} testID={testID}>
@@ -285,11 +299,11 @@ export const AccountFlowNotice: React.FC<{
  * screen's own header names the step, so the progress draws no title; the
  * titles still name the bar for assistive technology.
  */
-export const AccountFlowProgress: React.FC<{ steps: readonly string[]; current: number; testID?: string }> = ({
-  steps,
-  current,
-  testID,
-}) => {
+export const AccountFlowProgress: React.FC<{
+  steps: readonly string[];
+  current: number;
+  testID?: string;
+}> = ({ steps, current, testID }) => {
   const { t } = useI18n();
   return (
     <WizardProgress
@@ -351,8 +365,8 @@ export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({
     }
     setError(null);
     setPending(true);
-    oxyServices
-      .auth.email.confirmVerification(verificationId, digits)
+    oxyServices.auth.email
+      .confirmVerification(verificationId, digits)
       .then(onConfirmed)
       .catch((reason: unknown) => setError(describeSignInError(reason, t)))
       .finally(() => setPending(false));
@@ -385,9 +399,24 @@ export const EmailCodeStep: React.FC<EmailCodeStepProps> = ({
         testID="email-code"
       />
       {notice ? <AccountFlowNotice testID="email-code-notice">{notice}</AccountFlowNotice> : null}
-      <AccountFlowAction label={t('signin.actions.continue')} onPress={() => confirm(code)} pending={pending} testID="email-code-continue" />
-      <SubtleLink label={t('emailCode.resend')} onPress={resend} disabled={pending} testID="email-code-resend" />
-      <SubtleLink label={back.label} onPress={back.onPress} disabled={pending} testID="email-code-back" />
+      <AccountFlowAction
+        label={t('signin.actions.continue')}
+        onPress={() => confirm(code)}
+        pending={pending}
+        testID="email-code-continue"
+      />
+      <SubtleLink
+        label={t('emailCode.resend')}
+        onPress={resend}
+        disabled={pending}
+        testID="email-code-resend"
+      />
+      <SubtleLink
+        label={back.label}
+        onPress={back.onPress}
+        disabled={pending}
+        testID="email-code-back"
+      />
     </OxyAuthScreen>
   );
 };

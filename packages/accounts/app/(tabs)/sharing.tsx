@@ -48,16 +48,27 @@ export default function PeopleAndSharingScreen() {
   if (authLoading) {
     return (
       <ScreenContentWrapper>
-        <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.container,
+            styles.loadingContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
           <ActivityIndicator size="large" color={colors.tint} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</Text>
+          <Text style={[styles.loadingText, { color: colors.text }]}>
+            {t('common.loadingShort')}
+          </Text>
         </View>
       </ScreenContentWrapper>
     );
   }
 
   return (
-    <ScreenContentWrapper refreshing={refreshing || (privacyFetching && !privacyLoading)} onRefresh={handleRefresh}>
+    <ScreenContentWrapper
+      refreshing={refreshing || (privacyFetching && !privacyLoading)}
+      onRefresh={handleRefresh}
+    >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.mobileContent}>
           <ScreenHeader title={t('sharing.title')} subtitle={t('sharing.subtitle')} />

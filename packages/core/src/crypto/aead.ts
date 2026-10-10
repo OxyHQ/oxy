@@ -60,11 +60,7 @@ function randomNonce(): Uint8Array {
  * @param aad       Optional associated data authenticated but not encrypted.
  * @returns         `{ nonce, ciphertext }` — both are required to decrypt.
  */
-export function encryptAead(
-  key: Uint8Array,
-  plaintext: Uint8Array,
-  aad?: Uint8Array,
-): AeadResult {
+export function encryptAead(key: Uint8Array, plaintext: Uint8Array, aad?: Uint8Array): AeadResult {
   assertKey(key);
   const nonce = randomNonce();
   const ciphertext = xchacha20poly1305(key, nonce, aad).encrypt(plaintext);

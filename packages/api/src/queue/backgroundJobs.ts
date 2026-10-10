@@ -28,12 +28,7 @@ import {
   JOB_NAMES,
   EMAIL_MAINTENANCE_INTERVAL_MS,
 } from './constants';
-import {
-  isQueueEnabled,
-  startWorker,
-  registerRepeatableJob,
-  closeQueues,
-} from './queueManager';
+import { isQueueEnabled, startWorker, registerRepeatableJob, closeQueues } from './queueManager';
 
 /**
  * Tracks which scheduling path is active so shutdown stops the right one.
@@ -49,7 +44,7 @@ let fallbackActive = false;
 export async function startBackgroundJobs(): Promise<void> {
   if (!isQueueEnabled()) {
     logger.warn(
-      'BullMQ queues disabled (REDIS_URL unset) — using in-process cron fallback for email maintenance'
+      'BullMQ queues disabled (REDIS_URL unset) — using in-process cron fallback for email maintenance',
     );
     startSnoozeCron();
     fallbackActive = true;
@@ -67,7 +62,7 @@ export async function startBackgroundJobs(): Promise<void> {
       QUEUE_NAMES.EMAIL_MAINTENANCE,
       JOB_SCHEDULER_IDS.EMAIL_MAINTENANCE,
       { every: EMAIL_MAINTENANCE_INTERVAL_MS },
-      JOB_NAMES.EMAIL_MAINTENANCE_TICK
+      JOB_NAMES.EMAIL_MAINTENANCE_TICK,
     );
 
     logger.info('Background jobs started via BullMQ (durable, fleet-wide scheduling)');
@@ -77,12 +72,12 @@ export async function startBackgroundJobs(): Promise<void> {
     // partially-created queue resources.
     logger.error(
       'BullMQ background-jobs setup failed — falling back to in-process cron',
-      err instanceof Error ? err : new Error(String(err))
+      err instanceof Error ? err : new Error(String(err)),
     );
     await closeQueues().catch((closeErr) =>
       logger.warn('Failed to clean up partial queue resources after setup error', {
         error: closeErr instanceof Error ? closeErr.message : String(closeErr),
-      })
+      }),
     );
     startSnoozeCron();
     fallbackActive = true;

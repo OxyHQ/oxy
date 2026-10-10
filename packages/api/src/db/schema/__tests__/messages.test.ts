@@ -86,7 +86,7 @@ async function mailbox(userId: string, path = `INBOX-${unique()}`): Promise<stri
 }
 
 async function insertMessage(
-  values: Partial<typeof messages.$inferInsert> & { userId: string; mailboxId: string }
+  values: Partial<typeof messages.$inferInsert> & { userId: string; mailboxId: string },
 ): Promise<string> {
   const [row] = await getDb()
     .insert(messages)
@@ -181,7 +181,7 @@ describe('messages — the weighted text index', () => {
     const error = await rejection(
       getDb().execute(sql`
         update messages set search_vector = to_tsvector('english', 'a lie') where id = ${id}
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(GENERATED_ALWAYS);
@@ -193,7 +193,10 @@ describe('messages — the weighted text index', () => {
     const term = `gammaword${unique().slice(0, 8)}`;
     const id = await insertMessage({ userId, mailboxId, subject: 'before' });
 
-    await getDb().update(messages).set({ subject: `now with ${term}` }).where(eq(messages.id, id));
+    await getDb()
+      .update(messages)
+      .set({ subject: `now with ${term}` })
+      .where(eq(messages.id, id));
 
     const matches = await getDb().execute<{ id: string }>(sql`
       select id from messages
@@ -226,7 +229,7 @@ describe('messages — the protected bodies', () => {
     // entry beyond the Mongoose set — anything else appearing here is a
     // decision somebody must justify, not a silent addition.
     const beyondMongoose = MESSAGES_PROTECTED_COLUMNS.filter(
-      (column) => !(MONGOOSE_SELECT_FALSE_MESSAGE_FIELDS as readonly string[]).includes(column)
+      (column) => !(MONGOOSE_SELECT_FALSE_MESSAGE_FIELDS as readonly string[]).includes(column),
     );
 
     expect(beyondMongoose).toEqual(['searchVector']);
@@ -241,7 +244,7 @@ describe('messages — the protected bodies', () => {
     }
     const missing = all.filter(
       (name) =>
-        !selectable.has(name) && !(MESSAGES_PROTECTED_COLUMNS as readonly string[]).includes(name)
+        !selectable.has(name) && !(MESSAGES_PROTECTED_COLUMNS as readonly string[]).includes(name),
     );
     expect(missing).toEqual([]);
     // The columns a list view is actually built from must survive.
@@ -263,7 +266,10 @@ describe('messages — the protected bodies', () => {
       headers: { received: 'from mx.example.com (203.0.113.9)' },
     });
 
-    const [row] = await getDb().select(publicColumns(messages, PROTECTED_COLUMNS_BY_TABLE)).from(messages).where(eq(messages.id, id));
+    const [row] = await getDb()
+      .select(publicColumns(messages, PROTECTED_COLUMNS_BY_TABLE))
+      .from(messages)
+      .where(eq(messages.id, id));
     const serialized = JSON.stringify(row);
 
     expect(Object.keys(row)).not.toContain('text');
@@ -296,12 +302,14 @@ describe('message_recipients — one table, a kind discriminator, real order', (
     const mailboxId = await mailbox(userId);
     const messageId = await insertMessage({ userId, mailboxId });
 
-    await getDb().insert(messageRecipients).values([
-      { messageId, kind: 'to', ord: 0, name: 'Ada', address: 'ada@example.com' },
-      { messageId, kind: 'to', ord: 1, address: 'grace@example.com' },
-      { messageId, kind: 'cc', ord: 0, address: 'alan@example.com' },
-      { messageId, kind: 'bcc', ord: 0, address: 'edsger@example.com' },
-    ]);
+    await getDb()
+      .insert(messageRecipients)
+      .values([
+        { messageId, kind: 'to', ord: 0, name: 'Ada', address: 'ada@example.com' },
+        { messageId, kind: 'to', ord: 1, address: 'grace@example.com' },
+        { messageId, kind: 'cc', ord: 0, address: 'alan@example.com' },
+        { messageId, kind: 'bcc', ord: 0, address: 'edsger@example.com' },
+      ]);
 
     const to = await getDb()
       .select({ address: messageRecipients.address, name: messageRecipients.name })
@@ -322,10 +330,12 @@ describe('message_recipients — one table, a kind discriminator, real order', (
     const first = await insertMessage({ userId, mailboxId });
     const second = await insertMessage({ userId, mailboxId });
 
-    await getDb().insert(messageRecipients).values([
-      { messageId: first, kind: 'to', ord: 0, address },
-      { messageId: second, kind: 'bcc', ord: 0, address },
-    ]);
+    await getDb()
+      .insert(messageRecipients)
+      .values([
+        { messageId: first, kind: 'to', ord: 0, address },
+        { messageId: second, kind: 'bcc', ord: 0, address },
+      ]);
 
     const found = await getDb()
       .select({ messageId: messageRecipients.messageId, kind: messageRecipients.kind })
@@ -347,7 +357,7 @@ describe('message_recipients — one table, a kind discriminator, real order', (
     const error = await rejection(
       getDb()
         .insert(messageRecipients)
-        .values({ messageId, kind: 'to', ord: 0, address: 'b@example.com' })
+        .values({ messageId, kind: 'to', ord: 0, address: 'b@example.com' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
@@ -355,7 +365,7 @@ describe('message_recipients — one table, a kind discriminator, real order', (
     await expect(
       getDb()
         .insert(messageRecipients)
-        .values({ messageId, kind: 'cc', ord: 0, address: 'b@example.com' })
+        .values({ messageId, kind: 'cc', ord: 0, address: 'b@example.com' }),
     ).resolves.toBeDefined();
   });
 
@@ -368,7 +378,7 @@ describe('message_recipients — one table, a kind discriminator, real order', (
       getDb().execute(sql`
         insert into message_recipients (id, message_id, kind, ord, address)
         values (${unique()}, ${messageId}, 'reply-to', 0, 'x@example.com')
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -414,24 +424,26 @@ describe('message_attachments — the reverse lookup Mongo indexed for', () => {
 
     const mine = await insertMessage({ userId, mailboxId });
     const theirs = await insertMessage({ userId: other, mailboxId: otherMailbox });
-    await getDb().insert(messageAttachments).values([
-      {
-        messageId: mine,
-        ord: 0,
-        fileId: file.id,
-        name: 'a.pdf',
-        contentType: 'application/pdf',
-        size: 10,
-      },
-      {
-        messageId: theirs,
-        ord: 0,
-        fileId: file.id,
-        name: 'a.pdf',
-        contentType: 'application/pdf',
-        size: 10,
-      },
-    ]);
+    await getDb()
+      .insert(messageAttachments)
+      .values([
+        {
+          messageId: mine,
+          ord: 0,
+          fileId: file.id,
+          name: 'a.pdf',
+          contentType: 'application/pdf',
+          size: 10,
+        },
+        {
+          messageId: theirs,
+          ord: 0,
+          fileId: file.id,
+          name: 'a.pdf',
+          contentType: 'application/pdf',
+          size: 10,
+        },
+      ]);
 
     const found = await getDb()
       .select({ id: messages.id })
@@ -526,7 +538,7 @@ describe('messages — flags, arrays and the extracted card', () => {
       getDb().execute(sql`
         insert into messages (id, user_id, mailbox_id, message_id, from_address, subject, size, date, card_data)
         values (${unique()}, ${userId}, ${mailboxId}, ${unique()}, 'a@b.c', '', 1, now(), '{"total":"1"}'::jsonb)
-      `)
+      `),
     );
     expect(pgConstraint(error)).toBe('messages_card_complete_check');
   });
@@ -547,12 +559,14 @@ describe('mailboxes and the deletes that hang off them', () => {
     await getDb().insert(mailboxes).values({ userId: first, name: 'Projects', path });
 
     const error = await rejection(
-      getDb().insert(mailboxes).values({ userId: first, name: 'Projects', path })
+      getDb().insert(mailboxes).values({ userId: first, name: 'Projects', path }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     await expect(
-      getDb().insert(mailboxes).values({ userId: await owner(), name: 'Projects', path })
+      getDb()
+        .insert(mailboxes)
+        .values({ userId: await owner(), name: 'Projects', path }),
     ).resolves.toBeDefined();
   });
 

@@ -26,17 +26,33 @@ import { deviceSessions } from '../../db/schema/deviceSessions';
 import { users } from '../../db/schema/users';
 import { deviceJoinService, resolveProvenDeviceId } from '../deviceJoin.service';
 
-async function officialApp(): Promise<{ clientId: string; redirectUri: string; credentialId: string }> {
+async function officialApp(): Promise<{
+  clientId: string;
+  redirectUri: string;
+  credentialId: string;
+}> {
   const [owner] = await getDb().insert(users).values({}).returning({ id: users.id });
   const redirectUri = `https://app-${randomUUID().slice(0, 8)}.example`;
   const [app] = await getDb()
     .insert(applications)
-    .values({ name: `App ${randomUUID()}`, type: 'first_party', isOfficial: true, redirectUris: [redirectUri], ownerAccountId: owner.id })
+    .values({
+      name: `App ${randomUUID()}`,
+      type: 'first_party',
+      isOfficial: true,
+      redirectUris: [redirectUri],
+      ownerAccountId: owner.id,
+    })
     .returning({ id: applications.id });
   const clientId = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
   const [credential] = await getDb()
     .insert(applicationCredentials)
-    .values({ applicationId: app.id, name: 'client', type: 'public', environment: 'production', publicKey: clientId })
+    .values({
+      applicationId: app.id,
+      name: 'client',
+      type: 'public',
+      environment: 'production',
+      publicKey: clientId,
+    })
     .returning({ id: applicationCredentials.id });
   return { clientId, redirectUri, credentialId: credential.id };
 }
@@ -60,13 +76,18 @@ describe('registerDevice', () => {
     const b = await deviceJoinService.registerDevice();
     expect(a.deviceId).not.toBe(b.deviceId);
 
-    const [device] = await getDb().select().from(deviceSessions).where(eq(deviceSessions.deviceId, a.deviceId));
+    const [device] = await getDb()
+      .select()
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, a.deviceId));
     expect(device.activeAccountId).toBeNull();
     const credentials = await getDb()
       .select({ secretHash: deviceCredentials.secretHash })
       .from(deviceCredentials)
       .where(eq(deviceCredentials.deviceSessionId, device.id));
-    expect(credentials).toEqual([{ secretHash: createHash('sha256').update(a.deviceSecret).digest('hex') }]);
+    expect(credentials).toEqual([
+      { secretHash: createHash('sha256').update(a.deviceSecret).digest('hex') },
+    ]);
   });
 });
 
@@ -118,8 +139,16 @@ describe('issueJoinCode / redeemJoinCode', () => {
       codeChallenge: challenge,
     });
     if (!issued.ok) throw new Error(issued.reason);
-    const input = { code: issued.code, codeVerifier: verifier, clientId: app.clientId, redirectUri: app.redirectUri };
-    const outcomes = await Promise.all([deviceJoinService.redeemJoinCode(input), deviceJoinService.redeemJoinCode(input)]);
+    const input = {
+      code: issued.code,
+      codeVerifier: verifier,
+      clientId: app.clientId,
+      redirectUri: app.redirectUri,
+    };
+    const outcomes = await Promise.all([
+      deviceJoinService.redeemJoinCode(input),
+      deviceJoinService.redeemJoinCode(input),
+    ]);
     expect(outcomes.filter((o) => o.ok)).toHaveLength(1);
     const winner = outcomes.find((o) => o.ok);
     expect(winner && winner.ok && winner.deviceId).toBe(device.deviceId);
@@ -130,8 +159,15 @@ describe('resolveProvenDeviceId', () => {
   it('names the device a valid proof proves, and nothing otherwise', async () => {
     const device = await deviceJoinService.registerDevice();
     expect(await resolveProvenDeviceId(device)).toBe(device.deviceId);
-    expect(await resolveProvenDeviceId({ deviceId: device.deviceId, deviceSecret: 'forged' })).toBeNull();
-    expect(await resolveProvenDeviceId({ deviceId: `other-${randomUUID()}`, deviceSecret: device.deviceSecret })).toBeNull();
+    expect(
+      await resolveProvenDeviceId({ deviceId: device.deviceId, deviceSecret: 'forged' }),
+    ).toBeNull();
+    expect(
+      await resolveProvenDeviceId({
+        deviceId: `other-${randomUUID()}`,
+        deviceSecret: device.deviceSecret,
+      }),
+    ).toBeNull();
     expect(await resolveProvenDeviceId(undefined)).toBeNull();
   });
 });

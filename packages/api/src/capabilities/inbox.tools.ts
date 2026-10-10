@@ -60,7 +60,10 @@ export interface InboxToolContext {
 
 export type InboxToolInput = Readonly<Record<string, unknown>>;
 export type InboxToolResult = Record<string, unknown>;
-export type InboxTool = (input: InboxToolInput, context: InboxToolContext) => Promise<InboxToolResult>;
+export type InboxTool = (
+  input: InboxToolInput,
+  context: InboxToolContext,
+) => Promise<InboxToolResult>;
 
 // ─── Input readers ──────────────────────────────────────────────────
 //
@@ -91,7 +94,10 @@ function optionalBoolean(input: InboxToolInput, key: string): boolean | undefine
 function stringList(input: InboxToolInput, key: string): string[] {
   const value = input[key];
   if (value === undefined || value === null) return [];
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.length === 0)) {
+  if (
+    !Array.isArray(value) ||
+    value.some((entry) => typeof entry !== 'string' || entry.length === 0)
+  ) {
     throw new BadRequestError(`${key} must be a list of names`);
   }
   return value as string[];
@@ -101,11 +107,16 @@ function stringList(input: InboxToolInput, key: string): string[] {
 function pageSize(input: InboxToolInput, maximum = INBOX_MAX_PAGE_SIZE): number {
   const value = input.limit;
   if (value === undefined || value === null) return Math.min(INBOX_DEFAULT_PAGE_SIZE, maximum);
-  if (typeof value !== 'number' || !Number.isInteger(value)) throw new BadRequestError('limit must be an integer');
+  if (typeof value !== 'number' || !Number.isInteger(value))
+    throw new BadRequestError('limit must be an integer');
   return Math.min(Math.max(value, 1), maximum);
 }
 
-function isoInstant(input: InboxToolInput, key: string, { future }: { future: boolean }): string | undefined {
+function isoInstant(
+  input: InboxToolInput,
+  key: string,
+  { future }: { future: boolean },
+): string | undefined {
   const value = optionalString(input, key);
   if (value === undefined) return undefined;
   const time = Date.parse(value);
@@ -136,7 +147,8 @@ function attachmentList(input: InboxToolInput): AttachmentInput[] | undefined {
   if (!Array.isArray(value)) throw new BadRequestError('attachments must be a list');
   return value.map((entry: unknown) => {
     const record = entry as Record<string, unknown> | null;
-    if (!record || typeof record.fileId !== 'string') throw new BadRequestError('attachments need a fileId');
+    if (!record || typeof record.fileId !== 'string')
+      throw new BadRequestError('attachments need a fileId');
     return {
       fileId: record.fileId,
       ...(typeof record.contentId === 'string' ? { contentId: record.contentId } : {}),
@@ -179,11 +191,17 @@ async function resolveMailboxId(accountId: string, reference: string): Promise<s
  * answered from the scoped mailbox — the model should learn it asked for
  * something it cannot see, not read the wrong folder as the right one.
  */
-async function readableMailbox(context: InboxToolContext, requested: string | undefined): Promise<string | undefined> {
-  const resolved = requested === undefined ? undefined : await resolveMailboxId(context.accountId, requested);
+async function readableMailbox(
+  context: InboxToolContext,
+  requested: string | undefined,
+): Promise<string | undefined> {
+  const resolved =
+    requested === undefined ? undefined : await resolveMailboxId(context.accountId, requested);
   if (context.mailboxId === undefined) return resolved;
   if (resolved !== undefined && resolved !== context.mailboxId) {
-    throw new ForbiddenError('This authorization covers a single mailbox; other mailboxes cannot be read');
+    throw new ForbiddenError(
+      'This authorization covers a single mailbox; other mailboxes cannot be read',
+    );
   }
   return context.mailboxId;
 }
@@ -197,7 +215,7 @@ async function readableMailbox(context: InboxToolContext, requested: string | un
  */
 async function assertEmailInScope(context: InboxToolContext, emailId: string): Promise<void> {
   if (context.mailboxId === undefined) return;
-  if (!await messageBelongsToMailbox(emailId, context.accountId, context.mailboxId)) {
+  if (!(await messageBelongsToMailbox(emailId, context.accountId, context.mailboxId))) {
     throw new NotFoundError('Email not found');
   }
 }
@@ -241,10 +259,15 @@ export interface ReplyEnvelope {
 }
 
 function asRecipient(address: EmailAddressDto): RecipientInput {
-  return address.name ? { name: address.name, address: address.address } : { address: address.address };
+  return address.name
+    ? { name: address.name, address: address.address }
+    : { address: address.address };
 }
 
-function withoutDuplicates(list: readonly RecipientInput[], exclude: ReadonlySet<string>): RecipientInput[] {
+function withoutDuplicates(
+  list: readonly RecipientInput[],
+  exclude: ReadonlySet<string>,
+): RecipientInput[] {
   const seen = new Set(exclude);
   return list.filter((recipient) => {
     const key = recipient.address.toLowerCase();
@@ -266,7 +289,11 @@ function withoutDuplicates(list: readonly RecipientInput[], exclude: ReadonlySet
  * draft and a sent reply thread identically. A Message-ID that is not a valid
  * msg-id (legacy imports) is left out rather than sent broken.
  */
-export function replyEnvelope(original: MessageDto, ownAddress: string, replyAll: boolean): ReplyEnvelope {
+export function replyEnvelope(
+  original: MessageDto,
+  ownAddress: string,
+  replyAll: boolean,
+): ReplyEnvelope {
   const own = ownAddress.toLowerCase();
   const sentByOwner = original.from.address.toLowerCase() === own;
   const primary = sentByOwner
@@ -276,18 +303,23 @@ export function replyEnvelope(original: MessageDto, ownAddress: string, replyAll
   const others = replyAll
     ? [...(sentByOwner ? [] : original.to), ...original.cc].map(asRecipient)
     : [];
-  const cc = withoutDuplicates(others, new Set([own, ...to.map((recipient) => recipient.address.toLowerCase())]));
+  const cc = withoutDuplicates(
+    others,
+    new Set([own, ...to.map((recipient) => recipient.address.toLowerCase())]),
+  );
   if (to.length === 0 && cc.length === 0) {
     throw new BadRequestError('This email has no recipient to reply to');
   }
 
   const subject = original.subject.trim();
-  const valid = (id: string | null | undefined): id is string => (
-    typeof id === 'string' && rfcMessageIdSchema.safeParse(id).success
-  );
-  const ancestry = original.references.length > 0
-    ? original.references
-    : original.inReplyTo ? [original.inReplyTo] : [];
+  const valid = (id: string | null | undefined): id is string =>
+    typeof id === 'string' && rfcMessageIdSchema.safeParse(id).success;
+  const ancestry =
+    original.references.length > 0
+      ? original.references
+      : original.inReplyTo
+        ? [original.inReplyTo]
+        : [];
   const references = [...new Set([...ancestry, original.messageId])].filter(valid);
   return {
     // With no primary recipient left (the owner wrote only to themselves and
@@ -300,7 +332,11 @@ export function replyEnvelope(original: MessageDto, ownAddress: string, replyAll
   };
 }
 
-async function envelopeFor(context: InboxToolContext, emailId: string, replyAll: boolean): Promise<ReplyEnvelope> {
+async function envelopeFor(
+  context: InboxToolContext,
+  emailId: string,
+  replyAll: boolean,
+): Promise<ReplyEnvelope> {
   const original = await scopedEmail(context, emailId);
   const sender = await senderIdentityFor(context.accountId);
   return replyEnvelope(original, sender.address, replyAll);
@@ -310,7 +346,11 @@ async function envelopeFor(context: InboxToolContext, emailId: string, replyAll:
 
 const ORGANIZE_FLAGS = ['seen', 'starred', 'pinned'] as const;
 
-async function moveInto(context: InboxToolContext, emailId: string, mailbox: string): Promise<InboxToolResult> {
+async function moveInto(
+  context: InboxToolContext,
+  emailId: string,
+  mailbox: string,
+): Promise<InboxToolResult> {
   await assertEmailInScope(context, emailId);
   const target = await resolveMailboxId(context.accountId, mailbox);
   return { data: await emailService.moveMessage(context.accountId, emailId, target) };
@@ -326,23 +366,27 @@ const tools: Record<string, InboxTool> = {
     if (mailboxId === undefined && !starred && !label) {
       mailboxId = await resolveMailboxId(context.accountId, 'inbox');
     }
-    return paged(await emailService.listMessages(context.accountId, mailboxId ?? null, {
-      limit: pageSize(input),
-      // An empty cursor is the service's "first page, in cursor mode".
-      cursor: optionalString(input, 'cursor') ?? '',
-      unseenOnly: optionalBoolean(input, 'unreadOnly') === true,
-      starred,
-      ...(label ? { label } : {}),
-    }));
+    return paged(
+      await emailService.listMessages(context.accountId, mailboxId ?? null, {
+        limit: pageSize(input),
+        // An empty cursor is the service's "first page, in cursor mode".
+        cursor: optionalString(input, 'cursor') ?? '',
+        unseenOnly: optionalBoolean(input, 'unreadOnly') === true,
+        starred,
+        ...(label ? { label } : {}),
+      }),
+    );
   },
 
   async getUnreadEmails(input, context) {
     const mailboxId = await readableMailbox(context, optionalString(input, 'mailbox'));
-    return paged(await emailService.listMessages(context.accountId, mailboxId ?? null, {
-      limit: pageSize(input),
-      cursor: optionalString(input, 'cursor') ?? '',
-      unseenOnly: true,
-    }));
+    return paged(
+      await emailService.listMessages(context.accountId, mailboxId ?? null, {
+        limit: pageSize(input),
+        cursor: optionalString(input, 'cursor') ?? '',
+        unseenOnly: true,
+      }),
+    );
   },
 
   async searchEmails(input, context) {
@@ -368,7 +412,12 @@ const tools: Record<string, InboxTool> = {
       data: MessageDto[];
       pagination: { total: number; limit: number; nextCursor?: string | null };
     };
-    return paged({ data, total: pagination.total, limit: pagination.limit, nextCursor: pagination.nextCursor });
+    return paged({
+      data,
+      total: pagination.total,
+      limit: pagination.limit,
+      nextCursor: pagination.nextCursor,
+    });
   },
 
   async readEmail(input, context) {
@@ -380,9 +429,10 @@ const tools: Record<string, InboxTool> = {
     await assertEmailInScope(context, emailId);
     const thread = await emailService.getThread(context.accountId, emailId);
     return {
-      data: context.mailboxId === undefined
-        ? thread
-        : thread.filter((email) => email.mailboxId === context.mailboxId),
+      data:
+        context.mailboxId === undefined
+          ? thread
+          : thread.filter((email) => email.mailboxId === context.mailboxId),
     };
   },
 
@@ -439,33 +489,42 @@ const tools: Record<string, InboxTool> = {
   async replyToEmail(input, context) {
     const text = optionalString(input, 'text');
     const html = optionalString(input, 'html');
-    if (text === undefined && html === undefined) throw new BadRequestError('A reply needs text or html');
+    if (text === undefined && html === undefined)
+      throw new BadRequestError('A reply needs text or html');
     const envelope = await envelopeFor(
       context,
       requiredString(input, 'emailId'),
       optionalBoolean(input, 'replyAll') === true,
     );
     const extraCc = recipientList(input, 'cc') ?? [];
-    const sent = await sendMessageForUser(context.accountId, {
-      to: envelope.to,
-      cc: withoutDuplicates([...envelope.cc, ...extraCc], new Set(envelope.to.map((r) => r.address.toLowerCase()))),
-      bcc: recipientList(input, 'bcc'),
-      subject: envelope.subject,
-      text,
-      html,
-      inReplyTo: envelope.inReplyTo,
-      references: envelope.references,
-      attachments: attachmentList(input),
-      scheduledAt: isoInstant(input, 'scheduledAt', { future: true }),
-    }, context.idempotencyKey);
+    const sent = await sendMessageForUser(
+      context.accountId,
+      {
+        to: envelope.to,
+        cc: withoutDuplicates(
+          [...envelope.cc, ...extraCc],
+          new Set(envelope.to.map((r) => r.address.toLowerCase())),
+        ),
+        bcc: recipientList(input, 'bcc'),
+        subject: envelope.subject,
+        text,
+        html,
+        inReplyTo: envelope.inReplyTo,
+        references: envelope.references,
+        attachments: attachmentList(input),
+        scheduledAt: isoInstant(input, 'scheduledAt', { future: true }),
+      },
+      context.idempotencyKey,
+    );
     return { data: sent.data };
   },
 
   async createDraft(input, context) {
     const replyTo = optionalString(input, 'replyToEmailId');
-    const envelope = replyTo === undefined
-      ? undefined
-      : await envelopeFor(context, replyTo, optionalBoolean(input, 'replyAll') === true);
+    const envelope =
+      replyTo === undefined
+        ? undefined
+        : await envelopeFor(context, replyTo, optionalBoolean(input, 'replyAll') === true);
     const command: SaveDraftCommand = {
       to: recipientList(input, 'to') ?? envelope?.to,
       cc: recipientList(input, 'cc') ?? envelope?.cc,
@@ -502,7 +561,8 @@ const tools: Record<string, InboxTool> = {
   async updateEmailFlags(input, context) {
     const emailId = requiredString(input, 'emailId');
     const raw = input.flags;
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new BadRequestError('flags object is required');
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      throw new BadRequestError('flags object is required');
     const flags: Partial<Record<(typeof ORGANIZE_FLAGS)[number], boolean>> = {};
     for (const flag of ORGANIZE_FLAGS) {
       const value = (raw as Record<string, unknown>)[flag];
@@ -519,9 +579,12 @@ const tools: Record<string, InboxTool> = {
     const emailId = requiredString(input, 'emailId');
     const add = stringList(input, 'add');
     const remove = stringList(input, 'remove');
-    if (add.length === 0 && remove.length === 0) throw new BadRequestError('Give labels to add or remove');
+    if (add.length === 0 && remove.length === 0)
+      throw new BadRequestError('Give labels to add or remove');
     await assertEmailInScope(context, emailId);
-    return { data: await emailService.updateMessageLabels(context.accountId, emailId, add, remove) };
+    return {
+      data: await emailService.updateMessageLabels(context.accountId, emailId, add, remove),
+    };
   },
 
   async snoozeEmail(input, context) {
@@ -536,10 +599,14 @@ const tools: Record<string, InboxTool> = {
 // A census, not a convention: every catalog tool has exactly one
 // implementation and nothing else is registered, checked when the module loads.
 const catalogToolNames = INBOX_CAPABILITY_CATALOG.tools.map(({ name }) => name);
-const missingTools = catalogToolNames.filter((name) => !Object.prototype.hasOwnProperty.call(tools, name));
+const missingTools = catalogToolNames.filter(
+  (name) => !Object.prototype.hasOwnProperty.call(tools, name),
+);
 const extraTools = Object.keys(tools).filter((name) => !catalogToolNames.includes(name));
 if (missingTools.length > 0 || extraTools.length > 0) {
-  throw new Error(`Inbox tool mismatch: missing=${missingTools.join(',')} extra=${extraTools.join(',')}`);
+  throw new Error(
+    `Inbox tool mismatch: missing=${missingTools.join(',')} extra=${extraTools.join(',')}`,
+  );
 }
 
 export const INBOX_TOOLS: Readonly<Record<string, InboxTool>> = Object.freeze(tools);

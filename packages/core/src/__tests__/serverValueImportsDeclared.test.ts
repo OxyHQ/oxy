@@ -38,8 +38,8 @@ const manifest = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'),
 const dependencies = new Set(Object.keys(manifest.dependencies ?? {}));
 const requiredPeers = new Set(
   Object.keys(manifest.peerDependencies ?? {}).filter(
-    (name) => manifest.peerDependenciesMeta?.[name]?.optional !== true
-  )
+    (name) => manifest.peerDependenciesMeta?.[name]?.optional !== true,
+  ),
 );
 
 /**
@@ -55,7 +55,11 @@ function valueImports(source: string): string[] {
     const clause = match[1];
     const specifier = match[2];
     if (specifier.startsWith('.') || specifier.startsWith('node:')) continue;
-    const names = clause.replace(/[{}]/g, '').split(',').map((n) => n.trim()).filter(Boolean);
+    const names = clause
+      .replace(/[{}]/g, '')
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean);
     if (names.length > 0 && names.every((n) => n.startsWith('type '))) continue;
     found.push(specifier);
   }

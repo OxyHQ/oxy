@@ -48,26 +48,31 @@ export async function buildEmailAgentContext(
     ? accountMailboxes.filter((mailbox) => mailbox.id === resourceMailboxId)
     : accountMailboxes;
   const mailboxIds = selectedMailboxes.map((mailbox) => mailbox.id);
-  const unreadMessages = mailboxIds.length === 0 ? [] : await getDb()
-    .select({
-      id: messagesTable.id,
-      mailboxId: messagesTable.mailboxId,
-      fromName: messagesTable.fromName,
-      fromAddress: messagesTable.fromAddress,
-      subject: messagesTable.subject,
-      receivedAt: messagesTable.receivedAt,
-      seen: messagesTable.seen,
-      answered: messagesTable.answered,
-      draft: messagesTable.draft,
-    })
-    .from(messagesTable)
-    .where(and(
-      eq(messagesTable.userId, accountId),
-      inArray(messagesTable.mailboxId, mailboxIds),
-      eq(messagesTable.seen, false),
-    ))
-    .orderBy(desc(messagesTable.receivedAt))
-    .limit(limit);
+  const unreadMessages =
+    mailboxIds.length === 0
+      ? []
+      : await getDb()
+          .select({
+            id: messagesTable.id,
+            mailboxId: messagesTable.mailboxId,
+            fromName: messagesTable.fromName,
+            fromAddress: messagesTable.fromAddress,
+            subject: messagesTable.subject,
+            receivedAt: messagesTable.receivedAt,
+            seen: messagesTable.seen,
+            answered: messagesTable.answered,
+            draft: messagesTable.draft,
+          })
+          .from(messagesTable)
+          .where(
+            and(
+              eq(messagesTable.userId, accountId),
+              inArray(messagesTable.mailboxId, mailboxIds),
+              eq(messagesTable.seen, false),
+            ),
+          )
+          .orderBy(desc(messagesTable.receivedAt))
+          .limit(limit);
   const recentUnread = unreadMessages.map(contextMessage);
   return emailAgentContextSchema.parse({
     accountId,
@@ -81,7 +86,9 @@ export async function buildEmailAgentContext(
       unseenMessages: mailbox.unseenMessages,
     })),
     recentUnread,
-    needsResponse: unreadMessages.filter((message) => !message.answered && !message.draft).map(contextMessage),
+    needsResponse: unreadMessages
+      .filter((message) => !message.answered && !message.draft)
+      .map(contextMessage),
   });
 }
 

@@ -14,7 +14,9 @@ interface EnvironmentVariablesContextValue {
   setShowValues: (show: boolean) => void;
 }
 
-const EnvironmentVariablesContext = React.createContext<EnvironmentVariablesContextValue | null>(null);
+const EnvironmentVariablesContext = React.createContext<EnvironmentVariablesContextValue | null>(
+  null,
+);
 
 function useEnvironmentVariables() {
   const context = React.useContext(EnvironmentVariablesContext);
@@ -30,7 +32,9 @@ interface EnvironmentVariableContextValue {
   value: string;
 }
 
-const EnvironmentVariableContext = React.createContext<EnvironmentVariableContextValue | null>(null);
+const EnvironmentVariableContext = React.createContext<EnvironmentVariableContextValue | null>(
+  null,
+);
 
 function useEnvironmentVariable() {
   const context = React.useContext(EnvironmentVariableContext);
@@ -60,12 +64,15 @@ function EnvironmentVariables({
   const isControlled = controlledShowValues !== undefined;
   const showValues = isControlled ? controlledShowValues : uncontrolledShowValues;
 
-  const setShowValues = React.useCallback((show: boolean) => {
-    if (!isControlled) {
-      setUncontrolledShowValues(show);
-    }
-    onShowValuesChange?.(show);
-  }, [isControlled, onShowValuesChange]);
+  const setShowValues = React.useCallback(
+    (show: boolean) => {
+      if (!isControlled) {
+        setUncontrolledShowValues(show);
+      }
+      onShowValuesChange?.(show);
+    },
+    [isControlled, onShowValuesChange],
+  );
 
   return (
     <EnvironmentVariablesContext.Provider value={{ showValues, setShowValues }}>
@@ -106,10 +113,7 @@ function EnvironmentVariablesTitle({
 }
 
 // Toggle
-function EnvironmentVariablesToggle({
-  className,
-  ...props
-}: React.ComponentProps<typeof Switch>) {
+function EnvironmentVariablesToggle({ className, ...props }: React.ComponentProps<typeof Switch>) {
   const { showValues, setShowValues } = useEnvironmentVariables();
 
   return (
@@ -215,7 +219,7 @@ function EnvironmentVariableValue({
       className={cn(
         'text-xs text-muted-foreground font-mono truncate',
         !showValues && 'tracking-tight',
-        className
+        className,
       )}
       {...props}
     >
@@ -225,7 +229,8 @@ function EnvironmentVariableValue({
 }
 
 // Copy button
-interface EnvironmentVariableCopyButtonProps extends Omit<React.ComponentProps<typeof Button>, 'onClick' | 'onError'> {
+interface EnvironmentVariableCopyButtonProps
+  extends Omit<React.ComponentProps<typeof Button>, 'onClick' | 'onError'> {
   copyFormat?: 'name' | 'value' | 'export';
   onCopy?: () => void;
   onError?: (error: Error) => void;

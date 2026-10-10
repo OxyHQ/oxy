@@ -16,24 +16,40 @@ import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
-import { ApiError, ForbiddenError, NotFoundError, ConflictError, BadRequestError, ServiceUnavailableError } from '../utils/error';
+import {
+  ApiError,
+  ForbiddenError,
+  NotFoundError,
+  ConflictError,
+  BadRequestError,
+  ServiceUnavailableError,
+} from '../utils/error';
 import { logger } from '../utils/logger';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { users } from '../db/schema/users';
 import userCache from '../utils/userCache';
 import credentialDomainCache from '../utils/credentialDomainCache';
+import { getUserPublicKey, signWithKeyId, federationService } from '../services/federation.service';
 import {
-  getUserPublicKey,
-  signWithKeyId,
-  federationService,
-} from '../services/federation.service';
-import { getEquivalentUserIds, getExternalIdentitiesForUser, resolveExternalIdentityUsers } from '../services/externalIdentityRegistry.service';
+  getEquivalentUserIds,
+  getExternalIdentitiesForUser,
+  resolveExternalIdentityUsers,
+} from '../services/externalIdentityRegistry.service';
 import { externalIdentities, externalIdentityActors } from '../db/schema/externalIdentities';
 import { userService } from '../services/user.service';
 import { applyFederationMove, FederationMoveRefused } from '../services/federationMove.service';
-import { InstanceFetchRefused, InstanceKeyUnavailable, signInstanceFetch } from '../services/federation/instanceFetchSignature';
-import { INSTAGRAM_GRAPH_PROTOCOL, instagramAcctFromHandle, instagramGraphUserIdFromActorUri, isInstagramGraphActorUri } from '../services/federation/instagramGraph';
+import {
+  InstanceFetchRefused,
+  InstanceKeyUnavailable,
+  signInstanceFetch,
+} from '../services/federation/instanceFetchSignature';
+import {
+  INSTAGRAM_GRAPH_PROTOCOL,
+  instagramAcctFromHandle,
+  instagramGraphUserIdFromActorUri,
+  isInstagramGraphActorUri,
+} from '../services/federation/instagramGraph';
 import {
   DEFAULT_PURGE_LIMIT,
   purgeBlockedDomain,
@@ -72,60 +88,116 @@ const IDENTITY_RESOLVE_SCOPE: ApplicationScope = 'federation:identities:resolve'
 function assertIdentityResolveScope(req: ServiceAuthRequest): void {
   const scopes = req.serviceApp?.scopes ?? [];
   if (!scopes.includes(REQUIRED_SCOPE) && !scopes.includes(IDENTITY_RESOLVE_SCOPE)) {
-    throw new ForbiddenError(`Missing required scope: ${REQUIRED_SCOPE} or ${IDENTITY_RESOLVE_SCOPE}`);
+    throw new ForbiddenError(
+      `Missing required scope: ${REQUIRED_SCOPE} or ${IDENTITY_RESOLVE_SCOPE}`,
+    );
   }
 }
 
-router.post('/identities/resolve', serviceAuthMiddleware, validate({ body: resolveExternalIdentityRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-  assertIdentityResolveScope(req);
-  const { actorUri, handle, transportAcct, protocol } = req.body ?? {};
-  if ((typeof actorUri === 'string') === (typeof handle === 'string')
-    || (actorUri !== undefined && (typeof actorUri !== 'string' || !actorUri || actorUri.length > 2048))
-    || (handle !== undefined && (typeof handle !== 'string' || !handle || handle.length > 2048))
-    || (transportAcct !== undefined && (typeof transportAcct !== 'string' || transportAcct.length > 320))) {
-    throw new BadRequestError('Exactly one actorUri or handle, and optional transportAcct, are required');
-  }
-  // Business Discovery speaks only for Instagram accounts: by username (discovery)
-  // or by a stored `instagram-graph:<igUserId>` actor (refresh). A Graph actor is
-  // never resolved under another protocol, nor another actor under Graph's.
-  const graphActor = typeof actorUri === 'string' && isInstagramGraphActorUri(actorUri);
-  if (graphActor && !instagramGraphUserIdFromActorUri(actorUri)) {
-    throw new BadRequestError('instagram-graph actorUri must be instagram-graph:<igUserId>');
-  }
-  if (graphActor && protocol !== undefined && protocol !== INSTAGRAM_GRAPH_PROTOCOL) {
-    throw new BadRequestError('An instagram-graph actorUri requires protocol instagram-graph');
-  }
-  if (protocol === INSTAGRAM_GRAPH_PROTOCOL && !graphActor && (typeof handle !== 'string' || !instagramAcctFromHandle(handle))) {
-    throw new BadRequestError('protocol instagram-graph requires an instagram.com handle or an instagram-graph:<igUserId> actorUri');
-  }
-  const result = await federationService.resolveExternalIdentity({ actorUri, handle, transportAcct, protocol });
-  if (!result) throw new NotFoundError('External actor could not be verified');
-  sendSuccess(res, resolveExternalIdentityResponseSchema.parse(result));
-}));
+router.post(
+  '/identities/resolve',
+  serviceAuthMiddleware,
+  validate({ body: resolveExternalIdentityRequestSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    assertIdentityResolveScope(req);
+    const { actorUri, handle, transportAcct, protocol } = req.body ?? {};
+    if (
+      (typeof actorUri === 'string') === (typeof handle === 'string') ||
+      (actorUri !== undefined &&
+        (typeof actorUri !== 'string' || !actorUri || actorUri.length > 2048)) ||
+      (handle !== undefined && (typeof handle !== 'string' || !handle || handle.length > 2048)) ||
+      (transportAcct !== undefined &&
+        (typeof transportAcct !== 'string' || transportAcct.length > 320))
+    ) {
+      throw new BadRequestError(
+        'Exactly one actorUri or handle, and optional transportAcct, are required',
+      );
+    }
+    // Business Discovery speaks only for Instagram accounts: by username (discovery)
+    // or by a stored `instagram-graph:<igUserId>` actor (refresh). A Graph actor is
+    // never resolved under another protocol, nor another actor under Graph's.
+    const graphActor = typeof actorUri === 'string' && isInstagramGraphActorUri(actorUri);
+    if (graphActor && !instagramGraphUserIdFromActorUri(actorUri)) {
+      throw new BadRequestError('instagram-graph actorUri must be instagram-graph:<igUserId>');
+    }
+    if (graphActor && protocol !== undefined && protocol !== INSTAGRAM_GRAPH_PROTOCOL) {
+      throw new BadRequestError('An instagram-graph actorUri requires protocol instagram-graph');
+    }
+    if (
+      protocol === INSTAGRAM_GRAPH_PROTOCOL &&
+      !graphActor &&
+      (typeof handle !== 'string' || !instagramAcctFromHandle(handle))
+    ) {
+      throw new BadRequestError(
+        'protocol instagram-graph requires an instagram.com handle or an instagram-graph:<igUserId> actorUri',
+      );
+    }
+    const result = await federationService.resolveExternalIdentity({
+      actorUri,
+      handle,
+      transportAcct,
+      protocol,
+    });
+    if (!result) throw new NotFoundError('External actor could not be verified');
+    sendSuccess(res, resolveExternalIdentityResponseSchema.parse(result));
+  }),
+);
 
-router.post('/identities/lookup', serviceAuthMiddleware, validate({ body: lookupExternalIdentitiesRequestSchema }), asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
-  assertIdentityResolveScope(req);
-  const identifiers: unknown = req.body?.identifiers;
-  if (!Array.isArray(identifiers) || identifiers.length > 100 || identifiers.length < 1
-    || identifiers.some(value => typeof value !== 'string' || !value || value.length > 2048)) {
-    throw new BadRequestError('identifiers must contain between 1 and 100 strings');
-  }
-  const requested = identifiers as string[];
-  const normalized = requested.map(value => value.trim().replace(/^@/, '').toLowerCase());
-  const sources = await getDb().select({ userId: externalIdentities.userId, canonicalAcct: externalIdentities.canonicalAcct,
-    actorUri: externalIdentityActors.actorUri, transportAcct: externalIdentityActors.transportAcct })
-    .from(externalIdentityActors).innerJoin(externalIdentities, eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct))
-    .where(or(inArray(externalIdentityActors.actorUri, requested), inArray(externalIdentityActors.transportAcct, normalized), inArray(externalIdentities.canonicalAcct, normalized)));
-  const ids = requested.map((identifier, index) => sources.find(source => source.actorUri === identifier
-    || source.transportAcct === normalized[index] || source.canonicalAcct === normalized[index])?.userId ?? identifier);
-  const projections = await resolveExternalIdentityUsers(ids);
-  const identities = requested.map((identifier, index) => {
-    const projection = projections.get(ids[index]);
-    if (!projection?.externalIdentities.length) return { identifier, userId: null, externalIdentities: [], redirectedUserIds: [] };
-    return { identifier, ...projection };
-  });
-  sendSuccess(res, lookupExternalIdentitiesResponseSchema.parse({ identities }));
-}));
+router.post(
+  '/identities/lookup',
+  serviceAuthMiddleware,
+  validate({ body: lookupExternalIdentitiesRequestSchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
+    assertIdentityResolveScope(req);
+    const identifiers: unknown = req.body?.identifiers;
+    if (
+      !Array.isArray(identifiers) ||
+      identifiers.length > 100 ||
+      identifiers.length < 1 ||
+      identifiers.some((value) => typeof value !== 'string' || !value || value.length > 2048)
+    ) {
+      throw new BadRequestError('identifiers must contain between 1 and 100 strings');
+    }
+    const requested = identifiers as string[];
+    const normalized = requested.map((value) => value.trim().replace(/^@/, '').toLowerCase());
+    const sources = await getDb()
+      .select({
+        userId: externalIdentities.userId,
+        canonicalAcct: externalIdentities.canonicalAcct,
+        actorUri: externalIdentityActors.actorUri,
+        transportAcct: externalIdentityActors.transportAcct,
+      })
+      .from(externalIdentityActors)
+      .innerJoin(
+        externalIdentities,
+        eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct),
+      )
+      .where(
+        or(
+          inArray(externalIdentityActors.actorUri, requested),
+          inArray(externalIdentityActors.transportAcct, normalized),
+          inArray(externalIdentities.canonicalAcct, normalized),
+        ),
+      );
+    const ids = requested.map(
+      (identifier, index) =>
+        sources.find(
+          (source) =>
+            source.actorUri === identifier ||
+            source.transportAcct === normalized[index] ||
+            source.canonicalAcct === normalized[index],
+        )?.userId ?? identifier,
+    );
+    const projections = await resolveExternalIdentityUsers(ids);
+    const identities = requested.map((identifier, index) => {
+      const projection = projections.get(ids[index]);
+      if (!projection?.externalIdentities.length)
+        return { identifier, userId: null, externalIdentities: [], redirectedUserIds: [] };
+      return { identifier, ...projection };
+    });
+    sendSuccess(res, lookupExternalIdentitiesResponseSchema.parse({ identities }));
+  }),
+);
 
 /**
  * Uncached loader for the federation domains a given Application may sign for.
@@ -477,7 +549,9 @@ router.post(
       throw new ConflictError('user is not a federated actor and cannot be archived');
     }
     if ((await getExternalIdentitiesForUser(oxyUserId)).length > 1) {
-      throw new ConflictError('A multi-source identity cannot be archived by user id; retire the source actor separately');
+      throw new ConflictError(
+        'A multi-source identity cannot be archived by user id; retire the source actor separately',
+      );
     }
 
     // Idempotent: an already-archived actor is a no-op 200.
@@ -486,14 +560,22 @@ router.post(
       // Whitelist the single field; the `type = 'federated'` predicate re-asserts
       // the guard atomically so a concurrent type change can never let the write
       // touch a non-federated account.
-      await getDb().transaction(async tx => {
+      await getDb().transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
         const group = await getEquivalentUserIds(oxyUserId, tx);
-        const sources = await tx.select({ actorUri: externalIdentityActors.actorUri }).from(externalIdentityActors)
-          .innerJoin(externalIdentities, eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct))
+        const sources = await tx
+          .select({ actorUri: externalIdentityActors.actorUri })
+          .from(externalIdentityActors)
+          .innerJoin(
+            externalIdentities,
+            eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct),
+          )
           .where(inArray(externalIdentities.userId, group));
-        if (group.length > 1 || sources.length > 1) throw new ConflictError('A multi-source identity cannot be archived by user id');
-        await tx.update(users).set({ accountStatus: 'archived' })
+        if (group.length > 1 || sources.length > 1)
+          throw new ConflictError('A multi-source identity cannot be archived by user id');
+        await tx
+          .update(users)
+          .set({ accountStatus: 'archived' })
           .where(and(eq(users.id, oxyUserId), eq(users.type, 'federated')));
       });
       userCache.invalidate(oxyUserId);
@@ -712,7 +794,11 @@ router.post(
       sendSuccess(res, outcome);
     } catch (error) {
       if (error instanceof FederationMoveRefused) {
-        logger.info('federation/move refused', { reason: error.reason, oldActorUri: body.oldActorUri, appId: req.serviceApp?.appId });
+        logger.info('federation/move refused', {
+          reason: error.reason,
+          oldActorUri: body.oldActorUri,
+          appId: req.serviceApp?.appId,
+        });
         throw new ApiError(error.status, error.message, error.reason);
       }
       throw error;

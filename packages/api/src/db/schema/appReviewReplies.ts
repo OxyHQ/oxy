@@ -49,5 +49,5 @@ export const appReviewReplies = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [unique('app_review_replies_review_id_key').on(t.reviewId)]
+  (t) => [unique('app_review_replies_review_id_key').on(t.reviewId)],
 );

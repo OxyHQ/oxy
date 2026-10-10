@@ -18,7 +18,12 @@ export function ScreenLayout({ children, showTopBar = false, topBarContent }: Sc
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {showTopBar && topBarContent && (
-          <View style={[styles.desktopTopBar, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+          <View
+            style={[
+              styles.desktopTopBar,
+              { backgroundColor: colors.background, borderBottomColor: colors.border },
+            ]}
+          >
             {topBarContent}
           </View>
         )}
@@ -78,4 +83,3 @@ const styles = StyleSheet.create({
     padding: 16,
   },
 });
-

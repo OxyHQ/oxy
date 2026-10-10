@@ -1,6 +1,11 @@
 import { resolveApplicationSessionLane } from '../oauth/applicationSessionLane';
 import { logger as loggerUtil, type OxyServices } from '@oxy.so/core';
-import { runSessionColdBoot, type AuthStateStore, type IdentityBinding, type SessionMode } from '@oxy.so/core/session';
+import {
+  runSessionColdBoot,
+  type AuthStateStore,
+  type IdentityBinding,
+  type SessionMode,
+} from '@oxy.so/core/session';
 import type { SessionClient } from '@oxy.so/core/session';
 import { loadPersistedDeviceCredential } from '../utils/deviceCredential';
 import { createPlatformSharedDeviceCredentialStore } from '../session/sharedDeviceCredentialStore';
@@ -88,7 +93,10 @@ export interface RunProviderColdBootOptions {
   beforeDeviceBoot?: () => Promise<void>;
   afterDeviceBoot?: () => Promise<void>;
   syncDeviceCredentialToHost: () => Promise<void>;
-  commitSession: (input: CommitInput, options: { activate: boolean; oauth?: boolean }) => Promise<void>;
+  commitSession: (
+    input: CommitInput,
+    options: { activate: boolean; oauth?: boolean },
+  ) => Promise<void>;
   markAuthResolved: () => void;
   setTokenReady: (ready: boolean) => void;
 }
@@ -133,7 +141,8 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
   try {
     // Classification precedes every local-secret, shared-credential and identity
     // probe. Unavailable registry metadata fails closed, including offline boot.
-    const lane = await (opts.resolveSessionLane?.() ?? resolveApplicationSessionLane(oxyServices, clientId));
+    const lane = await (opts.resolveSessionLane?.() ??
+      resolveApplicationSessionLane(oxyServices, clientId));
     await opts.onClassified?.(lane);
     if (identityBound && lane !== 'device') return;
     // The redirect transport's RETURN leg. An app reaches it whenever the browser

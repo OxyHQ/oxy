@@ -39,7 +39,7 @@
  * performs the PKCE exchange with the verifier it never sent anywhere.
  */
 
-import { selectCommonsDelivery } from "@oxy.so/core";
+import { selectCommonsDelivery } from '@oxy.so/core';
 import type {
   CommonsDeliveryRoute,
   CommonsOAuthContext,
@@ -47,7 +47,7 @@ import type {
   CommonsSignInActionResult,
   CommonsSignInHandle,
   CommonsSignInStatus,
-} from "@oxy.so/core";
+} from '@oxy.so/core';
 
 /**
  * Fallback poll cadence for the request's approval state.
@@ -108,7 +108,7 @@ export interface CommonsOAuthBinding {
 /** Collapse runs of whitespace, or `null` when there is no usable scope. */
 function normalizeScope(value: string | null): string | null {
   if (!value) return null;
-  const normalized = value.trim().split(/\s+/).filter(Boolean).join(" ");
+  const normalized = value.trim().split(/\s+/).filter(Boolean).join(' ');
   return normalized ? normalized : null;
 }
 
@@ -132,7 +132,7 @@ function normalizeScope(value: string | null): string | null {
  *    truncated into a different grant than the one requested.
  */
 export function buildCommonsOAuthBinding(
-  input: CommonsOAuthBindingInput
+  input: CommonsOAuthBindingInput,
 ): CommonsOAuthBinding | null {
   const clientId = input.clientId?.trim();
   if (!clientId) return null;
@@ -144,7 +144,7 @@ export function buildCommonsOAuthBinding(
   if (!codeChallenge || !CODE_CHALLENGE_PATTERN.test(codeChallenge)) return null;
 
   const method = input.codeChallengeMethod?.trim();
-  if (method && method !== "S256") return null;
+  if (method && method !== 'S256') return null;
 
   const scope = normalizeScope(input.scope);
   if (scope && scope.length > MAX_SCOPE_LENGTH) return null;
@@ -154,7 +154,7 @@ export function buildCommonsOAuthBinding(
     oauth: {
       redirectUri,
       codeChallenge,
-      codeChallengeMethod: "S256",
+      codeChallengeMethod: 'S256',
       ...(scope ? { scope } : {}),
     },
   };
@@ -172,13 +172,13 @@ export function buildCommonsOAuthBinding(
  * NOT delivered — the surface offers a fresh attempt instead.
  */
 export type CommonsOAuthPhase =
-  | "idle"
-  | "starting"
-  | "waiting"
-  | "finalizing"
-  | "confirmed"
-  | "denied"
-  | "failed";
+  | 'idle'
+  | 'starting'
+  | 'waiting'
+  | 'finalizing'
+  | 'confirmed'
+  | 'denied'
+  | 'failed';
 
 /**
  * Non-sensitive progress of the active request — the one thing the surface
@@ -186,24 +186,24 @@ export type CommonsOAuthPhase =
  * observed; nothing here advances on a timer or optimistically.
  */
 export type CommonsOAuthProgress =
-  | "preparing"
-  | "awaiting-approval"
-  | "opened-in-commons"
-  | "confirming-identity"
-  | "identity-confirmed";
+  | 'preparing'
+  | 'awaiting-approval'
+  | 'opened-in-commons'
+  | 'confirming-identity'
+  | 'identity-confirmed';
 
 /** Why the lane stopped. Mapped to copy by the surface, never rendered raw. */
 export type CommonsOAuthFailure =
   /** The request could not be created (transport, or the server refused it). */
-  | "start_failed"
+  | 'start_failed'
   /** The request's own lifetime ran out before anyone approved it. */
-  | "request_expired"
+  | 'request_expired'
   /** The request's state could not be observed for several consecutive polls. */
-  | "unreachable"
+  | 'unreachable'
   /** Finalization failed. The request is spent — recovery is a NEW request. */
-  | "finalize_failed"
+  | 'finalize_failed'
   /** The server bound the code to a redirect URI other than the requested one. */
-  | "redirect_mismatch";
+  | 'redirect_mismatch';
 
 /**
  * The facts the lane observes. Note what is ABSENT: the secret `sessionToken`,
@@ -239,9 +239,7 @@ export interface CommonsOAuthSnapshot extends CommonsOAuthFacts {
  * surface can offer a fresh attempt, rather than ending the relying party's
  * whole flow on a transport hiccup.
  */
-export type CommonsOAuthOutcome =
-  | { kind: "code"; code: string }
-  | { kind: "denied" };
+export type CommonsOAuthOutcome = { kind: 'code'; code: string } | { kind: 'denied' };
 
 /** Cancellable handle for a scheduled poll. */
 export interface CommonsOAuthTimer {
@@ -249,10 +247,7 @@ export interface CommonsOAuthTimer {
 }
 
 /** Deferred execution, injected so tests drive the poll loop deterministically. */
-export type CommonsOAuthScheduler = (
-  run: () => void,
-  delayMs: number
-) => CommonsOAuthTimer;
+export type CommonsOAuthScheduler = (run: () => void, delayMs: number) => CommonsOAuthTimer;
 
 const defaultScheduler: CommonsOAuthScheduler = (run, delayMs) => {
   const id = setTimeout(run, delayMs);
@@ -266,7 +261,10 @@ const defaultScheduler: CommonsOAuthScheduler = (run, delayMs) => {
 export interface CommonsOAuthClient {
   auth: {
     commons: {
-      start(params: { clientId: string; oauth?: CommonsOAuthContext }): Promise<CommonsSignInHandle>;
+      start(params: {
+        clientId: string;
+        oauth?: CommonsOAuthContext;
+      }): Promise<CommonsSignInHandle>;
       poll(sessionToken: string): Promise<CommonsSignInStatus>;
       finalizeOAuth(sessionToken: string): Promise<CommonsOAuthFinalizeResult>;
       deny(authorizeCode: string): Promise<CommonsSignInActionResult>;
@@ -286,7 +284,7 @@ export interface CommonsOAuthRequestOptions {
 }
 
 const IDLE_FACTS: CommonsOAuthFacts = {
-  phase: "idle",
+  phase: 'idle',
   authorizeCode: null,
   qrPayload: null,
   route: null,
@@ -298,19 +296,19 @@ const IDLE_FACTS: CommonsOAuthFacts = {
 /** Derive the reported progress from the lane's own observed facts. */
 function deriveProgress(facts: CommonsOAuthFacts): CommonsOAuthProgress | null {
   switch (facts.phase) {
-    case "idle":
-    case "failed":
-    case "denied":
+    case 'idle':
+    case 'failed':
+    case 'denied':
       return null;
-    case "starting":
-      return "preparing";
-    case "waiting":
-      if (facts.openedInCommons) return "opened-in-commons";
-      return facts.route === null ? "preparing" : "awaiting-approval";
-    case "finalizing":
-      return "confirming-identity";
-    case "confirmed":
-      return "identity-confirmed";
+    case 'starting':
+      return 'preparing';
+    case 'waiting':
+      if (facts.openedInCommons) return 'opened-in-commons';
+      return facts.route === null ? 'preparing' : 'awaiting-approval';
+    case 'finalizing':
+      return 'confirming-identity';
+    case 'confirmed':
+      return 'identity-confirmed';
   }
 }
 
@@ -390,14 +388,14 @@ export class CommonsOAuthRequest {
    */
   start = (): void => {
     if (this.disposed || this.settled) return;
-    if (this.facts.phase !== "idle" && this.facts.phase !== "failed") return;
+    if (this.facts.phase !== 'idle' && this.facts.phase !== 'failed') return;
 
     const generation = ++this.generation;
     this.clearTimer();
     this.sessionToken = null;
     this.consecutivePollFailures = 0;
     this.finalizeStarted = false;
-    this.publish({ ...IDLE_FACTS, phase: "starting" });
+    this.publish({ ...IDLE_FACTS, phase: 'starting' });
 
     void this.createRequest(generation);
   };
@@ -417,7 +415,7 @@ export class CommonsOAuthRequest {
       // on its own regardless.
       void this.client.auth.commons.deny(authorizeCode).catch(() => undefined);
     }
-    this.emit({ kind: "denied" });
+    this.emit({ kind: 'denied' });
   };
 
   /**
@@ -451,7 +449,7 @@ export class CommonsOAuthRequest {
 
   private fail(failure: CommonsOAuthFailure): void {
     this.clearTimer();
-    this.patch({ phase: "failed", failure });
+    this.patch({ phase: 'failed', failure });
   }
 
   private emit(outcome: CommonsOAuthOutcome): void {
@@ -459,7 +457,7 @@ export class CommonsOAuthRequest {
     this.settled = true;
     this.clearTimer();
     this.patch({
-      phase: outcome.kind === "code" ? "confirmed" : "denied",
+      phase: outcome.kind === 'code' ? 'confirmed' : 'denied',
       failure: null,
     });
     this.onOutcome(outcome);
@@ -489,14 +487,14 @@ export class CommonsOAuthRequest {
       // redirect URI, disallowed origin) arrives here as one generic failure —
       // by design, so nothing about the application's state can be probed from
       // an unauthenticated page.
-      if (this.isCurrent(generation)) this.fail("start_failed");
+      if (this.isCurrent(generation)) this.fail('start_failed');
       return;
     }
     if (!this.isCurrent(generation)) return;
 
     this.sessionToken = handle.sessionToken;
     this.publish({
-      phase: "waiting",
+      phase: 'waiting',
       authorizeCode: handle.authorizeCode,
       qrPayload: handle.qrPayload,
       // The ONE primary route, from the shared ecosystem decision rather than a
@@ -507,7 +505,7 @@ export class CommonsOAuthRequest {
       // page can never ring somebody's phone — so it is not attempted at all,
       // not attempted-and-failed (`pushTargets: 0`).
       route: selectCommonsDelivery({
-        platform: "unknown",
+        platform: 'unknown',
         commonsAvailable: false,
         pushTargets: 0,
       }),
@@ -533,7 +531,7 @@ export class CommonsOAuthRequest {
 
     const { expiresAt } = this.facts;
     if (expiresAt !== null && this.now() >= expiresAt) {
-      this.fail("request_expired");
+      this.fail('request_expired');
       return;
     }
 
@@ -544,7 +542,7 @@ export class CommonsOAuthRequest {
       if (!this.isCurrent(generation)) return;
       this.consecutivePollFailures += 1;
       if (this.consecutivePollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
-        this.fail("unreachable");
+        this.fail('unreachable');
         return;
       }
       this.schedulePoll(generation);
@@ -557,12 +555,12 @@ export class CommonsOAuthRequest {
       await this.finalize(generation, sessionToken);
       return;
     }
-    if (status.status === "cancelled") {
-      this.emit({ kind: "denied" });
+    if (status.status === 'cancelled') {
+      this.emit({ kind: 'denied' });
       return;
     }
-    if (status.status === "expired") {
-      this.fail("request_expired");
+    if (status.status === 'expired') {
+      this.fail('request_expired');
       return;
     }
 
@@ -581,7 +579,7 @@ export class CommonsOAuthRequest {
     if (this.finalizeStarted) return;
     this.finalizeStarted = true;
     this.clearTimer();
-    this.patch({ phase: "finalizing" });
+    this.patch({ phase: 'finalizing' });
 
     let result: CommonsOAuthFinalizeResult;
     try {
@@ -590,7 +588,7 @@ export class CommonsOAuthRequest {
       // Fail closed. The request may or may not have been spent server-side and
       // there is no way to tell from here, so it is never retried: the user
       // starts a fresh request instead.
-      if (this.isCurrent(generation)) this.fail("finalize_failed");
+      if (this.isCurrent(generation)) this.fail('finalize_failed');
       return;
     }
     if (!this.isCurrent(generation)) {
@@ -604,10 +602,10 @@ export class CommonsOAuthRequest {
       // The code is bound server-side to the URI it was minted for. If that is
       // not the URI this request was created with, something is wrong with the
       // binding — never deliver to the other target.
-      this.fail("redirect_mismatch");
+      this.fail('redirect_mismatch');
       return;
     }
 
-    this.emit({ kind: "code", code: result.code });
+    this.emit({ kind: 'code', code: result.code });
   }
 }

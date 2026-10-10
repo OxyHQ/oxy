@@ -25,7 +25,8 @@ interface OxyIdentitySignerNative {
 function loadNative(): OxyIdentitySignerNative | null {
   if (Platform.OS !== 'android') return null;
   const native = requireOptionalNativeModule<OxyIdentitySignerNative>('OxyIdentitySigner');
-  if (!native || typeof native.read !== 'function' || typeof native.write !== 'function') return null;
+  if (!native || typeof native.read !== 'function' || typeof native.write !== 'function')
+    return null;
   return native;
 }
 
@@ -39,7 +40,9 @@ export function createIdentitySignerStore(): IdentitySignerStore | null {
       const pair = await native.read();
       const privateKey = pair?.privateKey;
       const publicKey = pair?.publicKey;
-      return typeof privateKey === 'string' && typeof publicKey === 'string' ? { privateKey, publicKey } : null;
+      return typeof privateKey === 'string' && typeof publicKey === 'string'
+        ? { privateKey, publicKey }
+        : null;
     },
     write: (privateKey, publicKey) => native.write(privateKey, publicKey),
     clear: () => native.clear(),

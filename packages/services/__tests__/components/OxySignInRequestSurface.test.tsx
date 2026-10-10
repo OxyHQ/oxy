@@ -52,11 +52,7 @@ describe('OxySignInRequestSurface', () => {
   describe('the primary presentation, from props alone', () => {
     it('renders the QR plate + route-specific status for the qr route', () => {
       render(
-        <OxySignInRequestSurface
-          route="qr"
-          progress="awaiting-approval"
-          qrPayload={QR_PAYLOAD}
-        />,
+        <OxySignInRequestSurface route="qr" progress="awaiting-approval" qrPayload={QR_PAYLOAD} />,
       );
 
       // The plate encodes the PUBLIC payload and renders nothing derived from it.
@@ -77,9 +73,7 @@ describe('OxySignInRequestSurface', () => {
       );
 
       expect(screen.queryByTestId('qrcode')).toBeNull();
-      expect(screen.getByTestId('signin-progress').textContent).toBe(
-        'Check Commons on your phone',
-      );
+      expect(screen.getByTestId('signin-progress').textContent).toBe('Check Commons on your phone');
     });
 
     it('renders the hand-off surface for the open-commons route — no QR', () => {
@@ -96,9 +90,7 @@ describe('OxySignInRequestSurface', () => {
     });
 
     it('shows "Preparing request" while no route is resolved — never a guessed QR', () => {
-      render(
-        <OxySignInRequestSurface route={null} progress="preparing" qrPayload={QR_PAYLOAD} />,
-      );
+      render(<OxySignInRequestSurface route={null} progress="preparing" qrPayload={QR_PAYLOAD} />);
 
       // The payload exists, but presenting it before a route was chosen would be
       // guessing — and would flash-then-replace once the real route lands.
@@ -118,11 +110,7 @@ describe('OxySignInRequestSurface', () => {
       expect(screen.getByTestId('signin-progress').textContent).toBe('Confirming identity');
 
       rerender(
-        <OxySignInRequestSurface
-          route="qr"
-          progress="identity-confirmed"
-          qrPayload={QR_PAYLOAD}
-        />,
+        <OxySignInRequestSurface route="qr" progress="identity-confirmed" qrPayload={QR_PAYLOAD} />,
       );
       expect(screen.queryByTestId('qrcode')).toBeNull();
       expect(screen.getByTestId('signin-progress').textContent).toBe('Identity confirmed');
@@ -292,7 +280,13 @@ describe('OxySignInRequestSurface', () => {
           progress="awaiting-approval"
           qrPayload={QR_PAYLOAD}
           onAcquireCommons={onAcquireCommons}
-          alternatives={[{ key: 'show-qr-anyway-link', label: 'I have Commons on another device', onPress: jest.fn() }]}
+          alternatives={[
+            {
+              key: 'show-qr-anyway-link',
+              label: 'I have Commons on another device',
+              onPress: jest.fn(),
+            },
+          ]}
         />,
       );
 
@@ -314,7 +308,9 @@ describe('OxySignInRequestSurface', () => {
         join(__dirname, '../../src/ui/components/OxySignInRequestSurface.tsx'),
         'utf8',
       );
-      const body = source.split('export interface OxySignInRequestSurfaceProps {')[1]?.split('\n}')[0];
+      const body = source
+        .split('export interface OxySignInRequestSurfaceProps {')[1]
+        ?.split('\n}')[0];
       expect(body).toBeDefined();
 
       // Property declarations only — doc comments and nested option types are not

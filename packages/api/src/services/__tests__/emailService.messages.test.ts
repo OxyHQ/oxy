@@ -18,8 +18,12 @@ const mockSend = jest.fn();
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({
   __esModule: true,
   smtpOutbound: {
@@ -180,7 +184,10 @@ describe('deleteSentDraft', () => {
     await emailService.deleteSentDraft(userId, draft.id);
     await emailService.deleteSentDraft(userId, draft.id);
 
-    const rows = await getDb().select({ id: messages.id }).from(messages).where(eq(messages.id, draft.id));
+    const rows = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .where(eq(messages.id, draft.id));
     expect(rows).toEqual([]);
   });
 
@@ -194,9 +201,15 @@ describe('deleteSentDraft', () => {
     await emailService.deleteSentDraft(mine, foreign.id);
     await emailService.deleteSentDraft(mine, received);
 
-    const rows = await getDb().select({ id: messages.id }).from(messages).where(eq(messages.id, foreign.id));
+    const rows = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .where(eq(messages.id, foreign.id));
     expect(rows).toHaveLength(1);
-    const kept = await getDb().select({ id: messages.id }).from(messages).where(eq(messages.id, received));
+    const kept = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .where(eq(messages.id, received));
     expect(kept).toHaveLength(1);
   });
 });
@@ -402,7 +415,10 @@ describe('deletion', () => {
       await getDb().select({ id: messages.id }).from(messages).where(eq(messages.userId, userId)),
     ).toEqual([]);
     expect(
-      await getDb().select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.userId, userId)),
+      await getDb()
+        .select({ id: mailboxes.id })
+        .from(mailboxes)
+        .where(eq(mailboxes.userId, userId)),
     ).toEqual([]);
   });
 });
@@ -466,7 +482,13 @@ describe('email settings', () => {
 
     await emailService.updateEmailSettings(userId, {
       signature: '-- Test',
-      autoReply: { enabled: true, subject: 'Away', body: 'Back soon', startDate: start, endDate: end },
+      autoReply: {
+        enabled: true,
+        subject: 'Away',
+        body: 'Back soon',
+        startDate: start,
+        endDate: end,
+      },
       autoForwardTo: 'other@example.com',
       autoForwardKeepCopy: false,
     });
@@ -524,9 +546,7 @@ describe('read receipts', () => {
 
     await emailService.sendReadReceipt(userId, messageId);
 
-    expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'alice@example.com' }),
-    );
+    expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ to: 'alice@example.com' }));
     await expect(emailService.sendReadReceipt(userId, messageId)).rejects.toThrow(
       /already been sent/,
     );

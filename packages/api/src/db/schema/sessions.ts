@@ -187,9 +187,14 @@ export const sessions = pgTable(
       columns: [t.authMethodId, t.authMethodOwnerId],
       foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
     }).onDelete('restrict'),
-    check('sessions_auth_method_owner_check', sql`(${t.authMethodId} is null) = (${t.authMethodOwnerId} is null) and (${t.authMethodOwnerId} is null or ${t.authMethodOwnerId} = coalesce(${t.operatedByUserId}, ${t.userId}))`),
+    check(
+      'sessions_auth_method_owner_check',
+      sql`(${t.authMethodId} is null) = (${t.authMethodOwnerId} is null) and (${t.authMethodOwnerId} is null or ${t.authMethodOwnerId} = coalesce(${t.operatedByUserId}, ${t.userId}))`,
+    ),
     // Revoke every session/code rooted in one runtime key without scanning all rows.
-    index('sessions_auth_method_id_idx').on(t.authMethodId).where(sql`${t.authMethodId} is not null`),
+    index('sessions_auth_method_id_idx')
+      .on(t.authMethodId)
+      .where(sql`${t.authMethodId} is not null`),
     unique('sessions_session_id_key').on(t.sessionId),
     // Mongo's `{accessToken:1}` / `{refreshToken:1}` were unique + SPARSE, but
     // both fields are `required: true`, so nothing was ever sparse about them —
@@ -228,5 +233,5 @@ export const sessions = pgTable(
     // every row the application writes, but the Mongoose model never validated
     // it, so asserting it here would risk failing the backfill on production
     // data to restate something no read path depends on.
-  ]
+  ],
 );

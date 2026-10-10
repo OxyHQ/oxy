@@ -101,7 +101,7 @@ export async function runAccountDeletion(
     await deps.retirePushToken();
   } catch (error) {
     logger.warn(
-      'Could not retire this device\'s push token before deleting the account. It may keep receiving sign-in requests until it expires.',
+      "Could not retire this device's push token before deleting the account. It may keep receiving sign-in requests until it expires.",
       { component: 'DeleteAccountScreen' },
       error instanceof Error ? error : new Error(String(error)),
     );

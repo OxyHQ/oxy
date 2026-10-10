@@ -52,7 +52,7 @@ describe('OxyServer.assets.metadataByIds', () => {
   // reconciler reads, so assert it rather than assuming it: a future rewrite that
   // reshapes entries into a picked subset would drop the field silently, and the
   // only visible symptom would be adaptive playback never turning on.
-  it('passes an entry\'s hlsReadyAt through untouched', async () => {
+  it("passes an entry's hlsReadyAt through untouched", async () => {
     const readyAt = '2026-09-08T10:11:12.000Z';
     serviceRequestSpy.mockResolvedValueOnce([
       { ...sampleEntry, mime: 'video/mp4', hlsReadyAt: readyAt },
@@ -86,11 +86,9 @@ describe('OxyServer.assets.metadataByIds', () => {
 
     expect(result).toEqual([sampleEntry]);
     expect(serviceRequestSpy).toHaveBeenCalledTimes(1);
-    expect(serviceRequestSpy).toHaveBeenCalledWith(
-      'POST',
-      '/assets/service/by-ids',
-      { ids: ['asset-1'] },
-    );
+    expect(serviceRequestSpy).toHaveBeenCalledWith('POST', '/assets/service/by-ids', {
+      ids: ['asset-1'],
+    });
   });
 
   it('chunks at 100 ids per request and merges each chunk', async () => {
@@ -149,11 +147,11 @@ describe('OxyServer.assets.metadataByIds', () => {
   it('names every id of the failed chunk on the error', async () => {
     const ids = Array.from({ length: 150 }, (_, i) => `asset-${i}`);
 
-    serviceRequestSpy
-      .mockResolvedValueOnce([sampleEntry])
-      .mockRejectedValueOnce(Object.assign(new Error('rate limited'), {
+    serviceRequestSpy.mockResolvedValueOnce([sampleEntry]).mockRejectedValueOnce(
+      Object.assign(new Error('rate limited'), {
         response: { status: 429 },
-      }));
+      }),
+    );
 
     const error = await oxy.assets.metadataByIds(ids).catch((e: unknown) => e);
 
@@ -185,8 +183,8 @@ describe('OxyServer.assets.metadataByIds', () => {
     serviceRequestSpy.mockResolvedValue([sampleEntry]);
 
     await expect(oxy.assets.metadataByIds(['asset-1'])).resolves.toEqual([sampleEntry]);
-    await expect(
-      oxy.assets.metadataByIds(['asset-1'], { partial: true }),
-    ).resolves.toEqual([sampleEntry]);
+    await expect(oxy.assets.metadataByIds(['asset-1'], { partial: true })).resolves.toEqual([
+      sampleEntry,
+    ]);
   });
 });

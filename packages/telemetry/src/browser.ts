@@ -38,7 +38,9 @@ export interface BrowserTelemetry {
   getHeaders(): Promise<Record<string, string>>;
 }
 
-function createUuid(cryptoApi: Pick<Crypto, 'getRandomValues' | 'randomUUID'> | undefined): string | null {
+function createUuid(
+  cryptoApi: Pick<Crypto, 'getRandomValues' | 'randomUUID'> | undefined,
+): string | null {
   if (!cryptoApi) return null;
   if (typeof cryptoApi.randomUUID === 'function') return cryptoApi.randomUUID();
 
@@ -51,9 +53,11 @@ function createUuid(cryptoApi: Pick<Crypto, 'getRandomValues' | 'randomUUID'> | 
 
 function eligibleLocation(location: Pick<Location, 'hostname' | 'protocol'> | undefined): boolean {
   if (!location || (location.protocol !== 'https:' && location.protocol !== 'http:')) return false;
-  return location.hostname !== 'localhost'
-    && location.hostname !== '127.0.0.1'
-    && location.hostname !== '[::1]';
+  return (
+    location.hostname !== 'localhost' &&
+    location.hostname !== '127.0.0.1' &&
+    location.hostname !== '[::1]'
+  );
 }
 
 export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): BrowserTelemetry {
@@ -67,7 +71,11 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
     const hasBrowserRuntime = typeof window !== 'undefined' && typeof document !== 'undefined';
     if (!hasInjectedBrowser && !hasBrowserRuntime) return {};
     const now = (options.now ?? Date.now)();
-    if (!activityId || now < activityIdCreatedAt || now - activityIdCreatedAt >= (options.activityIdRotationMs ?? DEFAULT_ACTIVITY_ID_ROTATION_MS)) {
+    if (
+      !activityId ||
+      now < activityIdCreatedAt ||
+      now - activityIdCreatedAt >= (options.activityIdRotationMs ?? DEFAULT_ACTIVITY_ID_ROTATION_MS)
+    ) {
       activityId = createUuid(options.crypto ?? globalThis.crypto);
       if (!activityId) return {};
       activityIdCreatedAt = now;
@@ -76,14 +84,22 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
   };
 
   const discoverEdgePop = async (): Promise<string | null> => {
-    const browserLocation = options.location ?? (typeof window === 'undefined' ? undefined : window.location);
+    const browserLocation =
+      options.location ?? (typeof window === 'undefined' ? undefined : window.location);
     if (!eligibleLocation(browserLocation)) return null;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), options.edgeTraceTimeoutMs ?? DEFAULT_EDGE_TRACE_TIMEOUT_MS);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      options.edgeTraceTimeoutMs ?? DEFAULT_EDGE_TRACE_TIMEOUT_MS,
+    );
     try {
       const response = await (options.fetchTrace
         ? options.fetchTrace(controller.signal)
-        : fetch('/cdn-cgi/trace', { cache: 'no-store', credentials: 'omit', signal: controller.signal }));
+        : fetch('/cdn-cgi/trace', {
+            cache: 'no-store',
+            credentials: 'omit',
+            signal: controller.signal,
+          }));
       if (!response.ok) return null;
       const match = (await response.text()).match(/^colo=([a-z]{3})$/im);
       return match ? match[1].toLowerCase() : null;
@@ -96,7 +112,11 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
 
   const getEdgeRegionHeader = async (): Promise<Record<string, string>> => {
     const now = (options.now ?? Date.now)();
-    if (!edgePopPromise || now < edgePopReadAt || now - edgePopReadAt >= (options.edgeCacheMs ?? DEFAULT_EDGE_CACHE_MS)) {
+    if (
+      !edgePopPromise ||
+      now < edgePopReadAt ||
+      now - edgePopReadAt >= (options.edgeCacheMs ?? DEFAULT_EDGE_CACHE_MS)
+    ) {
       edgePopReadAt = now;
       edgePopPromise = discoverEdgePop();
     }
@@ -110,7 +130,11 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
 
   const peekEdgeRegionHeader = (): Record<string, string> => {
     const now = (options.now ?? Date.now)();
-    if (!peekInFlight && (now < peekRefreshAt || now - peekRefreshAt >= (options.edgePeekRefreshMs ?? DEFAULT_EDGE_PEEK_REFRESH_MS))) {
+    if (
+      !peekInFlight &&
+      (now < peekRefreshAt ||
+        now - peekRefreshAt >= (options.edgePeekRefreshMs ?? DEFAULT_EDGE_PEEK_REFRESH_MS))
+    ) {
       peekRefreshAt = now;
       peekInFlight = true;
       void discoverEdgePop()
@@ -129,7 +153,7 @@ export function createBrowserTelemetry(options: BrowserTelemetryOptions = {}): B
     getEdgeRegionHeader,
     peekEdgeRegionHeader,
     async getHeaders(): Promise<Record<string, string>> {
-      return { ...await getEdgeRegionHeader(), ...getActivityIdHeader() };
+      return { ...(await getEdgeRegionHeader()), ...getActivityIdHeader() };
     },
   };
 }

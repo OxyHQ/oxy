@@ -48,7 +48,7 @@ jest.mock('../../middleware/optionalAuth', () => ({
   optionalUserOrServiceAuth: (
     req: { serviceApp?: typeof currentServiceApp },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.serviceApp = currentServiceApp;
     next();
@@ -110,7 +110,12 @@ interface JsonResponse {
   body: {
     error?: string;
     message?: string;
-    data?: { followingIds?: string[]; mutualIds?: string[]; blockedIds?: string[]; restrictedIds?: string[] };
+    data?: {
+      followingIds?: string[];
+      mutualIds?: string[];
+      blockedIds?: string[];
+      restrictedIds?: string[];
+    };
   };
 }
 
@@ -121,7 +126,9 @@ async function getJson(server: http.Server, path: string): Promise<JsonResponse>
       { method: 'GET', host: '127.0.0.1', port: address.port, path },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             const parsed = raw.length > 0 ? JSON.parse(raw) : {};
@@ -162,7 +169,12 @@ beforeEach(() => {
 
 describe('GET /users/me/graph', () => {
   const VIEWER = '5f000000000000000000000b';
-  const GRAPH = { followingIds: ['f1'], mutualIds: ['m1'], blockedIds: ['b1'], restrictedIds: ['r1'] };
+  const GRAPH = {
+    followingIds: ['f1'],
+    mutualIds: ['m1'],
+    blockedIds: ['b1'],
+    restrictedIds: ['r1'],
+  };
 
   it('recomputes from the service on a cache miss and writes back to cache', async () => {
     currentViewerId = VIEWER;

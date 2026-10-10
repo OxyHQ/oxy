@@ -1,60 +1,53 @@
-import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import {
-	mkdirSync,
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { shapeHash } from "../.github/scripts/guard-quiesced-deploy.mjs";
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { shapeHash } from '../.github/scripts/guard-quiesced-deploy.mjs';
 
-const root = resolve(import.meta.dirname, "..");
-const scratch = mkdtempSync(join(tmpdir(), "quiesced-shell-"));
-const old =
-	"arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:692";
-const next = old.replace(":692", ":693");
-const task = `arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/${"a".repeat(32)}`;
+const root = resolve(import.meta.dirname, '..');
+const scratch = mkdtempSync(join(tmpdir(), 'quiesced-shell-'));
+const old = 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:692';
+const next = old.replace(':692', ':693');
+const task = `arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/${'a'.repeat(32)}`;
 const target =
-	"arn:aws:elasticloadbalancing:us-west-2:237343248947:targetgroup/oxy-api/0123456789abcdef";
-const previousImage = `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:${"1".repeat(64)}`;
-const finalImage = previousImage.replace("1".repeat(64), "2".repeat(64));
+  'arn:aws:elasticloadbalancing:us-west-2:237343248947:targetgroup/oxy-api/0123456789abcdef';
+const previousImage = `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:${'1'.repeat(64)}`;
+const finalImage = previousImage.replace('1'.repeat(64), '2'.repeat(64));
 const definition = {
-	taskDefinitionArn: old,
-	family: "oxy-oxy-api",
-	containerDefinitions: [
-		{
-			name: "oxy-api",
-			image: previousImage,
-			environment: [{ name: "PUBLIC_CONFIG", value: "unchanged" }],
-			secrets: [],
-		},
-	],
+  taskDefinitionArn: old,
+  family: 'oxy-oxy-api',
+  containerDefinitions: [
+    {
+      name: 'oxy-api',
+      image: previousImage,
+      environment: [{ name: 'PUBLIC_CONFIG', value: 'unchanged' }],
+      secrets: [],
+    },
+  ],
 };
 const plan = {
-	schemaVersion: 1,
-	region: "us-west-2",
-	cluster: "oxy-cluster",
-	service: "oxy-api",
-	container: "oxy-api",
-	previousTaskDefinition: old,
-	previousImage,
-	previousShapeSha256: shapeHash(definition),
-	finalImage,
-	sourceSha: "c".repeat(40),
-	restoreCount: 2,
-	previousTasks: [task],
-	targetGroups: [target],
-	scaler: null,
+  schemaVersion: 1,
+  region: 'us-west-2',
+  cluster: 'oxy-cluster',
+  service: 'oxy-api',
+  container: 'oxy-api',
+  previousTaskDefinition: old,
+  previousImage,
+  previousShapeSha256: shapeHash(definition),
+  finalImage,
+  sourceSha: 'c'.repeat(40),
+  restoreCount: 2,
+  previousTasks: [task],
+  targetGroups: [target],
+  scaler: null,
 };
-const binary = join(scratch, "bin");
+const binary = join(scratch, 'bin');
 mkdirSync(binary);
 writeFileSync(
-	join(binary, "aws"),
-	`#!/usr/bin/env node
+  join(binary, 'aws'),
+  `#!/usr/bin/env node
 const fs=require('node:fs');
 const args=process.argv.slice(2), dir=process.env.FIXTURE_DIR;
 const value=flag=>args.includes(flag)?args[args.indexOf(flag)+1]:undefined;
@@ -100,96 +93,85 @@ case 'ecs update-service':{
 default:process.stderr.write('Unexpected fixture request');process.exit(3);
 }
 `,
-	{ mode: 0o755 },
+  { mode: 0o755 },
 );
-const guard = join(scratch, "head.sh");
-writeFileSync(guard, "#!/usr/bin/env bash\nexit 0\n");
+const guard = join(scratch, 'head.sh');
+writeFileSync(guard, '#!/usr/bin/env bash\nexit 0\n');
 const count = 0;
 function run(
-	name,
-	{
-		maintenance = true,
-		failure = false,
-		drift = false,
-		omittedStopping = false,
-		spawnOld = false,
-	} = {},
+  name,
+  {
+    maintenance = true,
+    failure = false,
+    drift = false,
+    omittedStopping = false,
+    spawnOld = false,
+  } = {},
 ) {
-	const dir = join(scratch, name);
-	mkdirSync(dir);
-	const bytes = JSON.stringify(plan);
-	writeFileSync(join(dir, "plan.json"), bytes);
-	writeFileSync(join(dir, "definition.json"), JSON.stringify(definition));
-	writeFileSync(
-		join(dir, "state.json"),
-		JSON.stringify({ td: drift ? next : old, count: 0, started: false }),
-	);
-	writeFileSync(join(dir, "events.jsonl"), "");
-	const worker = join(dir, "worker.sh");
-	writeFileSync(
-		worker,
-		`#!/usr/bin/env bash\necho '{"op":"worker"}' >> '${dir}/events.jsonl'\n`,
-	);
-	const env = {
-		PATH: `${binary}:${process.env.PATH}`,
-		TMPDIR: scratch,
-		AWS_REGION: "us-west-2",
-		CLUSTER: "oxy-cluster",
-		APP: "oxy-api",
-		IMAGE_URI: finalImage,
-		FIXTURE_DIR: dir,
-		FIXTURE_FAIL: String(failure),
-		FIXTURE_OLD_STOPPING: String(omittedStopping),
-		FIXTURE_SPAWN_OLD: String(spawnOld),
-		MAX_WAIT_SECS: "2",
-		POLL_INTERVAL: "1",
-		RUN_MIGRATIONS: "true",
-		PRE_ROLLOUT_SCRIPT: worker,
-		DEPLOY_HEAD_GUARD_SCRIPT: guard,
-	};
-	if (maintenance)
-		Object.assign(env, {
-			DEPLOY_SHA: plan.sourceSha,
-			QUIESCED_DEPLOY_PLAN_PATH: join(dir, "plan.json"),
-			QUIESCED_DEPLOY_PLAN_SHA256: createHash("sha256")
-				.update(bytes)
-				.digest("hex"),
-		});
-	const result = spawnSync("bash", [".github/scripts/deploy-ecs-image.sh"], {
-		cwd: root,
-		env,
-		encoding: "utf8",
-		timeout: 30000,
-	});
-	const events = readFileSync(join(dir, "events.jsonl"), "utf8")
-		.trim()
-		.split("\n")
-		.filter(Boolean)
-		.map(JSON.parse);
-	const final = JSON.parse(readFileSync(join(dir, "state.json")));
-	return { result, events, final };
+  const dir = join(scratch, name);
+  mkdirSync(dir);
+  const bytes = JSON.stringify(plan);
+  writeFileSync(join(dir, 'plan.json'), bytes);
+  writeFileSync(join(dir, 'definition.json'), JSON.stringify(definition));
+  writeFileSync(
+    join(dir, 'state.json'),
+    JSON.stringify({ td: drift ? next : old, count: 0, started: false }),
+  );
+  writeFileSync(join(dir, 'events.jsonl'), '');
+  const worker = join(dir, 'worker.sh');
+  writeFileSync(worker, `#!/usr/bin/env bash\necho '{"op":"worker"}' >> '${dir}/events.jsonl'\n`);
+  const env = {
+    PATH: `${binary}:${process.env.PATH}`,
+    TMPDIR: scratch,
+    AWS_REGION: 'us-west-2',
+    CLUSTER: 'oxy-cluster',
+    APP: 'oxy-api',
+    IMAGE_URI: finalImage,
+    FIXTURE_DIR: dir,
+    FIXTURE_FAIL: String(failure),
+    FIXTURE_OLD_STOPPING: String(omittedStopping),
+    FIXTURE_SPAWN_OLD: String(spawnOld),
+    MAX_WAIT_SECS: '2',
+    POLL_INTERVAL: '1',
+    RUN_MIGRATIONS: 'true',
+    PRE_ROLLOUT_SCRIPT: worker,
+    DEPLOY_HEAD_GUARD_SCRIPT: guard,
+  };
+  if (maintenance)
+    Object.assign(env, {
+      DEPLOY_SHA: plan.sourceSha,
+      QUIESCED_DEPLOY_PLAN_PATH: join(dir, 'plan.json'),
+      QUIESCED_DEPLOY_PLAN_SHA256: createHash('sha256').update(bytes).digest('hex'),
+    });
+  const result = spawnSync('bash', ['.github/scripts/deploy-ecs-image.sh'], {
+    cwd: root,
+    env,
+    encoding: 'utf8',
+    timeout: 30000,
+  });
+  const events = readFileSync(join(dir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map(JSON.parse);
+  const final = JSON.parse(readFileSync(join(dir, 'state.json')));
+  return { result, events, final };
 }
 try {
-	const observed = run("cold-scheduler", { spawnOld: true });
-	assert.equal(
-		observed.result.status,
-		0,
-		observed.result.stdout + observed.result.stderr,
-	);
-	assert.deepEqual(
-		observed.events.filter((x) => x.op === "old-scheduler-launch"),
-		[],
-		"ECS launched old deployment from cold atomic newTD+positive count",
-	);
-	const updates = observed.events.filter((x) => x.op === "update");
-	assert.equal(updates.length, 2);
-	assert.equal(updates[0].td, next);
-	assert.equal(updates[0].count, 0);
-	assert.equal(updates[1].td, null);
-	assert.equal(updates[1].count, 2);
-	console.log(
-		"Cold ECS scheduler: old deployment not launched; install0 then count-only2 PASS.",
-	);
+  const observed = run('cold-scheduler', { spawnOld: true });
+  assert.equal(observed.result.status, 0, observed.result.stdout + observed.result.stderr);
+  assert.deepEqual(
+    observed.events.filter((x) => x.op === 'old-scheduler-launch'),
+    [],
+    'ECS launched old deployment from cold atomic newTD+positive count',
+  );
+  const updates = observed.events.filter((x) => x.op === 'update');
+  assert.equal(updates.length, 2);
+  assert.equal(updates[0].td, next);
+  assert.equal(updates[0].count, 0);
+  assert.equal(updates[1].td, null);
+  assert.equal(updates[1].count, 2);
+  console.log('Cold ECS scheduler: old deployment not launched; install0 then count-only2 PASS.');
 } finally {
-	rmSync(scratch, { recursive: true });
+  rmSync(scratch, { recursive: true });
 }

@@ -61,7 +61,9 @@ const mockAuthNonBlocking = jest.fn();
 // so no mock is needed for it.
 jest.mock('../authUtils', () => ({
   __esModule: true,
-  extractTokenFromRequest: (req: { headers: Record<string, string | undefined> }): string | undefined => {
+  extractTokenFromRequest: (req: {
+    headers: Record<string, string | undefined>;
+  }): string | undefined => {
     const auth = req.headers.authorization;
     return auth && auth.startsWith('Bearer ') ? auth.substring(7) : undefined;
   },
@@ -79,7 +81,9 @@ import {
   type OptionalUserOrServiceRequest,
 } from '../optionalAuth';
 
-function makeReq(overrides: Partial<OptionalUserOrServiceRequest> = {}): OptionalUserOrServiceRequest {
+function makeReq(
+  overrides: Partial<OptionalUserOrServiceRequest> = {},
+): OptionalUserOrServiceRequest {
   return {
     headers: {},
     ...overrides,
@@ -113,7 +117,13 @@ describe('optionalUserOrServiceAuth', () => {
   it('attaches req.serviceApp for a VALID service token and does not consult user-session auth', async () => {
     mockVerifyServiceToken.mockReturnValue({
       ok: true,
-      payload: { type: 'service', appId: 'app1', appName: 'Mention', credentialId: 'c', scopes: ['user:read'] },
+      payload: {
+        type: 'service',
+        appId: 'app1',
+        appName: 'Mention',
+        credentialId: 'c',
+        scopes: ['user:read'],
+      },
     });
     const req = makeReq({ headers: { authorization: 'Bearer svc' } });
 
@@ -182,7 +192,13 @@ describe('resolveViewerId', () => {
     // silently, for every account created after the cutover.
     expect(VIEWER_ID).not.toMatch(/^[0-9a-f]{24}$/i);
     const req = makeReq({
-      serviceApp: { type: 'service', appId: 'a', appName: 'n', credentialId: 'c', scopes: ['user:read'] },
+      serviceApp: {
+        type: 'service',
+        appId: 'a',
+        appName: 'n',
+        credentialId: 'c',
+        scopes: ['user:read'],
+      },
       headers: { 'x-oxy-user-id': VIEWER_ID },
     });
     expect(resolveViewerId(req)).toBe(VIEWER_ID);
@@ -192,7 +208,13 @@ describe('resolveViewerId', () => {
     // Both shapes are live simultaneously: existing ids were preserved verbatim
     // so every foreign key survived the backfill.
     const req = makeReq({
-      serviceApp: { type: 'service', appId: 'a', appName: 'n', credentialId: 'c', scopes: ['user:read'] },
+      serviceApp: {
+        type: 'service',
+        appId: 'a',
+        appName: 'n',
+        credentialId: 'c',
+        scopes: ['user:read'],
+      },
       headers: { 'x-oxy-user-id': LEGACY_VIEWER_ID },
     });
     expect(resolveViewerId(req)).toBe(LEGACY_VIEWER_ID);
@@ -200,7 +222,13 @@ describe('resolveViewerId', () => {
 
   it('returns undefined for a service token WITHOUT user:read even with a valid header', () => {
     const req = makeReq({
-      serviceApp: { type: 'service', appId: 'a', appName: 'n', credentialId: 'c', scopes: ['files:write'] },
+      serviceApp: {
+        type: 'service',
+        appId: 'a',
+        appName: 'n',
+        credentialId: 'c',
+        scopes: ['files:write'],
+      },
       headers: { 'x-oxy-user-id': VIEWER_ID },
     });
     expect(resolveViewerId(req)).toBeUndefined();
@@ -208,7 +236,13 @@ describe('resolveViewerId', () => {
 
   it('returns undefined for a service token with a MALFORMED X-Oxy-User-Id', () => {
     const req = makeReq({
-      serviceApp: { type: 'service', appId: 'a', appName: 'n', credentialId: 'c', scopes: ['user:read'] },
+      serviceApp: {
+        type: 'service',
+        appId: 'a',
+        appName: 'n',
+        credentialId: 'c',
+        scopes: ['user:read'],
+      },
       headers: { 'x-oxy-user-id': 'not-an-objectid' },
     });
     expect(resolveViewerId(req)).toBeUndefined();
@@ -216,7 +250,13 @@ describe('resolveViewerId', () => {
 
   it('returns undefined for a service token with NO X-Oxy-User-Id (acts as itself)', () => {
     const req = makeReq({
-      serviceApp: { type: 'service', appId: 'a', appName: 'n', credentialId: 'c', scopes: ['user:read'] },
+      serviceApp: {
+        type: 'service',
+        appId: 'a',
+        appName: 'n',
+        credentialId: 'c',
+        scopes: ['user:read'],
+      },
       headers: {},
     });
     expect(resolveViewerId(req)).toBeUndefined();
@@ -288,11 +328,9 @@ describe('getMediaViewerUserId (private media owner-from-scoped-media-token)', (
   it('returns undefined for an access/session JWT presented in ?mt= (wrong token family)', () => {
     // An access-token-shaped JWT signed with ACCESS_TOKEN_SECRET does NOT verify
     // under the derived media key, so it can never act as a media credential.
-    const accessLike = jwt.sign(
-      { type: 'access', sessionId: 's1', userId: OWNER },
-      SECRET,
-      { expiresIn: 3600 },
-    );
+    const accessLike = jwt.sign({ type: 'access', sessionId: 's1', userId: OWNER }, SECRET, {
+      expiresIn: 3600,
+    });
     expect(getMediaViewerUserId(makeMediaReq({ mt: accessLike }, FILE_A))).toBeUndefined();
   });
 
@@ -321,7 +359,11 @@ describe('getMediaViewerUserId (private media owner-from-scoped-media-token)', (
 
   it('returns undefined when the route has no file id param', () => {
     const mt = signMediaToken(FILE_A, OWNER);
-    const req = { headers: {}, query: { mt }, params: {} } as unknown as OptionalUserOrServiceRequest;
+    const req = {
+      headers: {},
+      query: { mt },
+      params: {},
+    } as unknown as OptionalUserOrServiceRequest;
     expect(getMediaViewerUserId(req)).toBeUndefined();
   });
 

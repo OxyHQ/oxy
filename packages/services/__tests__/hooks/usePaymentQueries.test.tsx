@@ -92,7 +92,12 @@ const TRANSACTIONS_FIXTURE: WalletTransactionsResponse = {
 };
 
 const makeServices = (): MockOxyServices => ({
-  billing: { subscription: jest.fn(async () => SUBSCRIPTION_FIXTURE), payments: jest.fn(async () => PAYMENTS_FIXTURE), wallet: jest.fn(async () => WALLET_FIXTURE), walletTransactions: jest.fn(async () => TRANSACTIONS_FIXTURE) },
+  billing: {
+    subscription: jest.fn(async () => SUBSCRIPTION_FIXTURE),
+    payments: jest.fn(async () => PAYMENTS_FIXTURE),
+    wallet: jest.fn(async () => WALLET_FIXTURE),
+    walletTransactions: jest.fn(async () => TRANSACTIONS_FIXTURE),
+  },
 });
 
 const defaultMockState = (): MockOxyState => ({
@@ -112,17 +117,13 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
 // Strip the auth/token-refresh layer: run the supplied API call directly so
 // the test asserts hook wiring, not core's token machinery.
 const authenticatedApiCallMock = jest.fn(
-  async <T,>(_svc: unknown, _sid: unknown, apiCall: () => Promise<T>): Promise<T> =>
-    apiCall(),
+  async <T,>(_svc: unknown, _sid: unknown, apiCall: () => Promise<T>): Promise<T> => apiCall(),
 );
 
 jest.mock('@oxy.so/core', () => ({
   __esModule: true,
-  authenticatedApiCall: (
-    svc: unknown,
-    sid: unknown,
-    apiCall: () => Promise<unknown>,
-  ) => authenticatedApiCallMock(svc, sid, apiCall),
+  authenticatedApiCall: (svc: unknown, sid: unknown, apiCall: () => Promise<unknown>) =>
+    authenticatedApiCallMock(svc, sid, apiCall),
 }));
 
 import {
@@ -236,10 +237,9 @@ describe('payment query hooks', () => {
 
   describe('useUserWalletTransactions', () => {
     it('forwards pagination params and returns the paginated envelope', async () => {
-      const { result } = renderHook(
-        () => useUserWalletTransactions({ limit: 5 }),
-        { wrapper: makeWrapper(queryClient) },
-      );
+      const { result } = renderHook(() => useUserWalletTransactions({ limit: 5 }), {
+        wrapper: makeWrapper(queryClient),
+      });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -253,14 +253,12 @@ describe('payment query hooks', () => {
     });
 
     it('caches distinct pages under distinct query keys', async () => {
-      const first = renderHook(
-        () => useUserWalletTransactions({ limit: 5, offset: 0 }),
-        { wrapper: makeWrapper(queryClient) },
-      );
-      const second = renderHook(
-        () => useUserWalletTransactions({ limit: 5, offset: 5 }),
-        { wrapper: makeWrapper(queryClient) },
-      );
+      const first = renderHook(() => useUserWalletTransactions({ limit: 5, offset: 0 }), {
+        wrapper: makeWrapper(queryClient),
+      });
+      const second = renderHook(() => useUserWalletTransactions({ limit: 5, offset: 5 }), {
+        wrapper: makeWrapper(queryClient),
+      });
 
       await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
       await waitFor(() => expect(second.result.current.isSuccess).toBe(true));

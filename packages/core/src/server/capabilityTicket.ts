@@ -1,9 +1,4 @@
-import {
-  randomUUID,
-  sign as signBytes,
-  verify as verifyBytes,
-  type KeyObject,
-} from 'node:crypto';
+import { randomUUID, sign as signBytes, verify as verifyBytes, type KeyObject } from 'node:crypto';
 import {
   capabilityTicketClaimsSchema,
   type CapabilityTicketClaims,
@@ -79,7 +74,10 @@ export function issueCapabilityTicket(
 ): string {
   const ttlSeconds = options.ttlSeconds ?? 60;
   if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > DEFAULT_MAX_TTL_SECONDS) {
-    throw new CapabilityTicketError('ttl_exceeded', `Capability ticket TTL must be between 1 and ${DEFAULT_MAX_TTL_SECONDS} seconds`);
+    throw new CapabilityTicketError(
+      'ttl_exceeded',
+      `Capability ticket TTL must be between 1 and ${DEFAULT_MAX_TTL_SECONDS} seconds`,
+    );
   }
 
   const issuedAt = Math.floor((options.now ?? new Date()).getTime() / 1_000);
@@ -91,7 +89,10 @@ export function issueCapabilityTicket(
     jti: options.jti ?? randomUUID(),
   });
   if (options.privateKey.asymmetricKeyType !== 'ed25519') {
-    throw new CapabilityTicketError('invalid_claims', 'Capability tickets require an Ed25519 private key');
+    throw new CapabilityTicketError(
+      'invalid_claims',
+      'Capability tickets require an Ed25519 private key',
+    );
   }
   const header = { alg: ALGORITHM, typ: TOKEN_TYPE, kid: options.keyId } as const;
   const signingInput = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(payload))}`;
@@ -117,11 +118,11 @@ export function verifyCapabilityTicket(
   }
   const headerRecord = header as Record<string, unknown>;
   if (
-    Object.keys(headerRecord).length !== 3
-    || headerRecord.alg !== ALGORITHM
-    || headerRecord.typ !== TOKEN_TYPE
-    || typeof headerRecord.kid !== 'string'
-    || headerRecord.kid.length === 0
+    Object.keys(headerRecord).length !== 3 ||
+    headerRecord.alg !== ALGORITHM ||
+    headerRecord.typ !== TOKEN_TYPE ||
+    typeof headerRecord.kid !== 'string' ||
+    headerRecord.kid.length === 0
   ) {
     throw new CapabilityTicketError('malformed', 'Capability ticket header is not supported');
   }
@@ -135,12 +136,14 @@ export function verifyCapabilityTicket(
   } catch {
     throw new CapabilityTicketError('malformed', 'Capability ticket signature is malformed');
   }
-  if (!verifyBytes(
-    null,
-    Buffer.from(`${encodedHeader}.${encodedPayload}`),
-    publicKey,
-    providedSignature,
-  )) {
+  if (
+    !verifyBytes(
+      null,
+      Buffer.from(`${encodedHeader}.${encodedPayload}`),
+      publicKey,
+      providedSignature,
+    )
+  ) {
     throw new CapabilityTicketError('invalid_signature', 'Capability ticket signature is invalid');
   }
 
@@ -158,10 +161,16 @@ export function verifyCapabilityTicket(
     throw new CapabilityTicketError('expired', 'Capability ticket has expired');
   }
   if (claims.exp - claims.iat > (options.maximumTtlSeconds ?? DEFAULT_MAX_TTL_SECONDS)) {
-    throw new CapabilityTicketError('ttl_exceeded', 'Capability ticket lifetime exceeds the accepted maximum');
+    throw new CapabilityTicketError(
+      'ttl_exceeded',
+      'Capability ticket lifetime exceeds the accepted maximum',
+    );
   }
   if (claims.aud !== options.audience) {
-    throw new CapabilityTicketError('wrong_audience', 'Capability ticket audience does not match this app');
+    throw new CapabilityTicketError(
+      'wrong_audience',
+      'Capability ticket audience does not match this app',
+    );
   }
   if (options.issuer && claims.iss !== options.issuer) {
     throw new CapabilityTicketError('wrong_issuer', 'Capability ticket issuer is not trusted');

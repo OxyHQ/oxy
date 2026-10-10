@@ -43,7 +43,11 @@ async function insertUser(): Promise<string> {
   return row.id;
 }
 
-async function insertApplication(owner: string, name: string, icon = 'file-icon-id'): Promise<string> {
+async function insertApplication(
+  owner: string,
+  name: string,
+  icon = 'file-icon-id',
+): Promise<string> {
   const [row] = await getDb()
     .insert(applications)
     .values({ name, ownerAccountId: owner, icon })
@@ -53,7 +57,7 @@ async function insertApplication(owner: string, name: string, icon = 'file-icon-
 
 async function insertListing(
   applicationId: string,
-  values: Partial<typeof appListings.$inferInsert> = {}
+  values: Partial<typeof appListings.$inferInsert> = {},
 ): Promise<{ id: string; slug: string }> {
   const slug = `listing-${randomUUID().slice(0, 8)}`;
   const [row] = await getDb()
@@ -63,7 +67,11 @@ async function insertListing(
   return row;
 }
 
-async function review(applicationId: string, rating: number, extra: Partial<typeof appReviews.$inferInsert> = {}) {
+async function review(
+  applicationId: string,
+  rating: number,
+  extra: Partial<typeof appReviews.$inferInsert> = {},
+) {
   const userId = await insertUser();
   const [row] = await getDb()
     .insert(appReviews)
@@ -92,7 +100,7 @@ describe('a listing is served with what the application knows', () => {
     const applicationId = await insertApplication(
       owner,
       `Legacy ${randomUUID().slice(0, 8)}`,
-      '/icons/app.svg?size=64&token=secret-marker&authorization=second-marker#logo'
+      '/icons/app.svg?size=64&token=secret-marker&authorization=second-marker#logo',
     );
     const { slug } = await insertListing(applicationId);
 
@@ -102,9 +110,7 @@ describe('a listing is served with what the application knows', () => {
     ]);
 
     expect(detail?.icon).toBe('/icons/app.svg?size=64#logo');
-    expect(page.items.find((item) => item.slug === slug)?.icon).toBe(
-      '/icons/app.svg?size=64#logo'
-    );
+    expect(page.items.find((item) => item.slug === slug)?.icon).toBe('/icons/app.svg?size=64#logo');
   });
 
   it('answers null for a draft, the same as for a slug that does not exist', async () => {
@@ -166,7 +172,11 @@ describe('the listing page reads one shelf at a time', () => {
     const listed = await insertListing(onShelf, { categoryId: category.id });
     await insertListing(offShelf);
 
-    const { items } = await listPublishedListings({ categorySlug: slugValue, limit: 50, offset: 0 });
+    const { items } = await listPublishedListings({
+      categorySlug: slugValue,
+      limit: 50,
+      offset: 0,
+    });
 
     expect(items.map((item) => item.slug)).toEqual([listed.slug]);
     expect(items[0].category).toEqual({ slug: slugValue, label: 'Productivity' });
@@ -203,13 +213,17 @@ describe('the listing page reads one shelf at a time', () => {
     await review(second, 3);
     await review(second, 3);
 
-    const { items } = await listPublishedListings({ categorySlug: slugValue, limit: 50, offset: 0 });
+    const { items } = await listPublishedListings({
+      categorySlug: slugValue,
+      limit: 50,
+      offset: 0,
+    });
 
     expect(items.map((item) => item.rating)).toEqual(
       expect.arrayContaining([
         { average: 5, count: 1 },
         { average: 3, count: 2 },
-      ])
+      ]),
     );
   });
 });

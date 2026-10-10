@@ -6,10 +6,7 @@ import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { KeyManager } from '@oxy.so/core/crypto';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  Screen,
-  StackHeader,
-} from '@/components/ui';
+import { Screen, StackHeader } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 
@@ -85,17 +82,13 @@ export default function BackupRecoveryScreen() {
 
       {status === 'present' && (
         <View style={styles.gutter}>
-          <Admonition type="info">
-            {t('backupRecovery.statusPresent')}
-          </Admonition>
+          <Admonition type="info">{t('backupRecovery.statusPresent')}</Admonition>
         </View>
       )}
 
       {noPhrase && (
         <View style={[styles.gutter, styles.stack]}>
-          <Admonition type="warning">
-            {t('backupRecovery.statusAbsent')}
-          </Admonition>
+          <Admonition type="warning">{t('backupRecovery.statusAbsent')}</Admonition>
           <Button appearance="solid" tone="accent" onPress={handleRotateKey}>
             {t('backupRecovery.rotateCta')}
           </Button>
@@ -104,19 +97,17 @@ export default function BackupRecoveryScreen() {
 
       <SettingsListGroup title={t('backupRecovery.methodsTitle')}>
         <SettingsListItem
-          icon={<Icons.document size='md' fill={colors.text} />}
+          icon={<Icons.document size="md" fill={colors.text} />}
           title={t('backupRecovery.phraseTitle')}
           description={
-            noPhrase
-              ? t('backupRecovery.phraseUnavailable')
-              : t('backupRecovery.phraseSubtitle')
+            noPhrase ? t('backupRecovery.phraseUnavailable') : t('backupRecovery.phraseSubtitle')
           }
           onPress={noPhrase ? undefined : handleRecoveryPhrase}
           showChevron={!noPhrase}
           disabled={noPhrase}
         />
         <SettingsListItem
-          icon={<Icons.sealedDocument size='md' fill={colors.text} />}
+          icon={<Icons.sealedDocument size="md" fill={colors.text} />}
           title={t('backupRecovery.encryptedTitle')}
           description={
             noPhrase

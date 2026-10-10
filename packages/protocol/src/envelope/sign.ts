@@ -10,11 +10,7 @@
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { signedRecordSigningInput, type SignedRecordSigningFields } from './signingInput';
 import { sha256 } from './recordId';
-import {
-  deriveSecp256k1PublicKey,
-  signSecp256k1Digest,
-  verifySecp256k1Digest,
-} from '../secp256k1';
+import { deriveSecp256k1PublicKey, signSecp256k1Digest, verifySecp256k1Digest } from '../secp256k1';
 
 /** The one signature algorithm identifier the protocol emits. */
 const ALG = 'ES256K-DER-SHA256' as const;
@@ -82,5 +78,9 @@ export async function signEnvelope(
  * server / node owner check.
  */
 export async function verifyEnvelopeSignature(envelope: SignedRecordEnvelope): Promise<boolean> {
-  return verifySignature(signedRecordSigningInput(envelope), envelope.signature, envelope.publicKey);
+  return verifySignature(
+    signedRecordSigningInput(envelope),
+    envelope.signature,
+    envelope.publicKey,
+  );
 }

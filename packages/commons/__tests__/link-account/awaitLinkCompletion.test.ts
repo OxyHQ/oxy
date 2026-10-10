@@ -14,22 +14,37 @@ const noSleep = async () => undefined;
 
 describe('awaitLinkCompletion', () => {
   it('waits through signed until the other screen completes the link', async () => {
-    const getState = jest.fn()
+    const getState = jest
+      .fn()
       .mockResolvedValueOnce(state('signed'))
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(state('completed'));
     await expect(
-      awaitLinkCompletion({ getState, signal: new AbortController().signal, sleep: noSleep, now: () => 0 }),
+      awaitLinkCompletion({
+        getState,
+        signal: new AbortController().signal,
+        sleep: noSleep,
+        now: () => 0,
+      }),
     ).resolves.toBe('completed');
     expect(getState).toHaveBeenCalledTimes(3);
   });
 
   it('ends on a cancelled request, and on its deadline', async () => {
     await expect(
-      awaitLinkCompletion({ getState: async () => state('cancelled'), signal: new AbortController().signal, sleep: noSleep }),
+      awaitLinkCompletion({
+        getState: async () => state('cancelled'),
+        signal: new AbortController().signal,
+        sleep: noSleep,
+      }),
     ).resolves.toBe('cancelled');
     await expect(
-      awaitLinkCompletion({ getState: async () => state('signed', 5), signal: new AbortController().signal, sleep: noSleep, now: () => 6 }),
+      awaitLinkCompletion({
+        getState: async () => state('signed', 5),
+        signal: new AbortController().signal,
+        sleep: noSleep,
+        now: () => 6,
+      }),
     ).resolves.toBe('expired');
   });
 
@@ -39,6 +54,8 @@ describe('awaitLinkCompletion', () => {
       controller.abort();
       return state('signed');
     });
-    await expect(awaitLinkCompletion({ getState, signal: controller.signal, sleep: noSleep, now: () => 0 })).resolves.toBe('aborted');
+    await expect(
+      awaitLinkCompletion({ getState, signal: controller.signal, sleep: noSleep, now: () => 0 }),
+    ).resolves.toBe('aborted');
   });
 });

@@ -15,7 +15,11 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
-import { SIGN_IN_ERROR_CODES, emailAddressSchema, type EmailVerificationConfirmResponse } from '@oxy.so/contracts';
+import {
+  SIGN_IN_ERROR_CODES,
+  emailAddressSchema,
+  type EmailVerificationConfirmResponse,
+} from '@oxy.so/contracts';
 import { useOxy } from '../../context/OxyContext';
 import { useAccountDialogSnapshot } from '../../hooks/accountDialogSnapshot';
 import { useI18n } from '../../hooks/useI18n';
@@ -60,7 +64,11 @@ interface SavedSignUpFlow {
 }
 const SIGN_UP_FLOW_KEY = 'signup';
 
-export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSignIn, host = 'page' }) => {
+export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({
+  onSignedIn,
+  onSignIn,
+  host = 'page',
+}) => {
   const { t } = useI18n();
   const { oxyServices, handleWebSession, accountDialogController } = useOxy();
   const snapshot = useAccountDialogSnapshot(accountDialogController);
@@ -73,7 +81,11 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, { step, username, email } satisfies SavedSignUpFlow);
+    writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, {
+      step,
+      username,
+      email,
+    } satisfies SavedSignUpFlow);
   }, [flowOwner, step, username, email]);
 
   const run = (work: () => Promise<void>) => {
@@ -83,7 +95,11 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
     work()
       .catch((reason: unknown) => {
         if (isTicketExpired(reason)) setStep({ name: 'email' });
-        setError(reason instanceof UsernameTakenError ? t('signup.username.taken') : describeSignInError(reason, t));
+        setError(
+          reason instanceof UsernameTakenError
+            ? t('signup.username.taken')
+            : describeSignInError(reason, t),
+        );
       })
       .finally(() => setPending(false));
   };
@@ -102,7 +118,10 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
   };
 
   const sendCode = async (address: string) => {
-    const { verificationId } = await oxyServices.auth.email.startVerification({ purpose: 'signup', email: address });
+    const { verificationId } = await oxyServices.auth.email.startVerification({
+      purpose: 'signup',
+      email: address,
+    });
     setStep({ name: 'code', verificationId });
   };
 
@@ -119,7 +138,11 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
   // The code step reports this promise's failure in place.
   const createAccount = async ({ ticket }: EmailVerificationConfirmResponse): Promise<void> => {
     try {
-      const session = await oxyServices.auth.signUp({ username: username.trim(), email, emailTicket: ticket });
+      const session = await oxyServices.auth.signUp({
+        username: username.trim(),
+        email,
+        emailTicket: ticket,
+      });
       await handleWebSession(session);
       writeSignInFlow(flowOwner, SIGN_UP_FLOW_KEY, undefined);
     } catch (reason) {
@@ -169,7 +192,10 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
     case 'email':
       return (
         <OxyAuthScreen>
-          <OxyAuthScreenHeader title={t('signup.email.title')} description={t('signup.email.subtitle')} />
+          <OxyAuthScreenHeader
+            title={t('signup.email.title')}
+            description={t('signup.email.subtitle')}
+          />
           {progress(1)}
           <AccountFlowField
             label={t('signup.email.label')}
@@ -187,8 +213,17 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
             testID="signup-email"
           />
           <AccountFlowNote>{t('signup.laterNote')}</AccountFlowNote>
-          <AccountFlowAction label={t('signin.actions.continue')} onPress={submitEmail} pending={pending} testID="signup-email-continue" />
-          <SubtleLink label={t('signin.actions.back')} onPress={() => setStep({ name: 'username' })} testID="signup-back" />
+          <AccountFlowAction
+            label={t('signin.actions.continue')}
+            onPress={submitEmail}
+            pending={pending}
+            testID="signup-email-continue"
+          />
+          <SubtleLink
+            label={t('signin.actions.back')}
+            onPress={() => setStep({ name: 'username' })}
+            testID="signup-back"
+          />
           <OxyAuthTerms />
         </OxyAuthScreen>
       );
@@ -211,9 +246,22 @@ export const OxySignUpPanel: React.FC<OxySignUpPanelProps> = ({ onSignedIn, onSi
             autoComplete="username"
             testID="signup-username"
           />
-          <AccountFlowAction label={t('signin.actions.continue')} onPress={submitUsername} pending={pending} testID="signup-username-continue" />
-          <SubtleLink label={t('signup.createInCommons')} onPress={createInCommons} testID="signup-commons-instead" />
-          <SubtleLink label={t('signup.backToSignInLink')} onPress={onSignIn} testID="back-to-sign-in" />
+          <AccountFlowAction
+            label={t('signin.actions.continue')}
+            onPress={submitUsername}
+            pending={pending}
+            testID="signup-username-continue"
+          />
+          <SubtleLink
+            label={t('signup.createInCommons')}
+            onPress={createInCommons}
+            testID="signup-commons-instead"
+          />
+          <SubtleLink
+            label={t('signup.backToSignInLink')}
+            onPress={onSignIn}
+            testID="back-to-sign-in"
+          />
           <OxyAuthTerms />
         </OxyAuthScreen>
       );

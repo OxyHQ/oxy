@@ -71,7 +71,9 @@ describe('trimTrailingSlashes', () => {
   });
 
   it('preserves interior slashes and the empty string', () => {
-    expect(trimTrailingSlashes('https://node.example/oxy/log')).toBe('https://node.example/oxy/log');
+    expect(trimTrailingSlashes('https://node.example/oxy/log')).toBe(
+      'https://node.example/oxy/log',
+    );
     expect(trimTrailingSlashes('')).toBe('');
     expect(trimTrailingSlashes('///')).toBe('');
   });
@@ -127,7 +129,11 @@ describe('NodeClient (end-to-end against createNodeApp)', () => {
     const genesisId = await computeRecordId(genesis);
     await client.writeRecord(genesis);
 
-    const second = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 1, prev: genesisId });
+    const second = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      seq: 1,
+      prev: genesisId,
+    });
     const secondId = await computeRecordId(second);
     expect(await client.writeRecord(second)).toEqual({ recordId: secondId, seq: 1 });
 
@@ -143,7 +149,10 @@ describe('NodeClient (end-to-end against createNodeApp)', () => {
 
   it('writeRecord surfaces a chain gap as a NodeClientError (422 chain_gap)', async () => {
     const gap = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 3, prev: null });
-    await expect(client.writeRecord(gap)).rejects.toMatchObject({ status: 422, reason: 'chain_gap' });
+    await expect(client.writeRecord(gap)).rejects.toMatchObject({
+      status: 422,
+      reason: 'chain_gap',
+    });
     await expect(client.writeRecord(gap)).rejects.toBeInstanceOf(NodeClientError);
   });
 
@@ -151,14 +160,28 @@ describe('NodeClient (end-to-end against createNodeApp)', () => {
     const genesis = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 0, prev: null });
     await client.writeRecord(genesis);
 
-    const fork = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 1, prev: 'f'.repeat(64) });
-    await expect(client.writeRecord(fork)).rejects.toMatchObject({ status: 422, reason: 'chain_fork' });
+    const fork = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      seq: 1,
+      prev: 'f'.repeat(64),
+    });
+    await expect(client.writeRecord(fork)).rejects.toMatchObject({
+      status: 422,
+      reason: 'chain_fork',
+    });
   });
 
   it('writeRecord surfaces a non-owner write as a NodeClientError (403 not_owner)', async () => {
     const attacker = generateKeyPair();
-    const envelope = await buildSignedEnvelope({ privateKey: attacker.privateKey, seq: 0, prev: null });
-    await expect(client.writeRecord(envelope)).rejects.toMatchObject({ status: 403, reason: 'not_owner' });
+    const envelope = await buildSignedEnvelope({
+      privateKey: attacker.privateKey,
+      seq: 0,
+      prev: null,
+    });
+    await expect(client.writeRecord(envelope)).rejects.toMatchObject({
+      status: 403,
+      reason: 'not_owner',
+    });
   });
 
   it('putBlob then getBlob round-trips; getBlob returns null when absent', async () => {

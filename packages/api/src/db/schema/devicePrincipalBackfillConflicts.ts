@@ -85,8 +85,7 @@ export const DEVICE_PRINCIPAL_BACKFILL_CONFLICTS = [
   'orphan_operator',
 ] as const;
 
-export type DevicePrincipalBackfillConflict =
-  (typeof DEVICE_PRINCIPAL_BACKFILL_CONFLICTS)[number];
+export type DevicePrincipalBackfillConflict = (typeof DEVICE_PRINCIPAL_BACKFILL_CONFLICTS)[number];
 
 export const devicePrincipalBackfillConflicts = pgTable(
   'device_principal_backfill_conflicts',
@@ -121,7 +120,7 @@ export const devicePrincipalBackfillConflicts = pgTable(
     // at APPLY time.
     check(
       'device_principal_backfill_conflicts_conflict_check',
-      sql`${t.conflict} in (${sql.raw(inList(DEVICE_PRINCIPAL_BACKFILL_CONFLICTS))})`
+      sql`${t.conflict} in (${sql.raw(inList(DEVICE_PRINCIPAL_BACKFILL_CONFLICTS))})`,
     ),
-  ]
+  ],
 );

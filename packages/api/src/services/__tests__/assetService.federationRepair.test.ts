@@ -56,7 +56,10 @@ const randomPng = () => {
   return pngOf(r, g, b);
 };
 
-function fetchResult(body: Buffer, headers: Record<string, string> = { 'content-type': 'image/png' }) {
+function fetchResult(
+  body: Buffer,
+  headers: Record<string, string> = { 'content-type': 'image/png' },
+) {
   const response = Readable.from([body]) as IncomingMessage;
   response.statusCode = 200;
   response.headers = headers;
@@ -216,14 +219,19 @@ describe('repairMissingFederationFileContent verifies the original digest', () =
     const deleted = await updateFile(file.id, { status: 'deleted' });
     mockSafeFetch.mockResolvedValue(fetchResult(original));
 
-    await expect(service.repairMissingFederationFileContent(deleted as FileRecord)).resolves.toBe(false);
+    await expect(service.repairMissingFederationFileContent(deleted as FileRecord)).resolves.toBe(
+      false,
+    );
     expect(mockSafeFetch).not.toHaveBeenCalled();
     expect(s3.uploadBuffer).not.toHaveBeenCalled();
   });
 
   it('still rejects a non-https remote URL without fetching', async () => {
     const original = await randomPng();
-    const { s3, service, file } = await seedFederatedAvatar(original, 'http://remote.example/a.png');
+    const { s3, service, file } = await seedFederatedAvatar(
+      original,
+      'http://remote.example/a.png',
+    );
 
     await expect(service.repairMissingFederationFileContent(file)).resolves.toBe(false);
     expect(mockSafeFetch).not.toHaveBeenCalled();
@@ -243,7 +251,10 @@ describe('repairMissingFederationFileContent verifies the original digest', () =
     const original = await randomPng();
     const { s3, service, file } = await seedFederatedAvatar(original);
     mockSafeFetch.mockResolvedValue(
-      fetchResult(original, { 'content-type': 'image/png', 'content-length': String(64 * 1024 * 1024) }),
+      fetchResult(original, {
+        'content-type': 'image/png',
+        'content-length': String(64 * 1024 * 1024),
+      }),
     );
 
     await expect(service.repairMissingFederationFileContent(file)).resolves.toBe(false);

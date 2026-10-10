@@ -8,7 +8,12 @@
 
 import type React from 'react';
 import { useState } from 'react';
-import { EMAIL_CODE_LENGTH, TOTP_DIGITS, type ReauthAction, type ReauthProof } from '@oxy.so/contracts';
+import {
+  EMAIL_CODE_LENGTH,
+  TOTP_DIGITS,
+  type ReauthAction,
+  type ReauthProof,
+} from '@oxy.so/contracts';
 import { useOxy } from '../../context/OxyContext';
 import { useI18n } from '../../hooks/useI18n';
 import { SubtleLink } from '../authChooser/primitives';
@@ -157,7 +162,9 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
         <>
           <AccountFlowCodeField
             key={useBackupCode ? 'backup' : 'totp'}
-            label={useBackupCode ? t('signin.secondFactor.backupLabel') : t('signin.secondFactor.label')}
+            label={
+              useBackupCode ? t('signin.secondFactor.backupLabel') : t('signin.secondFactor.label')
+            }
             value={totpCode}
             onChange={setTotpCode}
             error={null}
@@ -169,7 +176,11 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
             testID="reauth-totp"
           />
           <SubtleLink
-            label={useBackupCode ? t('signin.secondFactor.useAuthenticator') : t('signin.secondFactor.useBackup')}
+            label={
+              useBackupCode
+                ? t('signin.secondFactor.useAuthenticator')
+                : t('signin.secondFactor.useBackup')
+            }
             onPress={() => {
               setUseBackupCode(!useBackupCode);
               setTotpCode('');
@@ -189,7 +200,12 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
         testID={needsCode ? 'reauth-send-code' : 'reauth-submit'}
       />
       {mode === 'email' && verificationId ? (
-        <SubtleLink label={t('emailCode.resend')} onPress={sendCode} disabled={pending} testID="reauth-resend" />
+        <SubtleLink
+          label={t('emailCode.resend')}
+          onPress={sendCode}
+          disabled={pending}
+          testID="reauth-resend"
+        />
       ) : null}
       {allowPassword ? (
         <SubtleLink
@@ -203,7 +219,12 @@ export const ReauthStep: React.FC<ReauthStepProps> = ({
         />
       ) : null}
       {secondary ? (
-        <SubtleLink label={secondary.label} onPress={secondary.onPress} disabled={pending} testID="reauth-cancel" />
+        <SubtleLink
+          label={secondary.label}
+          onPress={secondary.onPress}
+          disabled={pending}
+          testID="reauth-cancel"
+        />
       ) : null}
     </OxyAuthScreen>
   );

@@ -19,11 +19,7 @@ jest.mock('../../src/ui/utils/isWebBrowser', () => ({
 }));
 
 import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
-import {
-  OxyRuntimeMissingError,
-  useActiveAccount,
-  useOxyRuntime,
-} from '../../src/ui/runtime';
+import { OxyRuntimeMissingError, useActiveAccount, useOxyRuntime } from '../../src/ui/runtime';
 
 interface Counters {
   wide: number;

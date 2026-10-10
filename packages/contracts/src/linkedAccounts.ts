@@ -107,7 +107,9 @@ export const serviceLinkedAccountListResponseSchema = z
   .object({ userId: z.string().min(1), linkedAccounts: z.array(serviceLinkedAccountSchema) })
   .strict();
 
-export type ServiceLinkedAccountListResponse = z.infer<typeof serviceLinkedAccountListResponseSchema>;
+export type ServiceLinkedAccountListResponse = z.infer<
+  typeof serviceLinkedAccountListResponseSchema
+>;
 
 /**
  * Error codes the callback appends as `?link_error=<code>` to `returnTo`. An
@@ -160,4 +162,3 @@ export const linkedAccountStartErrorDetailsSchema = z
   .strict();
 
 export type LinkedAccountStartErrorDetails = z.infer<typeof linkedAccountStartErrorDetailsSchema>;
-

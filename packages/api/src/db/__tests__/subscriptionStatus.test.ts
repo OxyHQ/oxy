@@ -37,13 +37,15 @@ async function giveSubscription(
   status: 'active' | 'canceled' | 'expired',
   endDate: Date,
 ): Promise<void> {
-  await getDb().insert(subscriptions).values({
-    userId,
-    plan: 'pro',
-    status,
-    startDate: new Date(Date.now() - 30 * DAY_MS),
-    endDate,
-  });
+  await getDb()
+    .insert(subscriptions)
+    .values({
+      userId,
+      plan: 'pro',
+      status,
+      startDate: new Date(Date.now() - 30 * DAY_MS),
+      endDate,
+    });
 }
 
 async function storedRows(userId: string) {

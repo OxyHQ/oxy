@@ -31,12 +31,20 @@ function exportedNames(file: string): Set<string> {
     if (ts.isExportDeclaration(st) && st.exportClause && ts.isNamedExports(st.exportClause)) {
       for (const el of st.exportClause.elements) names.add(el.name.text);
     } else if (
-      (ts.isClassDeclaration(st) || ts.isFunctionDeclaration(st) || ts.isInterfaceDeclaration(st) || ts.isTypeAliasDeclaration(st)) &&
-      st.name && st.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+      (ts.isClassDeclaration(st) ||
+        ts.isFunctionDeclaration(st) ||
+        ts.isInterfaceDeclaration(st) ||
+        ts.isTypeAliasDeclaration(st)) &&
+      st.name &&
+      st.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
     ) {
       names.add(st.name.text);
-    } else if (ts.isVariableStatement(st) && st.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) {
-      for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) names.add(d.name.text);
+    } else if (
+      ts.isVariableStatement(st) &&
+      st.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
+      for (const d of st.declarationList.declarations)
+        if (ts.isIdentifier(d.name)) names.add(d.name.text);
     }
   }
   return names;
@@ -59,8 +67,14 @@ function entryFor(symbol: string): string | null {
 
 /** Old names that became getters/properties: the call parentheses go. */
 const BECAME_PROPERTY = new Set([
-  'getBaseURL', 'getCloudURL', 'getClient', 'getAccessToken', 'getAccessTokenExpiry',
-  'getCurrentUserId', 'hasValidToken', 'getMyDid',
+  'getBaseURL',
+  'getCloudURL',
+  'getClient',
+  'getAccessToken',
+  'getAccessTokenExpiry',
+  'getCurrentUserId',
+  'hasValidToken',
+  'getMyDid',
 ]);
 
 /**
@@ -72,17 +86,47 @@ const BECAME_PROPERTY = new Set([
 // `this._oxyServices`, `ctx.services`, a getter call `oxy()` / `getOxyClient()`,
 // or a parenthesised expression mentioning one (`(a ?? oxy).getUserById`).
 const OXY_RECEIVER = /(^|\.)(\w*oxy\w*|_?services)(\(\))?$|^\(.*\boxy\w*.*\)$/i;
-const GENERIC = new Set(['auth', 'validate', 'register', 'subscribe', 'search', 'inference', 'getClient', 'getStorage', 'handleError']);
+const GENERIC = new Set([
+  'auth',
+  'validate',
+  'register',
+  'subscribe',
+  'search',
+  'inference',
+  'getClient',
+  'getStorage',
+  'handleError',
+]);
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.expo', '.next', 'web-build', '.turbo', 'coverage', '.git']);
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  '.expo',
+  '.next',
+  'web-build',
+  '.turbo',
+  'coverage',
+  '.git',
+]);
 
-interface Edit { start: number; end: number; text: string }
-interface FileReport { file: string; rewrites: number; todos: number; server: boolean }
+interface Edit {
+  start: number;
+  end: number;
+  text: string;
+}
+interface FileReport {
+  file: string;
+  rewrites: number;
+  todos: number;
+  server: boolean;
+}
 
 function walk(dir: string, out: string[]): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name) && !entry.name.startsWith('.')) walk(path.join(dir, entry.name), out);
+      if (!SKIP_DIRS.has(entry.name) && !entry.name.startsWith('.'))
+        walk(path.join(dir, entry.name), out);
     } else if (/\.(ts|tsx|mts|cts)$/.test(entry.name) && !entry.name.endsWith('.d.ts')) {
       out.push(path.join(dir, entry.name));
     }
@@ -99,7 +143,13 @@ function indentAt(text: string, pos: number): string {
 }
 
 export function transform(fileName: string, text: string): { text: string; report: FileReport } {
-  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, fileName.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const sf = ts.createSourceFile(
+    fileName,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    fileName.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
   const edits: Edit[] = [];
   const todoLines = new Map<number, string[]>();
   const report: FileReport = { file: fileName, rewrites: 0, todos: 0, server: false };
@@ -115,11 +165,19 @@ export function transform(fileName: string, text: string): { text: string; repor
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.name)) {
       const method = node.name.text;
-      const entry = Object.prototype.hasOwnProperty.call(METHOD_MAP, method) ? METHOD_MAP[method] : undefined;
+      const entry = Object.prototype.hasOwnProperty.call(METHOD_MAP, method)
+        ? METHOD_MAP[method]
+        : undefined;
       const receiver = node.expression.getText(sf).replace(/\s+/g, '');
-      const call = ts.isCallExpression(node.parent) && node.parent.expression === node ? node.parent : null;
+      const call =
+        ts.isCallExpression(node.parent) && node.parent.expression === node ? node.parent : null;
       const oxyNamed = OXY_RECEIVER.test(receiver);
-      if (entry && oxyNamed && (call || method === 'httpService') && !(GENERIC.has(method) && !/oxy/i.test(receiver))) {
+      if (
+        entry &&
+        oxyNamed &&
+        (call || method === 'httpService') &&
+        !(GENERIC.has(method) && !/oxy/i.test(receiver))
+      ) {
         const { to, sig } = entry;
         if (to === null) {
           todo(node, `${method} was removed in @oxy.so/core 3${sig ? ` — ${sig}` : ''}`);
@@ -144,7 +202,12 @@ export function transform(fileName: string, text: string): { text: string; repor
 
   // Imports from the root that moved to a subpath (or went away).
   for (const st of sf.statements) {
-    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier) || st.moduleSpecifier.text !== '@oxy.so/core') continue;
+    if (
+      !ts.isImportDeclaration(st) ||
+      !ts.isStringLiteral(st.moduleSpecifier) ||
+      st.moduleSpecifier.text !== '@oxy.so/core'
+    )
+      continue;
     const clause = st.importClause;
     if (!clause) continue;
     const typeOnly = clause.isTypeOnly;
@@ -153,7 +216,10 @@ export function transform(fileName: string, text: string): { text: string; repor
     let defaultName: string | null = null;
     if (clause.name) defaultName = clause.name.text;
     if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) continue;
-    const specifiers = clause.namedBindings && ts.isNamedImports(clause.namedBindings) ? clause.namedBindings.elements : [];
+    const specifiers =
+      clause.namedBindings && ts.isNamedImports(clause.namedBindings)
+        ? clause.namedBindings.elements
+        : [];
     for (const el of specifiers) {
       const imported = (el.propertyName ?? el.name).text;
       const spec = entryFor(imported);
@@ -181,7 +247,13 @@ export function transform(fileName: string, text: string): { text: string; repor
 
   // Re-exports: `export { A, type B } from '@oxy.so/core'` split the same way.
   for (const st of sf.statements) {
-    if (!ts.isExportDeclaration(st) || !st.moduleSpecifier || !ts.isStringLiteral(st.moduleSpecifier) || st.moduleSpecifier.text !== '@oxy.so/core') continue;
+    if (
+      !ts.isExportDeclaration(st) ||
+      !st.moduleSpecifier ||
+      !ts.isStringLiteral(st.moduleSpecifier) ||
+      st.moduleSpecifier.text !== '@oxy.so/core'
+    )
+      continue;
     if (!st.exportClause || !ts.isNamedExports(st.exportClause)) continue;
     const groups = new Map<string, string[]>();
     const missing: string[] = [];
@@ -195,7 +267,8 @@ export function transform(fileName: string, text: string): { text: string; repor
     }
     if (groups.size === 1 && groups.has('@oxy.so/core') && missing.length === 0) continue;
     const statements = [...groups.entries()].map(
-      ([spec, names]) => `export ${st.isTypeOnly ? 'type ' : ''}{ ${names.join(', ')} } from '${spec}';`,
+      ([spec, names]) =>
+        `export ${st.isTypeOnly ? 'type ' : ''}{ ${names.join(', ')} } from '${spec}';`,
     );
     edits.push({ start: st.getStart(sf), end: st.getEnd(), text: statements.join('\n') });
     report.rewrites++;
@@ -208,7 +281,9 @@ export function transform(fileName: string, text: string): { text: string; repor
     if (firstStatement) {
       const at = lineStart(text, firstStatement.getStart(sf));
       const list = todoLines.get(at) ?? [];
-      list.push("this file uses server-only API: construct `new OxyServer({ …, serviceAuth })` from '@oxy.so/core/server'");
+      list.push(
+        "this file uses server-only API: construct `new OxyServer({ …, serviceAuth })` from '@oxy.so/core/server'",
+      );
       todoLines.set(at, list);
       report.todos++;
     }
@@ -216,7 +291,11 @@ export function transform(fileName: string, text: string): { text: string; repor
 
   for (const [at, messages] of todoLines) {
     const indent = indentAt(text, at);
-    edits.push({ start: at, end: at, text: messages.map((m) => `${indent}// TODO(core-3): ${m}\n`).join('') });
+    edits.push({
+      start: at,
+      end: at,
+      text: messages.map((m) => `${indent}// TODO(core-3): ${m}\n`).join(''),
+    });
   }
 
   edits.sort((a, b) => b.start - a.start || b.end - a.end);
@@ -246,9 +325,13 @@ function main(): void {
   const rewrites = reports.reduce((n, r) => n + r.rewrites, 0);
   const todos = reports.reduce((n, r) => n + r.todos, 0);
   for (const r of reports) {
-    console.log(`${path.relative(process.cwd(), r.file)}  rewrites=${r.rewrites} todos=${r.todos}${r.server ? ' SERVER' : ''}`);
+    console.log(
+      `${path.relative(process.cwd(), r.file)}  rewrites=${r.rewrites} todos=${r.todos}${r.server ? ' SERVER' : ''}`,
+    );
   }
-  console.log(`\n${reports.length} files, ${rewrites} rewrites, ${todos} TODO(core-3) markers${dry ? ' (dry run)' : ''}`);
+  console.log(
+    `\n${reports.length} files, ${rewrites} rewrites, ${todos} TODO(core-3) markers${dry ? ' (dry run)' : ''}`,
+  );
 }
 
 if (import.meta.main) main();

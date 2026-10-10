@@ -201,7 +201,7 @@ describe('findLocationsNear — the coordinate ordering', () => {
     const result = await locationQueryService.findLocationsNear(
       BARCELONA.latitude,
       BARCELONA.longitude,
-      50_000
+      50_000,
     );
 
     expect(ownKeys(result)).toEqual(['barcelona']);
@@ -219,7 +219,7 @@ describe('findLocationsNear — the coordinate ordering', () => {
     const result = await locationQueryService.findLocationsNear(
       TRANSPOSED_BARCELONA.latitude,
       TRANSPOSED_BARCELONA.longitude,
-      50_000
+      50_000,
     );
 
     expect(ownKeys(result)).toEqual(['transposed-barcelona']);
@@ -231,7 +231,7 @@ describe('findLocationsNear — the coordinate ordering', () => {
     const result = await locationQueryService.findLocationsNear(
       BARCELONA.latitude,
       BARCELONA.longitude,
-      600_000
+      600_000,
     );
 
     // Nearest first, and the transposed point stays out even at 600 km.
@@ -253,12 +253,12 @@ describe('findLocationsNear — the coordinate ordering', () => {
     const outside = await locationQueryService.findLocationsNear(
       BARCELONA.latitude,
       BARCELONA.longitude,
-      500_000
+      500_000,
     );
     const inside = await locationQueryService.findLocationsNear(
       BARCELONA.latitude,
       BARCELONA.longitude,
-      510_000
+      510_000,
     );
 
     expect(ownKeys(outside)).toEqual(['barcelona']);
@@ -272,7 +272,7 @@ describe('findLocationsNear — the coordinate ordering', () => {
     const result = await locationQueryService.findLocationsNear(
       BARCELONA.latitude,
       BARCELONA.longitude,
-      20_000_000
+      20_000_000,
     );
 
     expect(ownKeys(result).sort()).toEqual(['barcelona', 'madrid', 'transposed-barcelona']);
@@ -294,7 +294,7 @@ describe('findLocationsNear — the response body', () => {
     const result = await locationQueryService.findLocationsNear(
       BARCELONA.latitude,
       BARCELONA.longitude,
-      50_000
+      50_000,
     );
 
     const [match] = result.locations.filter((row) => row.location.id === key('barcelona'));
@@ -354,13 +354,13 @@ describe('findLocationsNear — the response body', () => {
       POINT_NEMO.latitude,
       POINT_NEMO.longitude,
       100_000,
-      { limit: 2, skip: 0 }
+      { limit: 2, skip: 0 },
     );
     const second = await locationQueryService.findLocationsNear(
       POINT_NEMO.latitude,
       POINT_NEMO.longitude,
       100_000,
-      { limit: 2, skip: 2 }
+      { limit: 2, skip: 2 },
     );
 
     expect(ownKeys(first)).toEqual(['nemo-a', 'nemo-b']);
@@ -397,8 +397,9 @@ describe('searchLocationsByText', () => {
       formattedAddress: `12 Reading Street ${RARE_TOKEN}`,
     });
 
-    expect(ownKeys(await locationQueryService.searchLocationsByText(RARE_TOKEN)))
-      .toEqual(['library']);
+    expect(ownKeys(await locationQueryService.searchLocationsByText(RARE_TOKEN))).toEqual([
+      'library',
+    ]);
   });
 
   it('matches ANY term, as Mongo $text did — not all of them', async () => {
@@ -406,7 +407,7 @@ describe('searchLocationsByText', () => {
     await seedLocation({ key: 'gym', name: `Gym ${RARE_TOKEN}b` });
 
     const result = await locationQueryService.searchLocationsByText(
-      `${RARE_TOKEN}a ${RARE_TOKEN}b`
+      `${RARE_TOKEN}a ${RARE_TOKEN}b`,
     );
 
     expect(ownKeys(result).sort()).toEqual(['gym', 'library']);
@@ -417,8 +418,9 @@ describe('searchLocationsByText', () => {
     // different configuration would silently stop matching.
     await seedLocation({ key: 'library', name: `${RARE_TOKEN} Libraries` });
 
-    expect(ownKeys(await locationQueryService.searchLocationsByText(`${RARE_TOKEN} library`)))
-      .toEqual(['library']);
+    expect(
+      ownKeys(await locationQueryService.searchLocationsByText(`${RARE_TOKEN} library`)),
+    ).toEqual(['library']);
   });
 
   it('treats LIKE and tsquery metacharacters as ordinary text', async () => {
@@ -454,22 +456,23 @@ describe('searchLocationsByText', () => {
       country: `France-${RUN}`,
     });
 
-    expect(ownKeys(await locationQueryService.searchLocationsByText(RARE_TOKEN, { type: 'work' })))
-      .toEqual(['library-es']);
+    expect(
+      ownKeys(await locationQueryService.searchLocationsByText(RARE_TOKEN, { type: 'work' })),
+    ).toEqual(['library-es']);
     // Case-insensitive SUBSTRING, which is what `{ $regex, $options: 'i' }` was.
     expect(
       ownKeys(
         await locationQueryService.searchLocationsByText(RARE_TOKEN, {
           country: `fran`,
-        })
-      )
+        }),
+      ),
     ).toEqual(['library-fr']);
     expect(
       ownKeys(
         await locationQueryService.searchLocationsByText(RARE_TOKEN, {
           city: `BARCELONA-${RUN.toUpperCase()}`,
-        })
-      )
+        }),
+      ),
     ).toEqual(['library-es']);
   });
 });
@@ -480,7 +483,7 @@ describe('getLocationsByType / getLocationsByCountryCity', () => {
     await seedLocation({ key: 'work', name: 'Work', type: 'work', country: `Spain-${RUN}` });
 
     expect(
-      ownKeys(await locationQueryService.getLocationsByType('home', { country: `Spain-${RUN}` }))
+      ownKeys(await locationQueryService.getLocationsByType('home', { country: `Spain-${RUN}` })),
     ).toEqual(['home']);
   });
 
@@ -498,15 +501,16 @@ describe('getLocationsByType / getLocationsByCountryCity', () => {
       country: `France-${RUN}`,
     });
 
-    expect(ownKeys(await locationQueryService.getLocationsByCountryCity(`spain-${RUN}`)))
-      .toEqual(['bcn']);
+    expect(ownKeys(await locationQueryService.getLocationsByCountryCity(`spain-${RUN}`))).toEqual([
+      'bcn',
+    ]);
     expect(
       ownKeys(
         await locationQueryService.getLocationsByCountryCity(
           `France-${RUN}`,
-          `PARIS-${RUN.toUpperCase()}`
-        )
-      )
+          `PARIS-${RUN.toUpperCase()}`,
+        ),
+      ),
     ).toEqual(['par']);
   });
 
@@ -581,8 +585,8 @@ describe('updateLocationCoordinates', () => {
         OWNER_ID,
         key('here'),
         BARCELONA.latitude,
-        BARCELONA.longitude
-      )
+        BARCELONA.longitude,
+      ),
     ).toBe(true);
 
     // The proof is spatial, not just columnar: `geo` is GENERATED from the two
@@ -591,12 +595,12 @@ describe('updateLocationCoordinates', () => {
     const near = await locationQueryService.findLocationsNear(
       BARCELONA.latitude,
       BARCELONA.longitude,
-      50_000
+      50_000,
     );
     const far = await locationQueryService.findLocationsNear(
       MADRID.latitude,
       MADRID.longitude,
-      50_000
+      50_000,
     );
 
     expect(ownKeys(near)).toEqual(['here']);
@@ -612,8 +616,8 @@ describe('updateLocationCoordinates', () => {
         stranger,
         key('here'),
         BARCELONA.latitude,
-        BARCELONA.longitude
-      )
+        BARCELONA.longitude,
+      ),
     ).toBe(false);
 
     const [row] = await getDb()
@@ -627,7 +631,7 @@ describe('updateLocationCoordinates', () => {
 
   it('reports false for a location key that does not exist', async () => {
     expect(
-      await locationQueryService.updateLocationCoordinates(OWNER_ID, key('missing'), 1, 1)
+      await locationQueryService.updateLocationCoordinates(OWNER_ID, key('missing'), 1, 1),
     ).toBe(false);
   });
 });
@@ -641,7 +645,7 @@ describe('deleteLocation', () => {
       await getDb()
         .select({ id: userLocations.id })
         .from(userLocations)
-        .where(eq(userLocations.userId, OWNER_ID))
+        .where(eq(userLocations.userId, OWNER_ID)),
     ).toEqual([]);
   });
 
@@ -654,7 +658,7 @@ describe('deleteLocation', () => {
       await getDb()
         .select({ id: userLocations.id })
         .from(userLocations)
-        .where(eq(userLocations.userId, OWNER_ID))
+        .where(eq(userLocations.userId, OWNER_ID)),
     ).toHaveLength(1);
 
     await getDb().delete(users).where(eq(users.id, stranger));

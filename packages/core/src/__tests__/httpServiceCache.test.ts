@@ -66,7 +66,9 @@ describe('HttpService identity-scoped response cache', () => {
 
     // 1) Anonymous GET — caches the public response.
     fetchMock.mockResolvedValueOnce(jsonResponse({ profiles: ['popular-1', 'popular-2'] }));
-    const anon = await http.get<{ profiles: string[] }>('/profiles/recommendations', { cache: true });
+    const anon = await http.get<{ profiles: string[] }>('/profiles/recommendations', {
+      cache: true,
+    });
     expect(anon.profiles).toEqual(['popular-1', 'popular-2']);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -76,7 +78,9 @@ describe('HttpService identity-scoped response cache', () => {
     // 3) Same URL, authenticated: MUST be a cache miss -> a real network call,
     //    returning the personalized list (no already-followed accounts).
     fetchMock.mockResolvedValueOnce(jsonResponse({ profiles: ['suggested-a', 'suggested-b'] }));
-    const authed = await http.get<{ profiles: string[] }>('/profiles/recommendations', { cache: true });
+    const authed = await http.get<{ profiles: string[] }>('/profiles/recommendations', {
+      cache: true,
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(authed.profiles).toEqual(['suggested-a', 'suggested-b']);
@@ -87,8 +91,12 @@ describe('HttpService identity-scoped response cache', () => {
     http.setTokens(makeJwt({ userId: 'user-1' }));
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ profiles: ['suggested-a'] }));
-    const first = await http.get<{ profiles: string[] }>('/profiles/recommendations', { cache: true });
-    const second = await http.get<{ profiles: string[] }>('/profiles/recommendations', { cache: true });
+    const first = await http.get<{ profiles: string[] }>('/profiles/recommendations', {
+      cache: true,
+    });
+    const second = await http.get<{ profiles: string[] }>('/profiles/recommendations', {
+      cache: true,
+    });
 
     expect(first).toEqual(second);
     // Only one network call — the second read is a cache hit for the same id.
@@ -117,14 +125,18 @@ describe('HttpService identity-scoped response cache', () => {
     http.setTokens(makeJwt({ userId: 'user-1' }));
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ profiles: ['private-suggestion'] }));
-    const authed = await http.get<{ profiles: string[] }>('/profiles/recommendations', { cache: true });
+    const authed = await http.get<{ profiles: string[] }>('/profiles/recommendations', {
+      cache: true,
+    });
     expect(authed.profiles).toEqual(['private-suggestion']);
 
     // Logout clears the response cache (privacy + correct logout semantics).
     http.clearTokens();
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ profiles: ['popular-public'] }));
-    const anon = await http.get<{ profiles: string[] }>('/profiles/recommendations', { cache: true });
+    const anon = await http.get<{ profiles: string[] }>('/profiles/recommendations', {
+      cache: true,
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(anon.profiles).toEqual(['popular-public']);
@@ -149,7 +161,9 @@ describe('HttpService identity-scoped response cache', () => {
 
     // Next read re-fetches (cache was invalidated).
     fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'user-1', name: 'new' }));
-    const after = await http.get<{ id: string; name: string }>('/session/user/sess-1', { cache: true });
+    const after = await http.get<{ id: string; name: string }>('/session/user/sess-1', {
+      cache: true,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(after.name).toBe('new');
   });
@@ -221,10 +235,7 @@ describe('HttpService identity-scoped response cache', () => {
 
       // Telemetry fired, and exactly once within the throttle window.
       const cacheWarnings = warnSpy.mock.calls.filter((args) =>
-        args.some(
-          (a: unknown) =>
-            typeof a === 'string' && a.includes('exceeded soft entry limit'),
-        ),
+        args.some((a: unknown) => typeof a === 'string' && a.includes('exceeded soft entry limit')),
       );
       expect(cacheWarnings.length).toBe(1);
     });
@@ -239,10 +250,7 @@ describe('HttpService identity-scoped response cache', () => {
       }
 
       const cacheWarnings = warnSpy.mock.calls.filter((args) =>
-        args.some(
-          (a: unknown) =>
-            typeof a === 'string' && a.includes('exceeded soft entry limit'),
-        ),
+        args.some((a: unknown) => typeof a === 'string' && a.includes('exceeded soft entry limit')),
       );
       expect(cacheWarnings.length).toBe(0);
     });

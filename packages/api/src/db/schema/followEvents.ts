@@ -155,11 +155,11 @@ export const followEvents = pgTable(
     // type it has no handler for rather than trusting the column.
     check(
       'follow_events_type_check',
-      sql`${t.type} in ('follow.created', 'follow.removed', 'follow.requested', 'follow.accepted', 'follow.rejected', 'follow.context_enabled', 'follow.context_disabled')`
+      sql`${t.type} in ('follow.created', 'follow.removed', 'follow.requested', 'follow.accepted', 'follow.rejected', 'follow.context_enabled', 'follow.context_disabled')`,
     ),
     check(
       'follow_events_cause_check',
-      sql`${t.cause} in ('user_action', 'expired', 'federation_inbound', 'reconciliation', 'migration')`
+      sql`${t.cause} in ('user_action', 'expired', 'federation_inbound', 'reconciliation', 'migration')`,
     ),
     // The worker's read: claimable, oldest first. Partial, so the index stays
     // the size of the backlog rather than the size of all history — which is the
@@ -175,11 +175,9 @@ export const followEvents = pgTable(
     // The dead-letter read. Without it the only way to find the events that
     // stopped is a scan of all history, and a marker nobody can find is not a
     // marker.
-    index('follow_events_dead_letter_idx')
-      .on(t.failedAt)
-      .where(sql`${t.failedAt} is not null`),
+    index('follow_events_dead_letter_idx').on(t.failedAt).where(sql`${t.failedAt} is not null`),
     // "What happened to this relationship" — reconciliation and support.
     index('follow_events_relationship_idx').on(t.relationshipId),
     index('follow_events_actor_idx').on(t.actorUserId, t.createdAt),
-  ]
+  ],
 );

@@ -68,10 +68,7 @@ class AiLabelingService {
   }
 
   private processQueue(): void {
-    while (
-      this.activeJobs < AI_LABELING_CONFIG.maxConcurrent &&
-      this.queue.length > 0
-    ) {
+    while (this.activeJobs < AI_LABELING_CONFIG.maxConcurrent && this.queue.length > 0) {
       const job = this.queue.shift();
       if (!job) {
         return;

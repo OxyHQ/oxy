@@ -32,7 +32,11 @@ function readById(qc: QueryClient, id: string): CacheableUser | undefined {
 }
 
 /** Read the viewer-scoped by-username cache entry. */
-function readByUsername(qc: QueryClient, username: string, viewerId: string): CacheableUser | undefined {
+function readByUsername(
+  qc: QueryClient,
+  username: string,
+  viewerId: string,
+): CacheableUser | undefined {
   return qc.getQueryData<CacheableUser>(queryKeys.users.byUsername(username, viewerId));
 }
 
@@ -73,7 +77,9 @@ describe('upsertCachedUser — cold slot', () => {
     // by-username (viewer-scoped, normalized to lowercase)
     const uname = readByUsername(qc, 'alice', 'viewer-1');
     expect(uname).toMatchObject({ id: 'u1', relationship: { isFollowing: true } });
-    expect(qc.getQueryState(queryKeys.users.byUsername('alice', 'viewer-1'))?.dataUpdatedAt).toBe(0);
+    expect(qc.getQueryState(queryKeys.users.byUsername('alice', 'viewer-1'))?.dataUpdatedAt).toBe(
+      0,
+    );
   });
 
   it('resolves the id from _id when id is absent', () => {
@@ -119,7 +125,11 @@ describe('upsertCachedUser — merge over an existing full entry', () => {
     seedFull(qc);
 
     // A feed author: no relationship, no createdAt, no counts.
-    upsertCachedUser(qc, { id: 'u1', username: 'alice', name: { displayName: 'Alice A' }, avatar: 'file_a' }, 'viewer-1');
+    upsertCachedUser(
+      qc,
+      { id: 'u1', username: 'alice', name: { displayName: 'Alice A' }, avatar: 'file_a' },
+      'viewer-1',
+    );
 
     const byId = readById(qc, 'u1');
     expect(byId?.createdAt).toBe('2020-01-01T00:00:00Z');
@@ -149,7 +159,14 @@ describe('upsertCachedUser — merge over an existing full entry', () => {
 
     upsertCachedUser(
       qc,
-      { id: 'u1', username: '', avatar: null, createdAt: '', _count: undefined, relationship: null },
+      {
+        id: 'u1',
+        username: '',
+        avatar: null,
+        createdAt: '',
+        _count: undefined,
+        relationship: null,
+      },
       'viewer-1',
     );
 
@@ -167,7 +184,11 @@ describe('upsertCachedUser — merge over an existing full entry', () => {
     const qc = makeClient();
     seedFull(qc);
 
-    upsertCachedUser(qc, { id: 'u1', username: 'alice', bio: 'new bio', avatar: 'file_new' }, 'viewer-1');
+    upsertCachedUser(
+      qc,
+      { id: 'u1', username: 'alice', bio: 'new bio', avatar: 'file_new' },
+      'viewer-1',
+    );
 
     const byId = readById(qc, 'u1');
     expect(byId?.bio).toBe('new bio');
@@ -180,7 +201,11 @@ describe('upsertCachedUser — merge over an existing full entry', () => {
     const qc = makeClient();
     seedFull(qc);
 
-    upsertCachedUser(qc, { id: 'u1', username: 'alice', verified: false, _count: { followers: 0 } }, 'viewer-1');
+    upsertCachedUser(
+      qc,
+      { id: 'u1', username: 'alice', verified: false, _count: { followers: 0 } },
+      'viewer-1',
+    );
 
     const byId = readById(qc, 'u1');
     expect(byId?.verified).toBe(false);
@@ -215,18 +240,33 @@ describe('upsertCachedUser — nested merge', () => {
       relationship: { isFollowing: true, followsYou: true },
     });
 
-    upsertCachedUser(qc, { id: 'u1', username: 'alice', relationship: { followsYou: false } }, 'v1');
+    upsertCachedUser(
+      qc,
+      { id: 'u1', username: 'alice', relationship: { followsYou: false } },
+      'v1',
+    );
 
-    expect(readByUsername(qc, 'alice', 'v1')?.relationship).toEqual({ isFollowing: true, followsYou: false });
+    expect(readByUsername(qc, 'alice', 'v1')?.relationship).toEqual({
+      isFollowing: true,
+      followsYou: false,
+    });
   });
 });
 
 describe('upsertCachedUser — anti-degradation', () => {
   it('never overwrites a good displayName with the "Unknown user" sentinel', () => {
     const qc = makeClient();
-    qc.setQueryData(queryKeys.users.detail('u1'), { id: 'u1', username: 'alice', name: { displayName: 'Alice A' } });
+    qc.setQueryData(queryKeys.users.detail('u1'), {
+      id: 'u1',
+      username: 'alice',
+      name: { displayName: 'Alice A' },
+    });
 
-    upsertCachedUser(qc, { id: 'u1', username: 'alice', name: { displayName: 'Unknown user' } }, '');
+    upsertCachedUser(
+      qc,
+      { id: 'u1', username: 'alice', name: { displayName: 'Unknown user' } },
+      '',
+    );
 
     expect(readById(qc, 'u1')?.name).toEqual({ displayName: 'Alice A' });
   });
@@ -242,7 +282,11 @@ describe('upsertCachedUser — anti-degradation', () => {
 
   it('never nulls out a good avatar', () => {
     const qc = makeClient();
-    qc.setQueryData(queryKeys.users.detail('u1'), { id: 'u1', username: 'alice', avatar: 'file_a' });
+    qc.setQueryData(queryKeys.users.detail('u1'), {
+      id: 'u1',
+      username: 'alice',
+      avatar: 'file_a',
+    });
 
     upsertCachedUser(qc, { id: 'u1', username: 'alice', avatar: null }, '');
 
@@ -251,7 +295,11 @@ describe('upsertCachedUser — anti-degradation', () => {
 
   it('upgrades a degraded existing displayName when a real one arrives', () => {
     const qc = makeClient();
-    qc.setQueryData(queryKeys.users.detail('u1'), { id: 'u1', username: 'alice', name: { displayName: 'Unknown user' } });
+    qc.setQueryData(queryKeys.users.detail('u1'), {
+      id: 'u1',
+      username: 'alice',
+      name: { displayName: 'Unknown user' },
+    });
 
     upsertCachedUser(qc, { id: 'u1', username: 'alice', name: { displayName: 'Alice A' } }, '');
 
@@ -274,7 +322,11 @@ describe('upsertCachedUser — keys & viewer scoping', () => {
 
   it('viewer-scopes the by-username key (different viewers -> different entries)', () => {
     const qc = makeClient();
-    upsertCachedUser(qc, { id: 'u1', username: 'alice', relationship: { isFollowing: true, followsYou: false } }, 'viewerA');
+    upsertCachedUser(
+      qc,
+      { id: 'u1', username: 'alice', relationship: { isFollowing: true, followsYou: false } },
+      'viewerA',
+    );
 
     expect(readByUsername(qc, 'alice', 'viewerA')).toBeDefined();
     expect(readByUsername(qc, 'alice', 'viewerB')).toBeUndefined();
@@ -319,7 +371,9 @@ describe('upsertCachedUser — keys & viewer scoping', () => {
 
   it('defaults the viewer id from the auth store when omitted', () => {
     const qc = makeClient();
-    useAuthStore.setState({ user: { id: 'store-viewer', username: 'me', name: { displayName: 'Me' }, publicKey: 'pk' } });
+    useAuthStore.setState({
+      user: { id: 'store-viewer', username: 'me', name: { displayName: 'Me' }, publicKey: 'pk' },
+    });
 
     upsertCachedUser(qc, { id: 'u1', username: 'alice' });
 
@@ -421,7 +475,8 @@ describe('patchCachedUserRelationship', () => {
     patchCachedUserRelationship(qc, 'u1', true);
 
     expect(
-      qc.getQueryData<CacheableUser>(queryKeys.users.detailForViewer('u1', 'viewer-1'))?.relationship,
+      qc.getQueryData<CacheableUser>(queryKeys.users.detailForViewer('u1', 'viewer-1'))
+        ?.relationship,
     ).toEqual({ isFollowing: true, followsYou: false });
   });
 });

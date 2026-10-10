@@ -81,7 +81,7 @@ function migrationsFixture(entries: Array<{ tag: string; when: number; sql: stri
       version: '7',
       dialect: 'postgresql',
       entries: entries.map(({ tag, when }) => ({ tag, when })),
-    })
+    }),
   );
   for (const entry of entries) {
     writeFileSync(join(folder, `${entry.tag}.sql`), entry.sql);
@@ -97,7 +97,7 @@ function migrationsFixture(entries: Array<{ tag: string; when: number; sql: stri
  * deletes it after the first test that runs.
  */
 function migrationsFixtureTracked(
-  entries: Array<{ tag: string; when: number; sql: string }>
+  entries: Array<{ tag: string; when: number; sql: string }>,
 ): string {
   const folder = migrationsFixture(entries);
   createdFolders.push(folder);
@@ -108,7 +108,7 @@ function migrationsFixtureTracked(
 function materializeJournalPrefixTracked(
   entries: readonly JournalEntry[],
   count: number,
-  sourceFolder: string
+  sourceFolder: string,
 ): string {
   const prefixFolder = materializeJournalPrefix(entries, count, sourceFolder);
   createdFolders.push(prefixFolder);
@@ -124,7 +124,7 @@ describe('materializeJournalPrefix', () => {
     { tag: '0002_c', when: 3000, sql: '-- oxy:deploy-phase=pre\nselect 3;\n' },
   ]);
   const entries: JournalEntry[] = JSON.parse(
-    readFileSync(join(folder, 'meta', '_journal.json'), 'utf8')
+    readFileSync(join(folder, 'meta', '_journal.json'), 'utf8'),
   ).entries;
 
   afterAll(() => {
@@ -133,7 +133,9 @@ describe('materializeJournalPrefix', () => {
 
   it('keeps only the first `count` journal entries', () => {
     const prefixFolder = materializeJournalPrefixTracked(entries, 2, folder);
-    const prefixJournal = JSON.parse(readFileSync(join(prefixFolder, 'meta', '_journal.json'), 'utf8'));
+    const prefixJournal = JSON.parse(
+      readFileSync(join(prefixFolder, 'meta', '_journal.json'), 'utf8'),
+    );
     expect(prefixJournal.entries.map((entry: JournalEntry) => entry.tag)).toEqual([
       '0000_a',
       '0001_b',
@@ -150,20 +152,24 @@ describe('materializeJournalPrefix', () => {
   it('copies each `.sql` file byte for byte, so drizzle records the same hash a full-folder run would', () => {
     const prefixFolder = materializeJournalPrefixTracked(entries, 1, folder);
     expect(readFileSync(join(prefixFolder, '0000_a.sql'), 'utf8')).toBe(
-      readFileSync(join(folder, '0000_a.sql'), 'utf8')
+      readFileSync(join(folder, '0000_a.sql'), 'utf8'),
     );
   });
 
-  it('preserves the journal file\'s other top-level fields', () => {
+  it("preserves the journal file's other top-level fields", () => {
     const prefixFolder = materializeJournalPrefixTracked(entries, 1, folder);
-    const prefixJournal = JSON.parse(readFileSync(join(prefixFolder, 'meta', '_journal.json'), 'utf8'));
+    const prefixJournal = JSON.parse(
+      readFileSync(join(prefixFolder, 'meta', '_journal.json'), 'utf8'),
+    );
     expect(prefixJournal.version).toBe('7');
     expect(prefixJournal.dialect).toBe('postgresql');
   });
 
   it('takes a PREFIX, not an arbitrary subset — count=0 keeps nothing', () => {
     const prefixFolder = materializeJournalPrefixTracked(entries, 0, folder);
-    const prefixJournal = JSON.parse(readFileSync(join(prefixFolder, 'meta', '_journal.json'), 'utf8'));
+    const prefixJournal = JSON.parse(
+      readFileSync(join(prefixFolder, 'meta', '_journal.json'), 'utf8'),
+    );
     expect(prefixJournal.entries).toEqual([]);
     expect(existsSync(join(prefixFolder, '0000_a.sql'))).toBe(false);
   });
@@ -185,7 +191,7 @@ describe('runMigrations — filesystem preconditions run before any connection i
         expectedDatabase: 'irrelevant',
         dryRun: false,
         logger: noopLogger,
-      })
+      }),
     ).rejects.toThrow(/Cannot read the migration journal/);
   });
 
@@ -201,7 +207,7 @@ describe('runMigrations — filesystem preconditions run before any connection i
         expectedDatabase: 'irrelevant',
         dryRun: false,
         logger: noopLogger,
-      })
+      }),
     ).rejects.toThrow(/do not declare which side of a deploy they belong on/);
   });
 
@@ -220,7 +226,7 @@ describe('runMigrations — filesystem preconditions run before any connection i
         expectedDatabase: 'irrelevant',
         dryRun: false,
         logger: noopLogger,
-      })
+      }),
     ).rejects.toThrow(/0001_bad/);
   });
 });
@@ -286,7 +292,7 @@ describe('runMigrations — cleans up the materialized prefix folder even when m
       };
       const client = Object.assign(
         jest.fn((strings: TemplateStringsArray) => Promise.resolve(respond(strings.join('')))),
-        { end: jest.fn(() => Promise.resolve(undefined)) }
+        { end: jest.fn(() => Promise.resolve(undefined)) },
       );
       return { __esModule: true, default: jest.fn(() => client) };
     });
@@ -316,7 +322,7 @@ describe('runMigrations — cleans up the materialized prefix folder even when m
         expectedDatabase: EXPECTED_DATABASE,
         dryRun: false,
         logger: noopLogger,
-      })
+      }),
     ).rejects.toThrow('simulated migrate failure');
 
     // `materializeJournalPrefix`'s own `mkdtempSync` call is the only thing
@@ -326,5 +332,4 @@ describe('runMigrations — cleans up the materialized prefix folder even when m
     // subject to interference from any other process on the machine.
     expect(readdirSync(scratchRoot)).toEqual([]);
   });
-
 });

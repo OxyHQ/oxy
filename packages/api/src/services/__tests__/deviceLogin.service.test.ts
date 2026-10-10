@@ -40,7 +40,10 @@ const SESSION = { sessionId: 'sess-1', deviceId: 'dev-1' };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockAddAccount.mockResolvedValue({ state: { deviceId: 'dev-1', accounts: [], activeAccountId: null, revision: 1 }, changed: true });
+  mockAddAccount.mockResolvedValue({
+    state: { deviceId: 'dev-1', accounts: [], activeAccountId: null, revision: 1 },
+    changed: true,
+  });
   mockIssueDeviceSecret.mockResolvedValue('ds_minted_secret');
   mockBindSessionToContext.mockResolvedValue(true);
 });
@@ -68,11 +71,17 @@ describe('finalizeDeviceLogin', () => {
   });
 
   it('broadcasts the device state only when the set changed', async () => {
-    mockAddAccount.mockResolvedValueOnce({ state: { deviceId: 'dev-1', accounts: [], activeAccountId: null, revision: 0 }, changed: false });
+    mockAddAccount.mockResolvedValueOnce({
+      state: { deviceId: 'dev-1', accounts: [], activeAccountId: null, revision: 0 },
+      changed: false,
+    });
     await finalizeDeviceLogin({ session: SESSION, userId: 'user-1' });
     expect(mockBroadcastDeviceState).not.toHaveBeenCalled();
 
-    mockAddAccount.mockResolvedValueOnce({ state: { deviceId: 'dev-1', accounts: [], activeAccountId: null, revision: 2 }, changed: true });
+    mockAddAccount.mockResolvedValueOnce({
+      state: { deviceId: 'dev-1', accounts: [], activeAccountId: null, revision: 2 },
+      changed: true,
+    });
     await finalizeDeviceLogin({ session: SESSION, userId: 'user-1' });
     expect(mockBroadcastDeviceState).toHaveBeenCalledTimes(1);
   });

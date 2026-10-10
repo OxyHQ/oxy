@@ -62,7 +62,7 @@ async function insertUser(): Promise<string> {
 }
 
 async function insertFile(
-  values: Partial<typeof files.$inferInsert> & { sha256: string }
+  values: Partial<typeof files.$inferInsert> & { sha256: string },
 ): Promise<string> {
   const [row] = await getDb()
     .insert(files)
@@ -118,11 +118,15 @@ describe('AssetService.initUpload dedupe signing', () => {
     expect(result.uploadUrl).toBe('');
     // Its own row — never the victim's id — pointing at the same object.
     expect(result.fileId).not.toBe(fileId);
-    expect(await rowOf(result.fileId)).toMatchObject({ ownerUserId: attackerId, storageKey: VICTIM_KEY, sha256: contentHash });
+    expect(await rowOf(result.fileId)).toMatchObject({
+      ownerUserId: attackerId,
+      storageKey: VICTIM_KEY,
+      sha256: contentHash,
+    });
     expect(await rowOf(fileId)).toMatchObject({ ownerUserId: victimId, status: 'active' });
   });
 
-  it('never signs another owner\'s key when its object is missing: the caller gets a key of its own', async () => {
+  it("never signs another owner's key when its object is missing: the caller gets a key of its own", async () => {
     const contentHash = sha();
     const victimId = await insertUser();
     const attackerId = await insertUser();
@@ -150,7 +154,7 @@ describe('AssetService.initUpload dedupe signing', () => {
     expect(result.uploadUrl).toBe('signed-put-url');
   });
 
-  it('never signs a SYSTEM-owned object\'s key either', async () => {
+  it("never signs a SYSTEM-owned object's key either", async () => {
     // `owner_user_id` is NULL here, so no caller can be its owner.
     const contentHash = sha();
     const callerId = await insertUser();
@@ -183,24 +187,39 @@ describe('AssetService.initUpload dedupe signing', () => {
     const publisher = await insertUser();
     const callerId = await insertUser();
     const publicKey = `public/content/2026/09/${contentHash.slice(0, 2)}/${contentHash}.png`;
-    await insertFile({ sha256: contentHash, ownerUserId: publisher, storageKey: publicKey, visibility: 'public' });
+    await insertFile({
+      sha256: contentHash,
+      ownerUserId: publisher,
+      storageKey: publicKey,
+      visibility: 'public',
+    });
 
     const present = new Set([publicKey]);
     const fakeS3: FakeS3 = {
       fileExists: jest.fn((key: string) => Promise.resolve(present.has(key))),
       getPresignedUploadUrl: jest.fn(() => Promise.resolve('signed-put-url')),
-      copyFile: jest.fn(async (_from: string, to: string) => { present.add(to); }),
+      copyFile: jest.fn(async (_from: string, to: string) => {
+        present.add(to);
+      }),
     };
 
-    const result = await buildAssetService(fakeS3).initUpload(callerId, contentHash, 123, 'image/png');
+    const result = await buildAssetService(fakeS3).initUpload(
+      callerId,
+      contentHash,
+      123,
+      'image/png',
+    );
 
     const privateKey = publicKey.slice('public/'.length);
     expect(fakeS3.copyFile).toHaveBeenCalledWith(publicKey, privateKey);
-    expect(await rowOf(result.fileId)).toMatchObject({ ownerUserId: callerId, storageKey: privateKey });
+    expect(await rowOf(result.fileId)).toMatchObject({
+      ownerUserId: callerId,
+      storageKey: privateKey,
+    });
     expect(result.uploadUrl).toBe('');
   });
 
-  it('does not sign a repair URL for the caller\'s own row when another owner\'s row shares the key', async () => {
+  it("does not sign a repair URL for the caller's own row when another owner's row shares the key", async () => {
     const contentHash = sha();
     const ownerId = await insertUser();
     const sharer = await insertUser();
@@ -212,7 +231,12 @@ describe('AssetService.initUpload dedupe signing', () => {
       getPresignedUploadUrl: jest.fn(() => Promise.resolve('owner-repair-url')),
     };
 
-    const result = await buildAssetService(fakeS3).initUpload(ownerId, contentHash, 123, 'image/png');
+    const result = await buildAssetService(fakeS3).initUpload(
+      ownerId,
+      contentHash,
+      123,
+      'image/png',
+    );
 
     expect(fakeS3.getPresignedUploadUrl).not.toHaveBeenCalled();
     expect(result.uploadUrl).toBe('');
@@ -259,11 +283,7 @@ describe('AssetService.initUpload dedupe signing', () => {
     );
 
     expect(result.uploadUrl).toBe('fresh-url');
-    const [row] = await getDb()
-      .select()
-      .from(files)
-      .where(eq(files.id, result.fileId))
-      .limit(1);
+    const [row] = await getDb().select().from(files).where(eq(files.id, result.fileId)).limit(1);
     expect(row.ownerUserId).toBe(ownerId);
     expect(row.sha256).toBe(contentHash);
     expect(row.status).toBe('active');

@@ -8,7 +8,6 @@
 export function decisionAvailability(): { available: boolean; reason: string } {
   return {
     available: false,
-    reason:
-      "Decisions await reviewed provider eligibility, privacy, ZDR and contract negotiation.",
+    reason: 'Decisions await reviewed provider eligibility, privacy, ZDR and contract negotiation.',
   };
 }

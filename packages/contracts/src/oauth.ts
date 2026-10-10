@@ -72,52 +72,68 @@ export const oauthAuthorizeCodeResponseSchema = z.object({
  * Reuses the ordinary public application projection and adds only the public
  * DCR client id needed to bind the consent surface to the request.
  */
-export const mcpOAuthClientApplicationSchema = publicApplicationSchema.extend({
-  clientId: z.string().min(1),
-}).strict();
+export const mcpOAuthClientApplicationSchema = publicApplicationSchema
+  .extend({
+    clientId: z.string().min(1),
+  })
+  .strict();
 
 /**
  * An effectful MCP action the requested capability set can actually invoke.
  * Every field is picked from the canonical catalog tool schema so consent can
  * never maintain a second tool description or effect classification.
  */
-export const mcpOAuthWriteActionSchema = catalogToolSchema.innerType().pick({
-  name: true,
-  version: true,
-  description: true,
-  requiredCapabilities: true,
-  effect: true,
-}).strict().refine((action) => action.effect !== 'read', {
-  message: 'MCP consent write actions must be effectful',
-  path: ['effect'],
-});
+export const mcpOAuthWriteActionSchema = catalogToolSchema
+  .innerType()
+  .pick({
+    name: true,
+    version: true,
+    description: true,
+    requiredCapabilities: true,
+    effect: true,
+  })
+  .strict()
+  .refine((action) => action.effect !== 'read', {
+    message: 'MCP consent write actions must be effectful',
+    path: ['effect'],
+  });
 
 /** Exact, server-resolved context rendered before an external MCP grant. */
-export const mcpOAuthConsentContextSchema = z.object({
-  client: mcpOAuthClientApplicationSchema,
-  account: z.object({
-    id: z.string().min(1),
-    displayName: z.string().min(1).optional(),
-    handle: z.string().min(1).optional(),
-    avatar: z.string().min(1).optional(),
-  }).strict(),
-  resource: z.object({
-    appId: z.string().min(1),
-    uri: z.string().url(),
-    application: publicApplicationSchema,
-  }).strict(),
-  capabilities: z.array(z.string().min(1)).min(1),
-  writeActions: z.array(mcpOAuthWriteActionSchema),
-}).strict();
+export const mcpOAuthConsentContextSchema = z
+  .object({
+    client: mcpOAuthClientApplicationSchema,
+    account: z
+      .object({
+        id: z.string().min(1),
+        displayName: z.string().min(1).optional(),
+        handle: z.string().min(1).optional(),
+        avatar: z.string().min(1).optional(),
+      })
+      .strict(),
+    resource: z
+      .object({
+        appId: z.string().min(1),
+        uri: z.string().url(),
+        application: publicApplicationSchema,
+      })
+      .strict(),
+    capabilities: z.array(z.string().min(1)).min(1),
+    writeActions: z.array(mcpOAuthWriteActionSchema),
+  })
+  .strict();
 
-export const mcpOAuthClientInfoResponseSchema = z.object({
-  application: mcpOAuthClientApplicationSchema,
-}).strict();
+export const mcpOAuthClientInfoResponseSchema = z
+  .object({
+    application: mcpOAuthClientApplicationSchema,
+  })
+  .strict();
 
-export const mcpOAuthConsentResponseSchema = z.object({
-  consentRequired: z.boolean(),
-  context: mcpOAuthConsentContextSchema,
-}).strict();
+export const mcpOAuthConsentResponseSchema = z
+  .object({
+    consentRequired: z.boolean(),
+    context: mcpOAuthConsentContextSchema,
+  })
+  .strict();
 
 export type OauthConsentDecision = z.infer<typeof oauthConsentDecisionSchema>;
 export type OauthAuthorizeCodeResponse = z.infer<typeof oauthAuthorizeCodeResponseSchema>;

@@ -30,7 +30,10 @@ import { simpleParser, type AddressObject, type Attachment, type ParsedMail } fr
  * Media types that are only ever an alternative rendering of the message body.
  * `text/x-amp-html` is AMP for Email; `text/watch-html` is Apple Watch's.
  */
-export const ALTERNATIVE_BODY_TYPES: ReadonlySet<string> = new Set(['text/x-amp-html', 'text/watch-html']);
+export const ALTERNATIVE_BODY_TYPES: ReadonlySet<string> = new Set([
+  'text/x-amp-html',
+  'text/watch-html',
+]);
 
 export interface InboundAddress {
   name: string;
@@ -73,7 +76,9 @@ export interface InboundMime {
 }
 
 /** Whether a parsed part is an alternative rendering of the body, not a file. */
-export function isAlternativeBody(att: Pick<Attachment, 'contentType' | 'filename' | 'contentDisposition'>): boolean {
+export function isAlternativeBody(
+  att: Pick<Attachment, 'contentType' | 'filename' | 'contentDisposition'>,
+): boolean {
   if (att.filename) return false;
   if (att.contentDisposition === 'attachment') return false;
   return ALTERNATIVE_BODY_TYPES.has((att.contentType || '').toLowerCase());
@@ -119,11 +124,14 @@ export function fromParsedMail(parsed: ParsedMail): InboundMime {
     text: parsed.text,
     html: typeof parsed.html === 'string' ? parsed.html : undefined,
     messageId: parsed.messageId || null,
-    inReplyTo: typeof parsed.inReplyTo === 'string' && parsed.inReplyTo ? parsed.inReplyTo : undefined,
+    inReplyTo:
+      typeof parsed.inReplyTo === 'string' && parsed.inReplyTo ? parsed.inReplyTo : undefined,
     references,
     date: parsed.date,
     headers,
-    attachments: (parsed.attachments || []).filter((att) => !isAlternativeBody(att)).map(toAttachment),
+    attachments: (parsed.attachments || [])
+      .filter((att) => !isAlternativeBody(att))
+      .map(toAttachment),
   };
 }
 

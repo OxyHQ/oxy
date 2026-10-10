@@ -160,14 +160,17 @@ export const isNetworkError = (error: unknown): boolean => {
 
   // Check for common network error indicators
   if (err.name === 'NetworkError') return true;
-  if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') return true;
+  if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT')
+    return true;
 
   // Axios-style: has request but no response
   if (err.request && !err.response) return true;
 
   // Message-based detection
   const message = getErrorMessage(error, '').toLowerCase();
-  return message.includes('network') || message.includes('connection') || message.includes('timeout');
+  return (
+    message.includes('network') || message.includes('connection') || message.includes('timeout')
+  );
 };
 
 /**

@@ -81,7 +81,7 @@ describe('findRecipientAccountId', () => {
     expect(await findRecipientAccountId(`${username}+shopping@${EMAIL_DOMAIN}`)).toBe(id);
   });
 
-  it('refuses an address on someone else\'s domain', async () => {
+  it("refuses an address on someone else's domain", async () => {
     const username = `elsewhere-${RUN}`;
     await insertAccount(username);
 

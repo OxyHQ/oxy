@@ -2,7 +2,11 @@ import type { DeviceSessionState } from '@oxy.so/contracts';
 import { SessionClient, type SessionClientHost, type SessionStateOrigin } from '../SessionClient';
 import { createMemoryAuthStateStore } from '../authStateStore';
 
-const stateWith = (rev: number, active: string | null, accountIds: string[]): DeviceSessionState => ({
+const stateWith = (
+  rev: number,
+  active: string | null,
+  accountIds: string[],
+): DeviceSessionState => ({
   deviceId: 'd1',
   accounts: accountIds.map((id, i) => ({ accountId: id, sessionId: `s-${id}`, authuser: i })),
   activeAccountId: active,
@@ -10,9 +14,15 @@ const stateWith = (rev: number, active: string | null, accountIds: string[]): De
   updatedAt: 1720000000000,
 });
 
-const sync = (state: DeviceSessionState) => ({ state, activeToken: { accessToken: `jwt-${state.revision}`, expiresAt: 'x' } });
+const sync = (state: DeviceSessionState) => ({
+  state,
+  activeToken: { accessToken: `jwt-${state.revision}`, expiresAt: 'x' },
+});
 
-function makeHost(makeRequest: jest.Mock, currentAccountId: string | null = null): SessionClientHost {
+function makeHost(
+  makeRequest: jest.Mock,
+  currentAccountId: string | null = null,
+): SessionClientHost {
   return {
     makeRequest,
     getBaseURL: () => 'http://test.invalid',
@@ -46,8 +56,16 @@ describe('SessionClient.registerAndActivate', () => {
 
     await c.registerAndActivate('a2');
 
-    expect(makeRequest).toHaveBeenNthCalledWith(1, 'POST', '/session/device/add', undefined, { cache: false });
-    expect(makeRequest).toHaveBeenNthCalledWith(2, 'POST', '/session/device/switch', { accountId: 'a2' }, { cache: false });
+    expect(makeRequest).toHaveBeenNthCalledWith(1, 'POST', '/session/device/add', undefined, {
+      cache: false,
+    });
+    expect(makeRequest).toHaveBeenNthCalledWith(
+      2,
+      'POST',
+      '/session/device/switch',
+      { accountId: 'a2' },
+      { cache: false },
+    );
     expect(c.getState()?.activeAccountId).toBe('a2');
     c.stop();
   });
@@ -61,7 +79,13 @@ describe('SessionClient.registerAndActivate', () => {
 
     await c.registerAndActivate();
 
-    expect(makeRequest).toHaveBeenNthCalledWith(2, 'POST', '/session/device/switch', { accountId: 'a2' }, { cache: false });
+    expect(makeRequest).toHaveBeenNthCalledWith(
+      2,
+      'POST',
+      '/session/device/switch',
+      { accountId: 'a2' },
+      { cache: false },
+    );
     c.stop();
   });
 
@@ -72,7 +96,9 @@ describe('SessionClient.registerAndActivate', () => {
     await c.registerAndActivate('a1');
 
     expect(makeRequest).toHaveBeenCalledTimes(1);
-    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, {
+      cache: false,
+    });
     c.stop();
   });
 });

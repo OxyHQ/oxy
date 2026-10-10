@@ -129,7 +129,7 @@ function splitModelId(modelId: string): { publisher: string; slug: string } {
  * without it would be exactly the state §12 exists to prevent.
  */
 export async function ingestModelRelease(
-  input: IngestModelReleaseInput
+  input: IngestModelReleaseInput,
 ): Promise<ModelReleaseIngestionResult> {
   const { manifest } = input;
   const { publisher, slug } = splitModelId(manifest.revision.modelId);
@@ -159,7 +159,7 @@ export async function ingestModelRelease(
 
     if (publisherRow === undefined) {
       throw new ModelReleaseRefused(
-        `No publisher namespace ${publisher} is reserved. Reserve it before ingesting a release under it.`
+        `No publisher namespace ${publisher} is reserved. Reserve it before ingesting a release under it.`,
       );
     }
 
@@ -175,9 +175,10 @@ export async function ingestModelRelease(
           suite: evaluation.suite,
           metric: evaluation.metric,
           score: evaluation.score,
-          evaluatedAt: evaluation.evaluatedAt === undefined ? null : new Date(evaluation.evaluatedAt),
+          evaluatedAt:
+            evaluation.evaluatedAt === undefined ? null : new Date(evaluation.evaluatedAt),
           reportUrl: evaluation.reportUrl ?? null,
-        }))
+        })),
       );
     }
 
@@ -200,7 +201,7 @@ export async function ingestModelRelease(
         digest: artifact.digest,
         sizeBytes: artifact.sizeBytes,
         mediaType: artifact.mediaType ?? null,
-      }))
+      })),
     );
 
     await tx.insert(inferenceModelReleaseSignatures).values(
@@ -211,7 +212,7 @@ export async function ingestModelRelease(
         keyId: signature.keyId,
         signature: signature.signature,
         signedAt: new Date(signature.signedAt),
-      }))
+      })),
     );
 
     await writeGpaiDocumentation(tx, revisionId, input.gpaiDocumentation, input.staffUserId);
@@ -238,7 +239,7 @@ export async function ingestModelRelease(
  */
 async function resolveModelLine(
   tx: Transaction,
-  args: { publisher: string; slug: string; input: IngestModelReleaseInput }
+  args: { publisher: string; slug: string; input: IngestModelReleaseInput },
 ): Promise<string> {
   const { publisher, slug, input } = args;
   const { manifest, model } = input;
@@ -257,22 +258,22 @@ async function resolveModelLine(
     const mismatches: string[] = [];
     if (existing.licenseId !== manifest.license.licenseId) {
       mismatches.push(
-        `licence ${existing.licenseId} on record, ${manifest.license.licenseId} in the manifest`
+        `licence ${existing.licenseId} on record, ${manifest.license.licenseId} in the manifest`,
       );
     }
     if (existing.releaseKind !== manifest.provenance.releaseKind) {
       mismatches.push(
-        `release kind ${existing.releaseKind} on record, ${manifest.provenance.releaseKind} in the manifest`
+        `release kind ${existing.releaseKind} on record, ${manifest.provenance.releaseKind} in the manifest`,
       );
     }
     if ((existing.baseModelReference ?? undefined) !== manifest.provenance.baseModelId) {
       mismatches.push(
-        `base model ${existing.baseModelReference ?? 'none'} on record, ${manifest.provenance.baseModelId ?? 'none'} in the manifest`
+        `base model ${existing.baseModelReference ?? 'none'} on record, ${manifest.provenance.baseModelId ?? 'none'} in the manifest`,
       );
     }
     if (mismatches.length > 0) {
       throw new ModelReleaseRefused(
-        `This manifest disagrees with the model already in the catalogue: ${mismatches.join('; ')}. A relicensing or a provenance correction is a catalogue decision, not a release.`
+        `This manifest disagrees with the model already in the catalogue: ${mismatches.join('; ')}. A relicensing or a provenance correction is a catalogue decision, not a release.`,
       );
     }
     return existing.id;
@@ -299,11 +300,17 @@ async function resolveModelLine(
       // Contract set 3.2.0. Carried as declared; an absent declaration stays
       // NULL ("undeclared"), never an empty or a guessed list.
       apiFormats:
-        model.capabilities.apiFormats === undefined ? null : [...new Set(model.capabilities.apiFormats)],
+        model.capabilities.apiFormats === undefined
+          ? null
+          : [...new Set(model.capabilities.apiFormats)],
       realtimeTransports:
-        model.capabilities.realtime === undefined ? null : [...new Set(model.capabilities.realtime.transports)],
+        model.capabilities.realtime === undefined
+          ? null
+          : [...new Set(model.capabilities.realtime.transports)],
       realtimeSessionKinds:
-        model.capabilities.realtime === undefined ? null : [...new Set(model.capabilities.realtime.sessionKinds)],
+        model.capabilities.realtime === undefined
+          ? null
+          : [...new Set(model.capabilities.realtime.sessionKinds)],
       licenseId: manifest.license.licenseId,
       licenseDisplayName: manifest.license.displayName,
       licenseUrl: manifest.license.url ?? null,
@@ -333,7 +340,7 @@ async function resolveModelLine(
 async function insertRevision(
   tx: Transaction,
   modelId: string,
-  input: IngestModelReleaseInput
+  input: IngestModelReleaseInput,
 ): Promise<string> {
   const { revision } = input.manifest;
   const safety = revision.safety;
@@ -359,7 +366,7 @@ async function insertRevision(
   } catch (error) {
     if (isUniqueViolation(error, 'inference_model_revisions_model_id_revision_key')) {
       throw new ModelReleaseRefused(
-        `Revision ${revision.reference} is already in the catalogue. A published revision always names the same weights, so a corrected release ships as a new revision.`
+        `Revision ${revision.reference} is already in the catalogue. A published revision always names the same weights, so a corrected release ships as a new revision.`,
       );
     }
     throw error;
@@ -377,7 +384,7 @@ async function writeGpaiDocumentation(
   tx: Transaction,
   modelRevisionId: string,
   documentation: ModelGpaiDocumentation,
-  staffUserId: string
+  staffUserId: string,
 ): Promise<Date> {
   const recordedAt = new Date();
   const values = {
@@ -403,13 +410,10 @@ async function writeGpaiDocumentation(
   // whoever wrote it last — and the Article 53(2) and Article 51(2) constraints
   // are about the record as a whole, so a partial update could satisfy them
   // against fields the caller never saw.
-  await tx
-    .insert(inferenceModelGpaiDocumentation)
-    .values(values)
-    .onConflictDoUpdate({
-      target: inferenceModelGpaiDocumentation.modelRevisionId,
-      set: values,
-    });
+  await tx.insert(inferenceModelGpaiDocumentation).values(values).onConflictDoUpdate({
+    target: inferenceModelGpaiDocumentation.modelRevisionId,
+    set: values,
+  });
 
   return recordedAt;
 }
@@ -438,7 +442,7 @@ export async function recordRevisionGpaiDocumentation(input: {
   if (revision === undefined) throw new ModelRevisionNotFound(input.modelRevisionId);
 
   const recordedAt = await db.transaction((tx) =>
-    writeGpaiDocumentation(tx, input.modelRevisionId, input.documentation, input.staffUserId)
+    writeGpaiDocumentation(tx, input.modelRevisionId, input.documentation, input.staffUserId),
   );
 
   return { modelRevisionId: input.modelRevisionId, recordedAt: recordedAt.toISOString() };
@@ -448,7 +452,7 @@ export async function recordRevisionGpaiDocumentation(input: {
 async function describeRelease(
   tx: Transaction,
   releaseRowId: string,
-  outcome: 'ingested' | 'already_ingested'
+  outcome: 'ingested' | 'already_ingested',
 ): Promise<ModelReleaseIngestionResult> {
   const [row] = await tx
     .select({
@@ -461,7 +465,7 @@ async function describeRelease(
     .from(inferenceModelReleases)
     .innerJoin(
       inferenceModelRevisions,
-      eq(inferenceModelReleases.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceModelReleases.modelRevisionId, inferenceModelRevisions.id),
     )
     .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
     .where(eq(inferenceModelReleases.id, releaseRowId));
@@ -533,7 +537,7 @@ async function describeRelease(
 export async function getRevisionDocumentation(
   viewer: CatalogueViewer,
   modelId: string,
-  revisionLabel?: string
+  revisionLabel?: string,
 ): Promise<ModelDocumentation | undefined> {
   const entry = await getCatalogueEntryForViewer(viewer, modelId, CATALOGUED);
   if (entry === undefined) return undefined;
@@ -565,10 +569,13 @@ export async function getRevisionDocumentation(
   // model id does not resolve to.
   const revisionWhere =
     revisionLabel === undefined
-      ? and(eq(inferenceModelRevisions.modelId, model.id), eq(inferenceModelRevisions.isCurrent, true))
+      ? and(
+          eq(inferenceModelRevisions.modelId, model.id),
+          eq(inferenceModelRevisions.isCurrent, true),
+        )
       : and(
           eq(inferenceModelRevisions.modelId, model.id),
-          eq(inferenceModelRevisions.revision, revisionLabel)
+          eq(inferenceModelRevisions.revision, revisionLabel),
         );
 
   const [revision] = await db

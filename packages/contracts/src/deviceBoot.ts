@@ -31,9 +31,9 @@ import { z } from 'zod';
 
 /** One anomalous signal the server flagged on a sign-in (new device, location, …). */
 export interface SecurityAlertAnomaly {
-    type: string;
-    reason: string;
-    details?: string;
+  type: string;
+  reason: string;
+  details?: string;
 }
 
 /**
@@ -43,8 +43,8 @@ export interface SecurityAlertAnomaly {
  * continuing to the OAuth authorize step.
  */
 export interface SecurityAlert {
-    message: string;
-    anomalies: SecurityAlertAnomaly[];
+  message: string;
+  anomalies: SecurityAlertAnomaly[];
 }
 
 /**
@@ -53,57 +53,57 @@ export interface SecurityAlert {
  * sign-in endpoints emit (NOT the full `userResponseSchema`).
  */
 export interface LoginSessionResult {
-    sessionId: string;
-    deviceId: string;
-    expiresAt: string;
-    accessToken?: string;
-    /**
-     * The device secret (zero-cookie transport). Emitted on every successful
-     * sign-in; the client persists it first-party alongside `deviceId` and later
-     * mints access tokens via `POST /session/device/token`. Optional only because
-     * a best-effort mint can fail — it is the sole restore credential.
-     */
-    deviceSecret?: string;
-    /**
-     * Present only when the server's anomaly detection flagged this sign-in.
-     * The IdP shows a "New sign-in detected" acknowledgement before proceeding.
-     * The session is already established regardless — this is an interstitial,
-     * not a gate on the credential check.
-     */
-    securityAlert?: SecurityAlert;
-    user: {
-        id: string;
-        username?: string;
-        avatar?: string;
-    };
+  sessionId: string;
+  deviceId: string;
+  expiresAt: string;
+  accessToken?: string;
+  /**
+   * The device secret (zero-cookie transport). Emitted on every successful
+   * sign-in; the client persists it first-party alongside `deviceId` and later
+   * mints access tokens via `POST /session/device/token`. Optional only because
+   * a best-effort mint can fail — it is the sole restore credential.
+   */
+  deviceSecret?: string;
+  /**
+   * Present only when the server's anomaly detection flagged this sign-in.
+   * The IdP shows a "New sign-in detected" acknowledgement before proceeding.
+   * The session is already established regardless — this is an interstitial,
+   * not a gate on the credential check.
+   */
+  securityAlert?: SecurityAlert;
+  user: {
+    id: string;
+    username?: string;
+    avatar?: string;
+  };
 }
 
 /** The outcome of a successful sign-in — always a completed session. */
 export type LoginResult = LoginSessionResult;
 
 const securityAlertSchema: z.ZodType<SecurityAlert> = z.object({
-    message: z.string(),
-    anomalies: z.array(
-        z.object({
-            type: z.string(),
-            reason: z.string(),
-            details: z.string().optional(),
-        }),
-    ),
+  message: z.string(),
+  anomalies: z.array(
+    z.object({
+      type: z.string(),
+      reason: z.string(),
+      details: z.string().optional(),
+    }),
+  ),
 });
 
 const loginSessionResultSchema = z.object({
-    sessionId: z.string(),
-    deviceId: z.string(),
-    expiresAt: z.string(),
-    accessToken: z.string().optional(),
-    deviceSecret: z.string().optional(),
-    securityAlert: securityAlertSchema.optional(),
-    user: z.object({
-        id: z.string(),
-        username: z.string().optional(),
-        avatar: z.string().optional(),
-    }),
+  sessionId: z.string(),
+  deviceId: z.string(),
+  expiresAt: z.string(),
+  accessToken: z.string().optional(),
+  deviceSecret: z.string().optional(),
+  securityAlert: securityAlertSchema.optional(),
+  user: z.object({
+    id: z.string(),
+    username: z.string().optional(),
+    avatar: z.string().optional(),
+  }),
 });
 
 export const loginResultSchema: z.ZodType<LoginResult> = loginSessionResultSchema;

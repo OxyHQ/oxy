@@ -73,7 +73,10 @@ export function assetUrlCacheTTL(expiresIn?: number): number {
 export type AssetRecord = Omit<Asset, 'visibility'> & { visibility?: FileVisibility };
 
 /** The asset `POST /assets/upload` returns. */
-export type UploadedAsset = Pick<Asset, 'id' | 'sha256' | 'size' | 'mime' | 'ext' | 'visibility' | 'links' | 'variants'> & {
+export type UploadedAsset = Pick<
+  Asset,
+  'id' | 'sha256' | 'size' | 'mime' | 'ext' | 'visibility' | 'links' | 'variants'
+> & {
   originalName?: string;
   metadata?: AssetMetadata;
 };
@@ -117,13 +120,23 @@ export class AssetsApi {
     const target = new URL(init.uploadUrl);
     if (target.protocol !== 'https:') throw new Error('Presigned uploads require HTTPS');
     const headers = new Headers(init.requiredHeaders);
-    headers.forEach((_value,name) => {
-      if (!['if-none-match','content-type','x-amz-checksum-sha256','cache-control'].includes(name.toLowerCase()))
+    headers.forEach((_value, name) => {
+      if (
+        !['if-none-match', 'content-type', 'x-amz-checksum-sha256', 'cache-control'].includes(
+          name.toLowerCase(),
+        )
+      )
         throw new Error('Unsupported required upload header');
     });
-    if (body.type && !headers.has('Content-Type')) headers.set('Content-Type',body.type);
-    const result = await fetch(target.toString(),{method:'PUT',body,headers,credentials:'omit',redirect:'error'});
-    if(!result.ok)throw new Error(`Presigned upload failed (${result.status})`);
+    if (body.type && !headers.has('Content-Type')) headers.set('Content-Type', body.type);
+    const result = await fetch(target.toString(), {
+      method: 'PUT',
+      body,
+      headers,
+      credentials: 'omit',
+      redirect: 'error',
+    });
+    if (!result.ok) throw new Error(`Presigned upload failed (${result.status})`);
   }
 
   // ── Upload ───────────────────────────────────────────────────────────────
@@ -137,12 +150,18 @@ export class AssetsApi {
    * read by FormData (it would upload `[object Object]` — a 0-byte asset), so
    * the uri is materialised into a Blob first; an empty result throws.
    */
-  async upload(file: AssetUploadInput, options: AssetUploadOptions = {}): Promise<{ file: UploadedAsset }> {
+  async upload(
+    file: AssetUploadInput,
+    options: AssetUploadOptions = {},
+  ): Promise<{ file: UploadedAsset }> {
     const fileName = 'name' in file && file.name ? file.name : 'unknown';
     const fileSize = 'size' in file && file.size ? file.size : 0;
 
     const formData = new FormData();
-    if ((typeof File !== 'undefined' && file instanceof File) || (typeof Blob !== 'undefined' && file instanceof Blob)) {
+    if (
+      (typeof File !== 'undefined' && file instanceof File) ||
+      (typeof Blob !== 'undefined' && file instanceof Blob)
+    ) {
       formData.append('file', file, fileName);
     } else if ('uri' in file && typeof (file as RNFileDescriptor).uri === 'string') {
       const descriptor = file as RNFileDescriptor;
@@ -156,28 +175,41 @@ export class AssetsApi {
           throw new Error(`Failed to read file from uri (status ${res.status})`);
         }
         const fetched = await res.blob();
-        const blob = fetched.type === '' && descriptor.type ? new Blob([fetched], { type: descriptor.type }) : fetched;
+        const blob =
+          fetched.type === '' && descriptor.type
+            ? new Blob([fetched], { type: descriptor.type })
+            : fetched;
         if (blob.size === 0) {
           throw new Error('Cannot upload an empty file');
         }
         formData.append('file', blob, fileName);
       }
     } else {
-      throw new Error('Unsupported file input: expected File, Blob, or { uri, type?, name?, size? } descriptor');
+      throw new Error(
+        'Unsupported file input: expected File, Blob, or { uri, type?, name?, size? } descriptor',
+      );
     }
     if (options.visibility) formData.append('visibility', options.visibility);
     if (options.metadata) formData.append('metadata', JSON.stringify(options.metadata));
 
     try {
-      const response = await this.ctx.request<{ file: UploadedAsset }>('POST', '/assets/upload', formData, {
-        cache: false,
-        timeout: options.timeout ?? ASSET_UPLOAD_TIMEOUT_MS,
-      });
+      const response = await this.ctx.request<{ file: UploadedAsset }>(
+        'POST',
+        '/assets/upload',
+        formData,
+        {
+          cache: false,
+          timeout: options.timeout ?? ASSET_UPLOAD_TIMEOUT_MS,
+        },
+      );
       options.onProgress?.(100);
       return response;
     } catch (error) {
       logger.error('File upload error', error, { component: 'oxy.assets' });
-      (error as Error & { fileContext?: Record<string, unknown> }).fileContext = { fileName, fileSize };
+      (error as Error & { fileContext?: Record<string, unknown> }).fileContext = {
+        fileName,
+        fileSize,
+      };
       throw error;
     }
   }
@@ -186,9 +218,17 @@ export class AssetsApi {
    * Upload a public avatar and link it to `userId`'s profile. Does not change
    * the profile's `avatar` field — set it with `users.updateMe`.
    */
-  async uploadAvatar(file: AssetUploadInput, userId: string, app = 'profiles'): Promise<{ file: UploadedAsset }> {
+  async uploadAvatar(
+    file: AssetUploadInput,
+    userId: string,
+    app = 'profiles',
+  ): Promise<{ file: UploadedAsset }> {
     const asset = await this.upload(file, { visibility: 'public' });
-    await this.link(asset.file.id, { app, entityType: 'avatar', entityId: userId }, { visibility: 'public' });
+    await this.link(
+      asset.file.id,
+      { app, entityType: 'avatar', entityId: userId },
+      { visibility: 'public' },
+    );
     return asset;
   }
 
@@ -200,19 +240,31 @@ export class AssetsApi {
     target: AssetLinkTarget,
     options: { visibility?: FileVisibility; webhookUrl?: string } = {},
   ): Promise<{ assetId: string; file: AssetLinkState }> {
-    const body: AssetLinkTarget & { visibility?: FileVisibility; webhookUrl?: string } = { ...target };
+    const body: AssetLinkTarget & { visibility?: FileVisibility; webhookUrl?: string } = {
+      ...target,
+    };
     if (options.visibility) body.visibility = options.visibility;
     if (options.webhookUrl) body.webhookUrl = options.webhookUrl;
-    const res = await this.ctx.request<{ assetId: string; file: AssetLinkState }>('POST', `/assets/${enc(fileId)}/links`, body, {
-      cache: false,
-    });
+    const res = await this.ctx.request<{ assetId: string; file: AssetLinkState }>(
+      'POST',
+      `/assets/${enc(fileId)}/links`,
+      body,
+      {
+        cache: false,
+      },
+    );
     this.ctx.oxy.cache.delete(`GET:/assets/${enc(fileId)}`);
     return res;
   }
 
   /** Remove an asset's link to an entity. */
   async unlink(fileId: string, target: AssetLinkTarget): Promise<{ file: AssetLinkState }> {
-    const res = await this.ctx.request<{ file: AssetLinkState }>('DELETE', `/assets/${enc(fileId)}/links`, target, { cache: false });
+    const res = await this.ctx.request<{ file: AssetLinkState }>(
+      'DELETE',
+      `/assets/${enc(fileId)}/links`,
+      target,
+      { cache: false },
+    );
     this.ctx.oxy.cache.delete(`GET:/assets/${enc(fileId)}`);
     return res;
   }
@@ -221,11 +273,16 @@ export class AssetsApi {
 
   /** An asset's record: size, mime, visibility, links, variants. */
   async get(fileId: string): Promise<{ assetId: string; file: AssetRecord }> {
-    return this.ctx.request('GET', `/assets/${enc(fileId)}`, undefined, { cache: true, cacheTTL: ASSET_TTL });
+    return this.ctx.request('GET', `/assets/${enc(fileId)}`, undefined, {
+      cache: true,
+      cacheTTL: ASSET_TTL,
+    });
   }
 
   /** The signed-in user's files, newest first. */
-  async list(params: { limit?: number; offset?: number } = {}): Promise<{ files: AssetRecord[]; total: number; hasMore: boolean }> {
+  async list(
+    params: { limit?: number; offset?: number } = {},
+  ): Promise<{ files: AssetRecord[]; total: number; hasMore: boolean }> {
     const query: Record<string, number> = {};
     if (params.limit) query.limit = params.limit;
     if (params.offset) query.offset = params.offset;
@@ -234,7 +291,9 @@ export class AssetsApi {
 
   /** The account's storage usage, aggregated from its assets. */
   async usage(): Promise<AccountStorageUsageResponse> {
-    return this.ctx.request<AccountStorageUsageResponse>('GET', '/storage/usage', undefined, { cache: false });
+    return this.ctx.request<AccountStorageUsageResponse>('GET', '/storage/usage', undefined, {
+      cache: false,
+    });
   }
 
   // ── URLs ─────────────────────────────────────────────────────────────────
@@ -321,7 +380,9 @@ export class AssetsApi {
     const body: { files: typeof files; expiresIn?: number; context?: string } = { files };
     if (typeof options?.expiresIn === 'number') body.expiresIn = options.expiresIn;
     if (typeof options?.context === 'string') body.context = options.context;
-    return this.ctx.request<BatchFileAccessResponse>('POST', '/assets/batch-access', body, { cache: false });
+    return this.ctx.request<BatchFileAccessResponse>('POST', '/assets/batch-access', body, {
+      cache: false,
+    });
   }
 
   // ── Content ──────────────────────────────────────────────────────────────
@@ -346,19 +407,20 @@ export class AssetsApi {
    */
   async delete(fileId: string, options: { force?: boolean } = {}): Promise<AssetDeleteResult> {
     const url = `/assets/${enc(fileId)}${options.force ? '?force=true' : ''}`;
-    const res = await this.ctx.request<AssetDeleteResult>('DELETE', url, undefined, { cache: false });
+    const res = await this.ctx.request<AssetDeleteResult>('DELETE', url, undefined, {
+      cache: false,
+    });
     this.evict(fileId);
     return res;
   }
 
   /** Restore an asset from the trash. */
-  async restore(fileId: string): Promise<{ file: { id: string; status: Asset['status']; usageCount: number } }> {
-    const res = await this.ctx.request<{ file: { id: string; status: Asset['status']; usageCount: number } }>(
-      'POST',
-      `/assets/${enc(fileId)}/restore`,
-      undefined,
-      { cache: false },
-    );
+  async restore(
+    fileId: string,
+  ): Promise<{ file: { id: string; status: Asset['status']; usageCount: number } }> {
+    const res = await this.ctx.request<{
+      file: { id: string; status: Asset['status']; usageCount: number };
+    }>('POST', `/assets/${enc(fileId)}/restore`, undefined, { cache: false });
     this.ctx.oxy.cache.delete(`GET:/assets/${enc(fileId)}`);
     return res;
   }
@@ -368,12 +430,9 @@ export class AssetsApi {
     fileId: string,
     visibility: FileVisibility,
   ): Promise<{ file: { id: string; visibility: FileVisibility; updatedAt: string } }> {
-    const res = await this.ctx.request<{ file: { id: string; visibility: FileVisibility; updatedAt: string } }>(
-      'PATCH',
-      `/assets/${enc(fileId)}/visibility`,
-      { visibility },
-      { cache: false },
-    );
+    const res = await this.ctx.request<{
+      file: { id: string; visibility: FileVisibility; updatedAt: string };
+    }>('PATCH', `/assets/${enc(fileId)}/visibility`, { visibility }, { cache: false });
     // Visibility changes the record AND the resolved URL (CDN vs signed).
     this.evict(fileId);
     return res;
@@ -381,7 +440,11 @@ export class AssetsApi {
 
   // ── Internals ────────────────────────────────────────────────────────────
 
-  private async resolveUrl(fileId: string, variant?: string, expiresIn?: number): Promise<string | undefined> {
+  private async resolveUrl(
+    fileId: string,
+    variant?: string,
+    expiresIn?: number,
+  ): Promise<string | undefined> {
     const params: Record<string, string | number> = {};
     if (variant) params.variant = variant;
     if (expiresIn) params.expiresIn = expiresIn;
@@ -409,7 +472,10 @@ export class AssetsApi {
 
   /** Drop the cached record and every cached URL variant of an asset, in one pass. */
   private evict(fileId: string): void {
-    this.ctx.http.invalidateCache({ keys: [`GET:/assets/${enc(fileId)}`], prefixes: [`GET:/assets/${enc(fileId)}/url`] });
+    this.ctx.http.invalidateCache({
+      keys: [`GET:/assets/${enc(fileId)}`],
+      prefixes: [`GET:/assets/${enc(fileId)}/url`],
+    });
   }
 }
 
@@ -430,7 +496,11 @@ function dedupeFileAccessRequests(
     const key = `${req.fileId}\u0000${req.variant ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(req.variant === undefined ? { fileId: req.fileId } : { fileId: req.fileId, variant: req.variant });
+    out.push(
+      req.variant === undefined
+        ? { fileId: req.fileId }
+        : { fileId: req.fileId, variant: req.variant },
+    );
   }
   return out;
 }

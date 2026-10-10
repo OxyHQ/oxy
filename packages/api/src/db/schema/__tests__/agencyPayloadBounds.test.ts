@@ -72,44 +72,82 @@ describe('agency JSON payload bounds', () => {
   it('admits only numeric and boolean delegation values', async () => {
     await expect(insertDelegationValue(25)).resolves.toBeUndefined();
     await expect(insertDelegationValue(true)).resolves.toBeUndefined();
-    expect(pgErrorCode(await rejected(() => insertDelegationValue('PRIVATE_PROMPT_MARKER')))).toBe(CHECK_VIOLATION);
-    expect(pgErrorCode(await rejected(() => insertDelegationValue(['private@example.test'])))).toBe(CHECK_VIOLATION);
+    expect(pgErrorCode(await rejected(() => insertDelegationValue('PRIVATE_PROMPT_MARKER')))).toBe(
+      CHECK_VIOLATION,
+    );
+    expect(pgErrorCode(await rejected(() => insertDelegationValue(['private@example.test'])))).toBe(
+      CHECK_VIOLATION,
+    );
   });
 
   it('admits exact authorization limit objects and rejects arguments or extra keys', async () => {
-    await expect(insertAuthorizationLimits([
-      { tool: 'searchEmails', key: 'limit', value: 25 },
-      { tool: 'searchEmails', key: 'hasAttachment', value: true },
-    ])).resolves.toBeUndefined();
-    expect(pgErrorCode(await rejected(() => insertAuthorizationLimits([
-      { tool: 'searchEmails', key: 'q', value: 'PRIVATE_PROMPT_MARKER' },
-    ])))).toBe(CHECK_VIOLATION);
-    expect(pgErrorCode(await rejected(() => insertAuthorizationLimits([
-      { tool: 'searchEmails', key: 'limit', value: 25, prompt: 'PRIVATE_PROMPT_MARKER' },
-    ])))).toBe(CHECK_VIOLATION);
+    await expect(
+      insertAuthorizationLimits([
+        { tool: 'searchEmails', key: 'limit', value: 25 },
+        { tool: 'searchEmails', key: 'hasAttachment', value: true },
+      ]),
+    ).resolves.toBeUndefined();
+    expect(
+      pgErrorCode(
+        await rejected(() =>
+          insertAuthorizationLimits([
+            { tool: 'searchEmails', key: 'q', value: 'PRIVATE_PROMPT_MARKER' },
+          ]),
+        ),
+      ),
+    ).toBe(CHECK_VIOLATION);
+    expect(
+      pgErrorCode(
+        await rejected(() =>
+          insertAuthorizationLimits([
+            { tool: 'searchEmails', key: 'limit', value: 25, prompt: 'PRIVATE_PROMPT_MARKER' },
+          ]),
+        ),
+      ),
+    ).toBe(CHECK_VIOLATION);
     expect(pgErrorCode(await rejected(() => insertAuthorizationLimits([1])))).toBe(CHECK_VIOLATION);
   });
 
   it('admits bounded audit metadata and rejects raw messages, keys and nested prompts', async () => {
-    await expect(insertAuditEvent({
-      result: { status: 'succeeded', code: '200' },
-      correlation: {
-        runId: 'run-test',
-        idempotencyKeyHash: 'a'.repeat(64),
-      },
-    })).resolves.toBeUndefined();
-    expect(pgErrorCode(await rejected(() => insertAuditEvent({
-      result: { status: 'failed', message: 'PRIVATE_PROMPT_MARKER' },
-      correlation: { runId: 'run-test' },
-    })))).toBe(CHECK_VIOLATION);
-    expect(pgErrorCode(await rejected(() => insertAuditEvent({
-      result: { status: 'failed' },
-      correlation: { runId: 'run-test', idempotencyKey: 'PRIVATE_PROMPT_MARKER' },
-    })))).toBe(CHECK_VIOLATION);
-    expect(pgErrorCode(await rejected(() => insertAuditEvent({
-      result: { status: 'failed' },
-      correlation: { runId: 'run-test' },
-      resource: { prompt: 'PRIVATE_PROMPT_MARKER' },
-    })))).toBe(CHECK_VIOLATION);
+    await expect(
+      insertAuditEvent({
+        result: { status: 'succeeded', code: '200' },
+        correlation: {
+          runId: 'run-test',
+          idempotencyKeyHash: 'a'.repeat(64),
+        },
+      }),
+    ).resolves.toBeUndefined();
+    expect(
+      pgErrorCode(
+        await rejected(() =>
+          insertAuditEvent({
+            result: { status: 'failed', message: 'PRIVATE_PROMPT_MARKER' },
+            correlation: { runId: 'run-test' },
+          }),
+        ),
+      ),
+    ).toBe(CHECK_VIOLATION);
+    expect(
+      pgErrorCode(
+        await rejected(() =>
+          insertAuditEvent({
+            result: { status: 'failed' },
+            correlation: { runId: 'run-test', idempotencyKey: 'PRIVATE_PROMPT_MARKER' },
+          }),
+        ),
+      ),
+    ).toBe(CHECK_VIOLATION);
+    expect(
+      pgErrorCode(
+        await rejected(() =>
+          insertAuditEvent({
+            result: { status: 'failed' },
+            correlation: { runId: 'run-test' },
+            resource: { prompt: 'PRIVATE_PROMPT_MARKER' },
+          }),
+        ),
+      ),
+    ).toBe(CHECK_VIOLATION);
   });
 });

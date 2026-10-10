@@ -1,11 +1,7 @@
 import React from 'react';
 import { Text } from 'react-native';
 import { render, fireEvent, waitFor } from '@testing-library/react';
-import {
-  __resetOxyState,
-  __setOxyState,
-  __setOnlineStatus,
-} from '@/__mocks__/oxy-services';
+import { __resetOxyState, __setOxyState, __setOnlineStatus } from '@/__mocks__/oxy-services';
 import { __resetAsyncStorage } from '@/__mocks__/async-storage';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 

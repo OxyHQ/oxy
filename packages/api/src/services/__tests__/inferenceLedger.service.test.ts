@@ -33,10 +33,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountBalances } from '../../db/schema/accountBalances';
-import {
-  billingLedgerEntries,
-  billingLedgerPostings,
-} from '../../db/schema/billingLedgerEntries';
+import { billingLedgerEntries, billingLedgerPostings } from '../../db/schema/billingLedgerEntries';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { billingProfiles } from '../../db/schema/billingProfiles';
@@ -110,7 +107,9 @@ async function insertPriceVersion(): Promise<string> {
   return version.id;
 }
 
-async function makeFixture(options: { fund?: string; promotional?: string } = {}): Promise<Fixture> {
+async function makeFixture(
+  options: { fund?: string; promotional?: string } = {},
+): Promise<Fixture> {
   const suffix = randomUUID().slice(0, 8);
   const [account] = await getDb()
     .insert(users)
@@ -182,7 +181,7 @@ async function makeFixture(options: { fund?: string; promotional?: string } = {}
 /** Compare two exact decimal strings numerically — `3.0` and `3.000` are one amount. */
 async function expectAmount(actual: string, expected: string): Promise<void> {
   const rows = await getDb().execute(
-    sql`select (${actual}::numeric = ${expected}::numeric) as equal`
+    sql`select (${actual}::numeric = ${expected}::numeric) as equal`,
   );
   expect({ actual, expected, equal: rows[0].equal }).toEqual({ actual, expected, equal: true });
 }
@@ -242,7 +241,7 @@ async function countBalanceRowWaiters(holderPid: number): Promise<number> {
 async function waitForBlockedContenders(
   holderPid: number,
   expected = 1,
-  timeoutMs = 15_000
+  timeoutMs = 15_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let seen = 0;
@@ -253,7 +252,7 @@ async function waitForBlockedContenders(
   }
   throw new Error(
     `only ${seen} of ${expected} backends ever blocked on pid ${holderPid} — ` +
-    'the path under test did not take the balance row lock'
+      'the path under test did not take the balance row lock',
   );
 }
 
@@ -293,8 +292,7 @@ describe('billing profiles are provisioned deliberately, for accounts of any kin
         parentAccountId: parent.accountId,
       })
       .returning({ id: users.id });
-    await getDb()
-      .execute(sql`insert into user_ancestors (user_id, depth, ancestor_id)
+    await getDb().execute(sql`insert into user_ancestors (user_id, depth, ancestor_id)
                    values (${project.id}, 0, ${parent.accountId})`);
 
     const resolution = await resolveBillingAccount(getDb(), project.id);
@@ -732,7 +730,7 @@ describe('a completed request that metered nothing is refused, not estimated', (
   async function reserveThenSettle(
     f: Fixture,
     outcome: 'completed' | 'failed' | 'cancelled' | 'partial',
-    units: Record<string, number>
+    units: Record<string, number>,
   ) {
     const reserved = await reserve({
       idempotencyKey: `r-${randomUUID()}`,
@@ -951,14 +949,24 @@ describe('cached and reasoning tokens are priced as siblings, never as details o
     await getDb()
       .insert(priceVersionUnitPrices)
       .values([
-        { priceVersionId: version.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
+        {
+          priceVersionId: version.id,
+          unit: 'input_tokens',
+          amount: '3.000000000000',
+          per: 1_000_000,
+        },
         {
           priceVersionId: version.id,
           unit: 'cached_input_tokens',
           amount: '0.300000000000',
           per: 1_000_000,
         },
-        { priceVersionId: version.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
+        {
+          priceVersionId: version.id,
+          unit: 'output_tokens',
+          amount: '15.000000000000',
+          per: 1_000_000,
+        },
         {
           priceVersionId: version.id,
           unit: 'reasoning_tokens',
@@ -970,7 +978,7 @@ describe('cached and reasoning tokens are priced as siblings, never as details o
   }
 
   async function settleReport(
-    units: Record<string, number>
+    units: Record<string, number>,
   ): Promise<{ billedAmount: string; receiptId: string }> {
     const f = await makeFixture({ fund: '10.000000000000' });
     const priceVersionId = await insertTokenPriceVersion();
@@ -1033,7 +1041,7 @@ describe('cached and reasoning tokens are priced as siblings, never as details o
     // exists for is not "the number moved", it is "the cached and reasoning
     // tokens were charged a second time, at their parents' prices".
     const [difference] = await getDb().execute(
-      sql`select (${nested}::numeric - ${partitioned}::numeric)::text as overcharge`
+      sql`select (${nested}::numeric - ${partitioned}::numeric)::text as overcharge`,
     );
     await expectAmount(String(difference.overcharge), OVERCHARGE);
   });
@@ -1315,15 +1323,17 @@ describe('spending limits stop a request before it executes', () => {
 
   it('lets a soft-stop budget through, and says it was passed', async () => {
     const f = await makeFixture({ fund: '100.000000000000' });
-    await getDb().insert(spendingLimits).values({
-      accountId: f.accountId,
-      scope: 'credential',
-      scopeApplicationCredentialId: f.credentialId,
-      period: 'daily',
-      limitAmount: '1.000000000000',
-      enforcement: 'soft_stop',
-      alertThresholdBps: [7500, 10000],
-    });
+    await getDb()
+      .insert(spendingLimits)
+      .values({
+        accountId: f.accountId,
+        scope: 'credential',
+        scopeApplicationCredentialId: f.credentialId,
+        period: 'daily',
+        limitAmount: '1.000000000000',
+        enforcement: 'soft_stop',
+        alertThresholdBps: [7500, 10000],
+      });
 
     const result = await reserve({
       idempotencyKey: `r-${randomUUID()}`,
@@ -1353,15 +1363,17 @@ describe('spending limits stop a request before it executes', () => {
 
   it('records a crossed threshold once per period, not once per request', async () => {
     const f = await makeFixture({ fund: '100.000000000000' });
-    await getDb().insert(spendingLimits).values({
-      accountId: f.accountId,
-      scope: 'application',
-      scopeApplicationId: f.applicationId,
-      period: 'monthly',
-      limitAmount: '10.000000000000',
-      enforcement: 'soft_stop',
-      alertThresholdBps: [2500],
-    });
+    await getDb()
+      .insert(spendingLimits)
+      .values({
+        accountId: f.accountId,
+        scope: 'application',
+        scopeApplicationId: f.applicationId,
+        period: 'monthly',
+        limitAmount: '10.000000000000',
+        enforcement: 'soft_stop',
+        alertThresholdBps: [2500],
+      });
 
     for (let index = 0; index < 3; index += 1) {
       await reserve({
@@ -1401,14 +1413,14 @@ describe('two reserves against one account are serialized by the balance row', (
 
       await holder.unsafe(
         'select * from account_balances where account_id = $1 and currency = $2 for update',
-        [f.accountId, 'USD']
+        [f.accountId, 'USD'],
       );
 
       // Drain the balance from inside the holding transaction. Uncommitted, so
       // a contender that read WITHOUT taking the lock would still see $5.
       await holder.unsafe(
         'update account_balances set purchased_balance = 0 where account_id = $1 and currency = $2',
-        [f.accountId, 'USD']
+        [f.accountId, 'USD'],
       );
 
       const contender = reserve({
@@ -1483,8 +1495,8 @@ describe('two reserves against one account are serialized by the balance row', (
       .where(
         and(
           eq(billingLedgerEntries.reservationId, reserved.reservation.reservationId),
-          eq(billingLedgerEntries.kind, 'reservation_hold')
-        )
+          eq(billingLedgerEntries.kind, 'reservation_hold'),
+        ),
       );
     expect(entries.length).toBe(1);
 
@@ -1558,8 +1570,8 @@ describe('two expiry sweeps over one hold release it exactly once', () => {
       .where(
         and(
           eq(billingLedgerEntries.reservationId, reservationId),
-          eq(billingLedgerEntries.kind, 'reservation_expiry')
-        )
+          eq(billingLedgerEntries.kind, 'reservation_expiry'),
+        ),
       );
     return rows.length;
   }
@@ -1588,7 +1600,7 @@ describe('two expiry sweeps over one hold release it exactly once', () => {
 
       await holder.unsafe(
         'select * from account_balances where account_id = $1 and currency = $2 for update',
-        [f.accountId, 'USD']
+        [f.accountId, 'USD'],
       );
 
       const sweeps = Promise.all([expireReservations(500), expireReservations(500)]);
@@ -1746,7 +1758,7 @@ describe('a delegated user never changes who is charged', () => {
  */
 describe('the journal records who authored each entry', () => {
   async function actorOf(
-    idempotencyKey: string
+    idempotencyKey: string,
   ): Promise<{ actorKind: string | null; actorUserId: string | null }> {
     const [row] = await getDb()
       .select({
@@ -1906,25 +1918,34 @@ describe('the journal records who authored each entry', () => {
   });
 });
 
-
 describe('internal promotional-only reservations', () => {
   function input(f: Fixture, maxAmount = '1.000000000000') {
     return {
-      idempotencyKey: `promo-${randomUUID()}`, attribution: f.attribution,
-      ceilingPriceVersionId: f.priceVersionId, maxAmount, currency: 'USD',
-      expiresInSeconds: 300, fundingRestriction: 'promotional-only' as const,
+      idempotencyKey: `promo-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: f.priceVersionId,
+      maxAmount,
+      currency: 'USD',
+      expiresInSeconds: 300,
+      fundingRestriction: 'promotional-only' as const,
     };
   }
 
   it('refuses a mixed balance and invoice credit without writing a hold', async () => {
     const f = await makeFixture({ promotional: '0.5', fund: '10' });
-    await getDb().update(billingProfiles).set({ billingMode: 'invoiced', creditLimit: '100' })
+    await getDb()
+      .update(billingProfiles)
+      .set({ billingMode: 'invoiced', creditLimit: '100' })
       .where(eq(billingProfiles.accountId, f.accountId));
     const restricted = await reserve(input(f));
     expect(restricted.status).toBe('insufficient-funds');
     if (restricted.status === 'insufficient-funds') await expectAmount(restricted.available, '0.5');
-    expect(await getDb().select().from(usageReservations)
-      .where(eq(usageReservations.accountId, f.accountId))).toEqual([]);
+    expect(
+      await getDb()
+        .select()
+        .from(usageReservations)
+        .where(eq(usageReservations.accountId, f.accountId)),
+    ).toEqual([]);
     const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
     await expectAmount(balance!.promotionalBalance, '0.5');
     await expectAmount(balance!.purchasedBalance, '10');
@@ -1940,10 +1961,15 @@ describe('internal promotional-only reservations', () => {
     expect(held.status).toBe('reserved');
     if (held.status !== 'reserved') throw new Error('missing hold');
     const result = await settle({
-      idempotencyKey: `settle-${randomUUID()}`, attribution: f.attribution,
-      reservationId: held.reservation.reservationId, priceVersionId: f.priceVersionId,
-      units: { input_tokens: 100000 }, outcome: 'completed', usageSource: 'provider_reported',
-      resolvedModelReference: 'oxy/synthetic', servingProvider: 'oxy-hosted',
+      idempotencyKey: `settle-${randomUUID()}`,
+      attribution: f.attribution,
+      reservationId: held.reservation.reservationId,
+      priceVersionId: f.priceVersionId,
+      units: { input_tokens: 100000 },
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      resolvedModelReference: 'oxy/synthetic',
+      servingProvider: 'oxy-hosted',
     });
     expect(result.status).toBe('settled');
     const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
@@ -1958,17 +1984,23 @@ describe('internal promotional-only reservations', () => {
     const held = await reserve(input(f));
     if (held.status !== 'reserved') throw new Error('missing hold');
     const result = await settle({
-      idempotencyKey: `settle-${randomUUID()}`, attribution: f.attribution,
-      reservationId: held.reservation.reservationId, priceVersionId: f.priceVersionId,
-      units: { input_tokens: 1000000 }, outcome: 'completed', usageSource: 'provider_reported',
-      resolvedModelReference: 'oxy/synthetic', servingProvider: 'oxy-hosted',
+      idempotencyKey: `settle-${randomUUID()}`,
+      attribution: f.attribution,
+      reservationId: held.reservation.reservationId,
+      priceVersionId: f.priceVersionId,
+      units: { input_tokens: 1000000 },
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      resolvedModelReference: 'oxy/synthetic',
+      servingProvider: 'oxy-hosted',
     });
     expect(result.status).toBe('settlement-exceeds-reservation');
     const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
     await expectAmount(balance!.purchasedBalance, '10');
     await expectAmount(balance!.reservedBalance, '1');
-    expect(await getDb().select().from(usageReceipts)
-      .where(eq(usageReceipts.accountId, f.accountId))).toEqual([]);
+    expect(
+      await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, f.accountId)),
+    ).toEqual([]);
   });
 
   it('refuses an existing unrestricted hold instead of converting or adding a hold', async () => {
@@ -1991,8 +2023,13 @@ describe('internal promotional-only reservations', () => {
     try {
       await holder.unsafe('begin');
       const [{ pid }] = await holder.unsafe<{ pid: number }[]>('select pg_backend_pid() as pid');
-      await holder.unsafe('select * from account_balances where account_id = $1 for update', [f.accountId]);
-      await holder.unsafe('update account_balances set promotional_balance = 0 where account_id = $1', [f.accountId]);
+      await holder.unsafe('select * from account_balances where account_id = $1 for update', [
+        f.accountId,
+      ]);
+      await holder.unsafe(
+        'update account_balances set promotional_balance = 0 where account_id = $1',
+        [f.accountId],
+      );
       contender = reserve(input(f));
       await waitForBlockedContenders(pid);
       await holder.unsafe('commit');

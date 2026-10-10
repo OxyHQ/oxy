@@ -10,7 +10,8 @@ export function startWorkerActivity(
   ready: () => boolean,
   create: (options: EcosystemTrafficOptions) => Publisher = createEcosystemTraffic,
 ): Publisher | undefined {
-  if (!process.env.OXY_ACTIVITY_API_KEY?.trim() || !process.env.OXY_ACTIVITY_API_SECRET?.trim()) return undefined;
+  if (!process.env.OXY_ACTIVITY_API_KEY?.trim() || !process.env.OXY_ACTIVITY_API_SECRET?.trim())
+    return undefined;
   const region = normalizeInfrastructureRegion(process.env.AWS_REGION);
   if (!region) throw new Error('Worker activity requires a valid AWS_REGION');
   if (publisher) throw new Error('Worker activity is already running');
@@ -22,9 +23,13 @@ export function startWorkerActivity(
 /** Only bounded producer infrastructure metadata crosses into public aggregates. */
 export function observeAssetJob(sourceRegion: unknown): void {
   publisher?.record({
-    scope: 'internal', direction: 'inbound', activityType: 'media',
-    sourceService: 'oxy-api', sourceRegion: normalizeInfrastructureRegion(sourceRegion),
-    targetService: 'oxy-asset-variant-worker', targetRegion: process.env.AWS_REGION,
+    scope: 'internal',
+    direction: 'inbound',
+    activityType: 'media',
+    sourceService: 'oxy-api',
+    sourceRegion: normalizeInfrastructureRegion(sourceRegion),
+    targetService: 'oxy-asset-variant-worker',
+    targetRegion: process.env.AWS_REGION,
   });
 }
 

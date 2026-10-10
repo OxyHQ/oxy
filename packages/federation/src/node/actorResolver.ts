@@ -314,9 +314,11 @@ function sameOriginUrl(a: string, b: string): boolean {
   try {
     const urlA = new URL(a);
     const urlB = new URL(b);
-    return urlA.protocol === urlB.protocol
-      && urlA.port === urlB.port
-      && isSameFederationHost(urlA.hostname, urlB.hostname);
+    return (
+      urlA.protocol === urlB.protocol &&
+      urlA.port === urlB.port &&
+      isSameFederationHost(urlA.hostname, urlB.hostname)
+    );
   } catch {
     return false;
   }
@@ -387,9 +389,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     try {
       const data = await this.config.fetchWebFinger(url);
       if (!data) return null;
-      const link = data.links?.find(
-        (l) => l.rel === 'self' && isApActorContentType(l.type),
-      );
+      const link = data.links?.find((l) => l.rel === 'self' && isApActorContentType(l.type));
       return link?.href || null;
     } catch (err) {
       this.config.logger.warn(`WebFinger resolution failed for ${acct}:`, err);
@@ -419,7 +419,9 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       // throws here and is handled by the catch below.
       const requestedHost = new URL(currentUri).hostname.toLowerCase();
       if (this.config.isBlockedDomain(requestedHost)) {
-        this.config.logger.info(`[FedSync] fetchRemoteActor skipping own/blocked domain ${requestedHost} for ${currentUri}`);
+        this.config.logger.info(
+          `[FedSync] fetchRemoteActor skipping own/blocked domain ${requestedHost} for ${currentUri}`,
+        );
         return null;
       }
 
@@ -431,20 +433,27 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         // through to the WebFinger fallback (which recovers a STALE/wrong URI on a
         // transient failure, not a permanent removal). Only 410 does this.
         if (res.status === 410) {
-          this.config.logger.info(`[FedSync] fetchRemoteActor 410 Gone for ${currentUri} — tombstoning actor`);
+          this.config.logger.info(
+            `[FedSync] fetchRemoteActor 410 Gone for ${currentUri} — tombstoning actor`,
+          );
           await this.tombstoneGoneActor(currentUri);
           return null;
         }
         const body = await readBoundedResponseBody(res, ERROR_BODY_MAX_BYTES).catch(() => '');
-        this.config.logger.info(`[FedSync] fetchRemoteActor HTTP ${res.status} ${res.statusText} for ${currentUri} body=${body.slice(0, 500)}`);
+        this.config.logger.info(
+          `[FedSync] fetchRemoteActor HTTP ${res.status} ${res.statusText} for ${currentUri} body=${body.slice(0, 500)}`,
+        );
 
         // If direct fetch failed, try WebFinger to resolve the canonical actor URI.
         // Some servers (e.g., Threads) use numeric IDs in AP URIs that differ from
         // the username-based URI we may have stored.
         const parsed = new URL(currentUri);
         const pathUsername = parsed.pathname.split('/').filter(Boolean).pop();
-        const acct = canonicalAcctHint
-          || (pathUsername ? this.config.normalizeFederatedAcct(`${pathUsername}@${parsed.hostname}`) : undefined);
+        const acct =
+          canonicalAcctHint ||
+          (pathUsername
+            ? this.config.normalizeFederatedAcct(`${pathUsername}@${parsed.hostname}`)
+            : undefined);
         if (acct) {
           this.config.logger.info(`[FedSync] attempting WebFinger fallback for ${acct}`);
           const resolved = await this.resolveWebFinger(acct);
@@ -457,16 +466,24 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
               // A 410 on the WebFinger-RESOLVED URI is just as definitive. Tombstone
               // against the stored URI (not reassigned on this branch).
               if (res.status === 410) {
-                this.config.logger.info(`[FedSync] fetchRemoteActor 410 Gone for resolved ${resolved} — tombstoning actor ${currentUri}`);
+                this.config.logger.info(
+                  `[FedSync] fetchRemoteActor 410 Gone for resolved ${resolved} — tombstoning actor ${currentUri}`,
+                );
                 await this.tombstoneGoneActor(currentUri);
                 return null;
               }
-              const body2 = await readBoundedResponseBody(res, ERROR_BODY_MAX_BYTES).catch(() => '');
-              this.config.logger.info(`[FedSync] fetchRemoteActor HTTP ${res.status} for resolved ${resolved} body=${body2.slice(0, 500)}`);
+              const body2 = await readBoundedResponseBody(res, ERROR_BODY_MAX_BYTES).catch(
+                () => '',
+              );
+              this.config.logger.info(
+                `[FedSync] fetchRemoteActor HTTP ${res.status} for resolved ${resolved} body=${body2.slice(0, 500)}`,
+              );
               return null;
             }
           } else {
-            this.config.logger.info(`[FedSync] WebFinger returned ${resolved ?? 'null'} for ${acct}`);
+            this.config.logger.info(
+              `[FedSync] WebFinger returned ${resolved ?? 'null'} for ${acct}`,
+            );
             return null;
           }
         } else {
@@ -478,42 +495,53 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       const actorId = asString(actor.id);
       const actorInbox = asString(actor.inbox);
       if (!actorId || !actorInbox) {
-        this.config.logger.info(`[FedSync] fetchRemoteActor missing fields for ${currentUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${String(actor.type)} keys=${Object.keys(actor).join(',')}`);
+        this.config.logger.info(
+          `[FedSync] fetchRemoteActor missing fields for ${currentUri}: id=${!!actor.id} inbox=${!!actor.inbox} type=${String(actor.type)} keys=${Object.keys(actor).join(',')}`,
+        );
         return null;
       }
 
       if (!sameOriginUrl(currentUri, actorId)) {
-        this.config.logger.warn(`[FedSync] rejecting actor ${currentUri}: fetched URI is not authoritative for claimed id ${actorId}`);
+        this.config.logger.warn(
+          `[FedSync] rejecting actor ${currentUri}: fetched URI is not authoritative for claimed id ${actorId}`,
+        );
         return null;
       }
 
       if (!actorPublicKeyIsSelfConsistent(actor, actorId)) {
-        this.config.logger.warn(`[FedSync] rejecting actor ${currentUri}: publicKey is not self-consistent for claimed id ${actorId}`);
+        this.config.logger.warn(
+          `[FedSync] rejecting actor ${currentUri}: publicKey is not self-consistent for claimed id ${actorId}`,
+        );
         return null;
       }
 
       const actorHost = new URL(actorId).hostname.toLowerCase();
-      const username = this.config.text.inlineField(actor.preferredUsername)
-        || this.config.text.inlineField(actor.name)
-        || 'unknown';
-      const actorWebfinger = typeof actor.webfinger === 'string'
-        ? this.config.normalizeFederatedAcct(actor.webfinger)
-        : undefined;
+      const username =
+        this.config.text.inlineField(actor.preferredUsername) ||
+        this.config.text.inlineField(actor.name) ||
+        'unknown';
+      const actorWebfinger =
+        typeof actor.webfinger === 'string'
+          ? this.config.normalizeFederatedAcct(actor.webfinger)
+          : undefined;
       const verifiedAcctHint = this.acctMatchesActorHost(canonicalAcctHint, actorHost)
         ? canonicalAcctHint
         : undefined;
       const verifiedActorWebfinger = this.acctMatchesActorHost(actorWebfinger, actorHost)
         ? actorWebfinger
         : undefined;
-      const acct = verifiedAcctHint
-        || verifiedActorWebfinger
-        || this.config.normalizeFederatedAcct(`${username}@${actorHost}`)
-        || `${username.toLowerCase()}@${actorHost}`;
+      const acct =
+        verifiedAcctHint ||
+        verifiedActorWebfinger ||
+        this.config.normalizeFederatedAcct(`${username}@${actorHost}`) ||
+        `${username.toLowerCase()}@${actorHost}`;
       const domain = this.config.domainFromAcct(acct) || actorHost;
       // Re-check against the RESOLVED host/acct (post-redirect / WebFinger), which
       // can differ from the originally-requested URI host the early guard screened.
       if (this.config.isBlockedDomain(domain) || this.config.isBlockedDomain(actorHost)) {
-        this.config.logger.info(`[FedSync] fetchRemoteActor blocked domain ${domain} actorHost=${actorHost} for ${currentUri}`);
+        this.config.logger.info(
+          `[FedSync] fetchRemoteActor blocked domain ${domain} actorHost=${actorHost} for ${currentUri}`,
+        );
         return null;
       }
 
@@ -536,9 +564,10 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
           const attRecord = asRecord(att);
           if (!attRecord || attRecord.type !== 'PropertyValue') continue;
           const fieldName = this.config.text.inlineField(attRecord.name);
-          const fieldValue = typeof attRecord.value === 'string'
-            ? this.config.text.sanitizeFieldValue(attRecord.value)
-            : '';
+          const fieldValue =
+            typeof attRecord.value === 'string'
+              ? this.config.text.sanitizeFieldValue(attRecord.value)
+              : '';
           if (!fieldName || !fieldValue) continue;
           fields.push({
             name: fieldName,
@@ -552,7 +581,8 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       const headerUrl = this.config.firstStringUrl(actor.image);
       // `summary` is the actor's bio — a BODY, so its line breaks are the author's
       // and must survive; `htmlToPlainText` normalizes it as multiline.
-      const summary = typeof actor.summary === 'string' ? this.config.text.htmlToPlainText(actor.summary) : '';
+      const summary =
+        typeof actor.summary === 'string' ? this.config.text.htmlToPlainText(actor.summary) : '';
       // The display name is one line. Entity-decode FIRST (an encoded `&#10;` or
       // `&nbsp;` only becomes whitespace once decoded), THEN collapse.
       const rawDisplayName = typeof actor.name === 'string' ? actor.name : '';
@@ -617,7 +647,8 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         featuredTagsUrl: asString(actor.featuredTags) || undefined,
         alsoKnownAs,
         networkAcct: networkIdentity?.federatedUsername,
-        remoteCreatedAt: typeof actor.published === 'string' ? new Date(actor.published) : undefined,
+        remoteCreatedAt:
+          typeof actor.published === 'string' ? new Date(actor.published) : undefined,
         // Omitted, not written as `undefined`, when this refresh could not tell:
         // an absent key is what tells the store to keep the value it has.
         ...(followersCount !== undefined && { followersCount }),
@@ -663,7 +694,9 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
             postsCount: postsCount ?? undefined,
             oxyUserId: fedActor.oxyUserId ?? undefined,
           };
-          const oxyId = await this.config.identity.resolveExternalUser(normalized, { forceAvatarRefresh });
+          const oxyId = await this.config.identity.resolveExternalUser(normalized, {
+            forceAvatarRefresh,
+          });
           if (oxyId && fedActor.oxyUserId !== oxyId && fedActor._id != null) {
             await this.config.store.setActorOxyUserId(fedActor._id, oxyId);
           }
@@ -691,9 +724,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
    * actor. The refusal is logged: it is a bug in the app's rule, not a normal
    * outcome, and it must not pass silently.
    */
-  private resolveNetworkIdentity(
-    candidate: NetworkIdentityCandidate,
-  ): NetworkIdentity | undefined {
+  private resolveNetworkIdentity(candidate: NetworkIdentityCandidate): NetworkIdentity | undefined {
     const derived = this.config.deriveNetworkIdentity?.(candidate);
     if (!derived) return undefined;
 
@@ -707,13 +738,13 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     const atIndex = federatedUsername.indexOf('@');
     const localPart = atIndex > 0 ? federatedUsername.slice(0, atIndex) : '';
     if (
-      domain.length === 0
-      || localPart.length === 0
-      || federatedUsername !== `${localPart}@${domain}`
+      domain.length === 0 ||
+      localPart.length === 0 ||
+      federatedUsername !== `${localPart}@${domain}`
     ) {
       this.config.logger.warn(
-        `[FedSync] refusing network identity for ${candidate.actorUri}: `
-        + `"${derived.federatedUsername}" is not bindable to domain "${derived.instanceDomain}"`,
+        `[FedSync] refusing network identity for ${candidate.actorUri}: ` +
+          `"${derived.federatedUsername}" is not bindable to domain "${derived.instanceDomain}"`,
       );
       return undefined;
     }
@@ -733,7 +764,9 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     try {
       const actor = await this.config.store.tombstoneActor(actorUri);
       if (!actor) {
-        this.config.logger.info(`[FedSync] 410 Gone for ${actorUri} — no stored actor row to tombstone`);
+        this.config.logger.info(
+          `[FedSync] 410 Gone for ${actorUri} — no stored actor row to tombstone`,
+        );
         return;
       }
 
@@ -741,7 +774,9 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 
       if (actor.oxyUserId) {
         const outcome = await this.config.identity.reportActorGone(actor.oxyUserId);
-        this.config.logger.info(`[FedSync] actor-gone report for ${actorUri} (oxyUserId ${actor.oxyUserId}) → ${outcome}`);
+        this.config.logger.info(
+          `[FedSync] actor-gone report for ${actorUri} (oxyUserId ${actor.oxyUserId}) → ${outcome}`,
+        );
       }
     } catch (err) {
       this.config.logger.warn(`[FedSync] failed to tombstone gone actor ${actorUri}:`, err);
@@ -793,12 +828,15 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     // instance that has ever reached us), blocking its domain changed nothing. That
     // made the blocklist inert for exactly the hosts it is added for.
     if (this.isBlockedActorUri(actorUri)) {
-      this.config.logger.info(`[FedSync] getOrFetchActor refusing own/blocked domain for ${actorUri}`);
+      this.config.logger.info(
+        `[FedSync] getOrFetchActor refusing own/blocked domain for ${actorUri}`,
+      );
       return null;
     }
     const existing = await this.config.store.findActorByUri(actorUri);
     if (existing) {
-      const isStale = !existing.lastFetchedAt || Date.now() - existing.lastFetchedAt.getTime() > ACTOR_STALE_MS;
+      const isStale =
+        !existing.lastFetchedAt || Date.now() - existing.lastFetchedAt.getTime() > ACTOR_STALE_MS;
       if (isStale) {
         // Refresh in the background — never block the caller on remote I/O.
         this.refreshActorInBackground(actorUri, existing);
@@ -820,8 +858,9 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 
     const missingProfile = !existing || !existing.avatarUrl || !existing.headerUrl;
     const lastFetchedMs = existing?.lastFetchedAt?.getTime();
-    const refreshedRecently = typeof lastFetchedMs === 'number'
-      && Date.now() - lastFetchedMs < ACTOR_REFRESH_MIN_INTERVAL_MS;
+    const refreshedRecently =
+      typeof lastFetchedMs === 'number' &&
+      Date.now() - lastFetchedMs < ACTOR_REFRESH_MIN_INTERVAL_MS;
 
     // Skip if we refreshed recently AND the cached profile is already complete.
     if (refreshedRecently && !missingProfile) return;
@@ -835,7 +874,9 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         await this.fetchRemoteActor(actorUri, forceAvatarRefresh, existing?.acct);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        this.config.logger.warn(`[FedSync] background actor refresh failed for ${actorUri}: ${message}`);
+        this.config.logger.warn(
+          `[FedSync] background actor refresh failed for ${actorUri}: ${message}`,
+        );
       } finally {
         this.inFlightActorRefreshes.delete(actorUri);
       }

@@ -126,7 +126,9 @@ function filler(extra = {}) {
     'src/config.ts': "export const apiBase = 'https://api.oxy.so';\n",
   };
   for (const entry of allowed) {
-    const body = Array.from({ length: entry.occurrences }, () => sampleFor(entry.rule)).join('\n\n');
+    const body = Array.from({ length: entry.occurrences }, () => sampleFor(entry.rule)).join(
+      '\n\n',
+    );
     files[entry.file] = `${body}\n`;
   }
   return { ...files, ...extra };
@@ -219,8 +221,7 @@ const cases = [
     // committed here for the scanner to find in its own test.
     name: 'a Stripe TEST-mode key is reported, not excused as a placeholder',
     files: filler({
-      'packages/api/src/services/billing.ts':
-        `const key = '${sampleFor('stripe-key').replace('_live_', '_test_')}';\n`,
+      'packages/api/src/services/billing.ts': `const key = '${sampleFor('stripe-key').replace('_live_', '_test_')}';\n`,
     }),
     expectFailure: true,
     expectOutput: 'stripe-key',
@@ -244,9 +245,9 @@ const cases = [
     name: 'two short PEM placeholders in one file do NOT fire',
     files: filler({
       'docs/EMAIL.md':
-        'DKIM_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\\nYOUR_KEY_HERE\\n-----END RSA PRIVATE KEY-----"\n'
-        + `${'Prose about how DKIM signing works.\n'.repeat(70)}`
-        + 'DKIM_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\\nMIIEpAIBAAK...\\n-----END RSA PRIVATE KEY-----"\n',
+        'DKIM_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\\nYOUR_KEY_HERE\\n-----END RSA PRIVATE KEY-----"\n' +
+        `${'Prose about how DKIM signing works.\n'.repeat(70)}` +
+        'DKIM_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\\nMIIEpAIBAAK...\\n-----END RSA PRIVATE KEY-----"\n',
     }),
     expectFailure: false,
   },
@@ -271,7 +272,8 @@ const cases = [
     // compiled artifact or a font-adjacent blob looks like.
     name: 'a token inside a file with a NUL byte is still found',
     files: filler({
-      'packages/services/assets/blob.bin': NUL + 'binary preamble ' + sampleFor('github-token') + ' tail' + NUL,
+      'packages/services/assets/blob.bin':
+        NUL + 'binary preamble ' + sampleFor('github-token') + ' tail' + NUL,
     }),
     expectFailure: true,
     expectOutput: 'github-token',
@@ -340,16 +342,16 @@ for (const testCase of cases) {
 
   if (didFail !== testCase.expectFailure) {
     console.error(
-      `FAIL ${testCase.name}: expected ${testCase.expectFailure ? 'a failure' : 'a pass'}, `
-      + `got exit ${exitCode}\n${output}`,
+      `FAIL ${testCase.name}: expected ${testCase.expectFailure ? 'a failure' : 'a pass'}, ` +
+        `got exit ${exitCode}\n${output}`,
     );
     failed += 1;
     continue;
   }
   if (testCase.expectOutput && !output.includes(testCase.expectOutput)) {
     console.error(
-      `FAIL ${testCase.name}: failed as expected, but the message never said `
-      + `"${testCase.expectOutput}"\n${output}`,
+      `FAIL ${testCase.name}: failed as expected, but the message never said ` +
+        `"${testCase.expectOutput}"\n${output}`,
     );
     failed += 1;
     continue;
@@ -369,6 +371,6 @@ if (failed > 0) {
   process.exit(1);
 }
 console.log(
-  `\nAll ${cases.length} secret-scan cases passed — ${rules.length} rules and `
-  + `${allowed.length} allow-list entries, taken from the gate itself.`,
+  `\nAll ${cases.length} secret-scan cases passed — ${rules.length} rules and ` +
+    `${allowed.length} allow-list entries, taken from the gate itself.`,
 );

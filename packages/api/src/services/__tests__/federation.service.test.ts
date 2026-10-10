@@ -182,9 +182,21 @@ async function seedFederatedUser(
       ...over,
     })
     .returning({ id: users.id });
-  if ((!over.username || over.username.toLowerCase() === fx.handle.toLowerCase()) && !over.federationDomain) {
-    await getDb().insert(externalIdentities).values({ canonicalAcct: fx.handle.toLowerCase(), userId: row.id, network: fx.domain });
-    await getDb().insert(externalIdentityActors).values({ actorUri: fx.actorUri, canonicalAcct: fx.handle.toLowerCase(), transportAcct: `${fx.handle.split('@')[0].toLowerCase()}@${new URL(fx.actorUri).hostname.replace(/^www\./, '')}`, protocol: 'activitypub' });
+  if (
+    (!over.username || over.username.toLowerCase() === fx.handle.toLowerCase()) &&
+    !over.federationDomain
+  ) {
+    await getDb()
+      .insert(externalIdentities)
+      .values({ canonicalAcct: fx.handle.toLowerCase(), userId: row.id, network: fx.domain });
+    await getDb()
+      .insert(externalIdentityActors)
+      .values({
+        actorUri: fx.actorUri,
+        canonicalAcct: fx.handle.toLowerCase(),
+        transportAcct: `${fx.handle.split('@')[0].toLowerCase()}@${new URL(fx.actorUri).hostname.replace(/^www\./, '')}`,
+        protocol: 'activitypub',
+      });
   }
   return row.id;
 }
@@ -292,7 +304,8 @@ async function settleBackgroundWork(): Promise<void> {
   let awaited = 0;
   for (;;) {
     const jobs = [refreshWorkerSpy, avatarWorkerSpy].flatMap((spy) =>
-      spy.mock.results.map((result) => result.value as Promise<void>));
+      spy.mock.results.map((result) => result.value as Promise<void>),
+    );
     if (jobs.length === awaited) return;
     awaited = jobs.length;
     await Promise.allSettled(jobs);
@@ -320,7 +333,8 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     mockRecordAvatarOriginRateLimit.mockResolvedValue(30_000);
     webfingerSpy = jest.spyOn(federationService, 'resolveWebFingerResource');
     actorSpy = jest.spyOn(federationService, 'fetchActorProfile');
-    avatarSpy = jest.spyOn(federationService, 'downloadAndStoreAvatar')
+    avatarSpy = jest
+      .spyOn(federationService, 'downloadAndStoreAvatar')
       .mockResolvedValue({ fileId: 'new-file-id', notModified: false });
   });
 
@@ -370,7 +384,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: fx.handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Updated',
@@ -412,7 +428,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: fx.handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Updated',
@@ -435,7 +453,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: fx.handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Back',
@@ -464,7 +484,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: fx.handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Repaired',
@@ -495,7 +517,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: fx.handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Conditional',
@@ -530,7 +554,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: fx.handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice',
@@ -561,7 +587,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: fx.handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice',
@@ -575,7 +603,12 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     expect(webfingerSpy).toHaveBeenCalledWith(fx.handle);
     expect(actorSpy).toHaveBeenCalledWith(fx.actorUri, fx.handle);
     await settleBackgroundWork();
-    expect(avatarSpy).toHaveBeenCalledWith(NEW_AVATAR_URL, undefined, { etag: undefined, lastModified: undefined }, userId);
+    expect(avatarSpy).toHaveBeenCalledWith(
+      NEW_AVATAR_URL,
+      undefined,
+      { etag: undefined, lastModified: undefined },
+      userId,
+    );
 
     const row = await storedUser(userId);
     expect(row).toMatchObject({
@@ -611,7 +644,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      transportAcct: fx.handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: fx.handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Moved',
@@ -641,7 +676,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       actorUri,
       domain: 'threads.net',
       username: handle,
-      transportAcct: handle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: handle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       displayName: 'Adam Mosseri',
       avatarUrl: undefined,
       bio: 'Threads profile',
@@ -678,7 +715,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       actorUri,
       domain: 'evil.example',
       username: requestedHandle,
-      transportAcct: requestedHandle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: requestedHandle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       displayName: 'Evil Attacker',
       avatarUrl: undefined,
       bio: 'not a trusted.example user',
@@ -708,7 +747,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       actorUri,
       domain: 'threads.net',
       username: canonicalHandle,
-      transportAcct: canonicalHandle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: canonicalHandle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       displayName: 'Adam Mosseri',
       avatarUrl: undefined,
       bio: 'Threads profile',
@@ -773,7 +814,9 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       actorUri,
       domain: bridgeDomain,
       username: bridgeHandle,
-      transportAcct: bridgeHandle, protocol: 'activitypub', evidenceLinks: [],
+      transportAcct: bridgeHandle,
+      protocol: 'activitypub',
+      evidenceLinks: [],
       displayName: 'Wired',
       bio: 'bridge bio',
     });
@@ -850,7 +893,8 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
 
   it('skips the forced re-download when lastAvatarFetchedAt is within the throttle window', async () => {
     const fx = nextFixture();
-    const avatarSpy = jest.spyOn(federationService, 'downloadAndStoreAvatar')
+    const avatarSpy = jest
+      .spyOn(federationService, 'downloadAndStoreAvatar')
       .mockResolvedValue({ fileId: 'should-not-be-used', notModified: false });
 
     // Persisted authority: avatar was fetched 1 minute ago — inside the 5min window.
@@ -881,12 +925,14 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
 
     // No spy on downloadAndStoreAvatar — exercise the REAL conditional-request
     // logic against a mocked safeFetch that returns 304 for a conditional request.
-    mockSafeFetch.mockImplementation((_url: string, init?: { headers?: Record<string, string> }) => {
-      // The stored validators must be replayed as conditional headers.
-      expect(init?.headers?.['If-None-Match']).toBe('"etag-v1"');
-      expect(init?.headers?.['If-Modified-Since']).toBe('Wed, 21 Oct 2025 07:28:00 GMT');
-      return Promise.resolve(makeSafeFetchResult(304, {}));
-    });
+    mockSafeFetch.mockImplementation(
+      (_url: string, init?: { headers?: Record<string, string> }) => {
+        // The stored validators must be replayed as conditional headers.
+        expect(init?.headers?.['If-None-Match']).toBe('"etag-v1"');
+        expect(init?.headers?.['If-Modified-Since']).toBe('Wed, 21 Oct 2025 07:28:00 GMT');
+        return Promise.resolve(makeSafeFetchResult(304, {}));
+      },
+    );
 
     // Stale by time so a forced refresh actually runs, but with stored validators.
     const fetchedAt = new Date(Date.now() - 10 * 60 * 1000); // 10min ago, outside window
@@ -931,7 +977,10 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
               etag: '"etag-v2"',
               'last-modified': 'Thu, 22 Oct 2025 07:28:00 GMT',
             },
-            Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('png-bytes')]),
+            Buffer.concat([
+              Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+              Buffer.from('png-bytes'),
+            ]),
           ),
         );
       });
@@ -970,7 +1019,8 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
 
   it('advances the fetch clock but keeps the avatar when the download fails', async () => {
     const fx = nextFixture();
-    const avatarSpy = jest.spyOn(federationService, 'downloadAndStoreAvatar')
+    const avatarSpy = jest
+      .spyOn(federationService, 'downloadAndStoreAvatar')
       .mockResolvedValue({ fileId: null, notModified: false });
 
     const fetchedAt = new Date(Date.now() - 10 * 60 * 1000);
@@ -1009,7 +1059,12 @@ describe('FederationService SSRF guards', () => {
   it('enforces https-only: an http avatar URL is rejected before reaching safeFetch', async () => {
     const result = await federationService.downloadAndStoreAvatar('http://cdn.example/avatar.png');
 
-    expect(result).toEqual({ fileId: null, notModified: false, failure: 'permanent', reason: 'not_https' });
+    expect(result).toEqual({
+      fileId: null,
+      notModified: false,
+      failure: 'permanent',
+      reason: 'not_https',
+    });
     expect(mockSafeFetch).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1017,9 +1072,16 @@ describe('FederationService SSRF guards', () => {
   it('drops an avatar when safeFetch rejects the target as a private/blocked address', async () => {
     mockSafeFetch.mockRejectedValue(new FakeSsrfRejection('hostname resolves to blocked range'));
 
-    const result = await federationService.downloadAndStoreAvatar('https://private.example/avatar.png');
+    const result = await federationService.downloadAndStoreAvatar(
+      'https://private.example/avatar.png',
+    );
 
-    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient', reason: 'transport' });
+    expect(result).toEqual({
+      fileId: null,
+      notModified: false,
+      failure: 'transient',
+      reason: 'transport',
+    });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1030,7 +1092,13 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar(avatarUrl);
 
-    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient', reason: 'rate_limited', httpStatus: 429 });
+    expect(result).toEqual({
+      fileId: null,
+      notModified: false,
+      failure: 'transient',
+      reason: 'rate_limited',
+      httpStatus: 429,
+    });
     expect(mockRecordAvatarOriginRateLimit).toHaveBeenCalledWith(avatarUrl, '120');
     expect(mockClearAvatarOriginFailures).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
@@ -1042,7 +1110,12 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar(avatarUrl);
 
-    expect(result).toEqual({ fileId: null, notModified: false, failure: 'transient', reason: 'origin_cooldown' });
+    expect(result).toEqual({
+      fileId: null,
+      notModified: false,
+      failure: 'transient',
+      reason: 'origin_cooldown',
+    });
     expect(mockSafeFetch).not.toHaveBeenCalled();
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1050,7 +1123,9 @@ describe('FederationService SSRF guards', () => {
   it('returns null from WebFinger when safeFetch rejects the resource host as private', async () => {
     mockSafeFetch.mockRejectedValue(new FakeSsrfRejection('literal ip in blocked range'));
 
-    await expect(federationService.resolveWebFingerResource('alice@trusted.example')).resolves.toBeNull();
+    await expect(
+      federationService.resolveWebFingerResource('alice@trusted.example'),
+    ).resolves.toBeNull();
 
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
@@ -1070,23 +1145,35 @@ describe('FederationService SSRF guards', () => {
 
     const result = await federationService.downloadAndStoreAvatar('https://cdn.example/huge.png');
 
-    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false, failure: 'permanent', reason: 'too_large' });
+    expect(result).toEqual({
+      fileId: null,
+      etag: undefined,
+      lastModified: undefined,
+      notModified: false,
+      failure: 'permanent',
+      reason: 'too_large',
+    });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
 
   it('rejects avatars whose streamed body exceeds the byte cap even without content-length', async () => {
     mockSafeFetch.mockResolvedValue(
-      makeSafeFetchResult(
-        200,
-        { 'content-type': 'image/png' },
-        Buffer.alloc(26 * 1024 * 1024),
-      ),
+      makeSafeFetchResult(200, { 'content-type': 'image/png' }, Buffer.alloc(26 * 1024 * 1024)),
     );
 
-    const result = await federationService.downloadAndStoreAvatar('https://cdn.example/streamed-huge.png');
+    const result = await federationService.downloadAndStoreAvatar(
+      'https://cdn.example/streamed-huge.png',
+    );
 
-    expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false, failure: 'permanent', reason: 'too_large' });
+    expect(result).toEqual({
+      fileId: null,
+      etag: undefined,
+      lastModified: undefined,
+      notModified: false,
+      failure: 'permanent',
+      reason: 'too_large',
+    });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
   });
@@ -1126,7 +1213,11 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
   });
 
   /** An actor document as a remote host would serve it. */
-  function actorDoc(actorUri: string, preferredUsername: string, extra: Record<string, unknown> = {}) {
+  function actorDoc(
+    actorUri: string,
+    preferredUsername: string,
+    extra: Record<string, unknown> = {},
+  ) {
     return JSON.stringify({
       id: actorUri,
       inbox: `${actorUri}/inbox`,
@@ -1136,7 +1227,11 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
     });
   }
 
-  function serveActor(actorUri: string, preferredUsername: string, extra?: Record<string, unknown>) {
+  function serveActor(
+    actorUri: string,
+    preferredUsername: string,
+    extra?: Record<string, unknown>,
+  ) {
     mockSafeFetch.mockResolvedValue(
       makeSafeFetchResult(
         200,
@@ -1179,7 +1274,11 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
     // for `x.com`. The derived identity must survive, not collapse back to the
     // bridge copy.
     const actorUri = 'https://bird.makeup/users/nasa';
-    serveActor(actorUri, 'nasa', { attachment: [{ name: 'Official', value: '<a href="https://x.com/nasa" rel="me">Official</a>' }] });
+    serveActor(actorUri, 'nasa', {
+      attachment: [
+        { name: 'Official', value: '<a href="https://x.com/nasa" rel="me">Official</a>' },
+      ],
+    });
 
     const profile = await federationService.fetchActorProfile(actorUri, 'nasa@x.com');
 
@@ -1200,28 +1299,49 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
   });
 });
 
-
 describe('federation source failure diagnostics', () => {
   const uri = 'https://remote.example/users/diagnostic';
-  beforeEach(() => { mockSafeFetch.mockReset(); jest.mocked(logger.warn).mockClear(); jest.mocked(logger.info).mockClear(); });
-
-  it.each([404, 429])('classifies HTTP %i without changing nullable profile behavior', async status => {
-    mockSafeFetch.mockImplementation(async () => makeSafeFetchResult(status, {}));
-    expect(await federationService.fetchActorProfileResult(uri)).toEqual({ ok: false, failure: {
-      operation: 'resolve_external_identity', phase: 'actor_fetch', reason: 'http_status', actorUri: uri, httpStatus: status,
-    } });
-    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
-    expect(await federationService.fetchActorProfile(uri)).toBeNull();
+  beforeEach(() => {
+    mockSafeFetch.mockReset();
+    jest.mocked(logger.warn).mockClear();
+    jest.mocked(logger.info).mockClear();
   });
+
+  it.each([404, 429])(
+    'classifies HTTP %i without changing nullable profile behavior',
+    async (status) => {
+      mockSafeFetch.mockImplementation(async () => makeSafeFetchResult(status, {}));
+      expect(await federationService.fetchActorProfileResult(uri)).toEqual({
+        ok: false,
+        failure: {
+          operation: 'resolve_external_identity',
+          phase: 'actor_fetch',
+          reason: 'http_status',
+          actorUri: uri,
+          httpStatus: status,
+        },
+      });
+      expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+      expect(await federationService.fetchActorProfile(uri)).toBeNull();
+    },
+  );
 
   it('retries an intermittent bridge 404 before it counts, and still fails a mirror that stays gone', async () => {
     const bridged = 'https://bird.makeup/users/flaky';
     mockSafeFetch.mockResolvedValue(makeSafeFetchResult(404, {}));
-    expect(await federationService.fetchActorProfileResult(bridged)).toMatchObject({ ok: false, failure: { httpStatus: 404 } });
+    expect(await federationService.fetchActorProfileResult(bridged)).toMatchObject({
+      ok: false,
+      failure: { httpStatus: 404 },
+    });
     expect(mockSafeFetch).toHaveBeenCalledTimes(3);
     mockSafeFetch.mockReset();
-    mockSafeFetch.mockResolvedValueOnce(makeSafeFetchResult(404, {})).mockResolvedValueOnce(makeSafeFetchResult(429, {}));
-    expect(await federationService.fetchActorProfileResult(bridged)).toMatchObject({ ok: false, failure: { httpStatus: 429 } });
+    mockSafeFetch
+      .mockResolvedValueOnce(makeSafeFetchResult(404, {}))
+      .mockResolvedValueOnce(makeSafeFetchResult(429, {}));
+    expect(await federationService.fetchActorProfileResult(bridged)).toMatchObject({
+      ok: false,
+      failure: { httpStatus: 429 },
+    });
     expect(mockSafeFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -1229,17 +1349,28 @@ describe('federation source failure diagnostics', () => {
     ['not JSON', 'unreadable_document'],
     [JSON.stringify({ id: uri }), 'missing_actor_fields'],
     [JSON.stringify({ id: uri + '/different', inbox: uri + '/inbox' }), 'actor_id_mismatch'],
-    [JSON.stringify({ id: uri, inbox: uri + '/inbox', preferredUsername: 'invalid@name' }), 'identity_policy_rejected'],
+    [
+      JSON.stringify({ id: uri, inbox: uri + '/inbox', preferredUsername: 'invalid@name' }),
+      'identity_policy_rejected',
+    ],
   ])('reports malformed source classification for %s', async (body, reason) => {
     mockSafeFetch.mockResolvedValue(makeSafeFetchResult(200, {}, body));
-    expect(await federationService.fetchActorProfileResult(uri)).toMatchObject({ ok: false, failure: { reason } });
+    expect(await federationService.fetchActorProfileResult(uri)).toMatchObject({
+      ok: false,
+      failure: { reason },
+    });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
   });
 
   it('keeps failures isolated across simultaneous actor requests', async () => {
     const other = uri + '-other';
-    mockSafeFetch.mockImplementation(async (url: string) => makeSafeFetchResult(url === uri ? 404 : 429, {}));
-    const results = await Promise.all([federationService.fetchActorProfileResult(uri), federationService.fetchActorProfileResult(other)]);
+    mockSafeFetch.mockImplementation(async (url: string) =>
+      makeSafeFetchResult(url === uri ? 404 : 429, {}),
+    );
+    const results = await Promise.all([
+      federationService.fetchActorProfileResult(uri),
+      federationService.fetchActorProfileResult(other),
+    ]);
     expect(results).toMatchObject([
       { ok: false, failure: { actorUri: uri, httpStatus: 404 } },
       { ok: false, failure: { actorUri: other, httpStatus: 429 } },
@@ -1249,8 +1380,13 @@ describe('federation source failure diagnostics', () => {
 
   it('never logs query secrets or raw transport exceptions', async () => {
     mockSafeFetch.mockRejectedValue(new Error('PRIVATE_EXCEPTION_PAYLOAD'));
-    const result = await federationService.fetchActorProfileResult(uri + '?token=PRIVATE_QUERY#PRIVATE_FRAGMENT');
-    expect(result).toMatchObject({ ok: false, failure: { actorUri: uri, reason: 'transport_unavailable' } });
+    const result = await federationService.fetchActorProfileResult(
+      uri + '?token=PRIVATE_QUERY#PRIVATE_FRAGMENT',
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      failure: { actorUri: uri, reason: 'transport_unavailable' },
+    });
     const logs = JSON.stringify(jest.mocked(logger.warn).mock.calls);
     expect(logs).not.toContain('PRIVATE_');
     expect(logs).toContain('Federation identity resolution failed');
@@ -1258,10 +1394,15 @@ describe('federation source failure diagnostics', () => {
 
   it('does not leak a selector query during the existing signed-fetch fallback', async () => {
     mockSafeFetch.mockImplementation(async () => makeSafeFetchResult(503, {}));
-    expect(await federationService.fetchActorProfileResult(uri + '?token=PRIVATE_QUERY')).toMatchObject({
-      ok: false, failure: { httpStatus: 503, actorUri: uri },
+    expect(
+      await federationService.fetchActorProfileResult(uri + '?token=PRIVATE_QUERY'),
+    ).toMatchObject({
+      ok: false,
+      failure: { httpStatus: 503, actorUri: uri },
     });
-    expect(JSON.stringify([jest.mocked(logger.warn).mock.calls, jest.mocked(logger.info).mock.calls])).not.toContain('PRIVATE_QUERY');
+    expect(
+      JSON.stringify([jest.mocked(logger.warn).mock.calls, jest.mocked(logger.info).mock.calls]),
+    ).not.toContain('PRIVATE_QUERY');
     expect(mockSafeFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -1269,11 +1410,22 @@ describe('federation source failure diagnostics', () => {
     [404, '', 'webfinger_fetch', 'http_status'],
     [200, 'not JSON', 'webfinger_document', 'unreadable_document'],
     [200, '{}', 'webfinger_document', 'missing_self_link'],
-  ])('records WebFinger failure %s %s without changing its public return', async (status, body, phase, reason) => {
-    mockSafeFetch.mockResolvedValue(makeSafeFetchResult(status, {}, body));
-    expect(await federationService.resolveWebFingerResource('diagnostic@remote.example')).toBeNull();
-    expect(logger.warn).toHaveBeenCalledWith('Federation identity resolution failed', expect.objectContaining({
-      operation: 'resolve_external_identity', acct: 'diagnostic@remote.example', phase, reason,
-    }));
-  });
+  ])(
+    'records WebFinger failure %s %s without changing its public return',
+    async (status, body, phase, reason) => {
+      mockSafeFetch.mockResolvedValue(makeSafeFetchResult(status, {}, body));
+      expect(
+        await federationService.resolveWebFingerResource('diagnostic@remote.example'),
+      ).toBeNull();
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Federation identity resolution failed',
+        expect.objectContaining({
+          operation: 'resolve_external_identity',
+          acct: 'diagnostic@remote.example',
+          phase,
+          reason,
+        }),
+      );
+    },
+  );
 });

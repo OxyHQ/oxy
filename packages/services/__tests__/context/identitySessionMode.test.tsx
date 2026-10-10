@@ -166,35 +166,62 @@ function buildStub(overrides: { auth?: Record<string, unknown> } = {}) {
     },
     baseURL: API_BASE_URL,
     getSessionBaseUrl: () => API_BASE_URL,
-    session: { get accessToken() { return (() => currentToken)(); }, get accessTokenExpiry() { return (() => null)(); }, onChange: () => () => undefined, setDeviceCredentialProvider: () => () => undefined, setAccessToken: (token: string) => {
-      currentToken = token;
-    }, clear: () => {
-      currentToken = null;
-    } },
-cache: { clear: jest.fn() },
-apps: { getPublic: jest.fn(async () => ({ id: 'registered-fixture', name: 'Registered Fixture', type: 'first_party', isOfficial: false, isInternal: false, scopes: [] })) },
-devices: { mintToken: jest.fn(async () => ({
-      accessToken: MINTED_PINNED_TOKEN,
-      expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-      nextDeviceSecret: 'identity.next.secret',
-      // The device is switched to somebody else — the pinned account is still a
-      // member, and a pinned mint must resolve THAT entry.
-      state: buildDeviceState({ activeAccountId: OTHER_ACCOUNT }),
-    })) },
-    auth: { requestChallenge: jest.fn(async () => ({ challenge: 'chal_1' })), verifyChallenge: jest.fn(async () => ({
-      sessionId: 'sess_pinned_reestablished',
-      accessToken: fakeJwt(PINNED_ACCOUNT),
-      expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-      deviceId: 'dev_identity',
-      deviceSecret: 'identity.reestablished.secret',
-      user: { id: PINNED_ACCOUNT, username: 'pinned' },
-    })), signInWithCommonsIdentity: jest.fn(async () => null) },
-    users: { me: jest.fn(
-      async (): Promise<User> => ({ id: PINNED_ACCOUNT, username: 'pinned' } as User),
-    ), getMany: jest.fn(
-      async (ids: string[]): Promise<User[]> =>
-        ids.map((id) => ({ id, username: `user_${id}` } as User)),
-    ) },
+    session: {
+      get accessToken() {
+        return (() => currentToken)();
+      },
+      get accessTokenExpiry() {
+        return (() => null)();
+      },
+      onChange: () => () => undefined,
+      setDeviceCredentialProvider: () => () => undefined,
+      setAccessToken: (token: string) => {
+        currentToken = token;
+      },
+      clear: () => {
+        currentToken = null;
+      },
+    },
+    cache: { clear: jest.fn() },
+    apps: {
+      getPublic: jest.fn(async () => ({
+        id: 'registered-fixture',
+        name: 'Registered Fixture',
+        type: 'first_party',
+        isOfficial: false,
+        isInternal: false,
+        scopes: [],
+      })),
+    },
+    devices: {
+      mintToken: jest.fn(async () => ({
+        accessToken: MINTED_PINNED_TOKEN,
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        nextDeviceSecret: 'identity.next.secret',
+        // The device is switched to somebody else — the pinned account is still a
+        // member, and a pinned mint must resolve THAT entry.
+        state: buildDeviceState({ activeAccountId: OTHER_ACCOUNT }),
+      })),
+    },
+    auth: {
+      requestChallenge: jest.fn(async () => ({ challenge: 'chal_1' })),
+      verifyChallenge: jest.fn(async () => ({
+        sessionId: 'sess_pinned_reestablished',
+        accessToken: fakeJwt(PINNED_ACCOUNT),
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        deviceId: 'dev_identity',
+        deviceSecret: 'identity.reestablished.secret',
+        user: { id: PINNED_ACCOUNT, username: 'pinned' },
+      })),
+      signInWithCommonsIdentity: jest.fn(async () => null),
+    },
+    users: {
+      me: jest.fn(async (): Promise<User> => ({ id: PINNED_ACCOUNT, username: 'pinned' }) as User),
+      getMany: jest.fn(
+        async (ids: string[]): Promise<User[]> =>
+          ids.map((id) => ({ id, username: `user_${id}` }) as User),
+      ),
+    },
     accounts: { list: jest.fn(async () => []), actAs: jest.fn(async () => null) },
   };
   return { ...stub, auth: { ...stub.auth, ...overrides.auth } };

@@ -19,11 +19,13 @@ function createAnalytics(): ProductAnalytics & {
 describe('product analytics auth transitions', () => {
   it('loads the vendor lazily and preserves operation order', async () => {
     const operations: string[] = [];
-    const load = jest.fn(async (): Promise<ProductAnalytics> => ({
-      capture: (event) => operations.push(`capture:${event}`),
-      identify: (id) => operations.push(`identify:${id}`),
-      reset: () => operations.push('reset'),
-    }));
+    const load = jest.fn(
+      async (): Promise<ProductAnalytics> => ({
+        capture: (event) => operations.push(`capture:${event}`),
+        identify: (id) => operations.push(`identify:${id}`),
+        reset: () => operations.push('reset'),
+      }),
+    );
     const analytics = createDeferredProductAnalytics(load);
 
     expect(load).not.toHaveBeenCalled();
@@ -34,11 +36,7 @@ describe('product analytics auth transitions', () => {
     await Promise.resolve();
 
     expect(load).toHaveBeenCalledTimes(1);
-    expect(operations).toEqual([
-      'identify:user-a',
-      'capture:oxy_session_started',
-      'reset',
-    ]);
+    expect(operations).toEqual(['identify:user-a', 'capture:oxy_session_started', 'reset']);
   });
 
   it('emits only the explicit, non-sensitive lifecycle vocabulary', () => {
@@ -80,9 +78,11 @@ describe('product analytics auth transitions', () => {
       throw new Error('collector unavailable');
     });
 
-    expect(() => recordAuthStateChange(analytics, null, {
-      authResolved: true,
-      userId: 'user-a',
-    })).not.toThrow();
+    expect(() =>
+      recordAuthStateChange(analytics, null, {
+        authResolved: true,
+        userId: 'user-a',
+      }),
+    ).not.toThrow();
   });
 });

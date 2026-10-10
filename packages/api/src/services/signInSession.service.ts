@@ -41,7 +41,10 @@ import {
   type LoginResult,
   type SecondFactorRequired,
 } from '@oxy.so/contracts';
-import { buildSessionAuthResponse, sessionCreateOptionsFromBody } from '../controllers/session.controller';
+import {
+  buildSessionAuthResponse,
+  sessionCreateOptionsFromBody,
+} from '../controllers/session.controller';
 import { getDb } from '../config/postgres';
 import { signInSecondFactorChallenges } from '../db/schema/signInChallenges';
 import { users } from '../db/schema/users';
@@ -82,7 +85,11 @@ function sha256Hex(value: string): string {
 }
 
 function secondFactorInvalid(): ApiError {
-  return new ApiError(401, 'That code is not right, or this sign-in expired. Start again.', SIGN_IN_ERROR_CODES.secondFactorInvalid);
+  return new ApiError(
+    401,
+    'That code is not right, or this sign-in expired. Start again.',
+    SIGN_IN_ERROR_CODES.secondFactorInvalid,
+  );
 }
 
 /**
@@ -95,7 +102,8 @@ export async function mintSignInSession(
   envelope: SignInEnvelope,
   provenDeviceId?: string | null,
 ): Promise<LoginResult> {
-  const deviceId = provenDeviceId === undefined ? await resolveProvenDeviceId(envelope.device) : provenDeviceId;
+  const deviceId =
+    provenDeviceId === undefined ? await resolveProvenDeviceId(envelope.device) : provenDeviceId;
   const session: MintedSession = await sessionService.createSession(account.id, req, {
     ...sessionCreateOptionsFromBody(envelope),
     ...(deviceId ? { deviceId } : {}),
@@ -130,10 +138,14 @@ export async function mintSignInSession(
       platform: session.platform ?? undefined,
     });
   } catch (error) {
-    logger.error('Failed to log security event for sign-in', error instanceof Error ? error : new Error(String(error)), {
-      component: 'signInSession',
-      userId: account.id,
-    });
+    logger.error(
+      'Failed to log security event for sign-in',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        component: 'signInSession',
+        userId: account.id,
+      },
+    );
   }
   return response;
 }
@@ -157,7 +169,8 @@ export async function readSignInAccount(userId: string): Promise<SignInAccount |
     .where(eq(users.id, userId))
     .limit(1);
   // A Commons account signs in with Commons, never with an Oxy-held factor.
-  if (!row || row.kind !== 'personal' || row.accountStatus !== 'active' || row.publicKey) return null;
+  if (!row || row.kind !== 'personal' || row.accountStatus !== 'active' || row.publicKey)
+    return null;
   return { id: row.id, username: row.username, avatar: row.avatar };
 }
 
@@ -193,12 +206,14 @@ export async function issueSecondFactorChallenge(
 ): Promise<SecondFactorRequired> {
   const challengeId = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(now.getTime() + SIGNIN_SECOND_FACTOR_TTL_MS);
-  await getDb().insert(signInSecondFactorChallenges).values({
-    challengeHash: sha256Hex(challengeId),
-    userId,
-    deviceId: provenDeviceId,
-    expiresAt,
-  });
+  await getDb()
+    .insert(signInSecondFactorChallenges)
+    .values({
+      challengeHash: sha256Hex(challengeId),
+      userId,
+      deviceId: provenDeviceId,
+      expiresAt,
+    });
   return { secondFactorRequired: true, challengeId, expiresAt: expiresAt.getTime() };
 }
 
@@ -234,7 +249,8 @@ export async function completeSecondFactor(
       ),
     )
     .limit(1);
-  if (!challenge || challenge.attempts >= SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS) throw secondFactorInvalid();
+  if (!challenge || challenge.attempts >= SIGNIN_SECOND_FACTOR_MAX_ATTEMPTS)
+    throw secondFactorInvalid();
   // Bound to the device the first factor proved: a challenge id carried to
   // another browser is worthless there.
   if ((challenge.deviceId ?? null) !== (provenDeviceId ?? null)) throw secondFactorInvalid();

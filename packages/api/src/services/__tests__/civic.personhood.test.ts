@@ -173,7 +173,10 @@ async function chainRows(userId: string) {
 /** The ledger rows one account has. */
 async function ledgerRows(userId: string) {
   return getDb()
-    .select({ actionType: reputationTransactions.actionType, points: reputationTransactions.points })
+    .select({
+      actionType: reputationTransactions.actionType,
+      points: reputationTransactions.points,
+    })
     .from(reputationTransactions)
     .where(eq(reputationTransactions.userId, userId));
 }
@@ -212,7 +215,7 @@ async function isUserVerified(userId: string): Promise<boolean> {
  */
 async function seedActiveVouch(
   subjectUserId: string,
-  tier?: typeof reputationBalances.$inferInsert['trustTier'],
+  tier?: (typeof reputationBalances.$inferInsert)['trustTier'],
 ): Promise<string> {
   const voucher = await makeSigner();
   if (tier) {
@@ -235,16 +238,18 @@ async function seedActiveVouch(
 /** An active session binding `userId` to `deviceId`. */
 async function seedSession(userId: string, deviceId: string): Promise<void> {
   const token = uniqueId();
-  await getDb().insert(sessions).values({
-    sessionId: `s-${token}`,
-    userId,
-    deviceId,
-    deviceType: 'mobile',
-    platform: 'ios',
-    accessToken: `at-${token}`,
-    refreshToken: `rt-${token}`,
-    expiresAt: new Date(Date.now() + 86_400_000),
-  });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId: `s-${token}`,
+      userId,
+      deviceId,
+      deviceType: 'mobile',
+      platform: 'ios',
+      accessToken: `at-${token}`,
+      refreshToken: `rt-${token}`,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
 }
 
 beforeAll(async () => {
@@ -722,10 +727,7 @@ describe('recomputePersonhood — the evidence formula over stored rows', () => 
 
     expect(status.sybilPenalty).toBeGreaterThan(0);
     expect(status.breakdownSybilPenalty).toBe(status.sybilPenalty);
-    expect(status.score).toBeCloseTo(
-      status.breakdownEvidence * (1 - status.sybilPenalty),
-      10,
-    );
+    expect(status.score).toBeCloseTo(status.breakdownEvidence * (1 - status.sybilPenalty), 10);
     expect(status.score).toBeLessThan(status.breakdownEvidence);
   });
 

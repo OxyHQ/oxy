@@ -88,9 +88,7 @@ describe('civic bottom-sheet action contract', () => {
     );
 
     expect(mockDialogControl?.open).toHaveBeenCalledTimes(1);
-    expect(mockDialogProps?.actions?.map(({ label }) => label)).toEqual([
-      'Generate a new code',
-    ]);
+    expect(mockDialogProps?.actions?.map(({ label }) => label)).toEqual(['Generate a new code']);
     expect(action('Generate a new code').shouldCloseOnPress).toBe(false);
   });
 

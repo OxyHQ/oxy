@@ -169,7 +169,7 @@ function edgeGate(render: ErrorRenderer) {
           code: 'request_too_large',
           message: `Request bodies are limited to ${MAX_REQUEST_BYTES} bytes.`,
           requestId,
-        })
+        }),
       );
       return;
     }
@@ -188,7 +188,7 @@ function edgeGate(render: ErrorRenderer) {
             code: 'authentication_failed',
             message: 'The provided API key is invalid, expired, or revoked.',
             requestId,
-          })
+          }),
         );
         return;
       }
@@ -224,7 +224,7 @@ function edgeGate(render: ErrorRenderer) {
             code: 'permission_denied',
             message: 'The Oxy inference API is not open to this application yet.',
             requestId,
-          })
+          }),
         );
         return;
       }
@@ -240,7 +240,7 @@ function edgeGate(render: ErrorRenderer) {
       logger.error(
         'inference.edge.gate_failed',
         error instanceof Error ? error : new Error(String(error)),
-        { requestId, path: req.path }
+        { requestId, path: req.path },
       );
       render(
         res,
@@ -248,7 +248,7 @@ function edgeGate(render: ErrorRenderer) {
           code: 'internal_error',
           message: 'The request could not be authenticated.',
           requestId,
-        })
+        }),
       );
     }
   };
@@ -279,9 +279,7 @@ function delegatedUserId(req: Request, fromBody?: string): string | undefined {
  * and the whole point of the header is that two different requests are two
  * different charges.
  */
-type IdempotencyKey =
-  | { readonly ok: true; readonly key?: string }
-  | { readonly ok: false };
+type IdempotencyKey = { readonly ok: true; readonly key?: string } | { readonly ok: false };
 
 function idempotencyKey(req: Request): IdempotencyKey {
   const header = req.headers['idempotency-key'];
@@ -324,21 +322,24 @@ function applyUsageHeaders(res: Response, completion: EdgeCompletion): void {
   res.setHeader('X-Oxy-Usage-Input-Tokens', String(completion.units.input_tokens ?? 0));
   res.setHeader(
     'X-Oxy-Usage-Cached-Input-Tokens',
-    String(completion.units.cached_input_tokens ?? 0)
+    String(completion.units.cached_input_tokens ?? 0),
   );
   res.setHeader('X-Oxy-Usage-Output-Tokens', String(completion.units.output_tokens ?? 0));
   res.setHeader('X-Oxy-Usage-Reasoning-Tokens', String(completion.units.reasoning_tokens ?? 0));
   // The audio-token units (contract set 3.2.0), only when the request metered
   // any: a text request's headers stay exactly what they were.
   if (hasAudioTokens(completion.units)) {
-    res.setHeader('X-Oxy-Usage-Audio-Input-Tokens', String(completion.units.audio_input_tokens ?? 0));
+    res.setHeader(
+      'X-Oxy-Usage-Audio-Input-Tokens',
+      String(completion.units.audio_input_tokens ?? 0),
+    );
     res.setHeader(
       'X-Oxy-Usage-Cached-Audio-Input-Tokens',
-      String(completion.units.cached_audio_input_tokens ?? 0)
+      String(completion.units.cached_audio_input_tokens ?? 0),
     );
     res.setHeader(
       'X-Oxy-Usage-Audio-Output-Tokens',
-      String(completion.units.audio_output_tokens ?? 0)
+      String(completion.units.audio_output_tokens ?? 0),
     );
   }
   res.setHeader('X-Oxy-Routing-Policy', completion.routingPolicy.routingPolicyId);
@@ -459,7 +460,7 @@ function idempotencyKeyTooLong(requestId: string): InferenceError {
  */
 function firstPartOfType(
   output: readonly InferenceMessage[],
-  type: 'audio' | 'image'
+  type: 'audio' | 'image',
 ): InferenceMessage['content'][number] | undefined {
   for (const message of output) {
     for (const part of message.content) {
@@ -507,7 +508,7 @@ function chatMessageBody(
   completion: EdgeCompletion,
   message: InferenceMessage,
   index: number,
-  created: number
+  created: number,
 ): ChatMessageBody {
   const text = messageText(message);
   const audio = message.content.find((part) => part.type === 'audio');
@@ -631,7 +632,7 @@ function responsesStreamWriter(res: Response): StreamWriter {
           requestId: error.requestId,
           sequence: lastSequence + 1,
           error,
-        })
+        }),
       );
     },
     end: () => {
@@ -678,7 +679,7 @@ function chatCompletionsStreamWriter(res: Response, head: EdgeStreamHead): Strea
         model: head.resolvedModelReference,
         choices,
         ...extra,
-      })
+      }),
     );
   };
 
@@ -826,7 +827,7 @@ async function pumpEdgeStream(
   res: Response,
   frames: AsyncGenerator<EdgeStreamFrame>,
   renderError: ErrorRenderer,
-  createWriter: (head: EdgeStreamHead) => StreamWriter
+  createWriter: (head: EdgeStreamHead) => StreamWriter,
 ): Promise<void> {
   let writer: StreamWriter | undefined;
 
@@ -867,9 +868,7 @@ export interface InferenceEdgeRouterOptions {
   readonly kaanaClient?: KaanaClient;
 }
 
-export function createInferenceEdgeRouter(
-  options: InferenceEdgeRouterOptions = {}
-): Router {
+export function createInferenceEdgeRouter(options: InferenceEdgeRouterOptions = {}): Router {
   const router = Router();
 
   /**
@@ -895,7 +894,7 @@ export function createInferenceEdgeRouter(
             code: 'invalid_request',
             message: 'Invalid decisions request or idempotency key.',
             requestId: edge.requestId,
-          })
+          }),
         );
         return;
       }
@@ -913,15 +912,11 @@ export function createInferenceEdgeRouter(
           tools: [],
         },
         ...(key.key === undefined ? {} : { idempotencyKey: key.key }),
-        ...(delegatedUserId(req) === undefined
-          ? {}
-          : { delegatedUserId: delegatedUserId(req) }),
+        ...(delegatedUserId(req) === undefined ? {} : { delegatedUserId: delegatedUserId(req) }),
         apiFormat: 'decisions',
         endpoint: '/v1/decisions',
         signal: connectionSignal(res),
-        ...(options.kaanaClient === undefined
-          ? {}
-          : { kaanaClient: options.kaanaClient }),
+        ...(options.kaanaClient === undefined ? {} : { kaanaClient: options.kaanaClient }),
       });
       if (execution.status === 'refused') {
         sendInferenceError(res, execution.error);
@@ -937,9 +932,7 @@ export function createInferenceEdgeRouter(
         data: completion.decisions,
         routingPolicy: completion.routingPolicy,
         usage: USAGE_UNITS.flatMap((unit) =>
-          completion.units[unit] === undefined
-            ? []
-            : [{ unit, quantity: completion.units[unit] }]
+          completion.units[unit] === undefined ? [] : [{ unit, quantity: completion.units[unit] }],
         ),
       });
       if (!body.success) {
@@ -949,12 +942,12 @@ export function createInferenceEdgeRouter(
             code: 'internal_error',
             message: 'Invalid decisions result.',
             requestId: edge.requestId,
-          })
+          }),
         );
         return;
       }
       res.status(200).json(body.data);
-    }
+    },
   );
 
   /**
@@ -1003,7 +996,7 @@ export function createInferenceEdgeRouter(
             ...(parsed.error.issues[0]?.path.length
               ? { param: parsed.error.issues[0].path.join('.') }
               : {}),
-          })
+          }),
         );
         return;
       }
@@ -1017,7 +1010,7 @@ export function createInferenceEdgeRouter(
             message: `Idempotency-Key must be at most ${MAX_IDEMPOTENCY_KEY_LENGTH} characters.`,
             requestId: edge.requestId,
             param: 'Idempotency-Key',
-          })
+          }),
         );
         return;
       }
@@ -1028,9 +1021,7 @@ export function createInferenceEdgeRouter(
         receivedAt: edge.receivedAt,
         principal: edge.principal,
         request: normalized,
-        ...(delegatedUserId(req) === undefined
-          ? {}
-          : { delegatedUserId: delegatedUserId(req) }),
+        ...(delegatedUserId(req) === undefined ? {} : { delegatedUserId: delegatedUserId(req) }),
         ...(key.key === undefined ? {} : { idempotencyKey: key.key }),
         apiFormat: 'responses',
         endpoint: '/v1/responses',
@@ -1040,7 +1031,7 @@ export function createInferenceEdgeRouter(
 
       if (normalized.stream) {
         await pumpEdgeStream(res, streamInferenceRequest(context), sendInferenceError, () =>
-          responsesStreamWriter(res)
+          responsesStreamWriter(res),
         );
         return;
       }
@@ -1058,9 +1049,7 @@ export function createInferenceEdgeRouter(
       const body: z.infer<typeof responsesResponseSchema> = {
         schemaVersion: 1,
         requestId: completion.requestId,
-        ...(completion.generationId === undefined
-          ? {}
-          : { generationId: completion.generationId }),
+        ...(completion.generationId === undefined ? {} : { generationId: completion.generationId }),
         model: completion.resolvedModelReference,
         servingProvider: completion.servingProvider,
         finishReason: completion.finishReason,
@@ -1079,7 +1068,7 @@ export function createInferenceEdgeRouter(
         latencyMs: completion.latencyMs,
       };
       res.status(200).json(body);
-    }
+    },
   );
 
   /**
@@ -1117,7 +1106,7 @@ export function createInferenceEdgeRouter(
             ...(parsed.error.issues[0]?.path.length
               ? { param: parsed.error.issues[0].path.join('.') }
               : {}),
-          })
+          }),
         );
         return;
       }
@@ -1131,7 +1120,7 @@ export function createInferenceEdgeRouter(
             message: `Idempotency-Key must be at most ${MAX_IDEMPOTENCY_KEY_LENGTH} characters.`,
             requestId: edge.requestId,
             param: 'Idempotency-Key',
-          })
+          }),
         );
         return;
       }
@@ -1153,7 +1142,7 @@ export function createInferenceEdgeRouter(
 
       if (normalized.stream) {
         await pumpEdgeStream(res, streamInferenceRequest(context), sendOpenAiError, (head) =>
-          chatCompletionsStreamWriter(res, head)
+          chatCompletionsStreamWriter(res, head),
         );
         return;
       }
@@ -1176,7 +1165,7 @@ export function createInferenceEdgeRouter(
       if (
         normalized.audioOutput !== undefined &&
         !completion.output.some((message) =>
-          message.content.some((part) => part.type === 'audio' && part.source.kind === 'inline')
+          message.content.some((part) => part.type === 'audio' && part.source.kind === 'inline'),
         )
       ) {
         sendOpenAiError(
@@ -1185,7 +1174,7 @@ export function createInferenceEdgeRouter(
             code: 'provider_error',
             message: 'The data plane returned no inline audio for a spoken chat completion.',
             requestId: completion.requestId,
-          })
+          }),
         );
         return;
       }
@@ -1216,7 +1205,7 @@ export function createInferenceEdgeRouter(
         usage: openAiUsage(completion.units),
       };
       res.status(200).json(body);
-    }
+    },
   );
 
   /**
@@ -1301,7 +1290,7 @@ export function createInferenceEdgeRouter(
             code: 'provider_error',
             message: 'The data plane returned no audio for a speech request.',
             requestId: completion.requestId,
-          })
+          }),
         );
         return;
       }
@@ -1313,16 +1302,17 @@ export function createInferenceEdgeRouter(
           res,
           buildInferenceError({
             code: 'provider_error',
-            message: 'The data plane returned audio by reference, which this endpoint cannot render.',
+            message:
+              'The data plane returned audio by reference, which this endpoint cannot render.',
             requestId: completion.requestId,
-          })
+          }),
         );
         return;
       }
       res.status(200);
       res.type(audio.source.mediaType);
       res.send(Buffer.from(audio.source.data, 'base64'));
-    }
+    },
   );
 
   /**
@@ -1399,18 +1389,18 @@ export function createInferenceEdgeRouter(
             code: 'provider_error',
             message: 'The data plane returned no image for an image-generation request.',
             requestId: completion.requestId,
-          })
+          }),
         );
         return;
       }
       const body: z.infer<typeof imageGenerationsResponseSchema> = {
         created: Math.floor(Date.now() / 1000),
         data: images.map((source) =>
-          source.kind === 'url' ? { url: source.url } : { b64_json: source.data }
+          source.kind === 'url' ? { url: source.url } : { b64_json: source.data },
         ),
       };
       res.status(200).json(body);
-    }
+    },
   );
 
   /**
@@ -1436,16 +1426,32 @@ export function createInferenceEdgeRouter(
       if (edge === undefined) return;
       const key = idempotencyKey(req);
       if (!key.ok || key.key === undefined) {
-        sendInferenceError(res, buildInferenceError({ code: 'invalid_request',
-          message: 'A valid original Idempotency-Key is required.',
-          param: 'Idempotency-Key', requestId: edge.requestId }));
+        sendInferenceError(
+          res,
+          buildInferenceError({
+            code: 'invalid_request',
+            message: 'A valid original Idempotency-Key is required.',
+            param: 'Idempotency-Key',
+            requestId: edge.requestId,
+          }),
+        );
         return;
       }
       try {
-        const lookup = await readGenerationReceiptByIdempotencyKey(edge.principal, key.key, delegatedUserId(req));
+        const lookup = await readGenerationReceiptByIdempotencyKey(
+          edge.principal,
+          key.key,
+          delegatedUserId(req),
+        );
         if (lookup.status === 'not-found') {
-          sendInferenceError(res, buildInferenceError({ code: 'model_not_found',
-            message: 'No settled generation record is available for that original key.', requestId: edge.requestId }));
+          sendInferenceError(
+            res,
+            buildInferenceError({
+              code: 'model_not_found',
+              message: 'No settled generation record is available for that original key.',
+              requestId: edge.requestId,
+            }),
+          );
           return;
         }
         applyInferenceHeaders(res, edge.requestId);
@@ -1453,10 +1459,16 @@ export function createInferenceEdgeRouter(
       } catch {
         // Do not emit the query/opaque idempotency key through a database error.
         logger.error('inference.edge.original_receipt_failed', { requestId: edge.requestId });
-        sendInferenceError(res, buildInferenceError({ code: 'internal_error',
-          message: 'The receipt could not be read.', requestId: edge.requestId }));
+        sendInferenceError(
+          res,
+          buildInferenceError({
+            code: 'internal_error',
+            message: 'The receipt could not be read.',
+            requestId: edge.requestId,
+          }),
+        );
       }
-    }
+    },
   );
 
   /**
@@ -1489,7 +1501,11 @@ export function createInferenceEdgeRouter(
       if (edge === undefined) return;
 
       try {
-        const lookup = await readGenerationReceipt(edge.principal, req.params.id, delegatedUserId(req));
+        const lookup = await readGenerationReceipt(
+          edge.principal,
+          req.params.id,
+          delegatedUserId(req),
+        );
         if (lookup.status === 'not-found') {
           sendInferenceError(
             res,
@@ -1497,7 +1513,7 @@ export function createInferenceEdgeRouter(
               code: 'model_not_found',
               message: 'No generation receipt with that id is available to you.',
               requestId: edge.requestId,
-            })
+            }),
           );
           return;
         }
@@ -1509,7 +1525,7 @@ export function createInferenceEdgeRouter(
         logger.error(
           'inference.edge.receipt_failed',
           error instanceof Error ? error : new Error(String(error)),
-          { requestId: edge.requestId }
+          { requestId: edge.requestId },
         );
         sendInferenceError(
           res,
@@ -1517,10 +1533,10 @@ export function createInferenceEdgeRouter(
             code: 'internal_error',
             message: 'The receipt could not be read.',
             requestId: edge.requestId,
-          })
+          }),
         );
       }
-    }
+    },
   );
 
   return router;
@@ -1543,7 +1559,7 @@ export function createInferenceEdgeRouter(
 export const configuredKaanaClient = createHttpKaanaClient();
 
 export default createInferenceEdgeRouter(
-  configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }
+  configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient },
 );
 
 /* -------------------------------------------------------------------------- */

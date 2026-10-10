@@ -31,9 +31,7 @@ import { customType, text, timestamp } from 'drizzle-orm/pg-core';
  * separate `notNull` flag, which is what this reads.
  */
 export type SelectedRow<T extends Record<string, PgColumn>> = {
-  [K in keyof T]: T[K]['_']['notNull'] extends true
-    ? T[K]['_']['data']
-    : T[K]['_']['data'] | null;
+  [K in keyof T]: T[K]['_']['notNull'] extends true ? T[K]['_']['data'] : T[K]['_']['data'] | null;
 };
 
 /**
@@ -246,7 +244,7 @@ export function numericInList(values: readonly number[]): string {
     .map((value) => {
       if (!Number.isFinite(value)) {
         throw new Error(
-          `numericInList received ${String(value)}, which is not a SQL numeric literal — Postgres would parse it as a column reference`
+          `numericInList received ${String(value)}, which is not a SQL numeric literal — Postgres would parse it as a column reference`,
         );
       }
       return String(value);

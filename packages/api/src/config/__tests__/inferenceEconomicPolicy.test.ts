@@ -30,27 +30,45 @@ describe('resolveEconomicTreatment', () => {
     expect(decision).toMatchObject({
       treatment: 'internal_metered',
       policyVersion: INFERENCE_ECONOMIC_POLICY_VERSION,
-      relationship: { relationshipId: 'alia-kaana', consumerProduct: 'alia', providerProduct: 'kaana' },
+      relationship: {
+        relationshipId: 'alia-kaana',
+        consumerProduct: 'alia',
+        providerProduct: 'kaana',
+      },
     });
   });
 
   it('is commercial for every principal the policy does not name', () => {
-    expect(resolveEconomicTreatment({ ...alia, applicationId: 'some-customer-app' }).treatment).toBe('commercial');
+    expect(
+      resolveEconomicTreatment({ ...alia, applicationId: 'some-customer-app' }).treatment,
+    ).toBe('commercial');
   });
 
   it('is commercial on any lane other than the service-token lane, for the same application', () => {
-    expect(resolveEconomicTreatment({ ...alia, lane: 'machine_credential' }).treatment).toBe('commercial');
-    expect(resolveEconomicTreatment({ ...alia, lane: 'product_session' }).treatment).toBe('commercial');
+    expect(resolveEconomicTreatment({ ...alia, lane: 'machine_credential' }).treatment).toBe(
+      'commercial',
+    );
+    expect(resolveEconomicTreatment({ ...alia, lane: 'product_session' }).treatment).toBe(
+      'commercial',
+    );
   });
 
   it('is commercial in an environment the relationship does not list', () => {
-    expect(resolveEconomicTreatment({ ...alia, environment: 'development' }).treatment).toBe('commercial');
-    expect(resolveEconomicTreatment({ ...alia, environment: 'staging' }).treatment).toBe('commercial');
+    expect(resolveEconomicTreatment({ ...alia, environment: 'development' }).treatment).toBe(
+      'commercial',
+    );
+    expect(resolveEconomicTreatment({ ...alia, environment: 'staging' }).treatment).toBe(
+      'commercial',
+    );
   });
 
   it('is commercial the moment the application stops being internal, whatever the file says', () => {
-    expect(resolveEconomicTreatment({ ...alia, applicationIsInternal: false }).treatment).toBe('commercial');
-    expect(resolveEconomicTreatment({ ...alia, applicationIsInternal: null }).treatment).toBe('commercial');
+    expect(resolveEconomicTreatment({ ...alia, applicationIsInternal: false }).treatment).toBe(
+      'commercial',
+    );
+    expect(resolveEconomicTreatment({ ...alia, applicationIsInternal: null }).treatment).toBe(
+      'commercial',
+    );
   });
 
   it('ignores request-borne facts even when a caller smuggles them onto the principal object', () => {

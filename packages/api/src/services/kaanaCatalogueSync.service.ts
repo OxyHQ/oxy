@@ -61,7 +61,10 @@ import {
 } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
 import { sourceReviewedScopedAudience } from './scopedExecution.service';
-import { privateAutoClassifierSourceApproval, reviewedPrivateAutoApproval } from '../config/privateAutoClassification';
+import {
+  privateAutoClassifierSourceApproval,
+  reviewedPrivateAutoApproval,
+} from '../config/privateAutoClassification';
 import { validatePrivateAutoAttestation } from './privateAutoAttestation.service';
 import {
   DEPLOYMENT_REQUEST_PARAMETERS,
@@ -232,20 +235,38 @@ const nullish = <T extends z.ZodTypeAny>(schema: T) =>
 const kaanaCatalogueResponseSchema = z
   .object({
     checkedAt: nullish(z.string().max(64)),
-    configuration: nullish(z.object({ snapshotId: nullish(z.string().min(1).max(256)) }).passthrough()),
+    configuration: nullish(
+      z.object({ snapshotId: nullish(z.string().min(1).max(256)) }).passthrough(),
+    ),
     models: z.array(z.unknown()),
     scopedExecutionContractVersion: z.literal('3.6.0').optional(),
     privateAutoExecutionContractVersion: z.literal('3.7.0').optional(),
-    deployments: z.array(z.object({ deploymentId: deploymentIdSchema, modelReference: modelReferenceSchema,
-      provider: inferenceProviderSlugSchema, regions: z.array(z.string()), scopedExecution: scopedExecutionAudienceSchema.optional(), privateAutoSourceApproval: privateAutoSourceApprovalSchema.optional(),
-      keyId: z.string().optional(), upstreamModelId: z.string().optional(), providerRateCardVersionId: z.string().optional(), providerSourceVersion: z.string().optional(),
-      acceptedParameters: z.array(z.string()).optional(), }).strict()).optional(),
+    deployments: z
+      .array(
+        z
+          .object({
+            deploymentId: deploymentIdSchema,
+            modelReference: modelReferenceSchema,
+            provider: inferenceProviderSlugSchema,
+            regions: z.array(z.string()),
+            scopedExecution: scopedExecutionAudienceSchema.optional(),
+            privateAutoSourceApproval: privateAutoSourceApprovalSchema.optional(),
+            keyId: z.string().optional(),
+            upstreamModelId: z.string().optional(),
+            providerRateCardVersionId: z.string().optional(),
+            providerSourceVersion: z.string().optional(),
+            acceptedParameters: z.array(z.string()).optional(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .passthrough();
 
 const kaanaListPriceSchema = z
   .object({
-    scopedExecution: scopedExecutionAudienceSchema.optional(), privateAutoSourceApproval: privateAutoSourceApprovalSchema.optional(),
+    scopedExecution: scopedExecutionAudienceSchema.optional(),
+    privateAutoSourceApproval: privateAutoSourceApprovalSchema.optional(),
     deploymentId: deploymentIdSchema,
     provider: inferenceProviderSlugSchema,
     currency: z.string(),
@@ -275,7 +296,11 @@ const kaanaCatalogueEntrySchema = z
 /** An exact non-negative decimal with at most 12 fraction digits, or `undefined`. */
 export function normalizeDecimal(value: unknown): string | undefined {
   const text =
-    typeof value === 'string' ? value.trim() : typeof value === 'number' && Number.isFinite(value) ? String(value) : undefined;
+    typeof value === 'string'
+      ? value.trim()
+      : typeof value === 'number' && Number.isFinite(value)
+        ? String(value)
+        : undefined;
   if (text === undefined || !/^\d+(\.\d{1,12})?$/.test(text)) return undefined;
   const [whole, fraction] = text.split('.');
   const trimmedWhole = whole.replace(/^0+(?=\d)/, '');
@@ -289,7 +314,6 @@ function parsePricedRoute(raw: unknown): KaanaPricedRoute | undefined {
   const input = normalizeDecimal(row.data.input);
   const output = normalizeDecimal(row.data.output);
   return {
-
     deploymentId: row.data.deploymentId,
     provider: row.data.provider,
     // Oxy's price versions here are USD; another currency is not converted.
@@ -310,14 +334,28 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
   if (!response.success) {
     throw new Error('Kaana returned a catalogue body Oxy cannot read (no models array)');
   }
-  if ((response.data.scopedExecutionContractVersion !== undefined || response.data.privateAutoExecutionContractVersion !== undefined) && response.data.deployments === undefined) {
+  if (
+    (response.data.scopedExecutionContractVersion !== undefined ||
+      response.data.privateAutoExecutionContractVersion !== undefined) &&
+    response.data.deployments === undefined
+  ) {
     throw new Error('Negotiated catalogue must declare exact deployment audiences.');
   }
-  validatePrivateAutoAttestation({ snapshotId: response.data.configuration?.snapshotId ?? 'unattested',
-    deployments: response.data.deployments ?? [], privateAutoExecutionContractVersion: response.data.privateAutoExecutionContractVersion }, response.data.privateAutoExecutionContractVersion);
-  const deploymentAudience = new Map<string, NonNullable<typeof response.data.deployments>[number]>();
+  validatePrivateAutoAttestation(
+    {
+      snapshotId: response.data.configuration?.snapshotId ?? 'unattested',
+      deployments: response.data.deployments ?? [],
+      privateAutoExecutionContractVersion: response.data.privateAutoExecutionContractVersion,
+    },
+    response.data.privateAutoExecutionContractVersion,
+  );
+  const deploymentAudience = new Map<
+    string,
+    NonNullable<typeof response.data.deployments>[number]
+  >();
   for (const descriptor of response.data.deployments ?? []) {
-    if (deploymentAudience.has(descriptor.deploymentId)) throw new Error('Duplicate catalogue deployment identity.');
+    if (deploymentAudience.has(descriptor.deploymentId))
+      throw new Error('Duplicate catalogue deployment identity.');
     deploymentAudience.set(descriptor.deploymentId, descriptor);
   }
   let invalidEntries = 0;
@@ -333,13 +371,24 @@ export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
     let invalidDeployments = 0;
     for (const rawPrice of data.listPrices ?? []) {
       const priced = parsePricedRoute(rawPrice);
-      const descriptor = priced === undefined ? undefined : deploymentAudience.get(priced.deploymentId);
-      if ((response.data.scopedExecutionContractVersion !== undefined || response.data.privateAutoExecutionContractVersion !== undefined) && (descriptor === undefined ||
-        descriptor.modelReference !== data.modelReference || descriptor.provider !== priced?.provider)) {
-        invalidDeployments += 1; continue;
+      const descriptor =
+        priced === undefined ? undefined : deploymentAudience.get(priced.deploymentId);
+      if (
+        (response.data.scopedExecutionContractVersion !== undefined ||
+          response.data.privateAutoExecutionContractVersion !== undefined) &&
+        (descriptor === undefined ||
+          descriptor.modelReference !== data.modelReference ||
+          descriptor.provider !== priced?.provider)
+      ) {
+        invalidDeployments += 1;
+        continue;
       }
       if (priced !== undefined && descriptor?.privateAutoSourceApproval !== undefined) {
-        listPrices.push({ ...priced, privateAutoSourceApproval: descriptor.privateAutoSourceApproval }); continue;
+        listPrices.push({
+          ...priced,
+          privateAutoSourceApproval: descriptor.privateAutoSourceApproval,
+        });
+        continue;
       }
       if (priced !== undefined && descriptor?.scopedExecution !== undefined) {
         listPrices.push({ ...priced, scopedExecution: descriptor.scopedExecution });
@@ -410,7 +459,11 @@ export interface PlannedModel {
 
 export type ModelPlan =
   | { readonly status: 'planned'; readonly model: PlannedModel }
-  | { readonly status: 'skipped'; readonly reason: ModelSkipReason; readonly routeSkips?: readonly DeploymentSkipReason[] };
+  | {
+      readonly status: 'skipped';
+      readonly reason: ModelSkipReason;
+      readonly routeSkips?: readonly DeploymentSkipReason[];
+    };
 
 const KNOWN_MODALITIES: ReadonlySet<string> = new Set(INFERENCE_MODALITIES);
 const KNOWN_EFFORTS: ReadonlySet<string> = new Set(MODEL_REASONING_EFFORTS);
@@ -424,7 +477,7 @@ const KNOWN_REQUEST_PARAMETERS: ReadonlySet<string> = new Set(DEPLOYMENT_REQUEST
  * cannot make a route refuse anything.
  */
 export function normalizeAcceptedParameters(
-  values: readonly string[] | undefined
+  values: readonly string[] | undefined,
 ): DeploymentRequestParameter[] | null {
   if (values === undefined) return null;
   const reported = new Set(values.filter((value) => KNOWN_REQUEST_PARAMETERS.has(value)));
@@ -444,7 +497,7 @@ export function normalizeAcceptedParameters(
  */
 function acceptedParametersForRoute(
   entry: KaanaCatalogueModel,
-  deployment: KaanaDeploymentDescriptor
+  deployment: KaanaDeploymentDescriptor,
 ): DeploymentRequestParameter[] | null {
   if (deployment.acceptedParameters !== undefined) {
     return normalizeAcceptedParameters(deployment.acceptedParameters);
@@ -455,18 +508,27 @@ function acceptedParametersForRoute(
 }
 
 function knownModalities(values: readonly string[] | undefined): InferenceModalityValue[] {
-  return [...new Set((values ?? []).filter((value) => KNOWN_MODALITIES.has(value)))].sort() as InferenceModalityValue[];
+  return [
+    ...new Set((values ?? []).filter((value) => KNOWN_MODALITIES.has(value))),
+  ].sort() as InferenceModalityValue[];
 }
 
 /** A private contract capability requires current local source authority, not the sync timestamp. */
-function currentPrivateDecisionAuthority(route: Pick<KaanaDeploymentDescriptor, 'scopedExecution' | 'privateAutoSourceApproval'>): boolean {
+function currentPrivateDecisionAuthority(
+  route: Pick<KaanaDeploymentDescriptor, 'scopedExecution' | 'privateAutoSourceApproval'>,
+): boolean {
   const restriction = route.privateAutoSourceApproval ?? route.scopedExecution;
   const at = Date.now();
-  const reviewed = route.privateAutoSourceApproval !== undefined
-    ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), at)
-    : sourceReviewedScopedAudience(at);
-  return restriction !== undefined && reviewed !== undefined && Date.parse(restriction.expiresAt) > Date.now() &&
-    canonicalScopedExecutionJson(restriction) === canonicalScopedExecutionJson(reviewed);
+  const reviewed =
+    route.privateAutoSourceApproval !== undefined
+      ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), at)
+      : sourceReviewedScopedAudience(at);
+  return (
+    restriction !== undefined &&
+    reviewed !== undefined &&
+    Date.parse(restriction.expiresAt) > Date.now() &&
+    canonicalScopedExecutionJson(restriction) === canonicalScopedExecutionJson(reviewed)
+  );
 }
 
 /**
@@ -481,10 +543,11 @@ export function planKaanaModel(
     readonly knownProviders: ReadonlySet<string>;
     /** Kaana's signed attestation, by exact deployment id. */
     readonly attested: ReadonlyMap<string, KaanaDeploymentDescriptor>;
-  }
+  },
 ): ModelPlan {
   const separator = entry.modelReference.indexOf('@');
-  const lineOfReference = separator === -1 ? entry.modelReference : entry.modelReference.slice(0, separator);
+  const lineOfReference =
+    separator === -1 ? entry.modelReference : entry.modelReference.slice(0, separator);
   if (separator === -1 || lineOfReference !== entry.model) {
     return { status: 'skipped', reason: 'invalid_entry' };
   }
@@ -493,15 +556,23 @@ export function planKaanaModel(
   if (publisher === RESERVED_FIRST_PARTY_PUBLISHER) {
     return { status: 'skipped', reason: 'reserved_namespace' };
   }
-  if (entry.contextTokens === undefined) return { status: 'skipped', reason: 'missing_context_tokens' };
-  if (entry.maxOutputTokens === undefined) return { status: 'skipped', reason: 'missing_max_output_tokens' };
-  if (entry.inputModalities?.some(value => value.toLowerCase() === 'decisions')) {
+  if (entry.contextTokens === undefined)
+    return { status: 'skipped', reason: 'missing_context_tokens' };
+  if (entry.maxOutputTokens === undefined)
+    return { status: 'skipped', reason: 'missing_max_output_tokens' };
+  if (entry.inputModalities?.some((value) => value.toLowerCase() === 'decisions')) {
     return { status: 'skipped', reason: 'missing_modalities' };
   }
   const inputModalities = knownModalities(entry.inputModalities);
-  const typedDecisions = entry.outputModalities?.length === 1 && entry.outputModalities[0] === 'decisions';
-  const outputModalities = [...new Set((entry.outputModalities ?? []).filter(value =>
-    (INFERENCE_OUTPUT_MODALITIES as readonly string[]).includes(value)))].sort() as InferenceOutputModalityValue[];
+  const typedDecisions =
+    entry.outputModalities?.length === 1 && entry.outputModalities[0] === 'decisions';
+  const outputModalities = [
+    ...new Set(
+      (entry.outputModalities ?? []).filter((value) =>
+        (INFERENCE_OUTPUT_MODALITIES as readonly string[]).includes(value),
+      ),
+    ),
+  ].sort() as InferenceOutputModalityValue[];
   if (inputModalities.length === 0 || outputModalities.length === 0) {
     return { status: 'skipped', reason: 'missing_modalities' };
   }
@@ -516,13 +587,13 @@ export function planKaanaModel(
 
   const routeSkips: DeploymentSkipReason[] = Array.from(
     { length: entry.invalidDeployments },
-    () => 'invalid_descriptor' as const
+    () => 'invalid_descriptor' as const,
   );
   const routes: PlannedRoute[] = [];
   const seenProviders = new Set<string>();
   const seenDeploymentIds = new Set<string>();
   for (const priced of [...entry.listPrices].sort((a, b) =>
-    a.deploymentId < b.deploymentId ? -1 : a.deploymentId > b.deploymentId ? 1 : 0
+    a.deploymentId < b.deploymentId ? -1 : a.deploymentId > b.deploymentId ? 1 : 0,
   )) {
     const deployment = context.attested.get(priced.deploymentId);
     if (
@@ -537,35 +608,61 @@ export function planKaanaModel(
       routeSkips.push('unknown_provider');
       continue;
     }
-    if ((priced.scopedExecution === undefined) !== (deployment.scopedExecution === undefined) ||
-      (priced.scopedExecution !== undefined && canonicalScopedExecutionJson(priced.scopedExecution) !== canonicalScopedExecutionJson(deployment.scopedExecution))) {
+    if (
+      (priced.scopedExecution === undefined) !== (deployment.scopedExecution === undefined) ||
+      (priced.scopedExecution !== undefined &&
+        canonicalScopedExecutionJson(priced.scopedExecution) !==
+          canonicalScopedExecutionJson(deployment.scopedExecution))
+    ) {
       routeSkips.push('unattested_route');
       continue;
     }
-    if (deployment.scopedExecution !== undefined && (
-      deployment.keyId !== deployment.scopedExecution.keyId ||
-      deployment.upstreamModelId !== deployment.scopedExecution.upstreamModelId ||
-      deployment.providerRateCardVersionId !== deployment.scopedExecution.providerRateCardVersionId ||
-      deployment.providerSourceVersion !== deployment.scopedExecution.providerSourceVersion ||
-      deployment.deploymentId !== deployment.scopedExecution.deploymentId ||
-      deployment.modelReference !== deployment.scopedExecution.modelReference ||
-      deployment.provider !== deployment.scopedExecution.provider)) {
-      routeSkips.push('unattested_route'); continue;
+    if (
+      deployment.scopedExecution !== undefined &&
+      (deployment.keyId !== deployment.scopedExecution.keyId ||
+        deployment.upstreamModelId !== deployment.scopedExecution.upstreamModelId ||
+        deployment.providerRateCardVersionId !==
+          deployment.scopedExecution.providerRateCardVersionId ||
+        deployment.providerSourceVersion !== deployment.scopedExecution.providerSourceVersion ||
+        deployment.deploymentId !== deployment.scopedExecution.deploymentId ||
+        deployment.modelReference !== deployment.scopedExecution.modelReference ||
+        deployment.provider !== deployment.scopedExecution.provider)
+    ) {
+      routeSkips.push('unattested_route');
+      continue;
     }
-    if ((priced.privateAutoSourceApproval === undefined) !== (deployment.privateAutoSourceApproval === undefined) ||
-      (priced.privateAutoSourceApproval !== undefined && canonicalScopedExecutionJson(priced.privateAutoSourceApproval) !== canonicalScopedExecutionJson(deployment.privateAutoSourceApproval))) {
-      routeSkips.push('unattested_route'); continue;
+    if (
+      (priced.privateAutoSourceApproval === undefined) !==
+        (deployment.privateAutoSourceApproval === undefined) ||
+      (priced.privateAutoSourceApproval !== undefined &&
+        canonicalScopedExecutionJson(priced.privateAutoSourceApproval) !==
+          canonicalScopedExecutionJson(deployment.privateAutoSourceApproval))
+    ) {
+      routeSkips.push('unattested_route');
+      continue;
     }
     if (deployment.privateAutoSourceApproval !== undefined) {
-      try { validatePrivateAutoAttestation({ snapshotId: 'planning-exact-descriptor', privateAutoExecutionContractVersion: '3.7.0', deployments: [deployment] }, '3.7.0'); }
-      catch { routeSkips.push('unattested_route'); continue; }
+      try {
+        validatePrivateAutoAttestation(
+          {
+            snapshotId: 'planning-exact-descriptor',
+            privateAutoExecutionContractVersion: '3.7.0',
+            deployments: [deployment],
+          },
+          '3.7.0',
+        );
+      } catch {
+        routeSkips.push('unattested_route');
+        continue;
+      }
     }
     if (typedDecisions) {
       // 3.6/v3 and 3.7/v4 accept decisions exclusively. Only an exact local,
       // unexpired approval plus its signed descriptor can establish this
       // capability; output modality alone never authorizes an ordinary route.
       if (!currentPrivateDecisionAuthority(deployment)) {
-        routeSkips.push('unattested_route'); continue;
+        routeSkips.push('unattested_route');
+        continue;
       }
     }
     const price = priced.price;
@@ -575,7 +672,11 @@ export function planKaanaModel(
     }
     // One deployment per revision × provider × scope is a database invariant;
     // a second report of the same pair cannot be stored beside the first.
-    const providerLane = deployment.provider + (deployment.privateAutoSourceApproval === undefined ? ':ordinary-or-commissioning' : ':private-auto');
+    const providerLane =
+      deployment.provider +
+      (deployment.privateAutoSourceApproval === undefined
+        ? ':ordinary-or-commissioning'
+        : ':private-auto');
     if (seenProviders.has(providerLane) || seenDeploymentIds.has(deployment.deploymentId)) {
       routeSkips.push('duplicate_route');
       continue;
@@ -587,15 +688,19 @@ export function planKaanaModel(
       provider: deployment.provider,
       regions: deployment.regions,
       price,
-      ...(deployment.scopedExecution === undefined ? {} : { scopedExecution: deployment.scopedExecution }),
-      ...(deployment.privateAutoSourceApproval === undefined ? {} : { privateAutoSourceApproval: deployment.privateAutoSourceApproval }),
+      ...(deployment.scopedExecution === undefined
+        ? {}
+        : { scopedExecution: deployment.scopedExecution }),
+      ...(deployment.privateAutoSourceApproval === undefined
+        ? {}
+        : { privateAutoSourceApproval: deployment.privateAutoSourceApproval }),
       acceptedParameters: acceptedParametersForRoute(entry, deployment),
     });
   }
   if (routes.length === 0) return { status: 'skipped', reason: 'no_priced_route', routeSkips };
 
   const reasoningEfforts = MODEL_REASONING_EFFORTS.filter((effort) =>
-    (entry.reasoningEfforts ?? []).some((value) => value === effort && KNOWN_EFFORTS.has(value))
+    (entry.reasoningEfforts ?? []).some((value) => value === effort && KNOWN_EFFORTS.has(value)),
   );
   const providerReleasedAt = entry.createdAt === undefined ? null : new Date(entry.createdAt);
   return {
@@ -632,7 +737,12 @@ export function planKaanaModel(
  * and `requests` explicitly zero, since Kaana reports `requests: 1` per attempt.
  */
 export function syncedUnitPrices(price: KaanaListPrice): {
-  readonly unit: 'input_tokens' | 'cached_input_tokens' | 'output_tokens' | 'reasoning_tokens' | 'requests';
+  readonly unit:
+    | 'input_tokens'
+    | 'cached_input_tokens'
+    | 'output_tokens'
+    | 'reasoning_tokens'
+    | 'requests';
   readonly amount: string;
   readonly per: number;
 }[] {
@@ -709,7 +819,7 @@ function bump<K extends string>(record: Partial<Record<K, number>>, key: K): voi
 
 function sameUnitPrices(
   actual: readonly { unit: string; amount: string; per: number }[],
-  expected: readonly { unit: string; amount: string; per: number }[]
+  expected: readonly { unit: string; amount: string; per: number }[],
 ): boolean {
   const key = (rows: readonly { unit: string; amount: string; per: number }[]) =>
     rows
@@ -730,20 +840,31 @@ async function ensureSyncedPrice(
   scopedExecution?: ScopedExecutionAudience | PrivateAutoSourceApproval,
 ): Promise<string | undefined> {
   if (scopedExecution !== undefined) {
-    const reviewed = 'purpose' in scopedExecution ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now()) : sourceReviewedScopedAudience(Date.now());
-    if (reviewed === undefined || canonicalScopedExecutionJson(reviewed) !== canonicalScopedExecutionJson(scopedExecution)) return undefined;
+    const reviewed =
+      'purpose' in scopedExecution
+        ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now())
+        : sourceReviewedScopedAudience(Date.now());
+    if (
+      reviewed === undefined ||
+      canonicalScopedExecutionJson(reviewed) !== canonicalScopedExecutionJson(scopedExecution)
+    )
+      return undefined;
   }
   const expected = syncedUnitPrices(price);
   const [active] = await tx
-    .select({ id: priceVersions.id, currency: priceVersions.currency,
-      effectiveFrom: priceVersions.effectiveFrom, effectiveUntil: priceVersions.effectiveUntil })
+    .select({
+      id: priceVersions.id,
+      currency: priceVersions.currency,
+      effectiveFrom: priceVersions.effectiveFrom,
+      effectiveUntil: priceVersions.effectiveUntil,
+    })
     .from(priceVersions)
     .where(
       and(
         eq(priceVersions.modelReference, modelReference),
         eq(priceVersions.provider, provider),
-        eq(priceVersions.status, 'active')
-      )
+        eq(priceVersions.status, 'active'),
+      ),
     )
     .for('update');
   if (active !== undefined) {
@@ -757,9 +878,13 @@ async function ensureSyncedPrice(
       .where(eq(priceVersionUnitPrices.priceVersionId, active.id));
     if (scopedExecution !== undefined) {
       // A scoped import cannot replace, rename or reprice an existing version.
-      return active.id === scopedExecution.priceVersionId && active.currency === 'USD' &&
-        active.effectiveFrom <= now && active.effectiveUntil === null && sameUnitPrices(units, expected)
-        ? active.id : undefined;
+      return active.id === scopedExecution.priceVersionId &&
+        active.currency === 'USD' &&
+        active.effectiveFrom <= now &&
+        active.effectiveUntil === null &&
+        sameUnitPrices(units, expected)
+        ? active.id
+        : undefined;
     }
     if (sameUnitPrices(units, expected)) return active.id;
     // A changed list price never rewrites a published version: receipts
@@ -770,8 +895,11 @@ async function ensureSyncedPrice(
       .where(eq(priceVersions.id, active.id));
   }
   if (scopedExecution !== undefined) {
-    const [collision] = await tx.select({ id: priceVersions.id }).from(priceVersions)
-      .where(eq(priceVersions.id, scopedExecution.priceVersionId)).for('update');
+    const [collision] = await tx
+      .select({ id: priceVersions.id })
+      .from(priceVersions)
+      .where(eq(priceVersions.id, scopedExecution.priceVersionId))
+      .for('update');
     if (collision !== undefined) return undefined;
   }
   const [created] = await tx
@@ -787,7 +915,8 @@ async function ensureSyncedPrice(
       supersedesPriceVersionId: active?.id ?? null,
     })
     .returning({ id: priceVersions.id });
-  if (created === undefined) throw new Error(`price version for ${modelReference}:${provider} was not created`);
+  if (created === undefined)
+    throw new Error(`price version for ${modelReference}:${provider} was not created`);
   await tx
     .insert(priceVersionUnitPrices)
     .values(expected.map((unit) => ({ priceVersionId: created.id, ...unit })));
@@ -803,7 +932,7 @@ async function ensureSyncedScorecard(
   price: KaanaListPrice,
   evidenceRef: string,
   now: Date,
-  counts: MutableCounts
+  counts: MutableCounts,
 ): Promise<void> {
   const priceScore = syncedPriceScore(price);
   const [existing] = await tx
@@ -851,7 +980,8 @@ async function ensureSyncedScorecard(
     fundingRemainingUnit: null,
     fundingObservedAt: null,
     fundingValidUntil: null,
-    reason: 'Kaana sync: price score from the provider list price; no measured latency or throughput.',
+    reason:
+      'Kaana sync: price score from the provider list price; no measured latency or throughput.',
     changedByUserId: KAANA_SYNC_ACTOR,
   };
   if (existing === undefined) {
@@ -891,7 +1021,7 @@ async function retireSyncedDeployments(
   tx: Transaction,
   ids: readonly string[],
   note: string,
-  now: Date
+  now: Date,
 ): Promise<number> {
   if (ids.length === 0) return 0;
   const retired = await tx
@@ -906,8 +1036,8 @@ async function retireSyncedDeployments(
     .where(
       and(
         inArray(inferenceDeployments.id, [...ids]),
-        eq(inferenceDeployments.autoApprovalPolicyId, KAANA_SYNC_AUTO_APPROVAL_POLICY_ID)
-      )
+        eq(inferenceDeployments.autoApprovalPolicyId, KAANA_SYNC_AUTO_APPROVAL_POLICY_ID),
+      ),
     )
     .returning({ id: inferenceDeployments.id });
   return retired.length;
@@ -930,7 +1060,7 @@ async function applyPlannedModel(
   providers: ReadonlyMap<string, ProviderPolicyRow>,
   evidenceRef: string,
   now: Date,
-  counts: MutableCounts
+  counts: MutableCounts,
 ): Promise<string[]> {
   await tx
     .insert(inferencePublishers)
@@ -940,7 +1070,12 @@ async function applyPlannedModel(
   const [existing] = await tx
     .select()
     .from(inferenceModels)
-    .where(and(eq(inferenceModels.publisherSlug, planned.publisher), eq(inferenceModels.slug, planned.slug)))
+    .where(
+      and(
+        eq(inferenceModels.publisherSlug, planned.publisher),
+        eq(inferenceModels.slug, planned.slug),
+      ),
+    )
     .for('update');
 
   if (planned.apiFormats !== null && !planned.routes.every(currentPrivateDecisionAuthority)) {
@@ -954,7 +1089,9 @@ async function applyPlannedModel(
       .update(inferenceModels)
       .set({
         reasoningEfforts: [...planned.reasoningEfforts],
-        ...(planned.providerReleasedAt === null ? {} : { providerReleasedAt: planned.providerReleasedAt }),
+        ...(planned.providerReleasedAt === null
+          ? {}
+          : { providerReleasedAt: planned.providerReleasedAt }),
       })
       .where(eq(inferenceModels.id, existing.id));
     counts.reviewedUntouched += 1;
@@ -965,9 +1102,14 @@ async function applyPlannedModel(
     displayName: planned.displayName,
     inputModalities: [...planned.inputModalities],
     outputModalities: [...planned.outputModalities],
-    ...(planned.apiFormats !== null ? { apiFormats: [...planned.apiFormats] } :
-      existing?.outputModalities.length === 1 && existing.outputModalities[0] === 'decisions' &&
-      existing.apiFormats?.length === 1 && existing.apiFormats[0] === 'decisions' ? { apiFormats: null } : {}),
+    ...(planned.apiFormats !== null
+      ? { apiFormats: [...planned.apiFormats] }
+      : existing?.outputModalities.length === 1 &&
+          existing.outputModalities[0] === 'decisions' &&
+          existing.apiFormats?.length === 1 &&
+          existing.apiFormats[0] === 'decisions'
+        ? { apiFormats: null }
+        : {}),
     supportsTools: planned.supportsTools,
     supportsParallelToolCalls: false,
     supportsStructuredOutput: false,
@@ -982,8 +1124,11 @@ async function applyPlannedModel(
     reasoningEfforts: [...planned.reasoningEfforts],
     providerReleasedAt: planned.providerReleasedAt,
   };
-  const modelFactsUnchanged = existing !== undefined && Object.entries(modelFacts)
-    .every(([key, value]) => isDeepStrictEqual(existing[key as keyof typeof modelFacts], value));
+  const modelFactsUnchanged =
+    existing !== undefined &&
+    Object.entries(modelFacts).every(([key, value]) =>
+      isDeepStrictEqual(existing[key as keyof typeof modelFacts], value),
+    );
   let modelRowId: string;
   if (existing === undefined) {
     const [created] = await tx
@@ -1012,7 +1157,10 @@ async function applyPlannedModel(
     .select({ id: inferenceModelRevisions.id, isCurrent: inferenceModelRevisions.isCurrent })
     .from(inferenceModelRevisions)
     .where(
-      and(eq(inferenceModelRevisions.modelId, modelRowId), eq(inferenceModelRevisions.revision, planned.revision))
+      and(
+        eq(inferenceModelRevisions.modelId, modelRowId),
+        eq(inferenceModelRevisions.revision, planned.revision),
+      ),
     )
     .for('update');
   if (revision === undefined) {
@@ -1021,15 +1169,26 @@ async function applyPlannedModel(
     // date describes the line, not these weights.
     [revision] = await tx
       .insert(inferenceModelRevisions)
-      .values({ modelId: modelRowId, revision: planned.revision, isCurrent: false, releasedAt: now })
+      .values({
+        modelId: modelRowId,
+        revision: planned.revision,
+        isCurrent: false,
+        releasedAt: now,
+      })
       .returning({ id: inferenceModelRevisions.id, isCurrent: inferenceModelRevisions.isCurrent });
-    if (revision === undefined) throw new Error(`revision ${planned.modelReference} was not created`);
+    if (revision === undefined)
+      throw new Error(`revision ${planned.modelReference} was not created`);
   }
   if (!revision.isCurrent) {
     await tx
       .update(inferenceModelRevisions)
       .set({ isCurrent: false })
-      .where(and(eq(inferenceModelRevisions.modelId, modelRowId), eq(inferenceModelRevisions.isCurrent, true)));
+      .where(
+        and(
+          eq(inferenceModelRevisions.modelId, modelRowId),
+          eq(inferenceModelRevisions.isCurrent, true),
+        ),
+      );
     await tx
       .update(inferenceModelRevisions)
       .set({ isCurrent: true })
@@ -1065,19 +1224,34 @@ async function applyPlannedModel(
       internalRouteId: inferenceDeployments.internalRouteId,
       acceptedParameters: inferenceDeployments.acceptedParameters,
     };
-    type DeploymentFacts = Pick<typeof inferenceDeployments.$inferSelect, keyof typeof deploymentFacts>;
+    type DeploymentFacts = Pick<
+      typeof inferenceDeployments.$inferSelect,
+      keyof typeof deploymentFacts
+    >;
     const byId = await tx
       .select(deploymentFacts)
       .from(inferenceDeployments)
       .where(eq(inferenceDeployments.internalRouteId, route.deploymentId))
       .for('update');
     const restriction = route.privateAutoSourceApproval ?? route.scopedExecution;
-    const reviewedAudience = route.privateAutoSourceApproval !== undefined ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now()) : route.scopedExecution === undefined ? undefined : sourceReviewedScopedAudience(Date.now());
-    const reviewedPrivateImport = reviewedAudience !== undefined &&
+    const reviewedAudience =
+      route.privateAutoSourceApproval !== undefined
+        ? reviewedPrivateAutoApproval(privateAutoClassifierSourceApproval(), Date.now())
+        : route.scopedExecution === undefined
+          ? undefined
+          : sourceReviewedScopedAudience(Date.now());
+    const reviewedPrivateImport =
+      reviewedAudience !== undefined &&
       canonicalScopedExecutionJson(reviewedAudience) === canonicalScopedExecutionJson(restriction);
-    const managedPrivate = (row: DeploymentFacts) => reviewedPrivateImport &&
-      row.autoApprovalPolicyId === null && (route.privateAutoSourceApproval === undefined ? row.scopedExecution !== null && row.privateAutoSourceApproval === null : row.privateAutoSourceApproval !== null && row.scopedExecution === null) &&
-      row.availabilityScope === 'platform_internal' && row.permissionState === 'pending_review' && row.status === 'disabled';
+    const managedPrivate = (row: DeploymentFacts) =>
+      reviewedPrivateImport &&
+      row.autoApprovalPolicyId === null &&
+      (route.privateAutoSourceApproval === undefined
+        ? row.scopedExecution !== null && row.privateAutoSourceApproval === null
+        : row.privateAutoSourceApproval !== null && row.scopedExecution === null) &&
+      row.availabilityScope === 'platform_internal' &&
+      row.permissionState === 'pending_review' &&
+      row.status === 'disabled';
     if (byId.some((row) => row.autoApprovalPolicyId === null && !managedPrivate(row))) {
       bump(counts.deploymentSkips, 'reviewed_deployment');
       continue;
@@ -1089,15 +1263,21 @@ async function applyPlannedModel(
         and(
           eq(inferenceDeployments.modelRevisionId, revisionId),
           eq(inferenceDeployments.providerSlug, route.provider),
-          route.privateAutoSourceApproval === undefined ? sql`${inferenceDeployments.privateAutoSourceApproval} is null` : sql`${inferenceDeployments.privateAutoSourceApproval} is not null`,
+          route.privateAutoSourceApproval === undefined
+            ? sql`${inferenceDeployments.privateAutoSourceApproval} is null`
+            : sql`${inferenceDeployments.privateAutoSourceApproval} is not null`,
           or(
             eq(inferenceDeployments.availabilityScope, 'platform_internal'),
-            sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
-          )
-        )
+            sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`,
+          ),
+        ),
       )
       .for('update');
-    if (byRoute !== undefined && byRoute.autoApprovalPolicyId === null && !managedPrivate(byRoute)) {
+    if (
+      byRoute !== undefined &&
+      byRoute.autoApprovalPolicyId === null &&
+      !managedPrivate(byRoute)
+    ) {
       bump(counts.deploymentSkips, 'reviewed_deployment');
       continue;
     }
@@ -1105,37 +1285,78 @@ async function applyPlannedModel(
     // A managed private row may be revisited only under fresh compiled authority;
     // ordinary manually reviewed rows retain their existing protection above.
     const privateFacts = {
-      modelRevisionId: revisionId, providerSlug: route.provider,
-      scopedExecution: route.scopedExecution ?? null, privateAutoSourceApproval: route.privateAutoSourceApproval ?? null, regions: [...route.regions],
-      retainsPayloads: provider.retainsPayloads, retentionDays: provider.retentionDays,
-      trainsOnCustomerData: provider.trainsOnCustomerData, zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
-      subprocessors: provider.subprocessors, policyUrl: provider.policyUrl,
-      priceVersionId: restriction?.priceVersionId, internalRouteId: route.deploymentId,
+      modelRevisionId: revisionId,
+      providerSlug: route.provider,
+      scopedExecution: route.scopedExecution ?? null,
+      privateAutoSourceApproval: route.privateAutoSourceApproval ?? null,
+      regions: [...route.regions],
+      retainsPayloads: provider.retainsPayloads,
+      retentionDays: provider.retentionDays,
+      trainsOnCustomerData: provider.trainsOnCustomerData,
+      zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
+      subprocessors: provider.subprocessors,
+      policyUrl: provider.policyUrl,
+      priceVersionId: restriction?.priceVersionId,
+      internalRouteId: route.deploymentId,
       acceptedParameters: route.acceptedParameters === null ? null : [...route.acceptedParameters],
     };
-    const samePrivateFacts = (row: DeploymentFacts) => modelFactsUnchanged &&
-      managedPrivate(row) && Object.entries(privateFacts).every(([key, value]) =>
-        isDeepStrictEqual(row[key as keyof typeof privateFacts], value));
+    const samePrivateFacts = (row: DeploymentFacts) =>
+      modelFactsUnchanged &&
+      managedPrivate(row) &&
+      Object.entries(privateFacts).every(([key, value]) =>
+        isDeepStrictEqual(row[key as keyof typeof privateFacts], value),
+      );
     let preservePrivateReview = byRoute !== undefined && samePrivateFacts(byRoute);
     if (reviewedPrivateImport && restriction !== undefined) {
-      const currentUnits = await tx.select({ unit: priceVersionUnitPrices.unit, amount: priceVersionUnitPrices.amount,
-        per: priceVersionUnitPrices.per }).from(priceVersionUnitPrices)
+      const currentUnits = await tx
+        .select({
+          unit: priceVersionUnitPrices.unit,
+          amount: priceVersionUnitPrices.amount,
+          per: priceVersionUnitPrices.per,
+        })
+        .from(priceVersionUnitPrices)
         .where(eq(priceVersionUnitPrices.priceVersionId, restriction.priceVersionId));
-      const [currentPrice] = await tx.select().from(priceVersions)
+      const [currentPrice] = await tx
+        .select()
+        .from(priceVersions)
         .where(eq(priceVersions.id, restriction.priceVersionId));
-      preservePrivateReview = preservePrivateReview && currentPrice !== undefined && currentPrice.status === 'active' &&
-        currentPrice.provider === route.provider && currentPrice.modelReference === planned.modelReference &&
-        currentPrice.currency === 'USD' && currentPrice.effectiveFrom <= now && currentPrice.effectiveUntil === null &&
+      preservePrivateReview =
+        preservePrivateReview &&
+        currentPrice !== undefined &&
+        currentPrice.status === 'active' &&
+        currentPrice.provider === route.provider &&
+        currentPrice.modelReference === planned.modelReference &&
+        currentPrice.currency === 'USD' &&
+        currentPrice.effectiveFrom <= now &&
+        currentPrice.effectiveUntil === null &&
         sameUnitPrices(currentUnits, syncedUnitPrices(route.price));
       // Invalidate before a changed price/identity can be rejected by immutable
       // import. Never retain approval merely because that update was skipped.
-      const rows = new Map([...byId, ...(byRoute === undefined ? [] : [byRoute])].map(row => [row.id, row]));
-      for (const row of rows.values()) if (managedPrivate(row) && !(row.id === byRoute?.id && preservePrivateReview)) {
-        await tx.update(inferenceDeployments).set({ legalReviewStatus: 'not_started', legalReviewEvidenceRef: null,
-          legalReviewedAt: null, legalReviewedByUserId: null }).where(eq(inferenceDeployments.id, row.id));
-      }
+      const rows = new Map(
+        [...byId, ...(byRoute === undefined ? [] : [byRoute])].map((row) => [row.id, row]),
+      );
+      for (const row of rows.values())
+        if (managedPrivate(row) && !(row.id === byRoute?.id && preservePrivateReview)) {
+          await tx
+            .update(inferenceDeployments)
+            .set({
+              legalReviewStatus: 'not_started',
+              legalReviewEvidenceRef: null,
+              legalReviewedAt: null,
+              legalReviewedByUserId: null,
+            })
+            .where(eq(inferenceDeployments.id, row.id));
+        }
     }
-    const priceVersionId = await ensureSyncedPrice(tx, planned.modelReference, route.provider, route.price, now, counts, restriction);
+    const priceVersionId = await ensureSyncedPrice(
+      tx,
+      planned.modelReference,
+      route.provider,
+      route.price,
+      now,
+      counts,
+      restriction,
+    );
     if (priceVersionId === undefined) {
       bump(counts.deploymentSkips, 'unattested_route');
       continue;
@@ -1148,7 +1369,7 @@ async function applyPlannedModel(
       tx,
       byId.filter((row) => row.id !== byRoute?.id && row.status !== 'retired').map((row) => row.id),
       RETIRED_NOTE,
-      now
+      now,
     );
 
     const routeFacts = {
@@ -1161,18 +1382,23 @@ async function applyPlannedModel(
       zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
       subprocessors: provider.subprocessors,
       policyUrl: provider.policyUrl,
-      status: restriction === undefined ? 'active' as const : 'disabled' as const,
+      status: restriction === undefined ? ('active' as const) : ('disabled' as const),
       dedicatedCapacity: false,
       priceVersionId,
       internalRouteId: route.deploymentId,
       acceptedParameters: route.acceptedParameters === null ? null : [...route.acceptedParameters],
     };
     const approval = {
-      permissionState: restriction === undefined ? 'approved' as const : 'pending_review' as const,
+      permissionState:
+        restriction === undefined ? ('approved' as const) : ('pending_review' as const),
       permissionStateChangedAt: now,
       permissionStateChangedByUserId: null,
-      permissionStateNote: restriction === undefined ? PERMISSION_NOTE : 'Restricted publication requires source-specific commercial and privacy review.',
-      legalReviewStatus: restriction === undefined ? 'approved' as const : 'not_started' as const,
+      permissionStateNote:
+        restriction === undefined
+          ? PERMISSION_NOTE
+          : 'Restricted publication requires source-specific commercial and privacy review.',
+      legalReviewStatus:
+        restriction === undefined ? ('approved' as const) : ('not_started' as const),
       legalReviewEvidenceRef: restriction === undefined ? LEGAL_EVIDENCE_REF : null,
       legalReviewedAt: restriction === undefined ? now : null,
       legalReviewedByUserId: null,
@@ -1195,11 +1421,25 @@ async function applyPlannedModel(
         .set({
           ...routeFacts,
           availabilityScope: 'platform_internal',
-          ...(restriction !== undefined ? (preservePrivateReview ? {} : approval) : (revived ? approval : {})),
+          ...(restriction !== undefined
+            ? preservePrivateReview
+              ? {}
+              : approval
+            : revived
+              ? approval
+              : {}),
         })
         .where(eq(inferenceDeployments.id, byRoute.id));
     }
-    await ensureSyncedScorecard(tx, route.deploymentId, priceVersionId, route.price, evidenceRef, now, counts);
+    await ensureSyncedScorecard(
+      tx,
+      route.deploymentId,
+      priceVersionId,
+      route.price,
+      evidenceRef,
+      now,
+      counts,
+    );
     counts.deploymentsUpserted += 1;
     held.push(route.deploymentId);
   }
@@ -1214,7 +1454,7 @@ async function applyPlannedModel(
 export async function applyKaanaCatalogue(
   catalogue: ParsedKaanaCatalogue,
   attested: ReadonlyMap<string, KaanaDeploymentDescriptor>,
-  options: { readonly now?: Date; readonly allowMassRetirement?: boolean } = {}
+  options: { readonly now?: Date; readonly allowMassRetirement?: boolean } = {},
 ): Promise<KaanaCatalogueSyncSummary> {
   const now = options.now ?? new Date();
   if (catalogue.models.length === 0) {
@@ -1222,34 +1462,55 @@ export async function applyKaanaCatalogue(
     // syncing it would retire every synced route.
     throw new Error('Kaana reported an empty catalogue; refusing to sync it');
   }
-  const evidenceRef = `kaana-list-price:${catalogue.snapshotId ?? 'unknown-snapshot'}`.slice(0, 500);
+  const evidenceRef = `kaana-list-price:${catalogue.snapshotId ?? 'unknown-snapshot'}`.slice(
+    0,
+    500,
+  );
 
   return getDb().transaction(async (tx) => {
     const [lock] = await tx.execute<{ locked: boolean }>(
-      sql`select pg_try_advisory_xact_lock(hashtextextended(${SYNC_LOCK_NAMESPACE}, 0)) as locked`
+      sql`select pg_try_advisory_xact_lock(hashtextextended(${SYNC_LOCK_NAMESPACE}, 0)) as locked`,
     );
     const emptyCounts = {
-      models: { reported: catalogue.models.length, synced: 0, created: 0, reviewedUntouched: 0, skipped: {} },
+      models: {
+        reported: catalogue.models.length,
+        synced: 0,
+        created: 0,
+        reviewedUntouched: 0,
+        skipped: {},
+      },
       deployments: { upserted: 0, created: 0, retired: 0, retirementWithheld: 0, skipped: {} },
       priceVersionsCreated: 0,
       scorecardsWritten: 0,
       skippedModels: [],
     };
     if (lock?.locked !== true) {
-      return { status: 'skipped', reason: 'locked', snapshotId: catalogue.snapshotId, ...emptyCounts };
+      return {
+        status: 'skipped',
+        reason: 'locked',
+        snapshotId: catalogue.snapshotId,
+        ...emptyCounts,
+      };
     }
     const [policy] = await tx
       .select({ enabled: inferenceCatalogueAutoApprovalPolicies.enabled })
       .from(inferenceCatalogueAutoApprovalPolicies)
       .where(eq(inferenceCatalogueAutoApprovalPolicies.id, KAANA_SYNC_AUTO_APPROVAL_POLICY_ID));
     if (policy?.enabled !== true) {
-      return { status: 'skipped', reason: 'policy-disabled', snapshotId: catalogue.snapshotId, ...emptyCounts };
+      return {
+        status: 'skipped',
+        reason: 'policy-disabled',
+        snapshotId: catalogue.snapshotId,
+        ...emptyCounts,
+      };
     }
 
     const blocked = new Set(
-      (await tx.select({ modelId: inferenceCatalogueBlocklist.modelId }).from(inferenceCatalogueBlocklist)).map(
-        (row) => row.modelId
-      )
+      (
+        await tx
+          .select({ modelId: inferenceCatalogueBlocklist.modelId })
+          .from(inferenceCatalogueBlocklist)
+      ).map((row) => row.modelId),
     );
     const providerRows = await tx
       .select({
@@ -1266,7 +1527,7 @@ export async function applyKaanaCatalogue(
     // Only providers Oxy itself pays: a BYOK provider row describes a
     // customer's own account, never a platform route.
     const providers = new Map(
-      providerRows.filter((row) => row.kind !== 'customer_byok').map((row) => [row.slug, row])
+      providerRows.filter((row) => row.kind !== 'customer_byok').map((row) => [row.slug, row]),
     );
 
     const counts: MutableCounts = {
@@ -1281,7 +1542,8 @@ export async function applyKaanaCatalogue(
       scorecardsWritten: 0,
       skippedModels: [],
     };
-    for (let index = 0; index < catalogue.invalidEntries; index += 1) bump(counts.modelSkips, 'invalid_entry');
+    for (let index = 0; index < catalogue.invalidEntries; index += 1)
+      bump(counts.modelSkips, 'invalid_entry');
 
     const held = new Set<string>();
     const seenLines = new Set<string>();
@@ -1296,7 +1558,9 @@ export async function applyKaanaCatalogue(
         knownProviders: new Set(providers.keys()),
         attested,
       });
-      for (const skip of plan.status === 'planned' ? plan.model.routeSkips : plan.routeSkips ?? []) {
+      for (const skip of plan.status === 'planned'
+        ? plan.model.routeSkips
+        : (plan.routeSkips ?? [])) {
         bump(counts.deploymentSkips, skip);
       }
       if (plan.status === 'skipped') {
@@ -1306,21 +1570,33 @@ export async function applyKaanaCatalogue(
         }
         continue;
       }
-      for (const deploymentId of await applyPlannedModel(tx, plan.model, providers, evidenceRef, now, counts)) {
+      for (const deploymentId of await applyPlannedModel(
+        tx,
+        plan.model,
+        providers,
+        evidenceRef,
+        now,
+        counts,
+      )) {
         held.add(deploymentId);
       }
     }
 
     const live = await tx
-      .select({ id: inferenceDeployments.id, internalRouteId: inferenceDeployments.internalRouteId })
+      .select({
+        id: inferenceDeployments.id,
+        internalRouteId: inferenceDeployments.internalRouteId,
+      })
       .from(inferenceDeployments)
       .where(
         and(
           eq(inferenceDeployments.autoApprovalPolicyId, KAANA_SYNC_AUTO_APPROVAL_POLICY_ID),
-          ne(inferenceDeployments.status, 'retired')
-        )
+          ne(inferenceDeployments.status, 'retired'),
+        ),
       );
-    const stale = live.filter((row) => row.internalRouteId === null || !held.has(row.internalRouteId));
+    const stale = live.filter(
+      (row) => row.internalRouteId === null || !held.has(row.internalRouteId),
+    );
     const massRetirement =
       live.length > 0 && stale.length / live.length > MAX_ROUTINE_RETIREMENT_FRACTION;
     let retired = 0;
@@ -1330,10 +1606,15 @@ export async function applyKaanaCatalogue(
       logger.error(
         'inference.catalogue_sync.retirement_withheld',
         new Error(`the Kaana report would retire ${stale.length} of ${live.length} synced routes`),
-        { snapshotId: catalogue.snapshotId, stale: stale.length, live: live.length }
+        { snapshotId: catalogue.snapshotId, stale: stale.length, live: live.length },
       );
     } else {
-      retired = await retireSyncedDeployments(tx, stale.map((row) => row.id), RETIRED_NOTE, now);
+      retired = await retireSyncedDeployments(
+        tx,
+        stale.map((row) => row.id),
+        RETIRED_NOTE,
+        now,
+      );
     }
 
     return {
@@ -1369,55 +1650,89 @@ export async function applyKaanaCatalogue(
  */
 export async function attestPricedDeployments(
   reader: KaanaCatalogueReader,
-  catalogue: ParsedKaanaCatalogue
+  catalogue: ParsedKaanaCatalogue,
 ): Promise<Map<string, KaanaDeploymentDescriptor>> {
   const pricedRoutes = new Map<string, KaanaPricedRoute>();
-  for (const model of catalogue.models) for (const route of model.listPrices) {
-    if (route.price === 'invalid') continue;
-    const existing = pricedRoutes.get(route.deploymentId);
-    if (existing !== undefined && canonicalScopedExecutionJson(existing) !== canonicalScopedExecutionJson(route)) {
-      throw new Error('Catalogue repeats a deployment with conflicting price or authority.');
+  for (const model of catalogue.models)
+    for (const route of model.listPrices) {
+      if (route.price === 'invalid') continue;
+      const existing = pricedRoutes.get(route.deploymentId);
+      if (
+        existing !== undefined &&
+        canonicalScopedExecutionJson(existing) !== canonicalScopedExecutionJson(route)
+      ) {
+        throw new Error('Catalogue repeats a deployment with conflicting price or authority.');
+      }
+      pricedRoutes.set(route.deploymentId, route);
     }
-    pricedRoutes.set(route.deploymentId, route);
-  }
   const attested = new Map<string, KaanaDeploymentDescriptor>();
   // Metadata negotiations stay independent just like the v3 and v4 execution lanes.
   for (const privateAuto of [false, true]) {
-    const ids = [...pricedRoutes.values()].filter(route => (route.privateAutoSourceApproval !== undefined) === privateAuto)
-      .map(route => route.deploymentId).sort();
+    const ids = [...pricedRoutes.values()]
+      .filter((route) => (route.privateAutoSourceApproval !== undefined) === privateAuto)
+      .map((route) => route.deploymentId)
+      .sort();
     for (let start = 0; start < ids.length; start += KAANA_ATTESTATION_BATCH) {
       const batch = ids.slice(start, start + KAANA_ATTESTATION_BATCH);
       const evidence = await reader.attestDeployments(batch, {
         signal: AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS),
-        ...(privateAuto ? { privateAutoExecutionContractVersion: '3.7.0' as const } : { scopedExecutionContractVersion: '3.6.0' as const }),
+        ...(privateAuto
+          ? { privateAutoExecutionContractVersion: '3.7.0' as const }
+          : { scopedExecutionContractVersion: '3.6.0' as const }),
       });
       validatePrivateAutoAttestation(evidence, privateAuto ? '3.7.0' : undefined);
       if (evidence.scopedExecutionContractVersion !== (privateAuto ? undefined : '3.6.0')) {
         throw new Error('Missing independent scoped deployment acknowledgement.');
       }
-      if (catalogue.models.some(model => model.listPrices.some(price => price.scopedExecution !== undefined || price.privateAutoSourceApproval !== undefined)) &&
-        (catalogue.snapshotId === undefined || evidence.snapshotId !== catalogue.snapshotId)) {
+      if (
+        catalogue.models.some((model) =>
+          model.listPrices.some(
+            (price) =>
+              price.scopedExecution !== undefined || price.privateAutoSourceApproval !== undefined,
+          ),
+        ) &&
+        (catalogue.snapshotId === undefined || evidence.snapshotId !== catalogue.snapshotId)
+      ) {
         throw new Error('Private catalogue snapshot changed before attestation.');
       }
-      if (evidence.deployments.length !== batch.length || new Set(evidence.deployments.map(row => row.deploymentId)).size !== batch.length ||
-        evidence.deployments.some(row => !batch.includes(row.deploymentId))) {
+      if (
+        evidence.deployments.length !== batch.length ||
+        new Set(evidence.deployments.map((row) => row.deploymentId)).size !== batch.length ||
+        evidence.deployments.some((row) => !batch.includes(row.deploymentId))
+      ) {
         throw new Error('Deployment attestation must contain exactly the requested identities.');
       }
       for (const descriptor of evidence.deployments) {
         const route = pricedRoutes.get(descriptor.deploymentId);
-        if (route === undefined) throw new Error('Deployment attestation lacks its exact priced route.');
-        if (descriptor.provider !== route.provider ||
-          canonicalScopedExecutionJson(descriptor.privateAutoSourceApproval ?? null) !== canonicalScopedExecutionJson(route.privateAutoSourceApproval ?? null) ||
-          canonicalScopedExecutionJson(descriptor.scopedExecution ?? null) !== canonicalScopedExecutionJson(route.scopedExecution ?? null)) {
+        if (route === undefined)
+          throw new Error('Deployment attestation lacks its exact priced route.');
+        if (
+          descriptor.provider !== route.provider ||
+          canonicalScopedExecutionJson(descriptor.privateAutoSourceApproval ?? null) !==
+            canonicalScopedExecutionJson(route.privateAutoSourceApproval ?? null) ||
+          canonicalScopedExecutionJson(descriptor.scopedExecution ?? null) !==
+            canonicalScopedExecutionJson(route.scopedExecution ?? null)
+        ) {
           throw new Error('Deployment attestation changed its provider or private authority.');
         }
         attested.set(descriptor.deploymentId, {
-          deploymentId: descriptor.deploymentId, provider: descriptor.provider, modelReference: descriptor.modelReference,
-          regions: [...new Set(descriptor.regions)].sort(), keyId: descriptor.keyId, upstreamModelId: descriptor.upstreamModelId,
-          providerRateCardVersionId: descriptor.providerRateCardVersionId, providerSourceVersion: descriptor.providerSourceVersion,
-          ...(descriptor.scopedExecution === undefined ? {} : { scopedExecution: descriptor.scopedExecution }),
-          ...(descriptor.privateAutoSourceApproval === undefined ? {} : { privateAutoSourceApproval: descriptor.privateAutoSourceApproval }),
-          ...(descriptor.acceptedParameters === undefined ? {} : { acceptedParameters: descriptor.acceptedParameters }),
+          deploymentId: descriptor.deploymentId,
+          provider: descriptor.provider,
+          modelReference: descriptor.modelReference,
+          regions: [...new Set(descriptor.regions)].sort(),
+          keyId: descriptor.keyId,
+          upstreamModelId: descriptor.upstreamModelId,
+          providerRateCardVersionId: descriptor.providerRateCardVersionId,
+          providerSourceVersion: descriptor.providerSourceVersion,
+          ...(descriptor.scopedExecution === undefined
+            ? {}
+            : { scopedExecution: descriptor.scopedExecution }),
+          ...(descriptor.privateAutoSourceApproval === undefined
+            ? {}
+            : { privateAutoSourceApproval: descriptor.privateAutoSourceApproval }),
+          ...(descriptor.acceptedParameters === undefined
+            ? {}
+            : { acceptedParameters: descriptor.acceptedParameters }),
         });
       }
     }
@@ -1427,7 +1742,7 @@ export async function attestPricedDeployments(
 
 /** Fetch Kaana's catalogue and apply it. */
 export async function runKaanaCatalogueSync(
-  options: KaanaCatalogueSyncOptions = {}
+  options: KaanaCatalogueSyncOptions = {},
 ): Promise<KaanaCatalogueSyncSummary> {
   const reader = options.reader ?? createHttpKaanaCatalogueReader();
   if (reader === undefined) {
@@ -1442,7 +1757,7 @@ export async function runKaanaCatalogueSync(
     };
   }
   const catalogue = parseKaanaCatalogue(
-    await reader.listModels(AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS))
+    await reader.listModels(AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS)),
   );
   const attested = await attestPricedDeployments(reader, catalogue);
   const summary = await applyKaanaCatalogue(catalogue, attested, options);
@@ -1502,7 +1817,11 @@ export async function blockCatalogueModel(input: {
   return getDb().transaction(async (tx) => {
     const inserted = await tx
       .insert(inferenceCatalogueBlocklist)
-      .values({ modelId: input.modelId, reason: input.reason.trim(), createdByUserId: input.userId })
+      .values({
+        modelId: input.modelId,
+        reason: input.reason.trim(),
+        createdByUserId: input.userId,
+      })
       .onConflictDoNothing({ target: inferenceCatalogueBlocklist.modelId })
       .returning({ id: inferenceCatalogueBlocklist.id });
     const revisionsOfLine = tx
@@ -1517,15 +1836,15 @@ export async function blockCatalogueModel(input: {
         and(
           eq(inferenceDeployments.autoApprovalPolicyId, KAANA_SYNC_AUTO_APPROVAL_POLICY_ID),
           ne(inferenceDeployments.status, 'retired'),
-          inArray(inferenceDeployments.modelRevisionId, revisionsOfLine)
-        )
+          inArray(inferenceDeployments.modelRevisionId, revisionsOfLine),
+        ),
       )
       .for('update');
     const retired = await retireSyncedDeployments(
       tx,
       targets.map((row) => row.id),
       BLOCKED_NOTE,
-      now
+      now,
     );
     return { created: inserted.length === 1, retired };
   });
@@ -1564,8 +1883,8 @@ export function startKaanaCatalogueSyncSchedule(): { stop(): void } | undefined 
       .catch((error: unknown) =>
         logger.error(
           'inference.catalogue_sync.failed',
-          error instanceof Error ? error : new Error(String(error))
-        )
+          error instanceof Error ? error : new Error(String(error)),
+        ),
       )
       .finally(() => {
         running = false;

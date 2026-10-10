@@ -128,7 +128,11 @@ export function useResolvedFileUrls(
   // resolvable set is unchanged (the `files` array is a fresh reference every
   // render). Sorted so ordering churn does not force a refetch.
   const signature = useMemo(
-    () => requests.map((r) => `${r.fileId}:${r.variant ?? ''}`).sort().join('|'),
+    () =>
+      requests
+        .map((r) => `${r.fileId}:${r.variant ?? ''}`)
+        .sort()
+        .join('|'),
     [requests],
   );
 

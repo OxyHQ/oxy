@@ -19,11 +19,7 @@ import { messages } from '../db/schema/messages';
 import { users } from '../db/schema/users';
 import type { MessageAttachment } from '../db/schema/messageAttachments';
 import type { FileRecord } from '../types/file.types';
-import {
-  BadRequestError,
-  ForbiddenError,
-  NotFoundError,
-} from '../utils/error';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { resolveEmailFromName } from '../utils/displayName';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
@@ -34,7 +30,11 @@ import type {
   listSubscriptionsResponseSchema,
   unsubscribeResponseSchema,
 } from '../schemas/email.schemas';
-import { cancelEmailOutbox, listEmailOutbox, retryEmailOutbox } from '../services/emailOutbox.service';
+import {
+  cancelEmailOutbox,
+  listEmailOutbox,
+  retryEmailOutbox,
+} from '../services/emailOutbox.service';
 
 /**
  * Read an optional query-string param that MUST be a single string.
@@ -77,7 +77,7 @@ function parseSeenSearchOperator(query: string): { query: string; seen?: boolean
  */
 async function resolveAttachmentInputs(
   inputs: AttachmentInput[],
-  userId: string
+  userId: string,
 ): Promise<{ resolved: MessageAttachment[]; files: FileRecord[] }> {
   const fileIds = inputs.map((a) => a.fileId);
   const files = await assetService.getFilesByIds(fileIds);
@@ -131,7 +131,7 @@ async function resolveAttachmentInputs(
 async function linkAttachmentsToMessage(
   files: FileRecord[],
   messageId: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   for (const file of files) {
     try {
@@ -151,7 +151,6 @@ async function linkAttachmentsToMessage(
   }
 }
 
-
 /**
  * Find one of this user's own messages by its RFC 5322 `Message-ID`.
  *
@@ -162,7 +161,9 @@ async function linkAttachmentsToMessage(
 async function findOwnMessageByRfcId(
   userId: string,
   rfcMessageId: string,
-): Promise<{ id: string; messageId: string; inReplyTo: string | null; references: string[] } | undefined> {
+): Promise<
+  { id: string; messageId: string; inReplyTo: string | null; references: string[] } | undefined
+> {
   const [row] = await getDb()
     .select({
       id: messages.id,
@@ -217,9 +218,8 @@ async function resolveReplyThreading(
   const parent = await findOwnMessageByRfcId(userId, inReplyTo);
   if (!parent) return { inReplyTo, references };
 
-  const ancestry = parent.references.length > 0
-    ? parent.references
-    : parent.inReplyTo ? [parent.inReplyTo] : [];
+  const ancestry =
+    parent.references.length > 0 ? parent.references : parent.inReplyTo ? [parent.inReplyTo] : [];
   const chain = [...new Set([...ancestry, parent.messageId])].filter(
     (id) => rfcMessageIdSchema.safeParse(id).success,
   );
@@ -283,13 +283,21 @@ export async function listMessages(req: AuthRequest, res: Response): Promise<voi
   }
 
   const result = await emailService.listMessages(userId, mailboxId || null, {
-    limit, offset, cursor, unseenOnly, starred, label,
+    limit,
+    offset,
+    cursor,
+    unseenOnly,
+    starred,
+    label,
   });
   const pagination = {
     total: result.total,
     limit: result.limit,
     offset: result.offset,
-    hasMore: cursor !== undefined ? result.nextCursor !== null : result.offset + result.limit < result.total,
+    hasMore:
+      cursor !== undefined
+        ? result.nextCursor !== null
+        : result.offset + result.limit < result.total,
     ...(cursor !== undefined ? { nextCursor: result.nextCursor ?? null } : {}),
   };
   res.json({
@@ -498,7 +506,9 @@ export async function deleteLabel(req: AuthRequest, res: Response): Promise<void
  * a send always answered with for an account that has no username, since
  * without one there is no address.
  */
-export async function senderIdentityFor(userId: string): Promise<{ address: string; name: string }> {
+export async function senderIdentityFor(
+  userId: string,
+): Promise<{ address: string; name: string }> {
   const [user] = await getDb()
     .select({ username: users.username, first: users.nameFirst, last: users.nameLast })
     .from(users)
@@ -575,17 +585,21 @@ export async function sendMessageForUser(
   // the attempt still counts toward the bounce rate that gets a sending domain
   // suspended — and the sender would be told nothing. One query for the whole
   // recipient list; see `emailSuppression.service.ts` for the scope rules.
-  const suppressed = await findSuppressed(userId, allRecipients.map((r) => r.address));
+  const suppressed = await findSuppressed(
+    userId,
+    allRecipients.map((r) => r.address),
+  );
   if (suppressed.length > 0) {
     const detail = suppressed
       .map((s) => {
-        const why = s.reason === 'complaint'
-          ? 'marked your mail as spam'
-          : s.reason === 'bounce_permanent'
-            ? 'permanently rejected mail'
-            : s.reason === 'bounce_transient'
-              ? 'is temporarily rejecting mail'
-              : 'was blocked manually';
+        const why =
+          s.reason === 'complaint'
+            ? 'marked your mail as spam'
+            : s.reason === 'bounce_permanent'
+              ? 'permanently rejected mail'
+              : s.reason === 'bounce_transient'
+                ? 'is temporarily rejecting mail'
+                : 'was blocked manually';
         return `${s.address} (${why}${s.diagnostic ? `: ${s.diagnostic}` : ''})`;
       })
       .join('; ');
@@ -598,9 +612,10 @@ export async function sendMessageForUser(
   // Resolve { fileId } references → canonical MessageAttachment[] for storage and
   // outbound transport. Throws 400/403 on missing / non-active / unauthorized
   // fileIds before any side effects.
-  const { resolved: resolvedAttachments, files: attachedFiles } = attachments && attachments.length > 0
-    ? await resolveAttachmentInputs(attachments, userId)
-    : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
+  const { resolved: resolvedAttachments, files: attachedFiles } =
+    attachments && attachments.length > 0
+      ? await resolveAttachmentInputs(attachments, userId)
+      : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
 
   if (scheduledAt) {
     const scheduledDate = new Date(scheduledAt);
@@ -636,7 +651,10 @@ export async function sendMessageForUser(
     }
 
     emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
-      logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
+      logger.warn('autoCollectContacts failed', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
 
     return {
@@ -680,7 +698,10 @@ export async function sendMessageForUser(
   }
 
   emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
-    logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
+    logger.warn('autoCollectContacts failed', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   });
 
   return {
@@ -724,7 +745,19 @@ export async function saveDraftForUser(
   userId: string,
   command: SaveDraftCommand,
 ): Promise<Awaited<ReturnType<typeof emailService.saveDraft>>> {
-  const { to, cc, bcc, subject, text, html, inReplyTo, references, attachments, existingDraftId, expectedRevision } = command;
+  const {
+    to,
+    cc,
+    bcc,
+    subject,
+    text,
+    html,
+    inReplyTo,
+    references,
+    attachments,
+    existingDraftId,
+    expectedRevision,
+  } = command;
   const { resolved: resolvedAttachments, files: attachedFiles } = attachments?.length
     ? await resolveAttachmentInputs(attachments, userId)
     : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
@@ -845,9 +878,15 @@ export async function searchMessagesForUser(
   }
 
   const result = await emailService.searchMessages(userId, q, {
-    limit, offset, mailboxId, from, to, subject,
+    limit,
+    offset,
+    mailboxId,
+    from,
+    to,
+    subject,
     hasAttachment: hasAttachment || undefined,
-    dateAfter, dateBefore,
+    dateAfter,
+    dateBefore,
     starred: starred || undefined,
     label,
     seen,
@@ -857,7 +896,10 @@ export async function searchMessagesForUser(
     total: result.total,
     limit: result.limit,
     offset: result.offset,
-    hasMore: cursor !== undefined ? result.nextCursor !== null : result.offset + result.limit < result.total,
+    hasMore:
+      cursor !== undefined
+        ? result.nextCursor !== null
+        : result.offset + result.limit < result.total,
     ...(cursor !== undefined ? { nextCursor: result.nextCursor ?? null } : {}),
   };
   return {
@@ -905,7 +947,12 @@ export async function updateEmailSettings(req: AuthRequest, res: Response): Prom
   const userId = req.user!.id;
   const { signature, autoReply, autoForwardTo, autoForwardKeepCopy } = req.body;
 
-  await emailService.updateEmailSettings(userId, { signature, autoReply, autoForwardTo, autoForwardKeepCopy });
+  await emailService.updateEmailSettings(userId, {
+    signature,
+    autoReply,
+    autoForwardTo,
+    autoForwardKeepCopy,
+  });
   res.json({ data: { message: 'Settings updated' } });
 }
 
@@ -942,7 +989,11 @@ export async function unsubscribe(req: AuthRequest, res: Response): Promise<void
     throw new BadRequestError('method must be "list-unsubscribe" or "block"');
   }
 
-  const result = await emailService.unsubscribe(userId, senderAddress, method || 'list-unsubscribe');
+  const result = await emailService.unsubscribe(
+    userId,
+    senderAddress,
+    method || 'list-unsubscribe',
+  );
   const body: z.infer<typeof unsubscribeResponseSchema> = { data: result };
   res.json(body);
 }
@@ -976,7 +1027,10 @@ export async function listBundledMessages(req: AuthRequest, res: Response): Prom
   const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
   const offset = Number.parseInt(req.query.offset as string) || 0;
 
-  const result = await emailService.listBundledMessages(userId, mailboxId || null, { limit, offset });
+  const result = await emailService.listBundledMessages(userId, mailboxId || null, {
+    limit,
+    offset,
+  });
   res.json({
     data: {
       primary: result.primary,
@@ -1057,7 +1111,7 @@ export async function deleteReminder(req: AuthRequest, res: Response): Promise<v
 // ─── Contacts ──────────────────────────────────────────────────────
 
 export async function suggestContacts(req: AuthRequest, res: Response): Promise<void> {
-  res.json({ data: await suggestContactsForUser(req.user!.id, req.query.q as string || '') });
+  res.json({ data: await suggestContactsForUser(req.user!.id, (req.query.q as string) || '') });
 }
 
 /**
@@ -1148,7 +1202,12 @@ export async function listContacts(req: AuthRequest, res: Response): Promise<voi
   const limit = Math.min(Math.max(Number.parseInt(req.query.limit as string) || 50, 1), 100);
   const offset = Math.max(Number.parseInt(req.query.offset as string) || 0, 0);
 
-  const result = await emailService.listContacts(userId, { q, starred: starred || undefined, limit, offset });
+  const result = await emailService.listContacts(userId, {
+    q,
+    starred: starred || undefined,
+    limit,
+    offset,
+  });
   res.json({
     data: result.data,
     pagination: {
@@ -1341,7 +1400,9 @@ export async function importMessages(req: AuthRequest, res: Response): Promise<v
   // Validate that all files are .eml
   for (const file of files) {
     if (!file.originalname.toLowerCase().endsWith('.eml')) {
-      throw new BadRequestError(`Invalid file type: ${file.originalname}. Only .eml files are accepted.`);
+      throw new BadRequestError(
+        `Invalid file type: ${file.originalname}. Only .eml files are accepted.`,
+      );
     }
   }
 

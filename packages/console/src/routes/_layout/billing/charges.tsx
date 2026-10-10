@@ -199,14 +199,21 @@ function BillingChargesPage() {
                         <td className="px-4 py-2 font-mono text-xs text-foreground">
                           {charge.resolvedModelReference}
                         </td>
-                        <td className="px-4 py-2 text-muted-foreground">{charge.servingProvider}</td>
+                        <td className="px-4 py-2 text-muted-foreground">
+                          {charge.servingProvider}
+                        </td>
                         <td className="px-4 py-2">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge variant={charge.outcome === 'completed' ? 'default' : 'secondary'}>
+                            <Badge
+                              variant={charge.outcome === 'completed' ? 'default' : 'secondary'}
+                            >
                               {charge.outcome}
                             </Badge>
                             {charge.platformFeeOnly && (
-                              <Badge variant="outline" title="Your own provider key served this request; Oxy billed its fee only">
+                              <Badge
+                                variant="outline"
+                                title="Your own provider key served this request; Oxy billed its fee only"
+                              >
                                 fee only
                               </Badge>
                             )}

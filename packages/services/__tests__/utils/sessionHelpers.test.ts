@@ -8,55 +8,56 @@
  * account in the switcher).
  */
 
-import {
-  fetchSessionsWithFallback,
-  mapSessionsToClient,
-} from '../../src/ui/utils/sessionHelpers';
+import { fetchSessionsWithFallback, mapSessionsToClient } from '../../src/ui/utils/sessionHelpers';
 
 describe('mapSessionsToClient', () => {
   it('passes through every primary field unchanged', () => {
-    const sessions = [{
-      sessionId: 's1',
-      deviceId: 'd1',
-      expiresAt: '2030-01-01T00:00:00.000Z',
-      lastActive: '2025-01-01T00:00:00.000Z',
-      userId: 'u1',
-      isCurrent: true,
-    }];
+    const sessions = [
+      {
+        sessionId: 's1',
+        deviceId: 'd1',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+        lastActive: '2025-01-01T00:00:00.000Z',
+        userId: 'u1',
+        isCurrent: true,
+      },
+    ];
     const result = mapSessionsToClient(sessions);
-    expect(result).toEqual([{
-      sessionId: 's1',
-      deviceId: 'd1',
-      expiresAt: '2030-01-01T00:00:00.000Z',
-      lastActive: '2025-01-01T00:00:00.000Z',
-      userId: 'u1',
-      isCurrent: true,
-    }]);
+    expect(result).toEqual([
+      {
+        sessionId: 's1',
+        deviceId: 'd1',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+        lastActive: '2025-01-01T00:00:00.000Z',
+        userId: 'u1',
+        isCurrent: true,
+      },
+    ]);
   });
 
   it('uses fallbackDeviceId when deviceId is missing', () => {
-    const [mapped] = mapSessionsToClient(
-      [{ sessionId: 's1' }],
-      'fallback-device',
-      'fallback-user',
-    );
+    const [mapped] = mapSessionsToClient([{ sessionId: 's1' }], 'fallback-device', 'fallback-user');
     expect(mapped.deviceId).toBe('fallback-device');
     expect(mapped.userId).toBe('fallback-user');
   });
 
   it('extracts userId from session.user.id', () => {
-    const [mapped] = mapSessionsToClient([{
-      sessionId: 's1',
-      user: { id: 'user-from-nested' },
-    }]);
+    const [mapped] = mapSessionsToClient([
+      {
+        sessionId: 's1',
+        user: { id: 'user-from-nested' },
+      },
+    ]);
     expect(mapped.userId).toBe('user-from-nested');
   });
 
   it('extracts userId from session.user._id when id is missing', () => {
-    const [mapped] = mapSessionsToClient([{
-      sessionId: 's1',
-      user: { _id: { toString: () => 'user-from-objectid' } },
-    }]);
+    const [mapped] = mapSessionsToClient([
+      {
+        sessionId: 's1',
+        user: { _id: { toString: () => 'user-from-objectid' } },
+      },
+    ]);
     expect(mapped.userId).toBe('user-from-objectid');
   });
 
@@ -95,10 +96,12 @@ describe('fetchSessionsWithFallback', () => {
   it('falls back to getSessionsBySessionId when device endpoint throws', async () => {
     const oxy = {
       devices: { sessions: jest.fn().mockRejectedValue(new Error('404')) },
-      session: { list: jest.fn().mockResolvedValue([
-        { sessionId: 's1', userId: 'u1' },
-        { sessionId: 's2', userId: 'u1' },
-      ]) },
+      session: {
+        list: jest.fn().mockResolvedValue([
+          { sessionId: 's1', userId: 'u1' },
+          { sessionId: 's2', userId: 'u1' },
+        ]),
+      },
     };
     const result = await fetchSessionsWithFallback(oxy, 's1', { fallbackUserId: 'u1' });
     expect(oxy.session.list).toHaveBeenCalledWith('s1');

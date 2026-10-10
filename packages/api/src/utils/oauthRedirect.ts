@@ -23,7 +23,7 @@ import { canonicalizeOAuthRedirectUri } from '../services/oauthCode.service';
  */
 export function isAllowedRedirectUri(
   app: { redirectUris?: string[] },
-  redirectUri: string
+  redirectUri: string,
 ): boolean {
   const allowlist = app.redirectUris ?? [];
   if (allowlist.length === 0) return false;

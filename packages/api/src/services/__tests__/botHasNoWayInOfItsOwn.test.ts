@@ -179,10 +179,12 @@ describe('a bot holds no authority it was not given', () => {
     });
     const creator = await botUnder(org.id, founder);
     const editor = await botUnder(org.id, founder);
-    await getDb().insert(accountMembers).values([
-      { accountId: org.id, memberUserId: creator, role: 'admin', status: 'active' },
-      { accountId: org.id, memberUserId: editor, role: 'editor', status: 'active' },
-    ]);
+    await getDb()
+      .insert(accountMembers)
+      .values([
+        { accountId: org.id, memberUserId: creator, role: 'admin', status: 'active' },
+        { accountId: org.id, memberUserId: editor, role: 'editor', status: 'active' },
+      ]);
 
     const editorAccess = await accountService.resolveEffectiveAccess(editor, org.id);
     expect(editorAccess?.permissions).not.toContain('children:create');
@@ -210,4 +212,3 @@ describe('a bot holds no authority it was not given', () => {
     expect((await accountService.resolveEffectiveAccess(owner, owner))?.role).toBe('owner');
   });
 });
-

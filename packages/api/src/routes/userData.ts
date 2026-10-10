@@ -55,7 +55,11 @@ import {
 
 const router = Router();
 
-async function enforceAppDataKeyQuotas(userId: string, namespace: string, key: string): Promise<void> {
+async function enforceAppDataKeyQuotas(
+  userId: string,
+  namespace: string,
+  key: string,
+): Promise<void> {
   const db = getDb();
   const [existing] = await db
     .select({ id: userAppData.id })
@@ -187,7 +191,7 @@ router.get(
       )
       .limit(1);
 
-    return res.json({ value: row ? row.value ?? null : null });
+    return res.json({ value: row ? (row.value ?? null) : null });
   }),
 );
 
@@ -266,7 +270,7 @@ router.put(
       })
       .returning({ value: userAppData.value });
 
-    return res.json({ value: row ? row.value ?? null : value });
+    return res.json({ value: row ? (row.value ?? null) : value });
   }),
 );
 

@@ -135,7 +135,9 @@ async function stickersByPack(packIds: string[]): Promise<Map<string, Sticker[]>
  * The cover (first sticker) and sticker count of each pack, in two queries
  * rather than a pack's worth of stickers per card.
  */
-async function coversFor(packIds: string[]): Promise<Map<string, { cover: Sticker; count: number }>> {
+async function coversFor(
+  packIds: string[],
+): Promise<Map<string, { cover: Sticker; count: number }>> {
   const result = new Map<string, { cover: Sticker; count: number }>();
   if (packIds.length === 0) return result;
   const db = getDb();
@@ -164,7 +166,10 @@ async function coversFor(packIds: string[]): Promise<Map<string, { cover: Sticke
 
 type PackRow = typeof stickerPacks.$inferSelect;
 
-function toSummary(pack: PackRow, cover: { cover: Sticker; count: number } | undefined): StickerPackSummary {
+function toSummary(
+  pack: PackRow,
+  cover: { cover: Sticker; count: number } | undefined,
+): StickerPackSummary {
   return {
     id: pack.id,
     slug: pack.slug,
@@ -234,7 +239,7 @@ export async function resolveStickers(ids: string[]): Promise<Sticker[]> {
   const unique = [...new Set(ids)];
   if (unique.length === 0) return [];
   return selectStickers(
-    and(inArray(stickers.id, unique), inArray(stickerPacks.status, READABLE_PACK_STATUSES))
+    and(inArray(stickers.id, unique), inArray(stickerPacks.status, READABLE_PACK_STATUSES)),
   );
 }
 
@@ -293,12 +298,15 @@ export async function installPack(userId: string, packId: string): Promise<void>
     .where(eq(stickerPacks.id, packId))
     .limit(1);
   if (!pack || pack.status === 'draft') throw new NotFoundError('Sticker pack not found');
-  if (pack.status !== 'published') throw new ConflictError('This sticker pack is no longer offered');
+  if (pack.status !== 'published')
+    throw new ConflictError('This sticker pack is no longer offered');
 
   await db.transaction(async (tx) => {
     // Serialises one person's installs, so the cap and the next position are
     // read and written without another install landing between them.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`user_sticker_packs:${userId}`}))`);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`user_sticker_packs:${userId}`}))`,
+    );
 
     const [state] = await tx
       .select({ total: count(), last: max(userStickerPacks.position) })
@@ -311,7 +319,9 @@ export async function installPack(userId: string, packId: string): Promise<void>
       .limit(1);
     if (existing) return;
     if (Number(state?.total ?? 0) >= STICKER_MAX_INSTALLED_PACKS) {
-      throw new ConflictError(`At most ${STICKER_MAX_INSTALLED_PACKS} sticker packs can be installed`);
+      throw new ConflictError(
+        `At most ${STICKER_MAX_INSTALLED_PACKS} sticker packs can be installed`,
+      );
     }
 
     await tx
@@ -334,7 +344,9 @@ export async function uninstallPack(userId: string, packId: string): Promise<voi
  */
 export async function reorderInstalledPacks(userId: string, packIds: string[]): Promise<void> {
   await getDb().transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`user_sticker_packs:${userId}`}))`);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`user_sticker_packs:${userId}`}))`,
+    );
     const installed = await tx
       .select({ packId: userStickerPacks.packId })
       .from(userStickerPacks)
@@ -361,7 +373,11 @@ export async function reorderInstalledPacks(userId: string, packIds: string[]): 
 // ============================================================================
 
 async function requirePack(packId: string): Promise<PackRow> {
-  const [pack] = await getDb().select().from(stickerPacks).where(eq(stickerPacks.id, packId)).limit(1);
+  const [pack] = await getDb()
+    .select()
+    .from(stickerPacks)
+    .where(eq(stickerPacks.id, packId))
+    .limit(1);
   if (!pack) throw new NotFoundError('Sticker pack not found');
   return pack;
 }
@@ -406,14 +422,15 @@ export async function createPack(input: {
       .returning();
     return withStickers(pack);
   } catch (error) {
-    if (isUniqueViolation(error)) throw new ConflictError('A sticker pack with that slug already exists');
+    if (isUniqueViolation(error))
+      throw new ConflictError('A sticker pack with that slug already exists');
     throw error;
   }
 }
 
 export async function updatePack(
   packId: string,
-  patch: { title?: string; description?: string | null; author?: string | null }
+  patch: { title?: string; description?: string | null; author?: string | null },
 ): Promise<StickerPack> {
   await requirePack(packId);
   const [pack] = await getDb()
@@ -441,12 +458,19 @@ export async function addSticker(input: {
 
   const animation = normalizeStickerAnimation(input.animation);
   const fallback = input.fallback
-    ? { buffer: input.fallback.buffer, mime: await validateStickerFallback(input.fallback.buffer, input.fallback.mime) }
+    ? {
+        buffer: input.fallback.buffer,
+        mime: await validateStickerFallback(input.fallback.buffer, input.fallback.mime),
+      }
     : { buffer: await renderStickerFallback(animation.json, animation.size), mime: 'image/webp' };
 
   const [animationFile, fallbackFile] = await Promise.all([
     assetService.uploadStickerFile(animation.json, 'application/json', `${pack.slug}.json`),
-    assetService.uploadStickerFile(fallback.buffer, fallback.mime, `${pack.slug}.${fallback.mime.slice('image/'.length)}`),
+    assetService.uploadStickerFile(
+      fallback.buffer,
+      fallback.mime,
+      `${pack.slug}.${fallback.mime.slice('image/'.length)}`,
+    ),
   ]);
 
   const id = await getDb().transaction(async (tx) => {
@@ -526,7 +550,11 @@ export async function deleteDraftPack(packId: string): Promise<void> {
   const deleted = await getDb()
     .delete(stickerPacks)
     .where(
-      and(eq(stickerPacks.id, packId), eq(stickerPacks.status, 'draft'), sql`${stickerPacks.publishedAt} is null`)
+      and(
+        eq(stickerPacks.id, packId),
+        eq(stickerPacks.status, 'draft'),
+        sql`${stickerPacks.publishedAt} is null`,
+      ),
     )
     .returning({ id: stickerPacks.id });
   if (deleted.length === 0) {

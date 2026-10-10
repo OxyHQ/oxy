@@ -3,11 +3,12 @@ import type { OxyServices, User } from '@oxy.so/core';
 import type { UserProfileUpdate } from '@oxy.so/contracts';
 import { useAuthStore } from '../stores/authStore';
 import type { QueryClient } from '@tanstack/react-query';
-import { queryKeys, invalidateUserQueries, invalidateAccountQueries } from '../hooks/queries/queryKeys';
 import {
-  clearedFieldsFromProfileUpdate,
-  upsertCachedUser,
-} from '../hooks/queries/userCache';
+  queryKeys,
+  invalidateUserQueries,
+  invalidateAccountQueries,
+} from '../hooks/queries/queryKeys';
+import { clearedFieldsFromProfileUpdate, upsertCachedUser } from '../hooks/queries/userCache';
 
 /**
  * Updates user profile with avatar and handles all side effects (cache writes,
@@ -25,13 +26,13 @@ export async function updateProfileWithAvatar(
   oxyServices: OxyServices,
   activeSessionId: string | null,
   queryClient: QueryClient,
-  syncSession?: () => Promise<User>
+  syncSession?: () => Promise<User>,
 ): Promise<User> {
   const data = await authenticatedApiCall<User>(
     oxyServices,
     activeSessionId,
     () => oxyServices.users.updateMe(updates),
-    syncSession
+    syncSession,
   );
 
   // Update cache with server response

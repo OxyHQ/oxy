@@ -59,7 +59,10 @@ export const signRequestSchema = z.object({
   signingString: z
     .string()
     .min(1, 'signingString is required')
-    .max(MAX_SIGNING_STRING_LENGTH, `signingString must not exceed ${MAX_SIGNING_STRING_LENGTH} characters`)
+    .max(
+      MAX_SIGNING_STRING_LENGTH,
+      `signingString must not exceed ${MAX_SIGNING_STRING_LENGTH} characters`,
+    )
     // Not a generic signing oracle: the first signed header MUST be the HTTP
     // request-target pseudo-header, i.e. this is signing an outbound AP request.
     .refine((value) => value.startsWith('(request-target):'), {
@@ -86,10 +89,7 @@ export const signRequestSchema = z.object({
  * {@link isAccountIdFormat} accepts both live shapes and is the single place
  * that knows what they are.
  */
-const accountIdSchema = z
-  .string()
-  .trim()
-  .refine(isAccountIdFormat, 'must be an Oxy account id');
+const accountIdSchema = z.string().trim().refine(isAccountIdFormat, 'must be an Oxy account id');
 
 /**
  * A ROW id used as a pagination cursor — not an account id, though it validates
@@ -101,10 +101,7 @@ const accountIdSchema = z
  * place that knows both live shapes; the separate name is so a reader does not
  * conclude this field carries an account.
  */
-const entityIdSchema = z
-  .string()
-  .trim()
-  .refine(isAccountIdFormat, 'must be a live entity id');
+const entityIdSchema = z.string().trim().refine(isAccountIdFormat, 'must be a live entity id');
 
 /**
  * POST /federation/follow

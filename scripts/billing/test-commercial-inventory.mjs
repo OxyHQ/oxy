@@ -14,41 +14,94 @@ try {
   await client`INSERT INTO clarity_subscriptions VALUES ('fixture-sub','fixture-user','cus_fixture','sub_fixture','price_fixture','active','2026-10-01','2026-11-01',false,'fixture-plan','monthly',${client.json({ product: 'clarity', currency: 'usd', price: 1234, creditsPerMonth: 0, email: 'NEVER_PROJECT_THIS', metadata: { secret: 'NEVER_PROJECT_THIS' } })},'NEVER_PROJECT_THIS')`;
   await client`INSERT INTO clarity_billing_customers VALUES ('fixture-user','cus_fixture','NEVER_PROJECT_THIS')`;
   const complete = await readInventory('clarity', process.env.DATABASE_URL);
-  assert.equal(complete.readOnly, true); assert.equal(complete.isolation, 'repeatable read');
-  assert.equal(complete.tables.clarity_subscriptions.status, 'complete'); assert.equal(complete.tables.clarity_subscriptions.count, 1);
+  assert.equal(complete.readOnly, true);
+  assert.equal(complete.isolation, 'repeatable read');
+  assert.equal(complete.tables.clarity_subscriptions.status, 'complete');
+  assert.equal(complete.tables.clarity_subscriptions.count, 1);
   assert.equal(complete.tables.clarity_subscriptions.rows[0].product, 'clarity');
   assert.equal(complete.tables.clarity_subscriptions.rows[0].price_minor_units, '1234');
-  assert(!JSON.stringify(complete).includes('NEVER_PROJECT_THIS')); passed++;
+  assert(!JSON.stringify(complete).includes('NEVER_PROJECT_THIS'));
+  passed++;
   const absent = await readInventory('oxy', process.env.DATABASE_URL);
-  assert.equal(absent.tables.billing_subscriptions.status, 'missing'); assert.equal(absent.tables.billing_subscriptions.count, null); passed++;
+  assert.equal(absent.tables.billing_subscriptions.status, 'missing');
+  assert.equal(absent.tables.billing_subscriptions.count, null);
+  passed++;
   await client`CREATE TABLE billing_transactions (id text, user_id text, stripe_customer_id text, stripe_subscription_id text, stripe_subscription_period_start timestamptz, type text, amount_minor_units integer, currency text, credits integer, status text, private_email text)`;
   await client`INSERT INTO billing_transactions VALUES ('tx-fixture','fixture-user','cus_fixture','sub_fixture','2026-10-01','subscription_payment',100,'usd',10,'completed','NEVER_PROJECT_THIS')`;
   const legacy = await readInventory('oxy', process.env.DATABASE_URL);
-  assert.equal(legacy.tables.billing_transactions.status, 'complete'); assert.equal(legacy.tables.billing_transactions.count, 1);
-  assert.equal(legacy.tables.billing_transactions.schemaProfile, 'oxy_pre_subscription_credit_ledger');
+  assert.equal(legacy.tables.billing_transactions.status, 'complete');
+  assert.equal(legacy.tables.billing_transactions.count, 1);
+  assert.equal(
+    legacy.tables.billing_transactions.schemaProfile,
+    'oxy_pre_subscription_credit_ledger',
+  );
   assert.deepEqual(legacy.tables.billing_transactions.unavailableColumns, ['stripe_invoice_id']);
   assert.equal(legacy.tables.billing_transactions.rows[0].id, 'tx-fixture');
-  assert(!Object.hasOwn(legacy.tables.billing_transactions.rows[0], 'stripe_invoice_id')); assert(!JSON.stringify(legacy).includes('NEVER_PROJECT_THIS')); passed++;
+  assert(!Object.hasOwn(legacy.tables.billing_transactions.rows[0], 'stripe_invoice_id'));
+  assert(!JSON.stringify(legacy).includes('NEVER_PROJECT_THIS'));
+  passed++;
   await client`ALTER TABLE billing_transactions ADD COLUMN stripe_invoice_id text`;
-  const modern = await readInventory('oxy', process.env.DATABASE_URL); assert.equal(modern.tables.billing_transactions.status, 'complete');
-  assert(!Object.hasOwn(modern.tables.billing_transactions, 'schemaProfile')); assert(Object.hasOwn(modern.tables.billing_transactions.rows[0], 'stripe_invoice_id')); passed++;
-  await client`ALTER TABLE billing_transactions DROP COLUMN stripe_invoice_id`; await client`ALTER TABLE billing_transactions DROP COLUMN currency`;
-  const unrelated = await readInventory('oxy', process.env.DATABASE_URL); assert.equal(unrelated.tables.billing_transactions.status, 'schema_mismatch'); assert.equal(unrelated.tables.billing_transactions.count, null); passed++;
+  const modern = await readInventory('oxy', process.env.DATABASE_URL);
+  assert.equal(modern.tables.billing_transactions.status, 'complete');
+  assert(!Object.hasOwn(modern.tables.billing_transactions, 'schemaProfile'));
+  assert(Object.hasOwn(modern.tables.billing_transactions.rows[0], 'stripe_invoice_id'));
+  passed++;
+  await client`ALTER TABLE billing_transactions DROP COLUMN stripe_invoice_id`;
+  await client`ALTER TABLE billing_transactions DROP COLUMN currency`;
+  const unrelated = await readInventory('oxy', process.env.DATABASE_URL);
+  assert.equal(unrelated.tables.billing_transactions.status, 'schema_mismatch');
+  assert.equal(unrelated.tables.billing_transactions.count, null);
+  passed++;
   await client`ALTER TABLE clarity_subscriptions DROP COLUMN stripe_price_id`;
   const changed = await readInventory('clarity', process.env.DATABASE_URL);
-  assert.equal(changed.tables.clarity_subscriptions.status, 'schema_mismatch'); assert.deepEqual(changed.tables.clarity_subscriptions.missing, ['stripe_price_id']); assert.equal(changed.tables.clarity_subscriptions.count, null); passed++;
+  assert.equal(changed.tables.clarity_subscriptions.status, 'schema_mismatch');
+  assert.deepEqual(changed.tables.clarity_subscriptions.missing, ['stripe_price_id']);
+  assert.equal(changed.tables.clarity_subscriptions.count, null);
+  passed++;
   await client`INSERT INTO clarity_billing_customers SELECT 'fixture-' || n,'cus_' || n,NULL FROM generate_series(1,1000) n`;
   const bounded = await readInventory('clarity', process.env.DATABASE_URL);
-  assert.equal(bounded.tables.clarity_billing_customers.status, 'row_limit'); assert.equal(bounded.tables.clarity_billing_customers.count, 1001); assert.deepEqual(bounded.tables.clarity_billing_customers.rows, []); passed++;
-  await assert.rejects(client.begin('isolation level repeatable read read only', tx => tx`INSERT INTO clarity_billing_customers VALUES ('never-write','cus_never',NULL)`), { code: '25006' });
-  assert.equal((await client`SELECT count(*)::text AS n FROM clarity_billing_customers`)[0].n, '1001'); passed++;
-  const packets = encodeInventory(complete, 'a'.repeat(32)).map(line => JSON.parse(line.split(' ').slice(1).join(' ')));
-  assert(packets.every(p => p.nonce === 'a'.repeat(32))); assert.equal(packets[0].seq, 0); assert.equal(packets[0].total, packets.length);
-  assert.throws(() => encodeInventory(complete, 'untrusted')); passed++;
+  assert.equal(bounded.tables.clarity_billing_customers.status, 'row_limit');
+  assert.equal(bounded.tables.clarity_billing_customers.count, 1001);
+  assert.deepEqual(bounded.tables.clarity_billing_customers.rows, []);
+  passed++;
+  await assert.rejects(
+    client.begin(
+      'isolation level repeatable read read only',
+      (tx) => tx`INSERT INTO clarity_billing_customers VALUES ('never-write','cus_never',NULL)`,
+    ),
+    { code: '25006' },
+  );
+  assert.equal(
+    (await client`SELECT count(*)::text AS n FROM clarity_billing_customers`)[0].n,
+    '1001',
+  );
+  passed++;
+  const packets = encodeInventory(complete, 'a'.repeat(32)).map((line) =>
+    JSON.parse(line.split(' ').slice(1).join(' ')),
+  );
+  assert(packets.every((p) => p.nonce === 'a'.repeat(32)));
+  assert.equal(packets[0].seq, 0);
+  assert.equal(packets[0].total, packets.length);
+  assert.throws(() => encodeInventory(complete, 'untrusted'));
+  passed++;
   // Execute the exact ECS Node receiver shape with actual package dependency resolution.
-  const source = readFileSync(fileURLToPath(new URL('./read-commercial-inventory.mjs', import.meta.url)), 'utf8');
+  const source = readFileSync(
+    fileURLToPath(new URL('./read-commercial-inventory.mjs', import.meta.url)),
+    'utf8',
+  );
   const invocation = `\ntry {const r=await readInventory('clarity',process.env.DATABASE_URL);for(const line of encodeInventory(r,'${'b'.repeat(32)}')) console.log(line);}catch{console.error('OXY_BILLING_INVENTORY_FAILED');process.exitCode=1;}`;
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', source + invocation], { encoding: 'utf8', cwd: process.cwd(), env: process.env });
-  assert.equal(result.status, 0, result.stderr); assert(result.stdout.startsWith('OXY_BILLING_INVENTORY ')); assert(!result.stdout.includes('NEVER_PROJECT_THIS')); passed++;
-  console.log(`Commercial inventory SQL/receiver fixtures: ${passed} passed; synthetic owned DB only.`);
-} finally { await client.end({ timeout: 5 }); }
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', source + invocation], {
+    encoding: 'utf8',
+    cwd: process.cwd(),
+    env: process.env,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert(result.stdout.startsWith('OXY_BILLING_INVENTORY '));
+  assert(!result.stdout.includes('NEVER_PROJECT_THIS'));
+  passed++;
+  console.log(
+    `Commercial inventory SQL/receiver fixtures: ${passed} passed; synthetic owned DB only.`,
+  );
+} finally {
+  await client.end({ timeout: 5 });
+}

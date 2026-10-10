@@ -25,7 +25,9 @@ router.get('/', async (req: Request, res: Response) => {
     // constraint are built from, so this 400 cannot drift from what the
     // database would accept.
     if (type && !TOPIC_TYPES.includes(type)) {
-      return res.status(400).json({ error: 'INVALID_TYPE', message: `type must be one of: ${TOPIC_TYPES.join(', ')}` });
+      return res
+        .status(400)
+        .json({ error: 'INVALID_TYPE', message: `type must be one of: ${TOPIC_TYPES.join(', ')}` });
     }
 
     const { topics, total } = await topicService.list({ type, query, limit, offset });
@@ -33,7 +35,10 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json({ topics: localized, total, limit, offset });
   } catch (error) {
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({
+      error: 'INTERNAL_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
@@ -50,7 +55,10 @@ router.get('/categories', async (req: Request, res: Response) => {
 
     res.json({ categories: localized });
   } catch (error) {
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({
+      error: 'INTERNAL_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
@@ -71,7 +79,10 @@ router.get('/search', async (req: Request, res: Response) => {
 
     res.json({ topics });
   } catch (error) {
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({
+      error: 'INTERNAL_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
@@ -91,7 +102,10 @@ router.get('/:slug', async (req: Request, res: Response) => {
 
     res.json(localized);
   } catch (error) {
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({
+      error: 'INTERNAL_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
@@ -108,7 +122,9 @@ router.post('/resolve', requireStaff, async (req: Request, res: Response) => {
   try {
     const { names } = req.body;
     if (!Array.isArray(names) || names.length === 0) {
-      return res.status(400).json({ error: 'INVALID_BODY', message: 'names must be a non-empty array' });
+      return res
+        .status(400)
+        .json({ error: 'INVALID_BODY', message: 'names must be a non-empty array' });
     }
 
     const resolved = await topicService.resolveNames(names);
@@ -116,7 +132,10 @@ router.post('/resolve', requireStaff, async (req: Request, res: Response) => {
 
     res.json({ topics });
   } catch (error) {
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({
+      error: 'INTERNAL_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
@@ -154,7 +173,10 @@ router.patch('/:slug', requireStaff, async (req: Request, res: Response) => {
 
     res.json(topic);
   } catch (error) {
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({
+      error: 'INTERNAL_ERROR',
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 

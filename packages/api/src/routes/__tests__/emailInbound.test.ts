@@ -66,7 +66,12 @@ interface RawResponse {
   body: { error?: string; accepted?: number; rejected?: number };
 }
 
-function postRaw(server: http.Server, path: string, headers: Record<string, string>, body: Buffer): Promise<RawResponse> {
+function postRaw(
+  server: http.Server,
+  path: string,
+  headers: Record<string, string>,
+  body: Buffer,
+): Promise<RawResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -83,7 +88,9 @@ function postRaw(server: http.Server, path: string, headers: Record<string, stri
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             const parsed = raw.length > 0 ? JSON.parse(raw) : {};
@@ -92,7 +99,7 @@ function postRaw(server: http.Server, path: string, headers: Record<string, stri
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -133,7 +140,7 @@ function rawMessage(to: string): Buffer {
       'This is a   plain text body that should become the snippet.',
       '',
     ].join('\r\n'),
-    'utf8'
+    'utf8',
   );
 }
 
@@ -158,27 +165,31 @@ async function folder(userId: string, specialUse: string, name: string): Promise
 /** `unread` unseen messages plus one already-read one, so the filter matters. */
 async function seedUnread(userId: string, mailboxId: string, unread: number): Promise<void> {
   for (let i = 0; i < unread; i++) {
-    await getDb().insert(messages).values({
+    await getDb()
+      .insert(messages)
+      .values({
+        userId,
+        mailboxId,
+        messageId: `<seed-${unique()}@example.com>`,
+        fromAddress: 'alice@example.com',
+        subject: '',
+        size: 10,
+        seen: false,
+        date: new Date(),
+      });
+  }
+  await getDb()
+    .insert(messages)
+    .values({
       userId,
       mailboxId,
-      messageId: `<seed-${unique()}@example.com>`,
+      messageId: `<seen-${unique()}@example.com>`,
       fromAddress: 'alice@example.com',
       subject: '',
       size: 10,
-      seen: false,
+      seen: true,
       date: new Date(),
     });
-  }
-  await getDb().insert(messages).values({
-    userId,
-    mailboxId,
-    messageId: `<seen-${unique()}@example.com>`,
-    fromAddress: 'alice@example.com',
-    subject: '',
-    size: 10,
-    seen: true,
-    date: new Date(),
-  });
 }
 
 beforeEach(() => {
@@ -208,7 +219,7 @@ describe('POST /email/inbound', () => {
         'x-envelope-from': 'alice@example.com',
         'x-envelope-to': user.address,
       },
-      rawMessage(user.address)
+      rawMessage(user.address),
     );
 
     expect(res.status).toBe(200);
@@ -224,7 +235,7 @@ describe('POST /email/inbound', () => {
         recipientUsername: user.username,
         subject: 'Hello there',
         from: { name: 'Alice Sender', address: 'alice@example.com' },
-      })
+      }),
     );
   });
 
@@ -236,7 +247,7 @@ describe('POST /email/inbound', () => {
         authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
         'x-envelope-to': `ghost${unique().slice(0, 10)}@oxy.so`,
       },
-      rawMessage('ghost@oxy.so')
+      rawMessage('ghost@oxy.so'),
     );
 
     expect(res.status).toBe(400);
@@ -260,7 +271,7 @@ describe('POST /email/inbound', () => {
         authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
         'x-envelope-to': user.address.toUpperCase(),
       },
-      rawMessage(user.address)
+      rawMessage(user.address),
     );
 
     expect(res.status).toBe(200);

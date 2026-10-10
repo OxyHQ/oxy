@@ -62,7 +62,11 @@ interface OpenApiDocument {
   openapi: string;
   info: OpenApiInfo;
   servers: Array<{ url: string; description?: string }>;
-  components: { schemas?: Record<string, unknown>; securitySchemes?: Record<string, unknown>; [key: string]: unknown };
+  components: {
+    schemas?: Record<string, unknown>;
+    securitySchemes?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
   paths: Record<string, Record<string, OpenApiOperation>>;
   tags?: Array<{ name: string; description?: string }>;
   [key: string]: unknown;
@@ -169,11 +173,11 @@ export function parseYaml(input: string): OpenApiDocument {
       const blockHeader = /^([>|])([-+]?)$/.exec(rest);
       if (!blockHeader && (rest.startsWith('>') || rest.startsWith('|'))) {
         throw new Error(
-          `openapi.base.yaml: unsupported block scalar header "${rest}" for key "${key}". `
-          + 'This minimal parser understands >, >-, >+, |, |- and |+ only — an explicit '
-          + 'indentation indicator (e.g. ">2") is not supported. Rewrite the value or extend '
-          + 'parseYaml; do NOT leave it, because the fallback would read the header as a '
-          + 'string and silently swallow the keys that follow.',
+          `openapi.base.yaml: unsupported block scalar header "${rest}" for key "${key}". ` +
+            'This minimal parser understands >, >-, >+, |, |- and |+ only — an explicit ' +
+            'indentation indicator (e.g. ">2") is not supported. Rewrite the value or extend ' +
+            'parseYaml; do NOT leave it, because the fallback would read the header as a ' +
+            'string and silently swallow the keys that follow.',
         );
       }
       if (rest === '' || blockHeader) {
@@ -204,9 +208,12 @@ export function parseYaml(input: string): OpenApiDocument {
           // keep. `+` (keep) is accepted and treated as the default, which is
           // exact for folded and near enough for literal — no value in this
           // document relies on trailing blank lines.
-          obj[key] = blockHeader[1] === '>'
-            ? lines2.join(' ').trim()
-            : (blockHeader[2] === '-' ? lines2.join('\n').replace(/\n+$/, '') : lines2.join('\n'));
+          obj[key] =
+            blockHeader[1] === '>'
+              ? lines2.join(' ').trim()
+              : blockHeader[2] === '-'
+                ? lines2.join('\n').replace(/\n+$/, '')
+                : lines2.join('\n');
           continue;
         }
         // Either nested object or list follows.
@@ -263,10 +270,7 @@ export function parseYaml(input: string): OpenApiDocument {
     if (raw === '{}') return {};
     if (/^-?\d+$/.test(raw)) return Number.parseInt(raw, 10);
     if (/^-?\d+\.\d+$/.test(raw)) return Number.parseFloat(raw);
-    if (
-      (raw.startsWith('"') && raw.endsWith('"')) ||
-      (raw.startsWith("'") && raw.endsWith("'"))
-    ) {
+    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
       return raw.slice(1, -1);
     }
     // Inline flow-array of scalars: [a, b, c]
@@ -299,7 +303,12 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
   switch (typeName) {
     case 'ZodString': {
       const out: Record<string, unknown> = { type: 'string' };
-      const checks = (def.checks ?? []) as Array<{ kind: string; value?: number; regex?: RegExp; message?: string }>;
+      const checks = (def.checks ?? []) as Array<{
+        kind: string;
+        value?: number;
+        regex?: RegExp;
+        message?: string;
+      }>;
       // A chain can carry SEVERAL length checks, and the published bound must be
       // the tightest of them rather than the last one seen — see the number case
       // below for the measured consequence of taking the last.
@@ -328,7 +337,11 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       return out;
     }
     case 'ZodNumber': {
-      const checks = (def.checks ?? []) as Array<{ kind: string; value?: number; inclusive?: boolean }>;
+      const checks = (def.checks ?? []) as Array<{
+        kind: string;
+        value?: number;
+        inclusive?: boolean;
+      }>;
       let type = 'number';
       // The TIGHTEST bound of each direction, not the last one written down.
       //
@@ -387,7 +400,8 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       return { type: 'string', format: 'date-time' };
     case 'ZodLiteral': {
       const value = (def as { value: unknown }).value;
-      const t = typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string';
+      const t =
+        typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string';
       return { type: t, enum: [value] };
     }
     case 'ZodEnum': {
@@ -395,11 +409,13 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       return { type: 'string', enum: values };
     }
     case 'ZodNativeEnum': {
-      const values = Object.values(((def as { values?: Record<string, string | number> }).values ?? {}));
+      const values = Object.values(
+        (def as { values?: Record<string, string | number> }).values ?? {},
+      );
       return { type: typeof values[0] === 'number' ? 'integer' : 'string', enum: values };
     }
     case 'ZodArray': {
-      const items = zodToOpenApi(((def as { type: ZodTypeAny }).type));
+      const items = zodToOpenApi((def as { type: ZodTypeAny }).type);
       const out: Record<string, unknown> = { type: 'array', items };
       const minItems = (def as { minLength?: { value: number } | null }).minLength;
       const maxItems = (def as { maxLength?: { value: number } | null }).maxLength;
@@ -414,7 +430,8 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       for (const [key, value] of Object.entries(shape) as Array<[string, ZodTypeAny]>) {
         properties[key] = zodToOpenApi(value);
         const valueDef = (value as { _def?: { typeName?: string } })._def;
-        const isOptional = valueDef?.typeName === 'ZodOptional' || valueDef?.typeName === 'ZodDefault';
+        const isOptional =
+          valueDef?.typeName === 'ZodOptional' || valueDef?.typeName === 'ZodDefault';
         if (!isOptional) required.push(key);
       }
       const out: Record<string, unknown> = {
@@ -467,7 +484,9 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       return innerSchema;
     }
     case 'ZodUnion': {
-      const options = (def as { options: ZodTypeAny[] }).options.map((option) => zodToOpenApi(option));
+      const options = (def as { options: ZodTypeAny[] }).options.map((option) =>
+        zodToOpenApi(option),
+      );
       return { oneOf: options };
     }
     case 'ZodEffects': {
@@ -491,7 +510,9 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       // consumer that understands the keyword gets the fast, unambiguous
       // dispatch, and one that ignores it still validates against the branches.
       const discriminator = (def as { discriminator: string }).discriminator;
-      const options = (def as { options: ZodTypeAny[] }).options.map((option) => zodToOpenApi(option));
+      const options = (def as { options: ZodTypeAny[] }).options.map((option) =>
+        zodToOpenApi(option),
+      );
       return { oneOf: options, discriminator: { propertyName: discriminator } };
     }
     case 'ZodBranded': {
@@ -816,7 +837,10 @@ function findLeadingComment(source: string, position: number): string | undefine
   if (source[end] !== '/' || source[end - 1] !== '*') return undefined;
   // Scan back to the opening /**.
   let start = end - 2;
-  while (start > 1 && !(source[start - 1] === '/' && source[start] === '*' && source[start + 1] === '*')) {
+  while (
+    start > 1 &&
+    !(source[start - 1] === '/' && source[start] === '*' && source[start + 1] === '*')
+  ) {
     start -= 1;
   }
   if (start <= 1) return undefined;
@@ -1232,7 +1256,9 @@ export function parseResponseTags(jsdoc: string): ResponseTag[] {
  * full argument list, since handler arguments can include function
  * definitions with their own parens / strings.
  */
-export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> {
+export function parseRoutesFromFile(
+  source: string,
+): Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> {
   const out: Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> = [];
   // Code is read from the comment-blanked copy, prose from the original. Offsets
   // are identical between the two by construction.
@@ -1258,7 +1284,7 @@ export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mou
     const validateIdx = args.indexOf('validate(');
     if (validateIdx !== -1) {
       const entries = parseObjectLiteralEntries(
-        readCallArgs(args, validateIdx + 'validate('.length)
+        readCallArgs(args, validateIdx + 'validate('.length),
       );
       validate = {
         body: entries.body,
@@ -1342,7 +1368,7 @@ async function extractRoutes(): Promise<RouteEntry[]> {
       `\n[generate-openapi] MOUNT_MAP names ${missing.length} route file(s) that do not exist:\n` +
         `${missing.map((name) => `  - src/routes/${name}`).join('\n')}\n\n` +
         '  A stale entry is how a deleted route stays in the published contract. Remove\n' +
-        '  the entry, or restore the file.\n'
+        '  the entry, or restore the file.\n',
     );
     process.exit(1);
   }
@@ -1433,8 +1459,8 @@ function resolveRouteSchema(route: RouteEntry, reference: string): ZodTypeAny | 
       filename: route.filename,
       identifier: reference,
       reason:
-        'is an inline schema expression rather than a named import, so it cannot be resolved '
-        + 'without executing the router. Name it in src/schemas/<name>.schemas.ts and import it.',
+        'is an inline schema expression rather than a named import, so it cannot be resolved ' +
+        'without executing the router. Name it in src/schemas/<name>.schemas.ts and import it.',
     });
     return undefined;
   }
@@ -1445,8 +1471,8 @@ function resolveRouteSchema(route: RouteEntry, reference: string): ZodTypeAny | 
       filename: route.filename,
       identifier,
       reason: route.localConsts.includes(identifier)
-        ? 'declared locally in the route file, so it cannot be imported without executing the '
-          + 'router. Move it into src/schemas/<name>.schemas.ts and import it.'
+        ? 'declared locally in the route file, so it cannot be imported without executing the ' +
+          'router. Move it into src/schemas/<name>.schemas.ts and import it.'
         : 'not imported by this route file.',
     });
     return undefined;
@@ -1457,8 +1483,9 @@ function resolveRouteSchema(route: RouteEntry, reference: string): ZodTypeAny | 
     unresolvedSchemaReferences.push({
       filename: route.filename,
       identifier,
-      reason: `imported from "${specifier}", which this generator will not import. Schemas must `
-        + 'come from ../schemas/* or @oxy.so/contracts.',
+      reason:
+        `imported from "${specifier}", which this generator will not import. Schemas must ` +
+        'come from ../schemas/* or @oxy.so/contracts.',
     });
     return undefined;
   }
@@ -1546,10 +1573,15 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
     const headerSchema = resolveRouteSchema(route, route.requestHeadersTag);
     if (headerSchema) {
       const headerObject = zodToOpenApi(headerSchema);
-      const properties = headerObject.properties as Record<string, Record<string, unknown>> | undefined;
+      const properties = headerObject.properties as
+        | Record<string, Record<string, unknown>>
+        | undefined;
       if (headerObject.type !== 'object' || !properties || Object.keys(properties).length === 0) {
-        unresolvedSchemaReferences.push({ filename: route.filename, identifier: route.requestHeadersTag,
-          reason: '@requestHeaders must resolve to a non-empty object schema.' });
+        unresolvedSchemaReferences.push({
+          filename: route.filename,
+          identifier: route.requestHeadersTag,
+          reason: '@requestHeaders must resolve to a non-empty object schema.',
+        });
       } else {
         const required = new Set((headerObject.required ?? []) as string[]);
         for (const [name, schema] of Object.entries(properties)) {
@@ -1569,9 +1601,9 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
       filename: route.filename,
       identifier: route.requestBodyTag,
       reason:
-        `${route.verb.toUpperCase()} ${openApiPath} declares an @requestBody tag AND a `
-        + 'validate({ body }) middleware. Keep the middleware and delete the tag — the tag is '
-        + 'only for routes that validate inside the handler.',
+        `${route.verb.toUpperCase()} ${openApiPath} declares an @requestBody tag AND a ` +
+        'validate({ body }) middleware. Keep the middleware and delete the tag — the tag is ' +
+        'only for routes that validate inside the handler.',
     });
   }
   const bodyReference = validate?.body ?? route.requestBodyTag;
@@ -1606,7 +1638,7 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
     (m) =>
       m === 'reportingPrincipal' ||
       m === 'providerConnectionPrincipal' ||
-      m === 'routingPolicyPrincipal'
+      m === 'routingPolicyPrincipal',
   );
   // Inbox accepts either the user's normal bearer session or a short-lived,
   // audience-bound capability ticket. `emailCapabilityAuth` selects the lane
@@ -1683,9 +1715,9 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
   if (successTags.length === 0) {
     responses['200'] = {
       description:
-        'Success. The response body is not described — add an `@response <code> <schemaIdentifier>` '
-        + `line to the JSDoc above this route in \`src/routes/${route.filename}\`, naming a Zod `
-        + 'schema the file imports.',
+        'Success. The response body is not described — add an `@response <code> <schemaIdentifier>` ' +
+        `line to the JSDoc above this route in \`src/routes/${route.filename}\`, naming a Zod ` +
+        'schema the file imports.',
     };
   }
   if (requestBody || parameters.some((p) => p.in === 'path' || p.in === 'query')) {
@@ -1847,11 +1879,11 @@ async function main(): Promise<void> {
         // than deduplicated with a suffix, because a suffix would move the
         // ambiguity into the client's method names instead of removing it.
         console.error(
-          `\n[generate-openapi] REFUSING TO WRITE: operationId "${operationId}" is claimed by both `
-          + `${collision} and ${verb.toUpperCase()} ${pathKey}.\n\n`
-          + '  Two operations with one id is invalid OpenAPI, and a generated client would emit\n'
-          + '  two methods with the same name. Give one of them an explicit `operationId` in an\n'
-          + '  `@openapi` block.\n'
+          `\n[generate-openapi] REFUSING TO WRITE: operationId "${operationId}" is claimed by both ` +
+            `${collision} and ${verb.toUpperCase()} ${pathKey}.\n\n` +
+            '  Two operations with one id is invalid OpenAPI, and a generated client would emit\n' +
+            '  two methods with the same name. Give one of them an explicit `operationId` in an\n' +
+            '  `@openapi` block.\n',
         );
         process.exit(1);
       }
@@ -1891,25 +1923,25 @@ async function main(): Promise<void> {
   // perfectly well-formed and is simply missing whatever those modules export.
   if (schemaImportFailures.length > 0) {
     console.error(
-      `\n[generate-openapi] REFUSING TO WRITE: ${schemaImportFailures.length} schema module(s) `
-      + 'could not be imported, so the document would be missing their schemas.\n',
+      `\n[generate-openapi] REFUSING TO WRITE: ${schemaImportFailures.length} schema module(s) ` +
+        'could not be imported, so the document would be missing their schemas.\n',
     );
     for (const { filename, error } of schemaImportFailures) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error(`  ${filename}\n    ${detail.split('\n')[0]}\n`);
     }
     console.error(
-      '  The usual cause is unbuilt workspace dependencies — these modules import\n'
-      + '  `@oxy.so/contracts` and `@oxy.so/db`, which resolve through their build output.\n'
-      + '  Build them first, from the repository root (this is the same sequence\n'
-      + '  `ci.yml` runs before the api tests, for the same reason):\n\n'
-      + '      bun run --filter @oxy.so/contracts build\n'
-      + '      bun run --filter @oxy.so/protocol build\n'
-      + '      bun run --filter @oxy.so/core build\n'
-      + '      bun run --filter @oxy.so/db build\n\n'
-      + `  ${OUTPUT_JSON} is UNCHANGED. The previous document is still the committed\n`
-      + '  contract, which is the correct outcome: a stale document is recoverable,\n'
-      + '  a silently truncated one that ships to consumers is not.\n',
+      '  The usual cause is unbuilt workspace dependencies — these modules import\n' +
+        '  `@oxy.so/contracts` and `@oxy.so/db`, which resolve through their build output.\n' +
+        '  Build them first, from the repository root (this is the same sequence\n' +
+        '  `ci.yml` runs before the api tests, for the same reason):\n\n' +
+        '      bun run --filter @oxy.so/contracts build\n' +
+        '      bun run --filter @oxy.so/protocol build\n' +
+        '      bun run --filter @oxy.so/core build\n' +
+        '      bun run --filter @oxy.so/db build\n\n' +
+        `  ${OUTPUT_JSON} is UNCHANGED. The previous document is still the committed\n` +
+        '  contract, which is the correct outcome: a stale document is recoverable,\n' +
+        '  a silently truncated one that ships to consumers is not.\n',
     );
     process.exit(1);
   }
@@ -1919,13 +1951,13 @@ async function main(): Promise<void> {
   // gap, and one no consumer can tell apart from a deliberate `z.unknown()`.
   if (unconvertibleZodTypes.length > 0) {
     console.error(
-      `\n[generate-openapi] REFUSING TO WRITE: ${unconvertibleZodTypes.length} Zod type(s) have no `
-      + 'case in `zodToOpenApi`, so their schemas would be published as `{}`:\n'
-      + `${unconvertibleZodTypes.map((name) => `  - ${name}`).join('\n')}\n\n`
-      + '  `{}` is a VALID OpenAPI schema meaning "any value is acceptable", so the document\n'
-      + '  would read as a considered decision to accept anything. Add a case to\n'
-      + '  `zodToOpenApi` in this file. `ZodAny` and `ZodUnknown` are the only two types for\n'
-      + `  which \`{}\` is the truth.\n\n  ${OUTPUT_JSON} is UNCHANGED.\n`,
+      `\n[generate-openapi] REFUSING TO WRITE: ${unconvertibleZodTypes.length} Zod type(s) have no ` +
+        'case in `zodToOpenApi`, so their schemas would be published as `{}`:\n' +
+        `${unconvertibleZodTypes.map((name) => `  - ${name}`).join('\n')}\n\n` +
+        '  `{}` is a VALID OpenAPI schema meaning "any value is acceptable", so the document\n' +
+        '  would read as a considered decision to accept anything. Add a case to\n' +
+        '  `zodToOpenApi` in this file. `ZodAny` and `ZodUnknown` are the only two types for\n' +
+        `  which \`{}\` is the truth.\n\n  ${OUTPUT_JSON} is UNCHANGED.\n`,
     );
     process.exit(1);
   }
@@ -1936,18 +1968,18 @@ async function main(): Promise<void> {
   // validates and rejects.
   if (unresolvedSchemaReferences.length > 0) {
     console.error(
-      `\n[generate-openapi] REFUSING TO WRITE: ${unresolvedSchemaReferences.length} schema `
-      + 'reference(s) could not be resolved, so their operations would be published as taking\n'
-      + 'no body and no parameters:\n',
+      `\n[generate-openapi] REFUSING TO WRITE: ${unresolvedSchemaReferences.length} schema ` +
+        'reference(s) could not be resolved, so their operations would be published as taking\n' +
+        'no body and no parameters:\n',
     );
     for (const { filename, identifier, reason } of unresolvedSchemaReferences) {
       console.error(`  src/routes/${filename} → ${identifier}\n    ${reason}\n`);
     }
     console.error(
-      '  Schemas are resolved through the route file\'s OWN import statements, from\n'
-      + '  ../schemas/* or @oxy.so/contracts. Nothing else is imported, because a route file\n'
-      + '  also imports its services and middleware.\n\n'
-      + `  ${OUTPUT_JSON} is UNCHANGED.\n`,
+      "  Schemas are resolved through the route file's OWN import statements, from\n" +
+        '  ../schemas/* or @oxy.so/contracts. Nothing else is imported, because a route file\n' +
+        '  also imports its services and middleware.\n\n' +
+        `  ${OUTPUT_JSON} is UNCHANGED.\n`,
     );
     process.exit(1);
   }

@@ -5,9 +5,7 @@ import {
 } from '../subscriptionResponse';
 
 /** A billing row, with only the columns the serializer reads. */
-function billingRow(
-  overrides: Partial<BillingSubscriptionSource> = {},
-): BillingSubscriptionSource {
+function billingRow(overrides: Partial<BillingSubscriptionSource> = {}): BillingSubscriptionSource {
   return {
     userId: 'user-1',
     status: 'active',
@@ -22,9 +20,7 @@ function billingRow(
 }
 
 /** A whole legacy row — every column reaches the wire. */
-function legacyRow(
-  overrides: Partial<LegacySubscriptionSource> = {},
-): LegacySubscriptionSource {
+function legacyRow(overrides: Partial<LegacySubscriptionSource> = {}): LegacySubscriptionSource {
   return {
     id: 'sub-1',
     userId: 'user-1',
@@ -52,17 +48,18 @@ const DURING_PERIOD = new Date('2025-12-15T00:00:00.000Z');
 
 describe('formatSubscriptionResponse', () => {
   it('prefers an active billing subscription over legacy rows', () => {
-    expect(formatSubscriptionResponse(billingRow(), legacyRow({ plan: 'basic' }), DURING_PERIOD))
-      .toEqual({
-        plan: 'pro',
-        status: 'active',
-        userId: 'user-1',
-        startDate: '2026-01-01T00:00:00.000Z',
-        endDate: '2026-02-01T00:00:00.000Z',
-        autoRenew: true,
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
-      });
+    expect(
+      formatSubscriptionResponse(billingRow(), legacyRow({ plan: 'basic' }), DURING_PERIOD),
+    ).toEqual({
+      plan: 'pro',
+      status: 'active',
+      userId: 'user-1',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-02-01T00:00:00.000Z',
+      autoRenew: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
   });
 
   it('maps trialing billing subscriptions to active status for Accounts UI', () => {

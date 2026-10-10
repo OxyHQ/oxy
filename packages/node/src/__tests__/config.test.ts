@@ -76,8 +76,12 @@ describe('loadConfig', () => {
   });
 
   it('rejects an invalid mode and an out-of-range port', () => {
-    expect(() => loadConfig({ OXY_NODE_OWNER_PUBLIC_KEY: owner.publicKey, OXY_NODE_MODE: 'cloud' })).toThrow(ConfigError);
-    expect(() => loadConfig({ OXY_NODE_OWNER_PUBLIC_KEY: owner.publicKey, OXY_NODE_PORT: '70000' })).toThrow(ConfigError);
+    expect(() =>
+      loadConfig({ OXY_NODE_OWNER_PUBLIC_KEY: owner.publicKey, OXY_NODE_MODE: 'cloud' }),
+    ).toThrow(ConfigError);
+    expect(() =>
+      loadConfig({ OXY_NODE_OWNER_PUBLIC_KEY: owner.publicKey, OXY_NODE_PORT: '70000' }),
+    ).toThrow(ConfigError);
   });
 
   it('defaults the namespace/manifest/collections to the Oxy node shape', () => {

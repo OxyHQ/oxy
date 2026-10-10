@@ -23,7 +23,9 @@ export const emailSavedSearches = pgTable(
   'email_saved_searches',
   {
     id: generatedId(),
-    userId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     name: text().notNull(),
     query: text().notNull(),
     filters: jsonb().$type<SavedEmailSearchFilters>().notNull().default({}),

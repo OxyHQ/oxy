@@ -106,27 +106,27 @@ export function resolveKaanaDataPlane(): KaanaDataPlaneResolution {
   if (keyId.length === 0 || keyId.length > MAX_KEY_ID_LENGTH) {
     return unreadable(
       KAANA_SIGNING_KEY_ID_VARIABLE,
-      `1 to ${MAX_KEY_ID_LENGTH} characters naming the key Kaana trusts, e.g. oxy-edge-2026-08`
+      `1 to ${MAX_KEY_ID_LENGTH} characters naming the key Kaana trusts, e.g. oxy-edge-2026-08`,
     );
   }
   if (FORBIDDEN_KEY_ID_CHARACTERS.test(keyId)) {
     return unreadable(
       KAANA_SIGNING_KEY_ID_VARIABLE,
-      'a key id with no colon, comma, whitespace or line break — Kaana parses its key set as kid:base64,kid:base64'
+      'a key id with no colon, comma, whitespace or line break — Kaana parses its key set as kid:base64,kid:base64',
     );
   }
 
   if (rawPrivateKey.length === 0) {
     return unreadable(
       KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
-      'an Ed25519 private key as PEM, or that PEM base64-encoded'
+      'an Ed25519 private key as PEM, or that PEM base64-encoded',
     );
   }
   const privateKey = parseEd25519PrivateKey(rawPrivateKey);
   if (privateKey === undefined) {
     return unreadable(
       KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
-      'an Ed25519 private key as PEM, or that PEM base64-encoded — generate one with `openssl genpkey -algorithm ed25519`'
+      'an Ed25519 private key as PEM, or that PEM base64-encoded — generate one with `openssl genpkey -algorithm ed25519`',
     );
   }
 
@@ -165,8 +165,10 @@ export function kaanaPublicKeyBase64(config: KaanaDataPlaneConfig): string {
 function unreadable(variable: string, expected: string): KaanaDataPlaneResolution {
   logger.error(
     'inference.kaana.config_unreadable',
-    new Error(`${variable} is set to a value this build cannot use; this deployment has no data plane`),
-    { component: 'inference-kaana', variable, expected }
+    new Error(
+      `${variable} is set to a value this build cannot use; this deployment has no data plane`,
+    ),
+    { component: 'inference-kaana', variable, expected },
   );
   return { status: 'unreadable', variable, expected };
 }

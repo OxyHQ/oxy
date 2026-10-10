@@ -55,8 +55,14 @@ export const userAuthMethods = pgTable(
   (t) => [
     // Target of session/code composite ownership foreign keys.
     unique('user_auth_methods_id_user_id_key').on(t.id, t.userId),
-    check('user_auth_methods_agent_metadata_check', sql`${t.type} <> 'agent_key' or (${t.label} is not null and ${t.enrollmentMethod} is not null)`),
-    check('user_auth_methods_enrollment_method_check', sql`${t.enrollmentMethod} in (${sql.raw(AGENT_KEY_ENROLLMENT_METHODS.map((value) => `'${value}'`).join(', '))})`),
+    check(
+      'user_auth_methods_agent_metadata_check',
+      sql`${t.type} <> 'agent_key' or (${t.label} is not null and ${t.enrollmentMethod} is not null)`,
+    ),
+    check(
+      'user_auth_methods_enrollment_method_check',
+      sql`${t.enrollmentMethod} in (${sql.raw(AGENT_KEY_ENROLLMENT_METHODS.map((value) => `'${value}'`).join(', '))})`,
+    ),
     index('user_auth_methods_user_id_idx').on(t.userId),
     // Not an index for a query — today every signer lookup goes through
     // `users.public_key`. It is a CONSTRAINT: one identity key may authenticate
@@ -69,10 +75,10 @@ export const userAuthMethods = pgTable(
       .where(sql`${t.methodPublicKey} is not null`),
     check(
       'user_auth_methods_type_check',
-      sql`${t.type} in (${sql.raw(AUTH_METHOD_TYPES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.type} in (${sql.raw(AUTH_METHOD_TYPES.map((value) => `'${value}'`).join(', '))})`,
     ),
     // A method must carry the key it is addressed by, or it can never be
     // matched to a signature. Mongo allowed a row without one.
     check('user_auth_methods_identifier_check', sql`${t.methodPublicKey} is not null`),
-  ]
+  ],
 );

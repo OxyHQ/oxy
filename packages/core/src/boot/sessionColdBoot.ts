@@ -44,7 +44,11 @@ import { runColdBoot, type ColdBootOutcome, type ColdBootStep } from '../utils/c
 import { isNative as detectNative } from '../utils/platform';
 import { logger } from '../logger';
 import { computeIdentityTag } from '../utils/cacheKey';
-import { TOKEN_REFRESH_LEAD_MS, refreshDeviceSecretArm, refreshSharedDeviceArm } from '../session/refresh';
+import {
+  TOKEN_REFRESH_LEAD_MS,
+  refreshDeviceSecretArm,
+  refreshSharedDeviceArm,
+} from '../session/refresh';
 import {
   establishIdentitySession,
   resolveIdentityPin,
@@ -156,7 +160,7 @@ export async function runSessionColdBoot(
 
   // Non-null ONLY in identity mode; every `!== null` test below therefore reads
   // as "is this boot identity-bound?" while also narrowing the binding.
-  const identityBinding = opts.sessionMode === 'identity' ? opts.identity ?? null : null;
+  const identityBinding = opts.sessionMode === 'identity' ? (opts.identity ?? null) : null;
   if (opts.sessionMode === 'identity' && identityBinding === null) {
     logger.error(
       'runSessionColdBoot: sessionMode "identity" requires an `identity` binding — refusing to run any lane (an identity-bound client must never adopt the device active account)',
@@ -211,9 +215,19 @@ export async function runSessionColdBoot(
   steps.push({
     id: 'warm-token-plant',
     run: async () => {
-      if (identityBinding === null && isNative && await store.isAutomaticIdentitySignInSuppressed?.()) return { kind: 'skip' };
+      if (
+        identityBinding === null &&
+        isNative &&
+        (await store.isAutomaticIdentitySignInSuppressed?.())
+      )
+        return { kind: 'skip' };
       const persisted = await store.load();
-      if (!persisted?.accessToken || !persisted.sessionId || !persisted.userId || !persisted.expiresAt) {
+      if (
+        !persisted?.accessToken ||
+        !persisted.sessionId ||
+        !persisted.userId ||
+        !persisted.expiresAt
+      ) {
         return { kind: 'skip' };
       }
       // Guard a malformed `expiresAt` (Date.parse -> NaN): treat as not-valid and
@@ -287,10 +301,14 @@ export async function runSessionColdBoot(
             },
           };
         case 'invalid-secret': {
-          if (identityBinding === null && store.setAutomaticIdentitySignInSuppressed && await store.isAutomaticIdentitySignInSuppressed?.()) {
+          if (
+            identityBinding === null &&
+            store.setAutomaticIdentitySignInSuppressed &&
+            (await store.isAutomaticIdentitySignInSuppressed?.())
+          ) {
             rejectedLocalHolder = true;
             signedOutReason = 'no_session';
-            return {kind: 'skip'};
+            return { kind: 'skip' };
           }
           // Stale/diverged secret — drop it so the mint lane stops firing. On
           // native the Commons-proof step below can still recover; on web this ends
@@ -329,10 +347,10 @@ export async function runSessionColdBoot(
           return { kind: 'skip' };
         case 'transient':
           // Network / 5xx: keep the secret; a later attempt can succeed.
-          logger.debug(
-            'device-secret mint failed (transient) — keeping secret',
-            { component: 'sessionColdBoot', method: 'device-secret-mint' },
-          );
+          logger.debug('device-secret mint failed (transient) — keeping secret', {
+            component: 'sessionColdBoot',
+            method: 'device-secret-mint',
+          });
           return { kind: 'skip' };
         case 'session-ended':
           // The prior holder/epoch was superseded. This boot must not turn a
@@ -404,14 +422,25 @@ export async function runSessionColdBoot(
       // like every other network step.
       enabled: () => isNative && !isOffline() && !accountRecoverySuperseded,
       run: async () => {
-        const result = await refreshSharedDeviceArm({oxy, store, shared: sharedSlot, rejectedLocalHolder});
+        const result = await refreshSharedDeviceArm({
+          oxy,
+          store,
+          shared: sharedSlot,
+          rejectedLocalHolder,
+        });
         if (result.status === 'ok') {
-          return {kind: 'session', session: {
-            sessionId: result.sessionId, userId: result.userId, accessToken: result.token, state: result.state,
-          }};
+          return {
+            kind: 'session',
+            session: {
+              sessionId: result.sessionId,
+              userId: result.userId,
+              accessToken: result.token,
+              state: result.state,
+            },
+          };
         }
         if (result.status === 'no-session') signedOutReason = 'no_session';
-        return {kind: 'skip'};
+        return { kind: 'skip' };
       },
     });
   }
@@ -439,10 +468,18 @@ export async function runSessionColdBoot(
       id: 'commons-proof-signin',
       enabled: () => isNative && !isOffline(),
       run: async () => {
-        if (accountRecoverySuperseded || await store.isAutomaticIdentitySignInSuppressed?.()) return { kind: 'skip' };
+        if (accountRecoverySuperseded || (await store.isAutomaticIdentitySignInSuppressed?.()))
+          return { kind: 'skip' };
         const epoch = oxy.http.getSessionEpoch();
-        const session = await oxy.auth.signInWithCommonsIdentity({ plantTokens: false, requestOptions: { retry: false } });
-        if (!session?.accessToken || oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) {
+        const session = await oxy.auth.signInWithCommonsIdentity({
+          plantTokens: false,
+          requestOptions: { retry: false },
+        });
+        if (
+          !session?.accessToken ||
+          oxy.http.getSessionEpoch() !== epoch ||
+          (await store.isAutomaticIdentitySignInSuppressed?.())
+        ) {
           return { kind: 'skip' };
         }
         // `verifyChallenge` issues a deviceSecret; persist it so the next
@@ -458,7 +495,11 @@ export async function runSessionColdBoot(
             expiresAt: session.expiresAt,
           });
         }
-        if (oxy.http.getSessionEpoch() !== epoch || await store.isAutomaticIdentitySignInSuppressed?.()) return { kind: 'skip' };
+        if (
+          oxy.http.getSessionEpoch() !== epoch ||
+          (await store.isAutomaticIdentitySignInSuppressed?.())
+        )
+          return { kind: 'skip' };
         oxy.session.setAccessToken(session.accessToken);
         return {
           kind: 'session',

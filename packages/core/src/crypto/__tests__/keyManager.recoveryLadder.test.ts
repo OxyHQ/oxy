@@ -108,7 +108,7 @@ describe('KeyManager.attemptIdentityRecovery (recovery ladder)', () => {
     const result = await KeyManager.attemptIdentityRecovery();
     expect(result).toEqual({ recovered: true, source: 'backup', publicKey: pub.toLowerCase() });
     expect((await KeyManager.getIdentityStatus()).state).toBe('present');
-    expect(ss.__getRaw__(V2_PRIV, PRIMARY_SVC)).toBe((await KeyManager.getPrivateKey()));
+    expect(ss.__getRaw__(V2_PRIV, PRIMARY_SVC)).toBe(await KeyManager.getPrivateKey());
   });
 
   it('recovers from the SHARED slot when both primary and backup keys die', async () => {

@@ -11,7 +11,13 @@ import {
   RefreshIcon,
 } from '@hugeicons/core-free-icons';
 import { toast } from '@oxy.so/bloom/toast';
-import type {Application, ApplicationCredential, ApplicationCredentialType, ApplicationEnvironment, CallerAccess} from '@/hooks/use-applications';
+import type {
+  Application,
+  ApplicationCredential,
+  ApplicationCredentialType,
+  ApplicationEnvironment,
+  CallerAccess,
+} from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -81,7 +87,9 @@ const ENVIRONMENTS: Array<{ value: ApplicationEnvironment; label: string }> = [
   { value: 'production', label: 'Production' },
 ];
 
-function statusVariant(status: ApplicationCredential['status']): 'default' | 'secondary' | 'destructive' {
+function statusVariant(
+  status: ApplicationCredential['status'],
+): 'default' | 'secondary' | 'destructive' {
   if (status === 'active') {
     return 'default';
   }
@@ -153,8 +161,7 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
   };
 
   const grantablePaymentsScopes = availablePaymentsScopes(application.scopes);
-  const requiresPaymentsScopes =
-    type === 'service' && isUntrustedThirdPartyApp(application);
+  const requiresPaymentsScopes = type === 'service' && isUntrustedThirdPartyApp(application);
   // A machine credential must name at least one scope — the API refuses a
   // scopeless one rather than defaulting it to the application's whole grant,
   // so the form has to ask.
@@ -300,8 +307,8 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
             </p>
           </div>
           <p className="text-xs text-yellow-600/80 dark:text-yellow-500/80 mb-3">
-            This secret is shown only once. Copy and store it securely — you won't be able to view it
-            again.
+            This secret is shown only once. Copy and store it securely — you won't be able to view
+            it again.
           </p>
           <div className="space-y-2">
             <div className="space-y-1">
@@ -404,74 +411,79 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
           {credentials.map((credential) => (
             <div key={credential._id}>
               <div className="flex items-center justify-between gap-4 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-foreground truncate">{credential.name}</p>
-                  <Badge variant={statusVariant(credential.status)} className="text-xs capitalize">
-                    {credential.status}
-                  </Badge>
-                  <Badge variant="outline" className="text-xs capitalize">
-                    {credential.type}
-                  </Badge>
-                  <Badge variant="ghost" className="text-xs capitalize">
-                    {credential.environment}
-                  </Badge>
-                </div>
-                {/* For an API key the identifier a developer recognises is its
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {credential.name}
+                    </p>
+                    <Badge
+                      variant={statusVariant(credential.status)}
+                      className="text-xs capitalize"
+                    >
+                      {credential.status}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {credential.type}
+                    </Badge>
+                    <Badge variant="ghost" className="text-xs capitalize">
+                      {credential.environment}
+                    </Badge>
+                  </div>
+                  {/* For an API key the identifier a developer recognises is its
                     `oxy_sk_` prefix, not the OAuth client id it also carries.
                     Both are public; neither is the key. */}
-                <button
-                  onClick={() =>
-                    handleCopy(
-                      credential.tokenPrefix ?? credential.publicKey,
-                      credential.tokenPrefix
-                        ? 'API key ID copied to clipboard'
-                        : 'Client ID copied to clipboard'
-                    )
-                  }
-                  className="mt-1 flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <span className="truncate">{credential.tokenPrefix ?? credential.publicKey}</span>
-                  <HugeiconsIcon icon={Copy01Icon} size={12} />
-                </button>
-              </div>
+                  <button
+                    onClick={() =>
+                      handleCopy(
+                        credential.tokenPrefix ?? credential.publicKey,
+                        credential.tokenPrefix
+                          ? 'API key ID copied to clipboard'
+                          : 'Client ID copied to clipboard',
+                      )
+                    }
+                    className="mt-1 flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <span className="truncate">
+                      {credential.tokenPrefix ?? credential.publicKey}
+                    </span>
+                    <HugeiconsIcon icon={Copy01Icon} size={12} />
+                  </button>
+                </div>
 
-              <div className="flex items-center gap-1">
-                {canRotate && credential.status !== 'revoked' && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setCredentialToRotate(credential)}
-                    aria-label="Rotate credential"
-                    title="Rotate credential"
-                  >
-                    <HugeiconsIcon icon={RefreshIcon} size={16} />
-                  </Button>
-                )}
-                {canRevoke && credential.status !== 'revoked' && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setCredentialToRevoke(credential)}
-                    aria-label="Revoke credential"
-                    title="Revoke credential"
-                  >
-                    <HugeiconsIcon icon={Delete02Icon} size={16} className="text-destructive" />
-                  </Button>
-                )}
-                {/* Gated on the same `credentials:read` the endpoint enforces, so
+                <div className="flex items-center gap-1">
+                  {canRotate && credential.status !== 'revoked' && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setCredentialToRotate(credential)}
+                      aria-label="Rotate credential"
+                      title="Rotate credential"
+                    >
+                      <HugeiconsIcon icon={RefreshIcon} size={16} />
+                    </Button>
+                  )}
+                  {canRevoke && credential.status !== 'revoked' && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setCredentialToRevoke(credential)}
+                      aria-label="Revoke credential"
+                      title="Revoke credential"
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} size={16} className="text-destructive" />
+                    </Button>
+                  )}
+                  {/* Gated on the same `credentials:read` the endpoint enforces, so
                     the affordance and the server agree. A revoked credential keeps
                     its trail: the revocation is the part worth reading. */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    setTrailFor(trailFor === credential._id ? null : credential._id)
-                  }
-                >
-                  {trailFor === credential._id ? 'Hide trail' : 'Trail'}
-                </Button>
-              </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setTrailFor(trailFor === credential._id ? null : credential._id)}
+                  >
+                    {trailFor === credential._id ? 'Hide trail' : 'Trail'}
+                  </Button>
+                </div>
               </div>
               {trailFor === credential._id && (
                 <CredentialTrail appId={appId} credentialId={credential._id} />
@@ -527,24 +539,24 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
                 <Label className="text-sm">Scopes</Label>
                 {grantablePaymentsScopes.length > 0 ? (
                   <div className="space-y-3 rounded-lg border border-border p-3">
-                    {PAYMENTS_SCOPES.filter((scope) =>
-                      grantablePaymentsScopes.includes(scope)
-                    ).map((scope) => (
-                      <div key={scope} className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{scope}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {scope === 'payments:read'
-                              ? 'Read payment intents and webhook deliveries'
-                              : 'Create and manage payment intents'}
-                          </p>
+                    {PAYMENTS_SCOPES.filter((scope) => grantablePaymentsScopes.includes(scope)).map(
+                      (scope) => (
+                        <div key={scope} className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{scope}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {scope === 'payments:read'
+                                ? 'Read payment intents and webhook deliveries'
+                                : 'Create and manage payment intents'}
+                            </p>
+                          </div>
+                          <Switch
+                            checked={selectedScopes.includes(scope)}
+                            onCheckedChange={(checked) => toggleScope(scope, checked)}
+                          />
                         </div>
-                        <Switch
-                          checked={selectedScopes.includes(scope)}
-                          onCheckedChange={(checked) => toggleScope(scope, checked)}
-                        />
-                      </div>
-                    ))}
+                      ),
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
@@ -657,8 +669,8 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke credential</AlertDialogTitle>
             <AlertDialogDescription>
-              Revoking "{credentialToRevoke?.name}" permanently disables it. Any application using it
-              will stop working. This action cannot be undone.
+              Revoking "{credentialToRevoke?.name}" permanently disables it. Any application using
+              it will stop working. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

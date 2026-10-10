@@ -2,30 +2,22 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { Icons } from '@/constants/icons';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
-import Animated, {
-  useSharedValue,
-  withTiming,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
+import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import { Redirect, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { StaggeredText, type StaggeredTextRef } from '@/components/staggered-text';
 import { RotatingTextAnimation } from '@/components/staggered-text/rotating-text';
 import { useTranslation } from '@/lib/i18n';
-import { useOnboardingStatus, ONBOARDING_IDENTITY_QUERY_KEY, getOnboardingResumeHref } from '@/hooks/useOnboardingStatus';
+import {
+  useOnboardingStatus,
+  ONBOARDING_IDENTITY_QUERY_KEY,
+  getOnboardingResumeHref,
+} from '@/hooks/useOnboardingStatus';
 import { persistOnboardingFlow } from '@/hooks/identity/identityStore';
 import { STATE_MIN_HEIGHT } from '@/components/ui/loading-state';
 
-const humanTranslations = [
-  'Human',
-  'Humano',
-  'Humain',
-  'Mensch',
-  '人类',
-  '人間',
-  'إنسان',
-];
+const humanTranslations = ['Human', 'Humano', 'Humain', 'Mensch', '人类', '人間', 'إنسان'];
 
 export default function AuthIndexScreen() {
   const router = useRouter();
@@ -221,9 +213,7 @@ export default function AuthIndexScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('auth.indexRestore')}
         >
-          <Text style={[styles.restoreText, { color: textColor }]}>
-            {t('auth.indexRestore')}
-          </Text>
+          <Text style={[styles.restoreText, { color: textColor }]}>{t('auth.indexRestore')}</Text>
         </TouchableOpacity>
       </Animated.View>
     </Pressable>

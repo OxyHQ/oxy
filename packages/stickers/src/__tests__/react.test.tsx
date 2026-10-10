@@ -2,7 +2,12 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { StickersClient } from '../client';
-import { StickersProvider, useInstallStickerPack, useInstalledStickerPacks, useSticker } from '../react';
+import {
+  StickersProvider,
+  useInstallStickerPack,
+  useInstalledStickerPacks,
+  useSticker,
+} from '../react';
 
 function fakeClient(overrides: Partial<StickersClient> = {}): StickersClient {
   return {

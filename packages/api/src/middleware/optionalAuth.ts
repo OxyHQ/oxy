@@ -1,6 +1,6 @@
 /**
  * Optional Authentication Middleware
- * 
+ *
  * Similar to authMiddleware but doesn't reject requests without authentication.
  * Sets req.user if a valid token is present, otherwise leaves it undefined.
  * This allows routes to serve public content while still identifying authenticated users.
@@ -9,7 +9,11 @@
 import type { Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 import { isAccountIdFormat } from '../utils/validation';
-import { authenticateRequestNonBlocking, type AuthenticatedRequest, extractTokenFromRequest } from './authUtils';
+import {
+  authenticateRequestNonBlocking,
+  type AuthenticatedRequest,
+  extractTokenFromRequest,
+} from './authUtils';
 import { verifyServiceToken, type ServiceTokenPayload } from './serviceToken';
 import { MEDIA_TOKEN_QUERY_PARAM, verifyMediaToken } from '../utils/mediaToken';
 
@@ -21,20 +25,20 @@ import { MEDIA_TOKEN_QUERY_PARAM, verifyMediaToken } from '../utils/mediaToken';
 export async function optionalAuthMiddleware(
   req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const { user, source, sessionId } = await authenticateRequestNonBlocking(req, false);
-    
+
     if (user) {
       req.user = user;
       req.sessionId = sessionId;
-      logger.debug('Optional auth: User authenticated', { 
-        userId: user._id, 
-        source: source || 'unknown'
+      logger.debug('Optional auth: User authenticated', {
+        userId: user._id,
+        source: source || 'unknown',
       });
     }
-    
+
     next();
   } catch (error) {
     logger.error('Optional auth middleware error:', error);
@@ -142,7 +146,7 @@ export interface OptionalUserOrServiceRequest extends AuthenticatedRequest {
 export async function optionalUserOrServiceAuth(
   req: OptionalUserOrServiceRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const token = extractTokenFromRequest(req);

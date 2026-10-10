@@ -58,6 +58,7 @@ const PUBLIC_KEY_SHAPE = /^[A-Za-z0-9_-]{1,128}$/;
  */
 export function serviceTokenMintRateLimitKey(req: Request): string {
   const apiKey = (req.body as { apiKey?: unknown } | undefined)?.apiKey;
-  if (typeof apiKey !== 'string' || !PUBLIC_KEY_SHAPE.test(apiKey)) return `addr:${hashedIpKey(req)}`;
+  if (typeof apiKey !== 'string' || !PUBLIC_KEY_SHAPE.test(apiKey))
+    return `addr:${hashedIpKey(req)}`;
   return `key:${apiKey}`;
 }

@@ -22,17 +22,22 @@ const USERS: FakeUser[] = [
   { username: 'hidden', federatable: false },
 ];
 
-const findUserByUsername = jest.fn(async (username: string) => USERS.find((user) => user.username === username));
+const findUserByUsername = jest.fn(async (username: string) =>
+  USERS.find((user) => user.username === username),
+);
 const logger = { error: jest.fn() };
 
 const app = express();
-app.get('/.well-known/webfinger', createWebfingerHandler<FakeUser>({
-  domain: 'oxy.so',
-  isOwnFederationDomain: (domain) => domain === 'oxy.so' || domain === 'api.oxy.so',
-  findUserByUsername,
-  isFederatableUser: (user) => user.federatable,
-  logger,
-}));
+app.get(
+  '/.well-known/webfinger',
+  createWebfingerHandler<FakeUser>({
+    domain: 'oxy.so',
+    isOwnFederationDomain: (domain) => domain === 'oxy.so' || domain === 'api.oxy.so',
+    findUserByUsername,
+    isFederatableUser: (user) => user.federatable,
+    logger,
+  }),
+);
 
 const get = (path: string) => request(app).get(path);
 
@@ -49,7 +54,13 @@ describe('GET /.well-known/webfinger', () => {
     expect(res.headers['content-type']).toMatch(/^application\/jrd\+json/);
     expect(res.body).toEqual({
       subject: 'acct:instance@oxy.so',
-      links: [{ rel: 'self', type: 'application/activity+json', href: 'https://oxy.so/ap/users/instance' }],
+      links: [
+        {
+          rel: 'self',
+          type: 'application/activity+json',
+          href: 'https://oxy.so/ap/users/instance',
+        },
+      ],
     });
     // Never looked up as a person: a user named `instance` cannot claim it.
     expect(findUserByUsername).not.toHaveBeenCalled();
@@ -70,7 +81,11 @@ describe('GET /.well-known/webfinger', () => {
       subject: 'acct:nate@oxy.so',
       links: [
         { rel: 'self', type: 'application/activity+json', href: 'https://oxy.so/ap/users/nate' },
-        { rel: 'http://webfinger.net/rel/profile-page', type: 'text/html', href: 'https://oxy.so/@nate' },
+        {
+          rel: 'http://webfinger.net/rel/profile-page',
+          type: 'text/html',
+          href: 'https://oxy.so/@nate',
+        },
       ],
     });
   });
@@ -87,7 +102,9 @@ describe('GET /.well-known/webfinger', () => {
   });
 
   it('400s a resource that is not an acct: URI, or has no domain', async () => {
-    expect((await get('/.well-known/webfinger?resource=https://oxy.so/ap/users/instance')).status).toBe(400);
+    expect(
+      (await get('/.well-known/webfinger?resource=https://oxy.so/ap/users/instance')).status,
+    ).toBe(400);
     expect((await get('/.well-known/webfinger')).status).toBe(400);
     expect((await get('/.well-known/webfinger?resource=acct:instance')).status).toBe(400);
   });

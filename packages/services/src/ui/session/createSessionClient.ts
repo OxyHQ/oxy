@@ -1,4 +1,8 @@
-import { SessionClient, createSessionClientHost, type SessionStateOrigin } from '@oxy.so/core/session';
+import {
+  SessionClient,
+  createSessionClientHost,
+  type SessionStateOrigin,
+} from '@oxy.so/core/session';
 import type { OxyServices } from '@oxy.so/core';
 import { createTokenTransport } from './tokenTransport';
 
@@ -49,10 +53,18 @@ export function createSessionClient(
   const baseHost = createSessionClientHost(oxyServices);
   const host = {
     ...baseHost,
-    getAccessToken: () => isDeviceSessionAllowed() ? baseHost.getAccessToken() : null,
-    setTokens: (token: string) => { if (isDeviceSessionAllowed()) baseHost.setTokens(token); },
-    makeRequest: async <T>(method: 'GET' | 'POST', url: string, data?: unknown, requestOptions?: { cache?: boolean }): Promise<T> => {
-      if (!isDeviceSessionAllowed()) throw new Error('An isolated OAuth session cannot access the shared device');
+    getAccessToken: () => (isDeviceSessionAllowed() ? baseHost.getAccessToken() : null),
+    setTokens: (token: string) => {
+      if (isDeviceSessionAllowed()) baseHost.setTokens(token);
+    },
+    makeRequest: async <T>(
+      method: 'GET' | 'POST',
+      url: string,
+      data?: unknown,
+      requestOptions?: { cache?: boolean },
+    ): Promise<T> => {
+      if (!isDeviceSessionAllowed())
+        throw new Error('An isolated OAuth session cannot access the shared device');
       return baseHost.makeRequest<T>(method, url, data, requestOptions);
     },
   };

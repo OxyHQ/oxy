@@ -45,26 +45,29 @@ export function isNetworkOrTimeoutError(error: unknown): boolean {
 /**
  * Extract error message from an unknown error shape
  * Uses Oxy core error handling to standardize error messages
- * 
+ *
  * @param error - The error to extract message from
  * @param fallbackMessage - Fallback message if extraction fails
  * @returns The error message
  */
-export function extractAuthErrorMessage(error: unknown, fallbackMessage = 'An error occurred'): string {
+export function extractAuthErrorMessage(
+  error: unknown,
+  fallbackMessage = 'An error occurred',
+): string {
   const apiError = handleHttpError(error);
   return apiError.message || fallbackMessage;
 }
 
 /**
  * Handle authentication errors with context
- * 
+ *
  * @param error - The error to handle
  * @param context - Context where the error occurred
  * @returns The error message
  */
 export function handleAuthError(error: unknown, context: string): string {
   const apiError = handleHttpError(error);
-  
+
   // Log error details for debugging (in development)
   if (__DEV__) {
     console.warn(`[${context}] Auth error:`, {
@@ -73,7 +76,6 @@ export function handleAuthError(error: unknown, context: string): string {
       status: apiError.status,
     });
   }
-  
+
   return apiError.message || `An error occurred in ${context}`;
 }
-

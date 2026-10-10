@@ -27,9 +27,17 @@ export class PrivacyApi {
   }
 
   /** Update privacy settings (default: the signed-in user's). */
-  async updateSettings(settings: Partial<PrivacySettings>, userId?: string): Promise<PrivacySettings> {
+  async updateSettings(
+    settings: Partial<PrivacySettings>,
+    userId?: string,
+  ): Promise<PrivacySettings> {
     const id = await this.resolveUserId(userId);
-    const res = await this.ctx.request<PrivacySettings>('PATCH', `/privacy/${id}/privacy`, settings, { cache: false });
+    const res = await this.ctx.request<PrivacySettings>(
+      'PATCH',
+      `/privacy/${id}/privacy`,
+      settings,
+      { cache: false },
+    );
     // Privacy settings ride the user DTO, so every identity read goes stale too.
     evictOxyIdentityCache(this.ctx.http, id);
     this.ctx.oxy.cache.delete(`GET:/privacy/${id}/privacy`);
@@ -40,13 +48,21 @@ export class PrivacyApi {
 
   /** The signed-in user's blocked users. */
   async blocked(): Promise<BlockedUser[]> {
-    return this.ctx.request<BlockedUser[]>('GET', '/privacy/blocked', undefined, { cache: true, cacheTTL: LIST_TTL });
+    return this.ctx.request<BlockedUser[]>('GET', '/privacy/blocked', undefined, {
+      cache: true,
+      cacheTTL: LIST_TTL,
+    });
   }
 
   /** Block a user. */
   async block(userId: string): Promise<{ message: string }> {
     requireId(userId);
-    const res = await this.ctx.request<{ message: string }>('POST', `/privacy/blocked/${userId}`, undefined, { cache: false });
+    const res = await this.ctx.request<{ message: string }>(
+      'POST',
+      `/privacy/blocked/${userId}`,
+      undefined,
+      { cache: false },
+    );
     this.invalidate('GET:/privacy/blocked');
     return res;
   }
@@ -54,7 +70,12 @@ export class PrivacyApi {
   /** Unblock a user. */
   async unblock(userId: string): Promise<{ message: string }> {
     requireId(userId);
-    const res = await this.ctx.request<{ message: string }>('DELETE', `/privacy/blocked/${userId}`, undefined, { cache: false });
+    const res = await this.ctx.request<{ message: string }>(
+      'DELETE',
+      `/privacy/blocked/${userId}`,
+      undefined,
+      { cache: false },
+    );
     this.invalidate('GET:/privacy/blocked');
     return res;
   }
@@ -73,13 +94,21 @@ export class PrivacyApi {
 
   /** The signed-in user's restricted users. */
   async restricted(): Promise<RestrictedUser[]> {
-    return this.ctx.request<RestrictedUser[]>('GET', '/privacy/restricted', undefined, { cache: true, cacheTTL: LIST_TTL });
+    return this.ctx.request<RestrictedUser[]>('GET', '/privacy/restricted', undefined, {
+      cache: true,
+      cacheTTL: LIST_TTL,
+    });
   }
 
   /** Restrict a user: limit their interactions without blocking them. */
   async restrict(userId: string): Promise<{ message: string }> {
     requireId(userId);
-    const res = await this.ctx.request<{ message: string }>('POST', `/privacy/restricted/${userId}`, undefined, { cache: false });
+    const res = await this.ctx.request<{ message: string }>(
+      'POST',
+      `/privacy/restricted/${userId}`,
+      undefined,
+      { cache: false },
+    );
     this.invalidate('GET:/privacy/restricted');
     return res;
   }
@@ -87,7 +116,12 @@ export class PrivacyApi {
   /** Lift a restriction. */
   async unrestrict(userId: string): Promise<{ message: string }> {
     requireId(userId);
-    const res = await this.ctx.request<{ message: string }>('DELETE', `/privacy/restricted/${userId}`, undefined, { cache: false });
+    const res = await this.ctx.request<{ message: string }>(
+      'DELETE',
+      `/privacy/restricted/${userId}`,
+      undefined,
+      { cache: false },
+    );
     this.invalidate('GET:/privacy/restricted');
     return res;
   }

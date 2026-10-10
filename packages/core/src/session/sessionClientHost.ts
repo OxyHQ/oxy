@@ -13,9 +13,7 @@ import type { DeviceCredential, SessionClientHost } from './SessionClient';
  * platform-agnostic: every method it calls exists identically on
  * `OxyServices` regardless of host (web, Expo/RN, Node).
  */
-export function createSessionClientHost(
-  oxyServices: OxyServices,
-): SessionClientHost & {
+export function createSessionClientHost(oxyServices: OxyServices): SessionClientHost & {
   setCurrentAccountId(id: string | null): void;
   setDeviceCredential(credential: DeviceCredential | null): void;
 } {

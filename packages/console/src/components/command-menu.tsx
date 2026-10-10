@@ -134,7 +134,7 @@ function CommandMenuContent({ onClose }: { onClose: () => void }) {
       onClose();
       command();
     },
-    [onClose]
+    [onClose],
   );
 
   return (

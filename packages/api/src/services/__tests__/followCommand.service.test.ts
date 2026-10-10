@@ -138,7 +138,7 @@ describe('following is global, and happens once', () => {
     const self = await makeUserTarget(followerId);
 
     await expect(
-      followTarget({ capability: capabilityFor(appA), target: self })
+      followTarget({ capability: capabilityFor(appA), target: self }),
     ).rejects.toBeInstanceOf(BadRequestError);
   });
 });
@@ -265,19 +265,19 @@ describe('unfollowing everywhere', () => {
       await getDb()
         .select({ id: followRelationships.id })
         .from(followRelationships)
-        .where(eq(followRelationships.id, relationshipId))
+        .where(eq(followRelationships.id, relationshipId)),
     ).toHaveLength(0);
     expect(
       await getDb()
         .select({ id: followApplicationOverrides.id })
         .from(followApplicationOverrides)
-        .where(eq(followApplicationOverrides.relationshipId, relationshipId))
+        .where(eq(followApplicationOverrides.relationshipId, relationshipId)),
     ).toHaveLength(0);
     expect(
       await getDb()
         .select({ id: userFollows.id })
         .from(userFollows)
-        .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId)))
+        .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId))),
     ).toHaveLength(0);
   });
 
@@ -304,13 +304,13 @@ describe('unfollowing everywhere', () => {
       await unfollowEverywhere({
         capability: { ...capabilityFor(appA), userId: stranger.id },
         relationshipId,
-      })
+      }),
     ).toEqual({ removed: false });
 
     await unfollowEverywhere({ capability: capabilityFor(appA), relationshipId });
-    expect(
-      await unfollowEverywhere({ capability: capabilityFor(appA), relationshipId })
-    ).toEqual({ removed: false });
+    expect(await unfollowEverywhere({ capability: capabilityFor(appA), relationshipId })).toEqual({
+      removed: false,
+    });
   });
 });
 
@@ -337,7 +337,7 @@ describe('a timed follow ends like a manual one', () => {
       await getDb()
         .select({ id: userFollows.id })
         .from(userFollows)
-        .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId)))
+        .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId))),
     ).toHaveLength(0);
   });
 
@@ -354,7 +354,7 @@ describe('a timed follow ends like a manual one', () => {
       await getDb()
         .select({ id: followRelationships.id })
         .from(followRelationships)
-        .where(eq(followRelationships.id, relationshipId))
+        .where(eq(followRelationships.id, relationshipId)),
     ).toHaveLength(1);
   });
 
@@ -370,7 +370,7 @@ describe('a timed follow ends like a manual one', () => {
       await getDb()
         .select({ id: followRelationships.id })
         .from(followRelationships)
-        .where(eq(followRelationships.id, relationshipId))
+        .where(eq(followRelationships.id, relationshipId)),
     ).toHaveLength(1);
   });
 });
@@ -381,7 +381,9 @@ describe('non-user targets', () => {
     // The namespace comes first: since 0018 it is a foreign key rather than a
     // string, which is what stops one application defining another's kinds.
     await getDb().insert(followNamespaces).values({ namespace: ns, applicationId: appA });
-    await getDb().insert(followTargetKinds).values({ kind: `${ns}.store`, namespace: ns });
+    await getDb()
+      .insert(followTargetKinds)
+      .values({ kind: `${ns}.store`, namespace: ns });
     const uri = unique('https://shop.example/stores/s');
     const [row] = await getDb()
       .insert(followTargets)
@@ -398,7 +400,7 @@ describe('non-user targets', () => {
       await getDb()
         .select({ id: userFollows.id })
         .from(userFollows)
-        .where(eq(userFollows.followerId, followerId))
+        .where(eq(userFollows.followerId, followerId)),
     ).toHaveLength(0);
   });
 });

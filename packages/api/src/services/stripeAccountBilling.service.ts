@@ -93,7 +93,7 @@ export const BALANCE_TOP_UP_METADATA_TYPE = 'balance_top_up';
  */
 export async function getOrCreateAccountStripeCustomer(
   accountId: string,
-  email?: string
+  email?: string,
 ): Promise<string> {
   const db = getDb();
   const credits = await getOrCreateUserCredits(db, accountId);
@@ -149,7 +149,7 @@ export type TopUpCheckoutResult =
  * moves money.
  */
 export async function createBalanceTopUpCheckout(
-  input: TopUpCheckoutInput
+  input: TopUpCheckoutInput,
 ): Promise<TopUpCheckoutResult> {
   const exponent = minorUnitExponentFor(input.currency);
   const minorUnits = exactDecimalToMinorUnits(input.amount, exponent);
@@ -192,7 +192,7 @@ export async function createBalanceTopUpCheckout(
 export async function createAccountPortalSession(
   accountId: string,
   returnUrl: string,
-  email?: string
+  email?: string,
 ): Promise<string | null> {
   const customerId = await getOrCreateAccountStripeCustomer(accountId, email);
   const session = await (await getBillingStripe()).billingPortal.sessions.create({
@@ -241,7 +241,7 @@ export type BalanceTopUpIntent = Pick<
  * will ever create one".
  */
 export async function handleBalanceTopUpCompleted(
-  session: BalanceTopUpSession
+  session: BalanceTopUpSession,
 ): Promise<BalanceTopUpResult> {
   const metadata = session.metadata;
   if (!metadata?.accountId || metadata.type !== BALANCE_TOP_UP_METADATA_TYPE) {
@@ -325,7 +325,7 @@ export async function handleBalanceTopUpCompleted(
  * disjoint, but that they cannot both credit.
  */
 export async function handleBalanceTopUpPaymentIntent(
-  intent: BalanceTopUpIntent
+  intent: BalanceTopUpIntent,
 ): Promise<BalanceTopUpResult> {
   const metadata = intent.metadata;
   if (!metadata?.accountId || metadata.type !== BALANCE_TOP_UP_METADATA_TYPE) {
@@ -514,7 +514,7 @@ export type AutoRechargeSweepResult =
  * once, rather than an error per account per interval.
  */
 export async function runAutoRechargeSweep(
-  limit = AUTO_RECHARGE_SWEEP_LIMIT
+  limit = AUTO_RECHARGE_SWEEP_LIMIT,
 ): Promise<AutoRechargeSweepResult> {
   if (!process.env.STRIPE_SECRET_KEY) {
     return { status: 'processor-unconfigured' };
@@ -547,7 +547,7 @@ export async function runAutoRechargeSweep(
     declined += 1;
     await failAutoRecharge(
       claim.attempt.id,
-      result.status === 'no-payment-method' ? 'no_payment_method' : result.failureCode
+      result.status === 'no-payment-method' ? 'no_payment_method' : result.failureCode,
     );
     logger.warn('Automatic top-up was not completed', {
       accountId: candidate.accountId,

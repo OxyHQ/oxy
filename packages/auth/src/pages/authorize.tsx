@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { isChildWindow, tryCloseChildWindow } from "@/lib/child-window";
-import { useSearchParams, Link, useNavigate, Navigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { isChildWindow, tryCloseChildWindow } from '@/lib/child-window';
+import { useSearchParams, Link, useNavigate, Navigate } from 'react-router-dom';
 import type { PublicApplication } from '@oxy.so/core';
 import type { SwitcherContextRow } from '@oxy.so/core/session';
 import {
@@ -8,31 +8,31 @@ import {
   publicApplicationSchema,
   safeParseContract,
   type McpOAuthConsentContext,
-} from "@oxy.so/contracts";
-import { OxyAccountPicker, OxyAuthLoading, OxyAuthScreen, OxyAuthScreenHeader, OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxy.so/services";
+} from '@oxy.so/contracts';
+import {
+  OxyAccountPicker,
+  OxyAuthLoading,
+  OxyAuthScreen,
+  OxyAuthScreenHeader,
+  OxyConsentScreen,
+  useDeviceSwitcher,
+  useOxy,
+} from '@oxy.so/services';
 
-import { Button } from "@oxy.so/bloom/button";
-import { CommonsOAuthLane } from "@/components/commons-oauth-request";
-import { useTranslation } from "@/lib/i18n/use-translation";
-import { LOGIN_ERROR_SESSION_EXPIRED } from "@/lib/login-errors";
+import { Button } from '@oxy.so/bloom/button';
+import { CommonsOAuthLane } from '@/components/commons-oauth-request';
+import { useTranslation } from '@/lib/i18n/use-translation';
+import { LOGIN_ERROR_SESSION_EXPIRED } from '@/lib/login-errors';
 import {
   sessionStatusSchema,
   safeParse,
   consentRequiredFromBody,
   mcpConsentFromBody,
-} from "@/lib/schemas";
-import {
-  buildRelativeUrl,
-  buildAuthUrl,
-  buildApiUrl,
-  getAvatarUrl,
-} from "@/lib/oxy-api-client";
-import { safeMcpRedirectUrl, safeRedirectUrl } from "@/lib/oauth-redirect";
-import { deliverOAuthResult, type OAuthResult } from "@/lib/oauth-web-message";
-import {
-  buildCommonsOAuthBinding,
-  type CommonsOAuthOutcome,
-} from "@/lib/commons-oauth-request";
+} from '@/lib/schemas';
+import { buildRelativeUrl, buildAuthUrl, buildApiUrl, getAvatarUrl } from '@/lib/oxy-api-client';
+import { safeMcpRedirectUrl, safeRedirectUrl } from '@/lib/oauth-redirect';
+import { deliverOAuthResult, type OAuthResult } from '@/lib/oauth-web-message';
+import { buildCommonsOAuthBinding, type CommonsOAuthOutcome } from '@/lib/commons-oauth-request';
 
 /**
  * The requesting-application + auth-request resolution state. The signed-in
@@ -51,15 +51,15 @@ type AuthorizeData = {
  * Terminal state of a popup ("web message") delivery: the result has already
  * been posted to the opener and this window asked to close.
  */
-type RelayOutcome = "approved" | "denied" | "failed";
+type RelayOutcome = 'approved' | 'denied' | 'failed';
 
 /** Error shown when the requesting application cannot be resolved. */
-const UNRESOLVED_APP_ERROR = "Unable to identify the requesting application.";
+const UNRESOLVED_APP_ERROR = 'Unable to identify the requesting application.';
 
 /** Which terminal message a delivered popup result should leave on screen. */
 function relayOutcomeFor(result: OAuthResult): RelayOutcome {
-  if (result.kind === "code") return "approved";
-  return result.error === "access_denied" ? "denied" : "failed";
+  if (result.kind === 'code') return 'approved';
+  return result.error === 'access_denied' ? 'denied' : 'failed';
 }
 
 /**
@@ -71,23 +71,20 @@ function relayOutcomeFor(result: OAuthResult): RelayOutcome {
 async function resolvePublicApplication(
   clientId: string,
   resource: string | null,
-  redirectUri: string | null
+  redirectUri: string | null,
 ): Promise<PublicApplication | null> {
   try {
-    const safeRedirect = resource !== null
-      ? safeMcpRedirectUrl(redirectUri)
-      : safeRedirectUrl(redirectUri);
+    const safeRedirect =
+      resource !== null ? safeMcpRedirectUrl(redirectUri) : safeRedirectUrl(redirectUri);
     if (!safeRedirect) return null;
-    const endpoint = resource !== null
-      ? `/auth/mcp/oauth/client/${encodeURIComponent(clientId)}?${new URLSearchParams({
-          resource,
-          redirectUri: safeRedirect,
-        }).toString()}`
-      : `/auth/oauth/client/${encodeURIComponent(clientId)}`;
-    const response = await fetch(
-      buildApiUrl(endpoint),
-      { credentials: "include" }
-    );
+    const endpoint =
+      resource !== null
+        ? `/auth/mcp/oauth/client/${encodeURIComponent(clientId)}?${new URLSearchParams({
+            resource,
+            redirectUri: safeRedirect,
+          }).toString()}`
+        : `/auth/oauth/client/${encodeURIComponent(clientId)}`;
+    const response = await fetch(buildApiUrl(endpoint), { credentials: 'include' });
     if (!response.ok) return null;
     const result = await response.json();
     const payload = result?.data ?? result;
@@ -100,13 +97,8 @@ async function resolvePublicApplication(
   }
 }
 
-function parseRequestedScopes(
-  scopeValue: string | null,
-  fallbackScopes: string[] = []
-): string[] {
-  const rawScopes = scopeValue
-    ? scopeValue.split(/\s+/).filter(Boolean)
-    : fallbackScopes;
+function parseRequestedScopes(scopeValue: string | null, fallbackScopes: string[] = []): string[] {
+  const rawScopes = scopeValue ? scopeValue.split(/\s+/).filter(Boolean) : fallbackScopes;
   return Array.from(new Set(rawScopes));
 }
 
@@ -120,8 +112,8 @@ function SilentPromptRefused() {
   return (
     <OxyAuthScreen>
       <OxyAuthScreenHeader
-        title={t("authorize.silentUnsupportedTitle")}
-        description={t("authorize.silentUnsupportedDesc")}
+        title={t('authorize.silentUnsupportedTitle')}
+        description={t('authorize.silentUnsupportedDesc')}
       />
     </OxyAuthScreen>
   );
@@ -158,7 +150,7 @@ function SilentPromptRefused() {
  */
 export function AuthorizePage() {
   const [searchParams] = useSearchParams();
-  if (searchParams.get("prompt") === "none") {
+  if (searchParams.get('prompt') === 'none') {
     return <SilentPromptRefused />;
   }
   return <AuthorizeRequest />;
@@ -168,47 +160,42 @@ function AuthorizeRequest() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const token = searchParams.get("token");
-  const redirectUri = searchParams.get("redirect_uri");
-  const state = searchParams.get("state");
+  const token = searchParams.get('token');
+  const redirectUri = searchParams.get('redirect_uri');
+  const state = searchParams.get('state');
   // OAuth2 authorization code flow parameters. When `client_id` is present
   // we exchange the user's consent for a single-use code (not a token) and
   // redirect with `?code=<code>&state=<state>` — never `?access_token=...`.
   // PKCE (code_challenge + S256) is REQUIRED for public clients. Servers MUST
   // strip these from logs / referrers since they are short-lived bearer-like
   // credentials.
-  const clientId = searchParams.get("client_id");
-  const codeChallenge = searchParams.get("code_challenge");
-  const codeChallengeMethod = searchParams.get("code_challenge_method");
-  const scope = searchParams.get("scope");
-  const resource = searchParams.get("resource");
-  const responseType = searchParams.get("response_type");
+  const clientId = searchParams.get('client_id');
+  const codeChallenge = searchParams.get('code_challenge');
+  const codeChallengeMethod = searchParams.get('code_challenge_method');
+  const scope = searchParams.get('scope');
+  const resource = searchParams.get('resource');
+  const responseType = searchParams.get('response_type');
   const isMcpOAuth = resource !== null;
-  const safeRequestRedirect = () => isMcpOAuth
-    ? safeMcpRedirectUrl(redirectUri)
-    : safeRedirectUrl(redirectUri);
-  const statusParam = searchParams.get("status");
-  const urlError = searchParams.get("error");
+  const safeRequestRedirect = () =>
+    isMcpOAuth ? safeMcpRedirectUrl(redirectUri) : safeRedirectUrl(redirectUri);
+  const statusParam = searchParams.get('status');
+  const urlError = searchParams.get('error');
   // Popup sign-in: `response_mode=web_message` asks us to post the result to
   // `window.opener` instead of navigating this window to `redirect_uri`. It is a
   // request, not a guarantee — with no opener we still redirect (see
   // `lib/oauth-web-message.ts`).
-  const responseMode = searchParams.get("response_mode");
+  const responseMode = searchParams.get('response_mode');
   // The IdP screen a request asks to open on (`screen=signin|signup|recover`)
   // when this browser has no session here yet: `/login`, starting at account
   // creation for `signup` (recovery is signing in with a code by email).
-  const screen = searchParams.get("screen");
-  const screenPath = screen === "signin" || screen === "signup" || screen === "recover" ? "/login" : null;
+  const screen = searchParams.get('screen');
+  const screenPath =
+    screen === 'signin' || screen === 'signup' || screen === 'recover' ? '/login' : null;
 
   // Device-first SDK: the signed-in user + active bearer + the device directory.
   // The bearer for the OAuth authorize call is ALWAYS the SDK's active-context
   // token; activating another context re-plants it — there is no per-row bearer.
-  const {
-    user,
-    oxyServices,
-    isAuthResolved,
-    isAuthenticated,
-  } = useOxy();
+  const { user, oxyServices, isAuthResolved, isAuthenticated } = useOxy();
   const {
     principals,
     activeContext,
@@ -246,9 +233,7 @@ function AuthorizeRequest() {
   // `<OxyAccountPicker>` and disables sibling rows so the user can't fire a second
   // switch while one is in flight. Cleared on success (consent reveal) or on
   // failure (re-auth fallback).
-  const [chooserPendingContextId, setChooserPendingContextId] = useState<
-    string | null
-  >(null);
+  const [chooserPendingContextId, setChooserPendingContextId] = useState<string | null>(null);
   // The auto-approve probe runs at most once per mount for the active account.
   const autoApproveAttemptedRef = useRef(false);
   // Set once a result has been posted to the opener in popup mode. The window is
@@ -260,9 +245,7 @@ function AuthorizeRequest() {
   // A usable session for OAuth consent requires an active bearer — switchable
   // device rows alone are not enough (stale accounts after a failed mint).
   const hasUsableBearer =
-    isAuthenticated ||
-    activeContext !== null ||
-    !!oxyServices.session.accessToken;
+    isAuthenticated || activeContext !== null || !!oxyServices.session.accessToken;
 
   // The additional no-session lane (issue #691). A request that carries a full
   // PKCE binding can be created with its OAuth context already attached, be
@@ -281,7 +264,7 @@ function AuthorizeRequest() {
             codeChallengeMethod,
             scope,
           }),
-    [clientId, redirectUri, codeChallenge, codeChallengeMethod, scope, isMcpOAuth]
+    [clientId, redirectUri, codeChallenge, codeChallengeMethod, scope, isMcpOAuth],
   );
 
   /**
@@ -291,17 +274,14 @@ function AuthorizeRequest() {
    * other request redirects to `redirect_uri` as before. The caller must not
    * navigate afterwards — delivery is complete either way.
    */
-  function deliverToRelyingParty(
-    result: OAuthResult,
-    safeRedirect: string
-  ): void {
+  function deliverToRelyingParty(result: OAuthResult, safeRedirect: string): void {
     const delivery = deliverOAuthResult({
       result,
       safeRedirectUri: safeRedirect,
       responseMode,
       window,
     });
-    if (delivery.mode === "web_message") {
+    if (delivery.mode === 'web_message') {
       setRelayOutcome(relayOutcomeFor(result));
     }
   }
@@ -325,20 +305,14 @@ function AuthorizeRequest() {
       // delivered without one. Recording the error also retires the lane (its
       // branch below requires `!data.error`), so the visitor falls back to
       // signing in here rather than sitting on a surface that can never settle.
-      setData((prev) => ({ ...prev, error: "Authorization failed" }));
+      setData((prev) => ({ ...prev, error: 'Authorization failed' }));
       return;
     }
-    if (outcome.kind === "code") {
-      deliverToRelyingParty(
-        { kind: "code", code: outcome.code, state },
-        safeRedirect
-      );
+    if (outcome.kind === 'code') {
+      deliverToRelyingParty({ kind: 'code', code: outcome.code, state }, safeRedirect);
       return;
     }
-    deliverToRelyingParty(
-      { kind: "error", error: "access_denied", state },
-      safeRedirect
-    );
+    deliverToRelyingParty({ kind: 'error', error: 'access_denied', state }, safeRedirect);
   }
 
   useEffect(() => {
@@ -356,14 +330,13 @@ function AuthorizeRequest() {
         // If we have an auth session token, check its status
         if (!statusParam && token) {
           try {
-            const statusResponse = await fetch(
-              buildAuthUrl(`/session/status/${token}`),
-              { credentials: "include" }
-            );
+            const statusResponse = await fetch(buildAuthUrl(`/session/status/${token}`), {
+              credentials: 'include',
+            });
             if (!statusResponse.ok) {
               setData((prev) => ({
                 ...prev,
-                error: "Unable to load authorization request.",
+                error: 'Unable to load authorization request.',
               }));
               return;
             }
@@ -372,18 +345,14 @@ function AuthorizeRequest() {
             // inner object against the real `/auth/session/status` contract. A
             // malformed body parses to null; we then fall through to the
             // unresolved-application path below (no crash, no invented app name).
-            const sessionInfo = safeParse(
-              sessionStatusSchema,
-              statusResult.data ?? statusResult
-            );
+            const sessionInfo = safeParse(sessionStatusSchema, statusResult.data ?? statusResult);
 
             // Device flow: the validated status response carries the resolved
             // public application directly. OAuth code flow: prefer the
             // client-resolved application — the OAuth path always takes
             // precedence. An unresolved request surfaces as an error, never a
             // generic app name.
-            const deviceApplication: PublicApplication | null =
-              sessionInfo?.application ?? null;
+            const deviceApplication: PublicApplication | null = sessionInfo?.application ?? null;
             const application = oauthApplication ?? deviceApplication;
 
             // A null parse (malformed status) is treated as an unresolved /
@@ -399,13 +368,13 @@ function AuthorizeRequest() {
               return;
             }
 
-            if (sessionInfo.status !== "pending") {
+            if (sessionInfo.status !== 'pending') {
               const err =
-                sessionInfo.status === "expired"
-                  ? "This authorization request has expired."
-                  : sessionInfo.status === "cancelled"
-                    ? "Authorization was cancelled."
-                    : "This authorization request is no longer active.";
+                sessionInfo.status === 'expired'
+                  ? 'This authorization request has expired.'
+                  : sessionInfo.status === 'cancelled'
+                    ? 'Authorization was cancelled.'
+                    : 'This authorization request is no longer active.';
               setData({
                 sessionStatus: sessionInfo.status,
                 application,
@@ -427,10 +396,7 @@ function AuthorizeRequest() {
               sessionStatus: null,
               application: oauthApplication,
               expiresAt: null,
-              error:
-                err instanceof Error
-                  ? err.message
-                  : "Unable to load request.",
+              error: err instanceof Error ? err.message : 'Unable to load request.',
             });
             return;
           }
@@ -438,20 +404,20 @@ function AuthorizeRequest() {
 
         // OAuth code flow without a device-flow token (or with status already
         // resolved via the URL). The application MUST resolve from client_id.
-        const invalidMcpRequest = isMcpOAuth && (
-          responseType !== "code" ||
-          !resource ||
-          !scope ||
-          !codeChallenge ||
-          codeChallengeMethod !== "S256"
-        );
+        const invalidMcpRequest =
+          isMcpOAuth &&
+          (responseType !== 'code' ||
+            !resource ||
+            !scope ||
+            !codeChallenge ||
+            codeChallengeMethod !== 'S256');
         const resolvedError = urlError
           ? urlError
           : invalidMcpRequest
-            ? "The MCP authorization request is missing a required secure binding."
-          : clientId && !oauthApplication
-            ? UNRESOLVED_APP_ERROR
-            : null;
+            ? 'The MCP authorization request is missing a required secure binding.'
+            : clientId && !oauthApplication
+              ? UNRESOLVED_APP_ERROR
+              : null;
 
         setData({
           sessionStatus: statusParam,
@@ -460,7 +426,7 @@ function AuthorizeRequest() {
           error: resolvedError,
         });
       } catch {
-        setData((prev) => ({ ...prev, error: "Unable to load request." }));
+        setData((prev) => ({ ...prev, error: 'Unable to load request.' }));
       } finally {
         setLoading(false);
       }
@@ -484,10 +450,7 @@ function AuthorizeRequest() {
   // Auto-close a child approval window when authorization is complete.
   useEffect(() => {
     const effectiveStatus = data.sessionStatus;
-    if (
-      (effectiveStatus === "approved" || effectiveStatus === "denied") &&
-      isChildWindow()
-    ) {
+    if ((effectiveStatus === 'approved' || effectiveStatus === 'denied') && isChildWindow()) {
       // Small delay so any pending redirects / postMessages can fire
       const timer = setTimeout(() => tryCloseChildWindow(), 800);
       return () => clearTimeout(timer);
@@ -499,7 +462,7 @@ function AuthorizeRequest() {
   // re-authenticating. `hint` pre-fills the username for a known account.
   function gotoLoginWithHint(hint?: string): void {
     navigate(
-      buildRelativeUrl("/login", {
+      buildRelativeUrl('/login', {
         token: token || undefined,
         redirect_uri: redirectUri || undefined,
         state: state || undefined,
@@ -511,7 +474,7 @@ function AuthorizeRequest() {
         response_type: responseType || undefined,
         response_mode: responseMode || undefined,
         login_hint: hint || undefined,
-      })
+      }),
     );
   }
 
@@ -547,7 +510,7 @@ function AuthorizeRequest() {
       directoryLoading ||
       autoApproveAttemptedRef.current ||
       data.error ||
-      (data.sessionStatus && data.sessionStatus !== "pending") ||
+      (data.sessionStatus && data.sessionStatus !== 'pending') ||
       activeContext === null ||
       (isMcpOAuth ? !chooserDismissed : contextCount > 1)
     ) {
@@ -584,7 +547,7 @@ function AuthorizeRequest() {
     };
     if (codeChallenge) {
       body.codeChallenge = codeChallenge;
-      body.codeChallengeMethod = codeChallengeMethod || "S256";
+      body.codeChallengeMethod = codeChallengeMethod || 'S256';
     }
     if (scope) body.scope = scope;
     if (state) body.state = state;
@@ -592,23 +555,21 @@ function AuthorizeRequest() {
       if (!resource || !effectiveAccountId) {
         setAutoApproving(false);
         setSubmitting(false);
-        setData((prev) => ({ ...prev, error: "The MCP account or resource binding is missing." }));
+        setData((prev) => ({ ...prev, error: 'The MCP account or resource binding is missing.' }));
         return;
       }
-      body.responseType = responseType || "code";
+      body.responseType = responseType || 'code';
       body.resource = resource;
       body.accountId = effectiveAccountId;
-      if (mcpCapabilities) body.scope = mcpCapabilities.join(" ");
+      if (mcpCapabilities) body.scope = mcpCapabilities.join(' ');
     }
 
-    const authorizePath = isMcpOAuth
-      ? "/auth/mcp/oauth/authorize"
-      : "/auth/oauth/authorize";
+    const authorizePath = isMcpOAuth ? '/auth/mcp/oauth/authorize' : '/auth/oauth/authorize';
     const codeResponse = await fetch(buildApiUrl(authorizePath), {
-      method: "POST",
-      credentials: "include",
+      method: 'POST',
+      credentials: 'include',
       headers: {
-        "content-type": "application/json",
+        'content-type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(body),
@@ -616,7 +577,7 @@ function AuthorizeRequest() {
 
     if (codeResponse.status === 401) {
       navigate(
-        buildRelativeUrl("/login", {
+        buildRelativeUrl('/login', {
           token: token || undefined,
           redirect_uri: redirectUri || undefined,
           state: state || undefined,
@@ -628,7 +589,7 @@ function AuthorizeRequest() {
           response_type: responseType || undefined,
           response_mode: responseMode || undefined,
           error: LOGIN_ERROR_SESSION_EXPIRED,
-        })
+        }),
       );
       return;
     }
@@ -636,9 +597,7 @@ function AuthorizeRequest() {
     if (!codeResponse.ok) {
       const errPayload = await codeResponse.json().catch(() => ({}));
       const message =
-        typeof errPayload?.message === "string"
-          ? errPayload.message
-          : "Authorization failed";
+        typeof errPayload?.message === 'string' ? errPayload.message : 'Authorization failed';
       // Surface the error and drop both in-flight flags so the page falls back
       // to the consent screen (auto-approve) or re-enables the button (manual).
       setAutoApproving(false);
@@ -650,18 +609,18 @@ function AuthorizeRequest() {
     const codeResult = await codeResponse.json();
     const codeData = codeResult?.data ?? codeResult;
     const code: unknown = codeData?.code;
-    if (typeof code !== "string" || code.length === 0) {
+    if (typeof code !== 'string' || code.length === 0) {
       // A 2xx without a code violates the authorize contract — fail closed
       // rather than handing the relying party an empty credential.
       setAutoApproving(false);
       setSubmitting(false);
-      setData((prev) => ({ ...prev, error: "Authorization failed" }));
+      setData((prev) => ({ ...prev, error: 'Authorization failed' }));
       return;
     }
 
     // Popup mode posts `{code, state}` to the opener and closes this window;
     // every other request redirects to `redirect_uri?code=&state=` as before.
-    deliverToRelyingParty({ kind: "code", code, state }, safeRedirect);
+    deliverToRelyingParty({ kind: 'code', code, state }, safeRedirect);
   }
 
   // Ask the server whether the OAuth consent screen must be shown for this
@@ -673,7 +632,7 @@ function AuthorizeRequest() {
   // (no client_id) always shows the consent screen.
   async function maybeAutoApprove(
     accessToken: string | null,
-    effectiveAccountId: string | undefined
+    effectiveAccountId: string | undefined,
   ): Promise<void> {
     const safeRedirect = safeRequestRedirect();
     if (!clientId || !safeRedirect || !accessToken) return;
@@ -686,27 +645,22 @@ function AuthorizeRequest() {
     let body: unknown = null;
     try {
       const params = new URLSearchParams();
-      params.set("clientId", clientId);
-      params.set("redirectUri", safeRedirect);
-      if (scope) params.set("scope", scope);
+      params.set('clientId', clientId);
+      params.set('redirectUri', safeRedirect);
+      if (scope) params.set('scope', scope);
       if (isMcpOAuth) {
         if (!resource || !effectiveAccountId) {
           setAutoApproving(false);
           return;
         }
-        params.set("resource", resource);
-        params.set("accountId", effectiveAccountId);
+        params.set('resource', resource);
+        params.set('accountId', effectiveAccountId);
       }
-      const consentPath = isMcpOAuth
-        ? "/auth/mcp/oauth/consent"
-        : "/auth/oauth/consent";
-      const response = await fetch(
-        buildApiUrl(`${consentPath}?${params.toString()}`),
-        {
-          credentials: "include",
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
+      const consentPath = isMcpOAuth ? '/auth/mcp/oauth/consent' : '/auth/oauth/consent';
+      const response = await fetch(buildApiUrl(`${consentPath}?${params.toString()}`), {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       if (!response.ok) {
         // Misconfigured redirect_uri (common prod drift) returns 403 before the
         // trusted-app auto-approve branch runs. Fail closed with a visible error
@@ -715,9 +669,9 @@ function AuthorizeRequest() {
         if (response.status === 403 || response.status === 400) {
           const errPayload = await response.json().catch(() => ({}));
           const message =
-            typeof errPayload?.message === "string"
+            typeof errPayload?.message === 'string'
               ? errPayload.message
-              : "Authorization failed. Return to the app and try again.";
+              : 'Authorization failed. Return to the app and try again.';
           setAutoApproving(false);
           setData((prev) => ({ ...prev, error: message }));
           return;
@@ -736,14 +690,14 @@ function AuthorizeRequest() {
         setAutoApproving(false);
         setData((prev) => ({
           ...prev,
-          error: "Unable to verify the exact MCP account and resource request.",
+          error: 'Unable to verify the exact MCP account and resource request.',
         }));
         return;
       }
       setMcpConsentContext(mcpConsent.context);
     }
     const consentRequired = isMcpOAuth
-      ? mcpConsent?.consentRequired ?? true
+      ? (mcpConsent?.consentRequired ?? true)
       : consentRequiredFromBody(body);
     if (consentRequired) {
       setAutoApproving(false);
@@ -758,20 +712,20 @@ function AuthorizeRequest() {
     );
   }
 
-  async function handleDecision(decision: "approve" | "deny") {
+  async function handleDecision(decision: 'approve' | 'deny') {
     if (!token && !clientId) return;
     setSubmitting(true);
 
     const safeRedirect = safeRequestRedirect();
 
-    if (decision === "deny") {
+    if (decision === 'deny') {
       // Cancel the auth session
       if (token) {
         try {
           await fetch(buildAuthUrl(`/session/cancel/${token}`), {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            credentials: "include",
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({}),
           });
         } catch {
@@ -782,16 +736,13 @@ function AuthorizeRequest() {
         // Same delivery contract as the approve path: popup mode posts
         // `access_denied` to the opener and closes; otherwise we redirect to
         // `redirect_uri?error=access_denied`.
-        deliverToRelyingParty(
-          { kind: "error", error: "access_denied", state },
-          safeRedirect
-        );
+        deliverToRelyingParty({ kind: 'error', error: 'access_denied', state }, safeRedirect);
       } else {
         navigate(
-          buildRelativeUrl("/authorize", {
+          buildRelativeUrl('/authorize', {
             token: token || undefined,
-            status: "denied",
-          })
+            status: 'denied',
+          }),
         );
       }
       setSubmitting(false);
@@ -812,7 +763,7 @@ function AuthorizeRequest() {
       if (!accessToken) {
         setData((prev) => ({
           ...prev,
-          error: "Sign in required to authorize this request.",
+          error: 'Sign in required to authorize this request.',
         }));
         setSubmitting(false);
         return;
@@ -820,11 +771,13 @@ function AuthorizeRequest() {
 
       // ---- OAuth2 authorization code flow ----
       if (clientId && safeRedirect) {
-        if (isMcpOAuth && (!mcpConsentContext
-          || mcpConsentContext.account.id !== activeContext?.subject.accountId)) {
+        if (
+          isMcpOAuth &&
+          (!mcpConsentContext || mcpConsentContext.account.id !== activeContext?.subject.accountId)
+        ) {
           setData((prev) => ({
             ...prev,
-            error: "Select and verify the MCP account before allowing access.",
+            error: 'Select and verify the MCP account before allowing access.',
           }));
           setSubmitting(false);
           return;
@@ -842,28 +795,25 @@ function AuthorizeRequest() {
       if (!token) {
         setData((prev) => ({
           ...prev,
-          error: "Missing authorization request token.",
+          error: 'Missing authorization request token.',
         }));
         setSubmitting(false);
         return;
       }
 
-      const authorizeResponse = await fetch(
-        buildAuthUrl(`/session/authorize/${token}`),
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "content-type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({}),
-        }
-      );
+      const authorizeResponse = await fetch(buildAuthUrl(`/session/authorize/${token}`), {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({}),
+      });
 
       if (authorizeResponse.status === 401) {
         navigate(
-          buildRelativeUrl("/login", {
+          buildRelativeUrl('/login', {
             token: token || undefined,
             redirect_uri: redirectUri || undefined,
             state: state || undefined,
@@ -875,7 +825,7 @@ function AuthorizeRequest() {
             response_type: responseType || undefined,
             response_mode: responseMode || undefined,
             error: LOGIN_ERROR_SESSION_EXPIRED,
-          })
+          }),
         );
         return;
       }
@@ -883,9 +833,7 @@ function AuthorizeRequest() {
       if (!authorizeResponse.ok) {
         const errPayload = await authorizeResponse.json().catch(() => ({}));
         const message =
-          typeof errPayload?.message === "string"
-            ? errPayload.message
-            : "Authorization failed";
+          typeof errPayload?.message === 'string' ? errPayload.message : 'Authorization failed';
         setData((prev) => ({ ...prev, error: message }));
         setSubmitting(false);
         return;
@@ -895,14 +843,13 @@ function AuthorizeRequest() {
       // the polling client; no tokens are returned to the auth UI and none
       // appear in the URL. We just confirm completion to the user.
       navigate(
-        buildRelativeUrl("/authorize", {
+        buildRelativeUrl('/authorize', {
           token: token || undefined,
-          status: "approved",
-        })
+          status: 'approved',
+        }),
       );
     } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : "Authorization failed";
+      const msg = error instanceof Error ? error.message : 'Authorization failed';
       setData((prev) => ({ ...prev, error: msg }));
       setSubmitting(false);
     }
@@ -917,13 +864,13 @@ function AuthorizeRequest() {
       <OxyAuthScreen>
         <OxyAuthScreenHeader
           title={
-            relayOutcome === "approved"
-              ? t("authorize.completeTitle")
-              : relayOutcome === "denied"
-                ? t("authorize.deniedTitle")
-                : t("authorize.relayFailedTitle")
+            relayOutcome === 'approved'
+              ? t('authorize.completeTitle')
+              : relayOutcome === 'denied'
+                ? t('authorize.deniedTitle')
+                : t('authorize.relayFailedTitle')
           }
-          description={t("authorize.completeDesc")}
+          description={t('authorize.completeDesc')}
         />
       </OxyAuthScreen>
     );
@@ -938,7 +885,7 @@ function AuthorizeRequest() {
   if (autoApproving) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t("authorize.signingIn")} />
+        <OxyAuthScreenHeader title={t('authorize.signingIn')} />
         <OxyAuthLoading />
       </OxyAuthScreen>
     );
@@ -948,11 +895,11 @@ function AuthorizeRequest() {
     return (
       <OxyAuthScreen>
         <OxyAuthScreenHeader
-          title={t("authorize.noRequestTitle")}
-          description={t("authorize.noRequestDesc")}
+          title={t('authorize.noRequestTitle')}
+          description={t('authorize.noRequestDesc')}
         />
         <Button asChild size="lg">
-          <Link to="/login">{t("authorize.goToSignIn")}</Link>
+          <Link to="/login">{t('authorize.goToSignIn')}</Link>
         </Button>
       </OxyAuthScreen>
     );
@@ -966,7 +913,7 @@ function AuthorizeRequest() {
       return (
         <Navigate
           to={buildRelativeUrl(screenPath, {
-            screen: screen === "signup" ? "signup" : undefined,
+            screen: screen === 'signup' ? 'signup' : undefined,
             token: token || undefined,
             redirect_uri: redirectUri || undefined,
             state: state || undefined,
@@ -995,7 +942,7 @@ function AuthorizeRequest() {
       commonsBinding &&
       !data.error &&
       data.application &&
-      (!data.sessionStatus || data.sessionStatus === "pending")
+      (!data.sessionStatus || data.sessionStatus === 'pending')
     ) {
       return (
         <CommonsOAuthLane
@@ -1012,7 +959,7 @@ function AuthorizeRequest() {
     // the user lands back on this consent screen after authenticating here.
     return (
       <Navigate
-        to={buildRelativeUrl("/login", {
+        to={buildRelativeUrl('/login', {
           token: token || undefined,
           redirect_uri: redirectUri || undefined,
           state: state || undefined,
@@ -1066,7 +1013,7 @@ function AuthorizeRequest() {
   // surface — with the application identity — visible, shown inline via the
   // consent screen's `error` prop so the user can retry. Terminal states
   // (expired/cancelled) fall through to the page status view instead.
-  const showActions = !effectiveStatus || effectiveStatus === "pending";
+  const showActions = !effectiveStatus || effectiveStatus === 'pending';
 
   // Additive front screen: external MCP grants always require an explicit account
   // choice; ordinary OAuth requests use the chooser only when multiple accounts
@@ -1093,21 +1040,20 @@ function AuthorizeRequest() {
   return (
     <OxyAuthScreen>
       {/* Status messages for completed flows */}
-      {effectiveStatus === "approved" ||
-      effectiveStatus === "denied" ? (
+      {effectiveStatus === 'approved' || effectiveStatus === 'denied' ? (
         <>
           <OxyAuthScreenHeader
             title={
-              effectiveStatus === "approved"
-                ? t("authorize.completeTitle")
-                : t("authorize.deniedTitle")
+              effectiveStatus === 'approved'
+                ? t('authorize.completeTitle')
+                : t('authorize.deniedTitle')
             }
             description={
               isChildWindow()
-                ? t("authorize.completeChild")
-                : effectiveStatus === "approved"
-                  ? t("authorize.completeDesc")
-                  : t("authorize.deniedDesc")
+                ? t('authorize.completeChild')
+                : effectiveStatus === 'approved'
+                  ? t('authorize.completeDesc')
+                  : t('authorize.deniedDesc')
             }
           />
         </>
@@ -1134,12 +1080,14 @@ function AuthorizeRequest() {
               developerName: consentApplication.developerName,
               isOfficial: consentApplication.isOfficial,
             }}
-            scopes={mcpConsentContext?.capabilities
-              ?? parseRequestedScopes(scope, consentApplication.scopes)}
+            scopes={
+              mcpConsentContext?.capabilities ??
+              parseRequestedScopes(scope, consentApplication.scopes)
+            }
             user={consentUser}
             resource={consentResource}
-            onAllow={() => handleDecision("approve")}
-            onDeny={() => handleDecision("deny")}
+            onAllow={() => handleDecision('approve')}
+            onDeny={() => handleDecision('deny')}
             busy={submitting}
             error={pageError}
           />
@@ -1150,8 +1098,8 @@ function AuthorizeRequest() {
            page's status view — message + error — never a consent surface. */
         <>
           <OxyAuthScreenHeader
-            title={t("authorize.requestTitle")}
-            description={t("authorize.requestUnavailable")}
+            title={t('authorize.requestTitle')}
+            description={t('authorize.requestUnavailable')}
           />
           {pageError && (
             <div className="rounded-radius-12 border border-destructive/50 bg-destructive/10 p-space-12 font-bodySmall text-bodySmall text-destructive">

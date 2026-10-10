@@ -30,7 +30,13 @@ export async function repairHlsSegmentKeys(
   const batchSize = opts.batchSize ?? 200;
   const dryRun = opts.dryRun ?? false;
   const s3 = opts.s3 ?? s3Service;
-  const result: RepairHlsSegmentsResult = { playlists: 0, repaired: 0, alreadyCorrect: 0, missing: 0, failed: 0 };
+  const result: RepairHlsSegmentsResult = {
+    playlists: 0,
+    repaired: 0,
+    alreadyCorrect: 0,
+    missing: 0,
+    failed: 0,
+  };
 
   const renditions = and(
     like(fileVariants.type, 'hls\\_%'),
@@ -41,7 +47,12 @@ export async function repairHlsSegmentKeys(
   let lastId: string | null = null;
   for (;;) {
     const rows = await getDb()
-      .select({ id: fileVariants.id, fileId: fileVariants.fileId, type: fileVariants.type, key: fileVariants.key })
+      .select({
+        id: fileVariants.id,
+        fileId: fileVariants.fileId,
+        type: fileVariants.type,
+        key: fileVariants.key,
+      })
       .from(fileVariants)
       .where(lastId ? and(renditions, gt(fileVariants.id, lastId)) : renditions)
       .orderBy(asc(fileVariants.id))

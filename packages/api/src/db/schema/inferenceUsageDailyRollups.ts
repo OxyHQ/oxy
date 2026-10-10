@@ -100,25 +100,22 @@ export const inferenceUsageDailyRollups = pgTable(
     // The account's usage chart over a date range — the primary key leads with
     // `day`, so a per-account range scan needs its own index.
     index('inference_usage_daily_rollups_account_id_day_idx').on(t.accountId, t.day.desc()),
-    index('inference_usage_daily_rollups_application_id_day_idx').on(
-      t.applicationId,
-      t.day.desc()
-    ),
+    index('inference_usage_daily_rollups_application_id_day_idx').on(t.applicationId, t.day.desc()),
 
     check(
       'inference_usage_daily_rollups_environment_check',
-      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`
+      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`,
     ),
     check(
       'inference_usage_daily_rollups_outcome_check',
-      sql`${t.outcome} in (${sql.raw(inList(INFERENCE_REQUEST_OUTCOMES))})`
+      sql`${t.outcome} in (${sql.raw(inList(INFERENCE_REQUEST_OUTCOMES))})`,
     ),
     // An error count above the request count would make the success/error split
     // a negative number in every chart built on it.
     check(
       'inference_usage_daily_rollups_counts_check',
-      sql`${t.requestCount} >= 0 and ${t.errorCount} >= 0 and ${t.errorCount} <= ${t.requestCount}`
+      sql`${t.requestCount} >= 0 and ${t.errorCount} >= 0 and ${t.errorCount} <= ${t.requestCount}`,
     ),
     usageUnitsNonNegativeCheck('inference_usage_daily_rollups_units_check', t),
-  ]
+  ],
 );

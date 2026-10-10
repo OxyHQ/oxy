@@ -3,11 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 
 const SRC = resolve(__dirname, '../../src');
 const SCREEN_ROOT = join(SRC, 'ui/screens');
-const ENTRIES = [
-  join(SRC, 'index.ts'),
-  join(SRC, 'ui/index.ts'),
-  join(SRC, 'ui/client.ts'),
-];
+const ENTRIES = [join(SRC, 'index.ts'), join(SRC, 'ui/index.ts'), join(SRC, 'ui/client.ts')];
 const EXTENSIONS = ['.ts', '.tsx', '.native.ts', '.native.tsx', '.web.ts', '.web.tsx'];
 
 function resolveRelative(fromFile: string, specifier: string): string | null {
@@ -26,8 +22,9 @@ function resolveRelative(fromFile: string, specifier: string): string | null {
 
 function staticSpecifiers(source: string): string[] {
   const runtimeSource = source.replace(/(?:^|\n)\s*(?:import|export)\s+type\s[^;]+;?/g, '\n');
-  return [...runtimeSource.matchAll(/(?:^|\n)\s*(?:import|export)\s[^;]*?from\s*['"]([^'"]+)['"]/g)]
-    .map((match) => match[1]);
+  return [
+    ...runtimeSource.matchAll(/(?:^|\n)\s*(?:import|export)\s[^;]*?from\s*['"]([^'"]+)['"]/g),
+  ].map((match) => match[1]);
 }
 
 function staticallyReachable(entry: string): Set<string> {

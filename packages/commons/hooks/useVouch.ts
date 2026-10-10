@@ -14,13 +14,7 @@ import { personhoodQueryKey } from './usePersonhood';
  *   withdrawn   → vouch withdrawn
  *   error       → submit / withdraw failed (see `errorCode`)
  */
-export type VouchState =
-  | 'idle'
-  | 'vouching'
-  | 'withdrawing'
-  | 'done'
-  | 'withdrawn'
-  | 'error';
+export type VouchState = 'idle' | 'vouching' | 'withdrawing' | 'done' | 'withdrawn' | 'error';
 
 export interface UseVouch {
   state: VouchState;

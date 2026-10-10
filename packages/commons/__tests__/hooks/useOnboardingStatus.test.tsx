@@ -184,9 +184,10 @@ describe('useOnboardingStatus', () => {
   it('starts "checking" until the identity probe resolves', async () => {
     let releaseProbe: (value: IdentityStatus) => void = () => undefined;
     getIdentityStatusMock.mockImplementation(
-      () => new Promise<IdentityStatus>((resolve) => {
-        releaseProbe = resolve;
-      }),
+      () =>
+        new Promise<IdentityStatus>((resolve) => {
+          releaseProbe = resolve;
+        }),
     );
     const { result } = renderHook(() => useOnboardingStatus(), { wrapper: createWrapper() });
     expect(result.current.status).toBe('checking');

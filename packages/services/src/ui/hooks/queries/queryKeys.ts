@@ -74,7 +74,8 @@ export const queryKeys = {
   // Privacy settings queries
   privacy: {
     all: ['privacy'] as const,
-    settings: (userId?: string) => [...queryKeys.privacy.all, 'settings', userId || 'current'] as const,
+    settings: (userId?: string) =>
+      [...queryKeys.privacy.all, 'settings', userId || 'current'] as const,
     /** The active account's blocked + restricted lists. */
     lists: (userId?: string) => [...queryKeys.privacy.all, 'lists', userId || 'current'] as const,
   },
@@ -84,8 +85,7 @@ export const queryKeys = {
     all: ['security'] as const,
     activity: (limit?: number, offset?: number, eventType?: string) =>
       [...queryKeys.security.all, 'activity', limit, offset, eventType] as const,
-    recent: (limit: number) =>
-      [...queryKeys.security.all, 'recent', limit] as const,
+    recent: (limit: number) => [...queryKeys.security.all, 'recent', limit] as const,
     infinite: (limit: number, eventType?: string) =>
       [...queryKeys.security.all, 'infinite', limit, eventType] as const,
   },
@@ -130,7 +130,8 @@ export const queryKeys = {
   // Oxy Trust reputation (the active account's standing)
   reputation: {
     all: ['reputation'] as const,
-    balance: (userId?: string) => [...queryKeys.reputation.all, 'balance', userId || 'current'] as const,
+    balance: (userId?: string) =>
+      [...queryKeys.reputation.all, 'balance', userId || 'current'] as const,
     transactions: (userId: string | undefined, limit: number, offset = 0) =>
       [...queryKeys.reputation.all, 'transactions', userId || 'current', limit, offset] as const,
     rules: () => [...queryKeys.reputation.all, 'rules'] as const,
@@ -242,4 +243,3 @@ export const invalidateConnectedAppsQueries = (queryClient: QueryClient): void =
 export const invalidateFileQueries = (queryClient: QueryClient): void => {
   queryClient.invalidateQueries({ queryKey: queryKeys.files.all });
 };
-

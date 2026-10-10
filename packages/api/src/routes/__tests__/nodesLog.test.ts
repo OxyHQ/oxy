@@ -42,7 +42,10 @@ jest.mock('../../services/repoLog.service', () => ({
 }));
 
 jest.mock('../../services/nodeRegistry.service', () => ({ materializeNodeFromRecord: jest.fn() }));
-jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
+jest.mock('../../utils/userCache', () => ({
+  __esModule: true,
+  default: { invalidate: jest.fn() },
+}));
 jest.mock('@oxy.so/core/server', () => ({ safeFetch: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -54,19 +57,23 @@ import type { AddressInfo } from 'net';
 import identityRoutes from '../identity';
 import { errorHandler } from '../../middleware/errorHandler';
 
-interface JsonResponse { status: number; body: Record<string, unknown>; }
+interface JsonResponse {
+  status: number;
+  body: Record<string, unknown>;
+}
 
 async function request(server: http.Server, method: string, path: string): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request(
-      { method, host: '127.0.0.1', port: address.port, path },
-      (res) => {
-        let raw = '';
-        res.on('data', (c) => { raw += c; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }));
-      },
-    );
+    const req = http.request({ method, host: '127.0.0.1', port: address.port, path }, (res) => {
+      let raw = '';
+      res.on('data', (c) => {
+        raw += c;
+      });
+      res.on('end', () =>
+        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+      );
+    });
     req.on('error', reject);
     req.end();
   });
@@ -99,8 +106,12 @@ beforeAll((done) => {
   app.use(errorHandler);
   server = app.listen(0, '127.0.0.1', done);
 });
-afterAll((done) => { server.close(done); });
-beforeEach(() => { jest.clearAllMocks(); });
+afterAll((done) => {
+  server.close(done);
+});
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 describe('GET /identity/log/:userId', () => {
   it('returns { records, count } from genesis when no since is given', async () => {

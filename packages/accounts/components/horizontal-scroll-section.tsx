@@ -43,19 +43,25 @@ export function HorizontalScrollSection({
   const currentScrollX = useRef(0);
   const handlePressIn = useHapticPress();
 
-  const checkScrollPosition = useCallback((contentWidth: number, scrollX: number, layoutWidth: number) => {
-    const canScrollLeft = scrollX > 0;
-    const canScrollRight = scrollX < contentWidth - layoutWidth - 10; // 10px threshold
-    
-    setShowLeftArrow(canScrollLeft);
-    setShowRightArrow(canScrollRight);
-  }, []);
+  const checkScrollPosition = useCallback(
+    (contentWidth: number, scrollX: number, layoutWidth: number) => {
+      const canScrollLeft = scrollX > 0;
+      const canScrollRight = scrollX < contentWidth - layoutWidth - 10; // 10px threshold
 
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    currentScrollX.current = contentOffset.x;
-    checkScrollPosition(contentSize.width, contentOffset.x, layoutMeasurement.width);
-  }, [checkScrollPosition]);
+      setShowLeftArrow(canScrollLeft);
+      setShowRightArrow(canScrollRight);
+    },
+    [],
+  );
+
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      currentScrollX.current = contentOffset.x;
+      checkScrollPosition(contentSize.width, contentOffset.x, layoutMeasurement.width);
+    },
+    [checkScrollPosition],
+  );
 
   const handleContentSizeChange = useCallback((contentWidth: number, _contentHeight: number) => {
     scrollViewRef.current?.measure((_x, _y, width) => {
@@ -67,15 +73,19 @@ export function HorizontalScrollSection({
     });
   }, []);
 
-  const scrollBy = useCallback((direction: 'left' | 'right', distance: number = 200) => {
-    const newX = direction === 'right' 
-      ? currentScrollX.current + distance 
-      : Math.max(0, currentScrollX.current - distance);
-    
-    scrollViewRef.current?.scrollTo({ x: newX, animated: true });
-    handlePressIn();
-    onPressIn?.();
-  }, [handlePressIn, onPressIn]);
+  const scrollBy = useCallback(
+    (direction: 'left' | 'right', distance: number = 200) => {
+      const newX =
+        direction === 'right'
+          ? currentScrollX.current + distance
+          : Math.max(0, currentScrollX.current - distance);
+
+      scrollViewRef.current?.scrollTo({ x: newX, animated: true });
+      handlePressIn();
+      onPressIn?.();
+    },
+    [handlePressIn, onPressIn],
+  );
 
   // Gradient colors based on theme - fade from transparent at edges to background color near arrows
   const gradientColors = useMemo(() => {
@@ -101,7 +111,11 @@ export function HorizontalScrollSection({
             pointerEvents="none"
           />
           <TouchableOpacity
-            style={[styles.arrowButton, styles.leftArrow, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[
+              styles.arrowButton,
+              styles.leftArrow,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
             onPress={() => scrollBy('left')}
             activeOpacity={0.7}
             accessibilityRole="button"
@@ -111,7 +125,7 @@ export function HorizontalScrollSection({
           </TouchableOpacity>
         </>
       )}
-      
+
       <ScrollView
         ref={scrollViewRef}
         horizontal
@@ -136,7 +150,11 @@ export function HorizontalScrollSection({
             pointerEvents="none"
           />
           <TouchableOpacity
-            style={[styles.arrowButton, styles.rightArrow, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[
+              styles.arrowButton,
+              styles.rightArrow,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
             onPress={() => scrollBy('right')}
             activeOpacity={0.7}
             accessibilityRole="button"
@@ -207,4 +225,3 @@ const styles = StyleSheet.create({
     right: -12, // Align with ScrollView edge accounting for marginHorizontal: -16
   } as const,
 });
-

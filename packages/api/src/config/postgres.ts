@@ -67,13 +67,16 @@ let billingDeclaration: string | null = null;
  *   misconfiguration; fail fast and loudly rather than degrade.
  */
 export async function connectPostgres(): Promise<Database> {
-  if (db) { assertPersistedBillingNamespace(billingDeclaration); return db; }
+  if (db) {
+    assertPersistedBillingNamespace(billingDeclaration);
+    return db;
+  }
 
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new ConfigurationError(
       'DATABASE_URL is not set. See .env.example, or start a local Postgres ' +
-      'with: docker compose -f docker-compose.dev.yml up -d postgres'
+        'with: docker compose -f docker-compose.dev.yml up -d postgres',
     );
   }
 
@@ -128,7 +131,7 @@ export function getDb(): Database {
   if (!db) {
     throw new ConfigurationError(
       'PostgreSQL is not connected. Call connectPostgres() during startup ' +
-      'before issuing queries.'
+        'before issuing queries.',
     );
   }
   assertPersistedBillingNamespace(billingDeclaration);

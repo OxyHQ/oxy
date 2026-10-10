@@ -4,11 +4,7 @@ import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useColors } from '@/hooks/useColors';
-import {
-  Screen,
-  StackHeader,
-  ImportantBanner,
-} from '@/components/ui';
+import { Screen, StackHeader, ImportantBanner } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 
@@ -59,13 +55,13 @@ export default function RotateKeyEntryScreen() {
 
       <SettingsListGroup title={t('rotateKey.pathSection')}>
         <SettingsListItem
-          icon={<Icons.device size='md' fill={colors.text} />}
+          icon={<Icons.device size="md" fill={colors.text} />}
           title={t('rotateKey.pathDevice')}
           description={t('rotateKey.pathDeviceSubtitle')}
           onPress={handleDevice}
         />
         <SettingsListItem
-          icon={<Icons.key size='md' fill={colors.text} />}
+          icon={<Icons.key size="md" fill={colors.text} />}
           title={t('rotateKey.pathPhrase')}
           description={t('rotateKey.pathPhraseSubtitle')}
           onPress={handlePhrase}

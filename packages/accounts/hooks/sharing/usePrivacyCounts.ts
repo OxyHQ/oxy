@@ -108,22 +108,25 @@ export function usePrivacyCounts({ userId }: UsePrivacyCountsArgs): UsePrivacyCo
   }, [refetchPrivacy, fetchPrivacyCounts, fetchUserCounts]);
 
   // Handle privacy setting updates
-  const handlePrivacyUpdate = useCallback(async (key: string, value: boolean) => {
-    if (!userId) return;
+  const handlePrivacyUpdate = useCallback(
+    async (key: string, value: boolean) => {
+      if (!userId) return;
 
-    setPendingPrivacyKey(key);
-    try {
-      await updatePrivacyMutation.mutateAsync({
-        settings: { [key]: value },
-        userId,
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : t('sharing.privacy.updateFailed');
-      toast.error(message);
-    } finally {
-      setPendingPrivacyKey((current) => (current === key ? null : current));
-    }
-  }, [userId, updatePrivacyMutation, t]);
+      setPendingPrivacyKey(key);
+      try {
+        await updatePrivacyMutation.mutateAsync({
+          settings: { [key]: value },
+          userId,
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : t('sharing.privacy.updateFailed');
+        toast.error(message);
+      } finally {
+        setPendingPrivacyKey((current) => (current === key ? null : current));
+      }
+    },
+    [userId, updatePrivacyMutation, t],
+  );
 
   // Fetch blocked/restricted counts
   useEffect(() => {

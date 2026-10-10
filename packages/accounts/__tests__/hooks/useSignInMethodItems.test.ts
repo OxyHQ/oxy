@@ -8,8 +8,16 @@ import { renderHook } from '@testing-library/react';
 import type { SignInMethods } from '@oxy.so/contracts';
 
 const showBottomSheet = jest.fn();
-let user: { id: string; email?: string; publicKey?: string } | null = { id: 'u1', email: 'ada@example.com' };
-let methods: SignInMethods | undefined = { hasEmail: true, hasPassword: false, totpEnabled: false, backupCodesRemaining: 0 };
+let user: { id: string; email?: string; publicKey?: string } | null = {
+  id: 'u1',
+  email: 'ada@example.com',
+};
+let methods: SignInMethods | undefined = {
+  hasEmail: true,
+  hasPassword: false,
+  totpEnabled: false,
+  backupCodesRemaining: 0,
+};
 const useSignInMethods = jest.fn((_options?: { enabled?: boolean }) => ({ data: methods }));
 
 jest.mock('@oxy.so/services', () => ({
@@ -21,7 +29,8 @@ jest.mock('@oxy.so/services', () => ({
 jest.mock('@/lib/i18n', () => ({
   __esModule: true,
   useTranslation: () => ({
-    t: (key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key),
+    t: (key: string, vars?: Record<string, unknown>) =>
+      vars ? `${key} ${JSON.stringify(vars)}` : key,
   }),
 }));
 
@@ -56,7 +65,9 @@ describe('useSignInMethodItems', () => {
   it('says what is on: the password, and the backup codes left', () => {
     methods = { hasEmail: true, hasPassword: true, totpEnabled: true, backupCodesRemaining: 8 };
     const { result } = renderHook(() => useSignInMethodItems());
-    expect(result.current.find((item) => item.id === 'password')?.subtitle).toBe('security.signInMethods.passwordSet');
+    expect(result.current.find((item) => item.id === 'password')?.subtitle).toBe(
+      'security.signInMethods.passwordSet',
+    );
     expect(result.current.find((item) => item.id === 'authenticator')?.subtitle).toBe(
       'security.signInMethods.authenticatorOn {"count":8}',
     );

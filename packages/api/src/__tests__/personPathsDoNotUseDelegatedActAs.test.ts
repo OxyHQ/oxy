@@ -101,7 +101,7 @@ describe('the two act-as questions stay two questions', () => {
 
   it('and agree on everything else', () => {
     const differing = ACCOUNT_KINDS.filter(
-      (kind) => isDelegatedActAsEligibleKind(kind) !== isOperatorSwitchTargetKind(kind)
+      (kind) => isDelegatedActAsEligibleKind(kind) !== isOperatorSwitchTargetKind(kind),
     );
 
     expect(differing).toEqual(['bot']);

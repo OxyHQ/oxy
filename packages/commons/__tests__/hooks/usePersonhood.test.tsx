@@ -60,7 +60,15 @@ describe('usePersonhood', () => {
 
   it('surfaces a building (not-yet-verified) snapshot without erroring', async () => {
     const getPersonhood = jest.fn(async () =>
-      makeStatus('u1', { score: 0.2, isRealPerson: false, vouchCount: 0, realLifeCount: 0, biometricBound: false, breakdown: null, updatedAt: null }),
+      makeStatus('u1', {
+        score: 0.2,
+        isRealPerson: false,
+        vouchCount: 0,
+        realLifeCount: 0,
+        biometricBound: false,
+        breakdown: null,
+        updatedAt: null,
+      }),
     );
     __setOxyState({ oxyServices: { getPersonhood } });
 

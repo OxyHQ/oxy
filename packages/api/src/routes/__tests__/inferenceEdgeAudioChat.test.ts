@@ -168,14 +168,18 @@ interface Answer {
   readonly body: string;
 }
 
-async function withEdge(run: (stub: Stub, post: (body: unknown, token: string) => Promise<Answer>) => Promise<void>): Promise<void> {
+async function withEdge(
+  run: (stub: Stub, post: (body: unknown, token: string) => Promise<Answer>) => Promise<void>,
+): Promise<void> {
   const stub = await startStub();
   process.env[KAANA_BASE_URL_VARIABLE] = 'https://kaana.ai';
   process.env[KAANA_SIGNING_KEY_ID_VARIABLE] = EDGE_KEY_ID;
   process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE] = EDGE_PRIVATE_PEM;
   const systemFetch = globalThis.fetch;
   globalThis.fetch = (async (input, init) => {
-    const requested = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url);
+    const requested = new URL(
+      typeof input === 'string' ? input : input instanceof URL ? input : input.url,
+    );
     expect(requested.origin).toBe('https://kaana.ai');
     return systemFetch(`${stub.baseUrl}${requested.pathname}`, init);
   }) as typeof fetch;
@@ -209,8 +213,10 @@ async function withEdge(run: (stub: Stub, post: (body: unknown, token: string) =
           res.on('data', (chunk: Buffer) => {
             text += chunk.toString('utf8');
           });
-          res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: text }));
-        }
+          res.on('end', () =>
+            resolve({ status: res.statusCode ?? 0, headers: res.headers, body: text }),
+          );
+        },
       );
       request.on('error', reject);
       request.end(payload);
@@ -232,7 +238,7 @@ async function withEdge(run: (stub: Stub, post: (body: unknown, token: string) =
 }
 
 const ORIGINAL_ENVIRONMENT = Object.fromEntries(
-  Object.keys(EDGE_ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]])
+  Object.keys(EDGE_ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]]),
 );
 
 beforeAll(async () => {
@@ -385,8 +391,12 @@ describe('a spoken chat completion, not streamed', () => {
         emit.report(units);
       };
       const answer = await post(
-        { model: fixture.modelReference, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 100 },
-        fixture.token
+        {
+          model: fixture.modelReference,
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 100,
+        },
+        fixture.token,
       );
       expect(answer.status).toBe(200);
       expect(stub.received[0].audioOutput).toBeUndefined();
@@ -419,7 +429,7 @@ describe('a spoken chat completion, streamed', () => {
       stub.script = speaks('audio/pcm');
       const answer = await post(
         spokenBody(fixture, { stream: true, audio: { voice: 'alloy', format: 'pcm16' } }),
-        fixture.token
+        fixture.token,
       );
       expect(answer.status).toBe(200);
       expect(stub.received[0].audioOutput).toEqual({ voice: 'alloy', format: 'pcm' });
@@ -431,9 +441,14 @@ describe('a spoken chat completion, streamed', () => {
         .map((frame) => frame.replace(/^data: /, ''))
         .filter((data) => data.length > 0);
       expect(frames[frames.length - 1]).toBe('[DONE]');
-      const chunks = frames
-        .slice(0, -1)
-        .map((data) => JSON.parse(data) as { created: number; choices: { delta: Record<string, unknown> }[]; usage?: Record<string, unknown> });
+      const chunks = frames.slice(0, -1).map(
+        (data) =>
+          JSON.parse(data) as {
+            created: number;
+            choices: { delta: Record<string, unknown> }[];
+            usage?: Record<string, unknown>;
+          },
+      );
       const audioDeltas = chunks
         .filter((chunk) => chunk.choices[0]?.delta.audio !== undefined)
         .map((chunk) => chunk.choices[0].delta.audio);
@@ -508,7 +523,7 @@ describe('spoken output is authorized only against a declaration and a full pric
     await withEdge(async (stub, post) => {
       const answer = await post(
         { model: fixture.modelReference, messages: [{ role: 'user', content: 'Hi' }] },
-        fixture.token
+        fixture.token,
       );
       expect(answer.status).toBe(400);
       const body = JSON.parse(answer.body) as { error: { message: string } };

@@ -22,7 +22,9 @@ import { z } from 'zod';
  */
 
 /** A SHA-256 digest in the exact form the protocol emits: 64 lowercase hex chars. */
-const hexDigestSchema = z.string().regex(/^[0-9a-f]{64}$/, 'Expected a 64-char lowercase hex digest');
+const hexDigestSchema = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/, 'Expected a 64-char lowercase hex digest');
 
 /**
  * One signer's endorsement of a checkpoint's signed fields.
@@ -31,21 +33,21 @@ const hexDigestSchema = z.string().regex(/^[0-9a-f]{64}$/, 'Expected a 64-char l
  * SAME bytes, so the array on a checkpoint can grow without coordination.
  */
 export const transparencyCheckpointSignatureSchema = z.object({
-    /** Uncompressed hex public key of the signer. */
-    publicKey: z.string().min(1),
-    alg: z.literal('ES256K-DER-SHA256'),
-    /** DER-encoded hex secp256k1 signature over the checkpoint signing input. */
-    signature: z.string().min(1),
+  /** Uncompressed hex public key of the signer. */
+  publicKey: z.string().min(1),
+  alg: z.literal('ES256K-DER-SHA256'),
+  /** DER-encoded hex secp256k1 signature over the checkpoint signing input. */
+  signature: z.string().min(1),
 });
 
 /** Where a checkpoint root was published on a public chain. */
 export const transparencyAnchorSchema = z.object({
-    /** Chain/network identifier, e.g. `faircoin-main`. */
-    network: z.string().min(1),
-    txid: z.string().min(1),
-    confirmations: z.number().int().nonnegative(),
-    /** When the anchoring transaction was broadcast (ms epoch). */
-    anchoredAt: z.number().int().positive(),
+  /** Chain/network identifier, e.g. `faircoin-main`. */
+  network: z.string().min(1),
+  txid: z.string().min(1),
+  confirmations: z.number().int().nonnegative(),
+  /** When the anchoring transaction was broadcast (ms epoch). */
+  anchoredAt: z.number().int().positive(),
 });
 
 /**
@@ -57,16 +59,16 @@ export const transparencyAnchorSchema = z.object({
  * normal, temporary state rather than an error.
  */
 export const transparencyCheckpointSchema = z.object({
-    index: z.number().int().nonnegative(),
-    /** End of the committed period (ms epoch). */
-    periodEnd: z.number().int().positive(),
-    /** Number of subjects (leaves) committed. */
-    treeSize: z.number().int().nonnegative(),
-    root: hexDigestSchema,
-    /** Hash of the previous checkpoint; `null` only at genesis. */
-    prevCheckpointHash: hexDigestSchema.nullable(),
-    signatures: z.array(transparencyCheckpointSignatureSchema).min(1),
-    anchors: z.array(transparencyAnchorSchema),
+  index: z.number().int().nonnegative(),
+  /** End of the committed period (ms epoch). */
+  periodEnd: z.number().int().positive(),
+  /** Number of subjects (leaves) committed. */
+  treeSize: z.number().int().nonnegative(),
+  root: hexDigestSchema,
+  /** Hash of the previous checkpoint; `null` only at genesis. */
+  prevCheckpointHash: hexDigestSchema.nullable(),
+  signatures: z.array(transparencyCheckpointSignatureSchema).min(1),
+  anchors: z.array(transparencyAnchorSchema),
 });
 
 /**
@@ -77,19 +79,19 @@ export const transparencyCheckpointSchema = z.object({
  * the server's hash, then walks `proof` up to the checkpoint's `root`.
  */
 export const transparencyInclusionProofSchema = z.object({
-    checkpoint: transparencyCheckpointSchema,
-    subjectDid: z.string().min(1),
-    seq: z.number().int().nonnegative(),
-    headRecordId: hexDigestSchema,
-    leaf: hexDigestSchema,
-    leafIndex: z.number().int().nonnegative(),
-    /** Audit path, leaf-adjacent sibling first; empty for a single-leaf tree. */
-    proof: z.array(hexDigestSchema),
+  checkpoint: transparencyCheckpointSchema,
+  subjectDid: z.string().min(1),
+  seq: z.number().int().nonnegative(),
+  headRecordId: hexDigestSchema,
+  leaf: hexDigestSchema,
+  leafIndex: z.number().int().nonnegative(),
+  /** Audit path, leaf-adjacent sibling first; empty for a single-leaf tree. */
+  proof: z.array(hexDigestSchema),
 });
 
 /** A page of the checkpoint chain, oldest first, for walking `prevCheckpointHash`. */
 export const transparencyCheckpointListSchema = z.object({
-    checkpoints: z.array(transparencyCheckpointSchema),
+  checkpoints: z.array(transparencyCheckpointSchema),
 });
 
 export type TransparencyCheckpointSignature = z.infer<typeof transparencyCheckpointSignatureSchema>;

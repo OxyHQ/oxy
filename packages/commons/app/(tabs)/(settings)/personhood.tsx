@@ -10,13 +10,7 @@ import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import {
-  Screen,
-  StackHeader,
-  SessionGate,
-  LoadingState,
-  STATE_MIN_HEIGHT,
-} from '@/components/ui';
+import { Screen, StackHeader, SessionGate, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
 import { useMyPersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useTranslation } from '@/lib/i18n';
@@ -73,7 +67,14 @@ export default function PersonhoodScreen() {
           description={t('civic.personhood.error.body')}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={() => statusQuery.refetch()}>{t('common.retry')}</Button>
+              <Button
+                appearance="solid"
+                tone="accent"
+                size="lg"
+                onPress={() => statusQuery.refetch()}
+              >
+                {t('common.retry')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -101,43 +102,50 @@ export default function PersonhoodScreen() {
 
           {/* Verified / building hero — flat, no card. */}
           <View style={styles.hero}>
-          <Badge
-            appearance="subtle"
-            tone={bloomToneFor(verified ? 'positive' : 'caution')}
-            size="label-medium"
-            icon={Icons[verified ? 'vouched' : 'pending']}
-            content={t(verified ? 'civic.personhood.verifiedBadge' : 'civic.personhood.buildingBadge')}
-          />
+            <Badge
+              appearance="subtle"
+              tone={bloomToneFor(verified ? 'positive' : 'caution')}
+              size="label-medium"
+              icon={Icons[verified ? 'vouched' : 'pending']}
+              content={t(
+                verified ? 'civic.personhood.verifiedBadge' : 'civic.personhood.buildingBadge',
+              )}
+            />
 
-          <View className="gap-space-4">
-            <Text style={[styles.scoreValue, { color: colors.text }]}>
-              {t('civic.personhood.scoreValue', { pct: scorePct })}
-            </Text>
-            <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>
-              {t('civic.personhood.scoreLabel')}
-            </Text>
-          </View>
-
-          {/* Progress to the θ threshold */}
-          <View style={styles.progressBlock}>
-            <View style={[styles.track, { backgroundColor: `${fillColor}1F` }]}>
-              <View style={[styles.fill, { width: `${scorePct}%`, backgroundColor: fillColor }]} />
-              <View style={[styles.thresholdMark, { left: `${thresholdPct}%`, backgroundColor: colors.text }]} />
+            <View className="gap-space-4">
+              <Text style={[styles.scoreValue, { color: colors.text }]}>
+                {t('civic.personhood.scoreValue', { pct: scorePct })}
+              </Text>
+              <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>
+                {t('civic.personhood.scoreLabel')}
+              </Text>
             </View>
-            <Text style={[styles.thresholdLabel, { color: colors.textSecondary }]}>
-              {t('civic.personhood.thresholdLabel', { pct: thresholdPct })}
+
+            {/* Progress to the θ threshold */}
+            <View style={styles.progressBlock}>
+              <View style={[styles.track, { backgroundColor: `${fillColor}1F` }]}>
+                <View
+                  style={[styles.fill, { width: `${scorePct}%`, backgroundColor: fillColor }]}
+                />
+                <View
+                  style={[
+                    styles.thresholdMark,
+                    { left: `${thresholdPct}%`, backgroundColor: colors.text },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.thresholdLabel, { color: colors.textSecondary }]}>
+                {t('civic.personhood.thresholdLabel', { pct: thresholdPct })}
+              </Text>
+            </View>
+
+            <Text style={[styles.heroDesc, { color: colors.textSecondary }]}>
+              {t(verified ? 'civic.personhood.verifiedDesc' : 'civic.personhood.buildingDesc')}
             </Text>
           </View>
-
-          <Text style={[styles.heroDesc, { color: colors.textSecondary }]}>
-            {t(verified ? 'civic.personhood.verifiedDesc' : 'civic.personhood.buildingDesc')}
-          </Text>
-        </View>
 
           {status.sybilPenalty > 0 && (
-            <Admonition type="warning">
-              {t('civic.personhood.penaltyNote')}
-            </Admonition>
+            <Admonition type="warning">{t('civic.personhood.penaltyNote')}</Admonition>
           )}
         </View>
 
@@ -147,22 +155,24 @@ export default function PersonhoodScreen() {
           footer={t('civic.personhood.signals.subtitle')}
         >
           <SettingsListItem
-            icon={<Icons.community size='md' fill={colors.text} />}
+            icon={<Icons.community size="md" fill={colors.text} />}
             title={t('civic.personhood.signals.vouches')}
             description={t('civic.personhood.signals.vouchesDesc')}
             value={t('civic.personhood.signals.vouchesCount', { count: status.vouchCount })}
           />
           <SettingsListItem
-            icon={<Icons.handshake size='md' fill={colors.text} />}
+            icon={<Icons.handshake size="md" fill={colors.text} />}
             title={t('civic.personhood.signals.realLife')}
             description={t('civic.personhood.signals.realLifeDesc')}
             value={t('civic.personhood.signals.realLifeCount', { count: status.realLifeCount })}
           />
           <SettingsListItem
-            icon={<Icons.personhood size='md' fill={colors.text} />}
+            icon={<Icons.personhood size="md" fill={colors.text} />}
             title={t('civic.personhood.signals.biometric')}
             description={t('civic.personhood.signals.biometricDesc')}
-            value={status.biometricBound ? undefined : t('civic.personhood.signals.biometricUnbound')}
+            value={
+              status.biometricBound ? undefined : t('civic.personhood.signals.biometricUnbound')
+            }
             rightElement={
               status.biometricBound ? (
                 <Text style={[styles.boundValue, { color: colors.success }]}>
@@ -179,19 +189,19 @@ export default function PersonhoodScreen() {
           footer={t('civic.personhood.improve.subtitle')}
         >
           <SettingsListItem
-            icon={<Icons.vouched size='md' fill={colors.text} />}
+            icon={<Icons.vouched size="md" fill={colors.text} />}
             title={t('civic.personhood.improve.getVouched')}
             description={t('civic.personhood.improve.getVouchedDesc')}
             showChevron={false}
           />
           <SettingsListItem
-            icon={<Icons.handshake size='md' fill={colors.text} />}
+            icon={<Icons.handshake size="md" fill={colors.text} />}
             title={t('civic.personhood.improve.doRealLife')}
             description={t('civic.personhood.improve.doRealLifeDesc')}
             showChevron={false}
           />
           <SettingsListItem
-            icon={<Icons.personhood size='md' fill={colors.text} />}
+            icon={<Icons.personhood size="md" fill={colors.text} />}
             title={t('civic.personhood.improve.bindBiometric')}
             description={t('civic.personhood.improve.bindBiometricDesc')}
             showChevron={false}

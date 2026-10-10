@@ -15,7 +15,7 @@ describe('deviceSessionTitle', () => {
     expect(title).not.toContain('undefined');
   });
 
-  it("names another session by its account, which the response does carry", () => {
+  it('names another session by its account, which the response does carry', () => {
     const user = { id: 'u2', username: 'bob', name: { displayName: 'Bob' } } as unknown as User;
     expect(deviceSessionTitle({ isCurrent: false, user } as never, t)).toBe('Bob');
   });
@@ -25,7 +25,9 @@ describe('deviceSessionTitle', () => {
   });
 
   it('keeps a real device name, marking the current one', () => {
-    expect(deviceSessionTitle({ deviceName: 'Pixel 8a', isCurrent: true }, t)).toBe('Pixel 8a (This device)');
+    expect(deviceSessionTitle({ deviceName: 'Pixel 8a', isCurrent: true }, t)).toBe(
+      'Pixel 8a (This device)',
+    );
     expect(deviceSessionTitle({ deviceName: 'Pixel 8a', isCurrent: false }, t)).toBe('Pixel 8a');
   });
 });

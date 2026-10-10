@@ -157,54 +157,54 @@ const ALLOWED_IP_SOURCES = [
     expression: 'req.ip',
     count: 1,
     why:
-      'THE hasher. `hashedIpKey` is the one sanctioned transient use: it buckets IPv6 to /56 '
-      + "before HMAC'ing with DEVICE_ID_SALT under an `rl|` namespace, and the digest lives only "
-      + 'as a Redis key with the limiter\'s TTL. Every other limiter in the API reaches an IP '
-      + 'through this function or not at all.',
+      'THE hasher. `hashedIpKey` is the one sanctioned transient use: it buckets IPv6 to /56 ' +
+      "before HMAC'ing with DEVICE_ID_SALT under an `rl|` namespace, and the digest lives only " +
+      "as a Redis key with the limiter's TTL. Every other limiter in the API reaches an IP " +
+      'through this function or not at all.',
   },
   {
     file: 'packages/core/src/server/rateLimit.ts',
     expression: 'req.ip',
     count: 1,
     why:
-      "core's equivalent, feeding `hashAnonymousIp` on the very next lines. `createOxyRateLimit` "
-      + 'resolves the session ITSELF before computing a key, so unlike a route-mounted limiter it '
-      + 'cannot be defeated by middleware order.',
+      "core's equivalent, feeding `hashAnonymousIp` on the very next lines. `createOxyRateLimit` " +
+      'resolves the session ITSELF before computing a key, so unlike a route-mounted limiter it ' +
+      'cannot be defeated by middleware order.',
   },
   {
     file: 'packages/core/src/server/rateLimit.ts',
     expression: 'req.socket.remoteAddress',
     count: 1,
     why:
-      'the fallback on the same expression, for a request where `trust proxy` left `req.ip` '
-      + 'unset. Feeds the same `hashAnonymousIp` call.',
+      'the fallback on the same expression, for a request where `trust proxy` left `req.ip` ' +
+      'unset. Feeds the same `hashAnonymousIp` call.',
   },
   {
     file: 'packages/core/src/server/safeFetch.ts',
     expression: 'guard.ip',
     count: 1,
     why:
-      'NOT a client address. This is the resolved address of an OUTBOUND url Oxy is about to '
-      + 'fetch, pinned so the connection cannot be re-resolved to a private range between the '
-      + 'SSRF check and the socket. It is the server talking about a third party, and it is '
-      + 'never stored.',
+      'NOT a client address. This is the resolved address of an OUTBOUND url Oxy is about to ' +
+      'fetch, pinned so the connection cannot be re-resolved to a private range between the ' +
+      'SSRF check and the socket. It is the server talking about a third party, and it is ' +
+      'never stored.',
   },
   {
     file: 'packages/protocol/src/node/rateLimit.ts',
     expression: 'req.ip',
     count: 1,
     why:
-      "protocol's own hasher, and the one line that reads an address to feed it. "
-      + '`clientRateLimitKey` HMACs it under a per-process salt drawn from `randomBytes(32)` at '
-      + 'module load, so `createRateLimiter` (used by `nodeApp`, the self-hosted / managed node '
-      + 'server) keys its in-process window Map on a digest rather than on the address. This '
-      + 'entry used to read A KNOWN GAP: the Map was keyed on a raw `req.ip ?? \'unknown\'` with '
-      + 'no hasher — in memory with a window TTL rather than in a store, the mildest form of the '
-      + 'problem but the form nonetheless. It stayed open because closing it meant touching a '
-      + 'PUBLISHED package and deciding which salt a node operator supplies; the answer was that '
-      + 'a node operator supplies none, because a process-local window needs no key that outlives '
-      + 'the process. The entry survives the fix rather than being deleted by it — a hasher still '
-      + 'has to read the address it hashes, exactly as `utils/ipKey.ts` does above.',
+      "protocol's own hasher, and the one line that reads an address to feed it. " +
+      '`clientRateLimitKey` HMACs it under a per-process salt drawn from `randomBytes(32)` at ' +
+      'module load, so `createRateLimiter` (used by `nodeApp`, the self-hosted / managed node ' +
+      'server) keys its in-process window Map on a digest rather than on the address. This ' +
+      "entry used to read A KNOWN GAP: the Map was keyed on a raw `req.ip ?? 'unknown'` with " +
+      'no hasher — in memory with a window TTL rather than in a store, the mildest form of the ' +
+      'problem but the form nonetheless. It stayed open because closing it meant touching a ' +
+      'PUBLISHED package and deciding which salt a node operator supplies; the answer was that ' +
+      'a node operator supplies none, because a process-local window needs no key that outlives ' +
+      'the process. The entry survives the fix rather than being deleted by it — a hasher still ' +
+      'has to read the address it hashes, exactly as `utils/ipKey.ts` does above.',
   },
 ];
 
@@ -236,7 +236,11 @@ if (process.env.RAW_IP_KEYS_EMIT_POLICY === '1') {
       members: [...IP_MEMBERS],
       headers: IP_HEADER_PATTERNS.map((pattern) => pattern.source),
       limiterCallees: [...LIMITER_CALLEES],
-      allowed: ALLOWED_IP_SOURCES.map(({ file, expression, count }) => ({ file, expression, count })),
+      allowed: ALLOWED_IP_SOURCES.map(({ file, expression, count }) => ({
+        file,
+        expression,
+        count,
+      })),
     }),
   );
   process.exit(0);
@@ -308,8 +312,8 @@ for (const file of files) {
   if (parseDiagnostics.length > 0) {
     const first = ts.flattenDiagnosticMessageText(parseDiagnostics[0].messageText, ' ');
     problems.push(
-      `${file} did not parse (${first}), so nothing in it was inspected. A file this census `
-      + 'cannot read is indistinguishable from a file with no raw IP in it.',
+      `${file} did not parse (${first}), so nothing in it was inspected. A file this census ` +
+        'cannot read is indistinguishable from a file with no raw IP in it.',
     );
     continue;
   }
@@ -351,10 +355,10 @@ for (const file of files) {
     // — a census that cannot see the spelling the tree is moving toward drifts
     // toward its own limit while the code looks unchanged.
     if (
-      (ts.isPropertyAssignment(node)
-        && (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name))
-        && node.name.text === 'keyGenerator')
-      || (ts.isShorthandPropertyAssignment(node) && node.name.text === 'keyGenerator')
+      (ts.isPropertyAssignment(node) &&
+        (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name)) &&
+        node.name.text === 'keyGenerator') ||
+      (ts.isShorthandPropertyAssignment(node) && node.name.text === 'keyGenerator')
     ) {
       keyGenerators += 1;
     }
@@ -367,9 +371,9 @@ for (const file of files) {
     }
 
     if (
-      ts.isElementAccessExpression(node)
-      && node.argumentExpression !== undefined
-      && ts.isStringLiteralLike(node.argumentExpression)
+      ts.isElementAccessExpression(node) &&
+      node.argumentExpression !== undefined &&
+      ts.isStringLiteralLike(node.argumentExpression)
     ) {
       const accessed = node.argumentExpression.text;
       if (IP_MEMBERS.has(accessed) || isIpHeader(accessed)) {
@@ -403,10 +407,10 @@ for (const [key, count] of found) {
   }
   if (count !== allowed.count) {
     problems.push(
-      `${file} reads \`${expression}\` ${count} time(s); ALLOWED_IP_SOURCES says ${allowed.count}. `
-      + 'The count is part of the assertion so a second raw read cannot hide behind the entry '
-      + 'that excuses the first — either the new read goes, or the entry says why there are now '
-      + `${count}.`,
+      `${file} reads \`${expression}\` ${count} time(s); ALLOWED_IP_SOURCES says ${allowed.count}. ` +
+        'The count is part of the assertion so a second raw read cannot hide behind the entry ' +
+        'that excuses the first — either the new read goes, or the entry says why there are now ' +
+        `${count}.`,
     );
   }
 }
@@ -415,38 +419,38 @@ for (const [key, count] of found) {
 for (const entry of ALLOWED_IP_SOURCES) {
   if (found.has(sourceKey(entry.file, entry.expression))) continue;
   problems.push(
-    `ALLOWED_IP_SOURCES names \`${entry.expression}\` in ${entry.file}, which this census did `
-    + 'not find. It was removed, renamed or rewritten — delete the entry, so the list keeps '
-    + 'describing the tree. If it vanished along with the other entries, the traversal is broken.',
+    `ALLOWED_IP_SOURCES names \`${entry.expression}\` in ${entry.file}, which this census did ` +
+      'not find. It was removed, renamed or rewritten — delete the entry, so the list keeps ' +
+      'describing the tree. If it vanished along with the other entries, the traversal is broken.',
   );
 }
 
 // ── Vacuity floors ─────────────────────────────────────────────────────────
 if (files.length < MINIMUM_FILES) {
   problems.push(
-    `${files.length} file(s) read is below the ${MINIMUM_FILES} floor, over ${roots.length} `
-    + 'package source root(s). The corpus is not resolving — run this from the repository root.',
+    `${files.length} file(s) read is below the ${MINIMUM_FILES} floor, over ${roots.length} ` +
+      'package source root(s). The corpus is not resolving — run this from the repository root.',
   );
 }
 if (propertyAccesses < MINIMUM_PROPERTY_ACCESSES) {
   problems.push(
-    `${propertyAccesses} property access(es) walked is below the ${MINIMUM_PROPERTY_ACCESSES} `
-    + 'floor. Files were read but the traversal is not descending into them, and a walk that '
-    + 'visits nothing reports exactly what a clean tree reports.',
+    `${propertyAccesses} property access(es) walked is below the ${MINIMUM_PROPERTY_ACCESSES} ` +
+      'floor. Files were read but the traversal is not descending into them, and a walk that ' +
+      'visits nothing reports exactly what a clean tree reports.',
   );
 }
 if (limiterCalls < MINIMUM_LIMITER_CALLS) {
   problems.push(
-    `${limiterCalls} rate-limiter call(s) found is below the ${MINIMUM_LIMITER_CALLS} floor. `
-    + 'The second half of this check inspects the options object of each one, so a census that '
-    + 'found none would report "no IP inside any limiter" — true, and measuring nothing.',
+    `${limiterCalls} rate-limiter call(s) found is below the ${MINIMUM_LIMITER_CALLS} floor. ` +
+      'The second half of this check inspects the options object of each one, so a census that ' +
+      'found none would report "no IP inside any limiter" — true, and measuring nothing.',
   );
 }
 if (keyGenerators < MINIMUM_KEY_GENERATORS) {
   problems.push(
-    `${keyGenerators} \`keyGenerator\` propert(ies) found is below the ${MINIMUM_KEY_GENERATORS} `
-    + 'floor. That is the option the original bug lived in; not finding them means the limiter '
-    + 'options are not being read.',
+    `${keyGenerators} \`keyGenerator\` propert(ies) found is below the ${MINIMUM_KEY_GENERATORS} ` +
+      'floor. That is the option the original bug lived in; not finding them means the limiter ' +
+      'options are not being read.',
   );
 }
 
@@ -456,39 +460,39 @@ if (unlisted.length > 0 || insideLimiters.length > 0 || problems.length > 0) {
 
   for (const finding of insideLimiters) {
     console.error(
-      `  ${finding.file}:${finding.line} — \`${finding.expression}\` is inside a rate limiter's `
-      + 'options. Not allow-listable: this is the shape of the bug this gate exists for.\n',
+      `  ${finding.file}:${finding.line} — \`${finding.expression}\` is inside a rate limiter's ` +
+        'options. Not allow-listable: this is the shape of the bug this gate exists for.\n',
     );
   }
   for (const finding of unlisted) {
     console.error(
-      `  ${finding.file} — \`${finding.expression}\` (×${finding.count}) reads a client address `
-      + 'and is not in ALLOWED_IP_SOURCES.\n',
+      `  ${finding.file} — \`${finding.expression}\` (×${finding.count}) reads a client address ` +
+        'and is not in ALLOWED_IP_SOURCES.\n',
     );
   }
   for (const problem of problems) console.error(`  ${problem}\n`);
 
   if (unlisted.length > 0 || insideLimiters.length > 0) {
     console.error(
-      '  Oxy persists no user IP, in any form. The one transient exception is an anonymous\n'
-      + '  rate-limit key, and it goes through `hashedIpKey` (packages/api/src/utils/ipKey.ts) —\n'
-      + '  which buckets IPv6 to /56 before HMAC and lives only as a Redis key. Pass the request\n'
-      + '  to that function instead of reading the address.\n\n'
-      + '  A limiter that wants to key on an ACCOUNT must be mounted AFTER the middleware that\n'
-      + '  resolves one, and must SKIP the request when it cannot (see the `skip` note in\n'
-      + '  packages/api/src/middleware/rateLimiter.ts). An `?? req.ip` fallback behind an\n'
-      + '  unresolved principal is not a fallback — in packages/api/src/routes/store.ts it was\n'
-      + '  the only branch that ever ran.\n\n'
-      + '  If a hit above is not a client address, add an ALLOWED_IP_SOURCES entry in\n'
-      + '  scripts/check-no-raw-ip-keys.mjs saying what it is, in the same commit as the code.\n',
+      '  Oxy persists no user IP, in any form. The one transient exception is an anonymous\n' +
+        '  rate-limit key, and it goes through `hashedIpKey` (packages/api/src/utils/ipKey.ts) —\n' +
+        '  which buckets IPv6 to /56 before HMAC and lives only as a Redis key. Pass the request\n' +
+        '  to that function instead of reading the address.\n\n' +
+        '  A limiter that wants to key on an ACCOUNT must be mounted AFTER the middleware that\n' +
+        '  resolves one, and must SKIP the request when it cannot (see the `skip` note in\n' +
+        '  packages/api/src/middleware/rateLimiter.ts). An `?? req.ip` fallback behind an\n' +
+        '  unresolved principal is not a fallback — in packages/api/src/routes/store.ts it was\n' +
+        '  the only branch that ever ran.\n\n' +
+        '  If a hit above is not a client address, add an ALLOWED_IP_SOURCES entry in\n' +
+        '  scripts/check-no-raw-ip-keys.mjs saying what it is, in the same commit as the code.\n',
     );
   }
   process.exit(1);
 }
 
 console.log(
-  `Raw-client-IP guard passed — ${files.length} files over ${roots.length} package source roots, `
-  + `${propertyAccesses} property accesses walked, ${limiterCalls} rate-limiter calls and `
-  + `${keyGenerators} keyGenerator options inspected with no client address inside any of them; `
-  + `${ALLOWED_IP_SOURCES.length} allowed IP sources all still present at their stated counts.`,
+  `Raw-client-IP guard passed — ${files.length} files over ${roots.length} package source roots, ` +
+    `${propertyAccesses} property accesses walked, ${limiterCalls} rate-limiter calls and ` +
+    `${keyGenerators} keyGenerator options inspected with no client address inside any of them; ` +
+    `${ALLOWED_IP_SOURCES.length} allowed IP sources all still present at their stated counts.`,
 );

@@ -56,7 +56,7 @@ export function evaluateWebhookEndpoints(endpoints, url = DEFAULT_WEBHOOK_URL, m
     return { ok: false, problems: ['invalid webhook URL or Stripe mode'], notes: [] };
   }
   const matching = (Array.isArray(endpoints) ? endpoints : []).filter(
-    (endpoint) => endpoint && normaliseUrl(endpoint.url ?? '') === target
+    (endpoint) => endpoint && normaliseUrl(endpoint.url ?? '') === target,
   );
   if (matching.length === 0) {
     return { ok: false, problems: [`no webhook endpoint points at ${url}`], notes: [] };
@@ -88,14 +88,21 @@ export function evaluateWebhookEndpoints(endpoints, url = DEFAULT_WEBHOOK_URL, m
     compatibilityProblems.push(`endpoint ${endpoint.id} does not prove ${mode} mode`);
   }
   if (endpoint.api_version !== EXPECTED_STRIPE_API_VERSION) {
-    compatibilityProblems.push(`endpoint ${endpoint.id} API version ${endpoint.api_version ?? 'account default (unproven)'} must equal ${EXPECTED_STRIPE_API_VERSION}`);
+    compatibilityProblems.push(
+      `endpoint ${endpoint.id} API version ${endpoint.api_version ?? 'account default (unproven)'} must equal ${EXPECTED_STRIPE_API_VERSION}`,
+    );
   }
   if (compatibilityProblems.length) {
     return { ok: false, problems: compatibilityProblems, notes: [], endpointId: endpoint.id };
   }
   const events = new Set(Array.isArray(endpoint.enabled_events) ? endpoint.enabled_events : []);
   if (events.has('*')) {
-    return { ok: true, problems: [], notes: ['endpoint sends every event (*)'], endpointId: endpoint.id };
+    return {
+      ok: true,
+      problems: [],
+      notes: ['endpoint sends every event (*)'],
+      endpointId: endpoint.id,
+    };
   }
   const missingRequired = REQUIRED_EVENTS.filter((type) => !events.has(type));
   const missingOptional = OPTIONAL_EVENTS.filter((type) => !events.has(type));
@@ -103,7 +110,7 @@ export function evaluateWebhookEndpoints(endpoints, url = DEFAULT_WEBHOOK_URL, m
     ok: missingRequired.length === 0,
     problems: missingRequired.map((type) => `endpoint ${endpoint.id} does not send ${type}`),
     notes: missingOptional.map(
-      (type) => `endpoint ${endpoint.id} does not send ${type} (optional: recorded when sent)`
+      (type) => `endpoint ${endpoint.id} does not send ${type} (optional: recorded when sent)`,
     ),
     endpointId: endpoint.id,
   };
@@ -118,7 +125,10 @@ export async function listWebhookEndpoints(secretKey, fetchImpl = globalThis.fet
     if (startingAfter) query.set('starting_after', startingAfter);
     const response = await fetchImpl(`https://api.stripe.com/v1/webhook_endpoints?${query}`, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${secretKey}`, 'Stripe-Version': EXPECTED_STRIPE_API_VERSION },
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        'Stripe-Version': EXPECTED_STRIPE_API_VERSION,
+      },
     });
     if (!response.ok) {
       throw new Error(`Stripe answered ${response.status} listing webhook endpoints`);
@@ -154,7 +164,9 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch, log 
   try {
     endpoints = await listWebhookEndpoints(secretKey, fetchImpl);
   } catch (error) {
-    log.error(`Could not list webhook endpoints: ${error instanceof Error ? error.message : error}`);
+    log.error(
+      `Could not list webhook endpoints: ${error instanceof Error ? error.message : error}`,
+    );
     return 2;
   }
   const result = evaluateWebhookEndpoints(endpoints, url, mode);

@@ -29,21 +29,27 @@ interface StoredActor extends DeliveryActorFields {
 }
 
 /** A capturing test rig: records every delivered/queued activity + enqueue jobs. */
-function makeRig(overrides: {
-  actorsByUri?: Record<string, StoredActor>;
-  followerActorUris?: string[];
-  followerInboxes?: Record<string, { sharedInboxUrl?: string | null; inboxUrl?: string | null }>;
-  enqueueReturns?: boolean;
-  federationEnabled?: boolean;
-  sharingEnabled?: boolean;
-  assertSafeInboxUrl?: DeliveryServiceConfig<StoredActor>['assertSafeInboxUrl'];
-  blockedHosts?: string[];
-} = {}) {
+function makeRig(
+  overrides: {
+    actorsByUri?: Record<string, StoredActor>;
+    followerActorUris?: string[];
+    followerInboxes?: Record<string, { sharedInboxUrl?: string | null; inboxUrl?: string | null }>;
+    enqueueReturns?: boolean;
+    federationEnabled?: boolean;
+    sharingEnabled?: boolean;
+    assertSafeInboxUrl?: DeliveryServiceConfig<StoredActor>['assertSafeInboxUrl'];
+    blockedHosts?: string[];
+  } = {},
+) {
   const deliveredBodies: Array<{ url: string; body: string }> = [];
   const enqueued: DeliveryQueueJob[] = [];
   const fallbackCreates: Array<DeliveryQueueJob & { nextAttemptAt: Date }> = [];
   const fallbackInserts: Array<DeliveryQueueJob & { nextAttemptAt: Date }> = [];
-  const upsertedFollows: Array<{ localOxyUserId: string; remoteActorUri: string; activityId: string }> = [];
+  const upsertedFollows: Array<{
+    localOxyUserId: string;
+    remoteActorUri: string;
+    activityId: string;
+  }> = [];
   const deletedFollowIds: unknown[] = [];
   const refreshedInBackground: string[] = [];
 
@@ -65,7 +71,10 @@ function makeRig(overrides: {
     deliverSingleHop: async (url, init): Promise<DeliverSingleHopResult> => {
       deliveredBodies.push({ url, body: init.body });
       // 202 Accepted — success path (response body destroyed, never read).
-      return { response: Readable.from([]) as unknown as DeliverSingleHopResult['response'], status: 202 };
+      return {
+        response: Readable.from([]) as unknown as DeliverSingleHopResult['response'],
+        status: 202,
+      };
     },
     assertSafeInboxUrl: overrides.assertSafeInboxUrl ?? (async () => ({ ok: true })),
     transport: {
@@ -89,7 +98,10 @@ function makeRig(overrides: {
       findActorInboxesByUris: async (uris) =>
         uris
           .map((u) => overrides.followerInboxes?.[u])
-          .filter((a): a is { sharedInboxUrl?: string | null; inboxUrl?: string | null } => a !== undefined),
+          .filter(
+            (a): a is { sharedInboxUrl?: string | null; inboxUrl?: string | null } =>
+              a !== undefined,
+          ),
     },
     follows: {
       listAcceptedInboundFollowerActorUris: async () => overrides.followerActorUris ?? [],
@@ -98,7 +110,9 @@ function makeRig(overrides: {
       },
       findOutbound: async (_localOxyUserId, remoteActorUri) => {
         const actor = overrides.actorsByUri?.[remoteActorUri];
-        return actor ? { _id: actor._id, activityId: `${urls.actor('alice')}/follows/${String(actor._id)}` } : null;
+        return actor
+          ? { _id: actor._id, activityId: `${urls.actor('alice')}/follows/${String(actor._id)}` }
+          : null;
       },
       deleteById: async (id) => {
         deletedFollowIds.push(id);
@@ -120,7 +134,11 @@ function makeRig(overrides: {
       }),
     },
     profile: { getBanner: async () => 'https://cdn.example/banner.png' },
-    buildLocalActorObject: (params) => ({ id: urls.actor(params.username), type: 'Person', name: params.displayName }),
+    buildLocalActorObject: (params) => ({
+      id: urls.actor(params.username),
+      type: 'Person',
+      name: params.displayName,
+    }),
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
     isBlockedDomain: domainPolicy.isBlockedDomain,
   };
@@ -173,7 +191,11 @@ describe('sendFollow', () => {
     expect(result).toEqual({ success: true, pending: false });
     expect(rig.refreshedInBackground).toEqual([remote]);
     expect(rig.upsertedFollows).toEqual([
-      { localOxyUserId: 'u-alice', remoteActorUri: remote, activityId: `${urls.actor('alice')}/follows/ACTID` },
+      {
+        localOxyUserId: 'u-alice',
+        remoteActorUri: remote,
+        activityId: `${urls.actor('alice')}/follows/ACTID`,
+      },
     ]);
     // Byte-frozen Follow activity — the bare AS2 context (NOT the full AP_CONTEXT).
     expect(rig.deliveredBodies).toHaveLength(1);
@@ -185,7 +207,11 @@ describe('sendFollow', () => {
 
   it('short-circuits when federation is disabled', async () => {
     const rig = makeRig({ federationEnabled: false });
-    const result = await rig.service.sendFollow('u-alice', 'alice', 'https://remote.example/users/bob');
+    const result = await rig.service.sendFollow(
+      'u-alice',
+      'alice',
+      'https://remote.example/users/bob',
+    );
     expect(result).toEqual({ success: false, pending: false });
     expect(rig.deliveredBodies).toHaveLength(0);
     expect(rig.upsertedFollows).toHaveLength(0);
@@ -214,7 +240,9 @@ describe('sendAccept', () => {
   it('delivers the exact Accept(Follow) activity with the full AP_CONTEXT', async () => {
     const remote = 'https://remote.example/users/bob';
     const rig = makeRig({
-      actorsByUri: { [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://remote.example/inbox' } },
+      actorsByUri: {
+        [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://remote.example/inbox' },
+      },
     });
 
     await rig.service.sendAccept('u-alice', 'alice', 'https://remote.example/follows/1', remote);
@@ -265,7 +293,9 @@ describe('sendAccept', () => {
     const remote = 'https://blocked.example/users/bob';
     const rig = makeRig({
       blockedHosts: ['blocked.example'],
-      actorsByUri: { [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://blocked.example/inbox' } },
+      actorsByUri: {
+        [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://blocked.example/inbox' },
+      },
     });
 
     await rig.service.sendAccept('u-alice', 'alice', 'https://blocked.example/follows/1', remote);
@@ -279,7 +309,9 @@ describe('sendUndoFollow', () => {
   it('deletes the local follow, then delivers the exact Undo(Follow) with AP_CONTEXT', async () => {
     const remote = 'https://remote.example/users/bob';
     const rig = makeRig({
-      actorsByUri: { [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://remote.example/inbox' } },
+      actorsByUri: {
+        [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://remote.example/inbox' },
+      },
     });
 
     const ok = await rig.service.sendUndoFollow('u-alice', 'alice', remote);
@@ -307,7 +339,9 @@ describe('sendUndoFollow', () => {
     const remote = 'https://blocked.example/users/bob';
     const rig = makeRig({
       blockedHosts: ['blocked.example'],
-      actorsByUri: { [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://blocked.example/inbox' } },
+      actorsByUri: {
+        [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://blocked.example/inbox' },
+      },
     });
 
     const ok = await rig.service.sendUndoFollow('u-alice', 'alice', remote);
@@ -366,9 +400,7 @@ describe('deliverToFollowers', () => {
 
   it('skips unsafe inbox URLs instead of enqueueing or falling back', async () => {
     const unsafeGuard = jest.fn(async (url: string) =>
-      url.includes('unsafe')
-        ? { ok: false as const, reason: 'blocked' }
-        : { ok: true as const },
+      url.includes('unsafe') ? { ok: false as const, reason: 'blocked' } : { ok: true as const },
     );
     const rig = makeRig({
       followerActorUris: ['a', 'b'],

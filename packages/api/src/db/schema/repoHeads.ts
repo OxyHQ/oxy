@@ -67,5 +67,5 @@ export const repoHeads = pgTable(
   (t) => [
     check('repo_heads_seq_check', sql`${t.seq} >= 0`),
     check('repo_heads_record_count_check', sql`${t.recordCount} >= 0`),
-  ]
+  ],
 );

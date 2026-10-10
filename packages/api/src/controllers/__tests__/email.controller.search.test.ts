@@ -83,9 +83,7 @@ describe('email.controller searchMessages', () => {
       query: {},
     };
 
-    await expect(
-      searchMessages(req as never, res as Response),
-    ).rejects.toThrow(BadRequestError);
+    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(BadRequestError);
     expect(mockSearchMessages).not.toHaveBeenCalled();
   });
 

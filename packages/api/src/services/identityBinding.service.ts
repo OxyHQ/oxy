@@ -128,7 +128,7 @@ export type BindingResolution = BindingResolved | BindingRejected;
  * @throws UnauthorizedError when the user proof token does not resolve.
  */
 export async function registerIdentityBinding(
-  params: RegisterBindingParams
+  params: RegisterBindingParams,
 ): Promise<IdentityBindingRecord> {
   const { applicationId, credentialId } = params;
 
@@ -164,8 +164,8 @@ export async function registerIdentityBinding(
       and(
         eq(identityBindings.applicationId, applicationId),
         eq(identityBindings.localPrincipalId, localPrincipalId),
-        eq(identityBindings.status, 'active')
-      )
+        eq(identityBindings.status, 'active'),
+      ),
     )
     .limit(1);
 
@@ -249,7 +249,7 @@ export interface ResolveBindingParams {
  * post-cutover id, which is indistinguishable from a genuine miss.
  */
 export async function resolveBindingProof(
-  params: ResolveBindingParams
+  params: ResolveBindingParams,
 ): Promise<BindingResolution> {
   const [binding] = await getDb()
     .select()
@@ -257,8 +257,8 @@ export async function resolveBindingProof(
     .where(
       and(
         eq(identityBindings.id, params.bindingProofId),
-        eq(identityBindings.applicationId, params.applicationId)
-      )
+        eq(identityBindings.applicationId, params.applicationId),
+      ),
     )
     .limit(1);
   if (!binding) {

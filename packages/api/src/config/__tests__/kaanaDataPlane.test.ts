@@ -101,7 +101,7 @@ describe('a partial configuration is refused, loudly', () => {
     expect(mockedLogger.error).toHaveBeenCalledWith(
       'inference.kaana.config_unreadable',
       expect.any(Error),
-      expect.objectContaining({ variable: KAANA_SIGNING_KEY_ID_VARIABLE })
+      expect.objectContaining({ variable: KAANA_SIGNING_KEY_ID_VARIABLE }),
     );
   });
 
@@ -209,7 +209,7 @@ describe('a complete configuration', () => {
     configure({
       ...COMPLETE,
       [KAANA_SIGNING_PRIVATE_KEY_VARIABLE]: Buffer.from(EDGE_PRIVATE_PEM, 'utf8').toString(
-        'base64'
+        'base64',
       ),
     });
 
@@ -220,10 +220,9 @@ describe('a complete configuration', () => {
     // half is what the data plane is configured with, so the two encodings
     // agreeing is the property that matters.
     expect(kaanaPublicKeyBase64(resolution.config)).toBe(
-      Buffer.from(
-        edgeKey.publicKey.export({ format: 'jwk' }).x as string,
-        'base64url'
-      ).toString('base64')
+      Buffer.from(edgeKey.publicKey.export({ format: 'jwk' }).x as string, 'base64url').toString(
+        'base64',
+      ),
     );
   });
 

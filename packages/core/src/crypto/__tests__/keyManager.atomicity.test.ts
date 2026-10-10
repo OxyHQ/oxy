@@ -75,7 +75,12 @@ interface SecureStoreTestHandle {
   __getRaw__: (key: string, service?: string) => string | null;
   __setRaw__: (key: string, value: string, service?: string) => void;
   __deleteRaw__: (key: string, service?: string) => void;
-  __failPlan__: { failKey?: string; failOp?: 'set' | 'get'; failTimes?: number; failService?: string };
+  __failPlan__: {
+    failKey?: string;
+    failOp?: 'set' | 'get';
+    failTimes?: number;
+    failService?: string;
+  };
 }
 
 describe('KeyManager atomicity & recoverability under flaky storage', () => {
@@ -233,7 +238,9 @@ describe('KeyManager atomicity & recoverability under flaky storage', () => {
     ss.__failPlan__.failOp = 'set';
     ss.__failPlan__.failKey = V2_PRIV;
     ss.__failPlan__.failService = PRIMARY_SVC;
-    await expect(KeyManager.importKeyPair(rotated.privateKey, { overwrite: true })).rejects.toBeDefined();
+    await expect(
+      KeyManager.importKeyPair(rotated.privateKey, { overwrite: true }),
+    ).rejects.toBeDefined();
 
     // Recover from the simulated fault.
     ss.__failPlan__.failKey = undefined;

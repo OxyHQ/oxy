@@ -12,12 +12,7 @@ import { useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import { useColors } from '@/hooks/useColors';
-import {
-  Screen,
-  SessionGate,
-  LoadingState,
-  STATE_MIN_HEIGHT,
-} from '@/components/ui';
+import { Screen, SessionGate, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
 import { ReputationHeader } from '@/components/reputation/ReputationHeader';
 import { GetStartedCarousel, type CtaItem } from '@/components/reputation/GetStartedCarousel';

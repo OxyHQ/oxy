@@ -161,7 +161,11 @@ describe('KeyManager device backup', () => {
     it('writes the identity on creation', async () => {
       const pub = await KeyManager.createIdentity();
       const priv = await KeyManager.getPrivateKey();
-      expect(record()).toMatchObject({ version: 1, publicKey: pub.toLowerCase(), privateKey: priv });
+      expect(record()).toMatchObject({
+        version: 1,
+        publicKey: pub.toLowerCase(),
+        privateKey: priv,
+      });
       expect(record().mnemonic).toBeUndefined();
     });
 
@@ -184,7 +188,10 @@ describe('KeyManager device backup', () => {
 
       const newId = await RecoveryPhraseService.derivePendingIdentity();
       await KeyManager.importKeyPair(newId.privateKey, { overwrite: true });
-      expect(record()).toMatchObject({ publicKey: newId.publicKey.toLowerCase(), privateKey: newId.privateKey });
+      expect(record()).toMatchObject({
+        publicKey: newId.publicKey.toLowerCase(),
+        privateKey: newId.privateKey,
+      });
       expect(record().mnemonic).toBeUndefined();
 
       await KeyManager.storeRecoveryMnemonic(newId.phrase);
@@ -208,7 +215,10 @@ describe('KeyManager device backup', () => {
 
       store.failWrites = false;
       expect(await KeyManager.ensureDeviceBackup()).toBe(true);
-      expect(record()).toMatchObject({ publicKey: pending.publicKey.toLowerCase(), mnemonic: pending.phrase });
+      expect(record()).toMatchObject({
+        publicKey: pending.publicKey.toLowerCase(),
+        mnemonic: pending.phrase,
+      });
 
       // Current already: one read, no write.
       const writes = store.writes;
@@ -217,7 +227,11 @@ describe('KeyManager device backup', () => {
 
       // Stale (e.g. a rotation whose backup write failed): rewritten.
       const stale = await KeyManager.generateKeyPair();
-      store.value = JSON.stringify({ ...record(), privateKey: stale.privateKey, publicKey: stale.publicKey });
+      store.value = JSON.stringify({
+        ...record(),
+        privateKey: stale.privateKey,
+        publicKey: stale.publicKey,
+      });
       expect(await KeyManager.ensureDeviceBackup()).toBe(true);
       expect(record().publicKey).toBe(pending.publicKey.toLowerCase());
     });
@@ -258,7 +272,10 @@ describe('KeyManager device backup', () => {
       KeyManager.setDeviceBackupStore(null);
       await KeyManager.createIdentity();
       wipeUidKeystore();
-      expect(await KeyManager.attemptIdentityRecovery()).toEqual({ recovered: false, reason: 'no-sources' });
+      expect(await KeyManager.attemptIdentityRecovery()).toEqual({
+        recovered: false,
+        reason: 'no-sources',
+      });
     });
 
     it('restores when this app lost its own data too (absent: no keys, no marker)', async () => {
@@ -268,7 +285,11 @@ describe('KeyManager device backup', () => {
       expect((await KeyManager.getIdentityStatus({ bypassCache: true })).state).toBe('absent');
 
       const result = await KeyManager.attemptIdentityRecovery();
-      expect(result).toEqual({ recovered: true, source: 'device-backup', publicKey: pub.toLowerCase() });
+      expect(result).toEqual({
+        recovered: true,
+        source: 'device-backup',
+        publicKey: pub.toLowerCase(),
+      });
       resetCaches();
       expect((await KeyManager.getIdentityStatus()).state).toBe('present');
     });
@@ -284,7 +305,10 @@ describe('KeyManager device backup', () => {
       });
       wipeUidKeystore();
 
-      expect(await KeyManager.attemptIdentityRecovery()).toEqual({ recovered: false, reason: 'mismatch' });
+      expect(await KeyManager.attemptIdentityRecovery()).toEqual({
+        recovered: false,
+        reason: 'mismatch',
+      });
       expect(ss.__getRaw__(V2_PRIV, PRIMARY_SVC)).toBeNull();
     });
 
@@ -293,17 +317,29 @@ describe('KeyManager device backup', () => {
       wipeUidKeystore();
 
       store.value = '{"version":1,"privateKey":"zz","publicKey":"00","updatedAt":"x"}';
-      expect(await KeyManager.attemptIdentityRecovery()).toEqual({ recovered: false, reason: 'no-sources' });
+      expect(await KeyManager.attemptIdentityRecovery()).toEqual({
+        recovered: false,
+        reason: 'no-sources',
+      });
 
       store.value = 'not json';
-      expect(await KeyManager.attemptIdentityRecovery()).toEqual({ recovered: false, reason: 'no-sources' });
+      expect(await KeyManager.attemptIdentityRecovery()).toEqual({
+        recovered: false,
+        reason: 'no-sources',
+      });
 
       store.failReads = true;
-      expect(await KeyManager.attemptIdentityRecovery()).toEqual({ recovered: false, reason: 'no-sources' });
+      expect(await KeyManager.attemptIdentityRecovery()).toEqual({
+        recovered: false,
+        reason: 'no-sources',
+      });
     });
 
     it('a fresh device with no backup stays absent', async () => {
-      expect(await KeyManager.attemptIdentityRecovery()).toEqual({ recovered: false, reason: 'not-lost' });
+      expect(await KeyManager.attemptIdentityRecovery()).toEqual({
+        recovered: false,
+        reason: 'not-lost',
+      });
     });
   });
 
@@ -313,7 +349,10 @@ describe('KeyManager device backup', () => {
       expect(store.value).not.toBeNull();
       await KeyManager.deleteIdentity(true, true, true);
       expect(store.value).toBeNull();
-      expect(await KeyManager.attemptIdentityRecovery()).toEqual({ recovered: false, reason: 'not-lost' });
+      expect(await KeyManager.attemptIdentityRecovery()).toEqual({
+        recovered: false,
+        reason: 'not-lost',
+      });
     });
 
     it('a user-confirmed, non-forced delete clears it too', async () => {

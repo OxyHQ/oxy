@@ -114,7 +114,10 @@ export default function CreateIdentityScreen() {
           // The pending username was taken meanwhile: choose another.
           setAuthError(t('auth.usernameStep.taken'));
         } else if (!isUsernameRequiredError(syncErr)) {
-          const errorMessage = extractAuthErrorMessage(syncErr, t('auth.errors.identityExistsSyncFailed'));
+          const errorMessage = extractAuthErrorMessage(
+            syncErr,
+            t('auth.errors.identityExistsSyncFailed'),
+          );
           setAuthError(errorMessage);
           setCreateError(errorMessage);
           return false;
@@ -189,7 +192,9 @@ export default function CreateIdentityScreen() {
             }
           }, CREATING_PROGRESS_INTERVAL_MS);
 
-          creatingProgressRef.current = progressInterval as unknown as ReturnType<typeof setTimeout>;
+          creatingProgressRef.current = progressInterval as unknown as ReturnType<
+            typeof setTimeout
+          >;
 
           // Local only — no network round-trip, so this is the same online and
           // offline. The account is created at the username step.
@@ -201,7 +206,7 @@ export default function CreateIdentityScreen() {
           // from this ref and clear it after acknowledgement.
           recoveryPhraseRef.current = result.recoveryPhrase;
 
-          await new Promise(resolve => setTimeout(resolve, CREATING_FINAL_DELAY_MS));
+          await new Promise((resolve) => setTimeout(resolve, CREATING_FINAL_DELAY_MS));
 
           if (!isMountedRef.current) return;
 
@@ -289,4 +294,3 @@ export default function CreateIdentityScreen() {
     />
   );
 }
-

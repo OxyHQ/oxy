@@ -80,7 +80,7 @@ function seedRule(
   actionType: string,
   points: number,
   category: ReputationCategory,
-  cooldownInMinutes = 0
+  cooldownInMinutes = 0,
 ): string {
   mockTestRules.set(actionType, {
     actionType,
@@ -191,7 +191,7 @@ describe('award moves the balance by the rule’s points', () => {
     const userId = await makeUser();
 
     await expect(
-      reputationService.award({ userId, actionType: actionKey('nope') })
+      reputationService.award({ userId, actionType: actionKey('nope') }),
     ).rejects.toThrow(/Unknown reputation action/);
     expect(await ledgerRows(userId)).toEqual([]);
   });
@@ -202,7 +202,7 @@ describe('award moves the balance by the rule’s points', () => {
 
     await reputationService.award({ userId, actionType: action });
     await expect(reputationService.award({ userId, actionType: action })).rejects.toThrow(
-      /cooldown/i
+      /cooldown/i,
     );
 
     // The refusal must not have banked a second point.
@@ -327,18 +327,18 @@ describe('recalculateBalance re-derives the total from the ACTIVE rows', () => {
           applicationId,
           sourceActionId: `c-${uniqueId()}`,
           sourceActionType: REPORT_CONFIRMED_ACTION,
-        })
+        }),
       );
     }
 
     expect((await reputationService.recalculateBalance(userId)).reliability.accurateReports).toBe(
-      3
+      3,
     );
 
     await reputationService.reverseTransaction(awarded[0].id, {});
 
     expect((await reputationService.recalculateBalance(userId)).reliability.accurateReports).toBe(
-      2
+      2,
     );
   });
 
@@ -416,8 +416,8 @@ describe('getInfluence', () => {
 
     const byContext = await Promise.all(
       (['default', 'report', 'moderation', 'ranking'] as const).map((context) =>
-        reputationService.getInfluence(userId, context)
-      )
+        reputationService.getInfluence(userId, context),
+      ),
     );
 
     for (const result of byContext) {
@@ -477,8 +477,8 @@ describe('the ledger row records what it was awarded for', () => {
       .where(
         and(
           eq(reputationTransactions.userId, userId),
-          eq(reputationTransactions.sourceActionId, sourceActionId)
-        )
+          eq(reputationTransactions.sourceActionId, sourceActionId),
+        ),
       );
 
     expect(row).toMatchObject({

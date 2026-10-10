@@ -51,7 +51,6 @@ jest.mock('../reputationRules', () => {
   };
 });
 
-
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
 /**

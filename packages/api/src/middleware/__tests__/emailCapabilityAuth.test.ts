@@ -35,10 +35,12 @@ jest.mock('../auth', () => ({ authMiddleware: jest.fn() }));
 jest.mock('../../capabilities/inbox.tools', () => {
   const { INBOX_CAPABILITY_CATALOG } = jest.requireActual('../../capabilities/inbox.catalog');
   return {
-    INBOX_TOOLS: Object.fromEntries(INBOX_CAPABILITY_CATALOG.tools.map((tool: { name: string }) => [
-      tool.name,
-      (input: unknown, context: unknown) => mockToolRun(tool.name, input, context),
-    ])),
+    INBOX_TOOLS: Object.fromEntries(
+      INBOX_CAPABILITY_CATALOG.tools.map((tool: { name: string }) => [
+        tool.name,
+        (input: unknown, context: unknown) => mockToolRun(tool.name, input, context),
+      ]),
+    ),
   };
 });
 jest.mock('../../utils/logger', () => ({
@@ -160,12 +162,14 @@ beforeEach(() => {
 
 describe('emailCapabilityAuth', () => {
   it('requires an idempotency header before validating an effectful body', async () => {
-    const result = await run(request({
-      method: 'POST',
-      path: `/messages/${MESSAGE_ID}/move`,
-      token: ticket('moveEmail'),
-      body: { mailbox: 'archive' },
-    }));
+    const result = await run(
+      request({
+        method: 'POST',
+        path: `/messages/${MESSAGE_ID}/move`,
+        token: ticket('moveEmail'),
+        body: { mailbox: 'archive' },
+      }),
+    );
 
     expect(result.res.statusCode).toBe(400);
     expect(result.res.body).toEqual({ error: 'idempotency_key_required' });
@@ -175,13 +179,15 @@ describe('emailCapabilityAuth', () => {
   });
 
   it('validates the catalog input before authority and effect reservation', async () => {
-    const result = await run(request({
-      method: 'POST',
-      path: `/messages/${MESSAGE_ID}/move`,
-      token: ticket('moveEmail'),
-      body: {},
-      idempotencyKey: 'run-1:invalid-move',
-    }));
+    const result = await run(
+      request({
+        method: 'POST',
+        path: `/messages/${MESSAGE_ID}/move`,
+        token: ticket('moveEmail'),
+        body: {},
+        idempotencyKey: 'run-1:invalid-move',
+      }),
+    );
 
     expect(result.res.statusCode).toBe(400);
     expect(result.res.body).toEqual({
@@ -194,11 +200,13 @@ describe('emailCapabilityAuth', () => {
   });
 
   it('requires the catalog method and path to identify the signed tool', async () => {
-    const result = await run(request({
-      method: 'POST',
-      path: `/messages/${MESSAGE_ID}`,
-      token: ticket('readEmail'),
-    }));
+    const result = await run(
+      request({
+        method: 'POST',
+        path: `/messages/${MESSAGE_ID}`,
+        token: ticket('readEmail'),
+      }),
+    );
 
     expect(result.res.statusCode).toBe(403);
     expect(result.res.body).toEqual({ error: 'capability_tool_mismatch' });
@@ -208,11 +216,13 @@ describe('emailCapabilityAuth', () => {
 
   it('blocks a ticket revoked after planning and before the handler runs', async () => {
     mockReauthorize.mockResolvedValueOnce({ allowed: false, reason: 'grant_revoked' });
-    const result = await run(request({
-      method: 'GET',
-      path: `/messages/${MESSAGE_ID}`,
-      token: ticket('readEmail'),
-    }));
+    const result = await run(
+      request({
+        method: 'GET',
+        path: `/messages/${MESSAGE_ID}`,
+        token: ticket('readEmail'),
+      }),
+    );
 
     expect(result.res.statusCode).toBe(403);
     expect(result.res.body).toEqual({
@@ -226,11 +236,13 @@ describe('emailCapabilityAuth', () => {
 
   it('executes the ticket tool with its canonical input and mailbox scope, and answers with its result', async () => {
     mockToolRun.mockResolvedValueOnce({ data: { id: MESSAGE_ID } });
-    const result = await run(request({
-      method: 'GET',
-      path: `/messages/${MESSAGE_ID}`,
-      token: ticket('readEmail'),
-    }));
+    const result = await run(
+      request({
+        method: 'GET',
+        path: `/messages/${MESSAGE_ID}`,
+        token: ticket('readEmail'),
+      }),
+    );
 
     expect(mockMailboxExists).toHaveBeenCalledWith(MAILBOX_ID, ACCOUNT_ID);
     expect(mockToolRun).toHaveBeenCalledWith(
@@ -247,31 +259,41 @@ describe('emailCapabilityAuth', () => {
   });
 
   it('scopes an account ticket to the whole account', async () => {
-    await run(request({
-      method: 'GET',
-      path: '/unread',
-      token: ticket('getUnreadEmails', 'email_account'),
-    }));
+    await run(
+      request({
+        method: 'GET',
+        path: '/unread',
+        token: ticket('getUnreadEmails', 'email_account'),
+      }),
+    );
 
     expect(mockMailboxExists).not.toHaveBeenCalled();
-    expect(mockToolRun).toHaveBeenCalledWith('getUnreadEmails', { limit: 20 }, { accountId: ACCOUNT_ID });
+    expect(mockToolRun).toHaveBeenCalledWith(
+      'getUnreadEmails',
+      { limit: 20 },
+      { accountId: ACCOUNT_ID },
+    );
   });
 
-  it('refuses a mailbox that is not the account\'s and a resource type the tool does not take', async () => {
+  it("refuses a mailbox that is not the account's and a resource type the tool does not take", async () => {
     mockMailboxExists.mockResolvedValueOnce(false);
-    const foreign = await run(request({
-      method: 'GET',
-      path: `/messages/${MESSAGE_ID}`,
-      token: ticket('readEmail'),
-    }));
+    const foreign = await run(
+      request({
+        method: 'GET',
+        path: `/messages/${MESSAGE_ID}`,
+        token: ticket('readEmail'),
+      }),
+    );
     expect(foreign.res.statusCode).toBe(403);
     expect(foreign.res.body).toEqual({ error: 'capability_resource_mismatch' });
 
-    const accountOnly = await run(request({
-      method: 'GET',
-      path: '/mailboxes',
-      token: ticket('listMailboxes', 'mailbox'),
-    }));
+    const accountOnly = await run(
+      request({
+        method: 'GET',
+        path: '/mailboxes',
+        token: ticket('listMailboxes', 'mailbox'),
+      }),
+    );
     expect(accountOnly.res.statusCode).toBe(403);
     expect(accountOnly.res.body).toEqual({ error: 'capability_resource_mismatch' });
     expect(mockToolRun).not.toHaveBeenCalled();
@@ -279,13 +301,15 @@ describe('emailCapabilityAuth', () => {
   });
 
   it('passes the idempotency header to an effect as context, never as tool input', async () => {
-    const result = await run(request({
-      method: 'POST',
-      path: `/messages/${MESSAGE_ID}/move`,
-      token: ticket('moveEmail'),
-      body: { mailbox: 'archive' },
-      idempotencyKey: 'run-1:move-email',
-    }));
+    const result = await run(
+      request({
+        method: 'POST',
+        path: `/messages/${MESSAGE_ID}/move`,
+        token: ticket('moveEmail'),
+        body: { mailbox: 'archive' },
+        idempotencyKey: 'run-1:move-email',
+      }),
+    );
 
     expect(result.res.statusCode).toBe(200);
     expect(mockToolRun).toHaveBeenCalledWith(
@@ -302,13 +326,15 @@ describe('emailCapabilityAuth', () => {
   });
 
   it('refuses a model-supplied idempotencyKey argument: the key is transport metadata', async () => {
-    const result = await run(request({
-      method: 'POST',
-      path: `/messages/${MESSAGE_ID}/move`,
-      token: ticket('moveEmail'),
-      body: { mailbox: 'archive', idempotencyKey: 'invented-by-the-model' },
-      idempotencyKey: 'run-1:move-email',
-    }));
+    const result = await run(
+      request({
+        method: 'POST',
+        path: `/messages/${MESSAGE_ID}/move`,
+        token: ticket('moveEmail'),
+        body: { mailbox: 'archive', idempotencyKey: 'invented-by-the-model' },
+        idempotencyKey: 'run-1:move-email',
+      }),
+    );
 
     expect(result.res.statusCode).toBe(400);
     expect(result.res.body).toMatchObject({
@@ -320,20 +346,28 @@ describe('emailCapabilityAuth', () => {
 
   it('bounds an omitted page size by the signed limit and still refuses an explicit excess', async () => {
     const capped = [{ tool: 'getUnreadEmails', key: 'limit', value: 5 }];
-    const omitted = await run(request({
-      method: 'GET',
-      path: '/unread',
-      token: ticket('getUnreadEmails', 'email_account', capped),
-    }));
+    const omitted = await run(
+      request({
+        method: 'GET',
+        path: '/unread',
+        token: ticket('getUnreadEmails', 'email_account', capped),
+      }),
+    );
     expect(omitted.res.statusCode).toBe(200);
-    expect(mockToolRun).toHaveBeenCalledWith('getUnreadEmails', { limit: 5 }, { accountId: ACCOUNT_ID });
+    expect(mockToolRun).toHaveBeenCalledWith(
+      'getUnreadEmails',
+      { limit: 5 },
+      { accountId: ACCOUNT_ID },
+    );
 
-    const explicit = await run(request({
-      method: 'GET',
-      path: '/unread',
-      query: { limit: '50' },
-      token: ticket('getUnreadEmails', 'email_account', capped),
-    }));
+    const explicit = await run(
+      request({
+        method: 'GET',
+        path: '/unread',
+        query: { limit: '50' },
+        token: ticket('getUnreadEmails', 'email_account', capped),
+      }),
+    );
     expect(explicit.res.statusCode).toBe(403);
     expect(explicit.res.body).toEqual({ error: 'capability_limit_exceeded' });
     expect(mockToolRun).toHaveBeenCalledTimes(1);
@@ -342,12 +376,14 @@ describe('emailCapabilityAuth', () => {
   it('hands a tool failure to the error handler and settles the effect with its status', async () => {
     const failure = Object.assign(new Error('Email not found'), { statusCode: 404 });
     mockToolRun.mockRejectedValueOnce(failure);
-    const result = await run(request({
-      method: 'POST',
-      path: `/messages/${MESSAGE_ID}/trash`,
-      token: ticket('trashEmail'),
-      idempotencyKey: 'run-1:trash',
-    }));
+    const result = await run(
+      request({
+        method: 'POST',
+        path: `/messages/${MESSAGE_ID}/trash`,
+        token: ticket('trashEmail'),
+        idempotencyKey: 'run-1:trash',
+      }),
+    );
 
     expect(result.next).toHaveBeenCalledWith(failure);
     expect(mockIdempotencyReserve).toHaveBeenCalledTimes(1);
@@ -355,22 +391,26 @@ describe('emailCapabilityAuth', () => {
 
   it('prevents and audits a duplicate external effect under the same idempotency key', async () => {
     mockIdempotencyReserve.mockResolvedValueOnce(false);
-    const result = await run(request({
-      method: 'POST',
-      path: `/messages/${MESSAGE_ID}/move`,
-      token: ticket('moveEmail'),
-      body: { mailbox: 'archive' },
-      idempotencyKey: 'run-1:move-email',
-    }));
+    const result = await run(
+      request({
+        method: 'POST',
+        path: `/messages/${MESSAGE_ID}/move`,
+        token: ticket('moveEmail'),
+        body: { mailbox: 'archive' },
+        idempotencyKey: 'run-1:move-email',
+      }),
+    );
 
     expect(result.res.statusCode).toBe(409);
     expect(result.res.body).toEqual({ error: 'duplicate_effect_prevented' });
     expect(result.next).not.toHaveBeenCalled();
     expect(mockIdempotencyReserve).toHaveBeenCalledTimes(1);
     expect(mockAuditWrite).toHaveBeenCalledTimes(1);
-    expect(mockAuditWrite.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
-      policyDecision: { allowed: false, reason: 'duplicate_effect_prevented' },
-      result: expect.objectContaining({ code: '409' }),
-    }));
+    expect(mockAuditWrite.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        policyDecision: { allowed: false, reason: 'duplicate_effect_prevented' },
+        result: expect.objectContaining({ code: '409' }),
+      }),
+    );
   });
 });

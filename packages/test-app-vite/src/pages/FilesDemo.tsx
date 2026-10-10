@@ -1,18 +1,26 @@
-import { useState, useCallback } from "react"
-import { useAuth, useAssets, useFileFiltering, useFileDownloadUrl, setOxyAssetInstance, type ViewMode, type SortBy } from "@oxy.so/services"
-import type { FileMetadata } from "@oxy.so/core"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import { useState, useCallback } from 'react';
+import {
+  useAuth,
+  useAssets,
+  useFileFiltering,
+  useFileDownloadUrl,
+  setOxyAssetInstance,
+  type ViewMode,
+  type SortBy,
+} from '@oxy.so/services';
+import type { FileMetadata } from '@oxy.so/core';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -20,39 +28,49 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { toast } from "@oxy.so/bloom"
+} from '@/components/ui/table';
+import { toast } from '@oxy.so/bloom';
 
-const VIEW_MODES: ViewMode[] = ["all", "photos", "videos", "documents", "audio"]
-const SORT_BYS: SortBy[] = ["date", "name", "size", "type"]
+const VIEW_MODES: ViewMode[] = ['all', 'photos', 'videos', 'documents', 'audio'];
+const SORT_BYS: SortBy[] = ['date', 'name', 'size', 'type'];
 
 function isViewMode(value: string): value is ViewMode {
-  return (VIEW_MODES as string[]).includes(value)
+  return (VIEW_MODES as string[]).includes(value);
 }
 
 function isSortBy(value: string): value is SortBy {
-  return (SORT_BYS as string[]).includes(value)
+  return (SORT_BYS as string[]).includes(value);
 }
 
 function FileDownloadDemo({ fileId }: { fileId: string }) {
-  const { oxyServices } = useAuth()
-  const { url, loading, error } = useFileDownloadUrl(oxyServices, fileId)
+  const { oxyServices } = useAuth();
+  const { url, loading, error } = useFileDownloadUrl(oxyServices, fileId);
   return (
     <span className="text-xs">
-      {loading ? "Resolving..." : error ? "Error" : url ? <a href={url} className="text-primary underline" target="_blank" rel="noreferrer">Download</a> : "—"}
+      {loading ? (
+        'Resolving...'
+      ) : error ? (
+        'Error'
+      ) : url ? (
+        <a href={url} className="text-primary underline" target="_blank" rel="noreferrer">
+          Download
+        </a>
+      ) : (
+        '—'
+      )}
     </span>
-  )
+  );
 }
 
 export function FilesDemo() {
-  const { isAuthenticated, oxyServices } = useAuth()
-  const assets = useAssets()
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const { isAuthenticated, oxyServices } = useAuth();
+  const assets = useAssets();
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   // The store-backed asset hooks read their OxyServices instance from a module
   // singleton; register it once the provider has one.
   if (oxyServices) {
-    setOxyAssetInstance(oxyServices)
+    setOxyAssetInstance(oxyServices);
   }
 
   // `useAssets()` returns the new Asset[] shape; `useFileFiltering` operates on
@@ -64,7 +82,7 @@ export function FilesDemo() {
     length: asset.size,
     chunkSize: 0,
     uploadDate: asset.createdAt,
-  }))
+  }));
 
   const {
     filteredFiles,
@@ -76,18 +94,18 @@ export function FilesDemo() {
     setSortBy,
     sortOrder,
     toggleSortOrder,
-  } = useFileFiltering({ files })
+  } = useFileFiltering({ files });
 
   const handleUpload = useCallback(async () => {
-    if (!uploadFile) return
+    if (!uploadFile) return;
     try {
-      await assets.upload(uploadFile)
-      toast.success("File uploaded")
-      setUploadFile(null)
+      await assets.upload(uploadFile);
+      toast.success('File uploaded');
+      setUploadFile(null);
     } catch (err) {
-      toast.error("Upload failed: " + String(err))
+      toast.error('Upload failed: ' + String(err));
     }
-  }, [uploadFile, assets])
+  }, [uploadFile, assets]);
 
   if (!isAuthenticated) {
     return (
@@ -98,7 +116,7 @@ export function FilesDemo() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -113,10 +131,7 @@ export function FilesDemo() {
           <div className="flex items-end gap-2">
             <div className="flex-1 space-y-2">
               <Label>Select File</Label>
-              <Input
-                type="file"
-                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-              />
+              <Input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
             </div>
             <Button onClick={handleUpload} disabled={!uploadFile}>
               Upload
@@ -139,7 +154,12 @@ export function FilesDemo() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="max-w-xs"
             />
-            <Select value={viewMode} onValueChange={(v) => { if (isViewMode(v)) setViewMode(v) }}>
+            <Select
+              value={viewMode}
+              onValueChange={(v) => {
+                if (isViewMode(v)) setViewMode(v);
+              }}
+            >
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="View mode" />
               </SelectTrigger>
@@ -151,7 +171,12 @@ export function FilesDemo() {
                 <SelectItem value="audio">Audio</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={sortBy} onValueChange={(v) => { if (isSortBy(v)) setSortBy(v) }}>
+            <Select
+              value={sortBy}
+              onValueChange={(v) => {
+                if (isSortBy(v)) setSortBy(v);
+              }}
+            >
               <SelectTrigger className="w-32">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
@@ -163,7 +188,7 @@ export function FilesDemo() {
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={toggleSortOrder}>
-              {sortOrder === "asc" ? "Asc" : "Desc"}
+              {sortOrder === 'asc' ? 'Asc' : 'Desc'}
             </Button>
           </div>
 
@@ -180,12 +205,14 @@ export function FilesDemo() {
               <TableBody>
                 {filteredFiles.map((file) => (
                   <TableRow key={file.id}>
-                    <TableCell className="font-medium text-sm">{file.filename || "Untitled"}</TableCell>
+                    <TableCell className="font-medium text-sm">
+                      {file.filename || 'Untitled'}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{file.contentType || "unknown"}</Badge>
+                      <Badge variant="outline">{file.contentType || 'unknown'}</Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {file.length ? `${(file.length / 1024).toFixed(1)} KB` : "—"}
+                      {file.length ? `${(file.length / 1024).toFixed(1)} KB` : '—'}
                     </TableCell>
                     <TableCell>
                       <FileDownloadDemo fileId={file.id} />
@@ -195,7 +222,9 @@ export function FilesDemo() {
               </TableBody>
             </Table>
           ) : (
-            <p className="text-sm text-muted-foreground">No files found. Upload some files to see them here.</p>
+            <p className="text-sm text-muted-foreground">
+              No files found. Upload some files to see them here.
+            </p>
           )}
         </CardContent>
       </Card>
@@ -207,7 +236,7 @@ export function FilesDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useAssets, useFileFiltering, useFileDownloadUrl } from '@oxy.so/services';
+            {`import { useAssets, useFileFiltering, useFileDownloadUrl } from '@oxy.so/services';
 
 function Files() {
   const assets = useAssets();
@@ -220,5 +249,5 @@ function Files() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

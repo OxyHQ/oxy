@@ -1,6 +1,10 @@
 import type { AccountRelationship } from '@oxy.so/core';
 import type { AccountPermission } from '@/hooks/use-account';
-import type { AccountAuditActor, AccountAuditEntry, AccountAuditSource } from '@/hooks/use-account-audit';
+import type {
+  AccountAuditActor,
+  AccountAuditEntry,
+  AccountAuditSource,
+} from '@/hooks/use-account-audit';
 import { hasImplicitOwnership } from '@/lib/account-access';
 
 /**
@@ -148,7 +152,7 @@ export function accountAuditSourceLabel(source: AccountAuditSource): string {
  * one nobody chose.
  */
 export function accountAuditVariant(
-  entry: Pick<AccountAuditEntry, 'eventType'>
+  entry: Pick<AccountAuditEntry, 'eventType'>,
 ): 'outline' | 'destructive' {
   return entry.eventType === 'validation_failed' ? 'destructive' : 'outline';
 }

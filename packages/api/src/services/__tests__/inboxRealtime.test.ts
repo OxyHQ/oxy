@@ -76,27 +76,31 @@ async function folder(userId: string, specialUse: string, name: string): Promise
 /** `unread` unseen messages plus one already-read one, so the filter matters. */
 async function seedUnread(userId: string, mailboxId: string, unread: number): Promise<void> {
   for (let i = 0; i < unread; i++) {
-    await getDb().insert(messages).values({
+    await getDb()
+      .insert(messages)
+      .values({
+        userId,
+        mailboxId,
+        messageId: `<seed-${unique()}@example.com>`,
+        fromAddress: 'alice@example.com',
+        subject: '',
+        size: 10,
+        seen: false,
+        date: new Date(),
+      });
+  }
+  await getDb()
+    .insert(messages)
+    .values({
       userId,
       mailboxId,
-      messageId: `<seed-${unique()}@example.com>`,
+      messageId: `<seen-${unique()}@example.com>`,
       fromAddress: 'alice@example.com',
       subject: '',
       size: 10,
-      seen: false,
+      seen: true,
       date: new Date(),
     });
-  }
-  await getDb().insert(messages).values({
-    userId,
-    mailboxId,
-    messageId: `<seen-${unique()}@example.com>`,
-    fromAddress: 'alice@example.com',
-    subject: '',
-    size: 10,
-    seen: true,
-    date: new Date(),
-  });
 }
 
 function captureSocket() {
@@ -128,7 +132,10 @@ describe('emitEmailNew', () => {
 
     expect(to).toHaveBeenCalledWith(`user:${userId}`);
 
-    const payload = emit.mock.calls.find(([event]) => event === 'email:new')?.[1] as Record<string, unknown>;
+    const payload = emit.mock.calls.find(([event]) => event === 'email:new')?.[1] as Record<
+      string,
+      unknown
+    >;
     expect(payload).toEqual({
       id: rowId,
       messageId: '<abc123@example.com>',
@@ -167,7 +174,10 @@ describe('emitEmailNew', () => {
       text: 'body',
     });
 
-    const payload = emit.mock.calls.find(([event]) => event === 'email:new')?.[1] as Record<string, unknown>;
+    const payload = emit.mock.calls.find(([event]) => event === 'email:new')?.[1] as Record<
+      string,
+      unknown
+    >;
     expect(payload.folder).toBe('spam');
   });
 
@@ -187,7 +197,10 @@ describe('emitEmailNew', () => {
       text: 'b',
     });
 
-    const payload = emit.mock.calls.find(([e]) => e === 'email:new')?.[1] as Record<string, unknown>;
+    const payload = emit.mock.calls.find(([e]) => e === 'email:new')?.[1] as Record<
+      string,
+      unknown
+    >;
     expect(payload.from).toEqual({ address: 'alice@example.com' });
   });
 
@@ -272,7 +285,9 @@ describe('emitEmailChanged', () => {
       reason: 'flags',
     });
 
-    const changed = emit.mock.calls.find(([e]) => e === 'email:changed')?.[1] as { mailboxIds: string[] };
+    const changed = emit.mock.calls.find(([e]) => e === 'email:changed')?.[1] as {
+      mailboxIds: string[];
+    };
     expect(changed.mailboxIds).toEqual([mailboxId]);
   });
 });
@@ -283,7 +298,8 @@ describe('buildSnippet', () => {
   });
 
   it('falls back to html with tags, scripts and entities stripped', () => {
-    const html = '<style>p{color:red}</style><script>alert(1)</script><p>Hi&nbsp;&amp;&nbsp;bye</p>';
+    const html =
+      '<style>p{color:red}</style><script>alert(1)</script><p>Hi&nbsp;&amp;&nbsp;bye</p>';
     expect(buildSnippet(undefined, html)).toBe('Hi & bye');
   });
 

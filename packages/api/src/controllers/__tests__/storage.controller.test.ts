@@ -101,12 +101,14 @@ async function insertFile(values: {
     .returning({ id: files.id });
 
   for (const [index, size] of (values.variantSizes ?? []).entries()) {
-    await getDb().insert(fileVariants).values({
-      fileId: row.id,
-      type: `v${index}`,
-      key: `variants/${row.id}/v${index}`,
-      size,
-    });
+    await getDb()
+      .insert(fileVariants)
+      .values({
+        fileId: row.id,
+        type: `v${index}`,
+        key: `variants/${row.id}/v${index}`,
+        size,
+      });
   }
   return row.id;
 }
@@ -124,14 +126,24 @@ describe('getStorageUsage — exact byte totals', () => {
     const ownerId = await insertUser();
 
     // photosVideos: 1000 + (10 + 20 + 30) = 1060, and 2000 with no renditions.
-    await insertFile({ ownerUserId: ownerId, mime: 'image/png', size: 1000, variantSizes: [10, 20, 30] });
+    await insertFile({
+      ownerUserId: ownerId,
+      mime: 'image/png',
+      size: 1000,
+      variantSizes: [10, 20, 30],
+    });
     await insertFile({ ownerUserId: ownerId, mime: 'video/mp4', size: 2000 });
     // recordings: 500 + 5 = 505.
     await insertFile({ ownerUserId: ownerId, mime: 'audio/mpeg', size: 500, variantSizes: [5] });
     // documents: 300, plus a rendition with NO recorded size. `coalesce` must
     // make that contribute 0 — WITHOUT it, `sum` over an all-NULL set is NULL,
     // `300 + NULL` is NULL, and this file's bytes silently leave the total.
-    await insertFile({ ownerUserId: ownerId, mime: 'application/pdf', size: 300, variantSizes: [null] });
+    await insertFile({
+      ownerUserId: ownerId,
+      mime: 'application/pdf',
+      size: 300,
+      variantSizes: [null],
+    });
     // other: 42.
     await insertFile({ ownerUserId: ownerId, mime: 'model/gltf-binary', size: 42 });
     // Excluded: not active, and not this account's.
@@ -203,12 +215,14 @@ describe('getStorageUsage — exact byte totals', () => {
     const fileId = await insertFile({ ownerUserId: ownerId, mime: 'image/png', size: 100 });
     expect((await usageFor(ownerId)).totalUsedBytes).toBe(100);
 
-    await getDb().insert(fileVariants).values({
-      fileId,
-      type: 'thumb',
-      key: `variants/${fileId}/thumb`,
-      size: 25,
-    });
+    await getDb()
+      .insert(fileVariants)
+      .values({
+        fileId,
+        type: 'thumb',
+        key: `variants/${fileId}/thumb`,
+        size: 25,
+      });
 
     expect((await usageFor(ownerId)).totalUsedBytes).toBe(125);
 

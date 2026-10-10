@@ -18,7 +18,11 @@ export function capabilityLimitError(
   if (duplicateLimit(limits)) return 'duplicate_limit';
   for (const limit of limits) {
     const tool = tools.find((entry) => entry.name === limit.tool);
-    if (!tool || !tool.exposure.includes('internal') || !tool.resourceTypes.includes(resourceType)) {
+    if (
+      !tool ||
+      !tool.exposure.includes('internal') ||
+      !tool.resourceTypes.includes(resourceType)
+    ) {
       return 'limit_tool_not_available_for_resource';
     }
     const declaration = (tool.limitKeys ?? []).find((entry) => entry.key === limit.key);

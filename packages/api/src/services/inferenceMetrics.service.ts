@@ -310,7 +310,12 @@ export interface ReconciliationDriftRun {
 }
 
 export type ReconciliationDriftMetric =
-  | { readonly state: 'pending'; readonly reason: 'no_completed_reconciliation'; readonly runCount: number; readonly failedRuns: number }
+  | {
+      readonly state: 'pending';
+      readonly reason: 'no_completed_reconciliation';
+      readonly runCount: number;
+      readonly failedRuns: number;
+    }
   | {
       readonly state: 'measured';
       readonly runCount: number;
@@ -408,7 +413,7 @@ async function readRates(scope: MetricsScope): Promise<RateMetric> {
           as cancelled_count
       from ${inferenceUsageDailyRollups} r
       where ${rollupFilter(scope)}
-    `
+    `,
   );
 
   const requestCount = toCount(row?.request_count ?? 0);
@@ -439,7 +444,7 @@ async function readRates(scope: MetricsScope): Promise<RateMetric> {
 async function readEventDistribution(
   scope: MetricsScope,
   column: 'latency_ms' | 'time_to_first_token_ms',
-  pendingReason: MetricPendingReason
+  pendingReason: MetricPendingReason,
 ): Promise<DistributionMetric> {
   // `percentile_cont` takes `double precision` or `interval`, and both duration
   // columns are `bigint`. The cast is explicit here rather than left to the
@@ -460,7 +465,7 @@ async function readEventDistribution(
         max(${target})::text as max_ms
       from ${inferenceUsageEvents} e
       where ${eventFilter(scope)}
-    `
+    `,
   );
 
   const observedRows = toCount(row?.observed_rows ?? 0);
@@ -509,7 +514,7 @@ async function readFallback(scope: MetricsScope): Promise<FallbackMetric> {
         coalesce(sum(e.route_switches), 0)::bigint::text as total_switches
       from ${inferenceUsageEvents} e
       where ${eventFilter(scope)}
-    `
+    `,
   );
 
   const observedRows = toCount(row?.observed_rows ?? 0);
@@ -542,7 +547,7 @@ async function readReserveFailures(scope: MetricsScope): Promise<ReserveFailureM
           as refused_requests
       from ${inferenceUsageEvents} e
       where ${eventFilter(scope)}
-    `
+    `,
   );
 
   return {
@@ -590,7 +595,7 @@ async function readSettlementLag(scope: MetricsScope): Promise<DistributionMetri
               : sql`and rc.application_id = ${scope.applicationId}`
           }
       ) s
-    `
+    `,
   );
 
   const observedRows = toCount(row?.observed_rows ?? 0);
@@ -616,9 +621,7 @@ async function readSettlementLag(scope: MetricsScope): Promise<DistributionMetri
 }
 
 /** Receipts whose usage the data plane never reported — see the shape's doc. */
-async function readUnmeasuredSettlements(
-  scope: MetricsScope
-): Promise<UnmeasuredSettlementMetric> {
+async function readUnmeasuredSettlements(scope: MetricsScope): Promise<UnmeasuredSettlementMetric> {
   const [row] = await executeRows<Record<string, unknown>>(
     getDb(),
     sql`
@@ -638,7 +641,7 @@ async function readUnmeasuredSettlements(
             ? sql``
             : sql`and rc.application_id = ${scope.applicationId}`
         }
-    `
+    `,
   );
 
   const latest = row?.latest_settled_at;
@@ -660,9 +663,7 @@ async function readUnmeasuredSettlements(
  * counted when no account narrowing is asked for, because both are reconciliation
  * that happened; an account-scoped read counts only that account's.
  */
-async function readReconciliationDrift(
-  scope: MetricsScope
-): Promise<ReconciliationDriftMetric> {
+async function readReconciliationDrift(scope: MetricsScope): Promise<ReconciliationDriftMetric> {
   const db = getDb();
   const accountNarrowing =
     scope.accountId === undefined ? sql`` : sql`and run.account_id = ${scope.accountId}`;
@@ -681,7 +682,7 @@ async function readReconciliationDrift(
         count(*) filter (where run.status = 'failed')::bigint::text as failed_runs
       from ${billingReconciliationRuns} run
       where ${windowFilter}
-    `
+    `,
   );
 
   const runCount = toCount(counts?.run_count ?? 0);
@@ -710,7 +711,7 @@ async function readReconciliationDrift(
       where ${windowFilter} and run.status = 'completed'
       order by run.completed_at desc, run.id desc
       limit 1
-    `
+    `,
   );
 
   if (latest === undefined) {
@@ -729,7 +730,7 @@ async function readReconciliationDrift(
       where ${windowFilter}
       group by d.kind
       order by d.kind
-    `
+    `,
   );
 
   return {
@@ -750,7 +751,7 @@ async function readReconciliationDrift(
       discrepancyCount: toCount(latest.discrepancy_count),
     },
     observationsByKind: Object.fromEntries(
-      byKind.map((row) => [String(row.kind), toCount(row.observations)])
+      byKind.map((row) => [String(row.kind), toCount(row.observations)]),
     ),
   };
 }
@@ -763,7 +764,7 @@ async function readReconciliationDrift(
  * request path for a report nobody is waiting on the latency of.
  */
 export async function readInferenceOperationalMetrics(
-  scope: MetricsScope
+  scope: MetricsScope,
 ): Promise<InferenceOperationalMetrics> {
   return {
     schemaVersion: 1,
@@ -775,7 +776,7 @@ export async function readInferenceOperationalMetrics(
     timeToFirstTokenMs: await readEventDistribution(
       scope,
       'time_to_first_token_ms',
-      'no_first_token_time_reported'
+      'no_first_token_time_reported',
     ),
     fallback: await readFallback(scope),
     reserveFailures: await readReserveFailures(scope),

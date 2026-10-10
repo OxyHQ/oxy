@@ -20,21 +20,35 @@ function isTypeOnly(node: ts.ImportDeclaration | ts.ExportDeclaration): boolean 
   if (ts.isExportDeclaration(node)) {
     if (node.isTypeOnly) return true;
     const clause = node.exportClause;
-    return Boolean(clause && ts.isNamedExports(clause) && clause.elements.length > 0 && clause.elements.every((e) => e.isTypeOnly));
+    return Boolean(
+      clause &&
+        ts.isNamedExports(clause) &&
+        clause.elements.length > 0 &&
+        clause.elements.every((e) => e.isTypeOnly),
+    );
   }
   const clause = node.importClause;
   if (!clause) return false; // side-effect import: a real edge
   if (clause.isTypeOnly) return true;
   if (clause.name) return false;
   const bindings = clause.namedBindings;
-  return Boolean(bindings && ts.isNamedImports(bindings) && bindings.elements.length > 0 && bindings.elements.every((e) => e.isTypeOnly));
+  return Boolean(
+    bindings &&
+      ts.isNamedImports(bindings) &&
+      bindings.elements.length > 0 &&
+      bindings.elements.every((e) => e.isTypeOnly),
+  );
 }
 
 function staticSpecifiers(file: string): string[] {
   const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
   const out: string[] = [];
   for (const st of sf.statements) {
-    if ((ts.isImportDeclaration(st) || ts.isExportDeclaration(st)) && st.moduleSpecifier && ts.isStringLiteral(st.moduleSpecifier)) {
+    if (
+      (ts.isImportDeclaration(st) || ts.isExportDeclaration(st)) &&
+      st.moduleSpecifier &&
+      ts.isStringLiteral(st.moduleSpecifier)
+    ) {
       if (!isTypeOnly(st)) out.push(st.moduleSpecifier.text);
     }
   }

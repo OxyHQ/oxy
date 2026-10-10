@@ -16,7 +16,7 @@ export type FetchFn = (
     method: string;
     headers: Record<string, string>;
     body?: string | Uint8Array;
-  }
+  },
 ) => Promise<{
   ok: boolean;
   status: number;
@@ -90,9 +90,7 @@ export class ShipClient {
     });
     const text = await response.text();
     if (!response.ok) {
-      throw new Error(
-        `${method} ${path} failed (${response.status}): ${text.slice(0, 500)}`
-      );
+      throw new Error(`${method} ${path} failed (${response.status}): ${text.slice(0, 500)}`);
     }
     if (!text) return undefined as T;
     const parsed = JSON.parse(text) as { data?: T };
@@ -117,7 +115,7 @@ export class ShipClient {
     contentType: string,
     cacheControl: string,
     checksumSHA256: string,
-    absPath: string
+    absPath: string,
   ): Promise<void> {
     const bytes = fs.readFileSync(absPath);
     const response = await this.fetchFn(uploadUrl, {
@@ -143,9 +141,7 @@ export class ShipClient {
     });
   }
 
-  async createUpdate(
-    body: Omit<CreateUpdateRequest, 'applicationId'>
-  ): Promise<Update> {
+  async createUpdate(body: Omit<CreateUpdateRequest, 'applicationId'>): Promise<Update> {
     const applicationId = await this.getApplicationId();
     const result = await this.requestJson<{ update: Update }>('POST', '/updates/v1/updates', {
       applicationId,
@@ -157,39 +153,39 @@ export class ShipClient {
   async rollback(
     channel: string,
     runtimeVersion: string,
-    platform: UpdatePlatform
+    platform: UpdatePlatform,
   ): Promise<{ rolledBack: Update; head: Update | null }> {
     const applicationId = await this.getApplicationId();
-    return this.requestJson('POST', `/updates/v1/channels/${encodeURIComponent(channel)}/rollback`, {
-      applicationId,
-      runtimeVersion,
-      platform,
-    });
+    return this.requestJson(
+      'POST',
+      `/updates/v1/channels/${encodeURIComponent(channel)}/rollback`,
+      {
+        applicationId,
+        runtimeVersion,
+        platform,
+      },
+    );
   }
 
   async rollbackToEmbedded(
     channel: string,
     runtimeVersion: string,
-    platform: UpdatePlatform
+    platform: UpdatePlatform,
   ): Promise<{ channel: Channel }> {
     const applicationId = await this.getApplicationId();
     return this.requestJson(
       'POST',
       `/updates/v1/channels/${encodeURIComponent(channel)}/rollback-to-embedded`,
-      { applicationId, runtimeVersion, platform }
+      { applicationId, runtimeVersion, platform },
     );
   }
 
-  async promote(
-    toChannel: string,
-    updateId: string,
-    rolloutPercent?: number
-  ): Promise<Update> {
+  async promote(toChannel: string, updateId: string, rolloutPercent?: number): Promise<Update> {
     const applicationId = await this.getApplicationId();
     const result = await this.requestJson<{ update: Update }>(
       'POST',
       `/updates/v1/channels/${encodeURIComponent(toChannel)}/promote`,
-      { applicationId, updateId, ...(rolloutPercent !== undefined ? { rolloutPercent } : {}) }
+      { applicationId, updateId, ...(rolloutPercent !== undefined ? { rolloutPercent } : {}) },
     );
     return result.update;
   }
@@ -198,7 +194,7 @@ export class ShipClient {
     const applicationId = await this.getApplicationId();
     const result = await this.requestJson<{ channels: Channel[] }>(
       'GET',
-      `/updates/v1/channels?applicationId=${encodeURIComponent(applicationId)}`
+      `/updates/v1/channels?applicationId=${encodeURIComponent(applicationId)}`,
     );
     return result.channels;
   }

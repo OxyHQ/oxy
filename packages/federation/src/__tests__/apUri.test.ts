@@ -28,8 +28,12 @@ describe('createDomainPolicy.isBlockedDomain', () => {
 
 describe('createDomainPolicy.extractLocalPostId', () => {
   it('extracts the post id from one of our own AP object URIs', () => {
-    expect(policy.extractLocalPostId('https://mention.earth/ap/users/nate/posts/abc123')).toBe('abc123');
-    expect(policy.extractLocalPostId('https://mention.earth/ap/users/nate/posts/abc123/')).toBe('abc123');
+    expect(policy.extractLocalPostId('https://mention.earth/ap/users/nate/posts/abc123')).toBe(
+      'abc123',
+    );
+    expect(policy.extractLocalPostId('https://mention.earth/ap/users/nate/posts/abc123/')).toBe(
+      'abc123',
+    );
   });
 
   it('returns null for a remote URI or a non-matching path', () => {
@@ -41,9 +45,9 @@ describe('createDomainPolicy.extractLocalPostId', () => {
 
 describe('extractActorUriFromActivityId', () => {
   it('trims from the first post-path segment to yield the actor uri', () => {
-    expect(extractActorUriFromActivityId('https://mastodon.social/users/alice/statuses/12345')).toBe(
-      'https://mastodon.social/users/alice',
-    );
+    expect(
+      extractActorUriFromActivityId('https://mastodon.social/users/alice/statuses/12345'),
+    ).toBe('https://mastodon.social/users/alice');
   });
 
   it('returns null when malformed or no post-path segment is present', () => {

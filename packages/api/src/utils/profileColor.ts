@@ -25,7 +25,7 @@ import { getDb } from '../config/postgres';
 import { USER_COLOR_PRESETS, users, type UserColorPreset } from '../db/schema/users';
 import { BadRequestError } from './error';
 import { isPremiumSubscriptionPlan, resolveUserSubscriptionPlan } from './subscriptionPlan';
-import {readProfilePersonalization} from '../services/profilePersonalization.service';
+import { readProfilePersonalization } from '../services/profilePersonalization.service';
 
 /**
  * Presets that are not simply available.
@@ -92,10 +92,14 @@ async function storedUsername(accountId: string): Promise<string | null> {
  */
 export async function assertColorNotReserved(
   color: string,
-  subject: { accountId: string | null; username: string | null }
+  subject: { accountId: string | null; username: string | null },
 ): Promise<void> {
-  if(color==='mono') {
-    if(subject.accountId && (await readProfilePersonalization(subject.accountId)).mentionMono.allowed)return;
+  if (color === 'mono') {
+    if (
+      subject.accountId &&
+      (await readProfilePersonalization(subject.accountId)).mentionMono.allowed
+    )
+      return;
     throw new BadRequestError('The mono preset requires an active personalization benefit');
   }
   if (!isReservedColorPreset(color)) return;
@@ -104,6 +108,10 @@ export async function assertColorNotReserved(
     subject.username ?? (subject.accountId ? await storedUsername(subject.accountId) : null);
   if (handle && normalizeUserColor(handle) === color) return;
 
-  if (subject.accountId && isPremiumSubscriptionPlan(await resolveUserSubscriptionPlan(subject.accountId))) return;
+  if (
+    subject.accountId &&
+    isPremiumSubscriptionPlan(await resolveUserSubscriptionPlan(subject.accountId))
+  )
+    return;
   throw new BadRequestError(`The ${color} color is exclusive to premium subscribers`);
 }

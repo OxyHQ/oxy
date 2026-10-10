@@ -30,7 +30,7 @@ const uniqueId = () => randomUUID().replace(/-/g, '');
 
 async function makeUsers(
   count: number,
-  overrides: Partial<typeof users.$inferInsert> = {}
+  overrides: Partial<typeof users.$inferInsert> = {},
 ): Promise<string[]> {
   const ids = Array.from({ length: count }, () => uniqueId());
   await getDb()
@@ -82,9 +82,7 @@ describe('the four lists are assembled from their own rows', () => {
     // silently reports the inverse relationship.
     const [viewer, blockedByThem, restrictedByThem] = await makeUsers(3);
     await getDb().insert(blocks).values({ userId: blockedByThem, blockedId: viewer });
-    await getDb()
-      .insert(restrictions)
-      .values({ userId: restrictedByThem, restrictedId: viewer });
+    await getDb().insert(restrictions).values({ userId: restrictedByThem, restrictedId: viewer });
 
     const graph = await userService.getViewerGraph(viewer);
 
@@ -94,9 +92,7 @@ describe('the four lists are assembled from their own rows', () => {
 
   it('does not mix in another viewer’s graph', async () => {
     const [viewer, stranger, theirFollow, theirBlock] = await makeUsers(4);
-    await getDb()
-      .insert(userFollows)
-      .values({ followerId: stranger, followedId: theirFollow });
+    await getDb().insert(userFollows).values({ followerId: stranger, followedId: theirFollow });
     await getDb().insert(blocks).values({ userId: stranger, blockedId: theirBlock });
 
     expect(await userService.getViewerGraph(viewer)).toEqual({

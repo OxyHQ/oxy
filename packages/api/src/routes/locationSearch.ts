@@ -23,4 +23,4 @@ router.get('/stats', authMiddleware, locationSearchController.getLocationStats);
 // Performance monitoring routes
 router.get('/performance', authMiddleware, locationSearchController.getPerformanceStats);
 
-export default router; 
+export default router;

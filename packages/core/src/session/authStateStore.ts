@@ -89,11 +89,14 @@ export interface AuthStateStore {
   clear(): Promise<void>;
   /** Durable local intent only: never authority or a mutation of an identity key. */
   isAutomaticIdentitySignInSuppressed?(): Promise<boolean>;
-  setAutomaticIdentitySignInSuppressed?(suppressed: boolean, guard?: {
-    /** Checked inside the native store queue, before mutating logout intent. */
-    expectedState: PersistedAuthState;
-    isCurrent: () => boolean;
-  }): Promise<boolean>;
+  setAutomaticIdentitySignInSuppressed?(
+    suppressed: boolean,
+    guard?: {
+      /** Checked inside the native store queue, before mutating logout intent. */
+      expectedState: PersistedAuthState;
+      isCurrent: () => boolean;
+    },
+  ): Promise<boolean>;
 }
 
 export interface AuthStateWriteGuard {
@@ -101,11 +104,19 @@ export interface AuthStateWriteGuard {
   isCurrent: () => boolean;
 }
 
-export function matchesAuthState(actual: PersistedAuthState | null, expected: PersistedAuthState | null): boolean {
+export function matchesAuthState(
+  actual: PersistedAuthState | null,
+  expected: PersistedAuthState | null,
+): boolean {
   if (!actual || !expected) return actual === expected;
-  return actual.deviceId === expected.deviceId && actual.deviceSecret === expected.deviceSecret &&
-    actual.sessionId === expected.sessionId && actual.userId === expected.userId &&
-    actual.accessToken === expected.accessToken && actual.expiresAt === expected.expiresAt;
+  return (
+    actual.deviceId === expected.deviceId &&
+    actual.deviceSecret === expected.deviceSecret &&
+    actual.sessionId === expected.sessionId &&
+    actual.userId === expected.userId &&
+    actual.accessToken === expected.accessToken &&
+    actual.expiresAt === expected.expiresAt
+  );
 }
 
 /**
@@ -136,7 +147,8 @@ export interface NativeKeyValueStorage {
  * so upgrading users are not signed out; the next `save()` splits them apart.
  */
 export const AUTH_STATE_STORAGE_KEY = 'oxy.auth.v1';
-export const AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY = 'oxy.auth.automatic-identity-signin-suppressed.v1';
+export const AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY =
+  'oxy.auth.automatic-identity-signin-suppressed.v1';
 
 /**
  * Versioned BEST-EFFORT warm-token storage key. Holds the short-lived
@@ -277,7 +289,10 @@ function serializeWarmToken(state: PersistedAuthState): string | null {
  * present; when the warm key is ABSENT the token fields fall back to whatever
  * the durable blob carried — the pre-split combined `oxy.auth.v1` blob (BACK-COMPAT).
  */
-function composeState(durableRaw: string | null, warmRaw: string | null): PersistedAuthState | null {
+function composeState(
+  durableRaw: string | null,
+  warmRaw: string | null,
+): PersistedAuthState | null {
   const state = deserialize(durableRaw);
   if (!state) {
     return null;
@@ -459,13 +474,17 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
   let pending: Promise<void> = Promise.resolve();
   const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
     const result = pending.then(operation);
-    pending = result.then(() => undefined, () => undefined);
+    pending = result.then(
+      () => undefined,
+      () => undefined,
+    );
     return result;
   };
   const readCurrent = async (): Promise<PersistedAuthState | null> => {
     if (sessionMirror !== undefined) return sessionMirror;
     const [durable, warm] = await Promise.all([
-      storage.getItem(AUTH_STATE_STORAGE_KEY), storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
+      storage.getItem(AUTH_STATE_STORAGE_KEY),
+      storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
     ]);
     return composeState(durable, warm);
   };
@@ -513,75 +532,96 @@ export function createNativeAuthStateStore(storage: NativeKeyValueStorage): Auth
     return durablePersisted;
   };
   return {
-    isAutomaticIdentitySignInSuppressed: () => serialize(async () => {
-      if (suppressedMirror !== undefined) return suppressedMirror;
-      try {
-        return (await storage.getItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY)) !== null;
-      } catch {
-        return true; // Unknown storage must not start a new key sign-in.
-      }
-    }),
-    setAutomaticIdentitySignInSuppressed: (suppressed, guard) => serialize(async () => {
-      if (guard) {
-        let current = sessionMirror;
-        if (current === undefined) {
-          try {
-            const [durable, warm] = await Promise.all([
-              storage.getItem(AUTH_STATE_STORAGE_KEY), storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
-            ]);
-            current = composeState(durable, warm);
-          } catch { suppressedMirror = true; return false; }
+    isAutomaticIdentitySignInSuppressed: () =>
+      serialize(async () => {
+        if (suppressedMirror !== undefined) return suppressedMirror;
+        try {
+          return (await storage.getItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY)) !== null;
+        } catch {
+          return true; // Unknown storage must not start a new key sign-in.
         }
-        const expected = guard.expectedState;
-        if (!guard.isCurrent() || !current ||
-          current.deviceId !== expected.deviceId || current.deviceSecret !== expected.deviceSecret ||
-          current.sessionId !== expected.sessionId || current.userId !== expected.userId ||
-          current.accessToken !== expected.accessToken || current.expiresAt !== expected.expiresAt) return false;
-      }
-      suppressedMirror = suppressed;
-      try {
-        if (suppressed) await storage.setItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY, '1');
-        else await storage.removeItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY);
-        const actual = await storage.getItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY);
-        const verified = suppressed ? actual === '1' : actual === null;
-        if (!verified) suppressedMirror = true;
-        return verified;
-      } catch { suppressedMirror = true; return false; }
-    }),
-    load: () => serialize(async () => {
-      if (sessionMirror !== undefined) {
-        return sessionMirror;
-      }
-      try {
-        const [durableRaw, warmRaw] = await Promise.all([
-          storage.getItem(AUTH_STATE_STORAGE_KEY),
-          storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
-        ]);
-        return composeState(durableRaw, warmRaw);
-      } catch {
-        return null;
-      }
-    }),
+      }),
+    setAutomaticIdentitySignInSuppressed: (suppressed, guard) =>
+      serialize(async () => {
+        if (guard) {
+          let current = sessionMirror;
+          if (current === undefined) {
+            try {
+              const [durable, warm] = await Promise.all([
+                storage.getItem(AUTH_STATE_STORAGE_KEY),
+                storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
+              ]);
+              current = composeState(durable, warm);
+            } catch {
+              suppressedMirror = true;
+              return false;
+            }
+          }
+          const expected = guard.expectedState;
+          if (
+            !guard.isCurrent() ||
+            !current ||
+            current.deviceId !== expected.deviceId ||
+            current.deviceSecret !== expected.deviceSecret ||
+            current.sessionId !== expected.sessionId ||
+            current.userId !== expected.userId ||
+            current.accessToken !== expected.accessToken ||
+            current.expiresAt !== expected.expiresAt
+          )
+            return false;
+        }
+        suppressedMirror = suppressed;
+        try {
+          if (suppressed) await storage.setItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY, '1');
+          else await storage.removeItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY);
+          const actual = await storage.getItem(AUTOMATIC_IDENTITY_SIGNIN_SUPPRESSED_KEY);
+          const verified = suppressed ? actual === '1' : actual === null;
+          if (!verified) suppressedMirror = true;
+          return verified;
+        } catch {
+          suppressedMirror = true;
+          return false;
+        }
+      }),
+    load: () =>
+      serialize(async () => {
+        if (sessionMirror !== undefined) {
+          return sessionMirror;
+        }
+        try {
+          const [durableRaw, warmRaw] = await Promise.all([
+            storage.getItem(AUTH_STATE_STORAGE_KEY),
+            storage.getItem(AUTH_STATE_TOKEN_STORAGE_KEY),
+          ]);
+          return composeState(durableRaw, warmRaw);
+        } catch {
+          return null;
+        }
+      }),
     save: (state) => serialize(() => persistState(state)),
-    saveIfCurrent: (state, guard) => serialize(async () => {
-      try {
-        const current = await readCurrent();
-        if (!guard.isCurrent() || !matchesAuthState(current, guard.expectedState)) return false;
-      } catch { return false; }
-      return persistState(state);
-    }),
-    clear: () => serialize(async () => {
-      sessionMirror = null;
-      try {
-        await storage.removeItem(AUTH_STATE_STORAGE_KEY);
-      } catch {
-        // Non-fatal.
-      }
-      try {
-        await storage.removeItem(AUTH_STATE_TOKEN_STORAGE_KEY);
-      } catch {
-        // Non-fatal.
-      }
-    }),
+    saveIfCurrent: (state, guard) =>
+      serialize(async () => {
+        try {
+          const current = await readCurrent();
+          if (!guard.isCurrent() || !matchesAuthState(current, guard.expectedState)) return false;
+        } catch {
+          return false;
+        }
+        return persistState(state);
+      }),
+    clear: () =>
+      serialize(async () => {
+        sessionMirror = null;
+        try {
+          await storage.removeItem(AUTH_STATE_STORAGE_KEY);
+        } catch {
+          // Non-fatal.
+        }
+        try {
+          await storage.removeItem(AUTH_STATE_TOKEN_STORAGE_KEY);
+        } catch {
+          // Non-fatal.
+        }
+      }),
   };
 }

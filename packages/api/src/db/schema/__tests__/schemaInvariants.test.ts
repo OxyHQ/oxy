@@ -38,7 +38,7 @@ const declaredTables = Object.values(schema).filter((value): value is Table => i
 const MINIMUM_TABLES = declaredTables.length;
 const MINIMUM_COLUMNS = declaredTables.reduce(
   (total, table) => total + Object.keys(getTableColumns(table)).length,
-  0
+  0,
 );
 
 beforeAll(async () => {
@@ -85,7 +85,9 @@ it('has every declared table present in the migrated database', async () => {
   // Vacuity floor: the query really did read this database's tables.
   expect(actual.has('users')).toBe(true);
 
-  const missing = declaredTables.map((table) => getTableName(table)).filter((name) => !actual.has(name));
+  const missing = declaredTables
+    .map((table) => getTableName(table))
+    .filter((name) => !actual.has(name));
   expect(missing).toEqual([]);
 });
 

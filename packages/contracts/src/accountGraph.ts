@@ -67,10 +67,7 @@ export const CHILD_ACCOUNT_KINDS = [
 ] as const satisfies readonly ChildAccountKind[];
 
 /** `never` while `CHILD_ACCOUNT_KINDS` covers the child union. */
-export type ChildAccountKindGap = Exclude<
-  ChildAccountKind,
-  (typeof CHILD_ACCOUNT_KINDS)[number]
->;
+export type ChildAccountKindGap = Exclude<ChildAccountKind, (typeof CHILD_ACCOUNT_KINDS)[number]>;
 
 export const childAccountKindSchema = z.enum(CHILD_ACCOUNT_KINDS);
 
@@ -344,7 +341,7 @@ export const SELECTABLE_ACCOUNT_CATEGORY_IDS: readonly AccountCategoryId[] =
 export function newlyAddedRetiredCategories(
   next: readonly AccountCategoryId[],
   previous: readonly AccountCategoryId[],
-  retired: readonly AccountCategoryId[]
+  retired: readonly AccountCategoryId[],
 ): AccountCategoryId[] {
   return next.filter((id) => retired.includes(id) && !previous.includes(id));
 }
@@ -421,9 +418,7 @@ export type AccountCategoryKind = (typeof ACCOUNT_CATEGORY_KINDS)[number];
  * constraint makes it unrepresentable; both derive from
  * {@link ACCOUNT_CATEGORY_KINDS}, so they cannot disagree.
  */
-export function kindAcceptsAccountCategories(
-  kind: AccountKind | null | undefined
-): boolean {
+export function kindAcceptsAccountCategories(kind: AccountKind | null | undefined): boolean {
   return (ACCOUNT_CATEGORY_KINDS as readonly string[]).includes(kind ?? '');
 }
 
@@ -460,105 +455,107 @@ const accountNameSchema = z
  * accept categories would break that reasoning silently, so
  * `__tests__/accountGraph.test.ts` asserts the two lists agree.
  */
-export const createAccountRequestSchema = z.object({
-  parentAccountId: z.string().trim().min(1).optional(),
-  kind: childAccountKindSchema,
-  /**
-   * The SAME policy a person's handle is held to. `users.username` is one unique
-   * index, so a managed account may not reserve a name a person could not ask
-   * for — and this route's predecessor (`.min(1).max(100)` here, `^[\w.-]+$`
-   * with no ceiling in the service) is how a one-character or dotted or
-   * 100-character handle became reachable for bots alone.
-   *
-   * A `bot` is held to that AND to the label its handle must end in. That half
-   * cannot live on this field — it depends on `kind`, a sibling — so it is in the
-   * `superRefine` below, which reports its issue against this path.
-   */
-  username: usernameSchema,
-  name: accountNameSchema,
-  bio: z.string().trim().max(500).optional(),
-  avatar: z.string().optional(),
-  description: z.string().trim().max(1000).optional(),
-  /**
-   * A named color preset KEY (`"blue"`, `"mint"`, …), never a hex value.
-   *
-   * Here at CREATION for the reason `isPrivateAccount` is, in miniature: for a
-   * managed account the color is a visual identity, and an account that is
-   * discoverable without one and acquires it on a second request is a face that
-   * changes by itself. One statement, one row, born looking like what its owner
-   * chose.
-   *
-   * The VALUE is checked in the API rather than here. The vocabulary is
-   * `USER_COLOR_PRESETS`, which is declared next to the `users_color_check` CHECK
-   * that is rendered from it — pinning the list a second time in this package
-   * would be a second source of truth for what the database accepts, and the two
-   * would drift apart silently. What this shape does is keep an over-long or
-   * non-string value from reaching the service at all.
-   */
-  color: z.string().trim().max(32).optional(),
-  /** Ordered, PRIMARY FIRST — see rule 2 above {@link ACCOUNT_CATEGORY_IDS}. */
-  accountCategories: accountCategoriesSchema.optional(),
-  /**
-   * Create the account already opted OUT of discovery.
-   *
-   * ## Why this belongs at CREATION and not only on the privacy route
-   *
-   * Every account is born discoverable: the column defaults to `false` and
-   * nothing on the create path wrote it, so a new account appears in people
-   * search the instant it exists. For a human signing themselves up that is the
-   * right default and it is NOT changed here. For an account a program creates
-   * on someone's behalf — an agent, an unlaunched project, an organization for
-   * something not yet announced — it publishes the thing before its owner ever
-   * decided to.
-   *
-   * The alternative is a second call right after create, which is a window in
-   * which the account IS public, and a window whose closing depends on a second
-   * request succeeding. A field here has neither: one statement, one row, born
-   * in the state the caller asked for.
-   *
-   * ## It reuses the existing flag deliberately
-   *
-   * This is `privacy_is_private_account`, the same one `PUT /users/:id/privacy`
-   * toggles — not a new "published" column. A second visibility flag would be a
-   * second source of truth for one question, and the two would disagree.
-   *
-   * Inherited semantics, stated because reusing a flag means inheriting ALL of
-   * it: the account is kept out of people search, out of the follow-graph lists
-   * (`followers` / `following` / `mutuals`), out of `/similar` and out of the
-   * recommendation candidate pools, and its non-public, non-unlisted media
-   * becomes follower-gated. It does NOT hide the profile from someone who knows
-   * the handle, and it carries NO follow-approval flow — following is immediate
-   * and unilateral whatever this says, so nothing here creates a request queue
-   * nobody attends.
-   *
-   * ## Not conditioned on `kind`, on purpose
-   *
-   * The same reasoning as `accountCategories` above: this object does not
-   * refine on kind, and an unlaunched organization has exactly the problem an
-   * unpublished agent does. The discovery predicate never reads `kind`, so the
-   * remedy must not either.
-   */
-  isPrivateAccount: z.boolean().optional(),
-}).superRefine((request, ctx) => {
-  // The ONE place `kind` and `username` arrive in the same object, so it is the
-  // only place a wire schema CAN apply the per-kind half of the policy: a bot's
-  // handle must end in `bot`. Not a second rule — it asks
-  // `usernameSchemaForAccountKind`, the same declaration the service asks.
-  //
-  // It is here rather than only in the API because this schema is exported for
-  // CLIENTS: an agent-creation flow that validates its request and is then 400ed
-  // by the server is the "propose, then refuse" defect the minimum length
-  // already caused once. The service check stays regardless — it also governs
-  // renames and the service-provisioned channel route, where the kind comes from
-  // the stored row and never from this object.
-  const parsed = usernameSchemaForAccountKind(request.kind).safeParse(request.username);
-  if (!parsed.success) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['username'],
-      message: parsed.error.issues[0].message,
-    });
-  }
-});
+export const createAccountRequestSchema = z
+  .object({
+    parentAccountId: z.string().trim().min(1).optional(),
+    kind: childAccountKindSchema,
+    /**
+     * The SAME policy a person's handle is held to. `users.username` is one unique
+     * index, so a managed account may not reserve a name a person could not ask
+     * for — and this route's predecessor (`.min(1).max(100)` here, `^[\w.-]+$`
+     * with no ceiling in the service) is how a one-character or dotted or
+     * 100-character handle became reachable for bots alone.
+     *
+     * A `bot` is held to that AND to the label its handle must end in. That half
+     * cannot live on this field — it depends on `kind`, a sibling — so it is in the
+     * `superRefine` below, which reports its issue against this path.
+     */
+    username: usernameSchema,
+    name: accountNameSchema,
+    bio: z.string().trim().max(500).optional(),
+    avatar: z.string().optional(),
+    description: z.string().trim().max(1000).optional(),
+    /**
+     * A named color preset KEY (`"blue"`, `"mint"`, …), never a hex value.
+     *
+     * Here at CREATION for the reason `isPrivateAccount` is, in miniature: for a
+     * managed account the color is a visual identity, and an account that is
+     * discoverable without one and acquires it on a second request is a face that
+     * changes by itself. One statement, one row, born looking like what its owner
+     * chose.
+     *
+     * The VALUE is checked in the API rather than here. The vocabulary is
+     * `USER_COLOR_PRESETS`, which is declared next to the `users_color_check` CHECK
+     * that is rendered from it — pinning the list a second time in this package
+     * would be a second source of truth for what the database accepts, and the two
+     * would drift apart silently. What this shape does is keep an over-long or
+     * non-string value from reaching the service at all.
+     */
+    color: z.string().trim().max(32).optional(),
+    /** Ordered, PRIMARY FIRST — see rule 2 above {@link ACCOUNT_CATEGORY_IDS}. */
+    accountCategories: accountCategoriesSchema.optional(),
+    /**
+     * Create the account already opted OUT of discovery.
+     *
+     * ## Why this belongs at CREATION and not only on the privacy route
+     *
+     * Every account is born discoverable: the column defaults to `false` and
+     * nothing on the create path wrote it, so a new account appears in people
+     * search the instant it exists. For a human signing themselves up that is the
+     * right default and it is NOT changed here. For an account a program creates
+     * on someone's behalf — an agent, an unlaunched project, an organization for
+     * something not yet announced — it publishes the thing before its owner ever
+     * decided to.
+     *
+     * The alternative is a second call right after create, which is a window in
+     * which the account IS public, and a window whose closing depends on a second
+     * request succeeding. A field here has neither: one statement, one row, born
+     * in the state the caller asked for.
+     *
+     * ## It reuses the existing flag deliberately
+     *
+     * This is `privacy_is_private_account`, the same one `PUT /users/:id/privacy`
+     * toggles — not a new "published" column. A second visibility flag would be a
+     * second source of truth for one question, and the two would disagree.
+     *
+     * Inherited semantics, stated because reusing a flag means inheriting ALL of
+     * it: the account is kept out of people search, out of the follow-graph lists
+     * (`followers` / `following` / `mutuals`), out of `/similar` and out of the
+     * recommendation candidate pools, and its non-public, non-unlisted media
+     * becomes follower-gated. It does NOT hide the profile from someone who knows
+     * the handle, and it carries NO follow-approval flow — following is immediate
+     * and unilateral whatever this says, so nothing here creates a request queue
+     * nobody attends.
+     *
+     * ## Not conditioned on `kind`, on purpose
+     *
+     * The same reasoning as `accountCategories` above: this object does not
+     * refine on kind, and an unlaunched organization has exactly the problem an
+     * unpublished agent does. The discovery predicate never reads `kind`, so the
+     * remedy must not either.
+     */
+    isPrivateAccount: z.boolean().optional(),
+  })
+  .superRefine((request, ctx) => {
+    // The ONE place `kind` and `username` arrive in the same object, so it is the
+    // only place a wire schema CAN apply the per-kind half of the policy: a bot's
+    // handle must end in `bot`. Not a second rule — it asks
+    // `usernameSchemaForAccountKind`, the same declaration the service asks.
+    //
+    // It is here rather than only in the API because this schema is exported for
+    // CLIENTS: an agent-creation flow that validates its request and is then 400ed
+    // by the server is the "propose, then refuse" defect the minimum length
+    // already caused once. The service check stays regardless — it also governs
+    // renames and the service-provisioned channel route, where the kind comes from
+    // the stored row and never from this object.
+    const parsed = usernameSchemaForAccountKind(request.kind).safeParse(request.username);
+    if (!parsed.success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['username'],
+        message: parsed.error.issues[0].message,
+      });
+    }
+  });
 
 export type CreateAccountRequest = z.infer<typeof createAccountRequestSchema>;

@@ -5,13 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { parseAttestPayload } from '@oxy.so/core/civic';
 import { useOxy } from '@oxy.so/services';
 import { useColors } from '@/hooks/useColors';
-import {
-  Screen,
-  StackHeader,
-  SessionGate,
-  LoadingState,
-  STATE_MIN_HEIGHT,
-} from '@/components/ui';
+import { Screen, StackHeader, SessionGate, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
 import { useAttestFlow } from '@/hooks/civic/useAttestFlow';
 import type { AttestSubmitParams } from '@/hooks/civic/attestStore';
 import { AttestReviewSheet, type AttestReviewStatus } from '@/components/civic/AttestReviewSheet';
@@ -37,7 +31,12 @@ export default function AttestDeepLinkScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { canUsePrivateApi } = useOxy();
-  const raw = useLocalSearchParams<{ subject?: string; ctx?: string; nonce?: string; exp?: string }>();
+  const raw = useLocalSearchParams<{
+    subject?: string;
+    ctx?: string;
+    nonce?: string;
+    exp?: string;
+  }>();
 
   const parsed = useMemo(
     () =>
@@ -53,7 +52,12 @@ export default function AttestDeepLinkScreen() {
   const params = useMemo<AttestSubmitParams | null>(
     () =>
       parsed
-        ? { subjectDid: parsed.subjectDid, context: parsed.context, nonce: parsed.nonce, exp: parsed.exp }
+        ? {
+            subjectDid: parsed.subjectDid,
+            context: parsed.context,
+            nonce: parsed.nonce,
+            exp: parsed.exp,
+          }
         : null,
     [parsed],
   );

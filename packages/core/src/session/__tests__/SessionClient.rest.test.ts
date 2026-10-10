@@ -2,7 +2,11 @@ import type { DeviceSessionState } from '@oxy.so/contracts';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 
 const STATE = (rev: number): DeviceSessionState => ({
-  deviceId: 'd1', accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }], activeAccountId: 'a1', revision: rev, updatedAt: 1720000000000,
+  deviceId: 'd1',
+  accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+  activeAccountId: 'a1',
+  revision: rev,
+  updatedAt: 1720000000000,
 });
 
 function makeHost(makeRequest: jest.Mock): SessionClientHost {
@@ -19,12 +23,22 @@ function makeHost(makeRequest: jest.Mock): SessionClientHost {
 
 // `makeRequest` (HttpService) already strips the server's outer `{ data }` envelope, so it
 // returns the unwrapped sync body directly — that is exactly what SessionClient consumes.
-const SYNC = (rev: number) => ({ state: STATE(rev), activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' } });
+const SYNC = (rev: number) => ({
+  state: STATE(rev),
+  activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' },
+});
 
 describe('SessionClient REST', () => {
   it('discards a delayed device response across isolation and a later device lifecycle', async () => {
     let resolve!: (value: ReturnType<typeof SYNC>) => void;
-    const host = makeHost(jest.fn(() => new Promise((done) => { resolve = done; })));
+    const host = makeHost(
+      jest.fn(
+        () =>
+          new Promise((done) => {
+            resolve = done;
+          }),
+      ),
+    );
     const client = new SessionClient(host);
     client.adoptState(STATE(1));
     const oldBootstrap = client.bootstrap();
@@ -55,7 +69,9 @@ describe('SessionClient REST', () => {
     const host = makeHost(makeRequest);
     const c = new SessionClient(host);
     await c.bootstrap();
-    expect(makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     expect(c.getState()?.revision).toBe(3);
     expect(host.setTokens).toHaveBeenCalledWith('jwt-3');
   });
@@ -65,7 +81,12 @@ describe('SessionClient REST', () => {
     const host = makeHost(makeRequest);
     const c = new SessionClient(host);
     await c.switchAccount('a1');
-    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/switch', { accountId: 'a1' }, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/session/device/switch',
+      { accountId: 'a1' },
+      { cache: false },
+    );
     expect(c.getState()?.revision).toBe(4);
     expect(host.setTokens).toHaveBeenCalledWith('jwt-4');
     c.stop();
@@ -75,7 +96,12 @@ describe('SessionClient REST', () => {
     const makeRequest = jest.fn().mockResolvedValueOnce(SYNC(5));
     const c = new SessionClient(makeHost(makeRequest));
     await c.signOut({ accountId: 'a1' });
-    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { accountId: 'a1' }, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/session/device/signout',
+      { accountId: 'a1' },
+      { cache: false },
+    );
     c.stop();
   });
 
@@ -83,7 +109,12 @@ describe('SessionClient REST', () => {
     const makeRequest = jest.fn().mockResolvedValueOnce(SYNC(6));
     const c = new SessionClient(makeHost(makeRequest));
     await c.signOut({ all: true });
-    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { all: true }, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/session/device/signout',
+      { all: true },
+      { cache: false },
+    );
     c.stop();
   });
 
@@ -91,7 +122,9 @@ describe('SessionClient REST', () => {
     const makeRequest = jest.fn().mockResolvedValueOnce(SYNC(2));
     const c = new SessionClient(makeHost(makeRequest));
     await c.addCurrentAccount();
-    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, {
+      cache: false,
+    });
     c.stop();
   });
 
@@ -111,16 +144,31 @@ describe('SessionClient REST', () => {
     expect(host.setTokens).not.toHaveBeenCalled();
   });
 
-  it('accepts a NEW device\'s lower-revision state and plants its token (cross-device revision reset)', async () => {
+  it("accepts a NEW device's lower-revision state and plants its token (cross-device revision reset)", async () => {
     const deviceA: DeviceSessionState = {
-      deviceId: 'A', accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }], activeAccountId: 'a1', revision: 10, updatedAt: 1720000000000,
+      deviceId: 'A',
+      accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+      activeAccountId: 'a1',
+      revision: 10,
+      updatedAt: 1720000000000,
     };
     const deviceB: DeviceSessionState = {
-      deviceId: 'B', accounts: [{ accountId: 'a2', sessionId: 's2', authuser: 0 }], activeAccountId: 'a2', revision: 1, updatedAt: 1720000001000,
+      deviceId: 'B',
+      accounts: [{ accountId: 'a2', sessionId: 's2', authuser: 0 }],
+      activeAccountId: 'a2',
+      revision: 1,
+      updatedAt: 1720000001000,
     };
-    const makeRequest = jest.fn()
-      .mockResolvedValueOnce({ state: deviceA, activeToken: { accessToken: 'jwt-A', expiresAt: 'x' } })
-      .mockResolvedValueOnce({ state: deviceB, activeToken: { accessToken: 'jwt-B', expiresAt: 'x' } });
+    const makeRequest = jest
+      .fn()
+      .mockResolvedValueOnce({
+        state: deviceA,
+        activeToken: { accessToken: 'jwt-A', expiresAt: 'x' },
+      })
+      .mockResolvedValueOnce({
+        state: deviceB,
+        activeToken: { accessToken: 'jwt-B', expiresAt: 'x' },
+      });
     const host = makeHost(makeRequest);
     const c = new SessionClient(host);
 
@@ -137,28 +185,43 @@ describe('SessionClient REST', () => {
   });
 });
 
-
-describe('SessionClient explicit full signout callback',()=>{
-  const empty=()=>({...STATE(9),accounts:[],activeAccountId:null});
-  it('awaits the callback after total signout, but not a partial signout',async()=>{
-    let release!:()=>void;
-    const barrier=new Promise<void>(resolve=>{release=resolve;});
-    const onFullExplicitSignOut=jest.fn(()=>barrier);
-    const host=makeHost(jest.fn().mockResolvedValueOnce(SYNC(5)).mockResolvedValueOnce({state:empty(),activeToken:null}));
-    const client=new SessionClient(host,{onFullExplicitSignOut});
-    await client.signOut({accountId:'a2'});
+describe('SessionClient explicit full signout callback', () => {
+  const empty = () => ({ ...STATE(9), accounts: [], activeAccountId: null });
+  it('awaits the callback after total signout, but not a partial signout', async () => {
+    let release!: () => void;
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const onFullExplicitSignOut = jest.fn(() => barrier);
+    const host = makeHost(
+      jest
+        .fn()
+        .mockResolvedValueOnce(SYNC(5))
+        .mockResolvedValueOnce({ state: empty(), activeToken: null }),
+    );
+    const client = new SessionClient(host, { onFullExplicitSignOut });
+    await client.signOut({ accountId: 'a2' });
     expect(onFullExplicitSignOut).not.toHaveBeenCalled();
-    let resolved=false;
-    const full=client.signOut({all:true}).then(()=>{resolved=true;});
-    await new Promise(resolve=>setImmediate(resolve));
+    let resolved = false;
+    const full = client.signOut({ all: true }).then(() => {
+      resolved = true;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
     expect(onFullExplicitSignOut).toHaveBeenCalledTimes(1);
     expect(resolved).toBe(false);
-    release();await full;client.stop();
+    release();
+    await full;
+    client.stop();
   });
-  it('bootstrap and device/add empty responses never mark an explicit signout',async()=>{
-    const onFullExplicitSignOut=jest.fn(async()=>undefined);
-    const client=new SessionClient(makeHost(jest.fn(async()=>({state:empty(),activeToken:null}))),{onFullExplicitSignOut});
-    await client.bootstrap();await client.addCurrentAccount();
-    expect(onFullExplicitSignOut).not.toHaveBeenCalled();client.stop();
+  it('bootstrap and device/add empty responses never mark an explicit signout', async () => {
+    const onFullExplicitSignOut = jest.fn(async () => undefined);
+    const client = new SessionClient(
+      makeHost(jest.fn(async () => ({ state: empty(), activeToken: null }))),
+      { onFullExplicitSignOut },
+    );
+    await client.bootstrap();
+    await client.addCurrentAccount();
+    expect(onFullExplicitSignOut).not.toHaveBeenCalled();
+    client.stop();
   });
 });

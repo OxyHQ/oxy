@@ -94,6 +94,6 @@ export async function waitForDatabaseConnection(timeout = 30_000): Promise<void>
 
   throw new Error(
     `PostgreSQL connection timeout after ${timeout}ms (${attempts} attempt(s)): ` +
-    (lastError instanceof Error ? lastError.message : String(lastError))
+      (lastError instanceof Error ? lastError.message : String(lastError)),
   );
 }

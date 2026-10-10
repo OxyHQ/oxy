@@ -10,7 +10,11 @@ import type { AddressInfo } from 'net';
 
 let currentUserId = '';
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: { _id: string; id: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: { _id: string; id: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { _id: currentUserId, id: currentUserId };
     next();
   },
@@ -29,7 +33,9 @@ let server: http.Server;
 
 async function status(origin = 'https://accounts.oxy.so') {
   const { port } = server.address() as AddressInfo;
-  const response = await fetch(`http://127.0.0.1:${port}/identity/root-status`, { headers: { origin } });
+  const response = await fetch(`http://127.0.0.1:${port}/identity/root-status`, {
+    headers: { origin },
+  });
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
@@ -45,7 +51,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   await closePostgres();
 });
 
@@ -53,7 +61,10 @@ it('reports an account without a key by its email', async () => {
   const email = `${randomUUID()}@example.com`;
   const [row] = await getDb().insert(users).values({ email }).returning({ id: users.id });
   currentUserId = row.id;
-  expect(await status()).toEqual({ status: 200, body: { rootLinked: false, recoveryEmail: email } });
+  expect(await status()).toEqual({
+    status: 200,
+    body: { rootLinked: false, recoveryEmail: email },
+  });
 });
 
 it('reports an account with neither', async () => {

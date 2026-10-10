@@ -54,10 +54,14 @@ describe('signMediaToken / verifyMediaToken', () => {
       jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
       const token = signMediaToken(FILE_A, VIEWER);
       // Just before expiry → still valid.
-      jest.setSystemTime(new Date(Date.parse('2026-01-01T00:00:00Z') + (MEDIA_TOKEN_TTL_SECONDS - 5) * 1000));
+      jest.setSystemTime(
+        new Date(Date.parse('2026-01-01T00:00:00Z') + (MEDIA_TOKEN_TTL_SECONDS - 5) * 1000),
+      );
       expect(verifyMediaToken(token, FILE_A)).toBe(VIEWER);
       // Past expiry → rejected.
-      jest.setSystemTime(new Date(Date.parse('2026-01-01T00:00:00Z') + (MEDIA_TOKEN_TTL_SECONDS + 5) * 1000));
+      jest.setSystemTime(
+        new Date(Date.parse('2026-01-01T00:00:00Z') + (MEDIA_TOKEN_TTL_SECONDS + 5) * 1000),
+      );
       expect(verifyMediaToken(token, FILE_A)).toBeUndefined();
     } finally {
       jest.useRealTimers();
@@ -71,11 +75,9 @@ describe('signMediaToken / verifyMediaToken', () => {
 
   it('rejects an access-token-shaped JWT signed with ACCESS_TOKEN_SECRET', () => {
     // A real session/access token must never double as a media credential.
-    const accessLike = jwt.sign(
-      { type: 'access', sessionId: 's1', userId: VIEWER },
-      SECRET,
-      { expiresIn: 3600 },
-    );
+    const accessLike = jwt.sign({ type: 'access', sessionId: 's1', userId: VIEWER }, SECRET, {
+      expiresIn: 3600,
+    });
     expect(verifyMediaToken(accessLike, FILE_A)).toBeUndefined();
   });
 

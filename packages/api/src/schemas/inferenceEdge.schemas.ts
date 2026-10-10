@@ -75,10 +75,12 @@ import {
  * Bounded in both directions because it is stored and read back: sixteen keys is
  * a team/feature/environment tag set, not a place to smuggle a payload.
  */
-const labelsSchema = z.record(z.string().max(256)).refine(
-  (labels) => Object.keys(labels).length <= 16,
-  'at most 16 labels may be attached to one request'
-);
+const labelsSchema = z
+  .record(z.string().max(256))
+  .refine(
+    (labels) => Object.keys(labels).length <= 16,
+    'at most 16 labels may be attached to one request',
+  );
 
 /** `stop` in the OpenAI dialect: one sequence or a list of them. */
 const openAiStopSchema = z.union([
@@ -91,10 +93,7 @@ const openAiStopSchema = z.union([
 /* -------------------------------------------------------------------------- */
 
 /** The message-or-text input `/v1/responses` accepts. */
-const responsesInputSchema = z.union([
-  z.string().min(1),
-  z.array(inferenceMessageSchema).min(1),
-]);
+const responsesInputSchema = z.union([z.string().min(1), z.array(inferenceMessageSchema).min(1)]);
 
 /**
  * `model` on the two chat dialects: a concrete model reference, or a power
@@ -161,7 +160,7 @@ export const responsesRequestSchema = z
   .strict()
   .superRefine((request, ctx) => {
     const targetFields = [request.model, request.routingProfile, request.routingProfileId].filter(
-      (value) => value !== undefined
+      (value) => value !== undefined,
     );
     if (targetFields.length > 1) {
       ctx.addIssue({
@@ -188,7 +187,10 @@ export type ResponsesRequest = z.infer<typeof responsesRequestSchema>;
 const openAiMessageSchema = z
   .object({
     role: z.enum(['system', 'developer', 'user', 'assistant', 'tool']),
-    content: z.union([z.string(), z.array(inferenceContentPartSchema)]).nullable().optional(),
+    content: z
+      .union([z.string(), z.array(inferenceContentPartSchema)])
+      .nullable()
+      .optional(),
     name: z.string().max(128).optional(),
     tool_call_id: z.string().min(1).max(128).optional(),
     tool_calls: z
@@ -204,7 +206,7 @@ const openAiMessageSchema = z
               })
               .strict(),
           })
-          .strict()
+          .strict(),
       )
       .optional(),
   })
@@ -429,7 +431,11 @@ export const speechRequestSchema = z
   .strict()
   .superRefine((request, ctx) => {
     if ((request.model === undefined) === (request.routingProfileId === undefined)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['model'], message: 'name exactly one model or routingProfileId' });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['model'],
+        message: 'name exactly one model or routingProfileId',
+      });
     }
   });
 
@@ -557,7 +563,7 @@ const commercialGenerationReceiptSchema = z
           amount: z.string(),
           per: z.number().int().positive(),
           currency: z.string().regex(/^[A-Z]{3}$/),
-        })
+        }),
       ),
     }),
     billedAmount: z.string(),
@@ -568,20 +574,31 @@ const commercialGenerationReceiptSchema = z
   })
   .strict();
 
-export const generationReceiptSchema = z.union([commercialGenerationReceiptSchema, meteredGenerationSchema]);
+export const generationReceiptSchema = z.union([
+  commercialGenerationReceiptSchema,
+  meteredGenerationSchema,
+]);
 
 export type GenerationReceipt = z.infer<typeof generationReceiptSchema>;
 
 /** Header contract for original-key recovery; no key is carried in the URL. */
 export const originalGenerationReceiptHeadersSchema = z.object({
-  'Idempotency-Key': z.string().min(1).max(128).describe('The exact original admission key. Required; not a new request identity.'),
-  'X-Oxy-User-Id': z.string().max(64).optional().describe('Optional original delegated attribution. Omission matches only an undelegated original record.'),
+  'Idempotency-Key': z
+    .string()
+    .min(1)
+    .max(128)
+    .describe('The exact original admission key. Required; not a new request identity.'),
+  'X-Oxy-User-Id': z
+    .string()
+    .max(64)
+    .optional()
+    .describe(
+      'Optional original delegated attribution. Omission matches only an undelegated original record.',
+    ),
 });
 
 /** `GET /v1/generations/{id}` — the receipt in the platform's read envelope. */
-export const generationReceiptResponseSchema = z
-  .object({ data: generationReceiptSchema })
-  .strict();
+export const generationReceiptResponseSchema = z.object({ data: generationReceiptSchema }).strict();
 
 /* -------------------------------------------------------------------------- */
 /*  Responses — what each dialect sends back                                  */
@@ -696,7 +713,7 @@ export const chatCompletionResponseSchema = z
                         .object({ name: z.string().min(1), arguments: z.string() })
                         .strict(),
                     })
-                    .strict()
+                    .strict(),
                 )
                 .optional(),
             })
@@ -708,7 +725,7 @@ export const chatCompletionResponseSchema = z
            */
           finish_reason: z.string().min(1),
         })
-        .strict()
+        .strict(),
     ),
     usage: z
       .object({
@@ -755,7 +772,7 @@ export const imageGenerationsResponseSchema = z
       z.union([
         z.object({ url: z.string().min(1) }).strict(),
         z.object({ b64_json: z.string().min(1) }).strict(),
-      ])
+      ]),
     ),
   })
   .strict();
@@ -918,7 +935,7 @@ export function normalizeResponsesRequest(request: ResponsesRequest): Normalized
         ? { kind: 'routing_profile_legacy', routingProfile: request.routingProfile }
         : request.routingProfileId !== undefined
           ? { kind: 'routing_profile_id', routingProfileId: request.routingProfileId }
-        : undefined;
+          : undefined;
 
   return defined({
     operation: { kind: 'completion' as const },
@@ -953,7 +970,7 @@ export function normalizeResponsesRequest(request: ResponsesRequest): Normalized
  * calls a tool is a real, common message.
  */
 export function normalizeChatCompletionsRequest(
-  request: ChatCompletionsRequest
+  request: ChatCompletionsRequest,
 ): NormalizedEdgeRequest {
   const messages: InferenceMessage[] = request.messages.map((message) =>
     defined({
@@ -971,7 +988,7 @@ export function normalizeChatCompletionsRequest(
         name: call.function.name,
         arguments: call.function.arguments,
       })),
-    })
+    }),
   );
 
   const spoken = request.modalities?.includes('audio') === true && request.audio !== undefined;
@@ -1013,7 +1030,7 @@ export function normalizeChatCompletionsRequest(
           description: tool.function.description,
           parameters: tool.function.parameters,
           strict: tool.function.strict,
-        })
+        }),
       ) ?? [],
     toolChoice: normalizeOpenAiToolChoice(request.tool_choice),
     responseFormat: normalizeOpenAiResponseFormat(request.response_format),
@@ -1024,7 +1041,7 @@ export function normalizeChatCompletionsRequest(
 }
 
 function normalizeOpenAiToolChoice(
-  choice: ChatCompletionsRequest['tool_choice']
+  choice: ChatCompletionsRequest['tool_choice'],
 ): ToolChoice | undefined {
   if (choice === undefined) return undefined;
   if (typeof choice === 'string') return choice;
@@ -1032,7 +1049,7 @@ function normalizeOpenAiToolChoice(
 }
 
 function normalizeOpenAiResponseFormat(
-  format: ChatCompletionsRequest['response_format']
+  format: ChatCompletionsRequest['response_format'],
 ): ResponseFormat | undefined {
   if (format === undefined) return undefined;
   if (format.type === 'json_schema') {
@@ -1058,9 +1075,17 @@ function normalizeOpenAiResponseFormat(
 export function normalizeSpeechRequest(request: SpeechRequest): NormalizedEdgeRequest {
   return defined({
     operation: { kind: 'speech' as const, characters: request.input.length },
-    target: request.routingProfileId !== undefined
-      ? { kind: 'routing_profile_id' as const, routingProfileId: request.routingProfileId }
-      : { kind: 'model' as const, modelReference: request.model ?? (() => { throw new Error('Validated request has no model'); })() },
+    target:
+      request.routingProfileId !== undefined
+        ? { kind: 'routing_profile_id' as const, routingProfileId: request.routingProfileId }
+        : {
+            kind: 'model' as const,
+            modelReference:
+              request.model ??
+              (() => {
+                throw new Error('Validated request has no model');
+              })(),
+          },
     input: { format: 'text' as const, text: request.input },
     stream: false,
     sampling: {},
@@ -1083,7 +1108,7 @@ export function normalizeSpeechRequest(request: SpeechRequest): NormalizedEdgeRe
  * argument, so a long prompt is held for even though the image count dominates.
  */
 export function normalizeImageGenerationsRequest(
-  request: ImageGenerationsRequest
+  request: ImageGenerationsRequest,
 ): NormalizedEdgeRequest {
   return defined({
     operation: { kind: 'images' as const, images: request.n ?? 1 },

@@ -29,11 +29,7 @@ import { billingProfiles } from '../billingProfiles';
 import { applications } from '../applications';
 import { applicationCredentials } from '../applicationCredentials';
 import { IMMUTABLE_LEDGER_TABLES } from '../ledgerImmutability';
-import {
-  USAGE_UNIT_COLUMN_KEYS,
-  usageUnitColumns,
-  zeroUsageUnits,
-} from '../ledgerColumns';
+import { USAGE_UNIT_COLUMN_KEYS, usageUnitColumns, zeroUsageUnits } from '../ledgerColumns';
 import { priceVersions, priceVersionUnitPrices } from '../priceVersions';
 import { usageReceipts } from '../usageReceipts';
 import { usageRefunds } from '../usageRefunds';
@@ -173,7 +169,7 @@ async function insertReservation(f: Fixture, amount = '1.000000000000'): Promise
 
 async function insertReceipt(
   f: Fixture,
-  overrides: Partial<typeof usageReceipts.$inferInsert> = {}
+  overrides: Partial<typeof usageReceipts.$inferInsert> = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(usageReceipts)
@@ -226,7 +222,7 @@ describe('the two self-referencing foreign keys reached pg_constraint', () => {
           provider: 'oxy-hosted',
           effectiveFrom: new Date(),
           supersedesPriceVersionId: `absent-${randomUUID()}`,
-        })
+        }),
     );
     // `23503` foreign_key_violation — the constraint is enforced, not decorative.
     expect(pgErrorCode(error)).toBe('23503');
@@ -251,7 +247,7 @@ describe('settled history is append-only', () => {
       getDb()
         .update(usageReceipts)
         .set({ billedAmount: '999.000000000000' })
-        .where(eq(usageReceipts.id, receiptId))
+        .where(eq(usageReceipts.id, receiptId)),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
 
@@ -267,7 +263,7 @@ describe('settled history is append-only', () => {
     const f = await fixture();
     const receiptId = await insertReceipt(f);
     const error = await rejection(
-      getDb().delete(usageReceipts).where(eq(usageReceipts.id, receiptId))
+      getDb().delete(usageReceipts).where(eq(usageReceipts.id, receiptId)),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -292,15 +288,17 @@ describe('a refund cannot misdescribe what it acts on', () => {
     const f = await fixture();
     const reservationId = await insertReservation(f);
     const error = await rejection(
-      getDb().insert(usageRefunds).values({
-        idempotencyKey: `x-${randomUUID()}`,
-        accountId: f.accountId,
-        requestId: 'req-1',
-        subjectKind: 'receipt',
-        reservationId,
-        reason: 'billing_correction',
-        amount: '1.000000000000',
-      })
+      getDb()
+        .insert(usageRefunds)
+        .values({
+          idempotencyKey: `x-${randomUUID()}`,
+          accountId: f.accountId,
+          requestId: 'req-1',
+          subjectKind: 'receipt',
+          reservationId,
+          reason: 'billing_correction',
+          amount: '1.000000000000',
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -309,15 +307,17 @@ describe('a refund cannot misdescribe what it acts on', () => {
     const f = await fixture();
     const receiptId = await insertReceipt(f);
     const error = await rejection(
-      getDb().insert(usageRefunds).values({
-        idempotencyKey: `x-${randomUUID()}`,
-        accountId: f.accountId,
-        requestId: 'req-1',
-        subjectKind: 'receipt',
-        receiptId,
-        reason: 'unused_reservation',
-        amount: '1.000000000000',
-      })
+      getDb()
+        .insert(usageRefunds)
+        .values({
+          idempotencyKey: `x-${randomUUID()}`,
+          accountId: f.accountId,
+          requestId: 'req-1',
+          subjectKind: 'receipt',
+          receiptId,
+          reason: 'unused_reservation',
+          amount: '1.000000000000',
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -326,15 +326,17 @@ describe('a refund cannot misdescribe what it acts on', () => {
     const f = await fixture();
     const reservationId = await insertReservation(f);
     const error = await rejection(
-      getDb().insert(usageRefunds).values({
-        idempotencyKey: `x-${randomUUID()}`,
-        accountId: f.accountId,
-        requestId: 'req-1',
-        subjectKind: 'reservation',
-        reservationId,
-        reason: 'billing_correction',
-        amount: '1.000000000000',
-      })
+      getDb()
+        .insert(usageRefunds)
+        .values({
+          idempotencyKey: `x-${randomUUID()}`,
+          accountId: f.accountId,
+          requestId: 'req-1',
+          subjectKind: 'reservation',
+          reservationId,
+          reason: 'billing_correction',
+          amount: '1.000000000000',
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -343,26 +345,28 @@ describe('a refund cannot misdescribe what it acts on', () => {
     const f = await fixture();
     const reservationId = await insertReservation(f);
     const receiptId = await insertReceipt(f);
-    await getDb().insert(usageRefunds).values([
-      {
-        idempotencyKey: `ok-a-${randomUUID()}`,
-        accountId: f.accountId,
-        requestId: 'req-1',
-        subjectKind: 'reservation',
-        reservationId,
-        reason: 'unused_reservation',
-        amount: '1.000000000000',
-      },
-      {
-        idempotencyKey: `ok-b-${randomUUID()}`,
-        accountId: f.accountId,
-        requestId: 'req-1',
-        subjectKind: 'receipt',
-        receiptId,
-        reason: 'billing_correction',
-        amount: '1.000000000000',
-      },
-    ]);
+    await getDb()
+      .insert(usageRefunds)
+      .values([
+        {
+          idempotencyKey: `ok-a-${randomUUID()}`,
+          accountId: f.accountId,
+          requestId: 'req-1',
+          subjectKind: 'reservation',
+          reservationId,
+          reason: 'unused_reservation',
+          amount: '1.000000000000',
+        },
+        {
+          idempotencyKey: `ok-b-${randomUUID()}`,
+          accountId: f.accountId,
+          requestId: 'req-1',
+          subjectKind: 'receipt',
+          receiptId,
+          reason: 'billing_correction',
+          amount: '1.000000000000',
+        },
+      ]);
     const rows = await getDb()
       .select({ id: usageRefunds.id })
       .from(usageRefunds)
@@ -375,7 +379,7 @@ describe('a charge cannot be billed against nothing metered', () => {
   it('refuses a non-zero amount with every unit column at zero', async () => {
     const f = await fixture();
     const error = await rejection(
-      insertReceipt(f, { ...zeroUsageUnits(), billedAmount: '5.000000000000' })
+      insertReceipt(f, { ...zeroUsageUnits(), billedAmount: '5.000000000000' }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -414,7 +418,7 @@ describe('a posting is a real transfer', () => {
         sourceAccount: 'purchased_funds',
         destinationAccount: 'purchased_funds',
         amount: '1.000000000000',
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -429,7 +433,7 @@ describe('a posting is a real transfer', () => {
         sourceAccount: 'external_settlement',
         destinationAccount: 'purchased_funds',
         amount: '0',
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -443,7 +447,7 @@ describe('a posting is a real transfer', () => {
     const error = await rejection(
       getDb()
         .insert(billingLedgerEntries)
-        .values({ idempotencyKey: key, accountId: f.accountId, kind: 'top_up' })
+        .values({ idempotencyKey: key, accountId: f.accountId, kind: 'top_up' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -451,11 +455,13 @@ describe('a posting is a real transfer', () => {
   it('requires a reservation-shaped entry to name its reservation', async () => {
     const f = await fixture();
     const error = await rejection(
-      getDb().insert(billingLedgerEntries).values({
-        idempotencyKey: `e-${randomUUID()}`,
-        accountId: f.accountId,
-        kind: 'reservation_hold',
-      })
+      getDb()
+        .insert(billingLedgerEntries)
+        .values({
+          idempotencyKey: `e-${randomUUID()}`,
+          accountId: f.accountId,
+          kind: 'reservation_hold',
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -465,7 +471,7 @@ describe('an entry says who authored it, or says it predates the question', () =
   /** Insert one `top_up` entry with an explicit actor pair. */
   async function entryWithActor(
     accountId: string,
-    actor: Pick<typeof billingLedgerEntries.$inferInsert, 'actorKind' | 'actorUserId'>
+    actor: Pick<typeof billingLedgerEntries.$inferInsert, 'actorKind' | 'actorUserId'>,
   ): Promise<string> {
     const [row] = await getDb()
       .insert(billingLedgerEntries)
@@ -475,7 +481,7 @@ describe('an entry says who authored it, or says it predates the question', () =
   }
 
   async function readActor(
-    entryId: string
+    entryId: string,
   ): Promise<{ actorKind: string | null; actorUserId: string | null }> {
     const [row] = await getDb()
       .select({
@@ -534,7 +540,7 @@ describe('an entry says who authored it, or says it predates the question', () =
   it('refuses a staff author who names nobody', async () => {
     const f = await fixture();
     const error = await rejection(
-      entryWithActor(f.accountId, { actorKind: 'staff', actorUserId: null })
+      entryWithActor(f.accountId, { actorKind: 'staff', actorUserId: null }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -542,7 +548,7 @@ describe('an entry says who authored it, or says it predates the question', () =
   it('refuses a machine author that names somebody', async () => {
     const f = await fixture();
     const error = await rejection(
-      entryWithActor(f.accountId, { actorKind: 'machine', actorUserId: await insertAccount() })
+      entryWithActor(f.accountId, { actorKind: 'machine', actorUserId: await insertAccount() }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -550,7 +556,7 @@ describe('an entry says who authored it, or says it predates the question', () =
   it('refuses a named person with no kind beside them', async () => {
     const f = await fixture();
     const error = await rejection(
-      entryWithActor(f.accountId, { actorKind: null, actorUserId: await insertAccount() })
+      entryWithActor(f.accountId, { actorKind: null, actorUserId: await insertAccount() }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -564,7 +570,7 @@ describe('an entry says who authored it, or says it predates the question', () =
       getDb().execute(sql`
         insert into ${billingLedgerEntries} (id, idempotency_key, account_id, currency, kind, actor_kind)
         values (${randomUUID()}, ${`a-${randomUUID()}`}, ${f.accountId}, 'USD', 'top_up', 'robot')
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -585,7 +591,7 @@ describe('an entry says who authored it, or says it predates the question', () =
   it('refuses an author who is not an account at all', async () => {
     const f = await fixture();
     const error = await rejection(
-      entryWithActor(f.accountId, { actorKind: 'staff', actorUserId: `absent-${randomUUID()}` })
+      entryWithActor(f.accountId, { actorKind: 'staff', actorUserId: `absent-${randomUUID()}` }),
     );
     // `23503` foreign_key_violation — "who did this" is a join, not a string.
     expect(pgErrorCode(error)).toBe('23503');
@@ -612,7 +618,7 @@ describe('an entry says who authored it, or says it predates the question', () =
       getDb()
         .update(billingLedgerEntries)
         .set({ actorKind: 'staff', actorUserId: staffUserId })
-        .where(eq(billingLedgerEntries.id, entryId))
+        .where(eq(billingLedgerEntries.id, entryId)),
     );
 
     // The trigger, named by its own message. `23514` alone would ALSO be what
@@ -752,26 +758,30 @@ describe('one active price version per route', () => {
         provider: 'oxy-hosted',
         status: 'active',
         effectiveFrom: new Date(),
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
 
   it('allows a superseded version alongside the active one', async () => {
     const modelReference = `oxy/hist-${randomUUID().slice(0, 8)}`;
-    await getDb().insert(priceVersions).values({
-      modelReference,
-      provider: 'oxy-hosted',
-      status: 'superseded',
-      effectiveFrom: new Date(Date.now() - 7200_000),
-      effectiveUntil: new Date(Date.now() - 3600_000),
-    });
-    await getDb().insert(priceVersions).values({
-      modelReference,
-      provider: 'oxy-hosted',
-      status: 'active',
-      effectiveFrom: new Date(Date.now() - 3600_000),
-    });
+    await getDb()
+      .insert(priceVersions)
+      .values({
+        modelReference,
+        provider: 'oxy-hosted',
+        status: 'superseded',
+        effectiveFrom: new Date(Date.now() - 7200_000),
+        effectiveUntil: new Date(Date.now() - 3600_000),
+      });
+    await getDb()
+      .insert(priceVersions)
+      .values({
+        modelReference,
+        provider: 'oxy-hosted',
+        status: 'active',
+        effectiveFrom: new Date(Date.now() - 3600_000),
+      });
     const rows = await getDb()
       .select({ id: priceVersions.id })
       .from(priceVersions)
@@ -781,12 +791,14 @@ describe('one active price version per route', () => {
 
   it('refuses a superseded version that never stopped applying', async () => {
     const error = await rejection(
-      getDb().insert(priceVersions).values({
-        modelReference: `oxy/open-${randomUUID().slice(0, 8)}`,
-        provider: 'oxy-hosted',
-        status: 'superseded',
-        effectiveFrom: new Date(),
-      })
+      getDb()
+        .insert(priceVersions)
+        .values({
+          modelReference: `oxy/open-${randomUUID().slice(0, 8)}`,
+          provider: 'oxy-hosted',
+          status: 'superseded',
+          effectiveFrom: new Date(),
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -799,7 +811,7 @@ describe('one active price version per route', () => {
     const error = await rejection(
       getDb()
         .insert(priceVersionUnitPrices)
-        .values({ priceVersionId, unit: 'input_tokens', amount: '4.000000000000', per: 1_000_000 })
+        .values({ priceVersionId, unit: 'input_tokens', amount: '4.000000000000', per: 1_000_000 }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -809,7 +821,7 @@ describe('one active price version per route', () => {
     const error = await rejection(
       getDb()
         .insert(priceVersionUnitPrices)
-        .values({ priceVersionId, unit: 'input_tokens', amount: '3.000000000000', per: 0 })
+        .values({ priceVersionId, unit: 'input_tokens', amount: '3.000000000000', per: 0 }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });

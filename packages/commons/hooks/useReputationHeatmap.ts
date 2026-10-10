@@ -28,9 +28,7 @@ const HEATMAP_GC_TIME_MS = 24 * 60 * 60 * 1000;
  *
  * @param userId - The subject account's id, or `null` (query disabled).
  */
-export function useReputationHeatmap(
-  userId: string | null,
-): UseQueryResult<ActivityHeatmapDay[]> {
+export function useReputationHeatmap(userId: string | null): UseQueryResult<ActivityHeatmapDay[]> {
   const { oxyServices } = useOxy();
 
   return useQuery<ActivityHeatmapDay[]>({

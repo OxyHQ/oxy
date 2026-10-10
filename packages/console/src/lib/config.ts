@@ -8,10 +8,8 @@ const config = {
   // `OxyProvider`. Public value — safe to commit. Overridable per
   // environment via `VITE_OXY_CLIENT_ID`.
   clientId:
-    import.meta.env.VITE_OXY_CLIENT_ID ||
-    'oxy_dk_2bdf04f596037ac720f94a54df405b974f240e5392a2e668',
-  authRedirectUri:
-    import.meta.env.VITE_OXY_AUTH_REDIRECT_URI || 'https://console.oxy.so',
+    import.meta.env.VITE_OXY_CLIENT_ID || 'oxy_dk_2bdf04f596037ac720f94a54df405b974f240e5392a2e668',
+  authRedirectUri: import.meta.env.VITE_OXY_AUTH_REDIRECT_URI || 'https://console.oxy.so',
 };
 
 export default config;

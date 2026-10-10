@@ -44,10 +44,7 @@ module.exports = {
       versionCode: 3,
       predictiveBackGestureEnabled: true,
       softwareKeyboardLayoutMode: 'resize',
-      permissions: [
-        'android.permission.USE_BIOMETRIC',
-        'android.permission.USE_FINGERPRINT',
-      ],
+      permissions: ['android.permission.USE_BIOMETRIC', 'android.permission.USE_FINGERPRINT'],
       // `expo-screen-capture` (the recovery-phrase capture guard) declares
       // READ_MEDIA_IMAGES in its library manifest for its screenshot LISTENER,
       // which Commons does not use. It is a Play "photo and video" permission
@@ -97,8 +94,7 @@ module.exports = {
       [
         'expo-local-authentication',
         {
-          faceIDPermission:
-            'Allow $(PRODUCT_NAME) to use Face ID to protect your identity.',
+          faceIDPermission: 'Allow $(PRODUCT_NAME) to use Face ID to protect your identity.',
         },
       ],
       [
@@ -121,7 +117,7 @@ module.exports = {
             // that withOxyAndroidRelease turns on.
             extraProguardRules: [
               '# expo-contacts is referenced by the autolinked ExpoModulesPackageList',
-              '# but is not a dependency here; suppress R8\'s missing-class error for',
+              "# but is not a dependency here; suppress R8's missing-class error for",
               '# that dead optional reference (it is never loaded at runtime).',
               '-dontwarn expo.modules.contacts.**',
               '',

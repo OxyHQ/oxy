@@ -46,7 +46,9 @@ const MINT: DeviceTokenMintResponse = {
 };
 
 /** A real device-secret mint single-flight matching HttpService's. */
-function makeMintSingleFlight(): (mint: () => Promise<DeviceSecretMintOutcome>) => Promise<DeviceSecretMintOutcome> {
+function makeMintSingleFlight(): (
+  mint: () => Promise<DeviceSecretMintOutcome>,
+) => Promise<DeviceSecretMintOutcome> {
   let inFlight: Promise<DeviceSecretMintOutcome> | null = null;
   return (mint) => {
     if (!inFlight) {
@@ -63,10 +65,12 @@ function mint401(body: string): Error & { status: number } {
   return Object.assign(new Error(body), { status: 401 });
 }
 
-function makeOxy(overrides: {
-  mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
-  signInWithCommonsIdentity?: OxyServices['auth']['signInWithCommonsIdentity'];
-} = {}) {
+function makeOxy(
+  overrides: {
+    mintFromDeviceSecret?: OxyServices['devices']['mintToken'];
+    signInWithCommonsIdentity?: OxyServices['auth']['signInWithCommonsIdentity'];
+  } = {},
+) {
   const setTokens = jest.fn();
   const mintFromDeviceSecret = jest.fn(
     overrides.mintFromDeviceSecret ?? (async () => MINT),
@@ -75,7 +79,9 @@ function makeOxy(overrides: {
     overrides.signInWithCommonsIdentity ?? (async () => null),
   ) as unknown as OxyServices['auth']['signInWithCommonsIdentity'];
   const oxy = {
-    get baseURL() { return 'https://api.oxy.so'; },
+    get baseURL() {
+      return 'https://api.oxy.so';
+    },
     http: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
     session: {
       setAccessToken: setTokens,
@@ -125,7 +131,10 @@ describe('cold boot — shared-device-adopt', () => {
     });
 
     expect(outcome).toMatchObject({ kind: 'session', via: 'shared-device-adopt' });
-    expect(mintFromDeviceSecret).toHaveBeenCalledWith(SHARED_CRED.deviceId, SHARED_CRED.deviceSecret);
+    expect(mintFromDeviceSecret).toHaveBeenCalledWith(
+      SHARED_CRED.deviceId,
+      SHARED_CRED.deviceSecret,
+    );
     expect(setTokens).toHaveBeenCalledWith(MINT.accessToken);
     // The adopted credential is now this app's own, so the next boot takes the
     // faster `device-secret-mint` lane.
@@ -175,7 +184,10 @@ describe('cold boot — shared-device-adopt', () => {
 
     expect(outcome).toMatchObject({ kind: 'session', via: 'device-secret-mint' });
     expect(mintFromDeviceSecret).toHaveBeenCalledWith(OWN_CRED.deviceId, OWN_CRED.deviceSecret);
-    expect(mintFromDeviceSecret).not.toHaveBeenCalledWith(SHARED_CRED.deviceId, SHARED_CRED.deviceSecret);
+    expect(mintFromDeviceSecret).not.toHaveBeenCalledWith(
+      SHARED_CRED.deviceId,
+      SHARED_CRED.deviceSecret,
+    );
     expect(await store.load()).toMatchObject({ deviceId: OWN_CRED.deviceId });
   });
 
@@ -194,7 +206,8 @@ describe('cold boot — shared-device-adopt', () => {
       deviceSecret: 'ds-legacy',
     } as unknown as SessionLoginResponse;
     const { oxy, signInWithCommonsIdentity } = makeOxy({
-      signInWithCommonsIdentity: (async () => sharedKeySession) as unknown as OxyServices['auth']['signInWithCommonsIdentity'],
+      signInWithCommonsIdentity: (async () =>
+        sharedKeySession) as unknown as OxyServices['auth']['signInWithCommonsIdentity'],
     });
 
     const outcome = await runSessionColdBoot({
@@ -323,7 +336,11 @@ describe('cold boot — shared-device-adopt', () => {
     const slot = makeSharedSlot({ state: 'present', credential: SHARED_CRED });
     const { oxy, signInWithCommonsIdentity } = makeOxy();
 
-    const outcome = await runSessionColdBoot({ oxy, store: createMemoryAuthStateStore(), platform: NATIVE });
+    const outcome = await runSessionColdBoot({
+      oxy,
+      store: createMemoryAuthStateStore(),
+      platform: NATIVE,
+    });
 
     expect(slot.read).not.toHaveBeenCalled();
     expect(signInWithCommonsIdentity).toHaveBeenCalled();

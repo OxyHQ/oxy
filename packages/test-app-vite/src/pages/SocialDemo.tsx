@@ -1,25 +1,25 @@
-import { useState } from "react"
-import { useAuth, useFollow, useFollowerCounts, useUserByUsername } from "@oxy.so/services"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Skeleton } from "@/components/ui/skeleton"
+import { useState } from 'react';
+import { useAuth, useFollow, useFollowerCounts, useUserByUsername } from '@oxy.so/services';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function SocialDemo() {
-  const { isAuthenticated, oxyServices } = useAuth()
-  const [searchUsername, setSearchUsername] = useState("")
-  const [targetUsername, setTargetUsername] = useState("")
+  const { isAuthenticated, oxyServices } = useAuth();
+  const [searchUsername, setSearchUsername] = useState('');
+  const [targetUsername, setTargetUsername] = useState('');
 
-  const { data: foundUser, isLoading: searching } = useUserByUsername(targetUsername || "")
-  const targetUserId = foundUser?.id || ""
+  const { data: foundUser, isLoading: searching } = useUserByUsername(targetUsername || '');
+  const targetUserId = foundUser?.id || '';
 
-  const follow = useFollow(targetUserId || undefined)
-  const counts = useFollowerCounts(targetUserId)
+  const follow = useFollow(targetUserId || undefined);
+  const counts = useFollowerCounts(targetUserId);
 
   const handleSearch = () => {
-    setTargetUsername(searchUsername.trim())
-  }
+    setTargetUsername(searchUsername.trim());
+  };
 
   if (!isAuthenticated) {
     return (
@@ -30,7 +30,7 @@ export function SocialDemo() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -47,7 +47,7 @@ export function SocialDemo() {
               placeholder="Enter username..."
               value={searchUsername}
               onChange={(e) => setSearchUsername(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
             <Button onClick={handleSearch} disabled={!searchUsername.trim()}>
               Search
@@ -68,29 +68,27 @@ export function SocialDemo() {
             <div className="rounded-lg border p-4">
               <div className="flex items-center gap-4">
                 <Avatar className="size-12">
-                  <AvatarImage src={foundUser.avatar && oxyServices ? oxyServices.assets.publicUrl(foundUser.avatar, 'thumb') : undefined} />
-                  <AvatarFallback>
-                    {(foundUser.username || "?")[0].toUpperCase()}
-                  </AvatarFallback>
+                  <AvatarImage
+                    src={
+                      foundUser.avatar && oxyServices
+                        ? oxyServices.assets.publicUrl(foundUser.avatar, 'thumb')
+                        : undefined
+                    }
+                  />
+                  <AvatarFallback>{(foundUser.username || '?')[0].toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <p className="font-medium">{foundUser.username}</p>
                   <p className="text-sm text-muted-foreground">{foundUser.email}</p>
-                  {foundUser.bio && (
-                    <p className="mt-1 text-sm">{foundUser.bio}</p>
-                  )}
+                  {foundUser.bio && <p className="mt-1 text-sm">{foundUser.bio}</p>}
                 </div>
                 {targetUserId && (
                   <Button
-                    variant={follow.isFollowing ? "outline" : "default"}
+                    variant={follow.isFollowing ? 'outline' : 'default'}
                     onClick={follow.toggleFollow}
                     disabled={follow.isLoading}
                   >
-                    {follow.isLoading
-                      ? "..."
-                      : follow.isFollowing
-                        ? "Unfollow"
-                        : "Follow"}
+                    {follow.isLoading ? '...' : follow.isFollowing ? 'Unfollow' : 'Follow'}
                   </Button>
                 )}
               </div>
@@ -98,7 +96,9 @@ export function SocialDemo() {
           )}
 
           {targetUsername && !foundUser && !searching && (
-            <p className="text-sm text-muted-foreground">No user found with username "{targetUsername}"</p>
+            <p className="text-sm text-muted-foreground">
+              No user found with username "{targetUsername}"
+            </p>
           )}
         </CardContent>
       </Card>
@@ -114,13 +114,13 @@ export function SocialDemo() {
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-md border p-4 text-center">
                 <p className="text-2xl font-bold">
-                  {counts.isLoadingCounts ? "..." : counts.followerCount}
+                  {counts.isLoadingCounts ? '...' : counts.followerCount}
                 </p>
                 <p className="text-sm text-muted-foreground">Followers</p>
               </div>
               <div className="rounded-md border p-4 text-center">
                 <p className="text-2xl font-bold">
-                  {counts.isLoadingCounts ? "..." : counts.followingCount}
+                  {counts.isLoadingCounts ? '...' : counts.followingCount}
                 </p>
                 <p className="text-sm text-muted-foreground">Following</p>
               </div>
@@ -136,7 +136,7 @@ export function SocialDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useFollow, useFollowerCounts, useUserByUsername } from '@oxy.so/services';
+            {`import { useFollow, useFollowerCounts, useUserByUsername } from '@oxy.so/services';
 
 function Social() {
   const { data: user } = useUserByUsername('john');
@@ -150,5 +150,5 @@ function Social() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

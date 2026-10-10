@@ -40,9 +40,10 @@ export function PrivacySection({
       icon: 'account-cancel-outline',
       iconColor: colors.error,
       title: t('sharing.privacy.blocked'),
-      subtitle: blockedCount > 0
-        ? t('sharing.privacy.blockedCount', { count: blockedCount })
-        : t('sharing.privacy.blockedEmpty'),
+      subtitle:
+        blockedCount > 0
+          ? t('sharing.privacy.blockedCount', { count: blockedCount })
+          : t('sharing.privacy.blockedEmpty'),
       onPress: () => {
         showBottomSheet?.({ screen: 'PrivacySettings' });
       },
@@ -55,9 +56,10 @@ export function PrivacySection({
       icon: 'account-lock-outline',
       iconColor: colors.warning,
       title: t('sharing.privacy.restricted'),
-      subtitle: restrictedCount > 0
-        ? t('sharing.privacy.restrictedCount', { count: restrictedCount })
-        : t('sharing.privacy.restrictedEmpty'),
+      subtitle:
+        restrictedCount > 0
+          ? t('sharing.privacy.restrictedCount', { count: restrictedCount })
+          : t('sharing.privacy.restrictedEmpty'),
       onPress: () => {
         showBottomSheet?.({ screen: 'PrivacySettings' });
       },

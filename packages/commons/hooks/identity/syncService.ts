@@ -43,7 +43,7 @@ const attemptSignIn = async (
   isAlreadySynced: boolean,
   signIn: (publicKey: string) => Promise<User>,
   publicKey: string,
-  onSessionExpired?: () => Promise<void>
+  onSessionExpired?: () => Promise<void>,
 ): Promise<User | null> => {
   if (!isAlreadySynced) return null;
 
@@ -71,7 +71,7 @@ const attemptSignIn = async (
 const checkRegistration = async (
   oxyServices: OxyServices,
   publicKey: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<boolean | { error: unknown }> => {
   if (signal?.aborted) throw new Error('Sync aborted');
 
@@ -90,7 +90,7 @@ const registerIdentity = async (
   oxyServices: OxyServices,
   publicKey: string,
   username: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> => {
   if (signal?.aborted) throw new Error('Sync aborted');
 
@@ -117,7 +117,7 @@ const registerIdentity = async (
  * 5. Sign in
  */
 export const syncIdentityWithServer = async (
-  options: SyncServiceOptions
+  options: SyncServiceOptions,
 ): Promise<SyncServiceResult> => {
   const { oxyServices, signIn, isAlreadySynced, signal, onSessionExpired, username } = options;
 

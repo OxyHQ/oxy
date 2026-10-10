@@ -22,11 +22,11 @@ export function InferenceAvailabilityNotice({ className }: { className?: string 
       <p className="text-sm font-medium text-foreground">Not serving requests yet</p>
       <p className="text-xs text-muted-foreground mt-1">
         <code className="text-xs">POST /v1/responses</code> and{' '}
-        <code className="text-xs">POST /v1/chat/completions</code> accept your credential —
-        an <code className="text-xs">oxy_sk_…</code> machine key or a verified service token —
-        and then refuse with <code className="text-xs">service_unavailable</code>, because no
-        inference data plane is connected yet. The spend held for the request is released
-        before the refusal returns, so nothing is charged.
+        <code className="text-xs">POST /v1/chat/completions</code> accept your credential — an{' '}
+        <code className="text-xs">oxy_sk_…</code> machine key or a verified service token — and then
+        refuse with <code className="text-xs">service_unavailable</code>, because no inference data
+        plane is connected yet. The spend held for the request is released before the refusal
+        returns, so nothing is charged.
       </p>
       <p className="text-xs text-muted-foreground mt-2">
         The model catalogue is also empty, so a request naming a model is refused with{' '}

@@ -23,13 +23,16 @@ export function TransactionHistorySection({ transactions }: TransactionHistorySe
   const colors = useColors();
   const { t } = useTranslation();
 
-  const getTransactionTypeLabel = useCallback((type: string): string => {
-    const lower = type.toLowerCase();
-    const key = `payments.tx.${lower}`;
-    const translated = t(key);
-    if (translated !== key) return translated;
-    return type.charAt(0).toUpperCase() + type.slice(1);
-  }, [t]);
+  const getTransactionTypeLabel = useCallback(
+    (type: string): string => {
+      const lower = type.toLowerCase();
+      const key = `payments.tx.${lower}`;
+      const translated = t(key);
+      if (translated !== key) return translated;
+      return type.charAt(0).toUpperCase() + type.slice(1);
+    },
+    [t],
+  );
 
   const items = useMemo(() => {
     return transactions.map((tx, index) => {
@@ -45,10 +48,9 @@ export function TransactionHistorySection({ transactions }: TransactionHistorySe
         title: getTransactionTypeLabel(tx.type),
         subtitle: date,
         customContent: (
-          <Text style={[
-            styles.transactionAmount,
-            { color: isCredit ? colors.success : colors.text },
-          ]}>
+          <Text
+            style={[styles.transactionAmount, { color: isCredit ? colors.success : colors.text }]}
+          >
             {isCredit ? '+' : '-'} {amount}
           </Text>
         ),

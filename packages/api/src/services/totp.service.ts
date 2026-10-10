@@ -97,14 +97,23 @@ export function totpCodeAt(secretBase32: string, now: Date): string {
  * or null. Every candidate is compared, in constant time, whether or not an
  * earlier one matched.
  */
-export function matchTotpStep(secret: Buffer, code: string, now: Date, lastUsedStep: number | null): number | null {
+export function matchTotpStep(
+  secret: Buffer,
+  code: string,
+  now: Date,
+  lastUsedStep: number | null,
+): number | null {
   if (!/^\d+$/.test(code) || code.length !== TOTP_DIGITS) return null;
   const current = totpStep(now);
   const given = Buffer.from(code);
   let matched: number | null = null;
   for (const step of [current - 1, current, current + 1]) {
     const expected = Buffer.from(hotp(secret, step));
-    if (crypto.timingSafeEqual(expected, given) && (lastUsedStep === null || step > lastUsedStep) && matched === null) {
+    if (
+      crypto.timingSafeEqual(expected, given) &&
+      (lastUsedStep === null || step > lastUsedStep) &&
+      matched === null
+    ) {
       matched = step;
     }
   }
@@ -120,7 +129,10 @@ function normaliseBackupCode(code: string): string {
 }
 
 function hashBackupCode(userId: string, code: string): string {
-  return serverHmacHex(SERVER_KEY_LABELS.totpBackupCode, `totp-backup|${userId}|${normaliseBackupCode(code)}`);
+  return serverHmacHex(
+    SERVER_KEY_LABELS.totpBackupCode,
+    `totp-backup|${userId}|${normaliseBackupCode(code)}`,
+  );
 }
 
 /** Exactly six digits: an authenticator code. Anything else is tried as a backup code. */
@@ -152,8 +164,15 @@ export interface TotpState {
   backupCodesRemaining: number;
 }
 
-export async function readTotpState(userId: string, db: DatabaseOrTransaction = getDb()): Promise<TotpState> {
-  const [row] = await db.select({ enabledAt: userTotp.enabledAt }).from(userTotp).where(eq(userTotp.userId, userId)).limit(1);
+export async function readTotpState(
+  userId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<TotpState> {
+  const [row] = await db
+    .select({ enabledAt: userTotp.enabledAt })
+    .from(userTotp)
+    .where(eq(userTotp.userId, userId))
+    .limit(1);
   const enabled = Boolean(row?.enabledAt);
   let backupCodesRemaining = 0;
   if (enabled) {
@@ -166,7 +185,10 @@ export async function readTotpState(userId: string, db: DatabaseOrTransaction = 
   return { enabled, pending: Boolean(row) && !enabled, backupCodesRemaining };
 }
 
-export async function isTotpEnabled(userId: string, db: DatabaseOrTransaction = getDb()): Promise<boolean> {
+export async function isTotpEnabled(
+  userId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
   const [row] = await db
     .select({ userId: userTotp.userId })
     .from(userTotp)
@@ -176,7 +198,10 @@ export async function isTotpEnabled(userId: string, db: DatabaseOrTransaction = 
 }
 
 /** A new pending secret for `userId`, replacing any earlier pending one. Refused while one is on. */
-export async function enrollTotp(userId: string, accountLabel: string): Promise<TotpEnrollResponse> {
+export async function enrollTotp(
+  userId: string,
+  accountLabel: string,
+): Promise<TotpEnrollResponse> {
   const secretBytes = crypto.randomBytes(SECRET_BYTES);
   const secret = base32Encode(secretBytes);
   const sealed = sealSecret(secret, sealContext(userId));
@@ -191,7 +216,10 @@ export async function enrollTotp(userId: string, accountLabel: string): Promise<
     })
     .returning({ userId: userTotp.userId });
   if (written.length === 0) {
-    throw totpError(SIGN_IN_ERROR_CODES.totpAlreadyEnabled, 'An authenticator is already on for this account');
+    throw totpError(
+      SIGN_IN_ERROR_CODES.totpAlreadyEnabled,
+      'An authenticator is already on for this account',
+    );
   }
   const label = encodeURIComponent(`${ISSUER}:${accountLabel}`);
   const otpauthUri =
@@ -203,7 +231,9 @@ export async function enrollTotp(userId: string, accountLabel: string): Promise<
 async function replaceBackupCodes(tx: DatabaseOrTransaction, userId: string): Promise<string[]> {
   const codes = Array.from({ length: TOTP_BACKUP_CODE_COUNT }, newBackupCode);
   await tx.delete(userTotpBackupCodes).where(eq(userTotpBackupCodes.userId, userId));
-  await tx.insert(userTotpBackupCodes).values(codes.map((code) => ({ userId, codeHash: hashBackupCode(userId, code) })));
+  await tx
+    .insert(userTotpBackupCodes)
+    .values(codes.map((code) => ({ userId, codeHash: hashBackupCode(userId, code) })));
   return codes;
 }
 
@@ -211,7 +241,11 @@ async function replaceBackupCodes(tx: DatabaseOrTransaction, userId: string): Pr
  * Turn the pending authenticator on with its first code. Returns the backup
  * codes, shown once.
  */
-export async function confirmTotp(userId: string, code: string, now: Date = new Date()): Promise<string[]> {
+export async function confirmTotp(
+  userId: string,
+  code: string,
+  now: Date = new Date(),
+): Promise<string[]> {
   const outcome = await getDb().transaction(async (tx) => {
     const [row] = await tx
       .select({ secretCiphertext: userTotp.secretCiphertext, enabledAt: userTotp.enabledAt })
@@ -219,14 +253,36 @@ export async function confirmTotp(userId: string, code: string, now: Date = new 
       .where(eq(userTotp.userId, userId))
       .for('update')
       .limit(1);
-    if (!row) return { error: totpError(SIGN_IN_ERROR_CODES.totpNotEnabled, 'Start setting up the authenticator first', 400) };
-    if (row.enabledAt) return { error: totpError(SIGN_IN_ERROR_CODES.totpAlreadyEnabled, 'An authenticator is already on for this account') };
+    if (!row)
+      return {
+        error: totpError(
+          SIGN_IN_ERROR_CODES.totpNotEnabled,
+          'Start setting up the authenticator first',
+          400,
+        ),
+      };
+    if (row.enabledAt)
+      return {
+        error: totpError(
+          SIGN_IN_ERROR_CODES.totpAlreadyEnabled,
+          'An authenticator is already on for this account',
+        ),
+      };
     const secret = base32Decode(openSecret(row.secretCiphertext, sealContext(userId)));
     const step = matchTotpStep(secret, code, now, null);
     if (step === null) {
-      return { error: totpError(SIGN_IN_ERROR_CODES.totpCodeInvalid, 'That code is not right. Check the time on your phone and try again.', 400) };
+      return {
+        error: totpError(
+          SIGN_IN_ERROR_CODES.totpCodeInvalid,
+          'That code is not right. Check the time on your phone and try again.',
+          400,
+        ),
+      };
     }
-    await tx.update(userTotp).set({ enabledAt: now, lastUsedStep: step, updatedAt: now }).where(eq(userTotp.userId, userId));
+    await tx
+      .update(userTotp)
+      .set({ enabledAt: now, lastUsedStep: step, updatedAt: now })
+      .where(eq(userTotp.userId, userId));
     return { codes: await replaceBackupCodes(tx, userId) };
   });
   if ('error' in outcome) throw outcome.error;
@@ -303,7 +359,12 @@ async function spendSecondFactorCode(userId: string, code: string, now: Date): P
 }
 
 function lockedOut(retryAfterSeconds?: number): ApiError {
-  return new ApiError(429, 'Too many wrong codes. Try again later.', SIGN_IN_ERROR_CODES.locked, retryAfterSeconds ? { retryAfterSeconds } : undefined);
+  return new ApiError(
+    429,
+    'Too many wrong codes. Try again later.',
+    SIGN_IN_ERROR_CODES.locked,
+    retryAfterSeconds ? { retryAfterSeconds } : undefined,
+  );
 }
 
 /**
@@ -311,7 +372,11 @@ function lockedOut(retryAfterSeconds?: number): ApiError {
  * the lockout error when locked; otherwise answers whether the code was right
  * (and spent).
  */
-export async function verifySecondFactor(userId: string, code: string, now: Date = new Date()): Promise<boolean> {
+export async function verifySecondFactor(
+  userId: string,
+  code: string,
+  now: Date = new Date(),
+): Promise<boolean> {
   // Reserved BEFORE the check: concurrent guesses share one budget.
   const reservation = await reserveAttempt({ scope: TOTP_LOCKOUT_SCOPE, identifier: userId });
   if (reservation.locked) throw lockedOut(reservation.retryAfterSeconds);

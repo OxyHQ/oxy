@@ -371,9 +371,7 @@ function ScreenshotsSection({ appId, canEdit }: ScreenshotsSectionProps) {
     <section className="space-y-4 border-t border-border pt-8">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Screenshots</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Shown on the store page in this order.
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">Shown on the store page in this order.</p>
       </div>
 
       {isLoading ? (

@@ -189,10 +189,7 @@ describe('planMigrationRun', () => {
     // not a thrown error — asserted here because the brief's own draft of
     // this test called it with a two-argument signature and expected a
     // throw, and the real function takes three arguments and returns.
-    const stranded = [
-      { tag: '0009_drop_column' },
-      { tag: '0010_add_column' },
-    ];
+    const stranded = [{ tag: '0009_drop_column' }, { tag: '0010_add_column' }];
     const strandedPhases = new Map<string, 'pre' | 'post'>([
       ['0009_drop_column', 'post'],
       ['0010_add_column', 'pre'],

@@ -1,7 +1,4 @@
-import {
-  describeReputationAction,
-  formatPointsDelta,
-} from '@/lib/civic/reputation-activity';
+import { describeReputationAction, formatPointsDelta } from '@/lib/civic/reputation-activity';
 
 describe('describeReputationAction', () => {
   it('maps a known civic action to its icon, label, and signed provenance', () => {
@@ -17,13 +14,21 @@ describe('describeReputationAction', () => {
 
   it('flags a real-life attestation as signed and positive', () => {
     expect(
-      describeReputationAction({ actionType: 'real_life_attested', category: 'physical', points: 25 }),
+      describeReputationAction({
+        actionType: 'real_life_attested',
+        category: 'physical',
+        points: 25,
+      }),
     ).toMatchObject({ labelKey: 'realLife', signed: true, positive: true });
   });
 
   it('flags a penalising civic action as not positive but still signed', () => {
     expect(
-      describeReputationAction({ actionType: 'validation_incorrect', category: 'moderation', points: -10 }),
+      describeReputationAction({
+        actionType: 'validation_incorrect',
+        category: 'moderation',
+        points: -10,
+      }),
     ).toMatchObject({ labelKey: 'validationIncorrect', signed: true, positive: false });
   });
 

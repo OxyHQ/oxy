@@ -40,8 +40,7 @@ const PRODUCTION_SERVICE = 'oxy-api';
 const PRODUCTION_SERVICE_CONTAINER = 'oxy-api';
 const PRODUCTION_SERVICE_TASK_FAMILY = 'oxy-oxy-api';
 const PRODUCTION_BOOTSTRAP_TASK_FAMILY = 'oxy-kaana-catalogue-bootstrap';
-const PRODUCTION_IMAGE_PREFIX =
-  '237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:';
+const PRODUCTION_IMAGE_PREFIX = '237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:';
 const ROLLOUT_CONFIRM_DELAY_MS = 5_000;
 const ECS_DESCRIBE_TASKS_BATCH_SIZE = 100;
 export const PLATFORM_SCOPE_ROLLOUT_ATTESTATION_MAX_AGE_MS = 10 * 60_000;
@@ -112,13 +111,19 @@ function requiredEnvironment(env: Environment, key: string): string {
   return exactString(env[key], key);
 }
 
-function parseTaskDefinitionArn(value: string, label: string): {
+function parseTaskDefinitionArn(
+  value: string,
+  label: string,
+): {
   readonly partition: string;
   readonly region: string;
   readonly accountId: string;
   readonly family: string;
 } {
-  const match = /^arn:([^:]+):ecs:([^:]+):(\d{12}):task-definition\/([A-Za-z0-9_-]{1,255}):[1-9][0-9]*$/.exec(value);
+  const match =
+    /^arn:([^:]+):ecs:([^:]+):(\d{12}):task-definition\/([A-Za-z0-9_-]{1,255}):[1-9][0-9]*$/.exec(
+      value,
+    );
   if (match === null) throw new Error(`${label} is invalid`);
   const [, partition, region, accountId, family] = match;
   return { partition, region, accountId, family };
@@ -151,12 +156,15 @@ function parseTaskMetadata(value: unknown): ParsedTaskMetadata {
     throw new Error('ECS task metadata Containers must be an array');
   }
   const containers = metadata.Containers.map((container, index) =>
-    objectOf(container, `ECS task metadata Containers[${index}]`));
+    objectOf(container, `ECS task metadata Containers[${index}]`),
+  );
   const matchingContainers = containers.filter(
     (container) => container.Name === BOOTSTRAP_CONTAINER_NAME,
   );
   if (matchingContainers.length !== 1) {
-    throw new Error(`ECS task metadata must contain exactly one ${BOOTSTRAP_CONTAINER_NAME} container`);
+    throw new Error(
+      `ECS task metadata must contain exactly one ${BOOTSTRAP_CONTAINER_NAME} container`,
+    );
   }
   const image = exactString(
     matchingContainers[0].Image,
@@ -265,12 +273,9 @@ async function captureLiveServiceSnapshot(
   }
 
   const deployments = arrayOf(service.deployments, 'ECS production service.deployments').map(
-    (deployment, index) =>
-      objectOf(deployment, `ECS production service.deployments[${index}]`),
+    (deployment, index) => objectOf(deployment, `ECS production service.deployments[${index}]`),
   );
-  const primaryDeployments = deployments.filter(
-    (deployment) => deployment.status === 'PRIMARY',
-  );
+  const primaryDeployments = deployments.filter((deployment) => deployment.status === 'PRIMARY');
   if (primaryDeployments.length !== 1) {
     throw new Error('The production service must have exactly one PRIMARY deployment');
   }
@@ -443,14 +448,18 @@ export async function assertPlatformScopeWriteRolloutComplete(
   const expectedService = requiredEnvironment(env, KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_ENV);
 
   if (expectedCluster !== PRODUCTION_CLUSTER) {
-    throw new Error(`${KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER_ENV} must identify the exact production cluster`);
+    throw new Error(
+      `${KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER_ENV} must identify the exact production cluster`,
+    );
   }
   if (expectedService !== PRODUCTION_SERVICE) {
-    throw new Error(`${KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_ENV} must identify the exact production service`);
+    throw new Error(
+      `${KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_ENV} must identify the exact production service`,
+    );
   }
   if (
-    !expectedImage.startsWith(PRODUCTION_IMAGE_PREFIX)
-    || !/^[a-f0-9]{64}$/.test(expectedImage.slice(PRODUCTION_IMAGE_PREFIX.length))
+    !expectedImage.startsWith(PRODUCTION_IMAGE_PREFIX) ||
+    !/^[a-f0-9]{64}$/.test(expectedImage.slice(PRODUCTION_IMAGE_PREFIX.length))
   ) {
     throw new Error(`${KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE_ENV} must be an immutable image URI`);
   }
@@ -463,18 +472,18 @@ export async function assertPlatformScopeWriteRolloutComplete(
     KAANA_CATALOGUE_PLATFORM_SCOPE_BOOTSTRAP_TASK_DEFINITION_ENV,
   );
   if (
-    serviceArn.partition !== PRODUCTION_PARTITION
-    || serviceArn.region !== PRODUCTION_REGION
-    || serviceArn.accountId !== PRODUCTION_ACCOUNT_ID
-    || serviceArn.family !== PRODUCTION_SERVICE_TASK_FAMILY
+    serviceArn.partition !== PRODUCTION_PARTITION ||
+    serviceArn.region !== PRODUCTION_REGION ||
+    serviceArn.accountId !== PRODUCTION_ACCOUNT_ID ||
+    serviceArn.family !== PRODUCTION_SERVICE_TASK_FAMILY
   ) {
     throw new Error('Service task definition must identify the exact production service family');
   }
   if (
-    bootstrapArn.partition !== PRODUCTION_PARTITION
-    || bootstrapArn.region !== PRODUCTION_REGION
-    || bootstrapArn.accountId !== PRODUCTION_ACCOUNT_ID
-    || bootstrapArn.family !== PRODUCTION_BOOTSTRAP_TASK_FAMILY
+    bootstrapArn.partition !== PRODUCTION_PARTITION ||
+    bootstrapArn.region !== PRODUCTION_REGION ||
+    bootstrapArn.accountId !== PRODUCTION_ACCOUNT_ID ||
+    bootstrapArn.family !== PRODUCTION_BOOTSTRAP_TASK_FAMILY
   ) {
     throw new Error('Bootstrap task definition must identify the exact production one-shot family');
   }
@@ -484,7 +493,9 @@ export async function assertPlatformScopeWriteRolloutComplete(
 
   const attestedAtMs = Date.parse(attestedAt);
   if (!Number.isFinite(attestedAtMs) || new Date(attestedAtMs).toISOString() !== attestedAt) {
-    throw new Error(`${KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT_ENV} must be an exact ISO timestamp`);
+    throw new Error(
+      `${KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT_ENV} must be an exact ISO timestamp`,
+    );
   }
   const assertFreshWorkflowAttestation = () => {
     const attestationAge = now() - attestedAtMs;
@@ -503,10 +514,10 @@ export async function assertPlatformScopeWriteRolloutComplete(
   }
   const metadataUrl = new URL(metadataUri);
   if (
-    metadataUrl.origin !== ECS_TASK_METADATA_ORIGIN
-    || !metadataUrl.pathname.startsWith('/v4/')
-    || metadataUrl.username.length > 0
-    || metadataUrl.password.length > 0
+    metadataUrl.origin !== ECS_TASK_METADATA_ORIGIN ||
+    !metadataUrl.pathname.startsWith('/v4/') ||
+    metadataUrl.username.length > 0 ||
+    metadataUrl.password.length > 0
   ) {
     throw new Error('ECS_CONTAINER_METADATA_URI_V4 must be the local ECS v4 metadata endpoint');
   }
@@ -528,12 +539,14 @@ export async function assertPlatformScopeWriteRolloutComplete(
     );
   }
   if (expectedCluster !== executing.cluster) {
-    throw new Error(`${KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER_ENV} does not match the bootstrap task cluster`);
+    throw new Error(
+      `${KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER_ENV} does not match the bootstrap task cluster`,
+    );
   }
   if (
-    executing.partition !== PRODUCTION_PARTITION
-    || executing.region !== PRODUCTION_REGION
-    || executing.accountId !== PRODUCTION_ACCOUNT_ID
+    executing.partition !== PRODUCTION_PARTITION ||
+    executing.region !== PRODUCTION_REGION ||
+    executing.accountId !== PRODUCTION_ACCOUNT_ID
   ) {
     throw new Error('ECS task metadata does not match the attested ECS authority');
   }

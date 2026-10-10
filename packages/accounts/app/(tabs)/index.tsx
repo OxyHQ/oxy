@@ -6,7 +6,12 @@ import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { AccountCard } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
-import { useOxy, useUserDevices, useRecentSecurityActivity, useCurrentUser } from '@oxy.so/services';
+import {
+  useOxy,
+  useUserDevices,
+  useRecentSecurityActivity,
+  useCurrentUser,
+} from '@oxy.so/services';
 import { formatDate } from '@/utils/date-utils';
 import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';
@@ -71,12 +76,7 @@ export default function HomeScreen() {
   const handlePressIn = useHapticPress();
 
   const handlers = useHomeHandlers();
-  const {
-    handleAvatarPress,
-    handleDevices,
-    handleMenu,
-    handleSearch,
-  } = handlers;
+  const { handleAvatarPress, handleDevices, handleMenu, handleSearch } = handlers;
 
   const handleReload = useCallback(async () => {
     if (!refreshSessions) return;
@@ -142,57 +142,72 @@ export default function HomeScreen() {
     handleCreateManagedAccount: handlers.handleCreateManagedAccount,
   });
 
-  const content = useMemo(() => (
-    <>
-      {/* Recommendations Section */}
-      {recommendations.length > 0 && (
-        <Section title={t('home.sections.recommendations')} isFirst>
+  const content = useMemo(
+    () => (
+      <>
+        {/* Recommendations Section */}
+        {recommendations.length > 0 && (
+          <Section title={t('home.sections.recommendations')} isFirst>
+            <AccountCard>
+              <GroupedSection items={recommendations} />
+            </AccountCard>
+          </Section>
+        )}
+
+        {/* Quick Actions - Horizontal Scroll */}
+        <Section title={t('home.sections.quickActions')} isFirst={recommendations.length === 0}>
+          <QuickActionsSection actions={quickActions} onPressIn={handlePressIn} />
+        </Section>
+
+        {/* Account Info - Grid Layout */}
+        <Section title={t('home.sections.accountInfo')}>
+          <AccountInfoGrid cards={accountCards} onPressIn={handlePressIn} />
+        </Section>
+
+        {/* Recent Activity - Horizontal Scroll */}
+        {recentActivityItems.length > 0 && recentActivityItems[0].id !== 'no-activity' && (
+          <Section title={t('home.sections.recentActivity')}>
+            <RecentActivitySection items={recentActivityItems} onPressIn={handlePressIn} />
+          </Section>
+        )}
+
+        {/* Quick Stats - Grid Layout */}
+        <Section title={t('home.sections.overview')}>
+          <AccountInfoGrid cards={quickStatsCards} onPressIn={handlePressIn} />
+        </Section>
+
+        {/* Managed Accounts Section */}
+        <Section title={t('home.sections.yourIdentities')}>
+          <ThemedText style={styles.subtitle}>
+            {t('home.sections.yourIdentitiesSubtitle')}
+          </ThemedText>
           <AccountCard>
-            <GroupedSection items={recommendations} />
+            <GroupedSection items={managedAccountItems} />
           </AccountCard>
         </Section>
-      )}
 
-      {/* Quick Actions - Horizontal Scroll */}
-      <Section title={t('home.sections.quickActions')} isFirst={recommendations.length === 0}>
-        <QuickActionsSection actions={quickActions} onPressIn={handlePressIn} />
-      </Section>
-
-      {/* Account Info - Grid Layout */}
-      <Section title={t('home.sections.accountInfo')}>
-        <AccountInfoGrid cards={accountCards} onPressIn={handlePressIn} />
-      </Section>
-
-      {/* Recent Activity - Horizontal Scroll */}
-      {recentActivityItems.length > 0 && recentActivityItems[0].id !== 'no-activity' && (
-        <Section title={t('home.sections.recentActivity')}>
-          <RecentActivitySection items={recentActivityItems} onPressIn={handlePressIn} />
-        </Section>
-      )}
-
-      {/* Quick Stats - Grid Layout */}
-      <Section title={t('home.sections.overview')}>
-        <AccountInfoGrid cards={quickStatsCards} onPressIn={handlePressIn} />
-      </Section>
-
-      {/* Managed Accounts Section */}
-      <Section title={t('home.sections.yourIdentities')}>
-        <ThemedText style={styles.subtitle}>{t('home.sections.yourIdentitiesSubtitle')}</ThemedText>
-        <AccountCard>
-          <GroupedSection items={managedAccountItems} />
-        </AccountCard>
-      </Section>
-
-      {/* Security Overview - Card Layout */}
-      {securityOverviewItems.length > 0 && (
-        <Section title={t('home.sections.security')}>
-          <AccountCard>
-            <GroupedSection items={securityOverviewItems} />
-          </AccountCard>
-        </Section>
-      )}
-    </>
-  ), [quickActions, accountCards, recentActivityItems, quickStatsCards, securityOverviewItems, managedAccountItems, handlePressIn, recommendations, t]);
+        {/* Security Overview - Card Layout */}
+        {securityOverviewItems.length > 0 && (
+          <Section title={t('home.sections.security')}>
+            <AccountCard>
+              <GroupedSection items={securityOverviewItems} />
+            </AccountCard>
+          </Section>
+        )}
+      </>
+    ),
+    [
+      quickActions,
+      accountCards,
+      recentActivityItems,
+      quickStatsCards,
+      securityOverviewItems,
+      managedAccountItems,
+      handlePressIn,
+      recommendations,
+      t,
+    ],
+  );
 
   // Show loading state while OxyServices is initializing. Auth itself is
   // enforced by the `(tabs)` layout — by the time this screen mounts the
@@ -200,9 +215,17 @@ export default function HomeScreen() {
   if (oxyLoading) {
     return (
       <ScreenContentWrapper>
-        <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.container,
+            styles.loadingContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</ThemedText>
+          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+            {t('common.loadingShort')}
+          </ThemedText>
         </View>
       </ScreenContentWrapper>
     );

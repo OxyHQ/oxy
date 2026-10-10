@@ -56,7 +56,12 @@ interface SecureStoreTestHandle {
   __resetStore__: () => void;
   __getRaw__: (key: string, service?: string) => string | null;
   __simulateKeystoreDeath__: (service: string) => void;
-  __failPlan__: { failKey?: string; failOp?: 'set' | 'get'; failTimes?: number; failService?: string };
+  __failPlan__: {
+    failKey?: string;
+    failOp?: 'set' | 'get';
+    failTimes?: number;
+    failService?: string;
+  };
 }
 
 describe('KeyManager recovery mnemonic storage', () => {
@@ -114,7 +119,9 @@ describe('KeyManager recovery mnemonic storage', () => {
     ss.__failPlan__.failOp = 'set';
     ss.__failPlan__.failKey = MNEMONIC_KEY;
     ss.__failPlan__.failService = MNEMONIC_SVC;
-    await expect(KeyManager.storeRecoveryMnemonic(PHRASE)).rejects.toBeInstanceOf(IdentityUnavailableError);
+    await expect(KeyManager.storeRecoveryMnemonic(PHRASE)).rejects.toBeInstanceOf(
+      IdentityUnavailableError,
+    );
   });
 
   it('deleteRecoveryMnemonic removes the stored phrase', async () => {

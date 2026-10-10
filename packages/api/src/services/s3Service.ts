@@ -1,4 +1,12 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command, CopyObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+  CopyObjectCommand,
+  HeadObjectCommand,
+} from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createReadStream, createWriteStream } from 'fs';
@@ -52,7 +60,8 @@ export class S3Service {
     // Add a custom endpoint for non-AWS S3-compatible services.
     if (config.endpointUrl) {
       clientConfig.endpoint = config.endpointUrl;
-      clientConfig.forcePathStyle = config.endpointUrl.includes('localhost') || config.endpointUrl.includes('127.0.0.1');
+      clientConfig.forcePathStyle =
+        config.endpointUrl.includes('localhost') || config.endpointUrl.includes('127.0.0.1');
       clientConfig.useAccelerateEndpoint = false;
       clientConfig.useArnRegion = false;
     }
@@ -75,7 +84,7 @@ export class S3Service {
   async uploadFile(
     key: string,
     filePath: string | Buffer,
-    options: UploadOptions = {}
+    options: UploadOptions = {},
   ): Promise<FileInfo> {
     try {
       let body: Buffer | Readable;
@@ -121,11 +130,7 @@ export class S3Service {
   /**
    * Upload file from buffer
    */
-  async uploadBuffer(
-    key: string,
-    buffer: Buffer,
-    options: UploadOptions = {}
-  ): Promise<FileInfo> {
+  async uploadBuffer(key: string, buffer: Buffer, options: UploadOptions = {}): Promise<FileInfo> {
     try {
       const contentType = options.contentType || 'application/octet-stream';
       const { finalKey, metadata, acl, cacheControl } = this.prepareObjectOptions(key, options);
@@ -164,11 +169,7 @@ export class S3Service {
    * Used by the federation media-cache path where backend services stream
    * remote media straight through to S3.
    */
-  async uploadStream(
-    key: string,
-    body: Readable,
-    options: UploadOptions = {}
-  ): Promise<FileInfo> {
+  async uploadStream(key: string, body: Readable, options: UploadOptions = {}): Promise<FileInfo> {
     const contentType = options.contentType || 'application/octet-stream';
     const { finalKey, metadata, acl, cacheControl } = this.prepareObjectOptions(key, options);
 
@@ -193,14 +194,18 @@ export class S3Service {
         if (abortSignal.aborted) {
           await upload.abort();
         } else {
-          abortSignal.addEventListener('abort', () => {
-            upload.abort().catch((abortError) => {
-              logger.warn('Failed to abort in-flight S3 upload', {
-                key: finalKey,
-                error: abortError instanceof Error ? abortError.message : String(abortError),
+          abortSignal.addEventListener(
+            'abort',
+            () => {
+              upload.abort().catch((abortError) => {
+                logger.warn('Failed to abort in-flight S3 upload', {
+                  key: finalKey,
+                  error: abortError instanceof Error ? abortError.message : String(abortError),
+                });
               });
-            });
-          }, { once: true });
+            },
+            { once: true },
+          );
         }
       }
 
@@ -230,7 +235,7 @@ export class S3Service {
       });
 
       const response = await this.s3Client.send(command);
-      
+
       if (!response.Body) {
         throw new Error('File not found or empty');
       }
@@ -255,14 +260,14 @@ export class S3Service {
       });
 
       const response = await this.s3Client.send(command);
-      
+
       if (!response.Body) {
         throw new Error('File not found or empty');
       }
 
       const chunks: Uint8Array[] = [];
       const reader = response.Body.transformToWebStream().getReader();
-      
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -283,7 +288,7 @@ export class S3Service {
    */
   async getObjectStreamRange(
     key: string,
-    range?: string
+    range?: string,
   ): Promise<{
     body: NodeJS.ReadableStream;
     contentType?: string;
@@ -308,9 +313,10 @@ export class S3Service {
       pipe?: unknown;
       transformToWebStream?: () => NodeJS.ReadableStream;
     };
-    const body: NodeJS.ReadableStream = typeof responseBody.pipe === 'function'
-      ? (response.Body as unknown as NodeJS.ReadableStream)
-      : (responseBody.transformToWebStream as () => NodeJS.ReadableStream)();
+    const body: NodeJS.ReadableStream =
+      typeof responseBody.pipe === 'function'
+        ? (response.Body as unknown as NodeJS.ReadableStream)
+        : (responseBody.transformToWebStream as () => NodeJS.ReadableStream)();
 
     return {
       body,
@@ -347,10 +353,7 @@ export class S3Service {
   /**
    * Generate a presigned URL for file upload
    */
-  async getPresignedUploadUrl(
-    key: string,
-    options: PresignedUrlOptions = {}
-  ): Promise<string> {
+  async getPresignedUploadUrl(key: string, options: PresignedUrlOptions = {}): Promise<string> {
     try {
       const {
         expiresIn = 3600,
@@ -383,7 +386,8 @@ export class S3Service {
         Metadata: Object.keys(sanitizedMetadata).length > 0 ? sanitizedMetadata : undefined,
       });
 
-      return getSignedUrl(this.s3Client, command, { expiresIn,
+      return getSignedUrl(this.s3Client, command, {
+        expiresIn,
         signableHeaders: new Set(['content-length', 'if-none-match']),
       });
     } catch (error) {
@@ -394,10 +398,7 @@ export class S3Service {
   /**
    * Generate a presigned URL for file download
    */
-  async getPresignedDownloadUrl(
-    key: string,
-    expiresIn = 3600
-  ): Promise<string> {
+  async getPresignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
@@ -422,7 +423,7 @@ export class S3Service {
       });
 
       const response = await this.s3Client.send(command);
-      
+
       if (!response.Contents) {
         return [];
       }
@@ -502,7 +503,7 @@ export class S3Service {
       });
 
       const response = await this.s3Client.send(command);
-      
+
       return {
         key,
         size: Number.parseInt(response.ContentLength?.toString() || '0'),
@@ -552,12 +553,12 @@ export class S3Service {
    * Upload multiple files
    */
   async uploadMultipleFiles(
-    files: Array<{ key: string; filePath: string | Buffer; options?: UploadOptions }>
+    files: Array<{ key: string; filePath: string | Buffer; options?: UploadOptions }>,
   ): Promise<FileInfo[]> {
     const uploadPromises = files.map(({ key, filePath, options }) =>
-      typeof filePath === 'string' 
+      typeof filePath === 'string'
         ? this.uploadFile(key, filePath, options)
-        : this.uploadBuffer(key, filePath, options)
+        : this.uploadBuffer(key, filePath, options),
     );
 
     return Promise.all(uploadPromises);
@@ -567,7 +568,7 @@ export class S3Service {
    * Delete multiple files
    */
   async deleteMultipleFiles(keys: string[]): Promise<void> {
-    const deletePromises = keys.map(key => this.deleteFile(key));
+    const deletePromises = keys.map((key) => this.deleteFile(key));
     await Promise.all(deletePromises);
   }
 
@@ -579,7 +580,7 @@ export class S3Service {
     const baseName = path.basename(originalName, extension);
     const uniqueId = uuidv4();
     const key = `${baseName}-${uniqueId}${extension}`;
-    
+
     return folder ? `${folder}/${key}` : key;
   }
 
@@ -658,7 +659,7 @@ export class S3Service {
     return {
       finalKey: this.buildFinalKey(key, options.folder),
       metadata: this.sanitizeMetadata(options.metadata),
-      acl: options.publicRead ? 'public-read' as const : 'private' as const,
+      acl: options.publicRead ? ('public-read' as const) : ('private' as const),
       cacheControl: options.cacheControl,
     };
   }
@@ -688,4 +689,4 @@ export function createS3Service(
   return new S3Service(config, deletedObjectListener);
 }
 
-// No additional type exports needed - interfaces are already exported 
+// No additional type exports needed - interfaces are already exported

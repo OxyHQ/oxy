@@ -113,7 +113,7 @@ async function dispatch(
       const response = await fetch(EXPO_PUSH_URL, {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Accept-Encoding': 'gzip, deflate',
           'Content-Type': 'application/json',
         },
@@ -128,7 +128,7 @@ async function dispatch(
         continue;
       }
 
-      const payload = await response.json() as { data: ExpoPushTicket[] };
+      const payload = (await response.json()) as { data: ExpoPushTicket[] };
 
       if (payload.data) {
         for (let i = 0; i < payload.data.length; i++) {
@@ -185,7 +185,11 @@ async function sendPushNotification(params: {
       .from(pushTokens)
       .where(eq(pushTokens.userId, userId));
 
-    return await dispatch(userId, tokens.map((t) => t.token), { title, body, channelId, data });
+    return await dispatch(
+      userId,
+      tokens.map((t) => t.token),
+      { title, body, channelId, data },
+    );
   } catch (err) {
     logger.warn('Failed to send push notification', {
       userId,

@@ -129,7 +129,6 @@ async function seedPriceVersion(): Promise<string> {
   return version.id;
 }
 
-
 describe('a plan allowance and a balance are different things', () => {
   it('reports allowances as integers and money as exact decimals, with nothing that is both', async () => {
     const accountId = await seedAccount();
@@ -159,7 +158,7 @@ describe('a plan allowance and a balance are different things', () => {
     const entitlement = resolved.entitlement;
 
     const purchased = entitlement.allowances.find(
-      (allowance) => allowance.key === ALLOWANCE_KEYS.purchased
+      (allowance) => allowance.key === ALLOWANCE_KEYS.purchased,
     );
     expect(purchased?.included).toBe(1200);
     expect(Number.isInteger(purchased?.included)).toBe(true);
@@ -172,9 +171,7 @@ describe('a plan allowance and a balance are different things', () => {
 
     // Structural: the contract is strict and declares no combined figure, so a
     // serializer that started summing credits and money would fail HERE.
-    expect(() =>
-      productEntitlementSchema.parse({ ...entitlement, totalCredits: 1230 })
-    ).toThrow();
+    expect(() => productEntitlementSchema.parse({ ...entitlement, totalCredits: 1230 })).toThrow();
   });
 
   it('reports payAsYouGo as null for an unprovisioned account, not as zero', async () => {
@@ -254,7 +251,7 @@ describe('a cost centre is an account, resolved nearest-first', () => {
     await registerCostCenter({ accountId: firstId, slug, label: 'First' });
 
     await expect(
-      registerCostCenter({ accountId: secondId, slug, label: 'Second' })
+      registerCostCenter({ accountId: secondId, slug, label: 'Second' }),
     ).resolves.toMatchObject({ status: 'slug-taken' });
   });
 

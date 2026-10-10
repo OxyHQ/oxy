@@ -35,18 +35,25 @@ export function identityLinks(value: unknown): string[] {
 
 /** Qualify only standalone mentions, preserving email addresses and URL paths. */
 export function normalizeExternalBio(bio: string, domain: string, transportDomain: string): string {
-  return bio.replace(/(^|[\s([{>.,!?;:])@([a-z0-9_](?:[a-z0-9_.-]*[a-z0-9_])?)(?:@([a-z0-9.-]+\.[a-z]{2,}))?/gi,
+  return bio.replace(
+    /(^|[\s([{>.,!?;:])@([a-z0-9_](?:[a-z0-9_.-]*[a-z0-9_])?)(?:@([a-z0-9.-]+\.[a-z]{2,}))?/gi,
     (whole, prefix: string, handle: string, host: string | undefined) => {
-      if (host && canonicalFederationHost(host) !== canonicalFederationHost(transportDomain)) return whole;
+      if (host && canonicalFederationHost(host) !== canonicalFederationHost(transportDomain))
+        return whole;
       return `${prefix}@${handle}@${domain}`;
-    });
+    },
+  );
 }
 
 /**
  * Reviewed bridge assertions are per actor. A host entry alone never permits
  * substituting its preferredUsername for an upstream identity.
  */
-export function deriveExternalActorProfile(actor: Record<string, unknown>, actorUri: string, _transportAcct?: string): ExternalActorProfile | null {
+export function deriveExternalActorProfile(
+  actor: Record<string, unknown>,
+  actorUri: string,
+  _transportAcct?: string,
+): ExternalActorProfile | null {
   if (actor.id !== actorUri || typeof actor.preferredUsername !== 'string') return null;
   const actorUrl = new URL(actorUri);
   if (actorUrl.protocol !== 'https:' || actorUrl.username || actorUrl.password) return null;
@@ -56,10 +63,18 @@ export function deriveExternalActorProfile(actor: Record<string, unknown>, actor
   // Transport hints are routing hints, never identity assertions. Even a hint
   // on the correct host cannot rename Bob's actor to Alice.
   const transport = `${local}@${host}`;
-  const fields = Array.isArray(actor.attachment) ? actor.attachment.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object') : [];
+  const fields = Array.isArray(actor.attachment)
+    ? actor.attachment.filter(
+        (entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object',
+      )
+    : [];
   const links = fields.flatMap((field) => identityLinks(field.value));
-  const aliases = Array.isArray(actor.alsoKnownAs) ? actor.alsoKnownAs.filter((value): value is string => typeof value === 'string') : [];
-  const bio = sanitizePlainText(typeof actor.summary === 'string' ? actor.summary.replace(/<br\s*\/?\s*>|<\/p>/gi, '\n') : '');
+  const aliases = Array.isArray(actor.alsoKnownAs)
+    ? actor.alsoKnownAs.filter((value): value is string => typeof value === 'string')
+    : [];
+  const bio = sanitizePlainText(
+    typeof actor.summary === 'string' ? actor.summary.replace(/<br\s*\/?\s*>|<\/p>/gi, '\n') : '',
+  );
   let domain = host === 'threads.com' ? 'threads.net' : host;
   let username = `${local}@${domain}`;
   let normalizedBio = bio;
@@ -67,16 +82,27 @@ export function deriveExternalActorProfile(actor: Record<string, unknown>, actor
   // Native WebFinger can name a handle-shaped AP URI (for example mosseri).
   // The whole actor URI is the source ID; its path is never a username proof.
   // Meta equivalence still requires exact WebFinger/actor and first-party bindings.
-  if (['threads.net', 'threads.com'].includes(host) && !actorUrl.search && !actorUrl.hash && !actorUrl.port
-    && /^\/ap\/users\/(?:[0-9]+|[a-zA-Z0-9_][a-zA-Z0-9._]{0,63})\/?$/.test(actorUrl.pathname)) {
+  if (
+    ['threads.net', 'threads.com'].includes(host) &&
+    !actorUrl.search &&
+    !actorUrl.hash &&
+    !actorUrl.port &&
+    /^\/ap\/users\/(?:[0-9]+|[a-zA-Z0-9_][a-zA-Z0-9._]{0,63})\/?$/.test(actorUrl.pathname)
+  ) {
     stableId = actorUri;
   }
   const candidate = {
-    host, acct: transport, preferredUsername: actor.preferredUsername, actorUri,
-    actorType: typeof actor.type === 'string' ? actor.type : '', alsoKnownAs: aliases,
-    fields: fields.filter(field => typeof field.name === 'string' && typeof field.value === 'string')
-      .map(field => ({ name: field.name as string, value: field.value as string })),
-    proxyOf: readProxyDeclarations(actor.proxyOf), bio,
+    host,
+    acct: transport,
+    preferredUsername: actor.preferredUsername,
+    actorUri,
+    actorType: typeof actor.type === 'string' ? actor.type : '',
+    alsoKnownAs: aliases,
+    fields: fields
+      .filter((field) => typeof field.name === 'string' && typeof field.value === 'string')
+      .map((field) => ({ name: field.name as string, value: field.value as string })),
+    proxyOf: readProxyDeclarations(actor.proxyOf),
+    bio,
   };
   let derived = federationBridges.deriveNetworkIdentity(candidate);
   // Bridgy Fed omits the `Web site` field for some accounts but still publishes
@@ -84,10 +110,16 @@ export function deriveExternalActorProfile(actor: Record<string, unknown>, actor
   // URL is the bridge's own per-actor assertion, like the field; it counts only
   // when it names the actor's preferredUsername, and the DID rule still applies.
   if (!derived && host === 'bsky.brid.gy' && typeof actor.url === 'string') {
-    const handle = /^https:\/\/bsky\.brid\.gy\/r\/https:\/\/bsky\.app\/profile\/([a-z0-9.-]+)$/i.exec(actor.url)?.[1];
+    const handle =
+      /^https:\/\/bsky\.brid\.gy\/r\/https:\/\/bsky\.app\/profile\/([a-z0-9.-]+)$/i.exec(
+        actor.url,
+      )?.[1];
     if (handle && handle.toLowerCase() === String(actor.preferredUsername).toLowerCase()) {
       const link = `<a href="https://bsky.app/profile/${handle}" rel="me">https://bsky.app/profile/${handle}</a>`;
-      derived = federationBridges.deriveNetworkIdentity({ ...candidate, fields: [...candidate.fields, { name: 'Web site', value: link }] });
+      derived = federationBridges.deriveNetworkIdentity({
+        ...candidate,
+        fields: [...candidate.fields, { name: 'Web site', value: link }],
+      });
     }
   }
   if (derived) {
@@ -95,20 +127,29 @@ export function deriveExternalActorProfile(actor: Record<string, unknown>, actor
     username = derived.federatedUsername;
     normalizedBio = derived.bio;
     if (host === 'bsky.brid.gy') {
-      const dids = aliases.filter(value => /^did:(plc|web):[^\s]+$/.test(value));
+      const dids = aliases.filter((value) => /^did:(plc|web):[^\s]+$/.test(value));
       if (new Set(dids).size === 1) stableId = dids[0];
     }
   }
   // Cross-network equivalence consumes explicit source claims only. A trusted
   // Instagram bridge may reproduce the author's links; its Official assertion
   // names Instagram itself and cannot alone establish an Instagram/Threads pair.
-  const icon = actor.icon && typeof actor.icon === 'object' ? actor.icon as Record<string, unknown> : undefined;
+  const icon =
+    actor.icon && typeof actor.icon === 'object'
+      ? (actor.icon as Record<string, unknown>)
+      : undefined;
   return {
-    actorUri, domain, username, transportAcct: transport, protocol: 'activitypub',
+    actorUri,
+    domain,
+    username,
+    transportAcct: transport,
+    protocol: 'activitypub',
     displayName: typeof actor.name === 'string' ? decodeHtmlEntities(actor.name) : local,
     avatarUrl: typeof icon?.url === 'string' ? icon.url : undefined,
     bio: normalizeExternalBio(normalizedBio, domain, host),
-    evidenceLinks: [...new Set([...links, ...aliases.filter((value) => value.startsWith('https://'))])],
+    evidenceLinks: [
+      ...new Set([...links, ...aliases.filter((value) => value.startsWith('https://'))]),
+    ],
     stableId,
   };
 }

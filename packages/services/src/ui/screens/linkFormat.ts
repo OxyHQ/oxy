@@ -6,16 +6,16 @@
 
 /** Strip the protocol and any trailing slash from a link URL for display. */
 export const getLinkTitle = (url: string): string =>
-    url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  url.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
 /** Human-readable description for a link URL. */
 export const getLinkDescription = (url: string): string => `Link to ${url}`;
 
 export interface LinkListItem {
-    id: string;
-    url: string;
-    title: string;
-    description: string;
+  id: string;
+  url: string;
+  title: string;
+  description: string;
 }
 
 /**
@@ -25,13 +25,13 @@ export interface LinkListItem {
  * — a non-string element must never crash the editor.
  */
 export function linksToListItems(links: readonly unknown[]): LinkListItem[] {
-    return links.map((item, i) => {
-        const url = String(item ?? '');
-        return {
-            id: `link-${i}`,
-            url,
-            title: getLinkTitle(url),
-            description: getLinkDescription(url),
-        };
-    });
+  return links.map((item, i) => {
+    const url = String(item ?? '');
+    return {
+      id: `link-${i}`,
+      url,
+      title: getLinkTitle(url),
+      description: getLinkDescription(url),
+    };
+  });
 }

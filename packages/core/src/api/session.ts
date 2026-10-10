@@ -140,7 +140,13 @@ export class SessionApi {
     if (!provider) return null;
     try {
       const proof = await provider();
-      if (proof && typeof proof.deviceId === 'string' && proof.deviceId && typeof proof.deviceSecret === 'string' && proof.deviceSecret) {
+      if (
+        proof &&
+        typeof proof.deviceId === 'string' &&
+        proof.deviceId &&
+        typeof proof.deviceSecret === 'string' &&
+        proof.deviceSecret
+      ) {
         return { deviceId: proof.deviceId, deviceSecret: proof.deviceSecret };
       }
       return null;
@@ -155,7 +161,10 @@ export class SessionApi {
   async validateToken(): Promise<boolean> {
     if (!this.isAuthenticated) return false;
     try {
-      const res = await this.ctx.request<{ valid: boolean }>('GET', '/auth/validate', undefined, { cache: false, retry: false });
+      const res = await this.ctx.request<{ valid: boolean }>('GET', '/auth/validate', undefined, {
+        cache: false,
+        retry: false,
+      });
       return res.valid === true;
     } catch {
       return false;
@@ -171,7 +180,12 @@ export class SessionApi {
     if (options.deviceFingerprint) params.deviceFingerprint = options.deviceFingerprint;
     if (options.useHeaderValidation) params.useHeaderValidation = 'true';
     try {
-      const validation = await this.ctx.request<SessionValidation>('GET', `/session/validate/${sessionId}`, params, { cache: false });
+      const validation = await this.ctx.request<SessionValidation>(
+        'GET',
+        `/session/validate/${sessionId}`,
+        params,
+        { cache: false },
+      );
       return { ...validation, user: normalizeUserIdentity(validation.user) };
     } catch (error) {
       // The session is gone: drop any user cached for it (#196).
@@ -182,12 +196,16 @@ export class SessionApi {
 
   /** The sessions that belong with `sessionId` (same account set). */
   async list(sessionId: string): Promise<ClientSession[]> {
-    return this.ctx.request<ClientSession[]>('GET', `/session/sessions/${sessionId}`, undefined, { cache: false });
+    return this.ctx.request<ClientSession[]>('GET', `/session/sessions/${sessionId}`, undefined, {
+      cache: false,
+    });
   }
 
   /** Sign out `sessionId`, or — with `targetSessionId` — one of the sessions beside it. */
   async logout(sessionId: string, targetSessionId?: string): Promise<void> {
-    const url = targetSessionId ? `/session/logout/${sessionId}/${targetSessionId}` : `/session/logout/${sessionId}`;
+    const url = targetSessionId
+      ? `/session/logout/${sessionId}/${targetSessionId}`
+      : `/session/logout/${sessionId}`;
     await this.ctx.request('POST', url, undefined, { cache: false });
   }
 

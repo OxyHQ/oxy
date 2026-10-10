@@ -13,12 +13,23 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { authMiddleware, serviceAuthMiddleware, type AuthRequest, type ServiceAuthRequest } from '../middleware/auth';
+import {
+  authMiddleware,
+  serviceAuthMiddleware,
+  type AuthRequest,
+  type ServiceAuthRequest,
+} from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler } from '../utils/asyncHandler';
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../utils/error';
 import { getIO } from '../utils/socket';
 import {
   signedRecordEnvelopeSchema,
@@ -31,7 +42,10 @@ import { getDb } from '../config/postgres';
 import { personhoodStatuses } from '../db/schema/personhoodStatuses';
 import { users } from '../db/schema/users';
 import { buildSignedPublicCard } from '../services/civic/publicCard.service';
-import { submitRealLifeAttestation, type RealLifeRejectionReason } from '../services/civic/realLife.service';
+import {
+  submitRealLifeAttestation,
+  type RealLifeRejectionReason,
+} from '../services/civic/realLife.service';
 import {
   openValidationRequest,
   submitVote,
@@ -99,7 +113,9 @@ const personhoodReadLimiter = rateLimit({
   message: 'Too many personhood status requests. Please slow down.',
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
-    return userId ? `civic:personhood:read:${userId}` : `civic:personhood:read:ip:${hashedIpKey(req)}`;
+    return userId
+      ? `civic:personhood:read:${userId}`
+      : `civic:personhood:read:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -111,7 +127,9 @@ const credentialIssueLimiter = rateLimit({
   message: 'Too many credential issuance requests. Please slow down.',
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
-    return userId ? `civic:credential:issue:${userId}` : `civic:credential:issue:ip:${hashedIpKey(req)}`;
+    return userId
+      ? `civic:credential:issue:${userId}`
+      : `civic:credential:issue:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -123,7 +141,9 @@ const credentialReadLimiter = rateLimit({
   message: 'Too many credential requests. Please slow down.',
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
-    return userId ? `civic:credential:read:${userId}` : `civic:credential:read:ip:${hashedIpKey(req)}`;
+    return userId
+      ? `civic:credential:read:${userId}`
+      : `civic:credential:read:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -135,7 +155,9 @@ const credentialVerifyLimiter = rateLimit({
   message: 'Too many credential verification requests. Please slow down.',
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
-    return userId ? `civic:credential:verify:${userId}` : `civic:credential:verify:ip:${hashedIpKey(req)}`;
+    return userId
+      ? `civic:credential:verify:${userId}`
+      : `civic:credential:verify:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -147,7 +169,9 @@ const credentialRevokeLimiter = rateLimit({
   message: 'Too many credential revocation requests. Please slow down.',
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
-    return userId ? `civic:credential:revoke:${userId}` : `civic:credential:revoke:ip:${hashedIpKey(req)}`;
+    return userId
+      ? `civic:credential:revoke:${userId}`
+      : `civic:credential:revoke:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -278,7 +302,10 @@ router.post(
       throw new UnauthorizedError('Authentication required');
     }
 
-    const result = await submitRealLifeAttestation(req.body as SignedRecordEnvelope, attestorUserId);
+    const result = await submitRealLifeAttestation(
+      req.body as SignedRecordEnvelope,
+      attestorUserId,
+    );
     if (!result.ok) {
       throwForRealLifeReason(result.reason);
     }

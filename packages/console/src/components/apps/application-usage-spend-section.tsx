@@ -2,10 +2,7 @@ import { useMemo, useState } from 'react';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 import type { ReportRangeDays, SpendDimension, UsageDimension } from '@/lib/reporting';
-import {
-  ProvenanceBanner,
-  ProvenanceCrossReference,
-} from '@/components/billing/provenance-banner';
+import { ProvenanceBanner, ProvenanceCrossReference } from '@/components/billing/provenance-banner';
 import { ReportControls } from '@/components/billing/report-controls';
 import { Button } from '@/components/ui/button';
 import {
@@ -70,12 +67,12 @@ export function ApplicationUsageSpendSection({
   const usageQuery = useApplicationUsageReport(
     application._id,
     { range, groupBy: usageGroupBy },
-    canReadUsage && lane === 'usage'
+    canReadUsage && lane === 'usage',
   );
   const spendQuery = useApplicationSpendReport(
     application._id,
     { range, groupBy: spendGroupBy },
-    canReadSpend && lane === 'spend'
+    canReadSpend && lane === 'spend',
   );
 
   const spendRows = useMemo(() => {

@@ -1,80 +1,75 @@
-import {
-	type PrivateAutoSourceApproval,
-	privateAutoSourceApprovalSchema,
-} from "@oxy.so/contracts";
+import { type PrivateAutoSourceApproval, privateAutoSourceApprovalSchema } from '@oxy.so/contracts';
 
 /** Frozen root review 48cc94c9; no input, environment flag or public setter grants authority. */
 const REVIEWED_PRIVATE_AUTO_APPROVAL: PrivateAutoSourceApproval =
-	privateAutoSourceApprovalSchema.parse({
-		purpose: "private_auto_classifier",
-		classifierVersion: "jev-auto-v1",
-		approvalId: "alia-private-auto-internal-20261005-01",
-		approvalVersion: 1,
-		expiresAt: "2026-10-05T22:51:12Z",
-		principal: {
-			accountId: "01a0369b-1222-712f-8df6-f8ffeb78ccc2",
-			applicationId: "6a2f851751b784a86fd0e934",
-			credentialId: "wl_d50a0056191d0448024900b4",
-			environment: "production",
-			lane: "service_token",
-		},
-		policy: {
-			routingPolicyId: "platform-internal-default",
-			policyVersion: 1,
-		},
-		economicPolicyVersion: "oxy-inference-economics/2026-10-04.2",
-		economicRelationshipId: "alia-kaana",
-		deploymentId: "dep_openrouter_typesafe_jev_1_13_private_auto_2026_10_05",
-		provider: "openrouter",
-		keyId: "b8090dce-82f2-4077-9fc1-fd831a53ca27",
-		modelReference: "typesafe/jev-1.13@2026-09-17",
-		upstreamModelId: "typesafe/jev-1.13-20260917",
-		regions: [],
-		priceVersionId: "jev_scoped_price_20261004_01",
-		providerRateCardVersionId: "rc_openrouter_jev_private_auto_2026_10_05",
-		providerSourceVersion:
-			"openrouter-api/2026-10-04/typesafe/jev-1.13-20260917/556fab0c5da201c07d4eeafd32b48250fb3fa297b69ed0f9e62a7225ca8511ba",
-		maxCostUsd: "0.001000000000",
-		review: {
-			internalUseAllowed: true,
-			internalUseEvidenceRef:
-				"root-review:private-auto-variable-root-applicability:sha256:b1d8ea881100d1e1b0753afde2630b3cbb5727d1fb3dd43d3d48047651bd1610",
-			legalReviewEvidenceRef:
-				"root-review:private-auto-variable-root-applicability:sha256:b1d8ea881100d1e1b0753afde2630b3cbb5727d1fb3dd43d3d48047651bd1610",
-			privacyEvidenceRef:
-				"source-evidence:typesafe-privacy.html:sha256:93012e61403f9f7f7536e94914497777f791ab51b017e08bbb5e24bc06cd31c7",
-			zdrEvidenceRef:
-				"source-evidence:zdr-endpoints.json:sha256:cfbf208c4b723c537272d774d2955bb957c35d4d2bfc2c54a383875126aae1b9",
-			evidenceExpiresAt: "2026-10-05T22:51:12Z",
-			commercialUseAllowed: false,
-			retainsPayloads: false,
-			retentionDays: 0,
-			trainsOnCustomerData: false,
-			zeroDataRetentionAvailable: true,
-		},
-		limits: {
-			timeoutMs: 1000,
-			maxStateBytes: 8192,
-			maxControlledInputBytes: 8192,
-		},
-	});
+  privateAutoSourceApprovalSchema.parse({
+    purpose: 'private_auto_classifier',
+    classifierVersion: 'jev-auto-v1',
+    approvalId: 'alia-private-auto-internal-20261005-01',
+    approvalVersion: 1,
+    expiresAt: '2026-10-05T22:51:12Z',
+    principal: {
+      accountId: '01a0369b-1222-712f-8df6-f8ffeb78ccc2',
+      applicationId: '6a2f851751b784a86fd0e934',
+      credentialId: 'wl_d50a0056191d0448024900b4',
+      environment: 'production',
+      lane: 'service_token',
+    },
+    policy: {
+      routingPolicyId: 'platform-internal-default',
+      policyVersion: 1,
+    },
+    economicPolicyVersion: 'oxy-inference-economics/2026-10-04.2',
+    economicRelationshipId: 'alia-kaana',
+    deploymentId: 'dep_openrouter_typesafe_jev_1_13_private_auto_2026_10_05',
+    provider: 'openrouter',
+    keyId: 'b8090dce-82f2-4077-9fc1-fd831a53ca27',
+    modelReference: 'typesafe/jev-1.13@2026-09-17',
+    upstreamModelId: 'typesafe/jev-1.13-20260917',
+    regions: [],
+    priceVersionId: 'jev_scoped_price_20261004_01',
+    providerRateCardVersionId: 'rc_openrouter_jev_private_auto_2026_10_05',
+    providerSourceVersion:
+      'openrouter-api/2026-10-04/typesafe/jev-1.13-20260917/556fab0c5da201c07d4eeafd32b48250fb3fa297b69ed0f9e62a7225ca8511ba',
+    maxCostUsd: '0.001000000000',
+    review: {
+      internalUseAllowed: true,
+      internalUseEvidenceRef:
+        'root-review:private-auto-variable-root-applicability:sha256:b1d8ea881100d1e1b0753afde2630b3cbb5727d1fb3dd43d3d48047651bd1610',
+      legalReviewEvidenceRef:
+        'root-review:private-auto-variable-root-applicability:sha256:b1d8ea881100d1e1b0753afde2630b3cbb5727d1fb3dd43d3d48047651bd1610',
+      privacyEvidenceRef:
+        'source-evidence:typesafe-privacy.html:sha256:93012e61403f9f7f7536e94914497777f791ab51b017e08bbb5e24bc06cd31c7',
+      zdrEvidenceRef:
+        'source-evidence:zdr-endpoints.json:sha256:cfbf208c4b723c537272d774d2955bb957c35d4d2bfc2c54a383875126aae1b9',
+      evidenceExpiresAt: '2026-10-05T22:51:12Z',
+      commercialUseAllowed: false,
+      retainsPayloads: false,
+      retentionDays: 0,
+      trainsOnCustomerData: false,
+      zeroDataRetentionAvailable: true,
+    },
+    limits: {
+      timeoutMs: 1000,
+      maxStateBytes: 8192,
+      maxControlledInputBytes: 8192,
+    },
+  });
 
 /** Validate current source expiry and return independently parsed authority on every read. */
-export function privateAutoClassifierSourceApproval():
-	| PrivateAutoSourceApproval
-	| undefined {
-	return reviewedPrivateAutoApproval(REVIEWED_PRIVATE_AUTO_APPROVAL);
+export function privateAutoClassifierSourceApproval(): PrivateAutoSourceApproval | undefined {
+  return reviewedPrivateAutoApproval(REVIEWED_PRIVATE_AUTO_APPROVAL);
 }
 
 /** Pure validation for the source getter and synthetic qualification fixtures. */
 export function reviewedPrivateAutoApproval(
-	value: unknown,
-	now = Date.now(),
+  value: unknown,
+  now = Date.now(),
 ): PrivateAutoSourceApproval | undefined {
-	const parsed = privateAutoSourceApprovalSchema.safeParse(value);
-	if (!parsed.success || !Number.isFinite(now)) return undefined;
-	const approval = parsed.data;
-	const expiry = Date.parse(approval.expiresAt);
-	const evidenceExpiry = Date.parse(approval.review.evidenceExpiresAt);
-	return expiry > now && evidenceExpiry >= expiry ? approval : undefined;
+  const parsed = privateAutoSourceApprovalSchema.safeParse(value);
+  if (!parsed.success || !Number.isFinite(now)) return undefined;
+  const approval = parsed.data;
+  const expiry = Date.parse(approval.expiresAt);
+  const evidenceExpiry = Date.parse(approval.review.evidenceExpiresAt);
+  return expiry > now && evidenceExpiry >= expiry ? approval : undefined;
 }

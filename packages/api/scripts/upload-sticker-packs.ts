@@ -75,13 +75,21 @@ function parseArgs(argv: string[]): Options {
     }
   }
   const folder = positional[0];
-  if (!folder) throw new Error('Usage: upload-sticker-packs.ts <folder> [--api URL] [--publish] [--dry-run]');
+  if (!folder)
+    throw new Error('Usage: upload-sticker-packs.ts <folder> [--api URL] [--publish] [--dry-run]');
   const token = process.env.OXY_ACCESS_TOKEN ?? '';
-  if (!token && !dryRun && !manifest) throw new Error('OXY_ACCESS_TOKEN (a staff account session token) is required');
+  if (!token && !dryRun && !manifest)
+    throw new Error('OXY_ACCESS_TOKEN (a staff account session token) is required');
   return { folder, api: api.replace(/\/+$/, ''), publish, dryRun, manifest, token };
 }
 
-async function request<T>(options: Options, method: string, pathname: string, body?: BodyInit, json?: unknown): Promise<T> {
+async function request<T>(
+  options: Options,
+  method: string,
+  pathname: string,
+  body?: BodyInit,
+  json?: unknown,
+): Promise<T> {
   const headers: Record<string, string> = { Authorization: `Bearer ${options.token}` };
   if (json !== undefined) headers['Content-Type'] = 'application/json';
   const response = await fetch(`${options.api}${pathname}`, {
@@ -92,7 +100,9 @@ async function request<T>(options: Options, method: string, pathname: string, bo
   if (response.status === 204) return undefined as T;
   const payload = (await response.json().catch(() => ({}))) as { data?: T; message?: string };
   if (!response.ok) {
-    throw new Error(`${method} ${pathname} → ${response.status}: ${payload.message ?? JSON.stringify(payload)}`);
+    throw new Error(
+      `${method} ${pathname} → ${response.status}: ${payload.message ?? JSON.stringify(payload)}`,
+    );
   }
   return payload.data as T;
 }
@@ -100,7 +110,11 @@ async function request<T>(options: Options, method: string, pathname: string, bo
 async function existingPacks(options: Options): Promise<Map<string, StickerPackSummary>> {
   const bySlug = new Map<string, StickerPackSummary>();
   for (let offset = 0; ; offset += 100) {
-    const page = await request<StickerPackSummary[]>(options, 'GET', `/stickers/admin/packs?limit=100&offset=${offset}`);
+    const page = await request<StickerPackSummary[]>(
+      options,
+      'GET',
+      `/stickers/admin/packs?limit=100&offset=${offset}`,
+    );
     for (const pack of page) bySlug.set(pack.slug, pack);
     if (page.length < 100) return bySlug;
   }
@@ -115,18 +129,24 @@ async function main(): Promise<void> {
   const packs = packFolders.map((title) =>
     manifestPack(
       title,
-      readdirSync(path.join(options.folder, title)).filter((name) => name.toLowerCase().endsWith('.json'))
-    )
+      readdirSync(path.join(options.folder, title)).filter((name) =>
+        name.toLowerCase().endsWith('.json'),
+      ),
+    ),
   );
 
   if (options.manifest) {
     const manifest: StickerManifest = { packs };
     writeFileSync(options.manifest, `${JSON.stringify(manifest, null, 2)}\n`);
-    console.log(`manifest: ${packs.length} packs, ${packs.reduce((n, p) => n + p.stickers.length, 0)} stickers → ${options.manifest}`);
+    console.log(
+      `manifest: ${packs.length} packs, ${packs.reduce((n, p) => n + p.stickers.length, 0)} stickers → ${options.manifest}`,
+    );
     return;
   }
 
-  const existing = options.dryRun ? new Map<string, StickerPackSummary>() : await existingPacks(options);
+  const existing = options.dryRun
+    ? new Map<string, StickerPackSummary>()
+    : await existingPacks(options);
 
   for (const { title, slug, stickers } of packs) {
     const folder = path.join(options.folder, title);
@@ -134,7 +154,8 @@ async function main(): Promise<void> {
 
     if (options.dryRun) {
       console.log(`${slug} (${files.length})`);
-      for (const sticker of stickers) console.log(`  ${sticker.emoji}  ${sticker.file}  [${sticker.keywords.join(', ')}]`);
+      for (const sticker of stickers)
+        console.log(`  ${sticker.emoji}  ${sticker.file}  [${sticker.keywords.join(', ')}]`);
       continue;
     }
 
@@ -144,7 +165,9 @@ async function main(): Promise<void> {
       continue;
     }
     if (current && current.status !== 'draft') {
-      console.log(`! ${slug}: ${current.status} with ${current.stickerCount} stickers but ${files.length} files — left alone`);
+      console.log(
+        `! ${slug}: ${current.status} with ${current.stickerCount} stickers but ${files.length} files — left alone`,
+      );
       continue;
     }
     if (current) {
@@ -152,17 +175,26 @@ async function main(): Promise<void> {
       console.log(`- ${slug}: incomplete draft deleted`);
     }
 
-    const pack = await request<StickerPack>(options, 'POST', '/stickers/admin/packs', undefined, { slug, title });
+    const pack = await request<StickerPack>(options, 'POST', '/stickers/admin/packs', undefined, {
+      slug,
+      title,
+    });
     for (const { file, emoji, keywords } of stickers) {
       const form = new FormData();
-      form.append('animation', new Blob([readFileSync(path.join(folder, file))], { type: 'application/json' }), file);
+      form.append(
+        'animation',
+        new Blob([readFileSync(path.join(folder, file))], { type: 'application/json' }),
+        file,
+      );
       form.append('emoji', emoji);
       form.append('keywords', keywords.join(','));
       await request(options, 'POST', `/stickers/admin/packs/${pack.id}/stickers`, form);
       process.stdout.write('.');
     }
     if (options.publish) await request(options, 'POST', `/stickers/admin/packs/${pack.id}/publish`);
-    console.log(`\n+ ${slug}: ${files.length} stickers${options.publish ? ', published' : ' (draft)'}`);
+    console.log(
+      `\n+ ${slug}: ${files.length} stickers${options.publish ? ', published' : ' (draft)'}`,
+    );
   }
 }
 

@@ -109,7 +109,12 @@ function authoritiesIn(relative: string, kind = 'devicesession'): string[] {
 
 /** The string literals of the `OXY_PACKAGES` set in a caller policy. */
 function callerPackagesIn(relative: string): string[] {
-  const block = blockAfter(read(relative).replace('setOf(', 'setOf{').replace(/\n {2}\)\n/, '\n  }\n'), 'val OXY_PACKAGES');
+  const block = blockAfter(
+    read(relative)
+      .replace('setOf(', 'setOf{')
+      .replace(/\n {2}\)\n/, '\n  }\n'),
+    'val OXY_PACKAGES',
+  );
   return (block.match(/"[a-z.]+"/g) ?? []).map((m) => m.slice(1, -1)).sort();
 }
 
@@ -166,7 +171,14 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // identity module here is a client: it asks Commons for proofs and derived
     // values, and nothing in it stores, reads or returns a key.
     const module = readCode(IDENTITY_SOURCES[0]);
-    for (const name of ['OxyEncryptedPrefs', 'SharedPreferences', 'getShared', 'putShared', 'privateKey', '"priv"']) {
+    for (const name of [
+      'OxyEncryptedPrefs',
+      'SharedPreferences',
+      'getShared',
+      'putShared',
+      'privateKey',
+      '"priv"',
+    ]) {
       expect(module).not.toContain(name);
     }
     expect(module).toContain('contentResolver.call(');
@@ -185,8 +197,12 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // Who is calling comes from the kernel, never from the request.
     expect(policy).toContain('Binder.getCallingUid()');
     expect(policy).toContain('getPackagesForUid(uid)');
-    expect(policy).toContain('hasSigningCertificate(pkg, digest, PackageManager.CERT_INPUT_SHA256)');
-    expect(policy).toContain('checkSignatures(pkg, context.packageName) == PackageManager.SIGNATURE_MATCH');
+    expect(policy).toContain(
+      'hasSigningCertificate(pkg, digest, PackageManager.CERT_INPUT_SHA256)',
+    );
+    expect(policy).toContain(
+      'checkSignatures(pkg, context.packageName) == PackageManager.SIGNATURE_MATCH',
+    );
     expect(policy).not.toContain('extras');
   });
 
@@ -195,7 +211,9 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // Every host keeps ONE copy, which every Oxy app reads AND publishes into:
     // without a cross-process write, an app that signs in could not hand the
     // device session to the others, because no app can see another's files.
-    expect(provider).toContain('if (method != METHOD_READ && method != METHOD_WRITE && method != METHOD_CLEAR) return null');
+    expect(provider).toContain(
+      'if (method != METHOD_READ && method != METHOD_WRITE && method != METHOD_CLEAR) return null',
+    );
     expect(provider).toContain('OxyDeviceSessionStore.write(ctx, deviceId, deviceSecret)');
   });
 
@@ -206,7 +224,10 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // So a host that did not confirm is cleared, and the write only counts when
     // no installed host is left stale.
     const module = readCode(MODULE_KT);
-    const publish = blockAfter(module, 'private fun publish(deviceId: String, deviceSecret: String): Boolean');
+    const publish = blockAfter(
+      module,
+      'private fun publish(deviceId: String, deviceSecret: String): Boolean',
+    );
     expect(publish).toContain('if (!isInstalled(authority)) continue');
     expect(publish).toContain('} else if (!clearHost(authority)) {');
     expect(publish).toContain('return confirmed > 0 && !stale');
@@ -229,7 +250,9 @@ describe('shared DeviceSession credential — Android wiring', () => {
         /^\s*OxyDeviceSessionStore\.(write|clear)\(context/.test(line);
       expect({ line: line.trim(), guarded }).toEqual({ line: line.trim(), guarded: true });
     }
-    expect(module).toContain('if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else callProvider(authority)');
+    expect(module).toContain(
+      'if (authority == selfAuthority) OxyDeviceSessionStore.read(context) else callProvider(authority)',
+    );
   });
 
   test('the provider maps each read outcome to its OWN status', () => {
@@ -238,7 +261,9 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // answer authorises the caller to seed the slot; the failed answer authorises
     // nothing. Asserting per-arm rather than just "the file mentions
     // STATUS_UNAVAILABLE" — a collapsed arm leaves the constant in the file.
-    const provider = readCode('android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt');
+    const provider = readCode(
+      'android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt',
+    );
     const when = blockAfter(provider, 'private fun readBundle(read: DeviceSessionRead)');
     const arms: [string, string][] = [
       ['Present', 'STATUS_PRESENT'],
@@ -365,7 +390,9 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // A module missing from here resolves to `null` through
     // `requireOptionalNativeModule`, which the JS side reads as `unsupported` —
     // no error, the feature is just off.
-    const config = JSON.parse(read('expo-module.config.json')) as { android?: { modules?: string[] } };
+    const config = JSON.parse(read('expo-module.config.json')) as {
+      android?: { modules?: string[] };
+    };
     expect(config.android?.modules).toContain('so.oxy.devicesession.OxyDeviceSessionModule');
   });
 

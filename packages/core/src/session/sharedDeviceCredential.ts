@@ -138,7 +138,10 @@ export function readLocalDeviceCredential(
  */
 export function normalizeSharedDeviceSessionRead(raw: unknown): SharedDeviceCredentialRead {
   if (!raw || typeof raw !== 'object') {
-    return { state: 'unavailable', cause: new Error('shared device session bridge returned a non-object') };
+    return {
+      state: 'unavailable',
+      cause: new Error('shared device session bridge returned a non-object'),
+    };
   }
   const payload = raw as Record<string, unknown>;
   if (payload.status === 'absent') {
@@ -160,16 +163,23 @@ export function normalizeSharedDeviceSessionRead(raw: unknown): SharedDeviceCred
     // overwrite whatever is really in there.
     return {
       state: 'unavailable',
-      cause: new Error('shared device session bridge reported `present` with an incomplete credential'),
+      cause: new Error(
+        'shared device session bridge reported `present` with an incomplete credential',
+      ),
     };
   }
   if (payload.status === 'unavailable') {
     const reason = typeof payload.reason === 'string' ? payload.reason : 'unknown';
-    return { state: 'unavailable', cause: new Error(`shared device session slot unavailable: ${reason}`) };
+    return {
+      state: 'unavailable',
+      cause: new Error(`shared device session slot unavailable: ${reason}`),
+    };
   }
   return {
     state: 'unavailable',
-    cause: new Error(`shared device session bridge returned an unrecognised status: ${String(payload.status)}`),
+    cause: new Error(
+      `shared device session bridge returned an unrecognised status: ${String(payload.status)}`,
+    ),
   };
 }
 
@@ -318,15 +328,23 @@ export function createSharedMirroringAuthStateStore(deps: {
     ...local,
     load: () => local.load(),
     clear: () => local.clear(),
-    ...(local.saveIfCurrent ? {saveIfCurrent: async (state: PersistedAuthState, guard: AuthStateWriteGuard) => {
-      const committed = await local.saveIfCurrent?.(state, guard);
-      if (!committed) return false;
-      const credential = readLocalDeviceCredential(state);
-      if (credential && guard.isCurrent()) {
-        try { await publishProvenDeviceCredential({shared, credential}); } catch { /* Local durability already verified. */ }
-      }
-      return true;
-    }} : {}),
+    ...(local.saveIfCurrent
+      ? {
+          saveIfCurrent: async (state: PersistedAuthState, guard: AuthStateWriteGuard) => {
+            const committed = await local.saveIfCurrent?.(state, guard);
+            if (!committed) return false;
+            const credential = readLocalDeviceCredential(state);
+            if (credential && guard.isCurrent()) {
+              try {
+                await publishProvenDeviceCredential({ shared, credential });
+              } catch {
+                /* Local durability already verified. */
+              }
+            }
+            return true;
+          },
+        }
+      : {}),
     save: async (state) => {
       // The durable local write is the contract this store owes its caller —
       // run it first and report ITS result, unchanged. The mirror is additive.
@@ -344,7 +362,10 @@ export function createSharedMirroringAuthStateStore(deps: {
       }
       try {
         const outcome = await publishProvenDeviceCredential({ shared, credential });
-        if (outcome.status === 'published' || (outcome.status === 'skipped' && outcome.reason === 'already-current')) {
+        if (
+          outcome.status === 'published' ||
+          (outcome.status === 'skipped' && outcome.reason === 'already-current')
+        ) {
           mirrored = credential;
         }
       } catch (error) {

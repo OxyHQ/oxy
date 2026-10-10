@@ -79,12 +79,7 @@ export const usageReservationRequestSchema = z.object({
 });
 
 /** Lifecycle of a hold. Terminal states are `settled`, `released`, `expired`. */
-export const usageReservationStatusSchema = z.enum([
-  'held',
-  'settled',
-  'released',
-  'expired',
-]);
+export const usageReservationStatusSchema = z.enum(['held', 'settled', 'released', 'expired']);
 
 /**
  * A hold placed against an account's balance.
@@ -296,9 +291,7 @@ export const usageReceiptSchema = z
  * ledger accounts and only the second one is visible on an invoice.
  */
 export const usageRefundSubjectSchema = z.discriminatedUnion('kind', [
-  z
-    .object({ kind: z.literal('reservation'), reservationId: z.string().min(1).max(128) })
-    .strict(),
+  z.object({ kind: z.literal('reservation'), reservationId: z.string().min(1).max(128) }).strict(),
   z.object({ kind: z.literal('receipt'), receiptId: z.string().min(1).max(128) }).strict(),
 ]);
 

@@ -82,7 +82,7 @@ describe('the follow-graph public surface is reachable from the barrel', () => {
       .join('\n');
 
     const missing = PUBLIC_SURFACE.filter(
-      (symbol) => !new RegExp(`\\b${symbol}\\b`).test(exportedLines)
+      (symbol) => !new RegExp(`\\b${symbol}\\b`).test(exportedLines),
     );
     expect(missing).toEqual([]);
   });

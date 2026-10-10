@@ -65,10 +65,7 @@ function uniqueUsername(prefix: string): string {
  * child kind has to carry the label for that one member, or the iteration 400s
  * on a question that has nothing to do with what the case is testing.
  */
-function uniqueUsernameFor(
-  kind: (typeof CHILD_ACCOUNT_KINDS)[number],
-  prefix: string
-): string {
+function uniqueUsernameFor(kind: (typeof CHILD_ACCOUNT_KINDS)[number], prefix: string): string {
   const handle = uniqueUsername(prefix);
   return kind === 'bot' ? `${handle}bot` : handle;
 }
@@ -116,7 +113,7 @@ async function seedMember(
     status?: AccountMemberRow['status'];
     permissionGrants?: string[];
     permissionRevokes?: string[];
-  } = {}
+  } = {},
 ): Promise<AccountMemberRow> {
   const [row] = await getDb()
     .insert(accountMembers)
@@ -157,10 +154,7 @@ async function reload(accountId: string) {
 }
 
 async function memberRowById(memberId: string) {
-  const [row] = await getDb()
-    .select()
-    .from(accountMembers)
-    .where(eq(accountMembers.id, memberId));
+  const [row] = await getDb().select().from(accountMembers).where(eq(accountMembers.id, memberId));
   return row;
 }
 
@@ -169,7 +163,7 @@ async function memberRowsFor(accountId: string, memberUserId: string) {
     .select()
     .from(accountMembers)
     .where(
-      and(eq(accountMembers.accountId, accountId), eq(accountMembers.memberUserId, memberUserId))
+      and(eq(accountMembers.accountId, accountId), eq(accountMembers.memberUserId, memberUserId)),
     );
 }
 
@@ -398,7 +392,7 @@ describe('createChildAccount', () => {
       accountService.createChildAccount(root.id, root.id, {
         kind: 'personal' as never,
         username: uniqueUsername('nope'),
-      })
+      }),
     ).rejects.toThrow(/child account kind/i);
   });
 
@@ -440,7 +434,7 @@ describe('createChildAccount', () => {
       accountService.createChildAccount(parentChannel.account.id, root.id, {
         kind: 'channel',
         username: uniqueUsername('child-channel'),
-      })
+      }),
     ).rejects.toThrow(/channel cannot own another channel/i);
   });
 
@@ -450,14 +444,12 @@ describe('createChildAccount', () => {
    * neither alphabetically first nor first in the declared vocabulary, so a
    * sort on either key would be visible here.
    */
-  test('persists account categories in the caller\'s order', async () => {
+  test("persists account categories in the caller's order", async () => {
     const root = await seedAccount();
     const chosen: AccountCategoryId[] = ['news', 'art', 'film'];
     expect([...chosen].sort()).not.toEqual(chosen);
     expect(
-      [...chosen].sort(
-        (a, b) => ACCOUNT_CATEGORY_IDS.indexOf(a) - ACCOUNT_CATEGORY_IDS.indexOf(b)
-      )
+      [...chosen].sort((a, b) => ACCOUNT_CATEGORY_IDS.indexOf(a) - ACCOUNT_CATEGORY_IDS.indexOf(b)),
     ).not.toEqual(chosen);
 
     const { account } = await accountService.createChildAccount(root.id, root.id, {
@@ -502,7 +494,7 @@ describe('createChildAccount', () => {
       const person = await seedAccount({ kind: 'personal' });
 
       await expect(
-        accountService.updateAccount(person.id, { accountCategories: ['news'] })
+        accountService.updateAccount(person.id, { accountCategories: ['news'] }),
       ).rejects.toThrow(/personal.*cannot carry categories/i);
 
       // The refusal must be about the KIND and nothing else: the SAME call on a
@@ -596,7 +588,10 @@ describe('createChildAccount', () => {
     await seedAccount({ kind: 'organization', username: taken });
 
     await expect(
-      accountService.createChildAccount(root.id, root.id, { kind: 'organization', username: taken })
+      accountService.createChildAccount(root.id, root.id, {
+        kind: 'organization',
+        username: taken,
+      }),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -612,7 +607,7 @@ describe('createChildAccount', () => {
       accountService.createChildAccount(parent.id, parent.id, {
         kind: 'project',
         username: uniqueUsername('too-deep'),
-      })
+      }),
     ).rejects.toThrow(/depth/i);
   });
 });
@@ -654,7 +649,7 @@ describe('moveAccount', () => {
   test('rejects self-parenting', async () => {
     const account = await seedAccount({ kind: 'organization' });
     await expect(accountService.moveAccount(account.id, account.id)).rejects.toThrow(
-      /its own parent/i
+      /its own parent/i,
     );
   });
 
@@ -674,7 +669,7 @@ describe('moveAccount', () => {
     });
 
     await expect(accountService.moveAccount(a.id, descendant.id)).rejects.toThrow(
-      /beneath itself/i
+      /beneath itself/i,
     );
   });
 
@@ -682,7 +677,7 @@ describe('moveAccount', () => {
     const personal = await seedAccount({ kind: 'personal' });
     const target = await seedAccount({ kind: 'organization' });
     await expect(accountService.moveAccount(personal.id, target.id)).rejects.toThrow(
-      /always a root/i
+      /always a root/i,
     );
   });
 
@@ -698,7 +693,7 @@ describe('moveAccount', () => {
     });
 
     await expect(
-      accountService.moveAccount(childChannel.account.id, parentChannel.account.id)
+      accountService.moveAccount(childChannel.account.id, parentChannel.account.id),
     ).rejects.toThrow(/channel cannot own another channel/i);
   });
 });
@@ -841,9 +836,7 @@ describe('membership inheritance + verifyActingAs', () => {
     await getDb()
       .update(accountMembers)
       .set({ permissionGrants: ['account:act_as'] })
-      .where(
-        and(eq(accountMembers.accountId, org.id), eq(accountMembers.memberUserId, bob.id))
-      );
+      .where(and(eq(accountMembers.accountId, org.id), eq(accountMembers.memberUserId, bob.id)));
 
     expect(await accountService.verifyActingAs(bob.id, org.id)).toBe('developer');
   });
@@ -866,7 +859,7 @@ describe('listAccessibleAccounts', () => {
     await seedMember(org.id, bob.id, 'admin', { inherit: true });
 
     const byId = new Map(
-      (await accountService.listAccessibleAccounts(bob.id)).map((node) => [node.accountId, node])
+      (await accountService.listAccessibleAccounts(bob.id)).map((node) => [node.accountId, node]),
     );
 
     expect(byId.get(bob.id)?.relationship).toBe('self');
@@ -900,9 +893,9 @@ describe('members CRUD', () => {
     expect(member.role).toBe('developer');
     expect(member.status).toBe('active');
 
-    await expect(
-      accountService.addMember(org.id, owner.id, charlie.id, 'viewer')
-    ).rejects.toThrow(/already a member/i);
+    await expect(accountService.addMember(org.id, owner.id, charlie.id, 'viewer')).rejects.toThrow(
+      /already a member/i,
+    );
   });
 
   test('addMember re-activates a previously removed membership', async () => {
@@ -925,7 +918,7 @@ describe('members CRUD', () => {
     const ownerMember = await seedMember(org.id, owner.id, 'owner');
 
     await expect(
-      accountService.updateMember(org.id, ownerMember.id, { role: 'admin' })
+      accountService.updateMember(org.id, ownerMember.id, { role: 'admin' }),
     ).rejects.toThrow(/transfer-ownership/i);
   });
 
@@ -940,7 +933,7 @@ describe('members CRUD', () => {
     await expect(
       accountService.updateMember(org.id, ownerMember.id, {
         permissionRevokes: ['account:delete'],
-      })
+      }),
     ).rejects.toThrow(/transfer-ownership/i);
     expect((await memberRowById(ownerMember.id)).permissionRevokes).toEqual([]);
   });
@@ -963,7 +956,7 @@ describe('members CRUD', () => {
     expect(member.permissionGrants).toEqual([]);
     expect(member.permissionRevokes).toEqual([]);
     expect(
-      (await accountService.resolveEffectiveAccess(charlie.id, org.id))?.permissions
+      (await accountService.resolveEffectiveAccess(charlie.id, org.id))?.permissions,
     ).not.toContain('ownership:transfer');
   });
 
@@ -986,9 +979,9 @@ describe('members CRUD', () => {
     expect(promoted.role).toBe('owner');
     expect(promoted.permissionRevokes).toEqual([]);
     expect(promoted.permissionGrants).toEqual([]);
-    expect(
-      (await accountService.resolveEffectiveAccess(bob.id, org.id))?.permissions
-    ).toContain('account:update');
+    expect((await accountService.resolveEffectiveAccess(bob.id, org.id))?.permissions).toContain(
+      'account:update',
+    );
   });
 
   test('removeMember refuses to remove the last owner', async () => {
@@ -997,7 +990,7 @@ describe('members CRUD', () => {
     const ownerMember = await seedMember(org.id, owner.id, 'owner');
 
     await expect(accountService.removeMember(org.id, ownerMember.id, true)).rejects.toThrow(
-      /last owner/i
+      /last owner/i,
     );
     // Refused means UNCHANGED — an account with no owner is unadministrable.
     expect((await memberRowById(ownerMember.id)).status).toBe('active');
@@ -1036,7 +1029,7 @@ describe('members CRUD', () => {
     await seedMember(alice.id, bob.id, 'admin');
 
     await expect(accountService.transferOwnership(alice.id, alice.id, bob.id)).rejects.toThrow(
-      /personal account cannot be transferred/i
+      /personal account cannot be transferred/i,
     );
   });
 });

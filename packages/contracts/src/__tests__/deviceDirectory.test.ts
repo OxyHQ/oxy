@@ -54,7 +54,12 @@ const alice = {
   authuser: 1,
   user: { id: 'alice', username: 'alice' },
   contexts: [
-    { ...natePersonal, id: 'ctx_alice_personal', accountId: 'alice', account: { id: 'alice', username: 'alice' } },
+    {
+      ...natePersonal,
+      id: 'ctx_alice_personal',
+      accountId: 'alice',
+      account: { id: 'alice', username: 'alice' },
+    },
     aliceOxy,
   ],
 };
@@ -82,7 +87,10 @@ describe('deviceDirectorySchema', () => {
   });
 
   it('accepts activeContextId=null (no active context on this device)', () => {
-    const parsed = safeParseContract(deviceDirectorySchema, { ...directory, activeContextId: null });
+    const parsed = safeParseContract(deviceDirectorySchema, {
+      ...directory,
+      activeContextId: null,
+    });
     expect(parsed?.activeContextId).toBeNull();
   });
 
@@ -104,7 +112,9 @@ describe('deviceDirectorySchema', () => {
   });
 
   it('rejects an unknown relationship', () => {
-    expect(safeParseContract(deviceAccountContextSchema, { ...nateOxy, relationship: 'admin' })).toBeNull();
+    expect(
+      safeParseContract(deviceAccountContextSchema, { ...nateOxy, relationship: 'admin' }),
+    ).toBeNull();
   });
 
   it('accepts a reachable-but-unused context (onDevice=false)', () => {
@@ -119,7 +129,11 @@ describe('deviceDirectorySchema', () => {
   });
 
   it('accepts a revoked-membership context as available=false rather than omitting it', () => {
-    const parsed = safeParseContract(deviceAccountContextSchema, { ...nateOxy, available: false, active: false });
+    const parsed = safeParseContract(deviceAccountContextSchema, {
+      ...nateOxy,
+      available: false,
+      active: false,
+    });
     expect(parsed?.available).toBe(false);
   });
 
@@ -132,7 +146,9 @@ describe('deviceDirectorySchema', () => {
   });
 
   it('rejects a profile without an id', () => {
-    expect(safeParseContract(devicePrincipalSchema, { ...nate, user: { username: 'nate' } })).toBeNull();
+    expect(
+      safeParseContract(devicePrincipalSchema, { ...nate, user: { username: 'nate' } }),
+    ).toBeNull();
   });
 
   /**
@@ -173,7 +189,7 @@ describe('deviceDirectorySchema', () => {
       safeParseContract(devicePrincipalSchema, {
         ...nate,
         user: { id: 'nate', username: 'nate', color: null },
-      })?.user.color
+      })?.user.color,
     ).toBeNull();
   });
 
@@ -182,7 +198,7 @@ describe('deviceDirectorySchema', () => {
       safeParseContract(devicePrincipalSchema, {
         ...nate,
         user: { id: 'nate', username: 'nate', color: { preset: 'purple' } },
-      })
+      }),
     ).toBeNull();
   });
 });
@@ -200,7 +216,9 @@ describe('device activation contracts', () => {
 
   it('rejects an accountId in place of a contextId', () => {
     // An account id cannot name a context on a multi-principal device.
-    expect(safeParseContract(deviceActivateRequestSchema, { accountId: 'oxy_collective' })).toBeNull();
+    expect(
+      safeParseContract(deviceActivateRequestSchema, { accountId: 'oxy_collective' }),
+    ).toBeNull();
   });
 
   it('parses a response carrying directory + token', () => {
@@ -212,7 +230,10 @@ describe('device activation contracts', () => {
   });
 
   it('accepts activeToken=null (identity-pinned or non-entitled caller)', () => {
-    const parsed = safeParseContract(deviceActivateResponseSchema, { directory, activeToken: null });
+    const parsed = safeParseContract(deviceActivateResponseSchema, {
+      directory,
+      activeToken: null,
+    });
     expect(parsed?.activeToken).toBeNull();
   });
 
@@ -240,7 +261,9 @@ describe('deviceDirectorySyncSchema — the context-aware removal response', () 
   });
 
   it('accepts activeToken=null, including "the removal left no active context"', () => {
-    expect(safeParseContract(deviceDirectorySyncSchema, { ...removal, activeToken: null })?.activeToken).toBeNull();
+    expect(
+      safeParseContract(deviceDirectorySyncSchema, { ...removal, activeToken: null })?.activeToken,
+    ).toBeNull();
   });
 
   /**
@@ -258,10 +281,14 @@ describe('deviceDirectorySyncSchema — the context-aware removal response', () 
       state,
       activeToken: removal.activeToken,
     });
-    expect(safeParseContract(deviceDirectorySyncSchema, { state, activeToken: removal.activeToken })).toBeNull();
+    expect(
+      safeParseContract(deviceDirectorySyncSchema, { state, activeToken: removal.activeToken }),
+    ).toBeNull();
   });
 
   it('rejects a payload missing the flat state', () => {
-    expect(safeParseContract(deviceDirectorySyncSchema, { directory, activeToken: null })).toBeNull();
+    expect(
+      safeParseContract(deviceDirectorySyncSchema, { directory, activeToken: null }),
+    ).toBeNull();
   });
 });

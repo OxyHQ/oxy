@@ -75,18 +75,18 @@ for (const [field, required] of Object.entries(REQUIRED_POLICY)) {
   for (const value of required) {
     if (!policy[field].includes(value)) {
       failures.push(
-        `policy.${field} does not carry ${JSON.stringify(value)}. The gate stopped watching it, `
-        + 'and because every case here is derived from the policy, the case that would have '
-        + 'caught that disappeared along with it.',
+        `policy.${field} does not carry ${JSON.stringify(value)}. The gate stopped watching it, ` +
+          'and because every case here is derived from the policy, the case that would have ' +
+          'caught that disappeared along with it.',
       );
     }
   }
 }
 if (policy.allowed.length < REQUIRED_POLICY.minimumAllowed) {
   failures.push(
-    `policy.allowed holds ${policy.allowed.length} entries, below the `
-    + `${REQUIRED_POLICY.minimumAllowed} floor — an allow-list that collapsed makes both `
-    + 'directions of the exactness assertion vacuous.',
+    `policy.allowed holds ${policy.allowed.length} entries, below the ` +
+      `${REQUIRED_POLICY.minimumAllowed} floor — an allow-list that collapsed makes both ` +
+      'directions of the exactness assertion vacuous.',
   );
 }
 
@@ -132,17 +132,19 @@ function groupAllowedByFile(entries) {
  * The positive control is what caught it.
  */
 function allowedSource(entries) {
-  const uses = entries.flatMap((entry, entryIndex) =>
-    Array.from(
-      { length: entry.count },
-      (_unused, index) =>
-        `export const allowed${entryIndex}_${index} = (req: Req) => String(${entry.expression});`,
-    ),
-  ).join('\n');
+  const uses = entries
+    .flatMap((entry, entryIndex) =>
+      Array.from(
+        { length: entry.count },
+        (_unused, index) =>
+          `export const allowed${entryIndex}_${index} = (req: Req) => String(${entry.expression});`,
+      ),
+    )
+    .join('\n');
   return (
-    'interface Req { ip?: string; ips?: string[]; socket: { remoteAddress?: string } }\n'
-    + 'declare const guard: { ip: string };\n'
-    + `${uses}\n`
+    'interface Req { ip?: string; ips?: string[]; socket: { remoteAddress?: string } }\n' +
+    'declare const guard: { ip: string };\n' +
+    `${uses}\n`
   );
 }
 
@@ -152,14 +154,14 @@ function allowedSource(entries) {
  */
 function limiterSource(keyGeneratorBody) {
   return (
-    'declare function rateLimit(options: unknown): unknown;\n'
-    + 'declare function hashedIpKey(req: unknown): string;\n'
-    + 'export const limiter = rateLimit({\n'
-    + "  prefix: 'rl:fixture:',\n"
-    + '  windowMs: 60000,\n'
-    + '  max: 20,\n'
-    + `  keyGenerator: ${keyGeneratorBody},\n`
-    + '});\n'
+    'declare function rateLimit(options: unknown): unknown;\n' +
+    'declare function hashedIpKey(req: unknown): string;\n' +
+    'export const limiter = rateLimit({\n' +
+    "  prefix: 'rl:fixture:',\n" +
+    '  windowMs: 60000,\n' +
+    '  max: 20,\n' +
+    `  keyGenerator: ${keyGeneratorBody},\n` +
+    '});\n'
   );
 }
 
@@ -168,15 +170,20 @@ function limiterSource(keyGeneratorBody) {
  * the case plants. `omitAllowed` drops one allow-listed entry, which is how the
  * list's exactness in the other direction is exercised.
  */
-function createFixture({ files = {}, omitAllowed = null, limiter = 'hashedIpKey', limiterFile = null } = {}) {
+function createFixture({
+  files = {},
+  omitAllowed = null,
+  limiter = 'hashedIpKey',
+  limiterFile = null,
+} = {}) {
   const root = mkdtempSync(fixturePrefix);
   createdFixtures.push(root);
 
   const kept = policy.allowed.filter(
     (entry) =>
-      omitAllowed === null
-      || entry.file !== omitAllowed.file
-      || entry.expression !== omitAllowed.expression,
+      omitAllowed === null ||
+      entry.file !== omitAllowed.file ||
+      entry.expression !== omitAllowed.expression,
   );
   for (const [file, entries] of groupAllowedByFile(kept)) {
     write(root, file, allowedSource(entries));
@@ -231,11 +238,7 @@ expectVerdict(
     limiter: "(req) => (req as AuthRequest).user?._id?.toString() ?? req.ip ?? 'unknown'",
   }),
   1,
-  [
-    "is inside a rate limiter's options",
-    'Not allow-listable',
-    'is not in ALLOWED_IP_SOURCES',
-  ],
+  ["is inside a rate limiter's options", 'Not allow-listable', 'is not in ALLOWED_IP_SOURCES'],
 );
 
 /* -------------------------------------------------------------------------- */
@@ -251,8 +254,8 @@ for (const member of policy.members) {
     createFixture({
       files: {
         'packages/fixture/src/handler.ts':
-          'declare const req: { socket: unknown } & Record<string, unknown>;\n'
-          + `export const key = String(req.${member});\n`,
+          'declare const req: { socket: unknown } & Record<string, unknown>;\n' +
+          `export const key = String(req.${member});\n`,
       },
     }),
     1,
@@ -266,8 +269,7 @@ expectVerdict(
   createFixture({
     files: {
       'packages/fixture/src/handler.ts':
-        'declare const req: Record<string, unknown>;\n'
-        + "export const key = String(req['ip']);\n",
+        'declare const req: Record<string, unknown>;\n' + "export const key = String(req['ip']);\n",
     },
   }),
   1,
@@ -283,8 +285,8 @@ for (const header of policy.headers) {
     createFixture({
       files: {
         'packages/fixture/src/handler.ts':
-          'declare const req: { headers: Record<string, string | undefined> };\n'
-          + `export const key = req.headers['${name}'] ?? 'unknown';\n`,
+          'declare const req: { headers: Record<string, string | undefined> };\n' +
+          `export const key = req.headers['${name}'] ?? 'unknown';\n`,
       },
     }),
     1,
@@ -299,18 +301,19 @@ for (const header of policy.headers) {
 // An IP inside a limiter's options fails EVEN THOUGH its file+expression is on
 // the allow-list. Without this the second half would collapse into the first the
 // moment somebody excused a file for an unrelated reason.
-const hasher = policy.allowed.find((entry) => entry.file.endsWith('utils/ipKey.ts')) ?? policy.allowed[0];
+const hasher =
+  policy.allowed.find((entry) => entry.file.endsWith('utils/ipKey.ts')) ?? policy.allowed[0];
 expectVerdict(
   'allow-listed-file-still-fails-inside-a-limiter',
   createFixture({
     files: {
       [hasher.file]:
-        `${allowedSource(allowedEntriesIn(hasher.file))}`
-        + 'declare function rateLimit(options: unknown): unknown;\n'
-        + 'export const sneaky = rateLimit({\n'
-        + "  prefix: 'rl:sneaky:',\n"
-        + '  keyGenerator: (r: Req) => String(r.ip),\n'
-        + '});\n',
+        `${allowedSource(allowedEntriesIn(hasher.file))}` +
+        'declare function rateLimit(options: unknown): unknown;\n' +
+        'export const sneaky = rateLimit({\n' +
+        "  prefix: 'rl:sneaky:',\n" +
+        '  keyGenerator: (r: Req) => String(r.ip),\n' +
+        '});\n',
     },
   }),
   1,
@@ -326,8 +329,8 @@ for (const callee of policy.limiterCallees) {
     createFixture({
       files: {
         'packages/fixture/src/other.ts':
-          `declare function ${callee}(options: unknown): unknown;\n`
-          + `export const limiter = ${callee}({ keyGenerator: (req: { ip?: string }) => req.ip ?? 'x' });\n`,
+          `declare function ${callee}(options: unknown): unknown;\n` +
+          `export const limiter = ${callee}({ keyGenerator: (req: { ip?: string }) => req.ip ?? 'x' });\n`,
       },
     }),
     1,
@@ -342,8 +345,8 @@ expectVerdict(
   createFixture({
     files: {
       'packages/fixture/src/other.ts':
-        'declare const oxy: { rateLimit(options: unknown): unknown };\n'
-        + "export const limiter = oxy.rateLimit({ keyGenerator: (req: { ip?: string }) => req.ip ?? 'x' });\n",
+        'declare const oxy: { rateLimit(options: unknown): unknown };\n' +
+        "export const limiter = oxy.rateLimit({ keyGenerator: (req: { ip?: string }) => req.ip ?? 'x' });\n",
     },
   }),
   1,
@@ -365,17 +368,17 @@ expectVerdict(
   createFixture({
     files: {
       'packages/fixture/src/prose.ts':
-        '/**\n'
-        + ' * Keyed through the hasher, never raw `req.ip`.\n'
-        + ' *\n'
-        + " * The v8 validator's static scan false-positives on req.ip and spams\n"
-        + " * ERR_ERL_KEY_GEN_IPV6, so it's disabled — it isn't reading what we read.\n"
-        + " * Don't reach for req.socket.remoteAddress or req.headers['x-forwarded-for']\n"
-        + ' * either; they are the same address by another name.\n'
-        + ' */\n'
-        + '// A line comment: req.ip, req.ips, x-real-ip, cf-connecting-ip.\n'
-        + 'declare function hashedIpKey(req: unknown): string;\n'
-        + 'export const key = (req: unknown) => hashedIpKey(req);\n',
+        '/**\n' +
+        ' * Keyed through the hasher, never raw `req.ip`.\n' +
+        ' *\n' +
+        " * The v8 validator's static scan false-positives on req.ip and spams\n" +
+        " * ERR_ERL_KEY_GEN_IPV6, so it's disabled — it isn't reading what we read.\n" +
+        " * Don't reach for req.socket.remoteAddress or req.headers['x-forwarded-for']\n" +
+        ' * either; they are the same address by another name.\n' +
+        ' */\n' +
+        '// A line comment: req.ip, req.ips, x-real-ip, cf-connecting-ip.\n' +
+        'declare function hashedIpKey(req: unknown): string;\n' +
+        'export const key = (req: unknown) => hashedIpKey(req);\n',
     },
   }),
   0,
@@ -419,8 +422,8 @@ expectVerdict(
   createFixture({
     files: {
       [hasher.file]:
-        `${allowedSource(allowedEntriesIn(hasher.file))}`
-        + 'export const extra = (req: Req) => String(req.ip);\n',
+        `${allowedSource(allowedEntriesIn(hasher.file))}` +
+        'export const extra = (req: Req) => String(req.ip);\n',
     },
   }),
   1,
@@ -434,13 +437,9 @@ expectVerdict(
 // The REAL floors against a fixture tree of a dozen files. Nothing is planted:
 // this tree is clean, and only the floors can catch that it is also tiny. Without
 // them, a corpus that resolved to nothing reports exactly this.
-expectVerdict(
-  'below-the-vacuity-floor',
-  createFixture(),
-  1,
-  ['is below the', 'floor'],
-  { RAW_IP_KEYS_FIXTURE_FLOORS: '0' },
-);
+expectVerdict('below-the-vacuity-floor', createFixture(), 1, ['is below the', 'floor'], {
+  RAW_IP_KEYS_FIXTURE_FLOORS: '0',
+});
 
 // The `keyGenerator` floor is what stops half 2 from inspecting zero limiter
 // options and reporting clean, so it has to count every spelling of that property
@@ -454,10 +453,10 @@ expectVerdict(
   'keygenerator-written-in-shorthand-still-counts',
   createFixture({
     limiterFile:
-      'declare function rateLimit(options: unknown): unknown;\n'
-      + 'declare function hashedIpKey(req: unknown): string;\n'
-      + 'const keyGenerator = hashedIpKey;\n'
-      + "export const limiter = rateLimit({ prefix: 'rl:fixture:', windowMs: 60000, max: 20, keyGenerator });\n",
+      'declare function rateLimit(options: unknown): unknown;\n' +
+      'declare function hashedIpKey(req: unknown): string;\n' +
+      'const keyGenerator = hashedIpKey;\n' +
+      "export const limiter = rateLimit({ prefix: 'rl:fixture:', windowMs: 60000, max: 20, keyGenerator });\n",
   }),
   0,
   ['Raw-client-IP guard passed'],
@@ -478,7 +477,10 @@ expectVerdict(
 // that notices. This is the shape of running the gate from the wrong directory.
 const emptyRoot = mkdtempSync(fixturePrefix);
 createdFixtures.push(emptyRoot);
-expectVerdict('no-packages-directory', emptyRoot, 1, ['file(s) read is below the', 'repository root']);
+expectVerdict('no-packages-directory', emptyRoot, 1, [
+  'file(s) read is below the',
+  'repository root',
+]);
 
 /* -------------------------------------------------------------------------- */
 /*  Scope: tests and generated output are not the corpus                      */
@@ -492,8 +494,8 @@ expectVerdict(
   createFixture({
     files: {
       'packages/fixture/src/__tests__/handler.test.ts':
-        "export const fake = { ip: '203.0.113.7', socket: { remoteAddress: '203.0.113.7' } };\n"
-        + 'export const read = (req: { ip: string }) => req.ip;\n',
+        "export const fake = { ip: '203.0.113.7', socket: { remoteAddress: '203.0.113.7' } };\n" +
+        'export const read = (req: { ip: string }) => req.ip;\n',
       'packages/fixture/src/handler.spec.ts':
         'export const read2 = (req: { ip: string }) => req.ip;\n',
       'packages/fixture/src/dist/bundled.ts':
@@ -517,7 +519,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Raw-client-IP check discriminated ${createdFixtures.length} fixture case(s), including the `
-  + 'original store.ts keyGenerator verbatim, every banned member and header, both directions of '
-  + 'allow-list drift, and a file naming every one of them only in comments.',
+  `Raw-client-IP check discriminated ${createdFixtures.length} fixture case(s), including the ` +
+    'original store.ts keyGenerator verbatim, every banned member and header, both directions of ' +
+    'allow-list drift, and a file naming every one of them only in comments.',
 );

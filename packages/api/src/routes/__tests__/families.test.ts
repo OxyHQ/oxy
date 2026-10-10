@@ -50,7 +50,7 @@ jest.mock('../../middleware/auth', () => ({
       oxyToken?: { applicationId: string };
     },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: OPERATOR_ID, id: OPERATOR_ID };
     if (req.headers.authorization === 'Bearer third-party-token') {
@@ -65,7 +65,7 @@ jest.mock('../../middleware/firstPartyDeviceAccess', () => ({
   requireFirstPartyDeviceAccess: (
     req: { oxyToken?: { applicationId: string } },
     res: { status: (code: number) => { json: (body: unknown) => void } },
-    next: () => void
+    next: () => void,
   ) => {
     if (req.oxyToken?.applicationId === 'third-party-app') {
       res.status(403).json({ error: 'third_party_device_access_denied' });
@@ -122,7 +122,8 @@ describe('application authorization', () => {
   ] as const)(
     'rejects a third-party application-bound token before a %s operation',
     async (_lane, method, path) => {
-      const res = await request(app)[method](path)
+      const res = await request(app)
+        [method](path)
         .set('Authorization', 'Bearer third-party-token')
         .send(method === 'post' ? { name: 'Compromised' } : undefined);
 
@@ -130,7 +131,7 @@ describe('application authorization', () => {
       expect(res.body).toEqual({ error: 'third_party_device_access_denied' });
       expect(mockGetMyFamilies).not.toHaveBeenCalled();
       expect(mockCreateFamily).not.toHaveBeenCalled();
-    }
+    },
   );
 });
 
@@ -167,7 +168,10 @@ describe('GET /families/me', () => {
   it('returns every family the caller actively belongs to, each with its roster', async () => {
     mockGetMyFamilies.mockResolvedValue([
       { family: fakeFamily(), members: [fakeMembership()] },
-      { family: fakeFamily({ id: 'family-2' }), members: [fakeMembership({ familyId: 'family-2' })] },
+      {
+        family: fakeFamily({ id: 'family-2' }),
+        members: [fakeMembership({ familyId: 'family-2' })],
+      },
     ]);
 
     const res = await request(app).get('/families/me').set('Authorization', 'Bearer user-token');
@@ -191,7 +195,10 @@ describe('GET /families/me', () => {
 describe('GET /families/invites', () => {
   it('lists pending invites addressed to the caller', async () => {
     mockListPendingInvites.mockResolvedValue([
-      { membership: fakeMembership({ role: 'member', status: 'invited', joinedAt: null }), family: fakeFamily() },
+      {
+        membership: fakeMembership({ role: 'member', status: 'invited', joinedAt: null }),
+        family: fakeFamily(),
+      },
     ]);
 
     const res = await request(app)
@@ -208,7 +215,12 @@ describe('POST /families/:id/members', () => {
   it('resolves the identifier and invites the target user', async () => {
     mockResolveUserByIdentifier.mockResolvedValue({ id: 'target-user' });
     mockInviteMember.mockResolvedValue(
-      fakeMembership({ memberUserId: 'target-user', role: 'member', status: 'invited', joinedAt: null })
+      fakeMembership({
+        memberUserId: 'target-user',
+        role: 'member',
+        status: 'invited',
+        joinedAt: null,
+      }),
     );
 
     const res = await request(app)
@@ -235,7 +247,7 @@ describe('POST /families/:id/members', () => {
   it("propagates the service's 403 when the caller is not the organizer", async () => {
     mockResolveUserByIdentifier.mockResolvedValue({ id: 'target-user' });
     mockInviteMember.mockRejectedValue(
-      new ForbiddenError('Only the family organizer may invite members')
+      new ForbiddenError('Only the family organizer may invite members'),
     );
 
     const res = await request(app)

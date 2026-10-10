@@ -345,9 +345,7 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
   });
 
   it('reports the granted scope as a space-delimited string', async () => {
-    mockExchangeAuthCode.mockResolvedValueOnce(
-      grant({ scopes: ['profile:read', 'email:read'] }),
-    );
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ scopes: ['profile:read', 'email:read'] }));
 
     const res = await requestForm(pkceParams());
 
@@ -401,8 +399,9 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
     const { clientId } = await client({}, OFFICIAL_APP);
     const org = await subject({ kind: 'organization' });
     const operator = await subject();
-    await getDb().insert(accountMembers).values({ accountId: org, memberUserId: operator,
-      role: 'admin', status: 'active' });
+    await getDb()
+      .insert(accountMembers)
+      .values({ accountId: org, memberUserId: operator, role: 'admin', status: 'active' });
     mockExchangeAuthCode.mockResolvedValueOnce(
       grant({ userId: org, deviceId: '  dev-shared  ', operatedByUserId: operator }),
     );

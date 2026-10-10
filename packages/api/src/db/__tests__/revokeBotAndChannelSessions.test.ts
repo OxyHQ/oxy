@@ -34,7 +34,7 @@ const MIGRATION = join(
   '..',
   '..',
   'drizzle',
-  '0058_revoke_person_sessions_on_bots_and_channels.sql'
+  '0058_revoke_person_sessions_on_bots_and_channels.sql',
 );
 
 /** The statement itself, with the phase marker and the reasoning stripped. */
@@ -73,7 +73,7 @@ function unique(prefix: string): string {
 
 async function accountWithSession(
   kind: AccountKind,
-  options: { active?: boolean } = {}
+  options: { active?: boolean } = {},
 ): Promise<{ accountId: string; sessionId: string }> {
   const [account] = await getDb()
     .insert(users)
@@ -142,7 +142,7 @@ describe('the deploy revokes what the new rule forbids', () => {
       await runRevocation();
 
       expect(await isActive(spared.sessionId)).toBe(true);
-    }
+    },
   );
 
   it('is idempotent: a second run revokes nothing further and does not fail', async () => {
@@ -181,7 +181,7 @@ describe('the deploy revokes what the new rule forbids', () => {
       .where(
         sql`${users.kind} in ('bot','channel')
             and ${sessions.isActive}
-            and ${users.id} in (${bot.accountId}, ${channel.accountId})`
+            and ${users.id} in (${bot.accountId}, ${channel.accountId})`,
       );
 
     expect(remaining).toEqual([]);

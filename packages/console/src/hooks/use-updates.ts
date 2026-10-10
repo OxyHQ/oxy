@@ -68,7 +68,7 @@ export function useChannelUpdates(appId: string, channel: string, enabled: boole
         .request<{ updates: Array<Update> }>(
           'GET',
           `${UPDATES_BASE}/channels/${encodeURIComponent(channel)}/updates`,
-          { applicationId: appId, limit: 200 }
+          { applicationId: appId, limit: 200 },
         )
         .then((result) => result.updates),
     enabled: isReady && isAuthenticated && !!appId && !!channel && enabled,
@@ -115,7 +115,7 @@ export function usePromoteUpdate(appId: string) {
         .request<{ update: Update }>(
           'POST',
           `${UPDATES_BASE}/channels/${encodeURIComponent(channel)}/promote`,
-          { applicationId: appId, updateId, toChannel, rolloutPercent }
+          { applicationId: appId, updateId, toChannel, rolloutPercent },
         )
         .then((result) => result.update),
     onSuccess: invalidate,
@@ -137,7 +137,7 @@ export function useRollbackChannel(appId: string) {
       oxyServices.request<{ rolledBack: Update; head: Update | null }>(
         'POST',
         `${UPDATES_BASE}/channels/${encodeURIComponent(channel)}/rollback`,
-        { applicationId: appId, runtimeVersion, platform }
+        { applicationId: appId, runtimeVersion, platform },
       ),
     onSuccess: invalidate,
   });
@@ -153,7 +153,7 @@ export function useRollbackToEmbedded(appId: string) {
         .request<{ channel: Channel }>(
           'POST',
           `${UPDATES_BASE}/channels/${encodeURIComponent(channel)}/rollback-to-embedded`,
-          { applicationId: appId, runtimeVersion, platform }
+          { applicationId: appId, runtimeVersion, platform },
         )
         .then((result) => result.channel),
     onSuccess: invalidate,
@@ -175,7 +175,7 @@ export function useSetRollout(appId: string) {
         .request<{ update: Update }>(
           'PATCH',
           `${UPDATES_BASE}/updates/${encodeURIComponent(updateId)}`,
-          { applicationId: appId, rolloutPercent }
+          { applicationId: appId, rolloutPercent },
         )
         .then((result) => result.update),
     onSuccess: invalidate,

@@ -44,7 +44,13 @@ describe('parseRelayList', () => {
         SMTP_RELAY_PASS: 'secret',
       }),
     ).toEqual([
-      { name: 'smtp-relay.brevo.com', host: 'smtp-relay.brevo.com', port: 587, user: 'user@example.com', pass: 'secret' },
+      {
+        name: 'smtp-relay.brevo.com',
+        host: 'smtp-relay.brevo.com',
+        port: 587,
+        user: 'user@example.com',
+        pass: 'secret',
+      },
     ]);
   });
 
@@ -57,8 +63,20 @@ describe('parseRelayList', () => {
         SMTP_RELAY_PASS: 'pw1,pw2',
       }),
     ).toEqual([
-      { name: 'primary.example.com', host: 'primary.example.com', port: 587, user: 'first', pass: 'pw1' },
-      { name: 'fallback.example.com', host: 'fallback.example.com', port: 2525, user: 'second', pass: 'pw2' },
+      {
+        name: 'primary.example.com',
+        host: 'primary.example.com',
+        port: 587,
+        user: 'first',
+        pass: 'pw1',
+      },
+      {
+        name: 'fallback.example.com',
+        host: 'fallback.example.com',
+        port: 2525,
+        user: 'second',
+        pass: 'pw2',
+      },
     ]);
   });
 
@@ -76,12 +94,23 @@ describe('parseRelayList', () => {
   });
 
   it('ignores blank entries and surrounding whitespace', () => {
-    expect(parse({ SMTP_RELAY_HOST: ' a.example.com , , b.example.com ', SMTP_RELAY_USER: '', SMTP_RELAY_PASS: '' })
-      .map((r) => r.host)).toEqual(['a.example.com', 'b.example.com']);
+    expect(
+      parse({
+        SMTP_RELAY_HOST: ' a.example.com , , b.example.com ',
+        SMTP_RELAY_USER: '',
+        SMTP_RELAY_PASS: '',
+      }).map((r) => r.host),
+    ).toEqual(['a.example.com', 'b.example.com']);
   });
 
   it('falls back to 587 for a port that is not a number', () => {
-    expect(parse({ SMTP_RELAY_HOST: 'a.example.com', SMTP_RELAY_PORT: 'nonsense', SMTP_RELAY_USER: '', SMTP_RELAY_PASS: '' })[0].port)
-      .toBe(587);
+    expect(
+      parse({
+        SMTP_RELAY_HOST: 'a.example.com',
+        SMTP_RELAY_PORT: 'nonsense',
+        SMTP_RELAY_USER: '',
+        SMTP_RELAY_PASS: '',
+      })[0].port,
+    ).toBe(587);
   });
 });

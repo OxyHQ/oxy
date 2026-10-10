@@ -45,7 +45,9 @@ const OTHER_APP = 'mention';
 
 const mockServiceAuthMiddleware = jest.fn();
 const mockAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) => next());
-const mockOptionalAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) => next());
+const mockOptionalAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) =>
+  next(),
+);
 const mockGetFilesByIds = jest.fn();
 const mockGetPresignedDownloadUrl = jest.fn();
 
@@ -235,8 +237,8 @@ describe('POST /assets/service/linked-url — what it refuses, and how', () => {
     {
       name: 'linkedByAnotherUser',
       why:
-        'THE ATTACK: `linkFile` checks no ownership, so an attacker links a '
-        + 'stranger\'s file into this app and asks for its bytes.',
+        'THE ATTACK: `linkFile` checks no ownership, so an attacker links a ' +
+        "stranger's file into this app and asks for its bytes.",
       row: fileRow('f_attack', {
         ownerUserId: OWNER_ID,
         links: [
@@ -260,8 +262,8 @@ describe('POST /assets/service/linked-url — what it refuses, and how', () => {
     {
       name: 'systemOwned',
       why:
-        'a federation-cache entry has no owner, so nobody could have consented; '
-        + '`created_by` is NOT NULL so no link can ever match a NULL owner',
+        'a federation-cache entry has no owner, so nobody could have consented; ' +
+        '`created_by` is NOT NULL so no link can ever match a NULL owner',
       row: fileRow('f_system', {
         ownerUserId: null,
         links: [

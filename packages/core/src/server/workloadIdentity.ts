@@ -67,7 +67,9 @@ interface ContainerCredentials {
  * checkout has no attestation to offer and must fall back to a credential.
  */
 export function canAttestWorkloadIdentity(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI || env.AWS_CONTAINER_CREDENTIALS_FULL_URI);
+  return Boolean(
+    env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI || env.AWS_CONTAINER_CREDENTIALS_FULL_URI,
+  );
 }
 
 async function containerCredentials(fetchImpl: typeof fetch): Promise<ContainerCredentials> {
@@ -108,8 +110,15 @@ function sha256Hex(value: string): string {
  * attestation whose signature does not cover it, because a nonce the signature
  * does not cover can be swapped by whoever captured the attestation.
  */
-function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string, now: Date): Record<string, string> {
-  const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+function signGetCallerIdentity(
+  credentials: ContainerCredentials,
+  nonce: string,
+  now: Date,
+): Record<string, string> {
+  const amzDate = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
   const dateStamp = amzDate.slice(0, 8);
 
   const headers: Record<string, string> = {
@@ -135,7 +144,10 @@ function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string,
   const scope = `${dateStamp}/${STS_REGION}/sts/aws4_request`;
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n');
 
-  const signingKey = hmac(hmac(hmac(hmac(`AWS4${credentials.SecretAccessKey}`, dateStamp), STS_REGION), 'sts'), 'aws4_request');
+  const signingKey = hmac(
+    hmac(hmac(hmac(`AWS4${credentials.SecretAccessKey}`, dateStamp), STS_REGION), 'sts'),
+    'aws4_request',
+  );
   const signature = createHmac('sha256', signingKey).update(stringToSign, 'utf8').digest('hex');
 
   return {
@@ -147,7 +159,10 @@ function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string,
 }
 
 /** The AWS attestation: signed headers, and nothing else. */
-async function awsContainerAttestation(fetchImpl: typeof fetch, nonce: string): Promise<{ headers: Record<string, string> }> {
+async function awsContainerAttestation(
+  fetchImpl: typeof fetch,
+  nonce: string,
+): Promise<{ headers: Record<string, string> }> {
   const credentials = await containerCredentials(fetchImpl);
   return { headers: signGetCallerIdentity(credentials, nonce, new Date()) };
 }

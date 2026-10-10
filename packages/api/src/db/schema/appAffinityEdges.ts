@@ -54,11 +54,7 @@ export const appAffinityEdges = pgTable(
     // `<table>_<col>_<col>…_key` convention: the spelled-out name is exactly 63
     // characters, the point at which Postgres silently truncates, so it would
     // survive only by luck and any later column rename would push it over.
-    unique('app_affinity_edges_directed_edge_key').on(
-      t.applicationId,
-      t.fromUserId,
-      t.toUserId
-    ),
+    unique('app_affinity_edges_directed_edge_key').on(t.applicationId, t.fromUserId, t.toUserId),
     // The scorer's pre-query: a viewer's strongest affinities within an app
     // (`find({applicationId, fromUserId}).sort({affinity: -1})`,
     // `routes/profiles.ts:1069`). The unique above leads with the same two
@@ -66,7 +62,7 @@ export const appAffinityEdges = pgTable(
     index('app_affinity_edges_application_id_from_user_id_affinity_idx').on(
       t.applicationId,
       t.fromUserId,
-      t.affinity.desc()
+      t.affinity.desc(),
     ),
     // Reverse fan-in (who has affinity toward a user), and the index that keeps
     // a user delete from scanning this table.
@@ -78,9 +74,6 @@ export const appAffinityEdges = pgTable(
     check('app_affinity_edges_not_self_check', sql`${t.fromUserId} <> ${t.toUserId}`),
     // Every folded weight is strictly positive and decay only shrinks the value,
     // so a negative affinity is a fold bug, not a weak relationship.
-    check(
-      'app_affinity_edges_affinity_check',
-      sql`${t.affinity} >= 0 and ${t.eventCount} >= 0`
-    ),
-  ]
+    check('app_affinity_edges_affinity_check', sql`${t.affinity} >= 0 and ${t.eventCount} >= 0`),
+  ],
 );

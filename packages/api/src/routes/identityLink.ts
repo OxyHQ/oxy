@@ -66,7 +66,9 @@ function userLimiter(name: string, max: number) {
     message: 'Too many link requests. Please try again later.',
     keyGenerator: (req: Request): string => {
       const userId = (req as AuthRequest).user?.id;
-      return userId ? `identity:link:${name}:${userId}` : `identity:link:${name}:ip:${hashedIpKey(req)}`;
+      return userId
+        ? `identity:link:${name}:${userId}`
+        : `identity:link:${name}:ip:${hashedIpKey(req)}`;
     },
   });
 }
@@ -123,15 +125,23 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = requireUserId(req);
     const body = req.body as IdentityLinkCompleteRequest;
-    const { formerEmail, username } = await completeLinkRequest(req.params.linkId as string, userId, body);
+    const { formerEmail, username } = await completeLinkRequest(
+      req.params.linkId as string,
+      userId,
+      body,
+    );
     userCache.invalidate(userId);
     // The account is the person's own now: every other session goes.
     await sessionService.deactivateAllUserSessions(userId, req.sessionId);
     if (formerEmail) {
       sendSecurityNotice(formerEmail, 'commons_linked', username).catch((error: unknown) => {
-        logger.error('Commons link notice could not be sent', error instanceof Error ? error : new Error(String(error)), {
-          component: 'identityLink',
-        });
+        logger.error(
+          'Commons link notice could not be sent',
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            component: 'identityLink',
+          },
+        );
       });
     }
     res.status(200).json({ success: true });

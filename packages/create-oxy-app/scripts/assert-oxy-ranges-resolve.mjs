@@ -26,7 +26,13 @@ import { assertPublishedBloomPair } from './assert-bloom-pair.mjs';
 
 const execFileAsync = promisify(execFile);
 
-const MANIFEST_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'overrides', 'resolutions'];
+const MANIFEST_FIELDS = [
+  'dependencies',
+  'devDependencies',
+  'peerDependencies',
+  'overrides',
+  'resolutions',
+];
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.expo', 'android', 'ios']);
 const ATTEMPTS = 3;
 
@@ -71,7 +77,9 @@ function collectOxyRanges(appDir) {
 async function resolve(spec) {
   for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
     try {
-      const { stdout } = await execFileAsync('npm', ['view', spec, 'version'], { encoding: 'utf8' });
+      const { stdout } = await execFileAsync('npm', ['view', spec, 'version'], {
+        encoding: 'utf8',
+      });
       const lines = stdout.trim().split('\n').filter(Boolean);
       if (lines.length === 0) throw new Error(`E404 npm view printed no version for ${spec}`);
       // A multi-version match prints `<name>@<version> '<version>'` per line; a
@@ -84,7 +92,9 @@ async function resolve(spec) {
         throw new Error(`${spec} matches NO published version (E404)`);
       }
       if (attempt === ATTEMPTS) {
-        throw new Error(`could not reach the registry for ${spec}: ${detail.trim().split('\n')[0]}`);
+        throw new Error(
+          `could not reach the registry for ${spec}: ${detail.trim().split('\n')[0]}`,
+        );
       }
       await new Promise((done) => setTimeout(done, attempt * 3000));
     }
@@ -98,7 +108,9 @@ async function main() {
 
   const specs = collectOxyRanges(appDir);
   if (specs.size === 0) {
-    console.error(`::error::no @oxy.so ranges found under ${appDir} — the scaffold did not render, or this is the wrong directory`);
+    console.error(
+      `::error::no @oxy.so ranges found under ${appDir} — the scaffold did not render, or this is the wrong directory`,
+    );
     process.exit(1);
   }
 
@@ -118,11 +130,15 @@ async function main() {
   if (failures.length === 0) {
     try {
       await assertPublishedBloomPair(resolved, async (spec, field) => {
-        const { stdout } = await execFileAsync('npm', ['view', spec, field, '--json'], { encoding: 'utf8' });
+        const { stdout } = await execFileAsync('npm', ['view', spec, field, '--json'], {
+          encoding: 'utf8',
+        });
         return JSON.parse(stdout);
       });
     } catch (error) {
-      failures.push(`Published Services/Bloom pair is incompatible or could not be verified: ${error.message}`);
+      failures.push(
+        `Published Services/Bloom pair is incompatible or could not be verified: ${error.message}`,
+      );
     }
   }
 
@@ -134,7 +150,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`all ${specs.size} generated @oxy.so ranges resolve and the published Services/Bloom pair is compatible`);
+  console.log(
+    `all ${specs.size} generated @oxy.so ranges resolve and the published Services/Bloom pair is compatible`,
+  );
 }
 
 main().catch((error) => {

@@ -58,7 +58,10 @@ import type { RoutingPolicyControls } from '../../services/inferenceRoutingPolic
 import { overrideDeploymentPublicationSource } from '../../services/kaanaDeploymentPublication.service';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
-import { attestFixtureDeployments, createNeutralRoutingPolicy } from '../__fixtures__/kaanaRuntimeFixtures';
+import {
+  attestFixtureDeployments,
+  createNeutralRoutingPolicy,
+} from '../__fixtures__/kaanaRuntimeFixtures';
 import { EDGE_ROLLOUT_ENVIRONMENT, verifyEdgeSignature } from '../__fixtures__/kaanaAudioFixtures';
 
 jest.setTimeout(60_000);
@@ -183,7 +186,11 @@ interface Answer {
   readonly body: Record<string, unknown>;
 }
 
-type Post = (path: '/v1/chat/completions' | '/v1/responses', body: unknown, token: string) => Promise<Answer>;
+type Post = (
+  path: '/v1/chat/completions' | '/v1/responses',
+  body: unknown,
+  token: string,
+) => Promise<Answer>;
 
 async function withEdge(run: (stub: Stub, post: Post) => Promise<void>): Promise<void> {
   const stub = await startStub();
@@ -192,7 +199,9 @@ async function withEdge(run: (stub: Stub, post: Post) => Promise<void>): Promise
   process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE] = EDGE_PRIVATE_PEM;
   const systemFetch = globalThis.fetch;
   globalThis.fetch = (async (input, init) => {
-    const requested = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url);
+    const requested = new URL(
+      typeof input === 'string' ? input : input instanceof URL ? input : input.url,
+    );
     expect(requested.origin).toBe('https://kaana.ai');
     return systemFetch(`${stub.baseUrl}${requested.pathname}`, init);
   }) as typeof fetch;
@@ -227,9 +236,12 @@ async function withEdge(run: (stub: Stub, post: Post) => Promise<void>): Promise
             text += chunk.toString('utf8');
           });
           res.on('end', () =>
-            resolve({ status: res.statusCode ?? 0, body: JSON.parse(text) as Record<string, unknown> })
+            resolve({
+              status: res.statusCode ?? 0,
+              body: JSON.parse(text) as Record<string, unknown>,
+            }),
           );
-        }
+        },
       );
       request.on('error', reject);
       request.end(payload);
@@ -251,7 +263,7 @@ async function withEdge(run: (stub: Stub, post: Post) => Promise<void>): Promise
 }
 
 const ORIGINAL_ENVIRONMENT = Object.fromEntries(
-  Object.keys(EDGE_ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]])
+  Object.keys(EDGE_ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]]),
 );
 
 beforeAll(async () => {
@@ -357,7 +369,8 @@ describe('a power level', () => {
       evidence: { priceScore: 999, fundingState: 'exhausted' },
     });
     const otherClass = await publicRoute({ tag: 'mid' });
-    for (const model of [cheap, free, dear, exhausted]) await setPowerClass(model.modelId, 'instant');
+    for (const model of [cheap, free, dear, exhausted])
+      await setPowerClass(model.modelId, 'instant');
     await setPowerClass(otherClass.modelId, 'medium');
     const caller = await makeCaller();
 
@@ -365,7 +378,10 @@ describe('a power level', () => {
       const answer = await post('/v1/chat/completions', chat('instant'), caller.token);
       expect(answer.status).toBe(200);
       const envelope = stub.received[0];
-      expect(envelope.target).toEqual({ kind: 'routing_profile_id', routingProfileId: 'power-instant' });
+      expect(envelope.target).toEqual({
+        kind: 'routing_profile_id',
+        routingProfileId: 'power-instant',
+      });
       // Free allowance first, then standard paid by price score; exhausted
       // funding is not eligible; a medium-class model is never signed.
       expect(lines(envelope)).toEqual([free.modelId, cheap.modelId, dear.modelId]);
@@ -536,7 +552,7 @@ describe('a power level', () => {
       const answer = await post(
         '/v1/chat/completions',
         chat('instant', { reasoning_effort: 'high' }),
-        caller.token
+        caller.token,
       );
       expect(answer.status).toBe(200);
       expect(stub.received[0].reasoning).toEqual({ effort: 'high' });
@@ -614,7 +630,9 @@ describe('a power level', () => {
     });
     try {
       await withEdge(async (stub, post) => {
-        expect((await post('/v1/chat/completions', chat('instant'), caller.token)).status).toBe(200);
+        expect((await post('/v1/chat/completions', chat('instant'), caller.token)).status).toBe(
+          200,
+        );
         expect(lines(stub.received[0])).toEqual([live.modelId]);
       });
     } finally {
@@ -636,7 +654,10 @@ describe('a power level', () => {
     await withEdge(async (stub, post) => {
       const answer = await post('/v1/chat/completions', chat('gpt-4o'), caller.token);
       expect(answer.status).toBe(503);
-      expect(answer.body.error).toMatchObject({ code: 'no_route_available', param: 'routingProfile' });
+      expect(answer.body.error).toMatchObject({
+        code: 'no_route_available',
+        param: 'routingProfile',
+      });
       expect(stub.received).toHaveLength(0);
     });
   });
@@ -654,7 +675,10 @@ describe('auto', () => {
 
     await withEdge(async (stub, post) => {
       expect((await post('/v1/chat/completions', chat('auto'), caller.token)).status).toBe(200);
-      expect(stub.received[0].target).toEqual({ kind: 'routing_profile_id', routingProfileId: 'power-auto' });
+      expect(stub.received[0].target).toEqual({
+        kind: 'routing_profile_id',
+        routingProfileId: 'power-auto',
+      });
       expect(lines(stub.received[0])).toEqual([instant.modelId, medium.modelId]);
     });
   });
@@ -666,7 +690,10 @@ describe('auto', () => {
     await setPowerClass(medium.modelId, 'medium');
     const caller = await makeCaller();
     const tools = [
-      { type: 'function', function: { name: 'lookup', parameters: { type: 'object', properties: {} } } },
+      {
+        type: 'function',
+        function: { name: 'lookup', parameters: { type: 'object', properties: {} } },
+      },
     ];
 
     await withEdge(async (stub, post) => {
@@ -728,7 +755,11 @@ describe('an application’s routing policy', () => {
       allowedRoutingProfileIds: ['power-instant'],
     });
     await withEdge(async (stub, post) => {
-      const answer = await post('/v1/responses', { input: 'Summarise this.', maxOutputTokens: 100 }, caller.token);
+      const answer = await post(
+        '/v1/responses',
+        { input: 'Summarise this.', maxOutputTokens: 100 },
+        caller.token,
+      );
       expect(answer.status).toBe(200);
       expect(stub.received[0].target).toEqual({
         kind: 'routing_profile_id',
@@ -746,7 +777,11 @@ describe('an application’s routing policy', () => {
 describe('an exact model request', () => {
   it('never signs another model, and fails over across its own deployments by default', async () => {
     const model = await publicRoute({ tag: 'exa', evidence: { priceScore: 900 } });
-    const sibling = await publicRoute({ tag: 'exb', sameModelAs: model, evidence: { priceScore: 100 } });
+    const sibling = await publicRoute({
+      tag: 'exb',
+      sameModelAs: model,
+      evidence: { priceScore: 100 },
+    });
     const other = await publicRoute({ tag: 'exo' });
     await setPowerClass(model.modelId, 'instant');
     await setPowerClass(other.modelId, 'instant');
@@ -756,14 +791,21 @@ describe('an exact model request', () => {
     });
 
     await withEdge(async (stub, post) => {
-      expect((await post('/v1/chat/completions', chat(model.modelId), caller.token)).status).toBe(200);
+      expect((await post('/v1/chat/completions', chat(model.modelId), caller.token)).status).toBe(
+        200,
+      );
       const envelope = stub.received[0];
-      expect(envelope.target).toEqual({ kind: 'model', modelReference: `${model.modelId}@${model.revision}` });
+      expect(envelope.target).toEqual({
+        kind: 'model',
+        modelReference: `${model.modelId}@${model.revision}`,
+      });
       expect(envelope.authorizedRoutes.map((route) => route.deploymentId)).toEqual([
         model.internalRouteId,
         sibling.internalRouteId,
       ]);
-      expect(envelope.authorizedRoutes.every((route) => route.substitution === 'same_model')).toBe(true);
+      expect(envelope.authorizedRoutes.every((route) => route.substitution === 'same_model')).toBe(
+        true,
+      );
     });
   });
 
@@ -774,7 +816,9 @@ describe('an exact model request', () => {
       fallback: { disabled: false, sameModelDeployment: false, authorizedCrossModel: [] },
     });
     await withEdge(async (stub, post) => {
-      expect((await post('/v1/chat/completions', chat(model.modelId), caller.token)).status).toBe(200);
+      expect((await post('/v1/chat/completions', chat(model.modelId), caller.token)).status).toBe(
+        200,
+      );
       expect(stub.received[0].authorizedRoutes.map((route) => route.deploymentId)).toEqual([
         model.internalRouteId,
       ]);

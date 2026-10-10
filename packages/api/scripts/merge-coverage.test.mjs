@@ -41,7 +41,14 @@ function fileCoverage(path, statementHits = [1, 0]) {
   };
 }
 
-function fixture({ hits = [[1, 0], [0, 1], [0, 0]], floors = {} } = {}) {
+function fixture({
+  hits = [
+    [1, 0],
+    [0, 1],
+    [0, 0],
+  ],
+  floors = {},
+} = {}) {
   const root = mkdtempSync(join(tmpdir(), 'oxy-api-coverage-'));
   const inputFiles = hits.map((shardHits, index) => {
     const directory = join(root, `shard-${index + 1}`);
@@ -49,7 +56,9 @@ function fixture({ hits = [[1, 0], [0, 1], [0, 0]], floors = {} } = {}) {
     mkdirSync(directory, { recursive: true });
     writeFileSync(
       filePath,
-      JSON.stringify({ '/workspace/src/example.ts': fileCoverage('/workspace/src/example.ts', shardHits) }),
+      JSON.stringify({
+        '/workspace/src/example.ts': fileCoverage('/workspace/src/example.ts', shardHits),
+      }),
     );
     return filePath;
   });
@@ -102,7 +111,10 @@ test('refuses to infer the shard count', () => {
   const value = fixture();
   try {
     for (const shardCount of [undefined, 0, 2.5, '3']) {
-      assert.throws(() => mergeCoverage({ ...value, shardCount }), /Shard count must be a positive integer/);
+      assert.throws(
+        () => mergeCoverage({ ...value, shardCount }),
+        /Shard count must be a positive integer/,
+      );
     }
   } finally {
     cleanup(value);
@@ -111,7 +123,14 @@ test('refuses to infer the shard count', () => {
 
 test('merges any declared number of shards, as the CI matrix produces', () => {
   const value = fixture({
-    hits: [[1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 1]],
+    hits: [
+      [1, 0],
+      [0, 0],
+      [0, 0],
+      [0, 0],
+      [0, 0],
+      [0, 1],
+    ],
     floors: { statements: 100, branches: 100, functions: 100, lines: 100 },
   });
   try {
@@ -123,10 +142,20 @@ test('merges any declared number of shards, as the CI matrix produces', () => {
 });
 
 test('fails when a shard directory exists beyond the declared count', () => {
-  const value = fixture({ hits: [[1, 0], [0, 1], [0, 0], [0, 0]] });
+  const value = fixture({
+    hits: [
+      [1, 0],
+      [0, 1],
+      [0, 0],
+      [0, 0],
+    ],
+  });
   try {
     assert.doesNotThrow(() => assertNoExtraShards(value.root, 4));
-    assert.throws(() => assertNoExtraShards(value.root, 3), /Found shard-4 beyond the declared 3 shard/);
+    assert.throws(
+      () => assertNoExtraShards(value.root, 3),
+      /Found shard-4 beyond the declared 3 shard/,
+    );
   } finally {
     cleanup(value);
   }
@@ -175,7 +204,11 @@ test('writes merged reports, including HTML and text, when floors pass', () => {
 
 test('fails after writing reports when merged coverage regresses below a floor', () => {
   const value = fixture({
-    hits: [[1, 0], [0, 0], [0, 0]],
+    hits: [
+      [1, 0],
+      [0, 0],
+      [0, 0],
+    ],
     floors: { statements: 51 },
   });
   try {

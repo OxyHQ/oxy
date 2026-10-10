@@ -3,13 +3,7 @@ import { getLocalesVersion, subscribeLocales, translate as coreTranslate } from 
 import { useLocale } from './locale';
 import enAuth from './locales/en';
 import esAuth from './locales/es';
-import type {
-  Locale,
-  LocaleDict,
-  LocaleNode,
-  TranslateFn,
-  TranslationVars,
-} from './types';
+import type { Locale, LocaleDict, LocaleNode, TranslateFn, TranslationVars } from './types';
 
 /**
  * The IdP pages' own copy. A key resolves from the active locale's dict, then
@@ -76,7 +70,11 @@ interface UseTranslationResult {
 export function useTranslation(): UseTranslationResult {
   const { locale, setLocale } = useLocale();
   // Core's non-English dictionaries load on demand; re-translate when one lands.
-  const localesVersion = useSyncExternalStore(subscribeLocales, getLocalesVersion, getLocalesVersion);
+  const localesVersion = useSyncExternalStore(
+    subscribeLocales,
+    getLocalesVersion,
+    getLocalesVersion,
+  );
 
   const dict = useMemo(() => AUTH_DICTS[locale], [locale]);
 

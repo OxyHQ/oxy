@@ -40,10 +40,7 @@ import { verifyAndStoreRecord } from '../signedRecord.service';
 import { isSockPuppetRelation } from './graphExclusion';
 import { reputationService } from '../reputation.service';
 import { REAL_LIFE_ATTESTED_ACTION } from '../../utils/reputation.constants';
-import {
-  REAL_LIFE_NONCE_MAX_AGE_MS,
-  REAL_LIFE_EXCLUSION_HOPS,
-} from '../../utils/civic.constants';
+import { REAL_LIFE_NONCE_MAX_AGE_MS, REAL_LIFE_EXCLUSION_HOPS } from '../../utils/civic.constants';
 import { logger } from '../../utils/logger';
 
 const NONCE_PURPOSE = 'real_life_attestation';
@@ -80,12 +77,14 @@ const NONCE_HASH_UNIQUE = 'civic_nonces_nonce_hash_key';
  */
 async function claimNonce(nonce: string, subjectUserId: string, exp: number): Promise<boolean> {
   try {
-    await getDb().insert(civicNonces).values({
-      nonceHash: hashNonce(nonce),
-      purpose: NONCE_PURPOSE,
-      subjectUserId,
-      expiresAt: new Date(exp),
-    });
+    await getDb()
+      .insert(civicNonces)
+      .values({
+        nonceHash: hashNonce(nonce),
+        purpose: NONCE_PURPOSE,
+        subjectUserId,
+        expiresAt: new Date(exp),
+      });
     return true;
   } catch (error) {
     if (isUniqueViolation(error, NONCE_HASH_UNIQUE)) {

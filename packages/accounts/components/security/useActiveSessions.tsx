@@ -49,14 +49,15 @@ export function useActiveSessions({
               await logoutAll();
               toast.success(t('security.sessions.logoutAllSuccess'));
             } catch (error: unknown) {
-              const message = error instanceof Error ? error.message : t('security.sessions.logoutAllFailed');
+              const message =
+                error instanceof Error ? error.message : t('security.sessions.logoutAllFailed');
               toast.error(message);
             } finally {
               setIsLoggingOutAll(false);
             }
           },
         },
-      ]
+      ],
     );
   }, [logoutAll, sessions?.length, t]);
 

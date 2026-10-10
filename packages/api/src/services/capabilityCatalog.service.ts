@@ -37,9 +37,13 @@ export async function registerCapabilityCatalog(input: {
   const signature = signRegistration(catalog.appId, catalog.version, digest);
   const deployedAt = input.deployedAt ?? new Date();
   return getDb().transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`capability-catalog:${catalog.appId}`}, 0))`);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`capability-catalog:${catalog.appId}`}, 0))`,
+    );
     const [existingOwner] = await tx
-      .select({ registeredByApplicationId: appCapabilityCatalogRegistrations.registeredByApplicationId })
+      .select({
+        registeredByApplicationId: appCapabilityCatalogRegistrations.registeredByApplicationId,
+      })
       .from(appCapabilityCatalogRegistrations)
       .where(eq(appCapabilityCatalogRegistrations.appSlug, catalog.appId))
       .limit(1);
@@ -49,10 +53,12 @@ export async function registerCapabilityCatalog(input: {
     await tx
       .update(appCapabilityCatalogRegistrations)
       .set({ active: false })
-      .where(and(
-        eq(appCapabilityCatalogRegistrations.appSlug, catalog.appId),
-        eq(appCapabilityCatalogRegistrations.active, true),
-      ));
+      .where(
+        and(
+          eq(appCapabilityCatalogRegistrations.appSlug, catalog.appId),
+          eq(appCapabilityCatalogRegistrations.active, true),
+        ),
+      );
     const [registration] = await tx
       .insert(appCapabilityCatalogRegistrations)
       .values({
@@ -94,10 +100,12 @@ export async function activeCapabilityCatalog(appId: string) {
   const [registration] = await getDb()
     .select()
     .from(appCapabilityCatalogRegistrations)
-    .where(and(
-      eq(appCapabilityCatalogRegistrations.appSlug, appId),
-      eq(appCapabilityCatalogRegistrations.active, true),
-    ))
+    .where(
+      and(
+        eq(appCapabilityCatalogRegistrations.appSlug, appId),
+        eq(appCapabilityCatalogRegistrations.active, true),
+      ),
+    )
     .limit(1);
   return registration;
 }
@@ -107,8 +115,10 @@ export async function listActiveCapabilityCatalogs(appIds?: readonly string[]) {
   return getDb()
     .select()
     .from(appCapabilityCatalogRegistrations)
-    .where(appIds?.length
-      ? and(active, inArray(appCapabilityCatalogRegistrations.appSlug, [...appIds]))
-      : active)
+    .where(
+      appIds?.length
+        ? and(active, inArray(appCapabilityCatalogRegistrations.appSlug, [...appIds]))
+        : active,
+    )
     .orderBy(asc(appCapabilityCatalogRegistrations.appSlug));
 }

@@ -23,8 +23,17 @@
  */
 
 import { signedRecordSigningInput } from '@oxy.so/protocol';
-import { verifyAndAppend, verifyEnvelope as protocolVerifyEnvelope, type RejectionReason, type VerifyOutcome } from '@oxy.so/protocol';
-import { oxySignedRecordTypeSchema, type OxySignedRecordType, type SignedRecordEnvelope } from '@oxy.so/contracts';
+import {
+  verifyAndAppend,
+  verifyEnvelope as protocolVerifyEnvelope,
+  type RejectionReason,
+  type VerifyOutcome,
+} from '@oxy.so/protocol';
+import {
+  oxySignedRecordTypeSchema,
+  type OxySignedRecordType,
+  type SignedRecordEnvelope,
+} from '@oxy.so/contracts';
 import SignatureService from './signature.service';
 import { parseUserDid } from './did.service';
 import { oxyRecordStore } from './oxyRecordStore';

@@ -122,13 +122,14 @@ export interface RequesterAssertionIntrospection {
   expiresAt?: string;
 }
 
-
 function query(path: string, key: string, value: string): string {
   return `${path}?${key}=${enc(value)}`;
 }
 
-const grantsKey = (ownerAccountId: string): string => `GET:${query('/capabilities/grants', 'ownerAccountId', ownerAccountId)}`;
-const policiesKey = (accountId: string): string => `GET:${query('/capabilities/account-policies', 'accountId', accountId)}`;
+const grantsKey = (ownerAccountId: string): string =>
+  `GET:${query('/capabilities/grants', 'ownerAccountId', ownerAccountId)}`;
+const policiesKey = (accountId: string): string =>
+  `GET:${query('/capabilities/account-policies', 'accountId', accountId)}`;
 const authorizationsKey = (ownerAccountId: string): string =>
   `GET:${query('/capabilities/execution-authorizations', 'ownerAccountId', ownerAccountId)}`;
 
@@ -149,15 +150,24 @@ export class DelegationGrantsApi {
 
   /** Issue a delegation grant. */
   async create(input: CreateDelegationGrantInput): Promise<DelegationGrantView> {
-    const res = await this.ctx.request<{ grant: DelegationGrantView }>('POST', '/capabilities/grants', input, {
-      cache: false,
-    });
+    const res = await this.ctx.request<{ grant: DelegationGrantView }>(
+      'POST',
+      '/capabilities/grants',
+      input,
+      {
+        cache: false,
+      },
+    );
     this.ctx.oxy.cache.delete(grantsKey(input.ownerAccountId));
     return res.grant;
   }
 
   /** Change a grant's capabilities, limits or autonomy. */
-  async update(grantId: string, ownerAccountId: string, input: UpdateDelegationGrantInput): Promise<DelegationGrantView> {
+  async update(
+    grantId: string,
+    ownerAccountId: string,
+    input: UpdateDelegationGrantInput,
+  ): Promise<DelegationGrantView> {
     const res = await this.ctx.request<{ grant: DelegationGrantView }>(
       'PUT',
       `/capabilities/grants/${enc(grantId)}`,
@@ -170,7 +180,9 @@ export class DelegationGrantsApi {
 
   /** Revoke a grant. */
   async revoke(grantId: string, ownerAccountId: string): Promise<void> {
-    await this.ctx.request<void>('DELETE', `/capabilities/grants/${enc(grantId)}`, undefined, { cache: false });
+    await this.ctx.request<void>('DELETE', `/capabilities/grants/${enc(grantId)}`, undefined, {
+      cache: false,
+    });
     this.ctx.oxy.cache.delete(grantsKey(ownerAccountId));
   }
 }
@@ -191,7 +203,10 @@ export class CapabilityPoliciesApi {
   }
 
   /** Set an account's policy for one app. */
-  async put(appId: string, input: PutAccountCapabilityPolicyInput): Promise<AccountCapabilityPolicy> {
+  async put(
+    appId: string,
+    input: PutAccountCapabilityPolicyInput,
+  ): Promise<AccountCapabilityPolicy> {
     const res = await this.ctx.request<{ policy: AccountCapabilityPolicy }>(
       'PUT',
       `/capabilities/account-policies/${enc(appId)}`,

@@ -41,13 +41,22 @@ describe('RequestQueue abort awareness', () => {
     // slot and held it, the live request below could never run.
     const dead = Array.from({ length: 6 }, () =>
       queue
-        .enqueue(() => new Promise<string>(() => { /* would never settle */ }), aborted())
+        .enqueue(
+          () =>
+            new Promise<string>(() => {
+              /* would never settle */
+            }),
+          aborted(),
+        )
         .catch(() => 'cancelled'),
     );
     await Promise.all(dead);
 
     await expect(
-      queue.enqueue(async () => { liveRan = true; return 'live'; }),
+      queue.enqueue(async () => {
+        liveRan = true;
+        return 'live';
+      }),
     ).resolves.toBe('live');
     expect(liveRan).toBe(true);
   });
@@ -59,7 +68,9 @@ describe('RequestQueue abort awareness', () => {
 
     const first = queue.enqueue(async () => {
       started.push('first');
-      await new Promise<void>((resolve) => { releaseFirst = resolve; });
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
       return 'first';
     });
 
@@ -92,9 +103,12 @@ describe('RequestQueue abort awareness', () => {
     // queue must still observe it finishing, or `running` never comes back down
     // and the slot is leaked permanently.
     const inflight = queue.enqueue(
-      () => new Promise<string>((_resolve, reject) => {
-        controller.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
-      }),
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          controller.signal.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        }),
       controller.signal,
     );
     await new Promise((resolve) => setTimeout(resolve, 10));

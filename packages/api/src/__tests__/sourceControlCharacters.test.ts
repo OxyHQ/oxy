@@ -39,7 +39,7 @@ const ROOTS = ['src', 'scripts'];
 /** Every byte below 0x20 except tab/LF/CR, plus DEL. */
 const FORBIDDEN = new Set<number>([
   ...Array.from({ length: 0x20 }, (_, byte) => byte).filter(
-    (byte) => byte !== 0x09 && byte !== 0x0a && byte !== 0x0d
+    (byte) => byte !== 0x09 && byte !== 0x0a && byte !== 0x0d,
   ),
   0x7f,
 ]);
@@ -66,7 +66,9 @@ function offences(path: string): string[] {
   for (const byte of bytes) {
     if (byte === 0x0a) line += 1;
     else if (FORBIDDEN.has(byte)) {
-      reported.push(`${path}:${line} contains U+${byte.toString(16).padStart(4, '0').toUpperCase()}`);
+      reported.push(
+        `${path}:${line} contains U+${byte.toString(16).padStart(4, '0').toUpperCase()}`,
+      );
     }
   }
   return reported;

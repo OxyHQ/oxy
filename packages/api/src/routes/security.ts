@@ -1,11 +1,12 @@
 import express from 'express';
-import { getSecurityActivity, logPrivateKeyExported, logBackupCreated } from '../controllers/securityActivity.controller';
+import {
+  getSecurityActivity,
+  logPrivateKeyExported,
+  logBackupCreated,
+} from '../controllers/securityActivity.controller';
 import { authMiddleware } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import {
-  logPrivateKeyExportedSchema,
-  logBackupCreatedSchema,
-} from '../schemas/security.schemas';
+import { logPrivateKeyExportedSchema, logBackupCreatedSchema } from '../schemas/security.schemas';
 
 const router = express.Router();
 
@@ -147,7 +148,12 @@ router.get('/activity', authMiddleware, getSecurityActivity);
  *       401:
  *         description: Missing or invalid bearer token.
  */
-router.post('/activity/private-key-exported', authMiddleware, validate({ body: logPrivateKeyExportedSchema }), logPrivateKeyExported);
+router.post(
+  '/activity/private-key-exported',
+  authMiddleware,
+  validate({ body: logPrivateKeyExportedSchema }),
+  logPrivateKeyExported,
+);
 
 /**
  * @openapi
@@ -172,6 +178,11 @@ router.post('/activity/private-key-exported', authMiddleware, validate({ body: l
  *       401:
  *         description: Missing or invalid bearer token.
  */
-router.post('/activity/backup-created', authMiddleware, validate({ body: logBackupCreatedSchema }), logBackupCreated);
+router.post(
+  '/activity/backup-created',
+  authMiddleware,
+  validate({ body: logBackupCreatedSchema }),
+  logBackupCreated,
+);
 
 export default router;

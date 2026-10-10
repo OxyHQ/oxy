@@ -59,10 +59,7 @@ const sha = () => randomBytes(32).toString('hex');
  * is a table-wide constraint.
  */
 const png = () =>
-  Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    randomBytes(16),
-  ]);
+  Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(16)]);
 
 async function insertUser(): Promise<string> {
   const [row] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
@@ -195,7 +192,7 @@ describe('getPublicCdnUrl status gate (trashed/deleted CDN exposure regression)'
       });
 
       expect(url).toBeNull();
-    }
+    },
   );
 
   it('serves an ACTIVE public asset, so the gate is not vacuous', async () => {

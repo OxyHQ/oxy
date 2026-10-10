@@ -35,18 +35,23 @@ async function insertVideo(
   const visibility = options.visibility ?? 'public';
   const prefix = visibility === 'public' ? 'public/' : '';
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
-  const [file] = await getDb().insert(files).values({
-    sha256,
-    size: 4,
-    mime: 'video/mp4',
-    ext: 'mp4',
-    ownerUserId: owner.id,
-    visibility,
-    status: options.status ?? 'active',
-    storageKey: `${prefix}content/2026/07/${sha256.slice(0, 2)}/${sha256}.mp4`,
-  }).returning();
+  const [file] = await getDb()
+    .insert(files)
+    .values({
+      sha256,
+      size: 4,
+      mime: 'video/mp4',
+      ext: 'mp4',
+      ownerUserId: owner.id,
+      visibility,
+      status: options.status ?? 'active',
+      storageKey: `${prefix}content/2026/07/${sha256.slice(0, 2)}/${sha256}.mp4`,
+    })
+    .returning();
   const playlist = `${prefix}variants/2026/07/${sha256.slice(0, 2)}/${sha256}/hls_master.m3u8`;
-  await getDb().insert(fileVariants).values({ fileId: file.id, type: 'hls_master', key: playlist, readyAt: new Date() });
+  await getDb()
+    .insert(fileVariants)
+    .values({ fileId: file.id, type: 'hls_master', key: playlist, readyAt: new Date() });
   return { id: file.id, original: file.storageKey, playlist };
 }
 
@@ -60,7 +65,10 @@ function fakeS3(existing: string[]) {
 
 /** The ids this test seeded that `regenerate` was called with — the table is shared with other suites. */
 function calledWith(regenerate: jest.Mock, ids: string[]): string[] {
-  return regenerate.mock.calls.map(([id]) => id as string).filter((id) => ids.includes(id)).sort();
+  return regenerate.mock.calls
+    .map(([id]) => id as string)
+    .filter((id) => ids.includes(id))
+    .sort();
 }
 
 describe('regenerateLostHls', () => {
@@ -99,7 +107,11 @@ describe('regenerateLostHls', () => {
     const video = await insertVideo(sha());
     const regenerate = jest.fn(() => Promise.resolve());
 
-    const result = await regenerateLostHls({ s3: fakeS3([video.original]), regenerate, dryRun: true });
+    const result = await regenerateLostHls({
+      s3: fakeS3([video.original]),
+      regenerate,
+      dryRun: true,
+    });
 
     expect(regenerate).not.toHaveBeenCalled();
     expect(result.regenerated).toBeGreaterThanOrEqual(1);
@@ -109,9 +121,13 @@ describe('regenerateLostHls', () => {
     const broken = await insertVideo(sha());
     const next = await insertVideo(sha());
     const regenerate = jest.fn((id: string) =>
-      id === broken.id ? Promise.reject(new Error('ffmpeg exited 1')) : Promise.resolve());
+      id === broken.id ? Promise.reject(new Error('ffmpeg exited 1')) : Promise.resolve(),
+    );
 
-    const result = await regenerateLostHls({ s3: fakeS3([broken.original, next.original]), regenerate });
+    const result = await regenerateLostHls({
+      s3: fakeS3([broken.original, next.original]),
+      regenerate,
+    });
 
     expect(calledWith(regenerate, [broken.id, next.id])).toEqual([broken.id, next.id].sort());
     expect(result.failed).toBeGreaterThanOrEqual(1);

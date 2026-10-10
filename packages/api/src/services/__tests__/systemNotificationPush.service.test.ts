@@ -48,7 +48,11 @@ async function insertApplication(capabilities: string[]): Promise<string> {
   return row.id;
 }
 
-async function insertInstall(userId: string, token: string, applicationId: string | null): Promise<void> {
+async function insertInstall(
+  userId: string,
+  token: string,
+  applicationId: string | null,
+): Promise<void> {
   await getDb().insert(pushTokens).values({ userId, token, platform: 'android', applicationId });
 }
 
@@ -96,7 +100,10 @@ describe('pushSystemNotification', () => {
 
   it('sends nothing when the recipient turned push notifications off', async () => {
     await insertInstall(USER_ID, 'tok-vault', VAULT_APP_ID);
-    await getDb().update(users).set({ notificationPushEnabled: false }).where(eq(users.id, USER_ID));
+    await getDb()
+      .update(users)
+      .set({ notificationPushEnabled: false })
+      .where(eq(users.id, USER_ID));
 
     const result = await pushSystemNotification({ recipientId: USER_ID, ...NOTIFICATION });
 
@@ -116,7 +123,9 @@ describe('pushSystemNotification', () => {
     await insertInstall(USER_ID, 'tok-vault', VAULT_APP_ID);
     mockSendPushToTokens.mockRejectedValue(new Error('exp.host down'));
 
-    await expect(pushSystemNotification({ recipientId: USER_ID, ...NOTIFICATION })).resolves.toEqual({
+    await expect(
+      pushSystemNotification({ recipientId: USER_ID, ...NOTIFICATION }),
+    ).resolves.toEqual({
       targeted: 0,
       accepted: 0,
     });

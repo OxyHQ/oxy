@@ -26,6 +26,14 @@ export interface AuthMethodEntriesInput {
  */
 export function buildAuthMethodEntries(input: AuthMethodEntriesInput): AuthMethodEntry[] {
   if (!input.publicKey) return [];
-  const linkedAt = (input.authMethods ?? []).find((method) => method?.type === 'identity')?.linkedAt;
-  return [{ type: 'identity', linkedAt: linkedAt ?? input.createdAt, verificationMethodId: IDENTITY_VERIFICATION_METHOD_ID }];
+  const linkedAt = (input.authMethods ?? []).find(
+    (method) => method?.type === 'identity',
+  )?.linkedAt;
+  return [
+    {
+      type: 'identity',
+      linkedAt: linkedAt ?? input.createdAt,
+      verificationMethodId: IDENTITY_VERIFICATION_METHOD_ID,
+    },
+  ];
 }

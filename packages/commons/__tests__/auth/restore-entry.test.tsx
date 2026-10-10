@@ -23,8 +23,7 @@ jest.mock('@/components/ui', () => ({
     children: React.ReactNode;
     onPress?: () => void;
     disabled?: boolean;
-  }) =>
-    React.createElement('button', { onClick: onPress, disabled }, children),
+  }) => React.createElement('button', { onClick: onPress, disabled }, children),
 }));
 jest.mock('expo-checkbox', () => ({
   Checkbox: () => null,
@@ -54,9 +53,7 @@ describe('restore-with-recovery-phrase entry points', () => {
   beforeEach(() => {
     router.push.mockClear();
     router.replace.mockClear();
-    persistSpy = jest
-      .spyOn(identityStore, 'persistOnboardingFlow')
-      .mockResolvedValue(undefined);
+    persistSpy = jest.spyOn(identityStore, 'persistOnboardingFlow').mockResolvedValue(undefined);
   });
 
   afterEach(() => {

@@ -48,7 +48,7 @@ export async function solveRegistrationPow(publicKey: string, timestamp: number)
   for (let nonce = 0; ; nonce += 1) {
     const candidate = String(nonce);
     const digest = bytesToHex(
-      sha256(utf8ToBytes(registrationPowMessage(publicKey, timestamp, candidate)))
+      sha256(utf8ToBytes(registrationPowMessage(publicKey, timestamp, candidate))),
     );
     if (meetsRegistrationPowDifficulty(digest, REGISTRATION_POW_DIFFICULTY_BITS)) {
       return candidate;

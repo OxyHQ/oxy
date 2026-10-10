@@ -82,7 +82,7 @@ function reportUnreadable(variable: string, value: string, expected: string): vo
   logger.error(
     'rollout.flag.unreadable',
     new Error(`${variable} is set to a value this build cannot read; the safe default applies`),
-    { component: 'rollout', variable, expected }
+    { component: 'rollout', variable, expected },
   );
 }
 

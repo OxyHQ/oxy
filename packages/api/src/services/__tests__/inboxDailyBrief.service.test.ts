@@ -32,10 +32,7 @@ function unique(): string {
 }
 
 async function owner(): Promise<{ userId: string; inboxId: string; archiveId: string }> {
-  const [user] = await getDb()
-    .insert(users)
-    .values({ color: 'teal' })
-    .returning({ id: users.id });
+  const [user] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   const [inbox, archive] = await getDb()
     .insert(mailboxes)
     .values([
@@ -85,22 +82,27 @@ describe('getInboxDailyBriefDigest', () => {
     const subject = await owner();
     const stranger = await owner();
 
-    await getDb().insert(messages).values(Array.from(
-      { length: DAILY_BRIEF_MAX_MESSAGES + 5 },
-      (_, index) => messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + index * 1000), {
-        seen: index % 2 !== 0,
-        starred: index % 3 === 0,
-      }),
-    ));
-    await getDb().insert(messages).values([
-      // The interval is half-open: START is in, END is out.
-      messageValue(subject.userId, subject.inboxId, START, { seen: true }),
-      messageValue(subject.userId, subject.inboxId, END, { seen: true }),
-      // Not news: already archived, a draft, another owner's mail.
-      messageValue(subject.userId, subject.archiveId, NOON, { seen: false }),
-      messageValue(subject.userId, subject.inboxId, NOON, { seen: false, draft: true }),
-      messageValue(stranger.userId, stranger.inboxId, NOON, { seen: false }),
-    ]);
+    await getDb()
+      .insert(messages)
+      .values(
+        Array.from({ length: DAILY_BRIEF_MAX_MESSAGES + 5 }, (_, index) =>
+          messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + index * 1000), {
+            seen: index % 2 !== 0,
+            starred: index % 3 === 0,
+          }),
+        ),
+      );
+    await getDb()
+      .insert(messages)
+      .values([
+        // The interval is half-open: START is in, END is out.
+        messageValue(subject.userId, subject.inboxId, START, { seen: true }),
+        messageValue(subject.userId, subject.inboxId, END, { seen: true }),
+        // Not news: already archived, a draft, another owner's mail.
+        messageValue(subject.userId, subject.archiveId, NOON, { seen: false }),
+        messageValue(subject.userId, subject.inboxId, NOON, { seen: false, draft: true }),
+        messageValue(stranger.userId, stranger.inboxId, NOON, { seen: false }),
+      ]);
 
     const digest = await getInboxDailyBriefDigest(subject.userId, START, END);
 
@@ -121,18 +123,22 @@ describe('getInboxDailyBriefDigest', () => {
 
   it('lists unread mail from before the day, newest first, with its exact total', async () => {
     const subject = await owner();
-    await getDb().insert(messages).values([
-      messageValue(subject.userId, subject.inboxId, new Date(START.getTime() - 1), {
-        seen: false,
-        subject: 'Contract to sign',
-      }),
-      messageValue(subject.userId, subject.inboxId, new Date('2026-08-20T09:00:00.000Z'), {
-        seen: false,
-        subject: 'Older',
-      }),
-      // Read earlier mail is not waiting on anyone.
-      messageValue(subject.userId, subject.inboxId, new Date('2026-08-30T09:00:00.000Z'), { seen: true }),
-    ]);
+    await getDb()
+      .insert(messages)
+      .values([
+        messageValue(subject.userId, subject.inboxId, new Date(START.getTime() - 1), {
+          seen: false,
+          subject: 'Contract to sign',
+        }),
+        messageValue(subject.userId, subject.inboxId, new Date('2026-08-20T09:00:00.000Z'), {
+          seen: false,
+          subject: 'Older',
+        }),
+        // Read earlier mail is not waiting on anyone.
+        messageValue(subject.userId, subject.inboxId, new Date('2026-08-30T09:00:00.000Z'), {
+          seen: true,
+        }),
+      ]);
 
     const digest = await getInboxDailyBriefDigest(subject.userId, START, END);
 
@@ -146,43 +152,56 @@ describe('getInboxDailyBriefDigest', () => {
 
   it('never excerpts an encrypted body or one carrying an account secret', async () => {
     const subject = await owner();
-    const [withAttachment] = await getDb().insert(messages).values([
-      messageValue(subject.userId, subject.inboxId, NOON, { text: 'Invoice attached.' }),
-      messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + 1000), {
-        subject: 'Your sign-in code',
-        text: '482913 is your verification code.',
-      }),
-      messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + 2000), {
-        text: 'ciphertext that is not readable',
-        encrypted: true,
-      }),
-    ]).returning({ id: messages.id });
+    const [withAttachment] = await getDb()
+      .insert(messages)
+      .values([
+        messageValue(subject.userId, subject.inboxId, NOON, { text: 'Invoice attached.' }),
+        messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + 1000), {
+          subject: 'Your sign-in code',
+          text: '482913 is your verification code.',
+        }),
+        messageValue(subject.userId, subject.inboxId, new Date(NOON.getTime() + 2000), {
+          text: 'ciphertext that is not readable',
+          encrypted: true,
+        }),
+      ])
+      .returning({ id: messages.id });
     const attachmentFiles = await getDb()
       .insert(files)
-      .values([0, 1].map((ord) => ({
-        sha256: unique().padEnd(64, String(ord)),
-        size: 10,
-        mime: 'application/pdf',
-        ext: 'pdf',
-        ownerUserId: subject.userId,
-        storageKey: `daily-brief-test/${unique()}`,
-        originalName: `invoice-${ord}.pdf`,
-      })))
+      .values(
+        [0, 1].map((ord) => ({
+          sha256: unique().padEnd(64, String(ord)),
+          size: 10,
+          mime: 'application/pdf',
+          ext: 'pdf',
+          ownerUserId: subject.userId,
+          storageKey: `daily-brief-test/${unique()}`,
+          originalName: `invoice-${ord}.pdf`,
+        })),
+      )
       .returning({ id: files.id });
-    await getDb().insert(messageAttachments).values(attachmentFiles.map((file, ord) => ({
-      messageId: withAttachment.id,
-      ord,
-      fileId: file.id,
-      name: `invoice-${ord}.pdf`,
-      contentType: 'application/pdf',
-      size: 10,
-    })));
+    await getDb()
+      .insert(messageAttachments)
+      .values(
+        attachmentFiles.map((file, ord) => ({
+          messageId: withAttachment.id,
+          ord,
+          fileId: file.id,
+          name: `invoice-${ord}.pdf`,
+          contentType: 'application/pdf',
+          size: 10,
+        })),
+      );
 
     const digest = await getInboxDailyBriefDigest(subject.userId, START, END);
     const [encrypted, secret, invoice] = digest.messages;
 
     expect(encrypted).toMatchObject({ excerpt: '', excerptWithheld: false });
-    expect(secret).toMatchObject({ subject: 'Your sign-in code', excerpt: '', excerptWithheld: true });
+    expect(secret).toMatchObject({
+      subject: 'Your sign-in code',
+      excerpt: '',
+      excerptWithheld: true,
+    });
     // Two attachment rows, one message: EXISTS, not a multiplying join.
     expect(invoice).toMatchObject({ excerpt: 'Invoice attached.', hasAttachments: true });
     expect(digest.today.received).toBe(3);
@@ -193,7 +212,10 @@ describe('getInboxDailyBriefDigest', () => {
   });
 
   it('is empty for an owner without an Inbox', async () => {
-    const [user] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
+    const [user] = await getDb()
+      .insert(users)
+      .values({ color: 'teal' })
+      .returning({ id: users.id });
 
     await expect(getInboxDailyBriefDigest(user.id, START, END)).resolves.toEqual({
       today: { received: 0, unread: 0, starred: 0 },
@@ -235,16 +257,25 @@ describe('briefFromModel', () => {
   it('keeps each section within its limit and cuts a long summary at a word', () => {
     const answer = JSON.stringify({
       summary: `${'word '.repeat(120)}end`,
-      items: digest.messages.map((_, index) => ({ ref: `m${index + 1}`, section: 'needs_you', note: 'x' })),
+      items: digest.messages.map((_, index) => ({
+        ref: `m${index + 1}`,
+        section: 'needs_you',
+        note: 'x',
+      })),
     });
 
     const brief = briefFromModel(`Sure! ${answer}`, digest);
 
     expect(brief?.summary.length).toBeLessThanOrEqual(400);
     expect(brief?.summary.endsWith('word…')).toBe(true);
-    expect(brief?.items.map((item) => item.messageId)).toEqual(
-      ['today-1', 'today-2', 'today-3', 'today-4', 'today-5', 'today-6'],
-    );
+    expect(brief?.items.map((item) => item.messageId)).toEqual([
+      'today-1',
+      'today-2',
+      'today-3',
+      'today-4',
+      'today-5',
+      'today-6',
+    ]);
   });
 
   it('is null for prose, malformed JSON or an empty summary', () => {

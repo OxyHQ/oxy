@@ -119,8 +119,14 @@ describe('shipped migration 0000', () => {
     // skipping a migration. The snapshot is what stops the next `db:generate`
     // from re-emitting a migration for a table that already exists.
     for (const [index, entry] of journal.entries.entries()) {
-      expect(readFileSync(path.join(migrationsDir, `${entry.tag}.sql`), 'utf8').length).toBeGreaterThan(0);
-      const snapshot = path.join(migrationsDir, 'meta', `${String(index).padStart(4, '0')}_snapshot.json`);
+      expect(
+        readFileSync(path.join(migrationsDir, `${entry.tag}.sql`), 'utf8').length,
+      ).toBeGreaterThan(0);
+      const snapshot = path.join(
+        migrationsDir,
+        'meta',
+        `${String(index).padStart(4, '0')}_snapshot.json`,
+      );
       expect(readFileSync(snapshot, 'utf8').length).toBeGreaterThan(0);
     }
   });

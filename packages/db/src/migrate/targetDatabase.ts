@@ -30,7 +30,7 @@ import type { Sql } from 'postgres';
 export class WrongMigrationTargetError extends Error {
   constructor(
     readonly expected: string,
-    readonly actual: string
+    readonly actual: string,
   ) {
     super(
       `Refusing to migrate: the run expects ${JSON.stringify(expected)} but the \
@@ -38,7 +38,7 @@ connection string this process was given reaches ${JSON.stringify(actual)}.
 One of those two is wrong, and this tool cannot tell which. Correct the \
 expected name if the run named the wrong target; correct the connection \
 string if this is pointed somewhere unintended. No DDL has been applied and \
-the migration ledger has not been touched.`
+the migration ledger has not been touched.`,
     );
     this.name = 'WrongMigrationTargetError';
   }
@@ -65,7 +65,7 @@ export class MissingMigrationTargetError extends Error {
         'cannot be checked against it — and a migration aimed at the wrong ' +
         'database does not fail, it reports success over an untouched one. ' +
         'Example: `--target-database=my_app_audit_probe` for a rehearsal, ' +
-        '`--target-database=my_app` for the cutover.'
+        '`--target-database=my_app` for the cutover.',
     );
     this.name = 'MissingMigrationTargetError';
   }

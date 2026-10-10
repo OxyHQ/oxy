@@ -36,9 +36,6 @@ import { translate } from './index';
 export const EN_ACCOUNT_CATEGORY_LABELS: Record<AccountCategoryId, string> =
   enUS.accounts.accountCategory;
 
-export function accountCategoryLabel(
-  locale: string | undefined,
-  id: AccountCategoryId,
-): string {
+export function accountCategoryLabel(locale: string | undefined, id: AccountCategoryId): string {
   return translate(locale, `accounts.accountCategory.${id}`);
 }

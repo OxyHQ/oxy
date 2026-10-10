@@ -117,6 +117,10 @@ export function signSocialReceiveDigest(
  * `sha256("auth:${publicKey}:${challenge}:${timestamp}")`, hex. The message
  * format is the one `POST /auth/verify` checks, unchanged.
  */
-export function authChallengeDigest(publicKey: string, challenge: string, timestamp: number): string {
+export function authChallengeDigest(
+  publicKey: string,
+  challenge: string,
+  timestamp: number,
+): string {
   return bytesToHex(sha256(utf8(`auth:${publicKey}:${challenge}:${timestamp}`)));
 }

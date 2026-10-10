@@ -65,5 +65,5 @@ export const identityBackups = pgTable(
   (t) => [
     unique('identity_backups_user_id_key').on(t.userId),
     unique('identity_backups_lookup_id_hash_key').on(t.lookupIdHash),
-  ]
+  ],
 );

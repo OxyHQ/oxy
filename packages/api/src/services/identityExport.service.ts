@@ -311,7 +311,10 @@ export async function buildExportBundle(userId: string): Promise<ExportBundleRes
   // account document is handed the ORDERED domain rows so the profile section
   // and the bundle's own `verifiedDomains` cannot disagree on order — two
   // renderings of one fact inside a single signed artifact.
-  const profile = (formatUserResponse({ ...account, verifiedDomains: domainRows }) ?? {}) as Record<string, unknown>;
+  const profile = (formatUserResponse({ ...account, verifiedDomains: domainRows }) ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   const verifiedDomains: VerifiedDomain[] = domainRows.map((domain) => ({
     domain: domain.domain,
@@ -365,7 +368,7 @@ export async function buildExportBundle(userId: string): Promise<ExportBundleRes
   const followers = followerRows.map((row) => buildUserDid(row.id));
 
   const bundleWithoutAttestation: ExportBundleWithoutAttestation = {
-    '$schema': EXPORT_SCHEMA_URL,
+    $schema: EXPORT_SCHEMA_URL,
     exportedAt: new Date().toISOString(),
     did,
     didDocument,

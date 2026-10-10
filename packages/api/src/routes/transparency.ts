@@ -72,7 +72,9 @@ function respondWithContract<T>(res: Response, schema: z.ZodType<T>, payload: un
     logger.error('Transparency response failed contract validation', {
       component: 'transparency',
     });
-    return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Response contract violation' });
+    return res
+      .status(500)
+      .json({ error: 'INTERNAL_ERROR', message: 'Response contract violation' });
   }
   setTransparencyHeaders(res);
   return res.json(parsed);
@@ -113,7 +115,10 @@ router.get('/checkpoints', async (req: Request, res: Response) => {
       checkpoints: await listCheckpoints(since, limit),
     });
   } catch (error) {
-    logger.error('Failed to list transparency checkpoints', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Failed to list transparency checkpoints',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to list checkpoints' });
   }
 });
@@ -128,7 +133,10 @@ router.get('/checkpoints/latest', async (_req: Request, res: Response) => {
     }
     return respondWithContract(res, transparencyCheckpointSchema, checkpoint);
   } catch (error) {
-    logger.error('Failed to read the latest transparency checkpoint', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Failed to read the latest transparency checkpoint',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to read checkpoint' });
   }
 });
@@ -137,7 +145,9 @@ router.get('/checkpoints/:index', async (req: Request, res: Response) => {
   try {
     const index = parseNonNegativeInt(req.params.index);
     if (index === null) {
-      return res.status(400).json({ error: 'BAD_REQUEST', message: 'index must be a non-negative integer' });
+      return res
+        .status(400)
+        .json({ error: 'BAD_REQUEST', message: 'index must be a non-negative integer' });
     }
     const checkpoint = await getCheckpoint(index);
     if (!checkpoint) {
@@ -145,7 +155,10 @@ router.get('/checkpoints/:index', async (req: Request, res: Response) => {
     }
     return respondWithContract(res, transparencyCheckpointSchema, checkpoint);
   } catch (error) {
-    logger.error('Failed to read a transparency checkpoint', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Failed to read a transparency checkpoint',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to read checkpoint' });
   }
 });
@@ -161,7 +174,9 @@ router.get('/proof', async (req: Request, res: Response) => {
     if (req.query.index !== undefined) {
       const parsed = parseNonNegativeInt(req.query.index);
       if (parsed === null) {
-        return res.status(400).json({ error: 'BAD_REQUEST', message: 'index must be a non-negative integer' });
+        return res
+          .status(400)
+          .json({ error: 'BAD_REQUEST', message: 'index must be a non-negative integer' });
       }
       index = parsed;
     }
@@ -172,7 +187,10 @@ router.get('/proof', async (req: Request, res: Response) => {
     }
     return respondWithContract(res, transparencyInclusionProofSchema, proof);
   } catch (error) {
-    logger.error('Failed to build a transparency inclusion proof', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Failed to build a transparency inclusion proof',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to build proof' });
   }
 });

@@ -13,10 +13,7 @@ const hasNavigator = typeof navigator !== 'undefined';
 /**
  * Hook for managing async operations with loading, error, and data states
  */
-export function useAsync<T>(
-  asyncFn: () => Promise<T>,
-  deps: React.DependencyList = []
-) {
+export function useAsync<T>(asyncFn: () => Promise<T>, deps: React.DependencyList = []) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -45,10 +42,7 @@ export function useAsync<T>(
 /**
  * Hook for managing async operations that execute on mount
  */
-export function useAsyncEffect<T>(
-  asyncFn: () => Promise<T>,
-  deps: React.DependencyList = []
-) {
+export function useAsyncEffect<T>(asyncFn: () => Promise<T>, deps: React.DependencyList = []) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -110,12 +104,15 @@ export function useThrottle<T>(value: T, delay: number): T {
   const lastRun = useRef(Date.now());
 
   useEffect(() => {
-    const handler = setTimeout(() => {
-      if (Date.now() - lastRun.current >= delay) {
-        setThrottledValue(value);
-        lastRun.current = Date.now();
-      }
-    }, delay - (Date.now() - lastRun.current));
+    const handler = setTimeout(
+      () => {
+        if (Date.now() - lastRun.current >= delay) {
+          setThrottledValue(value);
+          lastRun.current = Date.now();
+        }
+      },
+      delay - (Date.now() - lastRun.current),
+    );
 
     return () => {
       clearTimeout(handler);
@@ -130,11 +127,11 @@ export function useThrottle<T>(value: T, delay: number): T {
  */
 export function usePrevious<T>(value: T): T | undefined {
   const ref = useRef<T | undefined>(undefined);
-  
+
   useEffect(() => {
     ref.current = value;
   });
-  
+
   return ref.current;
 }
 
@@ -143,11 +140,11 @@ export function usePrevious<T>(value: T): T | undefined {
  */
 export function useToggle(initialValue = false) {
   const [value, setValue] = useState(initialValue);
-  
-  const toggle = useCallback(() => setValue(v => !v), []);
+
+  const toggle = useCallback(() => setValue((v) => !v), []);
   const setTrue = useCallback(() => setValue(true), []);
   const setFalse = useCallback(() => setValue(false), []);
-  
+
   return { value, toggle, setTrue, setFalse, setValue };
 }
 
@@ -156,12 +153,12 @@ export function useToggle(initialValue = false) {
  */
 export function useCounter(initialValue = 0) {
   const [count, setCount] = useState(initialValue);
-  
-  const increment = useCallback(() => setCount(c => c + 1), []);
-  const decrement = useCallback(() => setCount(c => c - 1), []);
+
+  const increment = useCallback(() => setCount((c) => c + 1), []);
+  const decrement = useCallback(() => setCount((c) => c - 1), []);
   const reset = useCallback(() => setCount(initialValue), [initialValue]);
   const setValue = useCallback((value: number) => setCount(value), []);
-  
+
   return { count, increment, decrement, reset, setValue };
 }
 
@@ -180,17 +177,20 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     }
   });
 
-  const setValue = useCallback((value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      if (hasLocalStorage) {
-        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+  const setValue = useCallback(
+    (value: T | ((val: T) => T)) => {
+      try {
+        const valueToStore = value instanceof Function ? value(storedValue) : value;
+        setStoredValue(valueToStore);
+        if (hasLocalStorage) {
+          window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        }
+      } catch {
+        // Silently fail - storage might be full or blocked
       }
-    } catch {
-      // Silently fail - storage might be full or blocked
-    }
-  }, [key, storedValue]);
+    },
+    [key, storedValue],
+  );
 
   return [storedValue, setValue] as const;
 }
@@ -210,17 +210,20 @@ export function useSessionStorage<T>(key: string, initialValue: T) {
     }
   });
 
-  const setValue = useCallback((value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      if (hasSessionStorage) {
-        window.sessionStorage.setItem(key, JSON.stringify(valueToStore));
+  const setValue = useCallback(
+    (value: T | ((val: T) => T)) => {
+      try {
+        const valueToStore = value instanceof Function ? value(storedValue) : value;
+        setStoredValue(valueToStore);
+        if (hasSessionStorage) {
+          window.sessionStorage.setItem(key, JSON.stringify(valueToStore));
+        }
+      } catch {
+        // Silently fail - storage might be full or blocked
       }
-    } catch {
-      // Silently fail - storage might be full or blocked
-    }
-  }, [key, storedValue]);
+    },
+    [key, storedValue],
+  );
 
   return [storedValue, setValue] as const;
 }
@@ -380,29 +383,38 @@ export function useClickOutside(ref: React.RefObject<HTMLElement>, handler: () =
  */
 export function useFormValidation<T extends Record<string, unknown>>(
   initialValues: T,
-  validationSchema: (values: T) => Partial<Record<keyof T, string>>
+  validationSchema: (values: T) => Partial<Record<keyof T, string>>,
 ) {
   const [values, setValues] = useState<T>(initialValues);
   const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
   const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
 
-  const validate = useCallback((valuesToValidate: T) => {
-    return validationSchema(valuesToValidate);
-  }, [validationSchema]);
+  const validate = useCallback(
+    (valuesToValidate: T) => {
+      return validationSchema(valuesToValidate);
+    },
+    [validationSchema],
+  );
 
-  const setValue = useCallback((field: keyof T, value: T[keyof T]) => {
-    setValues(prev => ({ ...prev, [field]: value }));
-    if (touched[field]) {
-      const newErrors = validate({ ...values, [field]: value });
-      setErrors(prev => ({ ...prev, [field]: newErrors[field] }));
-    }
-  }, [values, touched, validate]);
+  const setValue = useCallback(
+    (field: keyof T, value: T[keyof T]) => {
+      setValues((prev) => ({ ...prev, [field]: value }));
+      if (touched[field]) {
+        const newErrors = validate({ ...values, [field]: value });
+        setErrors((prev) => ({ ...prev, [field]: newErrors[field] }));
+      }
+    },
+    [values, touched, validate],
+  );
 
-  const setTouchedField = useCallback((field: keyof T) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
-    const newErrors = validate(values);
-    setErrors(prev => ({ ...prev, [field]: newErrors[field] }));
-  }, [values, validate]);
+  const setTouchedField = useCallback(
+    (field: keyof T) => {
+      setTouched((prev) => ({ ...prev, [field]: true }));
+      const newErrors = validate(values);
+      setErrors((prev) => ({ ...prev, [field]: newErrors[field] }));
+    },
+    [values, validate],
+  );
 
   const isValid = useMemo(() => {
     const validationErrors = validate(values);
@@ -418,6 +430,6 @@ export function useFormValidation<T extends Record<string, unknown>>(
     setTouchedField,
     setValues,
     setErrors,
-    setTouched
+    setTouched,
   };
-} 
+}

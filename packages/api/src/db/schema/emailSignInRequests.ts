@@ -56,8 +56,14 @@ export const emailSignInRequests = pgTable(
     unique('email_signin_requests_link_token_hash_key').on(t.linkTokenHash),
     index('email_signin_requests_user_id_idx').on(t.userId),
     index('email_signin_requests_expires_at_idx').on(t.expiresAt),
-    check('email_signin_requests_secret_hash_check', sql`${t.requestSecretHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'email_signin_requests_secret_hash_check',
+      sql`${t.requestSecretHash} ~ '^[0-9a-f]{64}$'`,
+    ),
     check('email_signin_requests_link_hash_check', sql`${t.linkTokenHash} ~ '^[0-9a-f]{64}$'`),
-    check('email_signin_requests_approved_check', sql`${t.approvedAt} is null or ${t.userId} is not null`),
+    check(
+      'email_signin_requests_approved_check',
+      sql`${t.approvedAt} is null or ${t.userId} is not null`,
+    ),
   ],
 );

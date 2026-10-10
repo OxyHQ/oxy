@@ -118,7 +118,7 @@ async function insertPriceVersion(): Promise<string> {
 }
 
 async function makeFixture(
-  options: { fund?: string; promotional?: string; billingMode?: 'prepaid' | 'invoiced' } = {}
+  options: { fund?: string; promotional?: string; billingMode?: 'prepaid' | 'invoiced' } = {},
 ): Promise<Fixture> {
   const tag = randomUUID().slice(0, 8);
   const [account] = await getDb()
@@ -196,7 +196,7 @@ async function makeFixture(
 /** Compare two exact decimal strings NUMERICALLY — `3.0` and `3.000` are one amount. */
 async function expectAmount(actual: string, expected: string): Promise<void> {
   const rows = await getDb().execute<{ equal: boolean }>(
-    sql`select (${actual}::numeric = ${expected}::numeric) as equal`
+    sql`select (${actual}::numeric = ${expected}::numeric) as equal`,
   );
   expect({ actual, expected, equal: rows[0].equal }).toEqual({ actual, expected, equal: true });
 }
@@ -250,7 +250,7 @@ async function insertRawEntry(options: {
           sourceAccount: posting.source,
           destinationAccount: posting.destination,
           amount: posting.amount,
-        }))
+        })),
       );
   }
   return id;
@@ -452,7 +452,7 @@ describe('an entry with several postings yields exactly one amount', () => {
           select e.id from billing_ledger_entries e
           where e.account_id = ${f.accountId} and e.kind = 'settlement_reversal'
         `)
-      )[0].id
+      )[0].id,
     );
     expect(postings).toHaveLength(2);
     await expectAmount(postings[0], '1.000000000000');
@@ -491,7 +491,7 @@ describe('an entry with several postings yields exactly one amount', () => {
     const postings = await postingsOf(entryId);
     expect(postings).toHaveLength(2);
     const [total] = await getDb().execute<{ total: string }>(
-      sql`select sum(p.amount)::text as total from billing_ledger_postings p where p.entry_id = ${entryId}`
+      sql`select sum(p.amount)::text as total from billing_ledger_postings p where p.entry_id = ${entryId}`,
     );
     await expectAmount(total.total, '11.000000000000');
   });
@@ -770,9 +770,11 @@ describe('the cursor pages a tie without skipping or repeating a row', () => {
     expect(decodeBillingAuditCursor('not-a-cursor')).toBeNull();
     expect(decodeBillingAuditCursor(Buffer.from('a|b|c').toString('base64url'))).toBeNull();
     expect(
-      decodeBillingAuditCursor(Buffer.from('not-a-date|an-id').toString('base64url'))
+      decodeBillingAuditCursor(Buffer.from('not-a-date|an-id').toString('base64url')),
     ).toBeNull();
-    expect(decodeBillingAuditCursor(Buffer.from(`${raw.createdAt}|`).toString('base64url'))).toBeNull();
+    expect(
+      decodeBillingAuditCursor(Buffer.from(`${raw.createdAt}|`).toString('base64url')),
+    ).toBeNull();
   });
 
   it('reads from the start when handed a cursor it refused', async () => {

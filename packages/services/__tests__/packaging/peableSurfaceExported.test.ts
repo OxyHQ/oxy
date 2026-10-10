@@ -7,7 +7,7 @@ const clientBarrel = readFileSync(path.resolve(__dirname, '../../src/ui/client.t
 const serverBarrel = readFileSync(path.resolve(__dirname, '../../src/ui/server.ts'), 'utf8');
 const compatibilityModule = readFileSync(
   path.resolve(__dirname, '../../src/ui/components/OxyPayButton.tsx'),
-  'utf8'
+  'utf8',
 );
 
 describe('Peable payment button public surface', () => {
@@ -16,7 +16,7 @@ describe('Peable payment button public surface', () => {
     (barrel) => {
       expect(barrel).toMatch(/export \{ default as PeableButton \}/);
       expect(barrel).toMatch(/export type \{ PeableButtonProps \}/);
-    }
+    },
   );
 
   it('provides a server-safe PeableButton', () => {

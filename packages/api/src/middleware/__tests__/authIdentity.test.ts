@@ -61,7 +61,12 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
-import { authMiddleware, simpleAuthMiddleware, type AuthRequest, type SimpleAuthRequest } from '../auth';
+import {
+  authMiddleware,
+  simpleAuthMiddleware,
+  type AuthRequest,
+  type SimpleAuthRequest,
+} from '../auth';
 import { optionalAuthMiddleware } from '../optionalAuth';
 import type { AuthenticatedRequest } from '../authUtils';
 import sessionService from '../../services/session.service';
@@ -159,16 +164,18 @@ beforeAll(async () => {
   process.env.DEVICE_ID_SALT = 'x'.repeat(48);
 
   const app = express();
-  app.use(rateLimit({
-    windowMs: 60_000,
-    limit: 100,
-    store: probeRateStore,
-    keyGenerator: hashedIpKey,
-    validate: { keyGeneratorIpFallback: false },
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { present: false },
-  }));
+  app.use(
+    rateLimit({
+      windowMs: 60_000,
+      limit: 100,
+      store: probeRateStore,
+      keyGenerator: hashedIpKey,
+      validate: { keyGeneratorIpFallback: false },
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { present: false },
+    }),
+  );
 
   // A handler shaped exactly like the ~25 route files that import `AuthRequest`.
   app.get('/probe/full', authMiddleware, (req: AuthRequest, res: Response) => {
@@ -251,7 +258,10 @@ describe('authMiddleware — the identity a handler receives', () => {
   });
 
   it('carries the ordinary account fields a route reads', async () => {
-    const userId = await account({ username: `staffer-${randomUUID().slice(0, 8)}`, isStaff: true });
+    const userId = await account({
+      username: `staffer-${randomUUID().slice(0, 8)}`,
+      isStaff: true,
+    });
     const token = await signIn(userId);
 
     const res = await get('/probe/full', token);

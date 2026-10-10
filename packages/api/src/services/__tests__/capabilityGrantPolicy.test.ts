@@ -45,21 +45,36 @@ const emptyGrant = {
 
 describe('capability grant catalog policy', () => {
   it('rejects an allow override for a future tool absent from the active catalog', () => {
-    expect(capabilityGrantError({
-      ...emptyGrant,
-      toolOverrides: [{ tool: 'futureAdminTool', decision: 'allow' }],
-    }, catalog([tool()]))).toBe('override_tool_not_available_for_resource');
+    expect(
+      capabilityGrantError(
+        {
+          ...emptyGrant,
+          toolOverrides: [{ tool: 'futureAdminTool', decision: 'allow' }],
+        },
+        catalog([tool()]),
+      ),
+    ).toBe('override_tool_not_available_for_resource');
   });
 
   it('rejects capabilities and packages not available for the delegated resource', () => {
-    expect(capabilityGrantError({
-      ...emptyGrant,
-      capabilityPackages: ['communicate'],
-    }, catalog([tool()]))).toBe('capability_package_not_available_for_resource');
-    expect(capabilityGrantError({
-      ...emptyGrant,
-      capabilities: ['email.send'],
-    }, catalog([tool()]))).toBe('capability_not_available_for_resource');
+    expect(
+      capabilityGrantError(
+        {
+          ...emptyGrant,
+          capabilityPackages: ['communicate'],
+        },
+        catalog([tool()]),
+      ),
+    ).toBe('capability_package_not_available_for_resource');
+    expect(
+      capabilityGrantError(
+        {
+          ...emptyGrant,
+          capabilities: ['email.send'],
+        },
+        catalog([tool()]),
+      ),
+    ).toBe('capability_not_available_for_resource');
   });
 
   it('requires the exact sensitive capability even for an explicit tool allow', () => {
@@ -69,24 +84,40 @@ describe('capability grant catalog policy', () => {
       requiredCapabilities: ['payments.send'],
       effect: 'financial',
     });
-    expect(capabilityGrantError({
-      ...emptyGrant,
-      toolOverrides: [{ tool: 'sendPayment', decision: 'allow' }],
-    }, catalog([financeTool]))).toBe('sensitive_tool_requires_explicit_capabilities');
-    expect(capabilityGrantError({
-      ...emptyGrant,
-      capabilities: ['payments.send'],
-      toolOverrides: [{ tool: 'sendPayment', decision: 'allow' }],
-    }, catalog([financeTool]))).toBeNull();
+    expect(
+      capabilityGrantError(
+        {
+          ...emptyGrant,
+          toolOverrides: [{ tool: 'sendPayment', decision: 'allow' }],
+        },
+        catalog([financeTool]),
+      ),
+    ).toBe('sensitive_tool_requires_explicit_capabilities');
+    expect(
+      capabilityGrantError(
+        {
+          ...emptyGrant,
+          capabilities: ['payments.send'],
+          toolOverrides: [{ tool: 'sendPayment', decision: 'allow' }],
+        },
+        catalog([financeTool]),
+      ),
+    ).toBeNull();
   });
 
   it('rejects a resource type and limit absent from current tool declarations', () => {
-    expect(capabilityGrantError(emptyGrant, catalog([tool({ resourceTypes: ['email_account'] })])))
-      .toBe('resource_type_not_available_in_catalog');
-    expect(capabilityGrantError({
-      ...emptyGrant,
-      limits: [{ tool: 'readEmail', key: 'limit', value: 10 }],
-    }, catalog([tool()]))).toBe('limit_key_not_declared_by_tool');
+    expect(
+      capabilityGrantError(emptyGrant, catalog([tool({ resourceTypes: ['email_account'] })])),
+    ).toBe('resource_type_not_available_in_catalog');
+    expect(
+      capabilityGrantError(
+        {
+          ...emptyGrant,
+          limits: [{ tool: 'readEmail', key: 'limit', value: 10 }],
+        },
+        catalog([tool()]),
+      ),
+    ).toBe('limit_key_not_declared_by_tool');
   });
 
   it('requires every declared bound for autonomous financial and security tools', () => {
@@ -115,15 +146,21 @@ describe('capability grant catalog policy', () => {
         capabilities: [capability],
         maximumAutonomy: 'autonomous' as const,
       };
-      expect(capabilityGrantError(autonomousGrant, catalog([sensitiveTool])))
-        .toBe('autonomous_sensitive_tool_limit_required');
-      expect(capabilityGrantError({
-        ...autonomousGrant,
-        limits: [
-          { tool: sensitiveTool.name, key: 'amount', value: 100 },
-          { tool: sensitiveTool.name, key: 'approved', value: true },
-        ],
-      }, catalog([sensitiveTool]))).toBeNull();
+      expect(capabilityGrantError(autonomousGrant, catalog([sensitiveTool]))).toBe(
+        'autonomous_sensitive_tool_limit_required',
+      );
+      expect(
+        capabilityGrantError(
+          {
+            ...autonomousGrant,
+            limits: [
+              { tool: sensitiveTool.name, key: 'amount', value: 100 },
+              { tool: sensitiveTool.name, key: 'approved', value: true },
+            ],
+          },
+          catalog([sensitiveTool]),
+        ),
+      ).toBeNull();
     }
   });
 
@@ -136,10 +173,15 @@ describe('capability grant catalog policy', () => {
       idempotency: 'required',
       invocation: { method: 'POST', path: '/finance' },
     });
-    expect(capabilityGrantError({
-      ...emptyGrant,
-      capabilities: ['finance.execute'],
-      maximumAutonomy: 'autonomous',
-    }, catalog([financialTool]))).toBe('autonomous_sensitive_tool_has_no_limit_keys');
+    expect(
+      capabilityGrantError(
+        {
+          ...emptyGrant,
+          capabilities: ['finance.execute'],
+          maximumAutonomy: 'autonomous',
+        },
+        catalog([financialTool]),
+      ),
+    ).toBe('autonomous_sensitive_tool_has_no_limit_keys');
   });
 });

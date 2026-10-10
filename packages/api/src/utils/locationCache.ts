@@ -23,7 +23,7 @@ class LocationCache {
       maxSize: 1000,
       defaultTTL: 24 * 60 * 60 * 1000, // 24 hours
       cleanupInterval: 60 * 60 * 1000, // 1 hour
-      ...config
+      ...config,
     };
 
     this.startCleanupTimer();
@@ -64,7 +64,7 @@ class LocationCache {
    */
   set(query: string, limit: number, results: any[], countrycodes?: string, ttl?: number): void {
     const key = this.generateKey(query, limit, countrycodes);
-    
+
     // Remove oldest entries if cache is full
     if (this.cache.size >= this.config.maxSize) {
       this.evictOldest();
@@ -74,7 +74,7 @@ class LocationCache {
       query,
       results,
       timestamp: Date.now(),
-      ttl: ttl || this.config.defaultTTL
+      ttl: ttl || this.config.defaultTTL,
     });
 
     logger.debug(`Cached results for query: ${query} (${results.length} results)`);
@@ -162,7 +162,7 @@ class LocationCache {
       maxSize: this.config.maxSize,
       hitRate: 0, // Would need to track hits/misses
       totalHits: 0,
-      totalMisses: 0
+      totalMisses: 0,
     };
   }
 }
@@ -170,4 +170,4 @@ class LocationCache {
 // Export singleton instance
 export const locationCache = new LocationCache();
 
-export default locationCache; 
+export default locationCache;

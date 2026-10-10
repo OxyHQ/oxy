@@ -19,10 +19,7 @@ type Entry = [keyof ViewStyle, Style];
  * - After that there will be a style object for each filter you passed in the same order as the matching filters
  * - A style property will exist in a single style object, the first filter it matched
  */
-export function splitStyles<Tuple extends FiltersArray>(
-  styles: ViewStyle,
-  ...filters: Tuple
-) {
+export function splitStyles<Tuple extends FiltersArray>(styles: ViewStyle, ...filters: Tuple) {
   if (process.env.NODE_ENV !== 'production' && filters.length === 0) {
     console.error('No filters were passed when calling splitStyles');
   }
@@ -55,6 +52,6 @@ export function splitStyles<Tuple extends FiltersArray>(
   // Convert arrays of entries into objects
   return newStyles.map((styles) => Object.fromEntries(styles)) as unknown as [
     ViewStyle,
-    ...MappedTuple<Tuple>
+    ...MappedTuple<Tuple>,
   ];
 }

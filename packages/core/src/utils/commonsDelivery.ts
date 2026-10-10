@@ -108,10 +108,7 @@ export function selectCommonsDelivery(facts: CommonsDeliveryFacts): CommonsDeliv
  * `delivered: false` with `targets > 0`, which must NOT park the user on
  * "check your phone".
  */
-export function pushTargetsFromDelivery(result: {
-  delivered: boolean;
-  targets: number;
-}): number {
+export function pushTargetsFromDelivery(result: { delivered: boolean; targets: number }): number {
   return result.delivered ? result.targets : 0;
 }
 

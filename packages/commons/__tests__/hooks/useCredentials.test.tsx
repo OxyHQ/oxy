@@ -40,7 +40,9 @@ describe('useCredentials', () => {
   });
 
   it('renders a holder credential list from listCredentials', async () => {
-    const listCredentials = jest.fn(async () => makeList(makeCredential(), makeCredential({ recordId: 'rec2' })));
+    const listCredentials = jest.fn(async () =>
+      makeList(makeCredential(), makeCredential({ recordId: 'rec2' })),
+    );
     __setOxyState({ isAuthenticated: true, user: { id: 'me' }, oxyServices: { listCredentials } });
 
     const { result } = renderHook(() => useCredentials('holder-1'), { wrapper: makeWrapper() });
@@ -81,7 +83,11 @@ describe('useMyCredentials', () => {
 
   it('reads the current user list via listMyCredentials', async () => {
     const listMyCredentials = jest.fn(async () => makeList(makeCredential()));
-    __setOxyState({ isAuthenticated: true, user: { id: 'me' }, oxyServices: { listMyCredentials } });
+    __setOxyState({
+      isAuthenticated: true,
+      user: { id: 'me' },
+      oxyServices: { listMyCredentials },
+    });
 
     const { result } = renderHook(() => useMyCredentials(), { wrapper: makeWrapper() });
 

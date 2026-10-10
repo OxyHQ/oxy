@@ -245,7 +245,11 @@ function ExamplesPage() {
                 <CodeBlock code={examples[tab.value]} language={languageMap[tab.value]}>
                   <CodeBlockHeader>
                     <CodeBlockTitle>
-                      <HugeiconsIcon icon={SourceCodeIcon} size={14} className="text-muted-foreground" />
+                      <HugeiconsIcon
+                        icon={SourceCodeIcon}
+                        size={14}
+                        className="text-muted-foreground"
+                      />
                       <CodeBlockFilename>{tab.label}</CodeBlockFilename>
                     </CodeBlockTitle>
                     <CodeBlockActions>

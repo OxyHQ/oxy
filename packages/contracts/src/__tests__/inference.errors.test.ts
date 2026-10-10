@@ -37,9 +37,9 @@ describe('inferenceErrorSchema', () => {
 
   it('refuses to call a permanently failing code retryable', () => {
     for (const code of NON_RETRYABLE_INFERENCE_ERROR_CODES) {
-      expect(
-        inferenceErrorSchema.safeParse({ ...error, code, retryable: true }).success,
-      ).toBe(false);
+      expect(inferenceErrorSchema.safeParse({ ...error, code, retryable: true }).success).toBe(
+        false,
+      );
       expect(
         inferenceErrorSchema.safeParse({
           ...error,

@@ -63,7 +63,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: subjectId, id: subjectId };
     next();
@@ -146,7 +146,11 @@ async function seedAccount(kind: 'personal' | 'organization'): Promise<string> {
   return row.id;
 }
 
-async function seedMember(accountId: string, memberUserId: string, role: AccountRole): Promise<void> {
+async function seedMember(
+  accountId: string,
+  memberUserId: string,
+  role: AccountRole,
+): Promise<void> {
   await getDb()
     .insert(accountMembers)
     .values({ accountId, memberUserId, role, inherit: true, status: 'active' });
@@ -180,7 +184,7 @@ function createAccount(payload: Record<string, unknown>): Promise<JsonResponse> 
             reject(error);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);

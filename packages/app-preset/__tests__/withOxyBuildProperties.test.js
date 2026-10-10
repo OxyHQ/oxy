@@ -11,7 +11,10 @@ function fakeApp() {
   const root = mkdtempSync(join(tmpdir(), 'oxy-preset-app-'));
   const pkg = join(root, 'node_modules', 'expo-build-properties');
   mkdirSync(pkg, { recursive: true });
-  writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: 'expo-build-properties', main: 'index.js' }));
+  writeFileSync(
+    join(pkg, 'package.json'),
+    JSON.stringify({ name: 'expo-build-properties', main: 'index.js' }),
+  );
   writeFileSync(
     join(pkg, 'index.js'),
     'module.exports = function withBuildProperties(config, props) { return { ...config, appliedBuildProperties: props }; };',
@@ -25,7 +28,10 @@ test('resolves expo-build-properties from the app project root, where the peer i
     const result = withOxyBuildProperties({ name: 'app', _internal: { projectRoot: root } });
     assert.equal(result.name, 'app');
     assert.deepEqual(result.appliedBuildProperties.ios, withOxyBuildProperties.DEFAULTS.ios);
-    assert.deepEqual(result.appliedBuildProperties.android, withOxyBuildProperties.DEFAULTS.android);
+    assert.deepEqual(
+      result.appliedBuildProperties.android,
+      withOxyBuildProperties.DEFAULTS.android,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

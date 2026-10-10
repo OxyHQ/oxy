@@ -107,7 +107,7 @@ router.get(
       currency: query.currency ?? DEFAULT_LEDGER_CURRENCY,
     });
     res.json({ data: spend, count: spend.length });
-  })
+  }),
 );
 
 /**
@@ -137,7 +137,7 @@ router.get(
       currency: query.currency ?? DEFAULT_LEDGER_CURRENCY,
     });
     res.json({ data: usage, count: usage.length });
-  })
+  }),
 );
 
 /** `GET /billing/cost-centers` — the registered centres. */
@@ -148,7 +148,7 @@ router.get(
     const { includeRetired } = costCenterListQuery.parse(req.query);
     const centers = await listCostCenters(includeRetired);
     res.json({ data: centers, count: centers.length });
-  })
+  }),
 );
 
 /**
@@ -175,10 +175,10 @@ router.post(
       case 'slug-taken':
         throw new ConflictError(
           `The slug ${result.slug} already names a different account; a slug is how historical ` +
-            'reports address a cost centre and must never move'
+            'reports address a cost centre and must never move',
         );
     }
-  })
+  }),
 );
 
 /**
@@ -200,7 +200,7 @@ router.delete(
       throw new NotFoundError('No such cost centre');
     }
     res.json({ data: result.costCenter });
-  })
+  }),
 );
 
 export default router;

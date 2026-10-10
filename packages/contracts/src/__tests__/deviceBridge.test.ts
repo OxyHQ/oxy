@@ -34,9 +34,15 @@ describe('the browser bridge contracts (ADR 0029 D2)', () => {
       codeChallengeMethod: 'S256',
     };
     expect(deviceJoinCodeRequestSchema.safeParse(request).success).toBe(true);
-    expect(deviceJoinCodeRequestSchema.safeParse({ ...request, codeChallengeMethod: 'plain' }).success).toBe(false);
-    expect(deviceJoinCodeRequestSchema.safeParse({ ...request, codeChallenge: 'short' }).success).toBe(false);
-    expect(deviceJoinCodeRequestSchema.safeParse({ ...request, redirectUri: 'not a url' }).success).toBe(false);
+    expect(
+      deviceJoinCodeRequestSchema.safeParse({ ...request, codeChallengeMethod: 'plain' }).success,
+    ).toBe(false);
+    expect(
+      deviceJoinCodeRequestSchema.safeParse({ ...request, codeChallenge: 'short' }).success,
+    ).toBe(false);
+    expect(
+      deviceJoinCodeRequestSchema.safeParse({ ...request, redirectUri: 'not a url' }).success,
+    ).toBe(false);
   });
 
   it('a join-code response carries the code and its lifetime', () => {
@@ -45,10 +51,19 @@ describe('the browser bridge contracts (ADR 0029 D2)', () => {
   });
 
   it('a join request carries an RFC 7636 verifier', () => {
-    const request = { code: 'c', codeVerifier: VERIFIER, clientId: 'oxy_dk_1', redirectUri: 'https://mention.earth/' };
+    const request = {
+      code: 'c',
+      codeVerifier: VERIFIER,
+      clientId: 'oxy_dk_1',
+      redirectUri: 'https://mention.earth/',
+    };
     expect(deviceJoinRequestSchema.safeParse(request).success).toBe(true);
-    expect(deviceJoinRequestSchema.safeParse({ ...request, codeVerifier: 'short' }).success).toBe(false);
-    expect(deviceJoinRequestSchema.safeParse({ ...request, codeVerifier: `${VERIFIER}!` }).success).toBe(false);
+    expect(deviceJoinRequestSchema.safeParse({ ...request, codeVerifier: 'short' }).success).toBe(
+      false,
+    );
+    expect(
+      deviceJoinRequestSchema.safeParse({ ...request, codeVerifier: `${VERIFIER}!` }).success,
+    ).toBe(false);
   });
 
   it('a sign-in may carry a device proof', () => {
@@ -56,6 +71,8 @@ describe('the browser bridge contracts (ADR 0029 D2)', () => {
     const body = { identifier: 'ada', password: 'correct horse' };
     expect(passwordSignInRequestSchema.parse({ ...body, device }).device).toEqual(device);
     expect(passwordSignInRequestSchema.parse(body).device).toBeUndefined();
-    expect(passwordSignInRequestSchema.safeParse({ ...body, device: { deviceId: 'd1' } }).success).toBe(false);
+    expect(
+      passwordSignInRequestSchema.safeParse({ ...body, device: { deviceId: 'd1' } }).success,
+    ).toBe(false);
   });
 });

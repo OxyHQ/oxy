@@ -68,7 +68,14 @@ import {
   type PrivateAutoSourceApproval,
   USAGE_UNITS,
 } from '@oxy.so/contracts';
-import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
+import {
+  createdAt,
+  generatedId,
+  inList,
+  textArrayLiteral,
+  timestamptz,
+  updatedAt,
+} from '@oxy.so/db';
 import { inferenceCatalogueAutoApprovalPolicies } from './inferenceCatalogueSync';
 import { inferenceModelRevisions } from './inferenceModelRevisions';
 import { inferenceProviders } from './inferenceProviders';
@@ -98,9 +105,7 @@ export const INFERENCE_DEPLOYMENT_STORAGE_AVAILABILITY_SCOPES = [
 ] as const;
 
 /** Translate storage compatibility into the current wire vocabulary. */
-export function normalizeInferenceDeploymentAvailabilityScope(
-  value: string
-): AvailabilityScope {
+export function normalizeInferenceDeploymentAvailabilityScope(value: string): AvailabilityScope {
   return value === LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE
     ? 'platform_internal'
     : availabilityScopeSchema.parse(value);
@@ -387,11 +392,12 @@ export const inferenceDeployments = pgTable(
      * products internally and to public customers under different commercial terms —
      * those are two decisions and must be two rows.
      */
-    uniqueIndex('inference_deployments_revision_provider_scope_key').on(
-      t.modelRevisionId, t.providerSlug, t.availabilityScope
-    ).where(sql`${t.privateAutoSourceApproval} is null`),
+    uniqueIndex('inference_deployments_revision_provider_scope_key')
+      .on(t.modelRevisionId, t.providerSlug, t.availabilityScope)
+      .where(sql`${t.privateAutoSourceApproval} is null`),
     // A renewed approval/version cannot create a second private row for this exact route.
-    uniqueIndex('inference_deployments_private_auto_route_key').on(t.internalRouteId)
+    uniqueIndex('inference_deployments_private_auto_route_key')
+      .on(t.internalRouteId)
       .where(sql`${t.privateAutoSourceApproval} is not null`),
     // Drafts may model audience-specific offers independently. Publication may
     // not: until serving has a viewer-aware cross-scope commercial contract,
@@ -400,7 +406,8 @@ export const inferenceDeployments = pgTable(
       .on(t.internalRouteId)
       .where(sql`${t.permissionState} = 'approved' and ${t.internalRouteId} is not null`),
 
-    check('inference_deployments_private_auto_stays_private',
+    check(
+      'inference_deployments_private_auto_stays_private',
       sql`${t.privateAutoSourceApproval} is null or coalesce((jsonb_typeof(${t.privateAutoSourceApproval}) = 'object'
         and ${t.privateAutoSourceApproval}->>'purpose' = 'private_auto_classifier'
         and ${t.privateAutoSourceApproval}->>'classifierVersion' = 'jev-auto-v1'
@@ -414,44 +421,45 @@ export const inferenceDeployments = pgTable(
         and ${t.scopedExecution} is null
         and ${t.availabilityScope} = 'platform_internal' and ${t.autoApprovalPolicyId} is null
         and ${t.status} in ('disabled', 'retired')
-        and ${t.permissionState} in ('pending_review', 'rejected', 'retired')), false)`),
+        and ${t.permissionState} in ('pending_review', 'rejected', 'retired')), false)`,
+    ),
 
     /* ---- closed value sets ---------------------------------------------- */
 
     check(
       'inference_deployments_availability_scope_check',
-      sql`${t.availabilityScope} in (${sql.raw(inList(INFERENCE_DEPLOYMENT_STORAGE_AVAILABILITY_SCOPES))})`
+      sql`${t.availabilityScope} in (${sql.raw(inList(INFERENCE_DEPLOYMENT_STORAGE_AVAILABILITY_SCOPES))})`,
     ),
     check(
       'inference_deployments_commercial_permission_check',
-      sql`${t.commercialPermission} in (${sql.raw(inList(COMMERCIAL_PERMISSIONS))})`
+      sql`${t.commercialPermission} in (${sql.raw(inList(COMMERCIAL_PERMISSIONS))})`,
     ),
     check(
       'inference_deployments_permission_state_check',
-      sql`${t.permissionState} in (${sql.raw(inList(DEPLOYMENT_PERMISSION_STATES))})`
+      sql`${t.permissionState} in (${sql.raw(inList(DEPLOYMENT_PERMISSION_STATES))})`,
     ),
     check(
       'inference_deployments_legal_review_status_check',
-      sql`${t.legalReviewStatus} in (${sql.raw(inList(DEPLOYMENT_LEGAL_REVIEW_STATUSES))})`
+      sql`${t.legalReviewStatus} in (${sql.raw(inList(DEPLOYMENT_LEGAL_REVIEW_STATUSES))})`,
     ),
     check(
       'inference_deployments_status_check',
-      sql`${t.status} in (${sql.raw(inList(DEPLOYMENT_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(DEPLOYMENT_STATUSES))})`,
     ),
     check(
       'inference_deployments_accepted_parameters_check',
-      sql`${t.acceptedParameters} is null or ${t.acceptedParameters} <@ ${sql.raw(textArrayLiteral(DEPLOYMENT_REQUEST_PARAMETERS))}`
+      sql`${t.acceptedParameters} is null or ${t.acceptedParameters} <@ ${sql.raw(textArrayLiteral(DEPLOYMENT_REQUEST_PARAMETERS))}`,
     ),
 
     /* ---- data-policy coherence ------------------------------------------ */
 
     check(
       'inference_deployments_retention_coherent',
-      sql`${t.retentionDays} >= 0 and ${t.retentionDays} <= 3650 and (${t.retainsPayloads} or ${t.retentionDays} = 0)`
+      sql`${t.retentionDays} >= 0 and ${t.retentionDays} <= 3650 and (${t.retainsPayloads} or ${t.retentionDays} = 0)`,
     ),
     check(
       'inference_deployments_training_requires_retention',
-      sql`${t.retainsPayloads} or not ${t.trainsOnCustomerData}`
+      sql`${t.retainsPayloads} or not ${t.trainsOnCustomerData}`,
     ),
 
     /* ---- the commercial refinements from `modelDeploymentSchema` --------- */
@@ -463,12 +471,12 @@ export const inferenceDeployments = pgTable(
      */
     check(
       'inference_deployments_public_requires_resale_permission',
-      sql`${t.availabilityScope} <> 'public_payg' or ${t.commercialPermission} in (${sql.raw(inList(PUBLIC_RESALE_PERMISSIONS))})`
+      sql`${t.availabilityScope} <> 'public_payg' or ${t.commercialPermission} in (${sql.raw(inList(PUBLIC_RESALE_PERMISSIONS))})`,
     ),
     /** A BYOK-only route is served under the customer's own provider terms. */
     check(
       'inference_deployments_byok_permission',
-      sql`${t.availabilityScope} <> 'byok_only' or ${t.commercialPermission} = 'customer_byok'`
+      sql`${t.availabilityScope} <> 'byok_only' or ${t.commercialPermission} = 'customer_byok'`,
     ),
     /**
      * A BYOK route has no customer model price: the upstream provider bills the
@@ -477,12 +485,12 @@ export const inferenceDeployments = pgTable(
      */
     check(
       'inference_deployments_byok_has_no_price_version',
-      sql`${t.availabilityScope} <> 'byok_only' or ${t.priceVersionId} is null`
+      sql`${t.availabilityScope} <> 'byok_only' or ${t.priceVersionId} is null`,
     ),
     /** A platform-fee pointer has meaning only on a BYOK-only route. */
     check(
       'inference_deployments_platform_fee_only_for_byok',
-      sql`${t.platformFeePriceVersionId} is null or ${t.availabilityScope} = 'byok_only'`
+      sql`${t.platformFeePriceVersionId} is null or ${t.availabilityScope} = 'byok_only'`,
     ),
 
     /* ---- the approval gate (workstream 11) ------------------------------ */
@@ -497,7 +505,7 @@ export const inferenceDeployments = pgTable(
      */
     check(
       'inference_deployments_approval_requires_legal_review',
-      sql`${t.permissionState} <> 'approved' or ${t.legalReviewStatus} = 'approved'`
+      sql`${t.permissionState} <> 'approved' or ${t.legalReviewStatus} = 'approved'`,
     ),
     /**
      * A legal approval must point at its evidence, and at when it happened.
@@ -509,7 +517,7 @@ export const inferenceDeployments = pgTable(
      */
     check(
       'inference_deployments_legal_approval_has_evidence',
-      sql`${t.legalReviewStatus} <> 'approved' or (${t.legalReviewedAt} is not null and length(btrim(coalesce(${t.legalReviewEvidenceRef}, ''))) > 0)`
+      sql`${t.legalReviewStatus} <> 'approved' or (${t.legalReviewedAt} is not null and length(btrim(coalesce(${t.legalReviewEvidenceRef}, ''))) > 0)`,
     ),
 
     /* ---- upstream cost is present as a whole, or not at all -------------- */
@@ -521,14 +529,14 @@ export const inferenceDeployments = pgTable(
      */
     check(
       'inference_deployments_wholesale_cost_is_whole',
-      sql`num_nonnulls(${t.upstreamWholesaleCostAmount}, ${t.upstreamWholesaleCostCurrency}, ${t.upstreamWholesaleCostUnit}, ${t.upstreamWholesaleCostPer}) in (0, 4)`
+      sql`num_nonnulls(${t.upstreamWholesaleCostAmount}, ${t.upstreamWholesaleCostCurrency}, ${t.upstreamWholesaleCostUnit}, ${t.upstreamWholesaleCostPer}) in (0, 4)`,
     ),
     check(
       'inference_deployments_wholesale_cost_shape',
       sql`(${t.upstreamWholesaleCostAmount} is null or ${t.upstreamWholesaleCostAmount} >= 0)
         and (${t.upstreamWholesaleCostPer} is null or ${t.upstreamWholesaleCostPer} > 0)
         and (${t.upstreamWholesaleCostCurrency} is null or ${t.upstreamWholesaleCostCurrency} ~ ${sql.raw(String.raw`'^[A-Z]{3}$'`)})
-        and (${t.upstreamWholesaleCostUnit} is null or ${t.upstreamWholesaleCostUnit} = any(${sql.raw(textArrayLiteral(USAGE_UNITS))}))`
+        and (${t.upstreamWholesaleCostUnit} is null or ${t.upstreamWholesaleCostUnit} = any(${sql.raw(textArrayLiteral(USAGE_UNITS))}))`,
     ),
 
     /* ---- indexes --------------------------------------------------------- */
@@ -546,14 +554,14 @@ export const inferenceDeployments = pgTable(
     index('inference_deployments_scope_permission_status_idx').on(
       t.availabilityScope,
       t.permissionState,
-      t.status
+      t.status,
     ),
     /** Resolving "which routes serve this revision" for failover and for the entry. */
     index('inference_deployments_model_revision_id_idx').on(t.modelRevisionId),
     /** "Everything on this provider", for an incident and for the admin queue. */
     index('inference_deployments_provider_slug_idx').on(t.providerSlug),
     index('inference_deployments_auto_approval_policy_id_idx').on(t.autoApprovalPolicyId),
-  ]
+  ],
 );
 
 export type InferenceDeploymentRow = typeof inferenceDeployments.$inferSelect;

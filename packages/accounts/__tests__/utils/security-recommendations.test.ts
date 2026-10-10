@@ -30,7 +30,9 @@ function activity(partial: Partial<SecurityActivity>): SecurityActivity {
   } as SecurityActivity;
 }
 
-function baseInput(overrides: Partial<SecurityRecommendationInput> = {}): SecurityRecommendationInput {
+function baseInput(
+  overrides: Partial<SecurityRecommendationInput> = {},
+): SecurityRecommendationInput {
   return {
     canEnableBiometric: false,
     biometricEnabled: false,
@@ -59,10 +61,7 @@ describe('countStaleSessions', () => {
   });
 
   it('ignores sessions with no lastActive or an invalid date', () => {
-    const sessions = [
-      session({ lastActive: undefined }),
-      session({ lastActive: 'not-a-date' }),
-    ];
+    const sessions = [session({ lastActive: undefined }), session({ lastActive: 'not-a-date' })];
     expect(countStaleSessions(sessions, NOW)).toBe(0);
   });
 });
@@ -112,9 +111,16 @@ describe('selectSecurityRecommendations', () => {
 
   it('recommends linking Commons to an account without a key, and not on a guess (ADR 0029 D3)', () => {
     const keyless = { rootLinked: false, recoveryEmail: 'ada@example.com' };
-    expect(selectSecurityRecommendations(baseInput({ rootStatus: keyless }), NOW).map((r) => r.id)).toEqual(['link-commons']);
+    expect(
+      selectSecurityRecommendations(baseInput({ rootStatus: keyless }), NOW).map((r) => r.id),
+    ).toEqual(['link-commons']);
     expect(selectSecurityRecommendations(baseInput({ rootStatus: undefined }), NOW)).toEqual([]);
-    expect(selectSecurityRecommendations(baseInput({ rootStatus: { rootLinked: true, recoveryEmail: null } }), NOW)).toEqual([]);
+    expect(
+      selectSecurityRecommendations(
+        baseInput({ rootStatus: { rootLinked: true, recoveryEmail: null } }),
+        NOW,
+      ),
+    ).toEqual([]);
   });
 
   it('carries the stale-session count on the old-sessions recommendation', () => {
@@ -133,8 +139,9 @@ describe('selectSecurityRecommendations', () => {
 
   it('recommends reviewing devices only above the many-devices threshold', () => {
     expect(
-      selectSecurityRecommendations(baseInput({ deviceCount: MANY_DEVICES_THRESHOLD }), NOW)
-        .map((r) => r.id),
+      selectSecurityRecommendations(baseInput({ deviceCount: MANY_DEVICES_THRESHOLD }), NOW).map(
+        (r) => r.id,
+      ),
     ).not.toContain('many-devices');
 
     const recs = selectSecurityRecommendations(

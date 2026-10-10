@@ -3,13 +3,7 @@ import { getLocalesVersion, subscribeLocales, translate as coreTranslate } from 
 import { useLocale } from './locale-context';
 import enAccounts from './locales/en.json';
 import esAccounts from './locales/es.json';
-import type {
-  Locale,
-  LocaleDict,
-  LocaleNode,
-  TranslateFn,
-  TranslationVars,
-} from './types';
+import type { Locale, LocaleDict, LocaleNode, TranslateFn, TranslationVars } from './types';
 
 /**
  * Accounts-namespaced dictionaries loaded at module init. Only English and
@@ -87,7 +81,11 @@ interface UseTranslationResult {
 export function useTranslation(): UseTranslationResult {
   const { locale, setLocale } = useLocale();
   // Core's non-English dictionaries load on demand; re-translate when one lands.
-  const localesVersion = useSyncExternalStore(subscribeLocales, getLocalesVersion, getLocalesVersion);
+  const localesVersion = useSyncExternalStore(
+    subscribeLocales,
+    getLocalesVersion,
+    getLocalesVersion,
+  );
 
   const dict = useMemo(() => ACCOUNTS_DICTS[locale], [locale]);
 

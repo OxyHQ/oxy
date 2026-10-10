@@ -19,7 +19,13 @@
  * for the Commons identity key. The mirror is additive — it can neither change
  * nor fail the app's own durable write.
  */
-import { createWebAuthStateStore, createNativeAuthStateStore, createSharedMirroringAuthStateStore, type AuthStateStore, type SessionMode } from '@oxy.so/core/session';
+import {
+  createWebAuthStateStore,
+  createNativeAuthStateStore,
+  createSharedMirroringAuthStateStore,
+  type AuthStateStore,
+  type SessionMode,
+} from '@oxy.so/core/session';
 import { isReactNative } from '../utils/storageHelpers';
 import { createNativeSecureKeyValueStorage } from './nativeSecureStorage';
 import { createPlatformSharedDeviceCredentialStore } from './sharedDeviceCredentialStore';

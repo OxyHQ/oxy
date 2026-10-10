@@ -27,19 +27,18 @@ export const HEADER_PADDING_TOP_SETTINGS = 40;
  * Use this for ScrollView contentContainerStyle to ensure consistent padding
  */
 export const screenContentStyle = {
-    paddingHorizontal: SCREEN_PADDING_HORIZONTAL,
-    paddingVertical: SCREEN_PADDING_VERTICAL,
-    paddingTop: SCREEN_PADDING_TOP,
-    paddingBottom: SCREEN_PADDING_VERTICAL,
+  paddingHorizontal: SCREEN_PADDING_HORIZONTAL,
+  paddingVertical: SCREEN_PADDING_VERTICAL,
+  paddingTop: SCREEN_PADDING_TOP,
+  paddingBottom: SCREEN_PADDING_VERTICAL,
 };
 
 /**
  * Reusable screen content style for screens that need custom top padding
  */
 export const createScreenContentStyle = (topPadding?: number) => ({
-    paddingHorizontal: SCREEN_PADDING_HORIZONTAL,
-    paddingVertical: SCREEN_PADDING_VERTICAL,
-    paddingTop: topPadding ?? SCREEN_PADDING_TOP,
-    paddingBottom: SCREEN_PADDING_VERTICAL,
+  paddingHorizontal: SCREEN_PADDING_HORIZONTAL,
+  paddingVertical: SCREEN_PADDING_VERTICAL,
+  paddingTop: topPadding ?? SCREEN_PADDING_TOP,
+  paddingBottom: SCREEN_PADDING_VERTICAL,
 });
-

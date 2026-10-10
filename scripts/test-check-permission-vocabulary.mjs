@@ -97,8 +97,7 @@ function sourceModuleSource(accountNames, applicationNames) {
 
 /** A Console file declaring one exported union. */
 function consoleUnionSource(typeName, names, { header = '', exported = true, body = null } = {}) {
-  const declaration =
-    body ?? `${names.map((name) => `  | '${name}'`).join('\n')};`;
+  const declaration = body ?? `${names.map((name) => `  | '${name}'`).join('\n')};`;
   return `${header}${exported ? 'export ' : ''}type ${typeName} =\n${declaration}\n`;
 }
 
@@ -114,18 +113,26 @@ function createFixture({ account = {}, application = {}, source = {} } = {}) {
     root,
     'packages/api/src/utils/accountRoles.ts',
     source.text ??
-      sourceModuleSource(source.accountNames ?? ACCOUNT_NAMES, source.applicationNames ?? APPLICATION_NAMES),
+      sourceModuleSource(
+        source.accountNames ?? ACCOUNT_NAMES,
+        source.applicationNames ?? APPLICATION_NAMES,
+      ),
   );
   write(
     root,
     'packages/console/src/hooks/use-account.tsx',
-    account.text ?? consoleUnionSource('AccountPermission', account.names ?? ACCOUNT_NAMES, account),
+    account.text ??
+      consoleUnionSource('AccountPermission', account.names ?? ACCOUNT_NAMES, account),
   );
   write(
     root,
     'packages/console/src/hooks/use-applications.ts',
     application.text ??
-      consoleUnionSource('ApplicationPermission', application.names ?? APPLICATION_NAMES, application),
+      consoleUnionSource(
+        'ApplicationPermission',
+        application.names ?? APPLICATION_NAMES,
+        application,
+      ),
   );
   return root;
 }
@@ -196,7 +203,9 @@ expectVerdict(
 expectVerdict(
   'drift-in-both-directions',
   createFixture({
-    account: { names: [...ACCOUNT_NAMES.filter((name) => name !== 'apps:read'), 'account:teleport'] },
+    account: {
+      names: [...ACCOUNT_NAMES.filter((name) => name !== 'apps:read'), 'account:teleport'],
+    },
   }),
   1,
   ['apps:read', 'account:teleport'],
@@ -216,13 +225,13 @@ expectVerdict(
     account: {
       names: ACCOUNT_NAMES.filter((name) => name !== 'apps:create'),
       header:
-        "/**\n" +
+        '/**\n' +
         " * The caller's own permissions, as the account's membership reports them.\n" +
-        " *\n" +
+        ' *\n' +
         " * Deliberately does not carry 'apps:create': an account's app-creation right\n" +
         " * isn't something this screen's affordances can offer, and it's the API's to\n" +
         " * grant. Don't add 'apps:create' here without a surface that uses it.\n" +
-        " */\n",
+        ' */\n',
     },
   }),
   1,
@@ -253,12 +262,9 @@ expectVerdict(
   ['declares no top-level type alias', 'AccountPermission'],
 );
 
-expectVerdict(
-  'console-type-not-exported',
-  createFixture({ account: { exported: false } }),
-  1,
-  ['is not exported'],
-);
+expectVerdict('console-type-not-exported', createFixture({ account: { exported: false } }), 1, [
+  'is not exported',
+]);
 
 expectVerdict(
   'console-type-is-not-a-union',

@@ -23,7 +23,6 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 
-
 /** Set by a test before the request; read by the mocked auth middleware. */
 let currentUserId: string | undefined;
 

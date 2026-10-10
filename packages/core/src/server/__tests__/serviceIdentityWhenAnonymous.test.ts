@@ -47,7 +47,8 @@ function authorizationOf(init: RequestInit | undefined): string | undefined {
 }
 
 function createJwt(payload: Record<string, unknown>): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'EdDSA', typ: 'JWT' })}.${encode(payload)}.signature`;
 }
 
@@ -71,7 +72,11 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
   });
 
   function backend(serviceAuth?: { apiKey: string; apiSecret: string }): OxyServer {
-    return new OxyServer({ baseURL: 'https://api.oxy.test', serviceIdentity: 'when-anonymous', serviceAuth });
+    return new OxyServer({
+      baseURL: 'https://api.oxy.test',
+      serviceIdentity: 'when-anonymous',
+      serviceAuth,
+    });
   }
 
   it('sends a session-less read with the service token', async () => {
@@ -81,7 +86,10 @@ describe("OxyServer serviceIdentity: 'when-anonymous'", () => {
     await oxy.users.get('u1');
     await oxy.users.byUsername('alice');
 
-    expect(calls.map((call) => call.authorization)).toEqual(['Bearer svc-token', 'Bearer svc-token']);
+    expect(calls.map((call) => call.authorization)).toEqual([
+      'Bearer svc-token',
+      'Bearer svc-token',
+    ]);
     expect(serviceToken).toHaveBeenCalledTimes(2);
   });
 

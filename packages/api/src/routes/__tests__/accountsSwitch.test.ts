@@ -39,7 +39,9 @@ jest.mock('../../services/account.service', () => ({
 
 // This suite stubs the authenticated session boundary; agentAutonomousFlow covers
 // the real source-session/key reads, mint, switch and revocation over HTTP/SQL.
-jest.mock('../../services/agentKeyAuthority.service', () => ({ readSessionAgentBinding: jest.fn(async () => undefined) }));
+jest.mock('../../services/agentKeyAuthority.service', () => ({
+  readSessionAgentBinding: jest.fn(async () => undefined),
+}));
 
 const mockCreateSession = jest.fn();
 const mockGetSession = jest.fn();
@@ -57,7 +59,13 @@ jest.mock('../../services/session.service', () => ({
 // Only the target ACCOUNT is a real row here; the device-set write + socket
 // broadcast belong to other services and stay mocked.
 const mockAddAccount = jest.fn(async () => ({
-  state: { deviceId: 'op-device', accounts: [], activeAccountId: null, revision: 1, updatedAt: Date.now() },
+  state: {
+    deviceId: 'op-device',
+    accounts: [],
+    activeAccountId: null,
+    revision: 1,
+    updatedAt: Date.now(),
+  },
   changed: false,
 }));
 jest.mock('../../services/deviceSession.service', () => ({
@@ -143,11 +151,17 @@ function post(srv: http.Server, path: string): Promise<JsonResponse> {
         host: '127.0.0.1',
         port: address.port,
         path,
-        headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), Authorization: 'Bearer t' },
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body),
+          Authorization: 'Bearer t',
+        },
       },
       (res) => {
         let raw = '';
-        res.on('data', (c) => { raw += c; });
+        res.on('data', (c) => {
+          raw += c;
+        });
         res.on('end', () => {
           try {
             const setCookie = res.headers['set-cookie'] ?? [];
@@ -156,9 +170,11 @@ function post(srv: http.Server, path: string): Promise<JsonResponse> {
               setCookie: Array.isArray(setCookie) ? setCookie : [setCookie],
               body: raw.length > 0 ? JSON.parse(raw) : {},
             });
-          } catch (err) { reject(err); }
+          } catch (err) {
+            reject(err);
+          }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -179,7 +195,9 @@ function get(srv: http.Server, path: string): Promise<JsonResponse> {
       },
       (res) => {
         let raw = '';
-        res.on('data', (c) => { raw += c; });
+        res.on('data', (c) => {
+          raw += c;
+        });
         res.on('end', () => {
           try {
             const setCookie = res.headers['set-cookie'] ?? [];
@@ -188,9 +206,11 @@ function get(srv: http.Server, path: string): Promise<JsonResponse> {
               setCookie: Array.isArray(setCookie) ? setCookie : [setCookie],
               body: raw.length > 0 ? JSON.parse(raw) : {},
             });
-          } catch (err) { reject(err); }
+          } catch (err) {
+            reject(err);
+          }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -201,15 +221,19 @@ let server: http.Server;
 
 beforeAll(async () => {
   await connectPostgres();
-  mockAuthMiddleware.mockImplementation((req: { user?: unknown }, _res: unknown, next: () => void) => {
-    (req as { user?: unknown }).user = { _id: { toString: () => OPERATOR_ID } };
-    next();
-  });
+  mockAuthMiddleware.mockImplementation(
+    (req: { user?: unknown }, _res: unknown, next: () => void) => {
+      (req as { user?: unknown }).user = { _id: { toString: () => OPERATOR_ID } };
+      next();
+    },
+  );
   const app = express();
   app.use(express.json());
   app.use('/accounts', accountsRouter);
   app.use(errorHandler);
-  await new Promise<void>((resolve) => { server = app.listen(0, resolve); });
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, resolve);
+  });
 });
 
 afterAll(async () => {
@@ -384,7 +408,9 @@ describe('POST /accounts/:id/switch', () => {
 
     expect(res.status).toBe(200);
     // No deviceId key threaded — the switch still mints a session.
-    expect(mockCreateSession).toHaveBeenCalledWith(ORG_ID, expect.anything(), { operatedByUserId: OPERATOR_ID });
+    expect(mockCreateSession).toHaveBeenCalledWith(ORG_ID, expect.anything(), {
+      operatedByUserId: OPERATOR_ID,
+    });
   });
 
   it('does NOT write a refresh cookie (slot-clobber guard) — establishment is deferred to /auth/session', async () => {
@@ -404,7 +430,9 @@ describe('POST /accounts/:id/switch', () => {
     // scope — so it can never see the device's existing slots. Issuing a cookie
     // here would blindly take slot 0 and destroy the operator's own session.
     // It MUST leave the cookie untouched; the SDK establishes it via /auth/session.
-    expect(res.setCookie.some((c) => /(^|\s)oxy_rt_\d+=/.test(c) && !/Max-Age=0/.test(c))).toBe(false);
+    expect(res.setCookie.some((c) => /(^|\s)oxy_rt_\d+=/.test(c) && !/Max-Age=0/.test(c))).toBe(
+      false,
+    );
     // No authuser is resolved by this route — the SDK gets it from /auth/session.
     expect(res.body.authuser).toBeUndefined();
   });

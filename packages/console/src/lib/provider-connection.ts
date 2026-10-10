@@ -58,8 +58,7 @@ export function toProviderConnectionView(connection: ProviderConnection): Provid
  * wrapped or handed to a service. The API never persists, logs or derives
  * material from that transient request body.
  */
-export const KAANA_CREDENTIAL_CONTROL_UNAVAILABLE =
-  'kaana_credential_control_unavailable';
+export const KAANA_CREDENTIAL_CONTROL_UNAVAILABLE = 'kaana_credential_control_unavailable';
 
 /**
  * True when the API refused because signed Kaana credential custody is unavailable.
@@ -98,7 +97,7 @@ export function providerConnectionScopeLabel(scope: ProviderConnectionScope): st
 export function connectionAppliesToApplication(
   connection: ProviderConnectionView,
   applicationId: string,
-  ownerAccountId: string
+  ownerAccountId: string,
 ): boolean {
   if (connection.scope.kind === 'application') {
     return connection.scope.applicationId === applicationId;
@@ -113,7 +112,7 @@ export function connectionAppliesToApplication(
 
 /** Badge tone for a connection's lifecycle state. */
 export function connectionStatusVariant(
-  status: ProviderConnectionStatus
+  status: ProviderConnectionStatus,
 ): 'default' | 'secondary' | 'destructive' {
   if (status === 'active') {
     return 'default';
@@ -153,7 +152,7 @@ export function connectionStatusVariant(
  * is what `lib/credential-audit.ts` does for the credential trail.
  */
 export function providerConnectionAuditAttribution(
-  event: Pick<ProviderConnectionAuditEvent, 'actorKind' | 'actorUserId'>
+  event: Pick<ProviderConnectionAuditEvent, 'actorKind' | 'actorUserId'>,
 ): string {
   if (event.actorKind === null) {
     // Rows written before `0049` added the column. The weaker inference is all

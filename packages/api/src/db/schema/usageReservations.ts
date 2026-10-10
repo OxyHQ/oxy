@@ -60,10 +60,7 @@
 import { sql } from 'drizzle-orm';
 import { bigint, check, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
-import {
-  inferenceEnvironmentSchema,
-  usageReservationStatusSchema,
-} from '@oxy.so/contracts';
+import { inferenceEnvironmentSchema, usageReservationStatusSchema } from '@oxy.so/contracts';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
 import {
@@ -164,11 +161,11 @@ export const usageReservations = pgTable(
 
     check(
       'usage_reservations_status_check',
-      sql`${t.status} in (${sql.raw(inList(USAGE_RESERVATION_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(USAGE_RESERVATION_STATUSES))})`,
     ),
     check(
       'usage_reservations_environment_check',
-      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`
+      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`,
     ),
     check('usage_reservations_currency_check', currencyCodeCheck(t.currency)),
     // A hold of zero authorises nothing and would let an unpriced request
@@ -176,9 +173,9 @@ export const usageReservations = pgTable(
     check('usage_reservations_reserved_amount_check', sql`${t.reservedAmount} > 0`),
     check(
       'usage_reservations_max_output_tokens_check',
-      sql`${t.maxOutputTokens} is null or ${t.maxOutputTokens} > 0`
+      sql`${t.maxOutputTokens} is null or ${t.maxOutputTokens} > 0`,
     ),
     check('usage_reservations_request_id_check', sql`length(${t.requestId}) > 0`),
     usageUnitsNonNegativeCheck('usage_reservations_units_check', t),
-  ]
+  ],
 );

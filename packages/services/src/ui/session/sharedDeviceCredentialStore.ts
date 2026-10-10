@@ -39,7 +39,12 @@
  */
 import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo-modules-core';
-import { normalizeSharedDeviceSessionRead, type SharedDeviceCredential, type SharedDeviceCredentialRead, type SharedDeviceCredentialStore } from '@oxy.so/core/session';
+import {
+  normalizeSharedDeviceSessionRead,
+  type SharedDeviceCredential,
+  type SharedDeviceCredentialRead,
+  type SharedDeviceCredentialStore,
+} from '@oxy.so/core/session';
 
 /**
  * The iOS Keychain Access Group every official Oxy app declares in its
@@ -230,9 +235,13 @@ let brokerModule: OxyDeviceSessionNativeModule | null | undefined;
  */
 function loadBrokerModule(): OxyDeviceSessionNativeModule | null {
   if (brokerModule === undefined) {
-    const native = requireOptionalNativeModule<Partial<OxyDeviceSessionNativeModule>>('OxyDeviceSession');
+    const native =
+      requireOptionalNativeModule<Partial<OxyDeviceSessionNativeModule>>('OxyDeviceSession');
     brokerModule =
-      native && typeof native.read === 'function' && typeof native.write === 'function' && typeof native.clear === 'function'
+      native &&
+      typeof native.read === 'function' &&
+      typeof native.write === 'function' &&
+      typeof native.clear === 'function'
         ? {
             read: native.read.bind(native),
             write: native.write.bind(native),
@@ -309,5 +318,7 @@ export function createPlatformSharedDeviceCredentialStore(): SharedDeviceCredent
   if (Platform.OS === 'web') {
     return null;
   }
-  return Platform.OS === 'ios' ? createKeychainGroupCredentialStore() : createBrokerCredentialStore();
+  return Platform.OS === 'ios'
+    ? createKeychainGroupCredentialStore()
+    : createBrokerCredentialStore();
 }

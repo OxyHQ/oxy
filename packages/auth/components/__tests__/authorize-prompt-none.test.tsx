@@ -24,29 +24,29 @@
  * The delivery funnel is spied on rather than stubbed out, so "nothing was
  * delivered" is asserted against the real `deliverOAuthResult` decision.
  */
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
-import React, { act } from "react"
-import { createRoot, type Root } from "react-dom/client"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { createServicesMock } from "@/lib/__tests__/setup-services-mock"
-import enDict from "@/lib/i18n/locales/en"
-import type { OxyConsentScreenProps } from "@oxy.so/services"
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import React, { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { createServicesMock } from '@/lib/__tests__/setup-services-mock';
+import enDict from '@/lib/i18n/locales/en';
+import type { OxyConsentScreenProps } from '@oxy.so/services';
 
-const CLIENT_ID = "oxy_dk_test_client"
+const CLIENT_ID = 'oxy_dk_test_client';
 /** Deliberately NOT a registered redirect target — nothing may ever bounce here. */
-const REDIRECT_URI = "https://attacker-chosen.example/callback"
-const CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
-const STATE = "rp-owned-state"
+const REDIRECT_URI = 'https://attacker-chosen.example/callback';
+const CODE_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+const STATE = 'rp-owned-state';
 
 const SILENT_PARAMS = {
-  prompt: "none",
+  prompt: 'none',
   client_id: CLIENT_ID,
   redirect_uri: REDIRECT_URI,
   state: STATE,
   code_challenge: CODE_CHALLENGE,
-  code_challenge_method: "S256",
-  scope: "openid profile",
-}
+  code_challenge_method: 'S256',
+  scope: 'openid profile',
+};
 
 // ---------------------------------------------------------------------------
 // Copy
@@ -58,16 +58,16 @@ const SILENT_PARAMS = {
  * surface is shown, not about the wording.
  */
 function enCopy(key: string): string {
-  let node: unknown = enDict
-  for (const part of key.split(".")) {
-    if (typeof node !== "object" || node === null) return key
-    node = (node as Record<string, unknown>)[part]
+  let node: unknown = enDict;
+  for (const part of key.split('.')) {
+    if (typeof node !== 'object' || node === null) return key;
+    node = (node as Record<string, unknown>)[part];
   }
-  return typeof node === "string" ? node : key
+  return typeof node === 'string' ? node : key;
 }
 
-const REFUSAL_TITLE_KEY = "authorize.silentUnsupportedTitle"
-const REFUSAL_DESC_KEY = "authorize.silentUnsupportedDesc"
+const REFUSAL_TITLE_KEY = 'authorize.silentUnsupportedTitle';
+const REFUSAL_DESC_KEY = 'authorize.silentUnsupportedDesc';
 
 // ---------------------------------------------------------------------------
 // Delivery funnel — real implementation, harness window
@@ -79,33 +79,33 @@ const REFUSAL_DESC_KEY = "authorize.silentUnsupportedDesc"
  * suites in (`mock.module` is process-global): a caller that already supplied
  * its own window is passed straight through untouched.
  */
-const webMessageModule = await import("@/lib/oauth-web-message")
-const realExports = { ...webMessageModule }
-const realDeliverOAuthResult = webMessageModule.deliverOAuthResult
+const webMessageModule = await import('@/lib/oauth-web-message');
+const realExports = { ...webMessageModule };
+const realDeliverOAuthResult = webMessageModule.deliverOAuthResult;
 
-type DeliverInput = Parameters<typeof realDeliverOAuthResult>[0]
+type DeliverInput = Parameters<typeof realDeliverOAuthResult>[0];
 
-const postMessage = mock(() => undefined)
+const postMessage = mock(() => undefined);
 
 const harness: {
-  opener: { postMessage: typeof postMessage } | null
-  location: { href: string }
-  closed: boolean
-  close(): void
+  opener: { postMessage: typeof postMessage } | null;
+  location: { href: string };
+  closed: boolean;
+  close(): void;
 } = {
   opener: null,
-  location: { href: "" },
+  location: { href: '' },
   closed: false,
   close() {
-    this.closed = true
+    this.closed = true;
   },
-}
+};
 
 const deliverOAuthResult = mock((input: DeliverInput) =>
   realDeliverOAuthResult(
     input.window === globalThis.window ? { ...input, window: harness } : input,
   ),
-)
+);
 
 // ---------------------------------------------------------------------------
 // SDK surface
@@ -117,7 +117,12 @@ const deliverOAuthResult = mock((input: DeliverInput) =>
  * of these suites is what the PAGE does with the rows, and a hand-built row is
  * exactly what a hand-built directory would have produced.
  */
-function contextRow(over: { contextId: string; displayName: string; handle: string; isActive: boolean }) {
+function contextRow(over: {
+  contextId: string;
+  displayName: string;
+  handle: string;
+  isActive: boolean;
+}) {
   return {
     contextId: over.contextId,
     accountId: over.contextId,
@@ -129,7 +134,7 @@ function contextRow(over: { contextId: string; displayName: string; handle: stri
     isActive: over.isActive,
     isDelegated: false,
     canActivate: true,
-  }
+  };
 }
 
 /** One person holding one account. */
@@ -142,15 +147,15 @@ function personWith(row: ReturnType<typeof contextRow>) {
     color: null,
     isActive: row.isActive,
     contexts: [row],
-  }
+  };
 }
 
 interface SessionState {
-  isAuthenticated: boolean
+  isAuthenticated: boolean;
   /** The device's active `principal acting as account` pair, or `null`. */
-  activeContext: ReturnType<typeof contextRow> | null
-  principals: ReturnType<typeof personWith>[]
-  accessToken: string | null
+  activeContext: ReturnType<typeof contextRow> | null;
+  principals: ReturnType<typeof personWith>[];
+  accessToken: string | null;
 }
 
 /** No session at all: cold boot resolved and found nothing on this origin. */
@@ -159,7 +164,7 @@ const NO_SESSION: SessionState = {
   activeContext: null,
   principals: [],
   accessToken: null,
-}
+};
 
 /** Directory rows survived a failed mint, but there is no usable bearer. */
 const STALE_ACCOUNTS: SessionState = {
@@ -168,58 +173,60 @@ const STALE_ACCOUNTS: SessionState = {
   // established, which is exactly what "the mint failed" leaves behind.
   activeContext: null,
   principals: [
-    personWith(contextRow({ contextId: "ctx-1", displayName: "Stale", handle: "stale", isActive: false })),
+    personWith(
+      contextRow({ contextId: 'ctx-1', displayName: 'Stale', handle: 'stale', isActive: false }),
+    ),
   ],
   accessToken: null,
-}
+};
 
 /** Fully signed in here — the state a silent probe is fishing for. */
 const NATE_CONTEXT = contextRow({
-  contextId: "ctx-1",
-  displayName: "Nate",
-  handle: "nate",
+  contextId: 'ctx-1',
+  displayName: 'Nate',
+  handle: 'nate',
   isActive: true,
-})
+});
 const SIGNED_IN: SessionState = {
   isAuthenticated: true,
   activeContext: NATE_CONTEXT,
   principals: [personWith(NATE_CONTEXT)],
-  accessToken: "bearer-token",
-}
+  accessToken: 'bearer-token',
+};
 
-let sessionState: SessionState = NO_SESSION
-let mcpConsentRequired = false
-let renderedConsentProps: OxyConsentScreenProps | null = null
+let sessionState: SessionState = NO_SESSION;
+let mcpConsentRequired = false;
+let renderedConsentProps: OxyConsentScreenProps | null = null;
 
 const oxyServices = {
   session: {
     get accessToken() {
-      return sessionState.accessToken
+      return sessionState.accessToken;
     },
   },
   auth: {
     commons: {
       start: mock(async () => ({
-        sessionToken: "unused",
-        authorizeCode: "unused",
-        qrPayload: "unused",
+        sessionToken: 'unused',
+        authorizeCode: 'unused',
+        qrPayload: 'unused',
         expiresAt: Date.now() + 60_000,
-        status: "pending",
+        status: 'pending',
       })),
     },
   },
-}
+};
 
 /**
  * `mock.module` is process-global and last-writer-wins, so every mock this file
  * relies on is (re-)asserted before each test rather than only at load time.
  */
 function installMocks(): void {
-  mock.module("@/lib/oauth-web-message", () => ({
+  mock.module('@/lib/oauth-web-message', () => ({
     ...realExports,
     deliverOAuthResult,
-  }))
-  mock.module("@oxy.so/services", () =>
+  }));
+  mock.module('@oxy.so/services', () =>
     createServicesMock({
       useOxy: () => ({
         user: null,
@@ -239,18 +246,18 @@ function installMocks(): void {
         signOutPrincipal: async () => false,
       }),
       OxyConsentScreen: (props: OxyConsentScreenProps) => {
-        renderedConsentProps = props
-        return React.createElement("div", { "data-testid": "consent-screen" })
+        renderedConsentProps = props;
+        return React.createElement('div', { 'data-testid': 'consent-screen' });
       },
       OxySignInRequestSurface: () =>
-        React.createElement("div", { "data-testid": "signin-request-surface" }),
+        React.createElement('div', { 'data-testid': 'signin-request-surface' }),
     }),
-  )
+  );
 }
 
-installMocks()
+installMocks();
 
-const { AuthorizePage } = await import("@/src/pages/authorize")
+const { AuthorizePage } = await import('@/src/pages/authorize');
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -262,446 +269,457 @@ const { AuthorizePage } = await import("@/src/pages/authorize")
  * a code and be impossible to mistake for a pass.
  */
 const fetchMock = mock(async (input: RequestInfo | URL, _init?: RequestInit) => {
-  const url = String(input)
-  if (url.includes("/auth/mcp/oauth/client/")) {
+  const url = String(input);
+  if (url.includes('/auth/mcp/oauth/client/')) {
     return new Response(
       JSON.stringify({
         application: {
-          id: "mcp-client-1",
+          id: 'mcp-client-1',
           clientId: CLIENT_ID,
-          name: "External MCP Client",
-          type: "third_party",
+          name: 'External MCP Client',
+          type: 'third_party',
           isOfficial: false,
           isInternal: false,
-          scopes: ["posts.read", "posts.write"],
+          scopes: ['posts.read', 'posts.write'],
         },
       }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    )
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
   }
-  if (url.includes("/auth/mcp/oauth/consent")) {
-    const requestUrl = new URL(url)
-    const capabilities = (requestUrl.searchParams.get("scope") ?? "")
-      .split(/\s+/)
-      .filter(Boolean)
-    return new Response(JSON.stringify({
-      consentRequired: mcpConsentRequired,
-      context: {
-        client: {
-          id: "mcp-client-1",
-          clientId: CLIENT_ID,
-          name: "External MCP Client",
-          type: "third_party",
-          isOfficial: false,
-          isInternal: false,
-          scopes: ["posts.read", "posts.write"],
-        },
-        account: {
-          id: requestUrl.searchParams.get("accountId"),
-          displayName: "Nate Workspace",
-          handle: "nate-workspace",
-        },
-        resource: {
-          appId: "mention",
-          uri: "https://mcp.example.test",
-          application: {
-            id: "mention-app",
-            name: "Mention",
-            type: "first_party",
-            isOfficial: true,
-            isInternal: true,
-            scopes: [],
+  if (url.includes('/auth/mcp/oauth/consent')) {
+    const requestUrl = new URL(url);
+    const capabilities = (requestUrl.searchParams.get('scope') ?? '').split(/\s+/).filter(Boolean);
+    return new Response(
+      JSON.stringify({
+        consentRequired: mcpConsentRequired,
+        context: {
+          client: {
+            id: 'mcp-client-1',
+            clientId: CLIENT_ID,
+            name: 'External MCP Client',
+            type: 'third_party',
+            isOfficial: false,
+            isInternal: false,
+            scopes: ['posts.read', 'posts.write'],
           },
+          account: {
+            id: requestUrl.searchParams.get('accountId'),
+            displayName: 'Nate Workspace',
+            handle: 'nate-workspace',
+          },
+          resource: {
+            appId: 'mention',
+            uri: 'https://mcp.example.test',
+            application: {
+              id: 'mention-app',
+              name: 'Mention',
+              type: 'first_party',
+              isOfficial: true,
+              isInternal: true,
+              scopes: [],
+            },
+          },
+          capabilities,
+          writeActions: capabilities.includes('posts.write')
+            ? [
+                {
+                  name: 'createPost',
+                  version: '1.0.0',
+                  description: 'Publish a post from the selected account.',
+                  requiredCapabilities: ['posts.write'],
+                  effect: 'write',
+                },
+              ]
+            : [],
         },
-        capabilities,
-        writeActions: capabilities.includes("posts.write")
-          ? [{
-              name: "createPost",
-              version: "1.0.0",
-              description: "Publish a post from the selected account.",
-              requiredCapabilities: ["posts.write"],
-              effect: "write",
-            }]
-          : [],
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
       },
-    }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    })
+    );
   }
-  if (url.includes("/auth/mcp/oauth/authorize")) {
-    return new Response(JSON.stringify({ code: "mcp-code" }), {
+  if (url.includes('/auth/mcp/oauth/authorize')) {
+    return new Response(JSON.stringify({ code: 'mcp-code' }), {
       status: 200,
-      headers: { "content-type": "application/json" },
-    })
+      headers: { 'content-type': 'application/json' },
+    });
   }
-  if (url.includes("/auth/oauth/client/")) {
+  if (url.includes('/auth/oauth/client/')) {
     return new Response(
       JSON.stringify({
         data: {
           application: {
-            id: "app-1",
-            name: "Example App",
-            type: "third_party",
+            id: 'app-1',
+            name: 'Example App',
+            type: 'third_party',
             isOfficial: false,
             isInternal: false,
             scopes: [],
           },
         },
       }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    )
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
   }
-  if (url.includes("/auth/oauth/consent")) {
-    return new Response(
-      JSON.stringify({ data: { consentRequired: false, reason: "trusted" } }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    )
-  }
-  if (url.includes("/auth/oauth/authorize")) {
-    return new Response(JSON.stringify({ data: { code: "minted-code" } }), {
+  if (url.includes('/auth/oauth/consent')) {
+    return new Response(JSON.stringify({ data: { consentRequired: false, reason: 'trusted' } }), {
       status: 200,
-      headers: { "content-type": "application/json" },
-    })
+      headers: { 'content-type': 'application/json' },
+    });
   }
-  return new Response("{}", { status: 404 })
-})
+  if (url.includes('/auth/oauth/authorize')) {
+    return new Response(JSON.stringify({ data: { code: 'minted-code' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  return new Response('{}', { status: 404 });
+});
 
-describe("AuthorizePage — resource-bound MCP OAuth", () => {
+describe('AuthorizePage — resource-bound MCP OAuth', () => {
   beforeEach(() => {
-    installMocks()
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-    fetchMock.mockClear()
-    deliverOAuthResult.mockClear()
-    postMessage.mockClear()
-    oxyServices.auth.commons.start.mockClear()
-    sessionState = SIGNED_IN
-    mcpConsentRequired = false
-    renderedConsentProps = null
-    harness.opener = null
-    harness.location = { href: "" }
-    harness.closed = false
-  })
+    installMocks();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockClear();
+    deliverOAuthResult.mockClear();
+    postMessage.mockClear();
+    oxyServices.auth.commons.start.mockClear();
+    sessionState = SIGNED_IN;
+    mcpConsentRequired = false;
+    renderedConsentProps = null;
+    harness.opener = null;
+    harness.location = { href: '' };
+    harness.closed = false;
+  });
 
   afterEach(() => {
-    sessionState = NO_SESSION
-  })
+    sessionState = NO_SESSION;
+  });
 
-  test("keeps the resource, PKCE and active account bound to the central MCP endpoints", async () => {
-    const resource = "https://mcp.example.test"
-    const redirect = "http://127.0.0.1:43123/callback"
+  test('keeps the resource, PKCE and active account bound to the central MCP endpoints', async () => {
+    const resource = 'https://mcp.example.test';
+    const redirect = 'http://127.0.0.1:43123/callback';
     const { container, unmount } = await renderAuthorize({
       client_id: CLIENT_ID,
       redirect_uri: redirect,
       state: STATE,
-      response_type: "code",
+      response_type: 'code',
       code_challenge: CODE_CHALLENGE,
-      code_challenge_method: "S256",
-      scope: "posts.read",
+      code_challenge_method: 'S256',
+      scope: 'posts.read',
       resource,
-    })
+    });
     await act(async () => {
-      await flush()
-    })
+      await flush();
+    });
 
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/auth/mcp/oauth/consent"))).toBe(false)
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/auth/mcp/oauth/authorize"))).toBe(false)
-    const accountButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-      .find((button) => button.textContent?.includes("Nate"))
-    expect(accountButton).toBeDefined()
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/auth/mcp/oauth/consent')),
+    ).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/auth/mcp/oauth/authorize')),
+    ).toBe(false);
+    const accountButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.includes('Nate'),
+    );
+    expect(accountButton).toBeDefined();
     await act(async () => {
-      accountButton?.click()
-      await flush()
-    })
+      accountButton?.click();
+      await flush();
+    });
 
     const calls = fetchMock.mock.calls.map(([url, options]) => ({
       url: String(url),
       options: options as RequestInit | undefined,
-    }))
-    const clientCall = calls.find((call) => call.url.includes("/auth/mcp/oauth/client/"))
-    expect(clientCall?.url).toContain(`resource=${encodeURIComponent(resource)}`)
-    expect(clientCall?.url).toContain(`redirectUri=${encodeURIComponent(redirect)}`)
-    expect(calls.some((call) => call.url.includes("/auth/mcp/oauth/consent"))).toBe(true)
+    }));
+    const clientCall = calls.find((call) => call.url.includes('/auth/mcp/oauth/client/'));
+    expect(clientCall?.url).toContain(`resource=${encodeURIComponent(resource)}`);
+    expect(clientCall?.url).toContain(`redirectUri=${encodeURIComponent(redirect)}`);
+    expect(calls.some((call) => call.url.includes('/auth/mcp/oauth/consent'))).toBe(true);
 
-    const authorizeCall = calls.find((call) => call.url.includes("/auth/mcp/oauth/authorize"))
-    expect(authorizeCall).toBeDefined()
+    const authorizeCall = calls.find((call) => call.url.includes('/auth/mcp/oauth/authorize'));
+    expect(authorizeCall).toBeDefined();
     expect(JSON.parse(String(authorizeCall?.options?.body))).toEqual({
       clientId: CLIENT_ID,
       redirectUri: redirect,
       codeChallenge: CODE_CHALLENGE,
-      codeChallengeMethod: "S256",
-      scope: "posts.read",
+      codeChallengeMethod: 'S256',
+      scope: 'posts.read',
       state: STATE,
-      responseType: "code",
+      responseType: 'code',
       resource,
       accountId: NATE_CONTEXT.accountId,
-    })
-    expect(calls.some((call) => call.url.includes("/auth/oauth/"))).toBe(false)
-    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
-    expect(deliverOAuthResult).toHaveBeenCalledTimes(1)
+    });
+    expect(calls.some((call) => call.url.includes('/auth/oauth/'))).toBe(false);
+    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled();
+    expect(deliverOAuthResult).toHaveBeenCalledTimes(1);
     expect((deliverOAuthResult.mock.calls[0]?.[0] as DeliverInput).result).toEqual({
-      kind: "code",
-      code: "mcp-code",
+      kind: 'code',
+      code: 'mcp-code',
       state: STATE,
-    })
+    });
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("shows the canonical MCP app, account, capabilities and write actions before approval", async () => {
-    mcpConsentRequired = true
-    const resource = "https://mcp.example.test"
-    const redirect = "http://127.0.0.1:43123/callback"
+  test('shows the canonical MCP app, account, capabilities and write actions before approval', async () => {
+    mcpConsentRequired = true;
+    const resource = 'https://mcp.example.test';
+    const redirect = 'http://127.0.0.1:43123/callback';
     const { container, unmount } = await renderAuthorize({
       client_id: CLIENT_ID,
       redirect_uri: redirect,
       state: STATE,
-      response_type: "code",
+      response_type: 'code',
       code_challenge: CODE_CHALLENGE,
-      code_challenge_method: "S256",
-      scope: "posts.write posts.read",
+      code_challenge_method: 'S256',
+      scope: 'posts.write posts.read',
       resource,
-    })
+    });
 
-    const accountButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
-      .find((button) => button.textContent?.includes("Nate"))
-    expect(accountButton).toBeDefined()
+    const accountButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.includes('Nate'),
+    );
+    expect(accountButton).toBeDefined();
     await act(async () => {
-      accountButton?.click()
-      await flush()
-    })
+      accountButton?.click();
+      await flush();
+    });
 
     expect(renderedConsentProps).toMatchObject({
-      application: { name: "External MCP Client" },
-      scopes: ["posts.write", "posts.read"],
+      application: { name: 'External MCP Client' },
+      scopes: ['posts.write', 'posts.read'],
       user: {
         accountId: NATE_CONTEXT.accountId,
-        displayName: "Nate Workspace",
-        handle: "nate-workspace",
+        displayName: 'Nate Workspace',
+        handle: 'nate-workspace',
       },
       resource: {
-        application: { name: "Mention" },
+        application: { name: 'Mention' },
         uri: resource,
-        writeActions: [{
-          name: "createPost",
-          description: "Publish a post from the selected account.",
-          effect: "write",
-        }],
+        writeActions: [
+          {
+            name: 'createPost',
+            description: 'Publish a post from the selected account.',
+            effect: 'write',
+          },
+        ],
       },
-    })
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/auth/mcp/oauth/authorize"))).toBe(false)
+    });
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/auth/mcp/oauth/authorize')),
+    ).toBe(false);
 
-    const consentProps = renderedConsentProps
-    if (!consentProps) throw new Error("Expected the MCP consent surface")
+    const consentProps = renderedConsentProps;
+    if (!consentProps) throw new Error('Expected the MCP consent surface');
     await act(async () => {
-      await consentProps.onAllow()
-      await flush()
-    })
+      await consentProps.onAllow();
+      await flush();
+    });
     const authorizeCall = fetchMock.mock.calls.find(([url]) =>
-      String(url).includes("/auth/mcp/oauth/authorize"),
-    )
-    const authorizeBody = JSON.parse(String((authorizeCall?.[1] as RequestInit | undefined)?.body)) as Record<string, unknown>
+      String(url).includes('/auth/mcp/oauth/authorize'),
+    );
+    const authorizeBody = JSON.parse(
+      String((authorizeCall?.[1] as RequestInit | undefined)?.body),
+    ) as Record<string, unknown>;
     expect(authorizeBody).toMatchObject({
       accountId: NATE_CONTEXT.accountId,
       resource,
-      scope: "posts.write posts.read",
-    })
+      scope: 'posts.write posts.read',
+    });
 
-    unmount()
-  })
-})
+    unmount();
+  });
+});
 
 async function flush(): Promise<void> {
-  for (let i = 0; i < 25; i += 1) await Promise.resolve()
+  for (let i = 0; i < 25; i += 1) await Promise.resolve();
 }
 
 function buildSearch(params: Record<string, string | undefined>): string {
-  const search = new URLSearchParams()
+  const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value) search.set(key, value)
+    if (value) search.set(key, value);
   }
-  return `?${search.toString()}`
+  return `?${search.toString()}`;
 }
 
 async function renderAuthorize(params: Record<string, string | undefined>) {
-  const container = document.createElement("div")
-  document.body.appendChild(container)
-  const root: Root = createRoot(container)
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root: Root = createRoot(container);
   await act(async () => {
     root.render(
-        <MemoryRouter initialEntries={[`/authorize${buildSearch(params)}`]}>
-          <Routes>
-            <Route path="/authorize" element={<AuthorizePage />} />
-            <Route path="/login" element={<div data-testid="login-page" />} />
-          </Routes>
-        </MemoryRouter>
-    )
-  })
+      <MemoryRouter initialEntries={[`/authorize${buildSearch(params)}`]}>
+        <Routes>
+          <Route path="/authorize" element={<AuthorizePage />} />
+          <Route path="/login" element={<div data-testid="login-page" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  });
   await act(async () => {
-    await flush()
-  })
+    await flush();
+  });
   return {
     container,
     unmount: () => {
-      act(() => root.unmount())
-      container.remove()
+      act(() => root.unmount());
+      container.remove();
     },
-  }
+  };
 }
 
 /** Everything a refused request must NOT have done, asserted in one place. */
 function expectNothingHappened(container: HTMLElement): void {
   // No work: the refusal is decided before any client lookup or consent probe.
-  expect(fetchMock).not.toHaveBeenCalled()
-  expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(oxyServices.auth.commons.start).not.toHaveBeenCalled();
   // Nothing delivered: no code, no OAuth error, no navigation, no relay.
-  expect(deliverOAuthResult).not.toHaveBeenCalled()
-  expect(harness.location.href).toBe("")
-  expect(postMessage).not.toHaveBeenCalled()
-  expect(harness.closed).toBe(false)
+  expect(deliverOAuthResult).not.toHaveBeenCalled();
+  expect(harness.location.href).toBe('');
+  expect(postMessage).not.toHaveBeenCalled();
+  expect(harness.closed).toBe(false);
   // No other surface: not consent, not sign-in-here, not the Commons lane.
-  expect(container.querySelector("[data-testid='consent-screen']")).toBeNull()
-  expect(container.querySelector("[data-testid='login-page']")).toBeNull()
-  expect(
-    container.querySelector("[data-testid='signin-request-surface']"),
-  ).toBeNull()
+  expect(container.querySelector("[data-testid='consent-screen']")).toBeNull();
+  expect(container.querySelector("[data-testid='login-page']")).toBeNull();
+  expect(container.querySelector("[data-testid='signin-request-surface']")).toBeNull();
 }
 
-describe("AuthorizePage — a request that asks for prompt=none", () => {
+describe('AuthorizePage — a request that asks for prompt=none', () => {
   beforeEach(() => {
-    installMocks()
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-    fetchMock.mockClear()
-    deliverOAuthResult.mockClear()
-    postMessage.mockClear()
-    oxyServices.auth.commons.start.mockClear()
-    sessionState = NO_SESSION
-    harness.opener = null
-    harness.location = { href: "" }
-    harness.closed = false
-  })
+    installMocks();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockClear();
+    deliverOAuthResult.mockClear();
+    postMessage.mockClear();
+    oxyServices.auth.commons.start.mockClear();
+    sessionState = NO_SESSION;
+    harness.opener = null;
+    harness.location = { href: '' };
+    harness.closed = false;
+  });
 
   afterEach(() => {
-    sessionState = NO_SESSION
-  })
+    sessionState = NO_SESSION;
+  });
 
-  test("the refusal copy is a real string, not a missing key", () => {
-    expect(enCopy(REFUSAL_TITLE_KEY)).not.toBe(REFUSAL_TITLE_KEY)
-    expect(enCopy(REFUSAL_DESC_KEY)).not.toBe(REFUSAL_DESC_KEY)
-  })
+  test('the refusal copy is a real string, not a missing key', () => {
+    expect(enCopy(REFUSAL_TITLE_KEY)).not.toBe(REFUSAL_TITLE_KEY);
+    expect(enCopy(REFUSAL_DESC_KEY)).not.toBe(REFUSAL_DESC_KEY);
+  });
 
-  test("refuses on the page and does nothing else, with no session here", async () => {
-    const { container, unmount } = await renderAuthorize(SILENT_PARAMS)
+  test('refuses on the page and does nothing else, with no session here', async () => {
+    const { container, unmount } = await renderAuthorize(SILENT_PARAMS);
 
-    const text = container.textContent ?? ""
-    expect(text).toContain(enCopy(REFUSAL_TITLE_KEY))
-    expect(text).toContain(enCopy(REFUSAL_DESC_KEY))
-    expectNothingHappened(container)
+    const text = container.textContent ?? '';
+    expect(text).toContain(enCopy(REFUSAL_TITLE_KEY));
+    expect(text).toContain(enCopy(REFUSAL_DESC_KEY));
+    expectNothingHappened(container);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("refuses identically when stale device rows have no usable bearer", async () => {
-    sessionState = STALE_ACCOUNTS
-    const { container, unmount } = await renderAuthorize(SILENT_PARAMS)
+  test('refuses identically when stale device rows have no usable bearer', async () => {
+    sessionState = STALE_ACCOUNTS;
+    const { container, unmount } = await renderAuthorize(SILENT_PARAMS);
 
-    expect(container.textContent ?? "").toContain(enCopy(REFUSAL_TITLE_KEY))
-    expectNothingHappened(container)
+    expect(container.textContent ?? '').toContain(enCopy(REFUSAL_TITLE_KEY));
+    expectNothingHappened(container);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("refuses a signed-in visitor too — never silently mints a code", async () => {
-    sessionState = SIGNED_IN
-    const { container, unmount } = await renderAuthorize(SILENT_PARAMS)
+  test('refuses a signed-in visitor too — never silently mints a code', async () => {
+    sessionState = SIGNED_IN;
+    const { container, unmount } = await renderAuthorize(SILENT_PARAMS);
 
     // The server side of this test would happily hand over a code: the
     // application resolves and the consent probe answers `consentRequired:false`.
     // The page never asks, so no code exists to leak.
-    expect(container.textContent ?? "").toContain(enCopy(REFUSAL_TITLE_KEY))
-    expectNothingHappened(container)
+    expect(container.textContent ?? '').toContain(enCopy(REFUSAL_TITLE_KEY));
+    expectNothingHappened(container);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("answers the same whether or not someone is signed in here", async () => {
-    sessionState = NO_SESSION
-    const signedOut = await renderAuthorize(SILENT_PARAMS)
-    const signedOutText = signedOut.container.textContent
-    signedOut.unmount()
+  test('answers the same whether or not someone is signed in here', async () => {
+    sessionState = NO_SESSION;
+    const signedOut = await renderAuthorize(SILENT_PARAMS);
+    const signedOutText = signedOut.container.textContent;
+    signedOut.unmount();
 
-    sessionState = SIGNED_IN
-    const signedIn = await renderAuthorize(SILENT_PARAMS)
-    const signedInText = signedIn.container.textContent
-    signedIn.unmount()
+    sessionState = SIGNED_IN;
+    const signedIn = await renderAuthorize(SILENT_PARAMS);
+    const signedInText = signedIn.container.textContent;
+    signedIn.unmount();
 
     // Byte-identical: asking cannot be used to probe this origin's session state.
-    expect(signedInText).toBe(signedOutText)
-  })
+    expect(signedInText).toBe(signedOutText);
+  });
 
-  test("never relays the refusal to an opener that asked for popup mode", async () => {
-    sessionState = SIGNED_IN
-    harness.opener = { postMessage }
+  test('never relays the refusal to an opener that asked for popup mode', async () => {
+    sessionState = SIGNED_IN;
+    harness.opener = { postMessage };
 
     const { container, unmount } = await renderAuthorize({
       ...SILENT_PARAMS,
-      response_mode: "web_message",
-    })
+      response_mode: 'web_message',
+    });
 
     // A popup asking to be answered silently is answered on screen, not by a
     // message to its opener — the same refusal, whatever transport was requested.
-    expect(container.textContent ?? "").toContain(enCopy(REFUSAL_TITLE_KEY))
-    expectNothingHappened(container)
+    expect(container.textContent ?? '').toContain(enCopy(REFUSAL_TITLE_KEY));
+    expectNothingHappened(container);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("reflects nothing the caller supplied", async () => {
-    const { container, unmount } = await renderAuthorize(SILENT_PARAMS)
+  test('reflects nothing the caller supplied', async () => {
+    const { container, unmount } = await renderAuthorize(SILENT_PARAMS);
 
     // Nothing was resolved and nothing is echoed, so the refusal cannot be
     // dressed up with an attacker-chosen target, state or challenge.
-    const html = container.innerHTML
-    expect(html).not.toContain(REDIRECT_URI)
-    expect(html).not.toContain("attacker-chosen.example")
-    expect(html).not.toContain(CLIENT_ID)
-    expect(html).not.toContain(STATE)
+    const html = container.innerHTML;
+    expect(html).not.toContain(REDIRECT_URI);
+    expect(html).not.toContain('attacker-chosen.example');
+    expect(html).not.toContain(CLIENT_ID);
+    expect(html).not.toContain(STATE);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("leaves every other request alone — prompt=login still consents", async () => {
-    sessionState = SIGNED_IN
+  test('leaves every other request alone — prompt=login still consents', async () => {
+    sessionState = SIGNED_IN;
 
     const { container, unmount } = await renderAuthorize({
       ...SILENT_PARAMS,
-      prompt: "login",
+      prompt: 'login',
       // A registered target, since this request takes the real path.
-      redirect_uri: "https://app.example.com/callback",
-    })
+      redirect_uri: 'https://app.example.com/callback',
+    });
     // The normal path settles across several rounds (client lookup -> consent
     // probe -> authorize), each gated on a re-render.
     await act(async () => {
-      await flush()
-    })
+      await flush();
+    });
 
     // The refusal is scoped to exactly `none`: this request resolved its
     // application, probed consent, and ran all the way through to a delivered
     // code — the behaviour the `prompt=none` tests above prove is unreachable.
-    expect(container.textContent ?? "").not.toContain(enCopy(REFUSAL_TITLE_KEY))
-    expect(
-      fetchMock.mock.calls.some(([url]) =>
-        String(url).includes("/auth/oauth/client/"),
-      ),
-    ).toBe(true)
-    expect(deliverOAuthResult).toHaveBeenCalledTimes(1)
-    const delivered = deliverOAuthResult.mock.calls[0]?.[0] as DeliverInput
+    expect(container.textContent ?? '').not.toContain(enCopy(REFUSAL_TITLE_KEY));
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/auth/oauth/client/'))).toBe(
+      true,
+    );
+    expect(deliverOAuthResult).toHaveBeenCalledTimes(1);
+    const delivered = deliverOAuthResult.mock.calls[0]?.[0] as DeliverInput;
     expect(delivered.result).toEqual({
-      kind: "code",
-      code: "minted-code",
+      kind: 'code',
+      code: 'minted-code',
       state: STATE,
-    })
+    });
 
-    unmount()
-  })
-})
+    unmount();
+  });
+});

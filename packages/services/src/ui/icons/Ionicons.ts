@@ -5,11 +5,7 @@ import { ioniconsGlyphMap } from './subsetGlyphMaps';
 
 /** Glyphs are decorative: hidden from assistive technology (see `decorativeIconSet`). */
 const Ionicons = decorativeIconSet(
-  createIconSet(
-    ioniconsGlyphMap,
-    'OxyServicesIonicons',
-    font,
-  ),
+  createIconSet(ioniconsGlyphMap, 'OxyServicesIonicons', font),
   'Ionicons',
 );
 

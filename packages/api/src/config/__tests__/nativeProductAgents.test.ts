@@ -1,8 +1,5 @@
 import { createHash } from 'node:crypto';
-import {
-  NATIVE_PRODUCT_AGENTS,
-  aliaNativeAgentBootstrapManifest,
-} from '../nativeProductAgents';
+import { NATIVE_PRODUCT_AGENTS, aliaNativeAgentBootstrapManifest } from '../nativeProductAgents';
 
 describe('native product agent identities', () => {
   it('pins the approved Oxy, app, credential, bot and Alia primary keys', () => {
@@ -160,22 +157,27 @@ describe('present-requester entry points (ADR 0025)', () => {
   const CREDENTIAL = '01a0648e-ad3f-7608-aa8b-c07bfef6cf73';
   const AGENT = '01a0646a-078f-7514-9800-9f43ceed7df8';
 
-  const config = () => jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
+  const config = () =>
+    jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
 
   it('admits exactly the Homiio Sindi credential and the Homiio task role, and nothing else', () => {
     const { NATIVE_PRODUCT_AGENT_ENTRY_POINTS, nativeProductAgentEntryPoint } = config();
-    expect(NATIVE_PRODUCT_AGENT_ENTRY_POINTS).toEqual([{
-      product: 'homiio',
-      applicationId: APP,
-      credentialId: CREDENTIAL,
-      agentId: AGENT,
-      workload: { provider: 'aws-iam', subject: HOMIIO_ROLE },
-    }]);
-    expect(nativeProductAgentEntryPoint(
-      '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
-      '01a0648b-8d74-7240-adba-80707fdfdf9c',
-      '01a0646a-078f-7642-95ef-439952f4f3f9',
-    )).toBeNull();
+    expect(NATIVE_PRODUCT_AGENT_ENTRY_POINTS).toEqual([
+      {
+        product: 'homiio',
+        applicationId: APP,
+        credentialId: CREDENTIAL,
+        agentId: AGENT,
+        workload: { provider: 'aws-iam', subject: HOMIIO_ROLE },
+      },
+    ]);
+    expect(
+      nativeProductAgentEntryPoint(
+        '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
+        '01a0648b-8d74-7240-adba-80707fdfdf9c',
+        '01a0646a-078f-7642-95ef-439952f4f3f9',
+      ),
+    ).toBeNull();
   });
 
   it('matches the pinned credential, and says the caller proved itself with one', () => {
@@ -194,7 +196,9 @@ describe('present-requester entry points (ADR 0025)', () => {
    */
   it('matches the DERIVED handle of the declared role, not a hard-coded digest', () => {
     const { nativeProductAgentEntryPoint, NATIVE_PRODUCT_AGENT_ENTRY_POINTS } = config();
-    const { workloadAttestationHandle } = jest.requireActual('../../services/workloadAttestation.service') as typeof import('../../services/workloadAttestation.service');
+    const { workloadAttestationHandle } = jest.requireActual(
+      '../../services/workloadAttestation.service',
+    ) as typeof import('../../services/workloadAttestation.service');
     const [entry] = NATIVE_PRODUCT_AGENT_ENTRY_POINTS;
     expect(workloadAttestationHandle(entry.workload!.subject)).toBe(HOMIIO_HANDLE);
 
@@ -225,13 +229,21 @@ describe('present-requester entry points (ADR 0025)', () => {
 
   it('refuses the right handle presented for another application or another agent', () => {
     const { nativeProductAgentEntryPoint } = config();
-    expect(nativeProductAgentEntryPoint('6a2f851751b784a86fd0e934', HOMIIO_HANDLE, AGENT)).toBeNull();
-    expect(nativeProductAgentEntryPoint(APP, HOMIIO_HANDLE, '01a0646a-078f-7642-95ef-439952f4f3f9')).toBeNull();
+    expect(
+      nativeProductAgentEntryPoint('6a2f851751b784a86fd0e934', HOMIIO_HANDLE, AGENT),
+    ).toBeNull();
+    expect(
+      nativeProductAgentEntryPoint(APP, HOMIIO_HANDLE, '01a0646a-078f-7642-95ef-439952f4f3f9'),
+    ).toBeNull();
   });
 
   it('pins Alia as the audience application, matching the seeded Alia application', () => {
-    const { ALIA_RESOURCE_SERVER_APPLICATION_ID } = jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
-    const { ALIA_APPLICATION_ID } = jest.requireActual('../../scripts/seedOxyApplicationsSpecs') as typeof import('../../scripts/seedOxyApplicationsSpecs');
+    const { ALIA_RESOURCE_SERVER_APPLICATION_ID } = jest.requireActual(
+      '../nativeProductAgents',
+    ) as typeof import('../nativeProductAgents');
+    const { ALIA_APPLICATION_ID } = jest.requireActual(
+      '../../scripts/seedOxyApplicationsSpecs',
+    ) as typeof import('../../scripts/seedOxyApplicationsSpecs');
     expect(ALIA_RESOURCE_SERVER_APPLICATION_ID).toBe(ALIA_APPLICATION_ID);
   });
 });

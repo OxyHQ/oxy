@@ -93,7 +93,7 @@ export type FollowCapabilityResult =
  */
 export async function resolveFollowCapability(
   userId: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<FollowCapabilityResult> {
   const db = getDb();
 
@@ -101,7 +101,10 @@ export async function resolveFollowCapability(
     .select({ applicationId: authSessions.applicationId })
     .from(authSessions)
     .where(
-      and(eq(authSessions.authorizedSessionId, sessionId), eq(authSessions.authorizedUserId, userId))
+      and(
+        eq(authSessions.authorizedSessionId, sessionId),
+        eq(authSessions.authorizedUserId, userId),
+      ),
     )
     .orderBy(desc(authSessions.updatedAt))
     .limit(1);
@@ -172,7 +175,7 @@ export function capabilityHasScope(capability: FollowCapability, scope: string):
  */
 export function missingFollowScope(
   capability: FollowCapability,
-  required: readonly string[]
+  required: readonly string[],
 ): string | null {
   for (const scope of required) {
     if (!capabilityHasScope(capability, scope)) return scope;
@@ -198,7 +201,7 @@ export function assertFollowScopes(required: readonly string[]): void {
   for (const scope of required) {
     if (!isFollowScope(scope)) {
       throw new Error(
-        `${scope} is not a follow scope; follow authorization must not be used to gate it`
+        `${scope} is not a follow scope; follow authorization must not be used to gate it`,
       );
     }
   }

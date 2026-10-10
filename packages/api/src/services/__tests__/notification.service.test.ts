@@ -178,7 +178,7 @@ describe('the typed factories', () => {
     ]);
   });
 
-  it('createFollowNotification points at the recipient\'s own profile', async () => {
+  it("createFollowNotification points at the recipient's own profile", async () => {
     await NotificationService.createFollowNotification(RECIPIENT_ID, ACTOR_ID);
 
     expect(await storedFor(RECIPIENT_ID)).toEqual([

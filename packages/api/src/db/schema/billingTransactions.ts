@@ -117,12 +117,7 @@ export const SUBSCRIPTION_PAYMENT_TYPE = 'subscription_payment';
 export const CREDIT_PURCHASE_TYPE = 'credit_purchase';
 
 /** Lifecycle of the charge. */
-export const BILLING_TRANSACTION_STATUSES = [
-  'pending',
-  'completed',
-  'failed',
-  'refunded',
-] as const;
+export const BILLING_TRANSACTION_STATUSES = ['pending', 'completed', 'failed', 'refunded'] as const;
 
 /**
  * The predicates of the two idempotency indexes.
@@ -221,10 +216,14 @@ export const billingTransactions = pgTable(
     uniqueIndex('billing_transactions_subscription_invoice_key')
       .on(t.stripeInvoiceId, t.type)
       .where(subscriptionInvoiceIdempotencyPredicate(t)),
-    uniqueIndex('billing_transactions_proration_invoice_key').on(t.stripeInvoiceId, t.type)
+    uniqueIndex('billing_transactions_proration_invoice_key')
+      .on(t.stripeInvoiceId, t.type)
       .where(sql`${t.type} = 'subscription_proration' and ${t.stripeInvoiceId} is not null`),
-    uniqueIndex('billing_transactions_promotional_period_key').on(t.stripeSubscriptionId, t.stripeSubscriptionPeriodStart, t.type)
-      .where(sql`${t.type} = 'subscription_promotional_grant' and ${t.stripeSubscriptionId} is not null and ${t.stripeSubscriptionPeriodStart} is not null`),
+    uniqueIndex('billing_transactions_promotional_period_key')
+      .on(t.stripeSubscriptionId, t.stripeSubscriptionPeriodStart, t.type)
+      .where(
+        sql`${t.type} = 'subscription_promotional_grant' and ${t.stripeSubscriptionId} is not null and ${t.stripeSubscriptionPeriodStart} is not null`,
+      ),
     // The transaction list: `find({userId}).sort({createdAt: -1})`
     // (`billing.ts:248`). Mongo declared this one AND a standalone `{userId}`;
     // the standalone is redundant, since a btree serves any leading prefix.
@@ -235,11 +234,11 @@ export const billingTransactions = pgTable(
 
     check(
       'billing_transactions_type_check',
-      sql`${t.type} in (${sql.raw(BILLING_TRANSACTION_TYPES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.type} in (${sql.raw(BILLING_TRANSACTION_TYPES.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'billing_transactions_status_check',
-      sql`${t.status} in (${sql.raw(BILLING_TRANSACTION_STATUSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.status} in (${sql.raw(BILLING_TRANSACTION_STATUSES.map((value) => `'${value}'`).join(', '))})`,
     ),
-  ]
+  ],
 );

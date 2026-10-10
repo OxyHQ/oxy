@@ -36,10 +36,16 @@ describe('safeRedirectUrl', () => {
 
 describe('safeMcpRedirectUrl', () => {
   test('accepts HTTPS and HTTP loopback redirects', () => {
-    expect(safeMcpRedirectUrl('https://client.example/callback')).toBe('https://client.example/callback');
+    expect(safeMcpRedirectUrl('https://client.example/callback')).toBe(
+      'https://client.example/callback',
+    );
     expect(safeMcpRedirectUrl('https://client.example/')).toBe('https://client.example/');
-    expect(safeMcpRedirectUrl('http://127.0.0.1:43123/callback')).toBe('http://127.0.0.1:43123/callback');
-    expect(safeMcpRedirectUrl('http://localhost:43123/callback')).toBe('http://localhost:43123/callback');
+    expect(safeMcpRedirectUrl('http://127.0.0.1:43123/callback')).toBe(
+      'http://127.0.0.1:43123/callback',
+    );
+    expect(safeMcpRedirectUrl('http://localhost:43123/callback')).toBe(
+      'http://localhost:43123/callback',
+    );
   });
 
   test('rejects insecure remote, credentialed and fragment redirects', () => {

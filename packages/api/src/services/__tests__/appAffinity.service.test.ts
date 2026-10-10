@@ -53,7 +53,7 @@ async function account(): Promise<string> {
 async function readEdge(
   applicationId: string,
   fromUserId: string,
-  toUserId: string
+  toUserId: string,
 ): Promise<typeof appAffinityEdges.$inferSelect | undefined> {
   const [row] = await getDb()
     .select()
@@ -62,17 +62,15 @@ async function readEdge(
       and(
         eq(appAffinityEdges.applicationId, applicationId),
         eq(appAffinityEdges.fromUserId, fromUserId),
-        eq(appAffinityEdges.toUserId, toUserId)
-      )
+        eq(appAffinityEdges.toUserId, toUserId),
+      ),
     )
     .limit(1);
   return row;
 }
 
 /** Every affinity edge recorded for an application. */
-async function readEdges(
-  applicationId: string
-): Promise<(typeof appAffinityEdges.$inferSelect)[]> {
+async function readEdges(applicationId: string): Promise<(typeof appAffinityEdges.$inferSelect)[]> {
   return getDb()
     .select()
     .from(appAffinityEdges)
@@ -230,9 +228,7 @@ describe('appSignalsService.ingestAffinityEvents', () => {
       { fromUserId: FROM_ID, toUserId: other, type: 'like' },
     ]);
     expect(result).toEqual({ applied: 2, edgesCreated: 2, duplicate: 0, invalid: 0 });
-    expect((await readEdge(APP_ID, FROM_ID, TO_ID))?.affinity).toBe(
-      AFFINITY_EVENT_WEIGHTS.follow
-    );
+    expect((await readEdge(APP_ID, FROM_ID, TO_ID))?.affinity).toBe(AFFINITY_EVENT_WEIGHTS.follow);
     expect((await readEdge(APP_ID, FROM_ID, other))?.affinity).toBe(AFFINITY_EVENT_WEIGHTS.like);
   });
 

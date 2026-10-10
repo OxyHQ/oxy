@@ -63,5 +63,17 @@ export function useQuickStatsCards({
         onPress: username ? handlePersonalInfo : handleSetUsername,
       },
     ];
-  }, [deviceCount, sessions, username, colors.sidebarIconDevices, colors.sidebarIconSecurity, colors.sidebarIconPersonalInfo, handleDevices, handleSecurity, handlePersonalInfo, handleSetUsername, t]);
+  }, [
+    deviceCount,
+    sessions,
+    username,
+    colors.sidebarIconDevices,
+    colors.sidebarIconSecurity,
+    colors.sidebarIconPersonalInfo,
+    handleDevices,
+    handleSecurity,
+    handlePersonalInfo,
+    handleSetUsername,
+    t,
+  ]);
 }

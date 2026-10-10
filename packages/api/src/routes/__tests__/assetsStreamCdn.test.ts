@@ -109,7 +109,7 @@ interface RawResponse {
 async function requestNoFollow(
   server: http.Server,
   path: string,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
 ): Promise<RawResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
@@ -117,7 +117,9 @@ async function requestNoFollow(
       { method: 'GET', host: '127.0.0.1', port: address.port, path, headers },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           resolve({
             status: res.statusCode ?? 0,
@@ -127,7 +129,7 @@ async function requestNoFollow(
             body: raw,
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -161,7 +163,9 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
       _id: LEGACY_PUBLIC_FILE_ID,
       visibility: 'public',
       storageKey: 'content/2026/03/bb/bb7a29b85077cd58d945959b017bc954.png',
-      variants: [{ type: 'thumb', key: 'variants/2026/03/bb/bb7a29b85077cd58d945959b017bc954/thumb.webp' }],
+      variants: [
+        { type: 'thumb', key: 'variants/2026/03/bb/bb7a29b85077cd58d945959b017bc954/thumb.webp' },
+      ],
     });
     // Variant resolution yields the (still non-public) variant key.
     mockEnsureVariant.mockResolvedValue({
@@ -170,7 +174,10 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     // The public/ copy exists → probe returns the cloud.oxy.so URL for `thumb`.
     mockGetPublicCdnUrl.mockResolvedValue(THUMB_CDN_URL);
 
-    const res = await requestNoFollow(server, `/assets/${LEGACY_PUBLIC_FILE_ID}/stream?variant=thumb`);
+    const res = await requestNoFollow(
+      server,
+      `/assets/${LEGACY_PUBLIC_FILE_ID}/stream?variant=thumb`,
+    );
 
     expect(res.status).toBe(302);
     expect(res.location).toBe(THUMB_CDN_URL);

@@ -1,5 +1,13 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { AccountCard, ScreenHeader, EmptyStateCard } from '@/components/ui';
@@ -83,7 +91,8 @@ export default function ThirdPartyConnectionsScreen() {
               revoke.mutate(app.applicationId, {
                 onSuccess: () => toast.success(t('connectedApps.revokeSuccess')),
                 onError: (err: unknown) => {
-                  const message = err instanceof Error ? err.message : t('connectedApps.revokeFailed');
+                  const message =
+                    err instanceof Error ? err.message : t('connectedApps.revokeFailed');
                   toast.error(message);
                 },
               });
@@ -95,23 +104,28 @@ export default function ThirdPartyConnectionsScreen() {
     [revoke, t],
   );
 
-  const handleRevokeMcp = useCallback((grantId: string, clientName: string) => {
-    alert(
-      t('connectedApps.revokeMcpConfirmTitle', { name: clientName }),
-      t('connectedApps.revokeMcpConfirmMessage'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('connectedApps.revokeConfirmAction'),
-          style: 'destructive',
-          onPress: () => revokeMcp.mutate(grantId, {
-            onSuccess: () => toast.success(t('connectedApps.revokeSuccess')),
-            onError: (err: unknown) => toast.error(err instanceof Error ? err.message : t('connectedApps.revokeFailed')),
-          }),
-        },
-      ],
-    );
-  }, [revokeMcp, t]);
+  const handleRevokeMcp = useCallback(
+    (grantId: string, clientName: string) => {
+      alert(
+        t('connectedApps.revokeMcpConfirmTitle', { name: clientName }),
+        t('connectedApps.revokeMcpConfirmMessage'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('connectedApps.revokeConfirmAction'),
+            style: 'destructive',
+            onPress: () =>
+              revokeMcp.mutate(grantId, {
+                onSuccess: () => toast.success(t('connectedApps.revokeSuccess')),
+                onError: (err: unknown) =>
+                  toast.error(err instanceof Error ? err.message : t('connectedApps.revokeFailed')),
+              }),
+          },
+        ],
+      );
+    },
+    [revokeMcp, t],
+  );
 
   const renderList = () => {
     if (apps.length === 0) {
@@ -161,12 +175,17 @@ export default function ThirdPartyConnectionsScreen() {
                 key={grant.id}
                 style={[
                   styles.mcpRow,
-                  index > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth },
+                  index > 0 && {
+                    borderTopColor: colors.border,
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                  },
                 ]}
               >
                 <View style={styles.mcpDetails}>
                   <ThemedText style={styles.mcpTitle}>{grant.clientName}</ThemedText>
-                  <ThemedText style={styles.mcpMeta}>{grant.appSlug} · {grant.resource}</ThemedText>
+                  <ThemedText style={styles.mcpMeta}>
+                    {grant.appSlug} · {grant.resource}
+                  </ThemedText>
                   <ThemedText style={styles.mcpMeta}>{grant.scopes.join(' · ')}</ThemedText>
                 </View>
                 <TouchableOpacity
@@ -179,7 +198,9 @@ export default function ThirdPartyConnectionsScreen() {
                   {revokeMcp.isPending && revokeMcp.variables === grant.id ? (
                     <ActivityIndicator size="small" color={colors.error} />
                   ) : (
-                    <Text style={[styles.mcpRevokeText, { color: colors.error }]}>{t('connectedApps.revoke')}</Text>
+                    <Text style={[styles.mcpRevokeText, { color: colors.error }]}>
+                      {t('connectedApps.revoke')}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -194,7 +215,13 @@ export default function ThirdPartyConnectionsScreen() {
   if (isLoading || mcpClients.isLoading) {
     return (
       <ScreenContentWrapper>
-        <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.container,
+            styles.loadingContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
           <ActivityIndicator size="large" color={colors.tint} />
           <ThemedText style={[styles.loadingText, { color: colors.text }]}>
             {t('connectedApps.loading')}
@@ -218,7 +245,9 @@ export default function ThirdPartyConnectionsScreen() {
               <TouchableOpacity
                 style={[styles.retryButton, { backgroundColor: colors.tint }]}
                 onPressIn={handlePressIn}
-                onPress={() => { void refetch(); }}
+                onPress={() => {
+                  void refetch();
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={t('common.retry')}
               >
@@ -242,7 +271,10 @@ export default function ThirdPartyConnectionsScreen() {
   }
 
   return (
-    <ScreenContentWrapper refreshing={(isFetching || mcpClients.isFetching) && !isLoading} onRefresh={handleRefresh}>
+    <ScreenContentWrapper
+      refreshing={(isFetching || mcpClients.isFetching) && !isLoading}
+      onRefresh={handleRefresh}
+    >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.mobileContent}>
           <ScreenHeader title={t('family.title')} subtitle={t('family.subtitle')} />
@@ -301,6 +333,13 @@ const styles = StyleSheet.create({
   mcpDetails: { flex: 1, gap: 3 },
   mcpTitle: { fontSize: 15, fontWeight: '600' },
   mcpMeta: { fontSize: 12, opacity: 0.7 },
-  mcpRevoke: { borderWidth: 1, borderRadius: 8, minWidth: 76, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
+  mcpRevoke: {
+    borderWidth: 1,
+    borderRadius: 8,
+    minWidth: 76,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
   mcpRevokeText: { fontSize: 13, fontWeight: '600' },
 });
