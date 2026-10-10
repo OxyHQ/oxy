@@ -3,8 +3,8 @@
  *
  * The SQL service has its own real-Postgres suite. This one pins the glue that
  * could otherwise quietly restore the old behaviour: validation must reject
- * the historical `{}` body, the validated UTC instants must reach the
- * aggregate unchanged, and only its four counts may reach inference.
+ * the historical `{}` body, the validated UTC instants must reach the digest
+ * unchanged, and the brief is written from that digest in the asked language.
  */
 
 import express from 'express';
@@ -14,14 +14,25 @@ import type { AddressInfo } from 'node:net';
 const TEST_USER_ID = 'daily-brief-user-exact';
 const START_AT = '2026-09-02T21:00:00.000Z';
 const END_AT = '2026-09-03T21:00:00.000Z';
-const COUNTS = {
-  total: 137,
-  unread: 29,
-  starred: 11,
-  withAttachments: 17,
+const DIGEST = {
+  today: { received: 2, unread: 1, starred: 0 },
+  messages: [{
+    fromName: 'Ana García',
+    fromAddress: 'ana@example.test',
+    subject: 'Quarterly numbers',
+    receivedAt: new Date('2026-09-03T08:00:00.000Z'),
+    unread: true,
+    starred: false,
+    answered: false,
+    hasAttachments: false,
+    card: null,
+    excerpt: 'Can you send me the quarterly numbers by Friday?',
+    excerptWithheld: false,
+  }],
+  earlierUnread: { total: 0, messages: [] },
 } as const;
 
-const mockGetCounts = jest.fn();
+const mockGetDigest = jest.fn();
 const mockExecute = jest.fn();
 const mockListMessages = jest.fn();
 
@@ -47,7 +58,8 @@ jest.mock('../../services/email.service', () => ({
 }));
 
 jest.mock('../../services/inboxDailyBrief.service', () => ({
-  getInboxDailyBriefCounts: (...args: unknown[]) => mockGetCounts(...args),
+  ...jest.requireActual('../../services/inboxDailyBrief.service'),
+  getInboxDailyBriefDigest: (...args: unknown[]) => mockGetDigest(...args),
 }));
 
 jest.mock('../../services/inboxInference.service', () => ({
@@ -118,7 +130,7 @@ afterAll((done) => {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGetCounts.mockResolvedValue(COUNTS);
+  mockGetDigest.mockResolvedValue(DIGEST);
   mockExecute.mockResolvedValue({
     requestId: 'request_daily_brief_exact',
     text: 'Your exact daily brief.',
@@ -127,8 +139,8 @@ beforeEach(() => {
 });
 
 describe('POST /email/ai/daily-brief', () => {
-  it('passes the validated UTC interval to PostgreSQL and only four counts to inference', async () => {
-    const response = await postJson(server, { startAt: START_AT, endAt: END_AT });
+  it('passes the validated UTC interval to the digest and writes the brief from it', async () => {
+    const response = await postJson(server, { startAt: START_AT, endAt: END_AT, locale: 'es-ES' });
 
     expect(response).toEqual({
       status: 200,
@@ -138,8 +150,8 @@ describe('POST /email/ai/daily-brief', () => {
         text: 'Your exact daily brief.',
       },
     });
-    expect(mockGetCounts).toHaveBeenCalledTimes(1);
-    expect(mockGetCounts).toHaveBeenCalledWith(
+    expect(mockGetDigest).toHaveBeenCalledTimes(1);
+    expect(mockGetDigest).toHaveBeenCalledWith(
       TEST_USER_ID,
       new Date(START_AT),
       new Date(END_AT),
@@ -150,26 +162,27 @@ describe('POST /email/ai/daily-brief', () => {
     const input = mockExecute.mock.calls[0]?.[0] as {
       userId: string;
       feature: string;
-      messages: unknown[];
+      messages: Array<{ role: string; content: Array<{ text: string }> }>;
     };
     expect(input.userId).toBe(TEST_USER_ID);
     expect(input.feature).toBe('daily_brief');
-    expect(input.messages).toEqual([
-      {
-        role: 'system',
-        content: [{
-          type: 'text',
-          text: 'Write a warm, efficient daily inbox brief in 2-4 sentences and second person. Use only the supplied aggregate counts; never imply access to senders, subjects, bodies, deadlines or action items.',
-        }],
-      },
-      {
-        role: 'user',
-        content: [{
-          type: 'text',
-          text: 'Aggregate counts: {"total":137,"unread":29,"starred":11,"withAttachments":17}',
-        }],
-      },
-    ]);
+    const [system, user] = input.messages;
+    expect(system?.role).toBe('system');
+    expect(system?.content[0]?.text).toContain('Write in Spanish');
+    expect(user?.role).toBe('user');
+    expect(user?.content[0]?.text).toContain('Today in the inbox: 2 received, 1 still unread, 0 starred.');
+    expect(user?.content[0]?.text).toContain('From: Ana García <ana@example.test>');
+    expect(user?.content[0]?.text).toContain('Excerpt: Can you send me the quarterly numbers by Friday?');
+  });
+
+  it('writes in English when no locale is sent, and refuses a malformed one', async () => {
+    await postJson(server, { startAt: START_AT, endAt: END_AT });
+    const input = mockExecute.mock.calls[0]?.[0] as { messages: Array<{ content: Array<{ text: string }> }> };
+    expect(input.messages[0]?.content[0]?.text).toContain('Write in English');
+
+    const refused = await postJson(server, { startAt: START_AT, endAt: END_AT, locale: 'es; drop' });
+    expect(refused.status).toBe(400);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
   });
 
   it('rejects the historical empty body before PostgreSQL or inference', async () => {
@@ -177,7 +190,7 @@ describe('POST /email/ai/daily-brief', () => {
 
     expect(response.status).toBe(400);
     expect(response.body).toMatchObject({ error: 'BAD_REQUEST', message: 'Validation failed' });
-    expect(mockGetCounts).not.toHaveBeenCalled();
+    expect(mockGetDigest).not.toHaveBeenCalled();
     expect(mockListMessages).not.toHaveBeenCalled();
     expect(mockExecute).not.toHaveBeenCalled();
   });

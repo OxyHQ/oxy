@@ -40,6 +40,8 @@ export const inboxComposeRequestSchema = z.discriminatedUnion('operation', [
 export const inboxDailyBriefRequestSchema = z.object({
   startAt: inboxUtcTimestampSchema,
   endAt: inboxUtcTimestampSchema,
+  /** BCP 47 tag of the language the brief is written in; English when absent. */
+  locale: z.string().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/).max(35).optional(),
   stream: z.boolean().optional(),
 }).strict().superRefine((value, context) => {
   const durationMs = Date.parse(value.endAt) - Date.parse(value.startAt);
