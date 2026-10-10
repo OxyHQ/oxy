@@ -88,7 +88,7 @@ export async function startBackgroundJobs(): Promise<void> {
  * Stop background jobs. Closes BullMQ workers/queues/connections and stops the
  * in-process fallback if it was started. Safe to call regardless of which path
  * ran. Intended to be called from the server's graceful-shutdown sequence
- * BEFORE the shared cache Redis client and MongoDB are closed.
+ * BEFORE the shared cache Redis client and the database are closed.
  */
 export async function stopBackgroundJobs(): Promise<void> {
   if (fallbackActive) {

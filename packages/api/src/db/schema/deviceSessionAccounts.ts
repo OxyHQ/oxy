@@ -92,18 +92,16 @@ export const deviceSessionAccounts = pgTable(
     operatedByUserId: text().references(() => users.id, { onDelete: 'cascade' }),
   },
   (t) => [
-    // One entry per account per device. Mongo enforced this only in application
-    // code (`addAccount` replaces the existing entry), so a second write path
-    // could produce a device listing the same account twice — with two
-    // different `session_id`s, which `resolveActiveToken` would resolve
-    // arbitrarily between.
+    // One entry per account per device. `addAccount` replaces the existing
+    // entry, but without this constraint a second write path could produce a
+    // device listing the same account twice — with two different `session_id`s,
+    // which `resolveActiveToken` would resolve arbitrarily between.
     unique('device_session_accounts_device_session_id_account_id_key').on(
       t.deviceSessionId,
       t.accountId,
     ),
     // "Every device this account is signed in on" — the read
-    // `purgeAccountFromAllDevices` runs, which under Mongo scanned
-    // `accounts.accountId` across the collection.
+    // `purgeAccountFromAllDevices` runs.
     index('device_session_accounts_account_id_idx').on(t.accountId),
     // "Every entry this operator is responsible for", the delegated-signout
     // cascade. Partial: an ordinary entry has no operator, and no read ever
@@ -111,7 +109,7 @@ export const deviceSessionAccounts = pgTable(
     index('device_session_accounts_operated_by_user_id_idx')
       .on(t.operatedByUserId)
       .where(sql`${t.operatedByUserId} is not null`),
-    // Mongoose's `min: 0`. A negative `authuser` would address a URL slot no
+    // Never negative. A negative `authuser` would address a URL slot no
     // client can produce.
     check('device_session_accounts_authuser_check', sql`${t.authuser} >= 0`),
   ],

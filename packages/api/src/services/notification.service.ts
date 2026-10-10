@@ -2,33 +2,29 @@
  * Notification creation helpers — one factory per activity type on top of a
  * single guarded insert.
  *
- * Two rules survive the port unchanged, and one mechanism replaces two:
+ * Two rules, enforced by one mechanism:
  *
  *  - **Nobody is notified about their own action.** `recipientId === actorId`
  *    returns null before anything is written.
  *  - **The same actor doing the same thing to the same entity notifies once.**
- *    Under Mongo that was a `findOne` followed by a `save`, with the unique
- *    index `{recipientId, actorId, type, entityId}` as an unreachable backstop —
- *    two concurrent emissions could both see "no duplicate" and one would then
- *    throw a `E11000` out of a method whose contract is to return null. Here it
- *    is ONE statement: `insert … on conflict (recipient_id, actor_id, type,
+ *    A read followed by a write would let two concurrent emissions both see
+ *    "no duplicate", and one would then throw a unique violation out of a
+ *    method whose contract is to return null. So it is ONE statement: `insert … on conflict (recipient_id, actor_id, type,
  *    entity_id) do nothing`, which returns no row when the notification already
- *    exists. The check and the write can no longer disagree.
+ *    exists. The check and the write cannot disagree.
  *
  * ## `entity_id` deliberately carries no foreign key
  *
  * `entityType` discriminates it, and two of the three values (`post`, `reply`)
  * name rows in MENTION's database rather than this one — see the header of
- * `db/schema/notifications.ts`. So an entity id is validated by nothing, exactly
- * as before.
+ * `db/schema/notifications.ts`. So an entity id is validated by nothing.
  *
  * ## `createWelcomeNotification` needs a real system account
  *
- * `actor_id` DOES carry a foreign key (`users`, `ON DELETE CASCADE`), and the
- * Mongo code used a hardcoded all-zero ObjectId as its "system" actor. That id
- * names no row, so the insert is now REJECTED rather than silently creating a
- * notification attributed to an account that does not exist. The sentinel is
- * therefore gone and the system actor is a PARAMETER: the caller supplies the
+ * `actor_id` DOES carry a foreign key (`users`, `ON DELETE CASCADE`), so a
+ * hardcoded sentinel "system" id that names no row would be REJECTED rather
+ * than silently creating a notification attributed to an account that does not
+ * exist. The system actor is therefore a PARAMETER: the caller supplies the
  * account the welcome is attributed to, and the foreign key checks it. Nothing
  * in this package calls it today.
  */
@@ -188,8 +184,8 @@ export class NotificationService {
    * Create a welcome notification for new users.
    *
    * `systemActorId` must name a real account: `notifications.actor_id` is a
-   * foreign key, so the all-zero ObjectId the Mongo version used would now be
-   * rejected. See the module header.
+   * foreign key, so a sentinel id that names no row is rejected. See the module
+   * header.
    */
   static async createWelcomeNotification(recipientId: string, systemActorId: string) {
     return this.createNotification({

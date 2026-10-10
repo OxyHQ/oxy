@@ -10,20 +10,17 @@
  *
  * ## Why a child table and not `jsonb`
  *
- * The array is ADDRESSED BY INNER FIELD, which is the line `CONVENTIONS.md`
- * draws: `jsonb` is for genuinely shape-less data. Every write matches on
- * `(runtimeVersion, platform)` —
- * `$pull: { rollbacksToEmbedded: { runtimeVersion, platform } }` at
- * `publish.service.ts:242` and `:399`, followed by a `$push` at `:404` — and the
- * read scans for the same pair (`manifest.service.ts:117`). The shape is closed:
+ * The directives are ADDRESSED BY INNER FIELD, which is the line
+ * `CONVENTIONS.md` draws: `jsonb` is for genuinely shape-less data. Every write
+ * in `publish.service.ts` matches on `(runtimeVersion, platform)`, and the read
+ * looks up the same pair (`manifest.service.ts`). The shape is closed:
  * three fields, all required, one of them a two-value enum.
  *
  * The natural key `(channel_id, runtime_version, platform)` is therefore the
- * PRIMARY KEY, and that is a FIX, not just a translation. Mongo's pull-then-push
- * is a two-statement upsert with a crash window in the middle — an interruption
- * silently leaves the directive DELETED, and two concurrent rollbacks can leave
- * two entries for the same tuple, which `manifest.service.ts`'s `.find()` then
- * resolves arbitrarily. As a real row, "at most one active directive per
+ * PRIMARY KEY. A remove-then-add is a two-statement upsert with a crash window
+ * in the middle — an interruption silently leaves the directive DELETED, and two
+ * concurrent rollbacks can leave two entries for the same tuple, which a reader
+ * then resolves arbitrarily. As a real row, "at most one active directive per
  * (channel, runtime, platform)" is enforced by the database and the write is one
  * idempotent statement.
  *
@@ -60,7 +57,7 @@ export const updateChannelRollbacks = pgTable(
   },
   (t) => [
     // At most one active directive per (channel, runtime, platform) — the
-    // guarantee the Mongo array could not make. See the header.
+    // guarantee an embedded array could not make. See the header.
     primaryKey({
       columns: [t.channelId, t.runtimeVersion, t.platform],
       name: 'update_channel_rollbacks_pkey',

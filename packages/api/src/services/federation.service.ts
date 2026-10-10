@@ -367,8 +367,8 @@ const _keyPairCache = new Map<string, KeyPairDoc>();
  * The keyId is the single identity coordinate for a federation key: it embeds
  * BOTH the actor username and the serving domain, so a key minted for
  * `bob@mention.earth` (`https://mention.earth/ap/users/bob#main-key`) is
- * distinct from `bob` on oxy.so. The in-memory cache and the unique `keyId`
- * index in Mongo therefore enforce "one key pair per (username, domain)"
+ * distinct from `bob` on oxy.so. The in-memory cache and the unique `key_id`
+ * index therefore enforce "one key pair per (username, domain)"
  * automatically — no separate compound field is required.
  */
 function composeUserKeyId(username: string, domain: string): string {
@@ -396,9 +396,9 @@ async function findKeyPair(keyId: string): Promise<KeyPairDoc | null> {
  *
  * The insert is `on conflict do nothing` on the unique `key_id` and falls back
  * to a read, which makes it genuinely idempotent under concurrency rather than
- * merely usually-idempotent: Mongo's read-then-create left a window in which
+ * merely usually-idempotent: a read-then-create would leave a window in which
  * two simultaneous first signatures for the same actor both generated a key and
- * the second write failed the unique index outright. Here the loser simply
+ * the second write failed the unique index outright. Instead the loser simply
  * adopts the winner's key — which matters because the two would be DIFFERENT
  * keys, and a signature made with the one that lost verification against the
  * published public key would fail on the remote side.
@@ -777,8 +777,8 @@ export async function getInstanceActor(
  * The stored avatar READ AS A FILE ID, or `undefined` when it is not one.
  *
  * A federated `users.avatar` is an Oxy Cloud file id or NULL. Rows written
- * before the registry stopped seeding the source picture URL (and local rows
- * from the Mongo era) can still hold a remote URL, which is NOT a file id — and
+ * before the registry stopped seeding the source picture URL (and some older
+ * local rows) can still hold a remote URL, which is NOT a file id — and
  * the download path treats this argument as one: it DELETES what it names when a
  * new image replaces it.
  *
@@ -2284,8 +2284,7 @@ class FederationService {
 
       const stored = await this.mirrorFederatedAvatar(userId, remoteAvatarUrl, storedAvatar, {
         // The conditional-request validators are NULL when never fetched;
-        // `downloadAndStoreAvatar` reads them as "send no If-None-Match", which
-        // is what absent meant in Mongo.
+        // `downloadAndStoreAvatar` reads them as "send no If-None-Match".
         etag: user.avatarETag ?? undefined,
         lastModified: user.avatarLastModified ?? undefined,
       });
@@ -2404,7 +2403,7 @@ class FederationService {
       )
         return;
 
-      // COLUMN PROPERTIES, never Mongo dot paths — see the note in
+      // COLUMN PROPERTIES, never dot paths — see the note in
       // `resolveAndUpsert`. `name.first` here would silently write nothing.
       const setFields: Partial<typeof users.$inferInsert> = {};
       let avatarWrite: FederatedAvatarWrite | undefined;
@@ -2475,15 +2474,13 @@ class FederationService {
       }
 
       // `federationLastResolvedAt` is set unconditionally above, so `setFields`
-      // is never empty — the Mongo branch that touched `updatedAt` alone to
-      // avoid re-attempting every request is unreachable here and is gone
-      // rather than kept as dead code. `updated_at` is maintained by drizzle's
-      // `$onUpdate` on the write below, which is what that branch was for.
+      // is never empty, so no write ever needs to touch `updated_at` alone.
+      // `updated_at` is maintained by drizzle's `$onUpdate` on the write below.
       await getDb()
         .update(users)
         .set({
           ...setFields,
-          // Mongo's `$unset` of the tombstone fields — NULL is "available".
+          // Clear the tombstone fields — NULL is "available".
           federationUnavailableAt: null,
           federationUnavailableReason: null,
         })

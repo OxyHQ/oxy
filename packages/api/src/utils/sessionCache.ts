@@ -16,8 +16,8 @@ export type CachedSession = typeof sessions.$inferSelect;
  * The Redis tier stores JSON, and `JSON.parse` hands every `Date` back as a
  * STRING. Without reviving them a Redis hit and a local hit would disagree on
  * the type of `expiresAt` — and `expiresAt.toISOString()` on the sign-in
- * response would throw for whichever tier answered second. Mongo had the same
- * latent split; typing the cache off the schema is what made it visible.
+ * response would throw for whichever tier answered second. Typing the cache off
+ * the schema is what keeps that split visible.
  */
 const DATE_COLUMNS = [
   'lastActiveAt',
@@ -129,8 +129,7 @@ class SessionCache {
             const data = await redis.get(key);
             if (data) {
               const session = reviveSession(JSON.parse(data));
-              // `user_id` is a plain text column now, so this is a string
-              // compare rather than the ObjectId `.toString()` Mongo needed.
+              // `user_id` is a plain text column, so this is a string compare.
               if (session?.userId === userId) {
                 await redis.del(key);
               }

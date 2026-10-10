@@ -49,18 +49,13 @@
  *  - the paging case sits at Point Nemo, the oceanic pole of inaccessibility,
  *    where no fixture of any suite could plausibly be.
  *
- * ## What was already broken before the port
+ * ## Two methods asserted as WORKING, not just as returning
  *
- * Two of these methods could not return a correct answer at all, and both are
- * asserted here as working:
- *
- *  - `findLocationsNear` prefiltered with `$geoWithin: { $centerSphere: … }`
- *    over a `{ lat, lon }` OBJECT, which Mongo reads positionally as
- *    `[longitude, latitude]` — i.e. over transposed points — and then applied a
- *    correctly-computed haversine. Intersecting a wrong circle with a right one
- *    returns (almost always) nothing.
- *  - `searchLocationsByText` put `$text` in a `$match` AFTER `$unwind`, which
- *    Mongo rejects outright, so it threw on every call.
+ *  - `findLocationsNear` must filter on correctly-ordered points: a
+ *    `{ lat, lon }` pair read positionally as `[longitude, latitude]` transposes
+ *    every point, and intersecting a wrong circle with a right one returns
+ *    (almost always) nothing.
+ *  - `searchLocationsByText` must actually match the generated search vector.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -315,8 +310,8 @@ describe('findLocationsNear — the response body', () => {
         country: 'Spain',
         formattedAddress: 'Plaça de Catalunya, Barcelona',
         // Every other address field is ABSENT, never null: drizzle hands back
-        // `null` where Mongoose handed `undefined`, and the SDK's zod parse
-        // rejects a null where the contract promises an optional.
+        // `null` for an empty column, and the SDK's zod parse rejects a null
+        // where the contract promises an optional.
       },
       coordinates: { lat: BARCELONA.latitude, lon: BARCELONA.longitude },
       metadata: {},
@@ -365,8 +360,8 @@ describe('findLocationsNear — the response body', () => {
 
     expect(ownKeys(first)).toEqual(['nemo-a', 'nemo-b']);
     expect(first.hasMore).toBe(true);
-    // `total` is the length of THIS page, exactly as Mongo returned it — not a
-    // table count. Preserved verbatim because every consumer reads it that way.
+    // `total` is the length of THIS page — not a table count. Every consumer
+    // reads it that way.
     expect(first.total).toBe(2);
 
     expect(ownKeys(second)).toEqual(['nemo-c']);
@@ -376,9 +371,7 @@ describe('findLocationsNear — the response body', () => {
 });
 
 describe('searchLocationsByText', () => {
-  it('matches the generated search vector — which the Mongo pipeline could not', async () => {
-    // `$text` in a `$match` after `$unwind` is illegal, so this method threw on
-    // every call. There is no prior behaviour to preserve, only a correct one.
+  it('matches the generated search vector', async () => {
     await seedLocation({ key: 'library', name: `Central Library ${RARE_TOKEN}` });
     await seedLocation({ key: 'gym', name: 'Riverside Gym' });
 
@@ -402,7 +395,7 @@ describe('searchLocationsByText', () => {
     ]);
   });
 
-  it('matches ANY term, as Mongo $text did — not all of them', async () => {
+  it('matches ANY term — not all of them', async () => {
     await seedLocation({ key: 'library', name: `Library ${RARE_TOKEN}a` });
     await seedLocation({ key: 'gym', name: `Gym ${RARE_TOKEN}b` });
 
@@ -543,8 +536,8 @@ describe('getLocationStats', () => {
     expect((after.locationsByType.work ?? 0) - (before.locationsByType.work ?? 0)).toBe(2);
     expect(after.locationsByCountry[`Spain-${RUN}`]).toBe(2);
     expect(after.locationsByCountry[`France-${RUN}`]).toBe(1);
-    // A row with no country is counted in neither bucket, as Mongo's
-    // `if (country)` filter did — 4 rows, 3 countries.
+    // A row with no country is counted in neither bucket — 4 rows, 3
+    // countries.
     await getDb().delete(users).where(eq(users.id, other));
   });
 

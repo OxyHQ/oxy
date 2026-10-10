@@ -81,7 +81,7 @@ const url = buildOAuthAuthorizeUrl({
 
 ## User Identity And Handles
 
-SDK user payloads may arrive with either `id` or Mongo-style `_id`; normalize
+SDK user payloads may arrive with either `id` or a raw `_id`; normalize
 them before exposing state to apps:
 
 ```ts

@@ -15,15 +15,12 @@
  * port that queries nothing, because the shape it describes no longer exists.
  * Here the rows are real and the assertions are about which ids reach the queue.
  *
- * ## The case the old suite asserted BACKWARDS
+ * ## No id-shape pre-filter
  *
- * Its third case fed `not-an-id` and asserted the model was never touched,
- * locking in the `isValidObjectId` pre-filter. That filter was a Mongoose
- * `CastError` guard, and it silently rejected every uuid v7 — i.e. every account
- * minted since the Postgres cutover — so the notify was a permanent no-op for
- * exactly those accounts, with an identical 202 to hide it. The port deletes the
- * guard; this suite pins the consequence with a uuid-v7 account that HAS a node
- * and must be enqueued.
+ * A 24-hex pre-filter (`isValidObjectId`) would silently reject every uuid v7
+ * account, so the notify would be a permanent no-op for exactly those accounts,
+ * with an identical 202 to hide it. This suite pins the absence of such a
+ * filter with a uuid-v7 account that HAS a node and must be enqueued.
  *
  * The queue is mocked (this is not a test about BullMQ); the node registry is
  * mocked away from the OTHER routes in the router. The `user_nodes` rows, the

@@ -68,8 +68,8 @@ async function activeVoucherIds(subjectUserId: string): Promise<string[]> {
  * Shared-device cluster signal: the fraction of {subject ∪ vouchers} whose
  * active-session deviceIds overlap with at least one OTHER account in the
  * set. Overlap is computed by an in-memory inverted index (deviceId → owning
- * accounts) over ONE batched read, so the cost no longer grows a query per
- * voucher the way the per-account Mongo lookup did.
+ * accounts) over ONE batched read, so the cost does not grow a query per
+ * voucher.
  */
 async function computeSharedFingerprintSignal(
   subjectUserId: string,

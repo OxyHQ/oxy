@@ -17,8 +17,8 @@
  * `CONVENTIONS.md` raised against `citext`.)
  *
  * A junction table also gets what the array could not: a real foreign key per
- * edge. Mongo's `ancestors` was a list of ids nothing checked, so a deleted
- * account stayed in every descendant's path forever.
+ * edge, so a list of ids nothing checks cannot leave a deleted account in every
+ * descendant's path forever.
  *
  * ## What the foreign keys can and cannot guarantee
  *
@@ -30,10 +30,9 @@
  * action can compute that. Recomputing a materialized path is application work;
  * `account.service.ts` already owns it for the account-MOVE case.
  *
- * **Finding for the call-site port:** the GDPR delete path
- * (`routes/users.ts:1517`) does not call that rewrite today. Under Mongo the
- * result was a silently stale path; under Postgres it is a stale path with no
- * dangling ids. Deletion must re-parent descendants BEFORE deleting.
+ * **Finding:** the GDPR delete path (`routes/users.ts`) does not call that
+ * rewrite today, so the result is a stale path with no dangling ids. Deletion
+ * must re-parent descendants BEFORE deleting.
  */
 
 import { sql } from 'drizzle-orm';
@@ -42,7 +41,7 @@ import { users } from './users';
 
 /**
  * Maximum tree depth, guarding against pathological nesting. The SINGLE
- * declaration — the Mongoose copy is gone. It renders the `depth` CHECK below,
+ * declaration. It renders the `depth` CHECK below,
  * and `account.service.ts` refuses a deeper move before the write; both are
  * covered (`__tests__/account.service.test.ts` for the service,
  * `check-drizzle-snapshot-sync` for the constraint).
@@ -69,7 +68,7 @@ export const userAncestors = pgTable(
     // surrogate id is invented for a row nothing references.
     primaryKey({ columns: [t.userId, t.depth], name: 'user_ancestors_pkey' }),
     // The reason the path is materialized at all: "every account under X",
-    // answered without walking the tree. Mongo's multikey `{ancestors: 1}`.
+    // answered without walking the tree.
     index('user_ancestors_ancestor_id_idx').on(t.ancestorId),
     check(
       'user_ancestors_depth_check',

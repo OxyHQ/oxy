@@ -29,7 +29,7 @@ function stringifyIdentity(value: unknown): string | null {
 
 /**
  * Returns the stable SDK user id from API payloads that may use either `id` or
- * Mongo-style `_id`.
+ * a raw `_id`.
  */
 export function getNormalizedUserId(user: UserIdentityInput | null | undefined): string | null {
   if (!user) {

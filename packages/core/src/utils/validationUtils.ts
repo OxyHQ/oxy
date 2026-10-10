@@ -87,10 +87,10 @@ export function isValidPassword(password: string): boolean {
  * — script digits (`٠١٢`, `०१२`), 1082 symbols (`֍ ۞ ৳`), 180 punctuation marks
  * (`։ ، ؛ ।`), and 9 INVISIBLE format/control characters, among them U+061C
  * ARABIC LETTER MARK (a bidi control that can visually reorder a name) and
- * U+180E MONGOLIAN VOWEL SEPARATOR. Without it the rejections listed above held
+ * U+180E (the Mong-script vowel separator). Without it the rejections listed above held
  * for ASCII input only. It is the set of scripts Unicode UTS #39 marks
  * "Recommended" for general interchange / identifiers, plus Cherokee and
- * Mongolian (both in real modern name use). "Common" script is deliberately
+ * the Mong script, ISO 15924 (both in real modern name use). "Common" script is deliberately
  * EXCLUDED — that is where ASCII digits and general punctuation live, and this
  * policy excludes those; the space separators, combining marks, and apostrophe a
  * name needs are added back explicitly. Limited-use / excluded / historic
@@ -351,15 +351,14 @@ export function sanitizeHTML(input: string): string {
 }
 
 /**
- * Validate MongoDB ObjectId format
- * Note: This is a basic format check. For full validation, use mongoose.Types.ObjectId.isValid()
- * This function works in environments where mongoose may not be available (e.g., client-side)
+ * Validate the legacy 24-hex id format (a format check only; it does not
+ * prove the id exists).
  */
 export function isValidObjectId(id: string): boolean {
   if (typeof id !== 'string') {
     return false;
   }
-  // MongoDB ObjectId is 24 hex characters
+  // A legacy id is 24 hex characters
   const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
   return OBJECT_ID_REGEX.test(id);
 }

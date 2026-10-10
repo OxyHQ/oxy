@@ -1,9 +1,8 @@
 # Postgres schema conventions
 
-Binding for every table in this migration. Decision + reason, nothing else.
+Binding for every table in this schema. Decision + reason, nothing else.
 The prime directives live in the migration contract: **no relational link may be
-lost**, and **no Mongo baggage travels**. Where a Mongoose detail has no Postgres
-counterpart, the semantic is preserved and the mechanism is redesigned.
+lost**, and **every rule the schema can enforce, it enforces**.
 
 Several of these are enforced by tests, not by discipline — see the bottom.
 
@@ -11,11 +10,9 @@ Several of these are enforced by tests, not by discipline — see the bottom.
 
 ## Naming
 
-**Tables: explicit snake_case, plural.** `push_tokens`, not Mongoose's derived
-`pushtokens`. The derived name is a `pluralize()` artifact, not a design
-(`appaffinityeventseens` is not a word), and nothing reads a collection name —
-call sites are being rewritten, not shimmed. The backfill therefore needs an
-explicit collection → table map; write it out, one entry per table.
+**Tables: explicit snake_case, plural.** `push_tokens`, not a derived
+`pushtokens`. A `pluralize()`-derived name is an artifact, not a design
+(`appaffinityeventseens` is not a word); name every table explicitly.
 
 **Columns: camelCase in TypeScript, snake_case in SQL**, derived by drizzle. Do
 not pass an explicit column name unless the SQL name genuinely differs from the
@@ -84,32 +81,30 @@ A table whose id is content-addressed says so by using a plain
 - Declare the values once as a `const` tuple and derive both the column type and
   the CHECK from it, so they cannot drift.
 
-A CHECK is also a place to REMOVE Mongo baggage. `auth_challenges.purpose` was
-optional in Mongo, so every reader carried `{ $in: ['signin', null] }` for
-documents predating the field; here it is `NOT NULL DEFAULT 'signin'` with a
-CHECK, the backfill maps null once, and the legacy branch does not travel.
+A CHECK also removes a legacy branch from every reader. `auth_challenges.purpose`
+is `NOT NULL DEFAULT 'signin'` with a CHECK, so no reader has to treat a missing
+purpose as `'signin'`.
 
 ## Timestamps
 
 Always `timestamptz`, always `mode: 'date'` (`timestamptz()` in `columns.ts`).
 `timestamp` without a time zone reinterprets the value in the session's
-`TimeZone` on every read, silently changing what a Mongo `Date` meant.
+`TimeZone` on every read, silently changing what a stored instant means.
 
-| Mongoose | Postgres |
+| Table kind | Columns |
 |---|---|
-| `timestamps: true` | `created_at` + `updated_at`, both `NOT NULL DEFAULT now()` |
-| `timestamps: { createdAt: true, updatedAt: false }` | `created_at` only — the ABSENCE of `updated_at` is the append-only contract |
-| `timestamps: false` + own `createdAt: { default: Date.now }` | `created_at`, identical to the row above; the Mongoose distinction has no Postgres counterpart |
+| Mutable rows | `created_at` + `updated_at`, both `NOT NULL DEFAULT now()` |
+| Append-only rows | `created_at` only — the ABSENCE of `updated_at` is the append-only contract |
 
-**`updated_at` is maintained by the application** (`$onUpdate`), matching what
-Mongoose did. Deliberately not a trigger: a trigger is invisible in the schema
-file, and it would fire during backfill and maintenance writes and overwrite the
-historical value the migration exists to preserve.
+**`updated_at` is maintained by the application** (`$onUpdate`). Deliberately
+not a trigger: a trigger is invisible in the schema file, and it would fire
+during backfill and maintenance writes and overwrite the historical value those
+writes exist to preserve.
 
 ## Foreign keys
 
 Every relation gets a real constraint with an **explicitly decided `ON DELETE`**.
-Postgres will now enforce integrity Mongo only hoped for; do not waste it.
+Postgres enforces referential integrity; do not waste it.
 
 A table can land before its parent, and drizzle cannot express a forward
 reference. Such a foreign key goes in `DEFERRED_FOREIGN_KEYS`
@@ -131,58 +126,48 @@ install into the unscoped delivery set instead of retiring it.
 
 `ON UPDATE` is never declared: ids are immutable.
 
-## Expiry — the Mongo TTL replacement
+## Expiry
 
-Postgres has no TTL index and 14 models relied on one. The mechanism is defined
-once in `@oxy.so/db/expiry`; this schema's own registry lives in `db/expiry.ts`,
-and a table adds an entry there rather than its own cleanup path. An entry is the exact analogue of a Mongo TTL index —
-`{ table, column, retentionSeconds }` → `delete where column <= now() - N` — so
-all three uses in the Mongo schema map onto it without loss:
+Postgres has no TTL index. The mechanism is defined once in
+`@oxy.so/db/expiry`; this schema's own registry lives in `db/expiry.ts`, and a
+table adds an entry there rather than its own cleanup path. An entry is
+`{ table, column, retentionSeconds }` → `delete where column <= now() - N`, and it
+covers three shapes:
 
-| Mongo | Registry entry |
+| Shape | Registry entry |
 |---|---|
-| `expireAfterSeconds: 0` on `expiresAt` | the column IS the deadline, `retentionSeconds: 0` |
-| `expireAfterSeconds: N` on `createdAt` | retention window on a birth column |
-| `expireAfterSeconds: N` on `expiresAt` (grace) | same shape, different column — the row deliberately outlives its own deadline so a read can answer "expired" rather than "never existed" |
+| a deadline column | the column IS the deadline, `retentionSeconds: 0` |
+| a retention window | retention window on a birth column (`created_at`) |
+| a deadline plus grace | same shape, different column — the row deliberately outlives its own deadline so a read can answer "expired" rather than "never existed" |
 
 Every registered column MUST have a supporting btree index (the sweep's predicate
-is a range scan; Mongo's TTL index carried the same obligation). Deletion is
-batched via `ctid` so a backlog cannot hold one long transaction open.
+is a range scan). Deletion is batched via `ctid` so a backlog cannot hold one
+long transaction open.
 
-**Coexistence with reads — the part that must not be lost.** Mongo's TTL monitor
-lags ~60s; a sweep lags one interval. Two classes of read path exist and they are
-not interchangeable:
+**Coexistence with reads — the part that must not be lost.** A sweep lags one
+interval. Two classes of read path exist and they are not interchangeable:
 
-- **(A) Reads that filter on expiry themselves** — `expiresAt: { $gt: new Date() }`
-  in `session.controller.ts:297`, `authSession.service.ts:280`,
-  `authLinking.ts:303`. For these the sweep is pure housekeeping. **Port every
-  one of those filters verbatim.** Dropping one because "the sweep handles it"
-  turns a bounded lag into a live credential.
-- **(B) Reads that do NOT filter and rely on the row already being gone** —
-  `senderAvatar.service.ts:179` and `:208` return the cached row with no expiry
-  predicate and no application-side check. There the sweep is a CORRECTNESS
-  mechanism and the interval is how stale a served value can be. On port, ADD the
-  read-side filter and move them into class (A); then no table's correctness
-  depends on a job running.
-
-Scheduling belongs with the call-site port, alongside the existing BullMQ
-repeatable jobs. The mechanism is complete and tested; nothing reads a swept
-table yet.
+- **(A) Reads that filter on expiry themselves** (`expires_at > now()`). For
+  these the sweep is pure housekeeping. **Every such filter stays.** Dropping one
+  because "the sweep handles it" turns a bounded lag into a live credential.
+- **(B) Reads that do NOT filter and rely on the row already being gone.** There
+  the sweep is a CORRECTNESS mechanism and the interval is how stale a served
+  value can be. Do not write one: add the read-side filter and keep the read in
+  class (A), so no table's correctness depends on a job running.
 
 ## Unique constraints
 
-Mongo unique index → `UNIQUE`. Mongo `partialFilterExpression` → a Postgres
-partial unique index (`uniqueIndex().where(...)`).
+A uniqueness rule is a `UNIQUE` constraint, or a partial unique index
+(`uniqueIndex().where(...)`) when it applies to a subset of rows.
 
-**Do NOT carry over the `default: undefined` workaround.**
-`DeviceSession.secretHash` and `AuthSession.authorizeCode` use it because Mongo's
-sparse unique index collides on nulls. Postgres unique indexes treat NULLs as
-DISTINCT by default, so a plain `UNIQUE` on a nullable column is already correct.
+**A nullable unique column needs no workaround.** Postgres unique indexes treat
+NULLs as DISTINCT by default, so a plain `UNIQUE` on a nullable column
+(`device_sessions.secret_hash`, `auth_sessions.authorize_code`) is already correct.
 And it must **never** become `''` — an empty string is a VALUE, so it collides
 for real, converting a non-problem into a live bug.
 
 **Case-insensitive unique: a unique index on `lower(name)`, not `citext`.**
-`labels` had Mongo's `collation: { locale: 'en', strength: 2 }`.
+`labels` names are unique per user regardless of case.
 
 - `citext` is an extension: `CREATE EXTENSION` would have to run in dev, CI and
   RDS before the first migration, an ordering dependency in every environment for
@@ -191,10 +176,9 @@ for real, converting a non-problem into a live bug.
   `db/extensions.ts`, see below — but a mechanism is not a reason: the two
   objections that follow are what decide `citext`, and both stand.)
 - `citext` changes behaviour for EVERY comparison on that column, including ones
-  the author never considered, and its equivalence to `strength: 2` is a
-  coincidence rather than a construction.
+  the author never considered.
 - An expression index makes the case-insensitivity visible AT the constraint and
-  leaves the stored value exactly as the user typed it, as Mongo did.
+  leaves the stored value exactly as the user typed it.
 
 The cost, and it is real: **every lookup must be written
 `where user_id = $1 and lower(name) = lower($2)`.** A plain `name = $2` is
@@ -202,17 +186,13 @@ correct-looking, case-sensitive, and will not use the index.
 
 **The same expression-index shape is how `trim`/`lowercase` survives on an
 IDENTIFIER.** `users.username`, `users.email` and `users.public_key` are unique
-on `lower(btrim(...))`. For `email` and `public_key` that is equivalent to a
-plain unique on existing data (Mongoose's setters already stored them trimmed and
-lower-cased) and it additionally survives a call site that forgets to normalize.
+on `lower(btrim(...))`. For `email` and `public_key` the stored value is
+already trimmed and lower-cased, and the index additionally survives a call site
+that forgets to normalize.
 
-`username` is the one that CHANGES behaviour, deliberately: Mongo indexed it
-case-SENSITIVELY while every lookup runs `exactCaseInsensitiveUsernameRegex`, so
-`Nate` and `nate` could coexist AND each lookup was a collection scan (an
-anchored `/i` regex cannot use a b-tree index). **Backfill consequence:** if two
-production accounts differ only by case, the backfill fails on this index and
-names them — the correct outcome, since the application cannot tell them apart
-today.
+For `username` the index is what makes the case-insensitive lookup sound: every
+lookup matches case-insensitively, so `Nate` and `nate` must not be able to
+coexist, and the expression index lets that lookup use a b-tree.
 
 `btrim` is in the expression and not just `lower` because `hashed_email` is
 canonicalized with `lower(btrim(...))`: two rows that hash to the same
@@ -235,24 +215,23 @@ re-applies normalization at the call site, per the section above.
 - `default: undefined` on an array means "absent", which is a nullable column
   with NO default — not `'{}'`, which is a different value.
 
-## Mongoose behaviour that has no schema counterpart
+## Normalization that lives at the call site
 
-`trim: true`, `lowercase: true`, and setter-style defaults are Mongoose
-APPLICATION behaviour, not schema. Postgres has no equivalent, and dropping them
-silently changes what gets stored (`push_tokens.token` was trimmed;
-`SenderAvatar.email` was lower-cased). **Re-apply each one at the call site
-during the port.** They are deliberately NOT encoded as CHECK constraints here: a
-CHECK would reject existing production rows during backfill and convert a silent
-normalization into a 500.
+Trimming, lower-casing and setter-style defaults are APPLICATION behaviour, not
+schema, and skipping them silently changes what gets stored (`push_tokens.token`
+is trimmed; `sender_avatars.email` is lower-cased). **Apply each one at the call
+site.** They are deliberately NOT encoded as CHECK constraints here: a CHECK
+would reject existing production rows and convert a silent normalization into a
+500.
 
-`select: false` likewise does not survive. Drizzle enumerates columns explicitly,
-so `db.select().from(t)` returns EVERYTHING. Reads that feed a client DTO must
-select columns explicitly. The GLOBAL mechanism for the columns where that leak
-is a security failure rather than a privacy smell is the next section.
+Drizzle enumerates columns explicitly, so `db.select().from(t)` returns
+EVERYTHING. Reads that feed a client DTO must select columns explicitly. The
+GLOBAL mechanism for the columns where that leak is a security failure rather
+than a privacy smell is the next section.
 
-Two Mongoose behaviours DID find a schema counterpart on `users`, and both are
-better there than they were as application code — see "Generated columns" and
-the identifier indexes under "Unique constraints".
+Two derivations DO live in the schema on `users`, and both are better there than
+as application code — see "Generated columns" and the identifier indexes under
+"Unique constraints".
 
 ## Protected columns — the `select: false` replacement
 
@@ -290,7 +269,7 @@ RESPONSE contract (`ret.id = _id`, then `delete` of `password`, `_id`,
 
 ## Generated columns
 
-Where Mongoose derived a value in a hook, the derivation belongs in the schema —
+Where a value is derived from other columns, the derivation belongs in the schema —
 not because it is tidier, but because a hook is bypassable and a
 `GENERATED ALWAYS ... STORED` column is not. No write path (route, service,
 backfill, `psql`) can produce a row whose derived value disagrees with its
@@ -302,7 +281,7 @@ Two on `users`/`user_locations`:
 - `hashed_email` / `hashed_phone`, replacing the `pre('validate')`
   `syncContactHashes` hook whose own doc comment called it the single source of
   truth "precisely because bypassing it is the known failure mode".
-- `user_locations.search_vector`, replacing the Mongo text index.
+- `user_locations.search_vector`, the location text-search vector.
 
 **The trap: the expression must be IMMUTABLE, and the obvious spellings are not.**
 
@@ -336,17 +315,16 @@ realistic corpus.
 
 ## Text search
 
-A Mongo text index becomes a `tsvector` GENERATED column plus a GIN index —
-never `LIKE '%…%'`, which is not a port of a text index but a table scan wearing
-one's clothes. Mongo's `default_language` maps to the `to_tsvector`
-configuration; `user_locations` uses `'english'` for Mongo's
-`default_language: "en"`.
+Full-text search is a `tsvector` GENERATED column plus a GIN index — never
+`LIKE '%…%'`, which is not a text index but a table scan wearing one's clothes.
+The language is the `to_tsvector` configuration; `user_locations` uses
+`'english'`.
 
 ## PostGIS — adopted, and the point is GENERATED
 
-`User.locations.coordinates` had a `2dsphere` index and `findLocationsNear` is a
-real `$near`/`$maxDistance` query, so `user_locations` gets the genuine Postgres
-equivalent: a `geography` point column (WGS 84 / SRID 4326) with a GiST index.
+`findLocationsNear` is a real nearest-within-distance query, so
+`user_locations` carries a `geography` point column (WGS 84 / SRID 4326) with a
+GiST index.
 No `earthdistance`/`cube` stand-in and no bounding box dressed up as a distance
 — a wrong "nearby" is worse than an absent one, and a query that looks like a
 distance search while answering a narrower question is the failure mode to
@@ -355,10 +333,9 @@ avoid.
 **The column is `GENERATED ALWAYS AS (ST_MakePoint(longitude, latitude)::geography) STORED`,
 never written.** That shape is the decision, not the type. A hand-written geo
 column and the two coordinate columns are two representations of one fact, so
-they can disagree — and the ORIGINAL bug here was exactly a coordinate-ordering
-mistake. Mongo stored `{ lat, lon }` and a `2dsphere` index reads such a pair
-POSITIONALLY as `[longitude, latitude]`, so the live index has almost certainly
-had every point transposed for its whole life. Generating the point makes
+they can disagree — and the classic failure is a coordinate-ordering mistake: a
+`{ lat, lon }` pair read POSITIONALLY as `[longitude, latitude]` transposes every
+point. Generating the point makes
 divergence unrepresentable (a write fails with SQLSTATE `428C9`) and states the
 `(longitude, latitude)` order in ONE place, once. NAMED coordinate columns
 remain the other half of the same fix: there is no ordering left to get wrong at
@@ -397,16 +374,16 @@ the non-spatial indexes stay.
 
 ## Indexes
 
-Port the indexes that earn their keep, drop the ones that do not, add the ones
-Mongo needed and lacked. All three happened here:
+Keep the indexes that earn their keep, drop the ones that do not, add the ones
+a real query needs. Examples of each:
 
 - **Dropped as redundant:** a standalone `{userId: 1}` alongside a compound
   unique that already leads with `user_id` — a btree serves any leading prefix.
 - **Dropped as redundant:** `auth_challenges` `{publicKey, challenge}`, when
   every read is keyed on the high-entropy `challenge` the unique index answers.
-- **Added as a fix:** `blocks(blocked_id)`. `graphExclusion.ts:47` and
-  `user.service.ts:1661` both query that direction, which Mongo's
-  `{userId, blockedId}` index could not serve — a full collection scan today.
+- **Added for a real query:** `blocks(blocked_id)`. `graphExclusion.ts` and
+  `user.service.ts` both query that direction, which the `(user_id, blocked_id)`
+  index cannot serve.
 - **Added because the table had none:** `bookmarks(user_id)`.
 
 Do not add an index speculatively. `labels` gets none for its `order, name` sort:
@@ -428,7 +405,7 @@ Not by discipline — these fail the build.
 | Case-insensitive unique, compound unique, CHECK sets, bytea round-trip, id format and ordering, `updated_at` maintenance | `schema/__tests__/constraints.test.ts` |
 | Sweep semantics, batching, and the index each swept column requires | `db/__tests__/expiry.test.ts` |
 | Protected-column registry, `publicColumns` filter, and no implicit whole-row read anywhere in `src/` | `schema/__tests__/protectedColumns.test.ts` |
-| Generated contact hashes match `contactHash.ts` byte for byte; identifier uniqueness; closed value sets and value CHECKs on `users`; constants still equal the Mongoose model's | `schema/__tests__/users.test.ts` |
+| Generated contact hashes match `contactHash.ts` byte for byte; identifier uniqueness; closed value sets and value CHECKs on `users` | `schema/__tests__/users.test.ts` |
 | Child-table relations, the coordinate fix, the search vector, ancestor-path ordering, and what deleting an account actually does | `schema/__tests__/userChildTables.test.ts` |
 | Every required extension is installed before migration and re-runnable unprivileged; `geo` is generated/stored/GiST-indexed and built as `(longitude, latitude)` | `db/__tests__/postgis.test.ts` |
 | Both halves of the `device_sessions` ⇄ `device_account_contexts` CYCLE reached `pg_constraint`; what each `ON DELETE` on a principal, a context and a device actually does; that one account under two principals is now storable | `schema/__tests__/devicePrincipals.test.ts` |

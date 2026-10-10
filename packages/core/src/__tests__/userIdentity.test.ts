@@ -28,11 +28,11 @@ describe('user identity normalization', () => {
     jest.restoreAllMocks();
   });
 
-  it('normalizes Mongo _id to id', () => {
-    expect(getNormalizedUserId({ _id: 'mongo_id' })).toBe('mongo_id');
-    expect(normalizeUserIdentity({ _id: 'mongo_id', username: 'nate' })).toEqual({
-      _id: 'mongo_id',
-      id: 'mongo_id',
+  it('normalizes a raw _id to id', () => {
+    expect(getNormalizedUserId({ _id: 'legacy_id' })).toBe('legacy_id');
+    expect(normalizeUserIdentity({ _id: 'legacy_id', username: 'nate' })).toEqual({
+      _id: 'legacy_id',
+      id: 'legacy_id',
       username: 'nate',
     });
   });

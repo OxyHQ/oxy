@@ -16,7 +16,7 @@
  *    Mention runs behind a CF-proxied apex that rewrites the origin `Host`, so it
  *    passes `true`; a directly-exposed origin leaves it `false`.
  *
- * Lives in the isomorphic `.` entry (no Express / Mongoose): it depends only on
+ * Lives in the isomorphic `.` entry (no Express / database driver): it depends only on
  * the runtime `crypto` builtin (Node / Bun) and is never invoked from browser /
  * React-Native bundles — RN consumers import only the connector TYPES, which are
  * erased at compile time.

@@ -1563,8 +1563,8 @@ function readStringClaim(value: unknown): string | null {
 /**
  * Resolve the canonical user id from a validated session's user object.
  *
- * The API serializer emits `id`, but some upstream shapes carry the raw Mongo
- * `_id` instead. We accept either, but only a non-empty string — anything else
+ * The API serializer emits `id`, but some upstream shapes carry a raw `_id`
+ * instead. We accept either, but only a non-empty string — anything else
  * means the validated identity is unusable and the caller must reject.
  */
 function getUserIdentityId(user: User): string | null {

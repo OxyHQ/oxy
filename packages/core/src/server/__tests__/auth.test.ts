@@ -25,8 +25,8 @@ describe('@oxy.so/core/server auth helpers', () => {
       'user-from-request',
     );
     expect(getOxyUserId({ user: { id: 'user-from-id' } } as OxyAuthRequest)).toBe('user-from-id');
-    expect(getOxyUserId({ user: { id: '', _id: 'user-from-mongo-id' } } as OxyAuthRequest)).toBe(
-      'user-from-mongo-id',
+    expect(getOxyUserId({ user: { id: '', _id: 'user-from-raw-id' } } as OxyAuthRequest)).toBe(
+      'user-from-raw-id',
     );
     expect(getOxyUserId({ user: { id: '' } } as OxyAuthRequest)).toBeNull();
   });
@@ -51,14 +51,14 @@ describe('@oxy.so/core/server auth helpers', () => {
   });
 
   it('normalizes an authenticated request before continuing', () => {
-    const req = { user: { id: '', _id: 'mongo-user-id' } } as OxyAuthRequest;
+    const req = { user: { id: '', _id: 'legacy-user-id' } } as OxyAuthRequest;
     const res = makeResponse();
     const next = makeNext();
 
     requireOxyAuth(req, res, next);
 
-    expect(req.userId).toBe('mongo-user-id');
-    expect(req.user?.id).toBe('mongo-user-id');
+    expect(req.userId).toBe('legacy-user-id');
+    expect(req.user?.id).toBe('legacy-user-id');
     expect(next).toHaveBeenCalledTimes(1);
   });
 

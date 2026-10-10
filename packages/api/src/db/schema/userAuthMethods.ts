@@ -8,8 +8,8 @@
  * authenticator are not auth methods here: they are the account's own
  * sign-in factors (`users.email`, `user_passwords`, `user_totp`).
  *
- * No ordinal column. Mongo's array had a position, but nothing read it — the
- * meaningful order is `linked_at`, and the key addresses a row directly.
+ * No ordinal column. Nothing reads a position — the meaningful order is
+ * `linked_at`, and the key addresses a row directly.
  */
 
 import { sql } from 'drizzle-orm';
@@ -32,8 +32,8 @@ export const userAuthMethods = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     type: text({ enum: AUTH_METHOD_TYPES }).notNull(),
     /**
-     * When the method was linked. `NOT NULL`: Mongoose defaulted it to
-     * `Date.now`, so every row has one, and the DID document reports it.
+     * When the method was linked. `NOT NULL`, defaulting to now, so every row
+     * has one, and the DID document reports it.
      */
     linkedAt: timestamptz().notNull().defaultNow(),
 
@@ -66,9 +66,8 @@ export const userAuthMethods = pgTable(
     index('user_auth_methods_user_id_idx').on(t.userId),
     // Not an index for a query — today every signer lookup goes through
     // `users.public_key`. It is a CONSTRAINT: one identity key may authenticate
-    // exactly one account. Mongo enforced that on `User.publicKey` and not at
-    // all on this array, so a key could be linked to a second account with no
-    // error. Case-insensitive because keys are stored lower-cased and a re-cased
+    // exactly one account, so a key cannot be linked to a second account.
+    // Case-insensitive because keys are stored lower-cased and a re-cased
     // duplicate must not slip past.
     uniqueIndex('user_auth_methods_lower_method_public_key_key')
       .on(sql`lower(${t.methodPublicKey})`)
@@ -78,7 +77,7 @@ export const userAuthMethods = pgTable(
       sql`${t.type} in (${sql.raw(AUTH_METHOD_TYPES.map((value) => `'${value}'`).join(', '))})`,
     ),
     // A method must carry the key it is addressed by, or it can never be
-    // matched to a signature. Mongo allowed a row without one.
+    // matched to a signature.
     check('user_auth_methods_identifier_check', sql`${t.methodPublicKey} is not null`),
   ],
 );

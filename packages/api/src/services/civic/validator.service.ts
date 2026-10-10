@@ -16,14 +16,12 @@
  * No self-award: jurors submit signed verdicts; THIS service tallies quorum and
  * calls `reputationService.award` in-process for the subject + correct jurors.
  *
- * ## The open-request dedup is a DATABASE constraint again
+ * ## The open-request dedup is a DATABASE constraint
  *
- * `ValidationRequest.ts` recorded that the dedup "is enforced in the service —
- * partialFilterExpression does not portably support `$in`". That was a MongoDB
- * limitation, and `openValidationRequest` paid for it with a `findOne` → `create`
- * check-then-act: two concurrent callers could both find nothing and both open a
- * jury for one action, splitting the juror pool across two requests that could
- * each only expire. Postgres expresses it directly —
+ * A check-then-act in `openValidationRequest` alone would let two concurrent
+ * callers both find nothing and both open a jury for one action, splitting the
+ * juror pool across two requests that could each only expire. Postgres
+ * expresses the constraint directly —
  * `unique (source_action_id) where status in ('pending', 'quorum_met')` — so the
  * friendly lookup stays (returning the existing request is the nice path) and
  * the INDEX is the guarantee: the loser of the race reads the winner back
@@ -31,9 +29,9 @@
  *
  * ## `selected_validator_ids[]` is a junction table
  *
- * The Mongo array of juror ids is `validation_request_validators`, with real
- * foreign keys and the draw `position` preserved — so a seat can no longer name
- * an account that does not exist, and the juror inbox is an indexed join rather
+ * The juror ids are `validation_request_validators` rows, with real foreign
+ * keys and the draw `position` — so a seat cannot name an account that does not
+ * exist, and the juror inbox is an indexed join rather
  * than a multikey scan.
  */
 
@@ -124,10 +122,9 @@ function hashUnit(seed: string, id: string): number {
 /**
  * Canonical (sorted) pair for a `validator_affinities` lookup.
  *
- * The table now carries `check (validator_a < validator_b)`, so the canonical
- * form is the ONLY representable one — Mongo allowed `(b, a)` as a second,
- * invisible row that silently halved every co-vote count it should have been
- * part of.
+ * The table carries `check (validator_a < validator_b)`, so the canonical form
+ * is the ONLY representable one — a `(b, a)` row would be a second, invisible
+ * row that silently halved every co-vote count it should have been part of.
  */
 function affinityPair(a: string, b: string): { validatorA: string; validatorB: string } {
   return a < b ? { validatorA: a, validatorB: b } : { validatorA: b, validatorB: a };
@@ -607,9 +604,8 @@ async function resolveAwards(
       voterUserIds: allVotes.map((v) => v.validatorUserId),
     },
     emitAttestation: true,
-    // Every vote row's `record_id` is a foreign key onto a stored record, so the
-    // `.filter(id => id.length > 0)` the Mongo version needed is gone with the
-    // `?? ''` that made it necessary.
+    // Every vote row's `record_id` is a foreign key onto a stored record, so no
+    // empty-id filter is needed.
     sourceEnvelopeIds: validVotes.map((v) => v.recordId),
   });
   await getDb()
@@ -699,9 +695,8 @@ export async function denyValidation(
 
 /** The pending requests a juror still needs to vote on. */
 export async function getValidatorInbox(validatorUserId: string): Promise<ValidationRequestView[]> {
-  // The juror's own votes, as a NOT IN sub-select: the "drop what I already
-  // voted on" step was a second round trip and an in-memory filter under Mongo,
-  // which could not join a multikey array to another collection at all.
+  // The juror's own votes, as a NOT IN sub-select, so "drop what I already
+  // voted on" needs no second round trip or in-memory filter.
   const alreadyVoted = getDb()
     .select({ requestId: validationVotes.requestId })
     .from(validationVotes)

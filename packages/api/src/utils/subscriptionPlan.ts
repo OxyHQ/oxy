@@ -29,17 +29,15 @@ function normalizePlanName(planName: string | undefined | null): SubscriptionPla
  *
  * ## The legacy read filters expiry ITSELF
  *
- * `subscriptions` used to carry a Mongo TTL index on `endDate`, which DELETED
- * the row when the period closed — destroying the record of what was bought.
- * That index is gone and nothing replaces it with a delete; expiry is DERIVED
- * instead, from `end_date` against now.
+ * Nothing deletes a `subscriptions` row when its period closes — that would
+ * destroy the record of what was bought. Expiry is DERIVED instead, from
+ * `end_date` against now.
  *
  * So this query adds `end_date > now()` on top of the status filter, which is
  * class (A) in `db/expiry.ts`'s taxonomy: the entitlement is correct whether or
  * not the projection job has run. A read that trusted `status = 'active'` alone
  * would keep granting premium to a lapsed subscriber for as long as the job was
- * behind — and Mongo's TTL monitor had exactly that lag, up to ~60s, so this is
- * not even a regression the old index protected against.
+ * behind.
  */
 export async function resolveUserSubscriptionPlan(
   userId: string,

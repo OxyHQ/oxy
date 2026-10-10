@@ -209,7 +209,7 @@ export async function optionalUserOrServiceAuth(
  *
  * It is replaced rather than deleted, unlike the guards in
  * `securityActivityService` and `identityBinding.service`. Those two existed
- * only to stop a malformed string reaching Mongoose as a `CastError`, and a
+ * only to stop a malformed string reaching the driver as a cast error, and a
  * `text` id that matches no row now produces the same "no such user" outcome a
  * malformed one always did. This one is different in kind: it is not a driver
  * artifact but the documented input contract of a CROSS-PRINCIPAL delegation

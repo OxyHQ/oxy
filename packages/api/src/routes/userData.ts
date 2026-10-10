@@ -21,9 +21,8 @@
  * `value` is `jsonb` and genuinely shape-less — the one honest `jsonb` in the
  * batch (`schema/userAppData.ts`). Two consequences the routes depend on:
  *
- *   - **`{}` is a VALUE, not an absence.** Mongoose set `minimize: false` here
- *     precisely so an empty object survived the round trip; `jsonb` preserves it
- *     natively, and the response contract (`{ value }`) must never collapse it
+ *   - **`{}` is a VALUE, not an absence.** An empty object must survive the
+ *     round trip; `jsonb` preserves it natively, and the response contract (`{ value }`) must never collapse it
  *     to `null`.
  *   - **A stored JSON `null` and an absent row are both reported as `null`.**
  *     That is the pre-existing contract — this endpoint does not 404 on a
@@ -257,10 +256,8 @@ router.put(
 
     await enforceAppDataKeyQuotas(req.user.id, namespace, key);
 
-    // `$setOnInsert: { createdAt }` needs no counterpart: `created_at` is absent
-    // from the conflict arm, so an existing row keeps its original. `updated_at`
-    // is bumped by the column's own `$onUpdate`, the port of what Mongoose's
-    // `timestamps` did.
+    // `created_at` is absent from the conflict arm, so an existing row keeps its
+    // original. `updated_at` is bumped by the column's own `$onUpdate`.
     const [row] = await getDb()
       .insert(userAppData)
       .values({ userId: req.user.id, namespace, key, value })
@@ -366,8 +363,8 @@ router.get(
     const { namespace } = req.params;
     // Ordered by key: a `LIMIT` without an `ORDER BY` leaves WHICH rows come
     // back unspecified in Postgres, so the over-quota probe below would be
-    // reading an arbitrary subset. Mongo's natural order was equally arbitrary
-    // but the map response makes row order invisible either way.
+    // reading an arbitrary subset. The map response makes row order invisible
+    // either way.
     const rows = await getDb()
       .select({ key: userAppData.key, value: userAppData.value })
       .from(userAppData)

@@ -53,7 +53,7 @@ const OUT_PATH = join(__dirname, '..', 'src', 'utils', 'displayNamePolicyRanges.
  * shared by several scripts (e.g. a Han ideograph used in both Chinese and
  * Japanese) still matches. It is the set of scripts Unicode UTS #39 marks
  * "Recommended" for general interchange / identifiers, plus Cherokee and
- * Mongolian (both in real modern name use). "Common" script is deliberately
+ * the Mong script, ISO 15924 (both in real modern name use). "Common" script is deliberately
  * EXCLUDED — that is where ASCII digits and general punctuation live; the space
  * separators, combining marks, and apostrophe a name needs are added back
  * explicitly (see below). Limited-use / excluded / historic scripts (Batak,
@@ -68,8 +68,8 @@ const OUT_PATH = join(__dirname, '..', 'src', 'utils', 'displayNamePolicyRanges.
  * script-specific digits (`٠١٢`, `०१२`, `০১২`), 1082 symbols (`֍ ۞ ৳ ㍿ 〷`),
  * 180 punctuation marks (`։ ־ ، ؛ ؟ । ॥ ๏`) and — the dangerous ones — 9
  * invisible format/control characters, including U+061C ARABIC LETTER MARK (a
- * bidi control usable to visually reorder a name) and U+180E MONGOLIAN VOWEL
- * SEPARATOR. Excluding non-letters here is what makes the documented policy
+ * bidi control usable to visually reorder a name) and U+180E (the Mong-script
+ * vowel separator). Excluding non-letters here is what makes the documented policy
  * ("digits, hyphens, dots, symbols are removed") true for NON-ASCII input too,
  * not just ASCII.
  */
@@ -80,7 +80,7 @@ const SCRIPT_EXTENSIONS_ALLOWLIST =
   '\\p{scx=Tamil}\\p{scx=Telugu}\\p{scx=Kannada}\\p{scx=Malayalam}' +
   '\\p{scx=Sinhala}\\p{scx=Thai}\\p{scx=Lao}\\p{scx=Tibetan}' +
   '\\p{scx=Myanmar}\\p{scx=Georgian}\\p{scx=Hangul}\\p{scx=Ethiopic}' +
-  '\\p{scx=Cherokee}\\p{scx=Khmer}\\p{scx=Mongolian}\\p{scx=Hiragana}' +
+  '\\p{scx=Cherokee}\\p{scx=Khmer}\\p{scx=Mong}\\p{scx=Hiragana}' +
   '\\p{scx=Katakana}\\p{scx=Bopomofo}\\p{scx=Han}';
 
 /** Combining marks / accents (General_Category M, e.g. the acute in "é"). */

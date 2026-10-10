@@ -27,10 +27,9 @@
  * any historical update), and an unordered child table would let a re-read
  * reorder the array and invalidate the signature.
  *
- * Both carry a real foreign key to `update_assets.sha256`, which the Mongo model
- * deliberately did not — its reason was that the manifest must be servable
- * without a join, and that still holds: every descriptor the manifest needs is
- * stored locally, so the FK adds integrity without adding a read. It is
+ * Both carry a real foreign key to `update_assets.sha256`. The manifest must
+ * still be servable without a join, and it is: every descriptor the manifest
+ * needs is stored locally, so the FK adds integrity without adding a read. It is
  * `RESTRICT`, so the bytes a published manifest names cannot be deleted out from
  * under it. Safe by construction: `assertAssetsUploaded`
  * (`publish.service.ts:251`) already refuses to publish an update whose assets
@@ -39,9 +38,8 @@
  * ## `extra` and `metadata` are the only real `jsonb` here
  *
  * `extra` is an opaque blob embedded VERBATIM in the signed manifest — genuinely
- * shape-less, except for the one key the client cannot boot without, which the
- * Mongoose validator asserted and a CHECK now enforces at every write path
- * rather than only the ones that go through Mongoose. `metadata` is an
+ * shape-less, except for the one key the client cannot boot without, which a
+ * CHECK enforces at every write path. `metadata` is an
  * open-ended string dict filtered client-side.
  */
 
@@ -66,8 +64,7 @@ import { UPDATE_PLATFORMS, updateChannels } from './updateChannels';
  * Publication state. `superseded` and `rolled_back` are retained, never deleted
  * — the previous head has to remain servable.
  *
- * This tuple is the SINGLE declaration — the Mongoose model that carried the
- * other copy is gone. It renders the CHECK below, and
+ * This tuple is the SINGLE declaration. It renders the CHECK below, and
  * `check-drizzle-snapshot-sync` holds that rendering against the migration the
  * database was actually built from, so editing it without regenerating a
  * migration fails CI.
@@ -150,8 +147,8 @@ export const appUpdates = pgTable(
   (t) => [
     unique('app_updates_update_id_key').on(t.updateId),
     // Head resolution: the newest published update for a channel + runtime +
-    // platform (`resolveHead`, `manifest.service.ts`). Mongo's standalone
-    // `{applicationId}` is dropped — a btree serves any leading prefix.
+    // platform (`resolveHead`, `manifest.service.ts`). No standalone
+    // `(application_id)` index — a btree serves any leading prefix.
     index('app_updates_head_idx').on(
       t.applicationId,
       t.channelId,
@@ -164,7 +161,7 @@ export const appUpdates = pgTable(
     // channel delete without scanning the table — neither of which the compound
     // above can serve, since it leads with the application.
     index('app_updates_channel_id_idx').on(t.channelId),
-    // Mongo's standalone `{status}` index is dropped: three values, almost every
+    // No standalone `(status)` index: three values, almost every
     // row `published`, and every read that mentions status already carries the
     // channel + runtime + platform the compound above leads with.
     check(
@@ -184,7 +181,7 @@ export const appUpdates = pgTable(
       'app_updates_rollout_percent_check',
       sql`${t.rolloutPercent} >= 0 and ${t.rolloutPercent} <= 100`,
     ),
-    // The Mongoose validator, now unbypassable: without `extra.expoClient` the
+    // Unbypassable at every write path: without `extra.expoClient` the
     // client's `Constants.expoConfig` does not resolve after an OTA update, so a
     // manifest missing it is one that breaks every device it reaches.
     //

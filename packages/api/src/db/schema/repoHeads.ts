@@ -8,8 +8,8 @@
  *
  * ## One row per USER, not per (subject, collection)
  *
- * The Mongoose model's unique index is on `userId` alone and
- * `oxyRecordStore.getHead` looks the head up by `{ userId }` — the chain is
+ * The unique key is `user_id` alone and `oxyRecordStore.getHead` looks the
+ * head up by `{ userId }` — the chain is
  * per-SUBJECT, and one account owns exactly one subject DID. `nsid`/`rkey`
  * partition records WITHIN that one chain for last-writer-wins materialization;
  * they do not fork it. Splitting the head per collection would fork `seq` and

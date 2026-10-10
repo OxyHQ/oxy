@@ -1,12 +1,12 @@
 /**
  * Columns That Must Not Reach a Client
  *
- * Mongoose had `select: false`: a column so marked was absent from every query
- * result unless a caller asked for it BY NAME. Eleven columns across `User` and
- * `Message` relied on it, and two of them (`hashedEmail`, `hashedPhone`) carried
- * a SECOND guard — a `delete` in both `toJSON` transforms.
+ * Some columns must be absent from every query result unless a caller asks for
+ * them BY NAME. Two of them (`hashedEmail`, `hashedPhone`) carry a SECOND guard
+ * — the user serializer (`formatUserResponse`) builds its response from named
+ * fields and emits neither.
  *
- * Drizzle enumerates columns explicitly, so a naive port keeps NEITHER guard:
+ * Drizzle enumerates columns explicitly, so without this module
  * `db.select().from(users)` returns the raw phone number, the contact-discovery
  * hashes and the refresh token. This module holds THIS schema's registry —
  * decided once for every table and every repo rather than per model. The
@@ -36,30 +36,25 @@
  *    differently from an ordinary select.
  *
  * 4. **`__tests__/protectedColumns.test.ts` is the gate.** It holds the `users`
- *    entry against the exact set Mongoose marked `select: false`, refuses a
+ *    entry against an independently stated exact set, refuses a
  *    stale entry, checks the runtime filter, and calls
  *    `@oxy.so/db/assert`'s `findImplicitWholeRowReads` to scan `src/` for the
  *    two shapes that return every column implicitly — a bare `select()` and
  *    the relational `db.query.<table>` API — against any table in this
  *    registry.
  *
- * ## Scope: the title, not the Mongoose keyword
+ * ## Scope: the title
  *
- * `select: false` is where this started, and `users` is held to that exact set.
- * It is not the boundary. The subject is the module title, and a column can
- * qualify without Mongoose ever having marked it — `sessions.access_token` and
- * `auth_sessions.session_token` are live bearer credentials that Mongoose left
- * fully selectable, and Mongo's call sites only avoided leaking them by
- * hand-building each DTO field by field. Drizzle's `select()` does not, so the
- * port is where the guard has to be added rather than inherited. Each entry
- * below says which it is.
+ * The subject is the module title: any column that must not reach a client —
+ * `sessions.access_token` and `auth_sessions.session_token` are live bearer
+ * credentials, and a DTO hand-built field by field is not a guard, because
+ * Drizzle's `select()` returns every column. Each entry below says why it
+ * qualifies.
  *
  * ## What this does NOT replace
  *
- * The `toJSON` transform is the API RESPONSE contract (`ret.id = _id`, and the
- * deletes of `password`, `_id`, `hashedEmail`, `hashedPhone`). It must be
- * reproduced at the serializer, and it is the second of the two guards
- * `hashedEmail` / `hashedPhone` have always had. This module restores the first.
+ * The user serializer is the API RESPONSE contract, and it is the second of
+ * the two guards `hashedEmail` / `hashedPhone` have. This module is the first.
  */
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
@@ -85,23 +80,22 @@ import { linkedAccountOauthChallenges, mastodonAppRegistrations } from './userLi
 import { users } from './users';
 
 /**
- * `users` columns that were `select: false` in `models/User.ts`.
+ * `users` columns added to the registry after the original seven.
+ * `dateOfBirth` is the first: raw PII, gated the same way `phone` already is.
+ * Kept as its own list (rather than appended inline below) so
+ * `__tests__/protectedColumns.test.ts` can state, as an independent assertion,
+ * that the FULL `users` registry is exactly the original set plus these
+ * deliberate additions — not silently whatever the array below happens to
+ * contain.
+ */
+export const USERS_ADDED_PROTECTED_COLUMNS = ['dateOfBirth'] as const;
+
+/**
+ * Every protected `users` column.
  *
  * TypeScript PROPERTY names, because that is what a drizzle selection object is
  * keyed by — `sqlColumnName` is for talking to the catalogue, not for this.
  */
-/**
- * `users` columns protected for a reason that has nothing to do with
- * Mongoose's `select: false` — there is no Mongo-era expectation to hold them
- * against, because the column did not exist before this migration.
- * `dateOfBirth` is the first: raw PII added directly in Postgres, gated the
- * same way `phone` already is. Kept as its own list (rather than appended
- * inline below) so `__tests__/protectedColumns.test.ts` can state, as an
- * independent assertion, that the FULL `users` registry is exactly the
- * Mongoose set plus this one deliberate addition — not silently whatever the
- * array below happens to contain.
- */
-export const USERS_POST_MONGO_PROTECTED_COLUMNS = ['dateOfBirth'] as const;
 
 export const USERS_PROTECTED_COLUMNS = [
   'phone',
@@ -111,24 +105,21 @@ export const USERS_PROTECTED_COLUMNS = [
   'emailSignature',
   'autoForwardTo',
   'autoForwardKeepCopy',
-  ...USERS_POST_MONGO_PROTECTED_COLUMNS,
+  ...USERS_ADDED_PROTECTED_COLUMNS,
 ] as const;
 
 /**
  * `sessions` columns holding a LIVE BEARER CREDENTIAL.
  *
- * These were NOT `select: false` in Mongoose — nothing was, on that model — and
- * they are here anyway, because the registry's subject is the module title
- * ("columns that must not reach a client"), not the Mongoose keyword that used
- * to approximate it. `users.refresh_token` is already protected for exactly this
+ * The registry's subject is the module title ("columns that must not reach a
+ * client"). `users.refresh_token` is already protected for exactly this
  * reason ("a bearer credential; serializing it hands over the account"); the
  * same value on `sessions` is the same credential.
  *
- * The reason this matters MORE after the port than before: the Mongo call sites
- * build device DTOs field by field from a `Session` document
- * (`devices.controller.ts:73-90`), and the natural drizzle transliteration of
- * that is `db.select().from(sessions)` followed by a `.map(...)` — which now
- * carries two live tokens into whatever the mapper forgets to drop.
+ * Device DTOs are built field by field from a session row, and the natural
+ * drizzle spelling of that is `db.select().from(sessions)` followed by a
+ * `.map(...)` — which carries two live tokens into whatever the mapper forgets
+ * to drop.
  */
 export const SESSIONS_PROTECTED_COLUMNS = [
   'accessToken',
@@ -150,9 +141,8 @@ export const AUTH_SESSIONS_PROTECTED_COLUMNS = ['sessionToken'] as const;
 /**
  * `federation_key_pairs` columns holding a LIVE SIGNING KEY.
  *
- * Not `select: false` in the inline Mongoose model this table replaces —
- * nothing was — and here anyway, for the same reason `sessions` is: the
- * subject is the module title, not the Mongoose keyword. Possession of
+ * Protected for the same reason `sessions` is: the subject is the module
+ * title. Possession of
  * `private_key_pem` lets the holder sign ActivityPub activities AS the actor it
  * belongs to, on Oxy's own domain or on a relying app's. The one route that
  * publishes key material (`GET /federation/public-key/:username`) returns the
@@ -163,9 +153,8 @@ export const FEDERATION_KEY_PAIRS_PROTECTED_COLUMNS = ['privateKeyPem'] as const
 /**
  * `messages` columns that must not reach a client.
  *
- * The first four were `select: false` in `models/Message.ts`. The fifth was
- * not, and could not have been — Mongo's text index was a separate structure,
- * not a field on the document. `search_vector` is GENERATED from `text`, and a
+ * The first four are the bodies and headers. The fifth is derived from them:
+ * `search_vector` is GENERATED from `text`, and a
  * `tsvector` stores every lexeme with its position, so returning it hands back a
  * largely reconstructable copy of the very body the other four entries exist to
  * withhold. A protection that covers the source but not its derivative is not a
@@ -309,7 +298,7 @@ export const INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS = GPAI_DOCUMENTATION
 /**
  * `linked_account_oauth_challenges` columns that complete an OAuth flow.
  *
- * New in Postgres, so there is no Mongoose expectation. The PKCE verifier and
+ * The PKCE verifier and
  * the atproto library's per-flow state (its own verifier and an ephemeral DPoP
  * private key) are what turn a leaked authorization code into a completed link;
  * both are wiped when the challenge is spent, and neither is ever part of a

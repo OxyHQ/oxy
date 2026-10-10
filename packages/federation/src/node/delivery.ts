@@ -97,9 +97,8 @@ export interface DeliveryQueueJob {
  * The durable-delivery fallback (written when BullMQ is unavailable).
  *
  * App-supplied, like every other store in this package: the engine never names
- * a database. Mention backs it with Postgres; the method names below are the
- * ones its original Mongoose collection exposed and are kept only so the
- * adapter shape stays stable for consumers.
+ * a database. Mention backs it with Postgres; the method names below are kept
+ * stable so the adapter shape stays stable for consumers.
  */
 export interface DeliveryFallbackQueue {
   /** Insert one fallback delivery row (`queueDelivery`). */

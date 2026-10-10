@@ -1,8 +1,8 @@
 /**
  * The subscriptions rollup, against a REAL Postgres.
  *
- * Mongo's `$group` + `$match` + `$sort` + `$facet` becomes one grouped CTE used
- * by two statements. The part that is easy to get wrong and impossible to see:
+ * The rollup is one grouped CTE used by two statements. The part that is easy
+ * to get wrong and impossible to see:
  *
  * **The `address asc` tiebreak is load-bearing.** `order by message_count desc`
  * alone is not a total order, so two senders with equal counts may land either
@@ -42,7 +42,7 @@ import { emailService } from '../email.service';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
-/** Mongo's `{ messageCount: { $gte: 3 } }` — a sender under this never appears. */
+/** The minimum message count — a sender under this never appears. */
 const SUBSCRIPTION_MIN_MESSAGES = 3;
 
 async function owner(): Promise<string> {
@@ -205,8 +205,8 @@ describe('getSubscriptions — the rollup', () => {
 
   it('reads the header off the LATEST message, not an arbitrary one', async () => {
     // `latest_message_id` is picked with an explicit `order by date desc, id desc`
-    // inside `array_agg`; Mongo's `$first` after a date-only sort was ambiguous
-    // on ties. An older message carrying the header must not classify the sender.
+    // inside `array_agg`; a date-only sort would be ambiguous on ties. An older
+    // message carrying the header must not classify the sender.
     const userId = await owner();
     const inbox = await folder(userId, '\\Inbox');
     const address = `switched-${unique()}@example.com`;

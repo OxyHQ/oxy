@@ -13,14 +13,14 @@
  *
  * ## `ingested_at` becomes a real timestamp
  *
- * Mongo stored it as a `Number` (ms epoch) because it is part of the signed
- * input `canonicalize({ recordId, userId, ingestedAt })`. It is a `timestamptz`
- * here: a whole-millisecond value round-trips through `timestamptz`
- * (microsecond resolution) exactly, so the call site re-derives the identical
- * signing input with `.getTime()` and the signature still verifies. Keeping a
- * bare `bigint` would carry a Mongo representation into a column whose meaning
- * is a point in time — and would silently lose the time-zone semantics every
- * other date column in this schema has.
+ * It is part of the signed input `canonicalize({ recordId, userId, ingestedAt })`
+ * as a ms-epoch number. It is a `timestamptz` column: a whole-millisecond value
+ * round-trips through `timestamptz` (microsecond resolution) exactly, so the
+ * call site re-derives the identical signing input with `.getTime()` and the
+ * signature still verifies. Keeping a bare `bigint` would carry a wire
+ * representation into a column whose meaning is a point in time — and would
+ * silently lose the time-zone semantics every other date column in this schema
+ * has.
  */
 
 import { index, pgTable, text } from 'drizzle-orm/pg-core';

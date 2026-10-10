@@ -4,8 +4,8 @@
  * Runs against the REAL Postgres the harness migrated, through the application's
  * own pool: what passes is what the shipped DDL and the shipped queries do
  * together. Only the two seams that are NOT the subject of these tests are
- * mocked — `account.service` (which grants the caller an effective account role,
- * and is still Mongoose-backed) and the auth middleware (which supplies the
+ * mocked — `account.service` (which grants the caller an effective account
+ * role) and the auth middleware (which supplies the
  * caller identity).
  *
  * Access to an application is DERIVED from the caller's effective
@@ -99,8 +99,7 @@ jest.mock('../../middleware/auth', () => ({
 }));
 
 // The CORS origin snapshot is rebuilt fire-and-forget after every application
-// write and is still Mongoose-backed; stub it so these tests exercise the route,
-// not the registry.
+// write; stub it so these tests exercise the route, not the registry.
 const mockRefreshOriginRegistry = jest.fn(async () => {});
 jest.mock('../../config/dynamicOriginRegistry', () => ({
   __esModule: true,
@@ -508,7 +507,7 @@ describe('privacyPolicyUrl / termsUrl — legal consent links', () => {
     expect(res.status).toBe(200);
     expect((await readApp(app.id))?.privacyPolicyUrl).toBeNull();
     // A cleared column is NULL in the database and must not surface as an
-    // explicit `null` on the wire — Mongo omitted the key, and so does this.
+    // explicit `null` on the wire — the key is omitted.
     expect(res.body.application).not.toHaveProperty('privacyPolicyUrl');
   });
 

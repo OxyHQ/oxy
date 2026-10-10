@@ -9,7 +9,7 @@
  *
  * ## "At least one condition, at least one action"
  *
- * Mongoose declared both as `validate: [(v) => v.length > 0]`. Postgres cannot
+ * Both are required. Postgres cannot
  * express "this row must have a child" in a CHECK — a CHECK sees one row of one
  * table — and the only declarative alternative is a `DEFERRABLE` CONSTRAINT
  * TRIGGER, which is hand-written DDL `drizzle-kit generate` cannot emit from a
@@ -22,9 +22,9 @@
  *
  *   1. The WRITE path asserts it after inserting a filter and its children —
  *      one transaction, so a violation rolls the whole rule back.
- *   2. The BACKFILL runs it as a gate. A Mongo document that predates the
- *      validator, or was written around it, surfaces here instead of becoming a
- *      rule that silently matches everything or does nothing.
+ *   2. A migration or audit runs it as a gate. A row written around the
+ *      validator surfaces here instead of becoming a rule that silently matches
+ *      everything or does nothing.
  *
  * `__tests__/emailFilters.test.ts` mutation-tests it: a filter with no actions
  * is representable in SQL, and the predicate names it.
@@ -53,14 +53,14 @@ export const emailFilters = pgTable(
   },
   (t) => [
     // "This user's enabled filters, in order" — the only read there is.
-    // Mongo's standalone `{userId}` is dropped: this leads with `user_id`.
+    // No standalone `(user_id)` index: this leads with `user_id`.
     index('email_filters_user_id_enabled_order_idx').on(t.userId, t.enabled, t.order),
   ],
 );
 
 /**
  * Every filter that has no conditions or no actions — i.e. every filter
- * Mongoose's two `length > 0` validators existed to prevent.
+ * the "at least one condition, at least one action" rule exists to prevent.
  *
  * ```ts
  * const broken = await db.select({ id: emailFilters.id })

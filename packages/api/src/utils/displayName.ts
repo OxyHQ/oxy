@@ -1,12 +1,9 @@
 /**
  * Authoritative server-side display-name composition.
  *
- * Single source of truth for the `User.name.displayName` virtual (see
- * `models/User.ts`).
+ * Single source of truth for the serialized `name.displayName`.
  * Extracted as a pure function so the composition rules are unit-testable in
- * isolation — the API jest setup mocks Mongoose entirely, so the model's
- * virtual getter never actually runs under test; the rules are verified here
- * against this helper instead.
+ * isolation.
  *
  * This is the DERIVED default only. It does NOT replace any raw field — callers
  * that want the structured name keep reading `name.first` / `name.last` /

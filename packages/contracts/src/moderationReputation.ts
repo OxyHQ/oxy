@@ -408,7 +408,7 @@ export const reverseModerationEffectSchema: z.ZodType<ReverseModerationEffectInp
  * are reported so the figure is explainable without re-running the engine.
  */
 export interface ModerationEffect {
-  /** The effect's own id (its Mongo `_id` as a string). */
+  /** The effect's own id, as a string. */
   id: string;
   incidentId: string;
   caseId: string;

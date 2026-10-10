@@ -91,8 +91,8 @@ export const verifiableCredentials = pgTable(
       'verifiable_credentials_status_check',
       sql`${t.status} in (${sql.raw(inList(CREDENTIAL_STATUSES))})`,
     ),
-    // `revoked_at` and the `revoked` status are one fact. Mongo could store a
-    // revocation date on an active credential, and `verifyCredential` reads only
+    // `revoked_at` and the `revoked` status are one fact. A revocation date on
+    // an active credential must not be storable: `verifyCredential` reads only
     // the status — so the date would be an invisible, contradicted record.
     check(
       'verifiable_credentials_revocation_check',

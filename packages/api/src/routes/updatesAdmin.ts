@@ -90,8 +90,7 @@ function authenticatePrincipal(
  * Enforce that the authenticated principal may manage updates for
  * `applicationId`.
  *
- * There is no id-shape guard: it existed only to keep a non-ObjectId string from
- * becoming a Mongoose `CastError`. An application id that names no row is a 404,
+ * There is no id-shape guard: an application id that names no row is a 404,
  * which Postgres answers for any string.
  */
 async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string): Promise<void> {

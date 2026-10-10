@@ -8,8 +8,8 @@
  * connector produces, the local-event union connectors deliver outbound, and
  * the connector interface itself.
  *
- * IMPORTANT: this entry is intentionally free of Mongoose / Express / React
- * Native so it can be imported from any Oxy app backend (and, in later phases,
+ * IMPORTANT: this entry is intentionally free of database drivers / Express /
+ * React Native so it can be imported from any Oxy app backend (and, in later phases,
  * share the pure HTTP-signature + actor-object surface with browser/isomorphic
  * callers). The runnable Express/Node engine — signed fetch, delivery transport,
  * webfinger/actor/inbox routers, remote-actor resolution — lives under the

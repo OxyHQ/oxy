@@ -6,9 +6,9 @@
  * Four decisions here are the kind that look identical whether they are right
  * or wrong, so each has a check that can only pass one way:
  *
- *   1. `bundles` is now case-INSENSITIVE unique, which Mongo's index was not.
+ *   1. `bundles` is case-INSENSITIVE unique, like its sibling tables.
  *   2. A filter with no conditions or no actions is REPRESENTABLE in SQL —
- *      Mongoose's two `length > 0` validators have no constraint counterpart —
+ *      "at least one condition and one action" has no constraint counterpart —
  *      so `incompleteEmailFilters()` is the enforcement point and it has to
  *      actually find one.
  *   3. `contacts.search_vector` must populate from BOTH indexed fields.
@@ -72,7 +72,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('email_templates — case-insensitive unique, as Mongo`s collation was', () => {
+describe('email_templates — case-insensitive unique', () => {
   it('refuses a second template differing only by case', async () => {
     const userId = await owner();
     await getDb()
@@ -102,7 +102,7 @@ describe('email_templates — case-insensitive unique, as Mongo`s collation was'
     expect(row.subject).toBe('');
   });
 
-  it("refuses a template with no subject supplied — Mongoose`s `default: ''` was application-side", async () => {
+  it("refuses a template with no subject supplied — `''` is supplied by the writer, not a default", async () => {
     // `''` is not available as a column default in this schema
     // (`schemaInvariants.test.ts`), so the writer supplies it. An insert that
     // forgets fails loudly rather than inventing a value.
@@ -130,13 +130,11 @@ describe('email_templates — case-insensitive unique, as Mongo`s collation was'
   });
 });
 
-describe('bundles — the case-sensitivity Mongo left inconsistent', () => {
+describe('bundles — case-insensitive unique, like its siblings', () => {
   it('refuses a second bundle differing only by case', async () => {
-    // Mongo's `{userId, name}` unique index carried NO collation, while the two
-    // sibling models naming the same kind of thing (`Label`, `EmailTemplate`)
-    // both did. That was an omission, not a decision: nothing in the product
-    // treats a bundle name as case-sensitive. Replicating it would carry the
-    // typo into a schema designed from scratch.
+    // The two sibling tables naming the same kind of thing (`labels`,
+    // `email_templates`) are case-insensitive unique, and nothing in the
+    // product treats a bundle name as case-sensitive.
     const userId = await owner();
     await getDb().insert(bundles).values({ userId, name: 'Promotions' });
 
@@ -144,7 +142,7 @@ describe('bundles — the case-sensitivity Mongo left inconsistent', () => {
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
 
-  it('applies the same defaults Mongo declared', async () => {
+  it('applies the declared defaults', async () => {
     const userId = await owner();
     const [row] = await getDb()
       .insert(bundles)
@@ -277,11 +275,11 @@ describe('email_filters — ordered rule lists and the invariant SQL cannot hold
   });
 
   it('finds a filter with no actions — the state a CHECK cannot forbid', async () => {
-    // Mongoose declared `validate: [(v) => v.length > 0]` on both arrays.
+    // A rule needs at least one condition and one action.
     // Postgres cannot express "this row must have a child" in a CHECK, and the
     // only declarative alternative is hand-written trigger DDL drizzle-kit
     // cannot emit. So the invariant is a PREDICATE, and this is the proof it
-    // catches what the validator caught: a rule that matches mail and does
+    // catches the violation: a rule that matches mail and does
     // nothing with it.
     const userId = await owner();
     const [conditionsOnly] = await getDb()
@@ -371,7 +369,7 @@ describe('contacts', () => {
   });
 
   it('builds the search vector from BOTH indexed fields', async () => {
-    // Mongo's index covered `name` and `email`. A vector built from only one
+    // The search covers `name` and `email`. A vector built from only one
     // would still satisfy a single-term match, so both are asserted together.
     const userId = await owner();
     const nameTerm = `Zylophant${unique().slice(0, 8)}`;
@@ -477,9 +475,8 @@ describe('sender_avatars — the table whose correctness depended on a job', () 
     (entry) => getTableName(entry.table) === 'sender_avatars',
   );
 
-  it('is registered for sweeping with the deadline shape Mongo declared', () => {
-    // Mongo hid the TTL as a FIELD option — `expiresAt: { index: { expires: 0 } }`
-    // — rather than a `schema.index()` call, which is exactly how it gets missed.
+  it('is registered for sweeping with the deadline shape', () => {
+    // `expires_at` IS the deadline, so the retention is zero.
     expect(target).toBeDefined();
     expect(target?.retentionSeconds).toBe(0);
   });

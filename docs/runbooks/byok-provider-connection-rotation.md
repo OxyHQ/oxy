@@ -233,8 +233,8 @@ revoked.
   the old revocation is acknowledged.
 - **Kaana control unavailable:** disable for immediate containment. Revoke still
   fences locally, then requires same-operation recovery when control returns.
-  Create and rotate must not fall back to an environment variable, Oxy database,
-  MongoDB or a second secret store.
+  Create and rotate must not fall back to an environment variable, Oxy database
+  or a second secret store.
 - **Recovery reports conflict/manual:** leave the row quarantined and escalate
   with the exact connection and operation ledger IDs. Do not include the
   provider credential or any derived value in a ticket, log or message.

@@ -4,8 +4,8 @@
  * The engine ({@link ./verify}, {@link ./engine}) is storage-agnostic: it owns
  * the verification state machine and continuity logic, and delegates EVERY read
  * and write to an injected {@link RecordStore}. An app supplies a store over its
- * own backend (oxy-api over Mongo `SignedRecord`/`RepoHead`, a node over SQLite,
- * Mention over its own Mongo) without the engine knowing anything Oxy- or
+ * own backend (oxy-api over Postgres `signed_records`/`repo_heads`, a node over
+ * SQLite, Mention over its own database) without the engine knowing anything Oxy- or
  * app-specific.
  *
  * All methods are **subject-keyed**: `subject` is the chain's subject DID
@@ -17,7 +17,7 @@
  * `append` MUST be atomic (record insert + head advance in one unit) and MUST
  * translate a duplicate-key collision on the unique `(subject, seq)` /
  * `recordId` index — i.e. a concurrent writer that already took this `seq` — into
- * `{ ok: false, reason: 'chain_conflict' }` (Mongo E11000 / SQLite
+ * `{ ok: false, reason: 'chain_conflict' }` (Postgres `23505` / SQLite
  * `SQLITE_CONSTRAINT`). That is the real multi-writer race guard; the engine's
  * pre-append continuity check is only the fast-path rejection.
  */

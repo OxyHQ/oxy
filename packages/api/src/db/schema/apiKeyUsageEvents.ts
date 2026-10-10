@@ -4,16 +4,15 @@
  *
  * Ported from `models/ApiKeyUsage.ts`. Named for what it holds: a row is one
  * request event, and `auth_type` records whether it arrived on an API key, a
- * user session, or an internal service token — so the Mongoose model name is
- * narrower than the table's contents.
+ * user session, or an internal service token — so the old `ApiKeyUsage` name
+ * is narrower than the table's contents.
  *
  * ## `timestamp` becomes `created_at`
  *
- * The Mongoose model set `timestamps: false` and declared its own
- * `timestamp: { default: Date.now }`. That is the row's birth column and
- * nothing else: `CONVENTIONS.md` maps exactly this shape onto `created_at`, and
- * doing so is what lets the 90-day retention below read as an ordinary window on
- * a birth column rather than a special case.
+ * The API's `timestamp` field is the row's birth column and nothing else:
+ * `CONVENTIONS.md` maps exactly this shape onto `created_at`, and doing so is
+ * what lets the 90-day retention below read as an ordinary window on a birth
+ * column rather than a special case.
  *
  * The wire format does not observe the rename. `timestamp` appears in the two
  * aggregates that read this collection only as a `$match` bound and a
@@ -25,10 +24,10 @@
  * The absence IS the append-only contract — a served request does not change
  * after the fact.
  *
- * ## Retention is the Mongo TTL, moved
+ * ## Retention
  *
- * Mongo auto-deleted these after 90 days. The same 90 days is registered in
- * `db/expiry.ts` against `created_at`, with the supporting btree the sweep
+ * Rows are deleted after 90 days: registered in `db/expiry.ts` against
+ * `created_at`, with the supporting btree the sweep
  * requires. That retention is also why the one `SET NULL`-shaped foreign key
  * below is `CASCADE` instead — see `application_id`.
  *
@@ -71,7 +70,7 @@ export const API_KEY_USAGE_AUTH_TYPES = ['api_key', 'session', 'internal'] as co
 export const API_KEY_USAGE_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
 /**
- * Ninety days, the retention Mongo's TTL index enforced. Exported so
+ * Ninety days, this table's retention. Exported so
  * `db/expiry.ts` states the same number this table was designed around rather
  * than a second copy of it.
  */
@@ -90,8 +89,7 @@ export const apiKeyUsageEvents = pgTable(
      * The user the request is billed to. `CASCADE` — usage attributed to a
      * deleted account is not billable and not reportable.
      *
-     * Mongoose typed this as a bare `String` with no `ref`; the values are
-     * `User._id` strings and this is a real relation the port gets to enforce.
+     * A real foreign key to `users`.
      */
     userId: text()
       .notNull()
@@ -120,9 +118,8 @@ export const apiKeyUsageEvents = pgTable(
     responseTime: doublePrecision(),
     /**
      * The client's `User-Agent`. Explicitly NOT an IP, a geo-derivation, or
-     * anything else the no-user-IPs-at-rest invariant forbids — the Mongoose
-     * model's `ipAddress` field was removed under that invariant and does not
-     * reappear here.
+     * anything else the no-user-IPs-at-rest invariant forbids — there is no IP
+     * column here and none is to be added.
      */
     userAgent: text(),
     authType: text({ enum: API_KEY_USAGE_AUTH_TYPES }).notNull().default('api_key'),
@@ -145,12 +142,11 @@ export const apiKeyUsageEvents = pgTable(
     ),
     // `{userId, timestamp: {$gte}}` (`routes/credits.ts:59`).
     index('api_key_usage_events_user_id_created_at_idx').on(t.userId, t.createdAt.desc()),
-    // Supports the expiry sweep in `db/expiry.ts` — the replacement for Mongo's
-    // TTL index. None of the compounds above LEAD with this column, so the
-    // sweep's range scan needs its own.
+    // Supports the expiry sweep in `db/expiry.ts`. None of the compounds above
+    // LEAD with this column, so the sweep's range scan needs its own.
     index('api_key_usage_events_created_at_idx').on(t.createdAt),
-    // Mongo's `{userId, authType, timestamp: -1}` is dropped: `auth_type` never
-    // appears in a filter — both readers match on `userId` or `appId` plus a
+    // No `(user_id, auth_type, created_at)` index: `auth_type` never appears in
+    // a filter — both readers match on `userId` or `appId` plus a
     // time bound only.
     check(
       'api_key_usage_events_method_check',

@@ -7,9 +7,9 @@
  * case — so what is left has to be checked to actually do the thing the
  * bookkeeping used to surround.
  *
- * The two `matchedCount` / `modifiedCount` numbers are the subtle ones: Mongo's
- * `modifiedCount` skipped documents the write would not change, and the wire
- * reports both separately. A port that returns the same number twice looks
+ * The two `matchedCount` / `modifiedCount` numbers are the subtle ones:
+ * `modifiedCount` skips rows the write would not change, and the wire reports
+ * both separately. A port that returns the same number twice looks
  * right on every test that changes something.
  */
 
@@ -509,8 +509,8 @@ describe('email settings', () => {
   });
 
   it('clears every part of the auto-reply when a smaller one replaces it', async () => {
-    // Replacing a Mongo sub-document replaced ALL of it. Flattened to five
-    // columns, a partial write would leave the old subject behind.
+    // A new auto-reply replaces ALL of the old one. Flattened to five columns,
+    // a partial write would leave the old subject behind.
     const userId = await owner();
     await emailService.updateEmailSettings(userId, {
       autoReply: { enabled: true, subject: 'Away', body: 'Back soon' },

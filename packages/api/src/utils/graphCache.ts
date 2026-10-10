@@ -57,7 +57,7 @@ function isViewerGraph(value: unknown): value is ViewerGraph {
 /**
  * Read a cached viewer graph. Returns null on a miss, on a malformed/legacy
  * cached value, when Redis is not configured, or on any Redis error — every
- * null path makes the caller recompute from Mongo, which is always correct.
+ * null path makes the caller recompute from the database, which is always correct.
  */
 async function get(viewerId: string): Promise<ViewerGraph | null> {
   if (!viewerId) return null;

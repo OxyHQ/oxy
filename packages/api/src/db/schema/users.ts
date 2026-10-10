@@ -1,16 +1,15 @@
 /**
  * `users` — the account. Every other table in this schema ultimately hangs off it.
  *
- * Ported from `models/User.ts`. The Mongo document was ~1000 lines of nested
- * subdocuments; what follows is the schema this table would have had if it had
- * been designed on Postgres, so several things deliberately do NOT travel:
+ * The table is designed relationally, so several shapes deliberately do NOT
+ * live on this row:
  *
  * - **`following[]` / `followers[]` are DELETED.** They duplicated the `Follow`
  *   collection, which is the single authority. An embedded id array cannot be
  *   joined or constrained; the junction table already exists.
  * - **`_count.followers` / `_count.following` are DELETED.** Cached counters
- *   exist because Mongo cannot JOIN. `count(*)` over `follows` with its index is
- *   the replacement — a counter comes back only against a measurement.
+ *   are not stored: `count(*)` over `follows` with its index answers it — a
+ *   counter comes back only against a measurement.
  * - **`locations` / `linksMetadata` / `authMethods` / `verifiedDomains` /
  *   `ancestors` are child tables**, not arrays. Seven indexes hung off
  *   `locations.*` alone.
@@ -38,20 +37,15 @@
  *
  * ## Case-insensitive unique on the three identifiers
  *
- * `email` and `public_key` were `lowercase: true` in Mongoose, so their stored
- * values are already lower-cased and a unique index on `lower(...)` is
- * equivalent on existing data — but it also survives a call site that forgets to
- * normalize, which the Mongoose setter used to cover and Postgres has no
- * counterpart for.
+ * `email` and `public_key` are stored lower-cased, so a unique index on
+ * `lower(...)` is equivalent on existing data — but it also survives a call
+ * site that forgets to normalize, which Postgres has no setter to cover.
  *
- * `username` is the one that CHANGES behaviour, deliberately: Mongo indexed it
- * case-SENSITIVELY while every lookup runs
- * `exactCaseInsensitiveUsernameRegex` (`server.ts:688`, …).
- * That pairing both permitted `Nate` and `nate` to coexist and made each lookup
- * a collection scan, since an anchored `/i` regex cannot use a b-tree index.
- * `lower(username)` fixes both. **Backfill consequence:** if two production
- * accounts differ only by case, the backfill fails on this index and names them
- * — the correct outcome, since the application cannot tell them apart today.
+ * `username` is matched case-insensitively by every lookup, so `Nate` and
+ * `nate` must not be able to coexist, and `lower(username)` is also what lets
+ * that lookup use a b-tree index. If two accounts differed only by case, this
+ * index would refuse the second — the correct outcome, since the application
+ * cannot tell them apart.
  *
  * Every lookup must therefore be written `where lower(username) = lower($1)`.
  * A plain `username = $1` is correct-looking, case-sensitive, and will not use
@@ -100,11 +94,10 @@ import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from
  * Named color presets a user may pick. `oxy` is handle-owned and `mono` is benefit-gated at the service
  * layer; the constraint only declares valid stored preset identities.
  *
- * The shared contract tuple is the SINGLE declaration — the Mongoose model that carried the
- * other copy is gone. It renders the CHECK below, and
- * `check-drizzle-snapshot-sync` holds that rendering against the migration the
- * database was actually built from, so editing it without regenerating a
- * migration fails CI.
+ * The shared contract tuple is the SINGLE declaration. It renders the CHECK
+ * below, and `check-drizzle-snapshot-sync` holds that rendering against the
+ * migration the database was actually built from, so editing it without
+ * regenerating a migration fails CI.
  */
 export const USER_COLOR_PRESETS = USER_PROFILE_COLOR_PRESETS;
 
@@ -115,9 +108,9 @@ export type UserColorPreset = (typeof USER_COLOR_PRESETS)[number];
  * 3- or 6-digit hex, case-insensitive.
  *
  * Legacy accounts stored raw hex before the named presets existed. The match is
- * case-INSENSITIVE (`~*`) even though the Mongoose setter lower-cased on write:
- * a row written before that setter existed would otherwise be rejected by the
- * backfill, turning a cosmetic field into a failed migration.
+ * case-INSENSITIVE (`~*`) even though new values are lower-cased on write: a
+ * legacy row stored with upper-case hex would otherwise be rejected, turning a
+ * cosmetic field into a failed migration.
  */
 const LEGACY_HEX_COLOR_PATTERN = '^#([0-9a-f]{3}|[0-9a-f]{6})$';
 
@@ -359,7 +352,7 @@ export const users = pgTable(
     refreshToken: text(),
 
     // ---- name --------------------------------------------------------------
-    // Mongoose defaulted both to `''`. Absent is NULL here: `''` is a value, and
+    // Absent is NULL, never `''`: `''` is a value, and
     // `composeDisplayName` already treats blank and absent identically.
     nameFirst: text(),
     nameLast: text(),
@@ -506,8 +499,8 @@ export const users = pgTable(
     /** File id in the assets collection. */
     avatar: text(),
     /**
-     * Named preset or legacy hex. Generated in the APPLICATION, as Mongoose did
-     * — the default picks a random preset per row, which a SQL `DEFAULT` would
+     * Named preset or legacy hex. Generated in the APPLICATION — the default
+     * picks a random preset per row, which a SQL `DEFAULT` would
      * have to reimplement.
      */
     color: text()
@@ -516,7 +509,7 @@ export const users = pgTable(
     bio: text(),
     description: text(),
     address: text(),
-    /** Free-form date string, exactly as Mongo stored it. Never parsed here. */
+    /** Free-form legacy date string, stored verbatim. Never parsed here. */
     birthday: text(),
     /**
      * The structured date of birth, `date` — no time-of-day component, which
@@ -525,7 +518,7 @@ export const users = pgTable(
      * `date`-not-`timestamptz` reasoning applied to a different column).
      *
      * ADDITIVE next to `birthday`, not a replacement for it. `birthday` is
-     * free text ported from Mongo with no guaranteed shape — see its own
+     * legacy free text with no guaranteed shape — see its own
      * comment — so it cannot be parsed with confidence for every row, and a
      * WRONG parse (picking March 4 for the ambiguous `03/04/2005`) is worse
      * than leaving this column NULL for the user to fill in themselves. A
@@ -543,9 +536,8 @@ export const users = pgTable(
     /** Profile links. A short scalar array, never queried by element. */
     links: text().array(),
     /**
-     * 30/90/180/365 or NULL (never expire). `Mixed` in Mongoose ONLY so it could
-     * hold `null`, so it is an ordinary nullable integer with a CHECK — not
-     * `jsonb`.
+     * 30/90/180/365 or NULL (never expire). An ordinary nullable integer with
+     * a CHECK — not `jsonb`.
      */
     accountExpiresAfterInactivityDays: integer(),
 
@@ -579,7 +571,7 @@ export const users = pgTable(
     privacyFediverseSharing: boolean().notNull().default(true),
 
     // ---- email settings ----------------------------------------------------
-    /** PROTECTED. Mongoose defaulted to `''`; absent is NULL. */
+    /** PROTECTED. Absent is NULL, never `''`. */
     emailSignature: text(),
     autoReplyEnabled: boolean().notNull().default(false),
     autoReplySubject: text(),
@@ -587,9 +579,8 @@ export const users = pgTable(
     autoReplyStartDate: timestamptz(),
     autoReplyEndDate: timestamptz(),
     /**
-     * Forward ALL incoming mail here. PROTECTED. Mongoose defaulted to `''` and
-     * every reader tested truthiness; NULL is the honest form, so the ported
-     * read is `auto_forward_to is not null`.
+     * Forward ALL incoming mail here. PROTECTED. Absent is NULL, never `''`,
+     * so the read is `auto_forward_to is not null`.
      */
     autoForwardTo: text(),
     /** PROTECTED — it is only meaningful alongside `auto_forward_to`. */
@@ -602,11 +593,11 @@ export const users = pgTable(
     notificationMarketingEmails: boolean().notNull().default(false),
 
     // ---- app-wide preferences ---------------------------------------------
-    /** Mongoose defaulted to `''`; absent is NULL. */
+    /** Absent is NULL, never `''`. */
     preferenceLanguage: text(),
     preferenceTheme: text({ enum: THEME_MODES }).notNull().default('system'),
     preferenceReduceMotion: boolean().notNull().default(false),
-    /** Mongoose defaulted to `''`; absent is NULL. */
+    /** Absent is NULL, never `''`. */
     preferenceTimezone: text(),
 
     // ---- portable theme preference ----------------------------------------
@@ -626,8 +617,8 @@ export const users = pgTable(
   },
   (t) => [
     // ---- identity uniqueness (trimmed, case-insensitive) ------------------
-    // `lower(btrim(...))` and not `lower(...)`: Mongoose's `trim` + `lowercase`
-    // setters mean the stored values are ALREADY in this form, so the two are
+    // `lower(btrim(...))` and not `lower(...)`: the stored values are ALREADY
+    // trimmed and lower-cased, so the two are
     // equivalent on existing data — but only this one keeps `' a@b.com'` from
     // becoming a second account, which matters because it is byte-identical to
     // `'a@b.com'` under `hashed_email`'s canonicalization. Two rows that hash to
@@ -643,14 +634,14 @@ export const users = pgTable(
     uniqueIndex('users_federation_actor_uri_key').on(t.federationActorUri),
 
     // ---- contact discovery ------------------------------------------------
-    // Mongo's sparse indexes. Partial here for the same reason: the vast
-    // majority of rows have no phone, and many federated rows have neither.
+    // Partial: the vast majority of rows have no phone, and many federated rows
+    // have neither.
     index('users_hashed_email_idx').on(t.hashedEmail).where(sql`${t.hashedEmail} is not null`),
     index('users_hashed_phone_idx').on(t.hashedPhone).where(sql`${t.hashedPhone} is not null`),
 
     // ---- account graph traversal -----------------------------------------
-    // "This parent's children, of this kind" — Mongo's `{kind, parentAccountId}`.
-    // Its standalone `{kind}` index is dropped: a btree serves any leading prefix.
+    // "This parent's children, of this kind". No standalone `(kind)` index: a
+    // btree serves any leading prefix.
     index('users_kind_parent_account_id_idx').on(t.kind, t.parentAccountId),
     // `countDocuments({ parentAccountId, accountStatus })` (`accounts.ts:223`)
     // leads with the parent, which the compound above cannot serve.
@@ -676,8 +667,7 @@ export const users = pgTable(
     index('users_federation_avatar_retry_at_idx')
       .on(t.federationAvatarRetryAt)
       .where(sql`${t.federationAvatarRetryAt} is not null`),
-    // Mongo also indexed `federation.actorId` (a bare `sparse: true` builds one).
-    // Dropped: no query in the codebase reads that field.
+    // No index on `federation_actor_id`: no query in the codebase filters on it.
     index('users_automation_owner_id_idx')
       .on(t.automationOwnerId)
       .where(sql`${t.automationOwnerId} is not null`),

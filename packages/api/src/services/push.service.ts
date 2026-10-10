@@ -19,10 +19,9 @@
  *
  * ## Token normalization does NOT live here
  *
- * Mongoose declared `PushToken.token` with `trim: true`, which applied to the
- * WRITE and to every filter it cast — including the `deleteOne` below. Postgres
- * has no counterpart, so per `db/schema/CONVENTIONS.md` the normalization is
- * re-applied at the REGISTRATION call site (`routes/notifications.routes.ts`,
+ * A push token is stored trimmed. Postgres has no column-level trim, so per
+ * `db/schema/CONVENTIONS.md` the normalization is applied at the REGISTRATION
+ * call site (`routes/notifications.routes.ts`,
  * where `registerPushTokenSchema` trims before the value is ever stored). Every
  * token this module deletes was read back out of `push_tokens` moments earlier,
  * so it is already in stored form and trimming it again here would be a

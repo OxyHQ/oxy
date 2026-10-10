@@ -194,7 +194,7 @@ type OAuthRouteHandler = (req: Request, res: Response, next: NextFunction) => Pr
  * Wrap an OAuth route so EVERY failure leaves as an RFC-shaped error document.
  *
  * `OAuthError`s render as themselves. Anything else (a thrown `ApiError`, a
- * Mongoose failure, a programming error) is logged with its real cause and
+ * database failure, a programming error) is logged with its real cause and
  * reported to the client as a generic `server_error` — an OAuth client must
  * never receive the house `{ error: 'INTERNAL_SERVER_ERROR', message }`
  * envelope from these endpoints, and must never be told what broke internally.

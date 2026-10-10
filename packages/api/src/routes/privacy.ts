@@ -84,9 +84,7 @@ const updatePrivacySettings = asyncHandler(async (req: Request, res: Response) =
 /**
  * One of the two symmetric "user A has flagged user B" relations.
  *
- * The Mongo version parameterised its three handlers by MODEL plus a field
- * NAME, which meant the field name was a string the type system never checked
- * against the model. Here the descriptor carries the real columns, so a
+ * The descriptor carries the real columns rather than a field NAME string, so a
  * mismatched pair does not compile.
  */
 interface UserRelation {
@@ -116,9 +114,7 @@ const RESTRICT_RELATION: UserRelation = {
 /**
  * List the caller's relation rows with the counterparty profile embedded.
  *
- * The `.populate(field, 'username avatar name')` this replaces was a SECOND
- * query Mongo issued behind the call; here it is one join, and the three
- * embedded fields are named explicitly rather than by a projection string.
+ * One join, with the three embedded fields named explicitly.
  */
 const createUserListHandler = (relation: UserRelation) =>
   asyncHandler(async (req: Request, res: Response) => {

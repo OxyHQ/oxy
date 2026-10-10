@@ -6,15 +6,14 @@
  *
  * ## Two Postgres details this file cannot get wrong
  *
- * **`messages.text` is a PROTECTED column** (`schema/protectedColumns.ts`): it
- * was `select: false` in Mongoose, and `db.select().from(messages)` would hand
- * it back. The classifier genuinely needs the body, so it is named EXPLICITLY in
+ * **`messages.text` is a PROTECTED column** (`schema/protectedColumns.ts`), and
+ * `db.select().from(messages)` would hand it back. The classifier genuinely needs the body, so it is named EXPLICITLY in
  * the projection below — the sanctioned opt-in, which reads differently from an
  * ordinary select on purpose. Nothing read here reaches a response.
  *
- * **`labels` is a `text[]`, and `$addToSet` is not `||`.** Appending blindly
- * would duplicate a label the message already carries, which the Mongo operator
- * never did. The update rebuilds the array: existing entries in their existing
+ * **`labels` is a `text[]`, and a set-add is not `||`.** Appending blindly
+ * would duplicate a label the message already carries. The update rebuilds the
+ * array: existing entries in their existing
  * order, then each new one that is not already present, in the order the
  * classifier returned them.
  */
@@ -116,9 +115,9 @@ class AiLabelingService {
       if (labelNames.length === 0) return;
 
       // Fetch message content for classification. `text` is PROTECTED and is
-      // named here deliberately — see the module header. `to` was in the Mongo
-      // projection and used by nothing; it is a child table now
-      // (`message_recipients`) and is not fetched.
+      // named here deliberately — see the module header. Recipients live in a
+      // child table (`message_recipients`) and are not needed, so they are not
+      // fetched.
       const [message] = await db
         .select({
           subject: messages.subject,

@@ -303,7 +303,7 @@ describe('GET /security/activity — eventType filter', () => {
     expect(mockGetUserSecurityActivity).not.toHaveBeenCalled();
   });
 
-  it('treats an EMPTY eventType as "no filter" — unchanged from the Mongo behaviour', async () => {
+  it('treats an EMPTY eventType as "no filter"', async () => {
     const res = await requestJson('GET', '/security/activity?eventType=');
     expect(res.status).toBe(200);
     expect(mockGetUserSecurityActivity).toHaveBeenCalledWith(CALLER, {

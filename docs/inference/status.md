@@ -156,7 +156,7 @@ PostgreSQL and decrypted only inside inference. Oxy stores exact opaque
 handle/revision metadata plus a durable same-operation recovery ledger; it
 stores no provider credential plaintext/ciphertext and persists no prefix,
 suffix, fingerprint, hash or other credential-derived hint.
-Provider keys never come from environment variables or MongoDB. Create/rotate
+Provider keys never come from environment variables or an Oxy database. Create/rotate
 accept exactly 1–4096 visible ASCII bytes, and an uncertain mutation remains
 non-routable until the exact Kaana outcome is reconciled. In source, the
 authenticated edge resolves and signs only an exact `ready + active + valid`

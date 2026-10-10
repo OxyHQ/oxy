@@ -1,16 +1,14 @@
 /**
  * Analytics — the premium per-account activity surface (`/analytics`).
  *
- * Ported from `models/Analytics` + `models/User` onto `user_analytics` and the
- * `user_follows` social graph. Four things about this port are load-bearing.
+ * Backed by `user_analytics` and the `user_follows` social graph. Four things
+ * here are load-bearing.
  *
- * ## 1. The storage rename is INVISIBLE on the wire
+ * ## 1. Storage names are INVISIBLE on the wire
  *
- * `schema/userAnalytics.ts` renames the collection `analytics` → `user_analytics`
- * and the column `userID` → `user_id`, because the capital-D spelling was unique
- * to that one model. Neither rename may reach a client: the response still
- * carries `userID`, and the request body's `data` keys are still the Mongo dot
- * paths (`stats.engagement.likes`, …) every existing caller sends.
+ * The table is `user_analytics` and the column is `user_id`, but the response
+ * carries `userID`, and the request body's `data` keys are dot paths
+ * (`stats.engagement.likes`, …) every existing caller sends.
  *
  * ## 2. The nested `stats` object is REBUILT at the serializer
  *
@@ -23,17 +21,15 @@
  *
  * Drizzle keys `set()` / `values()` by column PROPERTY and silently ignores a
  * key that names no column. `{ 'stats.engagement.likes': 5 }` would therefore
- * write NOTHING and throw NOTHING — the exact failure that shipped elsewhere in
- * this migration. Every wire dot path is translated through an explicit map
+ * write NOTHING and throw NOTHING. Every wire dot path is translated through an explicit map
  * ({@link ANALYTICS_INCREMENT_DATA_COLUMNS}) whose values are real column
  * properties, so a typo is a compile error rather than a silent no-op.
  *
- * ## 4. `_count` is GONE, so growth is a MEASUREMENT
+ * ## 4. Growth is a MEASUREMENT
  *
- * `users._count.{followers,following}` were cached counters that existed only
- * because Mongo cannot JOIN (`schema/users.ts`). `user_follows` is the single
- * authority, so `growth` is `count(*)` over it and cannot disagree with the
- * edges.
+ * There are no cached follower counters (`schema/users.ts`). `user_follows` is
+ * the single authority, so `growth` is `count(*)` over it and cannot disagree
+ * with the edges.
  */
 
 import type { Request, Response } from 'express';
@@ -55,9 +51,9 @@ type AnalyticsPeriod = (typeof ANALYTICS_PERIODS)[number];
 /**
  * Whether `value` names a real aggregation window.
  *
- * Mongo answered an unknown `period` with an empty result set rather than an
- * error (nothing matched the filter), and that is preserved: an unrecognised
- * value short-circuits to `[]` instead of reaching the query, which also keeps
+ * An unknown `period` is answered with an empty result set rather than an
+ * error: an unrecognised value short-circuits to `[]` instead of reaching the
+ * query, which also keeps
  * the drizzle `eq()` honestly typed against the column's literal union.
  */
 function isAnalyticsPeriod(value: string): value is AnalyticsPeriod {
@@ -65,12 +61,10 @@ function isAnalyticsPeriod(value: string): value is AnalyticsPeriod {
 }
 
 /**
- * The `period` query parameter, exactly as Mongo saw it.
+ * The `period` query parameter as a string.
  *
- * A repeated or object-shaped `?period=` reached `getDateRange` as a non-string
- * (falling through to its weekly default) and reached the filter as a value no
- * document could equal. Normalising it to `''` reproduces both halves: the same
- * default window, and no matching row.
+ * A repeated or object-shaped `?period=` is normalised to `''`: `getDateRange`
+ * falls through to its weekly default, and the filter matches no row.
  */
 function requestedPeriod(req: Request): string {
   const raw = req.query.period ?? 'weekly';
@@ -95,7 +89,7 @@ interface AnalyticsStatsDto {
   /**
    * Associative arrays over an OPEN key space (ISO country codes, BCP-47
    * language tags), stored as `jsonb` with no `$type`. `unknown` is the honest
-   * TypeScript counterpart; Mongo's `Map` serialized to the same JSON object.
+   * TypeScript counterpart.
    */
   demographics: {
     countries: unknown;
@@ -110,13 +104,12 @@ interface AnalyticsStatsDto {
 /**
  * One element of `timeSeriesData`.
  *
- * `_id` and `userID` keep their Mongo spellings — this is the serialized
- * document shape clients already consume. `__v` deliberately does NOT travel:
- * it is a driver artifact the migration contract forbids, and it carried no
+ * `_id` and `userID` keep their wire spellings — this is the shape clients
+ * already consume. There is deliberately no `__v` version key; it carries no
  * meaning to any reader.
  *
- * The two `Date`s are handed to `res.json` as `Date` objects, exactly as the
- * Mongoose documents were, so both render as the same ISO-8601 strings.
+ * The two `Date`s are handed to `res.json` as `Date` objects, so both render as
+ * ISO-8601 strings.
  */
 interface AnalyticsRowDto {
   _id: string;
@@ -235,7 +228,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
 /**
  * Wire `type` → the counter column it increments.
  *
- * The KEYS are the request contract and keep their Mongo spelling; the VALUES
+ * The KEYS are the request contract and keep their wire spelling; the VALUES
  * are drizzle column properties, so `set()` cannot silently ignore one.
  */
 const ANALYTICS_INCREMENT_TYPE_COLUMNS = {
@@ -246,7 +239,7 @@ const ANALYTICS_INCREMENT_TYPE_COLUMNS = {
 /**
  * Wire `data` key → the counter column it increments.
  *
- * Every key is a Mongo DOT PATH, which is precisely why this map exists: handing
+ * Every key is a DOT PATH, which is precisely why this map exists: handing
  * `'stats.engagement.likes'` straight to drizzle names no column, so the write
  * would be silently dropped. Nothing outside this table may be reached — the
  * whitelist is the authorization boundary as much as it is a translation.
@@ -310,11 +303,10 @@ export const updateAnalytics = async (req: Request, res: Response) => {
     const date = new Date();
 
     // One statement instead of four round trips. `date` is the current instant,
-    // so in practice every call INSERTS — the conflict arm exists because the
-    // Mongo upsert had one, and because `(user_id, period, date)` is a real
-    // unique constraint here rather than a hopeful index.
+    // so in practice every call INSERTS — the conflict arm exists because
+    // `(user_id, period, date)` is a real unique constraint.
     //
-    // The conflict arm ADDS to the stored value, exactly as `$inc` did. The
+    // The conflict arm ADDS to the stored value. The
     // target table is named explicitly on the right-hand side via `qualified()`:
     // a bare column reference in an `ON CONFLICT DO UPDATE SET` expression is
     // one identifier away from meaning the PROPOSED row instead of the stored
@@ -346,18 +338,11 @@ export const updateAnalytics = async (req: Request, res: Response) => {
 /**
  * `GET /analytics/viewers` — always an empty list, and always has been.
  *
- * The Mongo aggregation matched `{ "stats.viewers": { $exists: true } }` and
- * then unwound `$stats.viewers`. **No such field has ever existed**: the
- * `Analytics` schema declares `postViews`, `profileViews`, `engagement`,
- * `reach`, `demographics` and `peakActivity` and nothing else, and Mongoose's
- * strict mode drops an update path outside the schema — so neither
- * `updateAnalytics` nor any other writer could create one. The `$match`
- * therefore selected zero documents on every call this endpoint has ever served.
- *
- * `user_analytics` has no viewers column for the same reason: there is no data
- * to port. The endpoint keeps its `200 []` because that IS its wire contract,
- * and inventing a viewer log to back it would be inventing data rather than
- * migrating it.
+ * **No viewer data has ever been recorded**: analytics track `postViews`,
+ * `profileViews`, `engagement`, `reach`, `demographics` and `peakActivity` and
+ * nothing else, and no writer records viewers. `user_analytics` therefore has
+ * no viewers column. The endpoint keeps its `200 []` because that IS its wire
+ * contract, and inventing a viewer log to back it would be inventing data.
  */
 export const getContentViewers = (req: Request, res: Response) => {
   const userID = getAuthenticatedAnalyticsUserId(req);
@@ -371,13 +356,10 @@ export const getContentViewers = (req: Request, res: Response) => {
 /**
  * `GET /analytics/followers` — follower totals for the authenticated account.
  *
- * The Mongo version `$lookup`ed the embedded `users.followers` array against
- * `users`, then sized three filters over the joined documents. Both halves moved:
- * the array is deleted (`user_follows` is the authority) and the join is a real
- * one. The two windowed figures keep their original — and genuinely odd —
- * meaning: they count followers whose ACCOUNT was created or last updated inside
- * the window, not follow edges formed inside it. That is what the aggregation
- * computed, and the wire contract is the aggregation's output.
+ * `user_follows` is the authority, joined to `users`. The two windowed figures
+ * have a genuinely odd meaning that the wire contract fixes: they count
+ * followers whose ACCOUNT was created or last updated inside the window, not
+ * follow edges formed inside it.
  */
 export const getFollowerDetails = async (req: Request, res: Response) => {
   try {

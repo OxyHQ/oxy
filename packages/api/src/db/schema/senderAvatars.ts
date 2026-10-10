@@ -4,22 +4,16 @@
  * Ported from `models/SenderAvatar.ts`. Global, not per user: the answer to
  * "what does mail from this address look like" is the same for everyone.
  *
- * ## The TTL, and the read that depended on it
+ * ## Expiry, and the read that must not depend on it
  *
- * Mongo declared the TTL as a FIELD option rather than a `schema.index()` call —
- * `expiresAt: { type: Date, required: true, index: { expires: 0 } }` — which is
- * easy to miss and is a real TTL index all the same. It becomes an entry in
- * `EXPIRY_SWEEP_TARGETS` (`db/expiry.ts`) plus the btree the sweep's range scan
- * requires.
+ * `expires_at` is a deadline: the table is an entry in `EXPIRY_SWEEP_TARGETS`
+ * (`db/expiry.ts`) plus the btree the sweep's range scan requires.
  *
- * This is the table `CONVENTIONS.md` names as its class-(B) example: both reads
- * (`senderAvatar.service.ts:179` and `:208`) return the cached row with NO
- * expiry predicate and no application-side check, so today the only thing that
- * stops a stale avatar being served is Mongo's TTL monitor having got there
- * first. That makes a background job part of the table's CORRECTNESS, and the
- * staleness window is whatever the job's interval happens to be.
+ * A read that returned the cached row with NO expiry predicate would make the
+ * sweep part of the table's CORRECTNESS, with a staleness window of whatever
+ * the job's interval happens to be (class (B) in `CONVENTIONS.md`).
  *
- * {@link senderAvatarIsFresh} is the read-side filter that moves both into
+ * {@link senderAvatarIsFresh} is the read-side filter that keeps every read in
  * class (A). With it, the sweep is pure housekeeping — an expired row still
  * present is simply not returned — and no table's correctness depends on a job
  * running:
@@ -47,8 +41,8 @@ export const senderAvatars = pgTable(
     /**
      * The address this row answers for.
      *
-     * CALL-SITE OBLIGATION: Mongoose stored it `lowercase: true, trim: true`.
-     * `senderAvatar.service.ts` already normalizes before every read and write
+     * CALL-SITE OBLIGATION: stored lower-cased and trimmed.
+     * `senderAvatar.service.ts` normalizes before every read and write
      * (`email.trim().toLowerCase()`), which is what must continue — a write
      * that skips it creates a second cache row that no read will ever find.
      */
@@ -57,9 +51,8 @@ export const senderAvatars = pgTable(
     avatarPath: text(),
     source: text({ enum: SENDER_AVATAR_SOURCES }).notNull(),
     /**
-     * When the lookup ran. Mongo declared `timestamps: false` and this field
-     * instead; it is the row's birth column under a domain name, so it keeps
-     * that name and there is no `created_at`/`updated_at` pair to invent.
+     * When the lookup ran. It is the row's birth column under a domain name,
+     * so there is no `created_at`/`updated_at` pair to invent.
      */
     resolvedAt: timestamptz().notNull().defaultNow(),
     /** After this instant the row is stale. See the module comment. */
@@ -68,7 +61,7 @@ export const senderAvatars = pgTable(
   (t) => [
     uniqueIndex('sender_avatars_email_key').on(t.email),
     // Required by every `EXPIRY_SWEEP_TARGETS` entry: the sweep's predicate is a
-    // range scan, and Mongo's TTL index carried the same obligation.
+    // range scan.
     index('sender_avatars_expires_at_idx').on(t.expiresAt),
     check(
       'sender_avatars_source_check',

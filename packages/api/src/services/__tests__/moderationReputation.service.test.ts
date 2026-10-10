@@ -1,14 +1,11 @@
 /**
  * The moderation → reputation bridge, against a REAL Postgres.
  *
- * The suite this replaces built a ~300-line in-memory Mongo emulator with
- * hand-written unique-index enforcement, and its own header argued at length
- * that the emulator HAD to enforce those indexes or every idempotency assertion
- * would be vacuous. That argument was correct and it is now moot: the three
- * indexes are real, declared in `conductStrikes.ts`, `moderationEffects.ts` and
- * `reputationTransactions.ts`, and Postgres enforces them. What the emulator
- * could never do — and what every count below now does — is fail when the
- * SCHEMA loses one.
+ * Every idempotency assertion here rests on three unique indexes, declared in
+ * `conductStrikes.ts`, `moderationEffects.ts` and `reputationTransactions.ts`
+ * and enforced by Postgres. Against an in-memory stand-in those assertions
+ * would be only as good as its hand-written index emulation; against real rows
+ * every count below fails when the SCHEMA loses one.
  *
  * THE TWO SCENARIOS THAT DEFINE DONE, asserted against stored rows:
  *   1. A final global infraction produces EXACTLY ONE ledger transaction, ONE
@@ -19,16 +16,9 @@
  *
  * ## The one collaborator that is stubbed, and exactly what that costs
  *
- * `resolveBindingProof` (`services/identityBinding.service.ts`) is the ONE
- * module on this path that has NOT been ported: it still queries the Mongoose
- * `IdentityBinding` model, and it gates on `mongoose.Types.ObjectId.isValid`
- * before doing so — a guard the migration contract deletes on sight. A
- * Postgres-generated `identity_bindings.id` is a uuid v7, which that guard
- * rejects outright, so TODAY every call to `applyModerationDecision` returns
- * `no_binding_proof` and the bridge can apply nothing at all. (Measured, not
- * inferred — see the report accompanying this rewrite.)
- *
- * So it is stubbed, and the stub is deliberately DUMB: it returns whatever
+ * `resolveBindingProof` (`services/identityBinding.service.ts`) is stubbed: it
+ * is a collaborator with its own suite, not the subject. The stub is
+ * deliberately DUMB: it returns whatever
  * resolution the test states outright. It re-implements none of the resolver's
  * predicates, so nothing here can be mistaken for a test of them — those live
  * in `identityBinding.service.test.ts`. What IS tested here, and is entirely a

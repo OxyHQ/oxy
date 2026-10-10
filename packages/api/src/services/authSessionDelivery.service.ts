@@ -18,7 +18,7 @@
  * not an error, and a push transport failure degrades to exactly the same
  * outcome — delivery must never fail the auth flow.
  *
- * ## What the Postgres port changed
+ * ## Protected columns and eligibility
  *
  * `auth_sessions.session_token` is a PROTECTED column
  * (`db/schema/protectedColumns.ts`): possession of it alone exchanges an
@@ -28,13 +28,11 @@
  * channel, and naming it is how that read reads differently from an ordinary
  * one.
  *
- * Eligibility became ONE join instead of two round trips. `capabilities` is a
- * `text[]` with a GIN index (`applications_capabilities_idx` — ADDED by the
- * port; Mongo declared none and scanned the collection on every delivery), so
+ * Eligibility is ONE join instead of two round trips. `capabilities` is a
+ * `text[]` with a GIN index (`applications_capabilities_idx`), so
  * `capabilities @> array['identity:approval']` is an index scan, and an
  * install with a NULL `application_id` — "not scoped to any application" —
- * simply does not join, exactly as Mongo's `$in` over the capable ids excluded
- * it.
+ * simply does not join, so it is excluded.
  */
 
 import { and, arrayContains, eq, gt, isNull } from 'drizzle-orm';

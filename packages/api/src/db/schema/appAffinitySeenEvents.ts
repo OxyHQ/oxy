@@ -6,15 +6,11 @@
  * `(application_id, event_id)` was already folded, so a retried or duplicated
  * delivery is applied at most once.
  *
- * Mongo kept this bounded with a TTL index on `createdAt`
- * (`AFFINITY_EVENT_SEEN_TTL_SECONDS`); here the same retention is declared in
- * `db/expiry.ts` and applied by the sweep. Losing a marker is not a correctness
- * failure — it reopens the dedup window for an event nobody is still retrying,
- * which is exactly what the TTL was for.
- *
- * The Mongo collection was `appaffinityeventseens` (Mongoose's pluralizer, not a
- * word). Nothing reads a collection name, so this table is named for what it
- * holds.
+ * The table is kept bounded by a retention on `created_at`
+ * (`AFFINITY_EVENT_SEEN_TTL_SECONDS`), declared in `db/expiry.ts` and applied by
+ * the sweep. Losing a marker is not a correctness failure — it reopens the
+ * dedup window for an event nobody is still retrying, which is exactly what the
+ * retention is for.
  */
 
 import { index, pgTable, text, unique } from 'drizzle-orm/pg-core';
@@ -40,8 +36,7 @@ export const appAffinitySeenEvents = pgTable(
   (t) => [
     // A duplicate insert loses this race and is treated as "already seen".
     unique('app_affinity_seen_events_application_id_event_id_key').on(t.applicationId, t.eventId),
-    // Supports the expiry sweep in `db/expiry.ts` — the replacement for Mongo's
-    // TTL index on this column.
+    // Supports the expiry sweep in `db/expiry.ts`.
     index('app_affinity_seen_events_created_at_idx').on(t.createdAt),
   ],
 );

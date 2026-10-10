@@ -137,14 +137,12 @@ async function debitWallet(
 /**
  * A ledger party as the transaction endpoints emit it.
  *
- * Mongoose `populate('userId', 'username')` replaced the id with
- * `{ _id, username }`, and `WalletTransaction` in `@oxy.so/services` models both
- * that object and a bare id string. The populated object is reproduced here with
- * a join rather than narrowed to the id: no consumer in this repo reads
- * `.username`, but this is a published API and the contract for endpoints this
- * port touches is parity, not "parity with the consumers we can enumerate".
+ * The party is `{ _id, username }`, and `WalletTransaction` in
+ * `@oxy.so/services` models both that object and a bare id string. The object
+ * is built with a join rather than narrowed to the id: no consumer in this repo
+ * reads `.username`, but this is a published API whose contract includes it.
  *
- * `null` matches what populate produced when the referenced account was gone.
+ * `null` means the referenced account is gone.
  */
 interface LedgerParty {
   _id: string;
@@ -352,7 +350,7 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response): Pr
       throw new ForbiddenError('You do not have permission to view these transactions');
     }
 
-    // Either side of the ledger — the Mongo `$or` on `userId` / `recipientId`.
+    // Either side of the ledger — `user_id` or `recipient_id`.
     const partyFilter = or(
       eq(transactionsTable.userId, userId),
       eq(transactionsTable.recipientId, userId),

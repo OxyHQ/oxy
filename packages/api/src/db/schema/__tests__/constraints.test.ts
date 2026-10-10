@@ -107,7 +107,7 @@ describe('id column', () => {
   });
 });
 
-describe('labels — case-insensitive unique (Mongo collation strength 2)', () => {
+describe('labels — case-insensitive unique', () => {
   it('rejects a second label differing only by case', async () => {
     const userId = await owner();
     await getDb().insert(labels).values({ userId, name: 'Work' });

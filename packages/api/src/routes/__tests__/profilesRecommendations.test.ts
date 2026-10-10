@@ -1,9 +1,8 @@
 /**
  * `GET` / `POST /profiles/recommendations` against a REAL Postgres.
  *
- * Four things here are worth a test, and the previous version could verify none
- * of them: it reimplemented the Mongo aggregation inside the test file and then
- * asserted the pipeline it had just built.
+ * Four things here are worth a test, each checked against real rows rather
+ * than against a query the test builds itself:
  *
  *  1. **The exclusion set.** The viewer, everyone they already follow, and any
  *     caller-supplied `excludeIds` must never be recommended — on BOTH the

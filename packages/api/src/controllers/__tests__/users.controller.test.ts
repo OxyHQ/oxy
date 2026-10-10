@@ -6,12 +6,8 @@
  * but has its own serializer call and its own hard cap of 5 results, which is
  * why it keeps its own suite rather than being folded into theirs.
  *
- * The previous version asserted the SHAPE of the Mongo filter object
- * (`{ accountStatus: { $ne: 'archived' } }`, `PUBLIC_USER_PROFILE_SELECT`, the
- * `$regex` inside `$or`). None of those exist any more — and even when they did,
- * an assertion about a filter object cannot tell a working gate from one that
- * matches nothing: the projection case in particular passed against a stub that
- * returned an empty array. Here the gates are checked by seeding a row that must
+ * An assertion about a filter object cannot tell a working gate from one that
+ * matches nothing. Here the gates are checked by seeding a row that must
  * NOT come back, and the leak guard by seeding a row that really holds the
  * secret.
  *

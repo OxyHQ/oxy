@@ -146,7 +146,7 @@ export function isOperatorSwitchTargetKind(kind: AccountKind | null | undefined)
  * Narrow an unknown value to an {@link AccountKind}.
  *
  * The user-DTO serializers read from structurally-permissive `unknown` sources
- * (a Drizzle row, a Mongo document, an already-formatted object), so each one
+ * (a Drizzle row, a raw document, an already-formatted object), so each one
  * would otherwise hand-roll this check and they would drift on what counts.
  */
 export function isAccountKind(value: unknown): value is AccountKind {

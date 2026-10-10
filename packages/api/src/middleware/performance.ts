@@ -44,12 +44,9 @@ export const getMemoryStats = () => {
 /**
  * Which database this process is pointed at, for `GET /metrics`.
  *
- * Replaces `getConnectionPoolStats(mongoose.connection)`. Two of its three
- * fields survive because they describe the SERVER, not the driver: `host` and
- * `name`. `readyState` does not — it was a mongoose enum (0–3) with no Postgres
- * counterpart, and inventing one would be exactly the Mongo baggage the
- * migration contract forbids. `connected` answers the question `readyState` was
- * actually read for, in the vocabulary of the pool that now exists.
+ * `host` and `name` describe the SERVER, not the driver. `connected` answers
+ * whether this process holds a database pool, in the vocabulary of the pool
+ * that exists.
  *
  * `connected` is `isPostgresConnected()`, so this reports whether a pool is
  * OPEN, not whether the server answers. Liveness is `GET /health`, which issues

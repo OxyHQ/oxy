@@ -1,12 +1,7 @@
 /**
  * The v2 per-subject hash chain (F0.2), against a REAL Postgres.
  *
- * The suite this replaces mocked `SignedRecord`, `RepoHead` and
- * `mongoose.startSession`, then asserted on the ARGUMENTS handed to
- * `SignedRecord.create` and `RepoHead.findOneAndUpdate`. None of those models is
- * imported by the service any more, so the mocks were inert and the assertions
- * described a Mongoose call shape that no longer exists. The chain's actual
- * guarantees are structural, so they are asserted against stored rows here:
+ * The chain's guarantees are structural, so they are asserted against stored rows here:
  *
  *  - **`prev` is the content address of the record before it.** The chain is
  *    walked from genesis to head and every link is re-derived with

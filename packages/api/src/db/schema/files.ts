@@ -21,8 +21,7 @@
  * (`sha256 = $1 and owner_user_id = $2`) is served by the index directly.
  *
  * It USED to be one live row per hash across the whole table
- * (`files_sha256_live_key`, the port of Mongo's
- * `{ sha256: 1 }, { unique: true, partialFilterExpression: … }`). That made
+ * (`files_sha256_live_key`). That made
  * content dedup hand an EXISTING row — and its id, its links and its delete
  * authority — to whichever other account uploaded the same bytes, so owners
  * ended up holding one another's files and one owner's delete removed another's
@@ -33,22 +32,13 @@
  * last live row using them does (`accountStorageDeletion.worker.ts`, under the
  * content-hash lock of `services/contentHashLock.ts`).
  *
- * The semantic that survives from Mongo is the REASON the filter is partial: a
- * `deleted` tombstone is not a claim, so it never blocks a later upload.
+ * The filter is partial for a REASON: a `deleted` tombstone is not a claim, so
+ * it never blocks a later upload.
  *
  * The predicate is derived from `FILE_LIVE_STATUSES` rather than spelled twice,
  * so widening the live set cannot leave the index behind. It is written with a
  * literal `in (...)` list because an index predicate must be IMMUTABLE — the
  * same rule that governs generated columns.
- *
- * ## `ensureFileSha256LiveUniqueIndex()` does not travel
- *
- * That function is boot-time index reconciliation: it drops the legacy global
- * `sha256_1` index and creates the partial one on every start, and on a fresh
- * empty database it CRASHES the API (`MongoServerError: ns does not exist` →
- * `server.ts` `process.exit(1)`; the workaround is documented in `AGENTS.md`).
- * A migration is what index reconciliation is for. The DDL above IS the port of
- * that function; there is nothing left for it to do.
  *
  * ## `_id`, and the type that lied
  *
@@ -59,7 +49,7 @@
  *
  * ## `usageCount` is not here
  *
- * It is a Mongoose virtual over `links.length`. Derived values are computed:
+ * It is derived from the link count, and derived values are computed:
  * `select count(*) from file_links where file_id = $1`.
  */
 
@@ -83,8 +73,7 @@ export const FILE_STATUSES = ['active', 'trash', 'deleted'] as const;
 /**
  * The statuses that hold a claim on their content hash.
  *
- * Mongo's `LIVE_FILE_STATUSES`, and the single source of the partial unique
- * index's predicate below.
+ * The single source of the partial unique index's predicate below.
  */
 export const FILE_LIVE_STATUSES = ['active', 'trash'] as const;
 
@@ -99,10 +88,10 @@ export const FILE_PURPOSES = ['user', 'federation-media-cache', 'sticker'] as co
 /**
  * System namespaces that own an asset instead of a user.
  *
- * Mongo stored these sentinel STRINGS in `ownerUserId`, a column that
- * otherwise holds user ids — so the column could never carry a foreign key and
- * `mediaPrivacyService.ts:96` had to special-case "synthetic user IDs" by
- * eyeballing the string. Splitting them out is what lets `owner_user_id` become
+ * Stored as sentinel STRINGS in `owner_user_id`, a column that otherwise holds
+ * user ids, the column could never carry a foreign key and every reader would
+ * have to special-case "synthetic user IDs" by eyeballing the string. Splitting
+ * them out is what lets `owner_user_id` become
  * a real constraint for the 99.99% of rows that ARE owned by a user, which is
  * the whole point of the migration.
  *
@@ -164,10 +153,10 @@ export const files = pgTable(
      * The filename the uploading client supplied, echoed back to every viewer
      * and mirrored onto `message_attachments.name`.
      *
-     * CALL-SITE OBLIGATION. Mongoose ran `normalizeFileName` — i.e.
-     * `normalizeInlineText` — as a schema SETTER, the API's one sanctioned
-     * setter, because four independent upload paths write this leaf field and
-     * there is no chokepoint to put the call in. Postgres has no setter, and it
+     * CALL-SITE OBLIGATION. The value must pass through `normalizeFileName` —
+     * i.e. `normalizeInlineText` — and four independent upload paths write this
+     * leaf field with no chokepoint to put the call in. Postgres has no setter,
+     * and it
      * cannot have a generated column here either: `normalizeInlineText` begins
      * with `String.prototype.normalize('NFC')` (`packages/core/src/utils/
      * textNormalization.ts:118`), and Postgres has no IMMUTABLE Unicode
@@ -200,7 +189,7 @@ export const files = pgTable(
       .on(t.sha256, t.systemOwner)
       .where(sql`${liveStatusPredicate(t.status)} and ${t.systemOwner} is not null`),
 
-    // ---- the compounds Mongo declared -------------------------------------
+    // ---- compound indexes --------------------------------------------------
     index('files_owner_user_id_status_idx').on(t.ownerUserId, t.status),
     index('files_owner_user_id_visibility_status_idx').on(t.ownerUserId, t.visibility, t.status),
     index('files_visibility_status_idx').on(t.visibility, t.status),
@@ -211,10 +200,9 @@ export const files = pgTable(
     index('files_sha256_status_idx').on(t.sha256, t.status),
     index('files_purpose_owner_user_id_status_idx').on(t.purpose, t.ownerUserId, t.status),
     index('files_created_at_idx').on(t.createdAt.desc()),
-    // Mongo additionally declared standalone `{sha256}`, `{ownerUserId}`,
-    // `{status}`, `{visibility}`, `{purpose}` and `{mime}`. Five are covered by
-    // a compound that leads with them. `{status}` and `{mime}` are not, and are
-    // dropped rather than ported: no query filters on either alone (every
+    // No single-column indexes: `sha256`, `owner_user_id`, `visibility` and
+    // `purpose` are each covered by a compound that leads with them. `status`
+    // and `mime` are not, and get none: no query filters on either alone (every
     // status read is scoped by owner, visibility or sha256; nothing filters by
     // mime at all), and an index nobody uses still costs every write.
     // The system-owned namespaces are reached through `purpose` above, so

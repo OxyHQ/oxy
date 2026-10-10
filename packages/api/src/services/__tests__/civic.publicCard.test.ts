@@ -1,10 +1,7 @@
 /**
  * The public Oxy ID card (civic / Fase 1), against a REAL Postgres.
  *
- * The suite this replaces mocked `User`, `ReputationBalance` and
- * `PersonhoodStatus` as Mongoose models the service no longer imports, so every
- * "assertion" was really a statement about the mock's `.select().lean()` chain.
- * The card is now assembled from FOUR tables — `users`, `reputation_balances`,
+ * The card is assembled from FOUR tables — `users`, `reputation_balances`,
  * `personhood_statuses` and the `user_verified_domains` child table — and the
  * three composition rules that can silently break are exactly the ones a mock
  * cannot vouch for:

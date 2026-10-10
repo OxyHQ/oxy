@@ -8,11 +8,10 @@
  *     write path owns the invariant inside the SAME transaction that writes the
  *     children — a violation has to roll the whole rule back, not leave a rule
  *     that silently matches everything.
- *   - **Bundles** gained case-insensitive uniqueness, which Mongo's index
- *     lacked while its two siblings had it.
+ *   - **Bundles** are unique case-insensitively, like their two siblings.
  *   - **Reminders** had a read-then-write-per-row cron; it is one statement now.
- *   - **Templates** and **contacts** carry call-site obligations Mongoose
- *     discharged with setters that Postgres has no counterpart for.
+ *   - **Templates** and **contacts** carry call-site normalization obligations
+ *     that Postgres has no setter to discharge.
  */
 
 jest.mock('../senderAvatar.service', () => ({
@@ -84,8 +83,8 @@ describe('filters — the invariant Postgres cannot state as a CHECK', () => {
       { field: 'from', operator: 'contains', value: 'ops@' },
       { field: 'subject', operator: 'starts-with', value: 'Alert' },
     ]);
-    // `value` is OMITTED for the actions that take none — Mongoose stored no
-    // key at all rather than a null.
+    // `value` is OMITTED for the actions that take none — no key at all rather
+    // than a null.
     expect(filter.actions).toEqual([{ type: 'label', value: 'Work' }, { type: 'mark-read' }]);
     expect(filter._id).toBe(filter.id);
   });
@@ -340,7 +339,7 @@ describe('templates — the case-insensitive name', () => {
   });
 });
 
-describe('contacts — the normalization Mongoose did with a setter', () => {
+describe('contacts — the normalization the call site owns', () => {
   it('lower-cases and trims the address on create and on update', async () => {
     const userId = await owner();
     const local = `Contact${unique().slice(0, 8)}`;

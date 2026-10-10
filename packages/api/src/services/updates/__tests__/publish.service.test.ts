@@ -495,8 +495,8 @@ describe('rollbackToEmbedded — one idempotent statement', () => {
     await publishService.createUpdate(input);
     const channelId = await channelIdOf(applicationId, input.channel);
 
-    // Mongo's pull-then-push could leave two entries here, which the manifest
-    // endpoint's `.find()` then resolved arbitrarily.
+    // A pull-then-push could leave two entries here, which the manifest
+    // endpoint's `.find()` would then resolve arbitrarily.
     const results = await Promise.all(
       Array.from({ length: 4 }, () =>
         publishService.rollbackToEmbedded(applicationId, input.channel, '1.0.0', 'ios'),

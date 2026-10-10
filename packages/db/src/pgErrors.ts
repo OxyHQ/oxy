@@ -1,9 +1,8 @@
 /**
  * Driver-Error Translation
  *
- * A Mongo port typically replaces `error.code === 11000` at every call site
- * with a SQLSTATE check, and a SQLSTATE check is easy to get wrong in a way
- * that silently passes: **drizzle wraps the driver failure in its own error**,
+ * Constraint failures are detected with a SQLSTATE check, and a SQLSTATE
+ * check is easy to get wrong in a way that silently passes: **drizzle wraps the driver failure in its own error**,
  * so `code` and `constraint_name` live on `cause`, not on the error you catch.
  * A predicate that reads `error.code` directly matches NOTHING — and the call
  * sites that use it are all `catch` blocks that then rethrow, so the failure
@@ -43,10 +42,8 @@ export const DEADLOCK_DETECTED = '40P01';
  * A statement Postgres CANCELLED — `statement_timeout` expiring, or an explicit
  * `pg_cancel_backend`.
  *
- * A capacity answer, not a fault, and the port of Mongo's `MaxTimeMSExpired`
- * (code 50): a caller that distinguished the two there has to keep
- * distinguishing them here, or a query that ran out of time reaches the client
- * as a 500 and hides a real crash behind the same status. Never retryable in
+ * A capacity answer, not a fault: a caller has to keep distinguishing it from
+ * a crash, or a query that ran out of time reaches the client as a 500 and hides a real crash behind the same status. Never retryable in
  * place — the budget will not be larger on the second attempt.
  */
 export const QUERY_CANCELED = '57014';
@@ -100,7 +97,7 @@ export function constraintNameOf(error: unknown): string | undefined {
  * The whole error object is not. postgres.js attaches the failing statement AND
  * its bound parameters (`query`, `params`), and Postgres's own `detail` reads
  * `Failing row contains (…)` — so `logger.warn(msg, { error })` publishes every
- * value the statement carried. An ObjectId redactor keyed on Mongo's 24-hex
+ * value the statement carried. An id redactor keyed on the legacy 24-hex
  * shape will not save you here either: a uuid v7 primary key does not match
  * that shape and passes straight through.
  *

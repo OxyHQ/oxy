@@ -5,9 +5,8 @@
  *
  * 1. **The bundle omits every secret.** This is the whole reason the export can
  *    exist: the user downloads their account, and a leak here is permanent and
- *    self-service. Mongoose gave it for free via `select: false` plus a
- *    `.select('-password …')` string; drizzle enumerates columns explicitly, so
- *    a naive port returns the raw phone, the contact-discovery hashes and the
+ *    self-service. Drizzle enumerates columns explicitly, so a naive
+ *    `select()` returns the raw phone, the contact-discovery hashes and the
  *    refresh token WITHOUT NAMING ANY OF THEM (`schema/CONVENTIONS.md`,
  *    "Protected columns"). The cases below seed real secret values and assert
  *    they appear NOWHERE in the serialized bundle.
@@ -19,9 +18,8 @@
  * 3. **The bundle is reproducible.** Two exports of an unchanged account must
  *    order their child rows identically; heap order would make the same account
  *    produce two different signatures.
- * 4. **The social graph comes from `user_follows`.** The Mongo `following[]` /
- *    `followers[]` arrays are DELETED by the schema, so an export that still
- *    read them would silently ship an empty graph.
+ * 4. **The social graph comes from `user_follows`.** There are no stored
+ *    `following[]` / `followers[]` arrays, so the export must read the edges.
  *
  * The suite this replaces stubbed `User.findById`, `SignedRecord.find` and
  * `UserAppData.find`, so the secret-stripping assertion only proved that
@@ -99,9 +97,9 @@ const OBJECT_ID_HEX = /^[0-9a-f]{24}$/i;
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 /**
- * Secret values seeded onto the account row. Every one is a column Mongoose
- * declared `select: false` (`db/schema/protectedColumns.ts`), and none may
- * appear anywhere in the export.
+ * Secret values seeded onto the account row. Every one is a protected column
+ * (`db/schema/protectedColumns.ts`), and none may appear anywhere in the
+ * export.
  */
 const SECRETS = {
   phone: '+34600111222',
@@ -383,7 +381,7 @@ describe('GET /users/me/export (JSON)', () => {
       { type: 'identity', linkedAt: '2026-05-01T00:00:00.000Z', verificationMethodId: '#key-1' },
     ]);
 
-    // `namespace, key` — the order Mongo's `{userId, namespace, key}` index gave.
+    // `namespace, key` — the `{user_id, namespace, key}` unique index order.
     expect(bundle.appData).toEqual([
       { namespace: 'academy', key: 'bookmarks', value: [] },
       { namespace: 'academy', key: 'progress', value: { done: 3 } },
@@ -490,8 +488,8 @@ describe('GET /users/me/export (JSON)', () => {
   it('exports an account with no child rows at all', async () => {
     // A brand-new account has no domains, no auth methods, no app data and no
     // follows. Every section must be an empty ARRAY — the contract has no
-    // nullable list, and drizzle hands back `null` where Mongoose handed
-    // `undefined`, so an absent section would fail the SDK's zod parse.
+    // nullable list, and drizzle hands back `null` for a missing value, so an
+    // absent section would fail the SDK's zod parse.
     await signInAsFreshAccount();
 
     const bundle = JSON.parse((await getRaw('/users/me/export')).raw);

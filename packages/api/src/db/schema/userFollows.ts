@@ -8,9 +8,9 @@
  *
  * ## Why ONE typed table rather than a polymorphic one
  *
- * Mongo's `Follow` was polymorphic: `followType: 'user' | 'hashtag' | 'topic'`
- * plus `followedId: { type: ObjectId, refPath: 'followType' }`. The two
- * candidate ports were (a) one table with a `follow_type` discriminator and NO
+ * The original `Follow` model was polymorphic: `followType: 'user' | 'hashtag' |
+ * 'topic'` plus a `followedId` whose target depended on that type. The two
+ * candidate designs were (a) one table with a `follow_type` discriminator and NO
  * foreign key on `followed_id`, or (b) a typed table per target with real
  * foreign keys. This is (b), narrowed to the one target that exists.
  *
@@ -39,8 +39,7 @@
  *    sides referencing `users` with `ON DELETE CASCADE`, an edge pointing at a
  *    deleted account is unrepresentable, and the hand-rolled graph purge on
  *    account deletion (`user.service.ts:1633`, a `deleteMany` with an `$or`
- *    over both directions) becomes the database's job. Mongo could only hope
- *    for this; here it is enforced.
+ *    over both directions) becomes the database's job, enforced.
  *
  * `topic_follows` is deliberately NOT created alongside this table. `topics`
  * exists, so the FK would be declarable — but nothing follows a topic, and a
@@ -60,17 +59,12 @@
  * ## What the call-site port must change
  *
  * - `followType` disappears from every filter. There is nothing to discriminate.
- * - `followerUserId` → `follower_id`. Mongo named it for the polymorphic case
+ * - `followerUserId` → `follower_id`. The old name served the polymorphic case
  *   (only the FOLLOWER was known to be a user); in a typed table both sides are,
  *   and the pair reads symmetrically.
- * - **Ids are `text` and are passed as strings, always.** Mongo accepted both a
- *   `Types.ObjectId` and its `.toString()` and silently cast between them, which
- *   is why `followedIdToObjectId` exists in `routes/profiles.ts:894` — a
- *   normalizer that exists solely because the stored type was ambiguous. It does
- *   not travel. The ambiguity it papered over is also why
- *   `routes/profiles.ts:540` is broken today: an aggregation `$match` is NOT
- *   cast by Mongoose, so passing `.toString()` ids there matches nothing and the
- *   follower counts on `/profiles/search` silently read zero. Neither failure is
+ * - **Ids are `text` and are passed as strings, always.** A stored id type that
+ *   could be either an object or its string form needs a normalizer at every
+ *   read and silently matches nothing where one is forgotten. Neither failure is
  *   expressible against a `text` column with a foreign key.
  */
 
@@ -95,36 +89,33 @@ export const userFollows = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // Mongo's `{followerUserId, followType, followedId}` unique, with the
-    // constant discriminator dropped. It is both the idempotency guard that
+    // `(follower_id, followed_id)` unique. It is both the idempotency guard that
     // makes `followUser` safe under a concurrent double-submit and — as a
     // leading prefix — the FOLLOWING-direction access path.
     unique('user_follows_follower_id_followed_id_key').on(t.followerId, t.followedId),
 
-    // The FOLLOWERS direction, ordered. Mongo's
-    // `{followedId, followType, createdAt:-1, _id:1}`, added there after a
-    // measurement (49,991 keys examined collapsing to 5,000 on a 5,000-follower
-    // target) and earning its keep identically here: `getUserFollowers` pages
-    // this exact shape, and `id` mirrors the `(createdAt, _id)` tiebreak the
-    // sort uses so pagination stays deterministic.
+    // The FOLLOWERS direction, ordered. Added after a measurement (49,991 keys
+    // examined collapsing to 5,000 on a 5,000-follower target):
+    // `getUserFollowers` pages this exact shape, and `id` mirrors the
+    // `(createdAt, _id)` tiebreak the sort uses so pagination stays
+    // deterministic.
     index('user_follows_followed_id_created_at_id_idx').on(t.followedId, t.createdAt.desc(), t.id),
 
-    // Mongo's `{followType, createdAt:-1, _id:1}`, again minus the constant
-    // leading column. It serves the bounded recent-edge window
+    // `(created_at desc, id)`. It serves the bounded recent-edge window
     // `buildPopularFallback` scans before grouping by followed account
     // (`routes/profiles.ts:931-938`).
     index('user_follows_created_at_id_idx').on(t.createdAt.desc(), t.id),
 
     // NOT added: `(follower_id, created_at desc, id)` for the FOLLOWING list's
-    // ordering. Mongo had no such index and the unique above already bounds that
-    // read to one account's own fan-out, so the sort is over a small set rather
-    // than the table. If a profile with an enormous following list makes it
-    // measurable, that index is the fix — against a measurement, not by
-    // symmetry with the followers direction, whose index was added because
-    // without it the scan was O(all follows).
+    // ordering. The unique above already bounds that read to one account's own
+    // fan-out, so the sort is over a small set rather than the table. If a
+    // profile with an enormous following list makes it measurable, that index
+    // is the fix — against a measurement, not by symmetry with the followers
+    // direction, whose index was added because without it the scan was O(all
+    // follows).
 
-    // Mongo permitted a self-follow and `followUser` rejected it in application
-    // code (`user.service.ts:1116`). A CHECK makes it unrepresentable, which is
+    // `followUser` rejects a self-follow in application code
+    // (`user.service.ts`). A CHECK makes it unrepresentable, which is
     // the same move `users_parent_account_id_not_self_check` makes for the
     // account tree.
     check('user_follows_not_self_check', sql`${t.followerId} <> ${t.followedId}`),

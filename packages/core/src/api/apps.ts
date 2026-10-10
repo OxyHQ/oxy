@@ -288,7 +288,7 @@ export interface ApplicationUsageStats {
  * `_id` as a string.
  */
 export interface PublicApplication {
-  /** The application's Mongo `_id` as a string. */
+  /** The application's id as a string. */
   id: string;
   /** Human-readable application name shown to the user. */
   name: string;
@@ -319,14 +319,14 @@ export interface PublicApplication {
  * view: an application the user has granted access to via the consent flow.
  *
  * Returned by `GET /auth/grants` and rendered in the user-facing "Connected
- * apps" management surface. Keyed by `applicationId` (the application's Mongo
- * `_id`) rather than a credential/client id, so the grant — and a subsequent
+ * apps" management surface. Keyed by `applicationId` (the application's own
+ * id) rather than a credential/client id, so the grant — and a subsequent
  * `apps.connected.revoke` — survive credential
  * rotation. This is a display shape: it carries the application's name/logo and
  * the granted scopes, never any membership or credential material.
  */
 export interface ConnectedApp {
-  /** The connected application's Mongo `_id`. Use this to revoke the grant. */
+  /** The connected application's id. Use this to revoke the grant. */
   applicationId: string;
   /** Human-readable application name shown to the user. */
   name: string;

@@ -6,17 +6,15 @@
  * change, and `subscriptionPlan.ts:39` reads it as a fallback so premium gates
  * stay accurate for anyone who never migrated.
  *
- * ## The TTL index does NOT travel — it was a data-loss bug
+ * ## No expiry sweep — deleting at `end_date` would be a data-loss bug
  *
- * Mongo declared `SubscriptionSchema.index({ endDate: 1 }, { expireAfterSeconds: 0 })`.
- * A Mongo TTL index DELETES the document. On a subscription that means the
- * record of what the user bought, when it started, and what it entitled them to
- * is destroyed the moment the period closes — while the `status` enum has an
- * `expired` value that is plainly what the author meant. So this table is
- * deliberately NOT registered in `db/expiry.ts`: that registry deletes rows,
- * which is exactly the behaviour being removed.
+ * Deleting a subscription when its period closes would destroy the record of
+ * what the user bought, when it started, and what it entitled them to — while
+ * the `status` enum has an `expired` value that is plainly what is meant. So
+ * this table is deliberately NOT registered in `db/expiry.ts`: that registry
+ * deletes rows.
  *
- * ## What replaces it: expiry is DERIVED, `status` is a projection
+ * ## Expiry is DERIVED, `status` is a projection
  *
  * The authoritative facts are `end_date` and a `status` of `active`/`canceled`.
  * `expired` is derivable — `status <> 'canceled' and end_date <= now()` — so:
@@ -24,16 +22,13 @@
  *   - **Every read filters expiry itself.** The ported query is
  *     `where user_id = $1 and status = 'active' and end_date > now()`. This is
  *     class (A) in `db/expiry.ts`'s taxonomy: correctness never depends on a job
- *     having run, which is the property the TTL index quietly did NOT have
- *     either (Mongo's TTL monitor lags ~60s, so an expired subscription stayed
- *     readable and premium-granting for up to a minute).
+ *     having run.
  *   - **A projection job materializes `status = 'expired'`** for the reads and
  *     dashboards that group by status, via
  *     `update subscriptions set status = 'expired' where status = 'active' and end_date <= now()`.
  *     `subscriptions_active_end_date_idx` exists to make that predicate a range
- *     scan rather than a table scan — the same obligation Mongo's TTL index
- *     carried. Scheduling it belongs with the call-site port, alongside the
- *     BullMQ repeatable jobs; nothing reads this table from Postgres yet.
+ *     scan rather than a table scan. Scheduling it belongs alongside the BullMQ
+ *     repeatable jobs.
  *
  * A `GENERATED ALWAYS` column cannot express this: the expression would have to
  * read `now()`, which is not IMMUTABLE.
@@ -95,9 +90,9 @@ export const subscriptions = pgTable(
     // Every read leads with the owner: `findOne({userId, status, plan})`
     // (`subscriptionPlan.ts:39`), `findOne({userId})`
     // (`subscription.controller.ts:30`), and
-    // `findOneAndUpdate({userId, status: {$ne: 'canceled'}})` (`:63`). Mongo's
-    // standalone `{userId}` is redundant against this, and its `{status}` index
-    // is dropped: no query filters this table by status alone.
+    // `findOneAndUpdate({userId, status: {$ne: 'canceled'}})` (`:63`). A
+    // standalone `(user_id)` index would be redundant against this, and there is
+    // no `(status)` index: no query filters this table by status alone.
     index('subscriptions_user_id_status_idx').on(t.userId, t.status),
     // The replacement for the TTL index: the range scan the expiry projection
     // runs, narrowed to the only rows it can act on.

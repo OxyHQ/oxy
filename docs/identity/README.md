@@ -14,7 +14,7 @@
 ## 1. DID: `did:web:api.oxy.so:u:<userId>`
 
 Every user has a [W3C DID](https://www.w3.org/TR/did-core/) that is
-**account-anchored on the stable Mongo `_id`**, *not* on a keypair. The keypair
+**account-anchored on the stable user id**, *not* on a keypair. The keypair
 (if any) is a *verification method* under the account's `authMethods[]`. Linking a
 root makes the DID self-sovereign and the DID string never changes. A root is
 never unlinked back to custodial; it is replaced only by rotation

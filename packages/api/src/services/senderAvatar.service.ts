@@ -215,10 +215,8 @@ function isCurrentAvatar(cached: { avatarPath: string | null; source: string }):
 /**
  * Resolve a single sender's avatar with DB caching.
  *
- * The read carries `senderAvatarIsFresh()`. Mongo's TTL monitor was the ONLY
- * thing that stopped an expired row being served here, which made a background
- * job part of this table's correctness (`CONVENTIONS.md`, class (B)); with the
- * predicate, an expired row that the sweep has not reached yet simply misses
+ * The read carries `senderAvatarIsFresh()`, so no background job is part of
+ * this table's correctness (`CONVENTIONS.md`, class (B)): an expired row that the sweep has not reached yet simply misses
  * and falls through to the resolve-and-upsert path below — which is what an
  * expired row was always supposed to cause.
  */

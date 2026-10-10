@@ -18,8 +18,8 @@
  *
  * `credits` is a whole count of API credits, `bigint` for the same reason.
  *
- * Neither carries a `>= 0` CHECK: Mongoose declared no `min`, and a `refund` row
- * is exactly the shape that would legitimately be negative.
+ * Neither carries a `>= 0` CHECK: a `refund` row is exactly the shape that
+ * would legitimately be negative.
  *
  * ## TWO Stripe webhook idempotency indexes, one per grant path
  *
@@ -29,12 +29,11 @@
  * guard the same failure:
  *
  *   - `billing_transactions_subscription_period_key` guards the RENEWAL grant in
- *     `handleSubscriptionUpdate`, and is Mongo's index carried across verbatim.
+ *     `handleSubscriptionUpdate`.
  *   - `billing_transactions_payment_intent_key` guards the ONE-OFF PURCHASE grant
- *     in `handleCheckoutCompleted`, and is NEW. Mongo had no such index and that
- *     handler had no idempotency guard of any kind: a replayed
- *     `checkout.session.completed` — which Stripe sends by design — granted the
- *     credits a second time and wrote a second receipt. The natural key is
+ *     in `handleCheckoutCompleted`. Without it a replayed
+ *     `checkout.session.completed` — which Stripe sends by design — grants the
+ *     credits a second time and writes a second receipt. The natural key is
  *     Stripe's own `payment_intent`, which is one per successful charge.
  *
  * A NEW unique index can fail a backfill, and here that is the POINT rather than
@@ -51,16 +50,14 @@
  * `is not null` clause is index-size fidelity: a btree already treats NULLs as
  * DISTINCT, so a row without a payment intent could never collide.
  *
- * The renewal index, for reference. Mongo declared it as
+ * The renewal index, for reference:
  *
- *   { stripeSubscriptionId: 1, stripeSubscriptionPeriodStart: 1, type: 1 }
- *   partialFilterExpression: {
- *     type: 'subscription_payment',
- *     stripeSubscriptionId: { $exists: true },
- *     stripeSubscriptionPeriodStart: { $exists: true },
- *   }
+ *   (stripe_subscription_id, stripe_subscription_period_start, type)
+ *   where type = 'subscription_payment'
+ *     and stripe_subscription_id is not null
+ *     and stripe_subscription_period_start is not null
  *
- * The predicate travels verbatim, but the two halves of it earn their place for
+ * The two halves of the predicate earn their place for
  * DIFFERENT reasons, and confusing them is how a "simplification" quietly
  * changes behaviour:
  *
@@ -68,10 +65,10 @@
  *     `credit_purchase` colliding with a renewal — `type` is an indexed COLUMN,
  *     so differing types already miss each other — but because it leaves rows of
  *     every OTHER type UNCONSTRAINED. Two `refund` rows against one subscription
- *     period are legitimate, and Mongo allowed them; drop this clause and the
- *     second one starts failing.
- *   - the two `is not null` clauses are Mongo's `$exists`, and in Postgres they
- *     are index-SIZE fidelity rather than semantics: a btree already treats
+ *     period are legitimate; drop this clause and the second one starts
+ *     failing.
+ *   - the two `is not null` clauses are index-SIZE fidelity rather than
+ *   semantics: a btree already treats
  *     NULLs as DISTINCT, so a row missing either column could never have
  *     collided. They keep every `credit_purchase` out of the index instead of
  *     carrying a useless entry per row.
@@ -81,7 +78,7 @@
  * This is the audit trail of money this platform charged a person. Deleting the
  * account must not delete the invoice history: the record is what reconciles
  * against Stripe and against the books, and once it is gone there is no
- * recovering it from here. `user_id` is `required: true` in Mongoose, so the
+ * recovering it from here. `user_id` is `NOT NULL`, so the
  * retain-and-anonymize shape (`SET NULL`) is not available without weakening
  * the constraint for every live row — `RESTRICT` it is, and the erasure path has
  * to grow an explicit retention decision.
@@ -165,9 +162,7 @@ export const billingTransactions = pgTable(
   {
     id: generatedId(),
     /**
-     * An untyped `String` in Mongoose — a logical reference to `User` that
-     * nothing enforced. It is a real foreign key here. See the migration report
-     * for the orphan audit this makes mandatory before the backfill.
+     * A real foreign key to `users`.
      */
     userId: text()
       .notNull()
@@ -225,12 +220,12 @@ export const billingTransactions = pgTable(
         sql`${t.type} = 'subscription_promotional_grant' and ${t.stripeSubscriptionId} is not null and ${t.stripeSubscriptionPeriodStart} is not null`,
       ),
     // The transaction list: `find({userId}).sort({createdAt: -1})`
-    // (`billing.ts:248`). Mongo declared this one AND a standalone `{userId}`;
-    // the standalone is redundant, since a btree serves any leading prefix.
+    // (`billing.ts`). No standalone `(user_id)` index: a btree serves any
+    // leading prefix.
     index('billing_transactions_user_id_created_at_idx').on(t.userId, t.createdAt),
-    // Mongo's `{stripeSubscriptionId: 1}` and its sparse
-    // `{stripePaymentIntentId: 1}` are both DROPPED: each of the two partial
-    // unique indexes above already leads with the respective column.
+    // No standalone `(stripe_subscription_id)` or `(stripe_payment_intent_id)`
+    // index: each of the two partial unique indexes above already leads with the
+    // respective column.
 
     check(
       'billing_transactions_type_check',

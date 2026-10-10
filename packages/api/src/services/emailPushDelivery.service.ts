@@ -6,20 +6,15 @@
  * push token the identity owns (which would leak mail alerts to Commons and any
  * other Oxy app on the same account).
  *
- * ## What the Postgres port changes
+ * ## Ids are compared as text
  *
- * `PushToken.find({ userId, applicationId })` CAST both values: the Mongoose
- * schema declares each as a `Schema.Types.ObjectId`, so a value that is not
- * 24-char hex raised a `CastError` rather than matching no rows. Both ids are
- * now **uuid v7** for anything minted after the cutover (`@oxy.so/db`'s
- * `generatedId()`), and `resolveApplicationIdFromClientId` hands this function
- * exactly such an id. The throw landed in `sendInboxEmailPush`'s own catch, so
- * the whole inbox push for that identity disappeared into a `logger.warn` with
- * no failed request and no bounced mail — a silent, permanent loss of new-mail
- * notifications for every post-cutover account.
- *
- * Here both are `text` comparisons: an id that names no row selects no row, in
- * either id shape.
+ * Ids are either legacy 24-hex ids or **uuid v7** (`@oxy.so/db`'s
+ * `generatedId()`), and `resolveApplicationIdFromClientId` can hand this
+ * function either. Both are `text` comparisons: an id that names no row selects
+ * no row, in either id shape. A lookup that THREW on a non-hex id would land in
+ * `sendInboxEmailPush`'s own catch, so the whole inbox push for that identity
+ * would disappear into a `logger.warn` with no failed request and no bounced
+ * mail.
  */
 
 import { INBOX_EMAIL_PUSH_CHANNEL, INBOX_EMAIL_PUSH_TYPE } from '@oxy.so/contracts';

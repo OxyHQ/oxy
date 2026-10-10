@@ -100,11 +100,6 @@ const usersController = new UsersController();
 // Middleware
 // ============================================================================
 
-/**
- * Resolves userId parameter (ObjectId or publicKey) to MongoDB ObjectId
- * Accepts both ObjectId strings and publicKey strings
- * Stores the resolved ObjectId back in req.params.userId
- */
 /** 404 when the target user is archived, restricted, or private — same gate as /similar. */
 async function assertDiscoverableTargetUser(userId: string): Promise<void> {
   const user = await userService.getPublicUserById(userId);
@@ -113,6 +108,10 @@ async function assertDiscoverableTargetUser(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Resolves the userId parameter (account id or publicKey) to the account id and
+ * stores it back in req.params.userId.
+ */
 const resolveUserId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { userId } = req.params;
@@ -1142,8 +1141,7 @@ router.put(
     }
 
     // Merge only the provided fields. Replacing the whole settings object would
-    // wipe every toggle the client did not include, which is what Mongo's
-    // dot-path `$set` existed to avoid; the service owns that merge and the
+    // wipe every toggle the client did not include; the service owns that merge and the
     // userCache invalidation that keeps the next session read fresh.
     const incoming = req.body.privacySettings as Record<string, unknown>;
     const updatedSettings = await userService.updatePrivacySettings(userId, incoming);
@@ -1587,8 +1585,8 @@ router.put(
     }
 
     // Build the row predicate and the column payload — never touch auth fields.
-    // `existingPredicate` is what Mongo expressed as an upsert FILTER; it stays a
-    // predicate because the two branches key on different unique indexes.
+    // `existingPredicate` stays a predicate because the two branches key on
+    // different unique indexes.
     const setFields: Record<string, unknown> = { username };
 
     // For agent / automated, refuse to clobber a username already taken
@@ -1623,8 +1621,8 @@ router.put(
     // Type immutability check: if a user already exists, its `type` must
     // match what the caller is asserting. We never allow a federated user
     // to be silently re-typed as an agent, or vice versa. The same read also
-    // supplies the existing avatar file id below, so the two Mongo round trips
-    // that asked the same question collapse into one.
+    // supplies the existing avatar file id below, so one round trip answers
+    // both.
     const [existingByFilter] = await getDb()
       .select({ id: users.id, type: users.type, avatar: users.avatar })
       .from(users)
@@ -1645,10 +1643,10 @@ router.put(
       // Strip disallowed characters (emoji/symbols/shortcodes) from federated
       // names. cleanDisplayName's output can never contain an XSS vector and is
       // already clean, so it owns the name field here.
-      // The COLUMN PROPERTY, not Mongo's `name.first` dot path: drizzle keys
+      // The COLUMN PROPERTY, not a `name.first` dot path: drizzle keys
       // `set()`/`values()` by property name and SILENTLY IGNORES a key that
-      // names no column, so the dot path stored nothing at all and every
-      // federated actor resolved through here landed with a null display name.
+      // names no column, so a dot path would store nothing and every federated
+      // actor resolved through here would land with a null display name.
       setFields.nameFirst = cleanDisplayName(displayName);
     }
     if (typeof bio === 'string') {
@@ -1676,7 +1674,7 @@ router.put(
     // `type` is written only on INSERT, never on update — the immutability
     // check above already rejected a mismatched update, and re-writing it would
     // make that check the only thing standing between a caller and a silent
-    // re-type. Column DEFAULTs replace Mongoose's `setDefaultsOnInsert`.
+    // re-type. Column DEFAULTs apply on insert.
     let resolvedUserId: string;
     if (existingByFilter) {
       await getDb().update(users).set(setFields).where(eq(users.id, existingByFilter.id));

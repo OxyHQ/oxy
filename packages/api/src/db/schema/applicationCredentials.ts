@@ -112,8 +112,7 @@
  *
  * Either way the row must OUTLIVE its deadline — it is the audit trail linking a
  * rotated secret to the one it replaced — so this table deliberately has NO
- * entry in `db/expiry.ts`. Mongo declared no TTL index here either; the
- * resemblance to one is the trap.
+ * entry in `db/expiry.ts`. The resemblance to an expiring row is the trap.
  */
 
 import { ne, sql, type SQL } from 'drizzle-orm';
@@ -132,8 +131,7 @@ import { users } from './users';
  * attested identity is something the usage ledger's foreign keys can name (see
  * the header).
  *
- * This tuple is the SINGLE declaration — the Mongoose model that carried the
- * other copy is gone. It renders the CHECK below, and
+ * This tuple is the SINGLE declaration. It renders the CHECK below, and
  * `check-drizzle-snapshot-sync` holds that rendering against the migration the
  * database was actually built from, so editing it without regenerating a
  * migration fails CI.
@@ -277,8 +275,7 @@ export const applicationCredentials = pgTable(
      * Unique CASE-SENSITIVELY for the same reason `public_key` is, and unique so
      * the machine bearer lane resolves with an index probe instead of a scan. A
      * plain `unique()` suffices: Postgres unique indexes are `NULLS DISTINCT` by
-     * default, so every non-machine credential's NULL coexists freely. (Mongo
-     * needed `partialFilterExpression` here; that trap does not port.)
+     * default, so every non-machine credential's NULL coexists freely.
      *
      * Public by design — it is what a Console surface can render to say WHICH
      * key a row is, and it authorises nothing on its own: the other 256 bits are
@@ -324,8 +321,7 @@ export const applicationCredentials = pgTable(
     /**
      * Attribution, not ownership — the application owns the credential. Nullable
      * with `SET NULL` for the same reason as `applications.created_by_user_id`:
-     * Mongo's `required` only ever guaranteed a creator was recorded at INSERT,
-     * and a deleted user left a dangling id with no error.
+     * a creator is recorded at INSERT, but the creator can later be deleted.
      */
     createdByUserId: text().references(() => users.id, { onDelete: 'set null' }),
     /**
@@ -380,8 +376,8 @@ export const applicationCredentials = pgTable(
     // credential on the platform.
     unique('application_credentials_token_prefix_key').on(t.tokenPrefix),
     // "This app's credentials, live ones first" — the Console credentials tab
-    // and every `clientId` → application resolution. Mongo's standalone
-    // `{applicationId}` is dropped: a btree serves any leading prefix.
+    // and every `clientId` → application resolution. No standalone
+    // `(application_id)` index: a btree serves any leading prefix.
     index('application_credentials_application_id_status_idx').on(t.applicationId, t.status),
     check(
       'application_credentials_type_check',

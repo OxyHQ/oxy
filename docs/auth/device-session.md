@@ -39,8 +39,7 @@ contract is a compatibility projection of those rows, not the storage shape:
 - `device_account_contexts` holds each exact principal → account relationship
   and its optional delegated session id.
 
-The ids are opaque `text` values. No storage or route parses them as Mongo
-ObjectIds.
+The ids are opaque `text` values. No storage or route parses them.
 
 ### `revision`
 

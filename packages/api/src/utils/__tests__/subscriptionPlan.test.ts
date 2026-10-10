@@ -1,12 +1,12 @@
 /**
  * Premium-plan resolution — against a REAL Postgres.
  *
- * This used to mock both Mongoose models, which meant it asserted the call
- * SHAPE and nothing about the query. That mattered here more than usual: the
- * legacy `subscriptions` table lost its Mongo TTL index (which DELETED lapsed
- * rows and destroyed the record of what was bought), so the read is now the only
- * thing standing between a lapsed subscription and a live premium entitlement.
- * A mock cannot see that, so the whole suite runs against real rows.
+ * A mock would assert the call SHAPE and nothing about the query. That matters
+ * here more than usual: lapsed rows in the legacy `subscriptions` table are
+ * kept (deleting them would destroy the record of what was bought), so the
+ * read is the only thing standing between a lapsed subscription and a live
+ * premium entitlement. A mock cannot see that, so the whole suite runs against
+ * real rows.
  */
 
 import { eq } from 'drizzle-orm';

@@ -1,7 +1,7 @@
 import { userIdentityFields } from '../userTransform';
 
 describe('userIdentityFields accepts both row shapes', () => {
-  it('reads the nested Mongoose name object', () => {
+  it('reads the nested name object', () => {
     const r = userIdentityFields({
       _id: 'a'.repeat(24),
       username: 'nate',

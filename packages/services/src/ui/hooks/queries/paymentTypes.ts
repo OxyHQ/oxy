@@ -102,8 +102,8 @@ export type WalletTransactionStatus = 'pending' | 'completed' | 'failed' | 'canc
  * A single wallet ledger entry returned by the transaction-history endpoint.
  *
  * The populated `userId` / `recipientId` may arrive either as a bare id
- * string or as a `{ _id, username }` object depending on Mongoose
- * population, so both shapes are modelled.
+ * string or as a populated `{ _id, username }` object, so both shapes are
+ * modelled.
  */
 export interface WalletTransaction {
   id: string;

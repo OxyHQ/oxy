@@ -19,9 +19,8 @@ export type CreditKind = 'free' | 'paid';
  * `amount` is a whole, non-negative number of credits.
  *
  * Both halves matter. Negative would turn a deduction into a grant that skips
- * every balance guard — a hole `deductCredits` had in Mongoose, where
- * `deductCredits(-100)` passed all three of its checks and ADDED 100 paid
- * credits. Fractional would land in a `bigint` column, and what happens then
+ * every balance guard: without this check `deductCredits(-100)` would pass all
+ * three of its balance checks and ADD 100 paid credits. Fractional would land in a `bigint` column, and what happens then
  * depends on how the driver typed the parameter rather than on any contract:
  * bound as text it is REJECTED (`invalid input syntax for type bigint: "1.5"`),
  * bound as numeric it is silently ROUNDED UP. Neither is an answer to give a
@@ -40,15 +39,14 @@ function wholeNonNegative(amount: number): SQL {
  * Restore the free balance to its per-account limit, at most once every
  * `CREDIT_REFRESH_INTERVAL_HOURS`.
  *
- * The Mongoose original read the row, computed the elapsed hours in JavaScript,
- * and then compare-and-set on the exact `lastRefresh` value it had read. The
- * SQL form needs neither the read nor the CAS: the elapsed-time test IS the
+ * The SQL form needs neither a prior read nor a compare-and-set on the
+ * `lastRefresh` value: the elapsed-time test IS the
  * guard, evaluated against the row under lock, so two concurrent callers can
  * never both refresh — the second sees the advanced `credits_last_refresh` and
  * matches nothing.
  *
  * @returns Whether this call performed the refresh. `false` also covers "no such
- *   account", which is the same answer the Mongoose version gave.
+ *   account".
  */
 export async function refreshCreditsIfNeeded(
   db: DatabaseOrTransaction,
@@ -76,8 +74,7 @@ export async function refreshCreditsIfNeeded(
 /**
  * Grant credits.
  *
- * A plain `$inc` in Mongoose, and a plain `+` here — an increment is already
- * atomic under the row lock, so the only guard it needs is on the amount.
+ * A plain `+` — an increment is already atomic under the row lock, so the only guard it needs is on the amount.
  *
  * @returns Whether the grant applied. `false` means either no such account or an
  *   amount that is not a whole non-negative number of credits.

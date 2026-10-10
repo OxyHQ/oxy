@@ -73,21 +73,18 @@ export const signRequestSchema = z.object({
 /**
  * An Oxy account id, in EITHER of the two shapes that are live.
  *
- * This used to be `/^[a-f0-9]{24}$/i` — a MongoDB ObjectId, and nothing else.
- * Per `db/MIGRATION-CONTRACT.md` the pre-cutover ids are preserved verbatim but
- * every account created SINCE is given a **uuid v7** (`@oxy.so/db`'s
- * `generatedId()`), so that regex rejected the id of every new account. It ran
- * inside `validate({ body })`, i.e. BEFORE the handler, so `POST /federation/follow`,
- * `/actor-gone` and `/actor-delete` all answered 400 for a post-cutover account
- * without ever looking one up: a remote Follow could not be mirrored, and a dead
- * federated actor could not be archived or deleted.
+ * Older accounts keep a legacy 24-hex id; every account created since is given
+ * a **uuid v7** (`@oxy.so/db`'s `generatedId()`). A 24-hex-only regex would
+ * reject the id of every new account, and it runs inside `validate({ body })`,
+ * i.e. BEFORE the handler, so `POST /federation/follow`, `/actor-gone` and
+ * `/actor-delete` would all answer 400 without ever looking one up: a remote
+ * Follow could not be mirrored, and a dead federated actor could not be
+ * archived or deleted.
  *
- * The validation is KEPT rather than deleted — unlike the `ObjectId.isValid`
- * guards the contract retires, a 400 here is the documented answer to a
+ * The validation exists because a 400 here is the documented answer to a
  * malformed body on a service-to-service bridge, and `validate` is where this
- * route family reports one. What changes is only which strings are malformed:
- * {@link isAccountIdFormat} accepts both live shapes and is the single place
- * that knows what they are.
+ * route family reports one. {@link isAccountIdFormat} accepts both live shapes
+ * and is the single place that knows what they are.
  */
 const accountIdSchema = z.string().trim().refine(isAccountIdFormat, 'must be an Oxy account id');
 

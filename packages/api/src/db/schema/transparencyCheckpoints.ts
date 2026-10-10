@@ -21,16 +21,14 @@
  *
  * - **`snapshot[]` is a CHILD TABLE, mandatorily.** One entry per subject on the
  *   platform, per checkpoint — the largest embedded array in the codebase, and
- *   the reason `MAX_CHECKPOINT_SUBJECTS` exists at all (50 000, a hedge against
- *   Mongo's 16 MB document ceiling that Postgres simply does not have). Its
+ *   bounded by `MAX_CHECKPOINT_SUBJECTS` (50 000). Its
  *   ORDER is load-bearing: `getInclusionProof` uses the array position as the
  *   Merkle leaf index, so the ordinal is a real column and the primary key.
  * - **`signatures[]` and `anchors[]` are child tables** because they GROW after
  *   insert — witnesses co-sign asynchronously, anchors are broadcast later and
- *   then reconciled for confirmations. Appending to a Mongo array is a rewrite
- *   of the whole document; here it is an insert, and reconciliation becomes an
- *   `update ... where (checkpoint, network, txid)` instead of a positional
- *   array surgery with no key to aim at.
+ *   then reconciled for confirmations. Appending is an insert, and
+ *   reconciliation is an `update ... where (checkpoint, network, txid)` instead
+ *   of a positional array surgery with no key to aim at.
  *
  * ## The signed body is immutable, and a TRIGGER enforces it
  *
@@ -46,8 +44,9 @@
  *
  * ## `period_end` and `anchored_at` become real timestamps
  *
- * Both were `Number` (ms epoch) in Mongo. `period_end` is part of the SIGNED
- * body, so the change is only safe because a whole-millisecond value round-trips
+ * Both are ms-epoch numbers on the wire. `period_end` is part of the SIGNED
+ * body, so storing it as `timestamptz` is only safe because a whole-millisecond
+ * value round-trips
  * through `timestamptz` (microsecond resolution) exactly: the call site rebuilds
  * the identical signing input with `.getTime()`. The round-trip is pinned by a
  * real sign-store-read-verify test, not by argument.
@@ -85,8 +84,8 @@ export const transparencyCheckpoints = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // Mongo's second `{index: -1}` index does NOT travel: Postgres scans a btree
-    // backwards as cheaply as forwards, so the unique constraint already serves
+    // No descending `index` index: Postgres scans a btree backwards as cheaply
+    // as forwards, so the unique constraint already serves
     // "the latest checkpoint" and a descending duplicate would only cost writes.
     check('transparency_checkpoints_index_check', sql`${t.index} >= 0`),
     check('transparency_checkpoints_tree_size_check', sql`${t.treeSize} >= 0`),
@@ -106,8 +105,8 @@ export const transparencyCheckpointSignatures = pgTable(
       .notNull()
       .references(() => transparencyCheckpoints.id, { onDelete: 'cascade' }),
     /**
-     * Insertion order, preserved from the Mongo array because "Oxy's signature
-     * first" is how `buildCheckpoint` writes it and how the DTO reads it.
+     * Insertion order, preserved because "Oxy's signature first" is how
+     * `buildCheckpoint` writes it and how the DTO reads it.
      */
     position: integer().notNull(),
     /** The signer's secp256k1 public key. */
@@ -120,9 +119,9 @@ export const transparencyCheckpointSignatures = pgTable(
   },
   (t) => [
     uniqueIndex('transparency_checkpoint_signatures_position_key').on(t.checkpointId, t.position),
-    // One endorsement per signer. A Mongo array could hold the same witness
-    // twice and inflate the apparent co-signature count, which is the only
-    // number a reader uses to judge how well-witnessed a root is.
+    // One endorsement per signer. The same witness twice would inflate the
+    // apparent co-signature count, which is the only number a reader uses to
+    // judge how well-witnessed a root is.
     uniqueIndex('transparency_checkpoint_signatures_signer_key').on(t.checkpointId, t.publicKey),
     check(
       'transparency_checkpoint_signatures_alg_check',
@@ -157,8 +156,8 @@ export const transparencyCheckpointAnchors = pgTable(
   },
   (t) => [
     // The key reconciliation aims at: one row per (network, txid), UPDATED as
-    // confirmations accrue. Mongo had no key here, so a re-broadcast reconcile
-    // could append a second row for the same transaction and double-count it.
+    // confirmations accrue. Without this key a re-broadcast reconcile could
+    // append a second row for the same transaction and double-count it.
     uniqueIndex('transparency_checkpoint_anchors_txid_key').on(t.checkpointId, t.network, t.txid),
     check('transparency_checkpoint_anchors_confirmations_check', sql`${t.confirmations} >= 0`),
   ],

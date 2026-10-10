@@ -143,7 +143,7 @@ export interface AccountMember {
  * `childCount` reflects the number of direct children.
  */
 export interface AccountNode {
-  /** The account's Mongo `_id` (the underlying `User._id`). */
+  /** The account's user id. */
   accountId: string;
   kind: AccountKind;
   /** Parent account `_id`, or `null` for a root (personal) account. */

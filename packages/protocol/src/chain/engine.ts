@@ -9,7 +9,7 @@
  * engine owns the verification + ordering policy.
  *
  * Storage and identity are both injected, so the engine has zero knowledge of
- * Mongo/SQLite, Oxy DIDs, or any app's lexicon — exactly what makes it reusable.
+ * the database, Oxy DIDs, or any app's lexicon — exactly what makes it reusable.
  */
 
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';

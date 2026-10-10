@@ -3,8 +3,8 @@ import { COMMONS_DENY_REASONS, commonsDenyReasonSchema } from '../index';
 /**
  * The closed denial set for `POST /auth/session/deny/:authorizeCode`.
  *
- * It is enforced in three places — the API request schema, the Mongoose `enum`
- * of `AuthSession.deniedReason`, and the SDK's `denyCommonsSignIn` parameter —
+ * It is enforced in three places — the API request schema, the `enum` of the
+ * `auth_sessions.denied_reason` column, and the SDK's `denyCommonsSignIn` parameter —
  * and all three read THIS declaration. The endpoint is unauthenticated, so the
  * set widening by accident is not a cosmetic problem: it would let an
  * unauthenticated caller write arbitrary text onto a record other surfaces read.

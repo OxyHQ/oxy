@@ -218,7 +218,7 @@ describe('listMailboxes — the counters that replaced the dropped columns', () 
 
   it('backfills a default folder a user is missing, without re-provisioning', async () => {
     // `provisionMailboxes` short-circuits the moment the user owns ANY mailbox
-    // — the same guard Mongo had — so a user who created a folder before a new
+    // — so a user who created a folder before a new
     // default was introduced would never get it. `ensureMailboxes` is the path
     // that syncs the gap, and it is the one every route calls.
     const userId = await owner();

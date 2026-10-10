@@ -360,9 +360,8 @@ describe('signed_records — the chain constraints', () => {
   });
 
   it('still admits every v1 row, which has no seq at all', async () => {
-    // The Mongo index was PARTIAL only to dodge "missing field reads as null".
-    // Postgres treats NULLs as distinct, so the plain UNIQUE keeps that
-    // behaviour — and this is the case that would break if someone "tidied" the
+    // v1 rows have no seq. Postgres treats NULLs as distinct, so the plain
+    // UNIQUE admits them all — and this is the case that would break if someone "tidied" the
     // column to NOT NULL DEFAULT 0.
     const userId = await owner();
     const subject = `did:web:oxy.so:u:${userId}`;
@@ -515,8 +514,8 @@ describe('repo_heads — the O(1) head pointer', () => {
   });
 
   it('advances in the same transaction as the append, and rolls both back together', async () => {
-    // The fork the Mongo `withTransaction` session-less fallback could produce:
-    // a head advanced past a record that was never stored. Here the pair is
+    // The fork a non-atomic append could produce: a head advanced past a
+    // record that was never stored. Here the pair is
     // atomic for real, so a failure anywhere leaves the head where it was.
     const userId = await owner();
     const subject = `did:web:oxy.so:u:${userId}`;

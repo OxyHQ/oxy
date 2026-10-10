@@ -10,8 +10,8 @@
  * that motivated the contract.
  *
  * The load-bearing assertion is that `name.full` and `name.displayName` are
- * composed from a REAL name (first-only included) even when the source document
- * was loaded WITHOUT Mongoose virtuals (a `.lean()` query). When the user has no
+ * composed from a REAL name (first-only included) even when the source carries
+ * only the stored name fields. When the user has no
  * real name (username-only / publicKey-only) `name.displayName` is OMITTED and
  * the client falls back to the handle.
  */

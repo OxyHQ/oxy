@@ -1,9 +1,8 @@
 /**
  * Thread stitching, against a REAL Postgres.
  *
- * Mongo fetched every message adjacent to the union of a page's Message-ID
- * tokens and then resolved siblings per page message IN JS — one hop. The port
- * walks the same adjacency transitively with `WITH RECURSIVE`, and three things
+ * The thread walk follows Message-ID adjacency transitively with
+ * `WITH RECURSIVE` — not one hop — and three things
  * about that walk are load-bearing and could each be wrong while looking right:
  *
  *   1. **It is transitive.** A one-hop walk passes every test built from a
@@ -97,7 +96,7 @@ afterAll(async () => {
 describe('listMessages — the thread walk is transitive', () => {
   it('counts a message two hops away that shares no reference with the anchor', async () => {
     // A —(R1)— B —(R2)— C. A and C share NOTHING: the only path between them
-    // runs through B. Mongo's one-hop resolution counted A's thread as two;
+    // runs through B. A one-hop resolution would count A's thread as two;
     // the recursive walk counts three. Deleting the recursive term of the CTE
     // — or replacing the `join` with a second seed scan — makes this go red.
     const userId = await owner();
@@ -212,7 +211,7 @@ describe('listMessages — the thread walk is transitive', () => {
 
   it('leaves a lone message with threading headers uncounted', async () => {
     // A message is always in its own component, so the count is never zero —
-    // the rule is "more than one", exactly as Mongo's `siblings.length > 1`.
+    // the rule is "more than one".
     const userId = await owner();
     const mailboxId = await inbox(userId);
     const lonely = await store(userId, mailboxId, {

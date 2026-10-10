@@ -3,32 +3,18 @@
  *
  * Ported from `models/Bundle.ts`.
  *
- * ## The uniqueness is case-INSENSITIVE, which Mongo's was not
+ * ## The uniqueness is case-INSENSITIVE
  *
- * Three sibling models name the same kind of thing — a user-created container
- * shown in one list in mail settings — and Mongo spelled the same constraint
- * two different ways:
+ * Three sibling tables name the same kind of thing — a user-created container
+ * shown in one list in mail settings — and all three are unique per user on
+ * `lower(name)`: `labels`, `email_templates` and this one. Nothing in the
+ * product treats a bundle name as case-sensitive, and the UI renders the three
+ * lists identically, so a user cannot hold bundles `Promotions` and
+ * `promotions`.
  *
- * | Model | Mongo index |
- * |---|---|
- * | `Label` | `{userId, name}` unique, `collation: {locale:'en', strength:2}` |
- * | `EmailTemplate` | `{userId, name}` unique, `collation: {locale:'en', strength:2}` |
- * | `Bundle` | `{userId, name}` unique, **no collation** |
- *
- * So today a user may hold bundles `Promotions` and `promotions`, but not two
- * labels or two templates that differ only by case. That is an omission, not a
- * decision: nothing in the product treats a bundle name as case-sensitive, and
- * the UI renders the three lists identically. Replicating it would carry a
- * two-year-old typo into a schema designed from scratch.
- *
- * So this joins the other two on `lower(name)`, and every lookup must be
- * written `where user_id = $1 and lower(name) = lower($2)`.
- *
- * BACKFILL CONSEQUENCE, stated plainly: if a production user holds two bundles
- * differing only by case, the backfill FAILS on this index and names them. That
- * is the correct outcome and the same one `CONVENTIONS.md` already accepted for
- * `users.username` — the alternative is silently keeping a pair the product
- * cannot tell apart.
+ * Every lookup must be written `where user_id = $1 and lower(name) = lower($2)`.
+ * A write of a second bundle differing only by case fails on this index — the
+ * alternative is silently keeping a pair the product cannot tell apart.
  */
 
 import { sql } from 'drizzle-orm';
@@ -55,8 +41,7 @@ export const bundles = pgTable(
     /**
      * Label NAMES this bundle collects — the same string space as
      * `messages.labels`, which is what makes the match a plain array overlap.
-     * Mongo defaulted to `[]`, so this is NOT NULL with an empty default rather
-     * than nullable.
+     * NOT NULL with an empty default rather than nullable.
      */
     matchLabels: text().array().notNull().default([]),
     enabled: boolean().notNull().default(true),
@@ -66,8 +51,8 @@ export const bundles = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  // Mongo also declared a standalone `{userId}`; dropped, since this index
-  // leads with `user_id`. No index backs the `order` sort: a user holds a
-  // handful of bundles and sorting them is free.
+  // No standalone `(user_id)` index, since this index leads with `user_id`. No
+  // index backs the `order` sort: a user holds a handful of bundles and sorting
+  // them is free.
   (t) => [uniqueIndex('bundles_user_id_lower_name_key').on(t.userId, sql`lower(${t.name})`)],
 );
