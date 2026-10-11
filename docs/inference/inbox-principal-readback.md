@@ -6,6 +6,13 @@ effective `inference:invoke`, and that the application's owner account has
 granted USD credit left after every reserve. It is step 5 of the
 [Inbox production bootstrap](inbox-point-inference.md#production-bootstrap).
 
+It proves the KEY-PAIR path only. Once oxy-api acts as Inbox through its task
+role's workload binding (ADR 0026, see
+[Identity](inbox-point-inference.md#identity)) the live task definition no
+longer binds `INBOX_APPLICATION_KEY`, and the isolated task builder refuses —
+it requires that exact live binding. Read the workload binding back with
+`bind-workload-identity.ts --app-id 6a37b3e61ddfd195b656819b --list` instead.
+
 | Piece | Path |
 |---|---|
 | Command | `packages/api/scripts/readback-inbox-principal.ts` |

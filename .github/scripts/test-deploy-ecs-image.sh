@@ -1093,8 +1093,17 @@ if grep -F 'ecs-default-config' "$workflow_file" >/dev/null; then
   exit 1
 fi
 grep -F 'TASK_REMOVE_NAMES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION"]' \
+grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION","INBOX_APPLICATION_KEY","INBOX_APPLICATION_SECRET"]' \
   "$workflow_file" >/dev/null
+# ADR 0026: oxy-api acts as Oxy Inbox through its task role's workload binding.
+# The retired key pair is removed above and must be neither re-asserted nor
+# required to exist in SSM by the deploy.
+if grep -F '"INBOX_APPLICATION_KEY":' "$workflow_file" >/dev/null ||
+  grep -F '"INBOX_APPLICATION_SECRET":' "$workflow_file" >/dev/null ||
+  grep -F '/oxy/inbox/' "$workflow_file" >/dev/null; then
+  echo "deploy-aws.yml must not bind or require the retired Inbox key pair" >&2
+  exit 1
+fi
 # Historical removal receipt only: the exact list above deletes the old
 # inference bindings. Their presence there does not make them accepted aliases
 # or active configuration.

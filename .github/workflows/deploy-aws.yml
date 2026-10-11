@@ -117,17 +117,6 @@ jobs:
       # deploy; that made GitHub the source of truth for production credentials
       # and is gone. scripts/check-deploy-secrets-sync.mjs refuses its return.
 
-      - name: Verify Inbox service credential bindings
-        if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.issuer_image_only || inputs.quiesced_deploy_plan != '')) }}
-        run: |
-          set -euo pipefail
-          for parameter in OXY_APPLICATION_KEY OXY_APPLICATION_SECRET; do
-            aws ssm get-parameter \
-              --name "/oxy/inbox/$parameter" \
-              --query 'Parameter.Name' \
-              --output text >/dev/null
-          done
-
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -351,8 +340,17 @@ jobs:
           # of the word relay remain untouched. The two Instagram Graph names are
           # the retired fallback switch and version knob (#1253): the fallback now
           # runs whenever its credentials are bound and pins its version in code.
+          # INBOX_APPLICATION_KEY/SECRET are the Oxy Inbox key pair, retired by
+          # ADR 0026: oxy-api acts as Inbox through its task role's workload
+          # binding (`oxy-oxy-api-task` -> 6a37b3e61ddfd195b656819b), which MUST
+          # exist, naming every scope the pair's credential named, BEFORE the
+          # first deploy that removes them. If it does not, the post-deploy Inbox
+          # catalog registration below attests as this role, cannot mint
+          # `catalogs:write`, fails, and the rollout rolls back to the revision
+          # that still carries the pair. The SSM parameters stay until that
+          # binding has been proven in production.
           TASK_REMOVE_NAMES_JSON: >-
-            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION"]
+            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION","INBOX_APPLICATION_KEY","INBOX_APPLICATION_SECRET"]
           # The service-token JWKS (ADR 0012), then the Inbox MCP checks.
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-oxy-api.sh
           # The deploy script renders from the task definition the service is
@@ -370,7 +368,7 @@ jobs:
           # unable to pull secrets`), so a NEW name is written to SSM first and
           # bound here second (oxy-infra docs/runbooks/46-app-secrets-in-ssm.md).
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL","META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN","META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"}
+            {"SERVICE_TOKEN_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_PRIVATE_KEY","SERVICE_TOKEN_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/SERVICE_TOKEN_SIGNING_KEY_ID","CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY","QUEUE_REDIS_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/_shared/QUEUE_REDIS_URL","META_GRAPH_ACCESS_TOKEN":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN","META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
